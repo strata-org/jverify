@@ -10,40 +10,48 @@ import org.jsonschema2pojo.*;
 import org.jsonschema2pojo.rules.Rule;
 import org.jsonschema2pojo.rules.RuleFactory;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class Main {
 
     public static void main(String[] args) throws IOException {
-        var javaClass = new CSharpToJavaGenerator().generateFromFile(cSharpExample);
-        Files.write(Path.of("/Users/rwillems/SourceCode/GradleBased/out/fromC#.java"), new CSharpToJavaGenerator().generateJavaFile(javaClass).getBytes());
 
-        var p = new Caddition(3, new Citeral(1, 3), new Citeral(2, 2));
-        ObjectMapper mapper2 = new ObjectMapper();
-        var output = mapper2.writeValueAsString(p);
+        var bufferedWriter = Files.newBufferedWriter(Paths.get("/Users/rwillems/SourceCode/GradleBased/out/ast.java"));
+        String input = Files.readString(Path.of("/Users/rwillems/SourceCode/dafny/Source/Scripts/bin/Debug/net8.0/parsedAst.cs"));
+        CSharpToJavaConverter.writeJava(input, bufferedWriter);
 
-
-        JCodeModel codeModel = new JCodeModel();
-
-        URL source = new URL("file:/Users/rwillems/SourceCode/dafny/Source/Scripts/bin/Debug/net8.0/out.C.jschema");
-
-        GenerationConfig config = new DefaultGenerationConfig() {
-            @Override
-            public boolean isGenerateBuilders() { // set config option by overriding method
-                return true;
-            }
-        };
-
-        SchemaMapper mapper = new SchemaMapper(new RuleFactory2(config, new Jackson2Annotator(config), new SchemaStore()), new SchemaGenerator());
-        mapper.generate(codeModel, "ClassName", "com.example", source);
-
-        Path required = Path.of("/Users/rwillems/SourceCode/GradleBased/out");
-        codeModel.build(required.toFile());
-
-        System.out.println("Hello world! " + required);
+        // var javaClass = new CSharpToJavaGenerator().generateFromFile(cSharpExample);
+//        Files.write(Path.of("/Users/rwillems/SourceCode/GradleBased/out/fromC#.java"), new CSharpToJavaGenerator().generateJavaFile(javaClass).getBytes());
+//
+//        var p = new Caddition(3, new Citeral(1, 3), new Citeral(2, 2));
+//        ObjectMapper mapper2 = new ObjectMapper();
+//        var output = mapper2.writeValueAsString(p);
+//
+//
+//        JCodeModel codeModel = new JCodeModel();
+//
+//        URL source = new URL("file:/Users/rwillems/SourceCode/dafny/Source/Scripts/bin/Debug/net8.0/out.C.jschema");
+//
+//        GenerationConfig config = new DefaultGenerationConfig() {
+//            @Override
+//            public boolean isGenerateBuilders() { // set config option by overriding method
+//                return true;
+//            }
+//        };
+//
+//        SchemaMapper mapper = new SchemaMapper(new RuleFactory2(config, new Jackson2Annotator(config), new SchemaStore()), new SchemaGenerator());
+//        mapper.generate(codeModel, "ClassName", "com.example", source);
+//
+//        Path required = Path.of("/Users/rwillems/SourceCode/GradleBased/out");
+//        codeModel.build(required.toFile());
+//
+//        System.out.println("Hello world! " + required);
     }
 
     final static String cSharpExample = """
