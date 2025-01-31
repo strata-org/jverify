@@ -22,10 +22,18 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
 
-        var bufferedWriter = Files.newBufferedWriter(Paths.get("/Users/rwillems/SourceCode/GradleBased/out/ast.java"));
         String input = Files.readString(Path.of("/Users/rwillems/SourceCode/dafny/Source/Scripts/bin/Debug/net8.0/parsedAst.cs"));
-        CSharpToJavaConverter.writeJava(input, bufferedWriter);
+        CSharpToJavaConverter.writeJava(input, Paths.get("/Users/rwillems/SourceCode/GradleBased/src/main/java/org/example/generated"));
+
 
     }
+
+//    import JSpec.*;
+//
+//    class Empty {
+//        static void Foo() {
+//            assert(false);
+//        }
+//    }
 }
 

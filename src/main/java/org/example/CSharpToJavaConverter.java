@@ -4,25 +4,105 @@ import com.squareup.javapoet.*;
 
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.*;
 import java.util.stream.Collectors;
 
 public class CSharpToJavaConverter {
+    static class CSharpEnum {
+        String enumName;
+        List<String> values;
+
+        public CSharpEnum(String enumName) {
+            this.enumName = enumName;
+            this.values = new ArrayList<>();
+        }
+    }
+
+    // Add this method to parse enums
+    public static List<CSharpEnum> parseCSharpEnums(String csharpCode) {
+        List<CSharpEnum> enums = new ArrayList<>();
+
+        // Pattern for enum declaration: "enum EnumName { Value1, Value2, Value3 }"
+        Pattern enumPattern = Pattern.compile(
+                "enum\\s+(\\w+)\\s*\\{([^}]*)\\}",
+                Pattern.MULTILINE
+        );
+        Matcher enumMatcher = enumPattern.matcher(csharpCode);
+
+        while (enumMatcher.find()) {
+            String enumName = enumMatcher.group(1);
+            String enumBody = enumMatcher.group(2);
+
+            CSharpEnum csharpEnum = new CSharpEnum(enumName);
+
+            // Split enum values and trim whitespace
+            String[] values = enumBody.split(",");
+            for (String value : values) {
+                String trimmedValue = value.trim();
+                if (!trimmedValue.isEmpty()) {
+                    csharpEnum.values.add(trimmedValue);
+                }
+            }
+
+            enums.add(csharpEnum);
+        }
+
+        return enums;
+    }
+
+    // Add this method to generate Java enum
+    public static JavaFile generateJavaEnum(CSharpEnum csharpEnum) {
+        TypeSpec.Builder enumBuilder = TypeSpec.enumBuilder(csharpEnum.enumName)
+                .addModifiers(Modifier.PUBLIC);
+
+        // Add enum constants
+        for (String value : csharpEnum.values) {
+            enumBuilder.addEnumConstant(value);
+        }
+
+        return JavaFile.builder("", enumBuilder.build())
+                .addFileComment("Generated from C# enum")
+                .build();
+    }
+
     // Simple class to hold C# class information
     static class CSharpClass {
         String className;
         String parentClass;
         List<CSharpField> fields;
+        CSharpClass parentClassRef;
+        List<TypeParameter> typeParameters;  // Generic type parameters
 
         public CSharpClass(String className, String parentClass) {
             this.className = className;
             this.parentClass = parentClass;
             this.fields = new ArrayList<>();
+            this.parentClassRef = null;
+            this.typeParameters = new ArrayList<>();
+        }
+
+        public List<CSharpField> getAllFields() {
+            List<CSharpField> allFields = new ArrayList<>();
+            if (parentClassRef != null) {
+                allFields.addAll(parentClassRef.getAllFields());
+            }
+            allFields.addAll(fields);
+            return allFields;
         }
     }
 
-    // In CSharpToJavaConverter class:
+    static class TypeParameter {
+        String name;
+        String constraint;  // The type constraint (e.g., "Node" in "T : Node")
+
+        public TypeParameter(String name, String constraint) {
+            this.name = name;
+            this.constraint = constraint;
+        }
+    }
 
     static class CSharpField {
         String type;
@@ -40,22 +120,48 @@ public class CSharpToJavaConverter {
 
     public static List<CSharpClass> parseCSharpClasses(String csharpCode) {
         List<CSharpClass> classes = new ArrayList<>();
+        Map<String, CSharpClass> classMap = new HashMap<>();
 
-        // Pattern for class declaration with body: "public class ClassName : ParentClass { ... }"
+        // Updated pattern for class declaration with generics and constraints
+        // Example: "class Specification<T> : NodeWithComputedRange where T : Node"
         Pattern classWithBodyPattern = Pattern.compile(
-                "class\\s+(\\w+)\\s*(?::\\s*(\\w+))?\\s*\\{([^}]*)}",
+                "class\\s+(\\w+)\\s*(?:<([^>]+)>)?\\s*(?::\\s*(\\w+))?\\s*(?:where\\s+([^{]+))?\\s*\\{([^}]*)}",
                 Pattern.MULTILINE | Pattern.DOTALL
         );
         Matcher classWithBodyMatcher = classWithBodyPattern.matcher(csharpCode);
 
         while (classWithBodyMatcher.find()) {
             String className = classWithBodyMatcher.group(1);
-            String parentClass = classWithBodyMatcher.group(2); // May be null
-            String classBody = classWithBodyMatcher.group(3);
+            String typeParams = classWithBodyMatcher.group(2);  // Type parameters (e.g., "T")
+            String parentClass = classWithBodyMatcher.group(3); // Parent class
+            String constraints = classWithBodyMatcher.group(4); // Type constraints
+            String classBody = classWithBodyMatcher.group(5);
 
             CSharpClass csharpClass = new CSharpClass(className, parentClass);
 
-            // Updated pattern for fields including generic types: "List<Type> fieldName;" or "Type fieldName;"
+            // Parse type parameters and constraints
+            if (typeParams != null) {
+                String[] params = typeParams.split(",");
+                for (String param : params) {
+                    String paramName = param.trim();
+                    String constraint = null;
+
+                    // Find matching constraint if it exists
+                    if (constraints != null) {
+                        Pattern constraintPattern = Pattern.compile(
+                                paramName + "\\s*:\\s*(\\w+)"
+                        );
+                        Matcher constraintMatcher = constraintPattern.matcher(constraints);
+                        if (constraintMatcher.find()) {
+                            constraint = constraintMatcher.group(1);
+                        }
+                    }
+
+                    csharpClass.typeParameters.add(new TypeParameter(paramName, constraint));
+                }
+            }
+
+            // Parse fields
             Pattern fieldPattern = Pattern.compile(
                     "\\s+(\\w+)(?:<([\\w,\\s]+)>)?\\s+(\\w+)\\s*;"
             );
@@ -78,16 +184,34 @@ public class CSharpToJavaConverter {
             }
 
             classes.add(csharpClass);
+            classMap.put(className, csharpClass);
         }
 
-        if (classes.isEmpty()) {
-            throw new IllegalArgumentException("No valid C# class declarations found");
+        // Link parent classes
+        for (CSharpClass csharpClass : classes) {
+            if (csharpClass.parentClass != null) {
+                csharpClass.parentClassRef = classMap.get(csharpClass.parentClass);
+            }
         }
 
         return classes;
     }
 
-    private static TypeName convertCSharpTypeToJavaType(CSharpField field) {
+    private static TypeName convertCSharpTypeToJavaType(CSharpField field, List<TypeParameter> typeParameters) {
+        // Check if the type is a type parameter
+        Optional<TypeParameter> typeParam = typeParameters.stream()
+                .filter(tp -> tp.name.equals(field.type))
+                .findFirst();
+
+        if (typeParam.isPresent()) {
+            // If it's a type parameter with a constraint, return the bounded type
+            if (typeParam.get().constraint != null) {
+                return WildcardTypeName.subtypeOf(ClassName.get("", typeParam.get().constraint));
+            }
+            // If it's an unbounded type parameter, return it as is
+            return TypeVariableName.get(field.type);
+        }
+
         String baseType = convertCSharpTypeToJava(field.type);
 
         if (!field.isGeneric) {
@@ -97,53 +221,80 @@ public class CSharpToJavaConverter {
         // Handle generic types
         ClassName rawType = ClassName.get("java.util", baseType);
         List<TypeName> typeArguments = field.genericTypes.stream()
-                .map(type -> ClassName.get("", convertCSharpTypeToJava(type)))
+                .map(type -> {
+                    // Check if the generic argument is a type parameter
+                    Optional<TypeParameter> genericTypeParam = typeParameters.stream()
+                            .filter(tp -> tp.name.equals(type))
+                            .findFirst();
+
+                    if (genericTypeParam.isPresent()) {
+                        return TypeVariableName.get(type);
+                    }
+                    return ClassName.get("", convertCSharpTypeToJava(type));
+                })
                 .collect(Collectors.toList());
 
         return ParameterizedTypeName.get(rawType, typeArguments.toArray(new TypeName[0]));
     }
 
     public static JavaFile generateJavaClass(CSharpClass csharpClass) {
-        // Start building the class
+        // Start building the class with type parameters
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(csharpClass.className)
                 .addModifiers(Modifier.PUBLIC);
+
+        // Add type parameters with bounds
+        for (TypeParameter typeParam : csharpClass.typeParameters) {
+            TypeVariableName typeVariable = TypeVariableName.get(
+                    typeParam.name,
+                    typeParam.constraint != null
+                            ? ClassName.get("", typeParam.constraint)
+                            : TypeName.OBJECT
+            );
+            classBuilder.addTypeVariable(typeVariable);
+        }
 
         // Add parent class if exists
         if (csharpClass.parentClass != null) {
             classBuilder.superclass(ClassName.get("", csharpClass.parentClass));
         }
 
-        // Add fields
-        for (CSharpField field : csharpClass.fields) {
+        // Prepare constructor
+        MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PUBLIC);
+
+        // Get all fields including inherited ones
+        List<CSharpField> allFields = csharpClass.getAllFields();
+
+        // Add fields and prepare constructor parameters
+        for (CSharpField field : allFields) {
             int iteration = 0;
             for(;iteration < 5;iteration++) {
                 var newName = field.name + (iteration == 0 ? "" : iteration);
                 try {
-                    // Use the new type conversion method
-                    TypeName fieldType = convertCSharpTypeToJavaType(field);
+                    TypeName fieldType = convertCSharpTypeToJavaType(field, csharpClass.typeParameters);
 
-                    FieldSpec fieldSpec = FieldSpec.builder(
-                                    fieldType,
-                                    newName,
-                                    Modifier.PRIVATE)
-                            .build();
-                    classBuilder.addField(fieldSpec);
+                    // Only add field if it's from this class (not inherited)
+                    if (csharpClass.fields.contains(field)) {
+                        FieldSpec fieldSpec = FieldSpec.builder(
+                                        fieldType,
+                                        newName,
+                                        Modifier.PRIVATE, Modifier.FINAL)
+                                .build();
+                        classBuilder.addField(fieldSpec);
+                    }
 
-                    // Add getter with generic type
-                    MethodSpec getter = MethodSpec.methodBuilder("get" + capitalize(newName))
-                            .addModifiers(Modifier.PUBLIC)
-                            .returns(fieldType)
-                            .addStatement("return this.$N", newName)
-                            .build();
-                    classBuilder.addMethod(getter);
+                    // Add parameter to constructor
+                    constructorBuilder.addParameter(fieldType, newName);
 
-                    // Add setter with generic type
-                    MethodSpec setter = MethodSpec.methodBuilder("set" + capitalize(newName))
-                            .addModifiers(Modifier.PUBLIC)
-                            .addParameter(fieldType, newName)
-                            .addStatement("this.$N = $N", newName, newName)
-                            .build();
-                    classBuilder.addMethod(setter);
+                    // Add getter only for fields from this class
+                    if (csharpClass.fields.contains(field)) {
+                        MethodSpec getter = MethodSpec.methodBuilder("get" + capitalize(newName))
+                                .addModifiers(Modifier.PUBLIC)
+                                .returns(fieldType)
+                                .addStatement("return this.$N", newName)
+                                .build();
+                        classBuilder.addMethod(getter);
+                    }
                     break;
                 } catch(IllegalArgumentException _) {
                 }
@@ -153,22 +304,56 @@ public class CSharpToJavaConverter {
             }
         }
 
+        // Add super() call if there's a parent class
+        if (csharpClass.parentClassRef != null) {
+            List<CSharpField> parentFields = csharpClass.parentClassRef.getAllFields();
+            StringBuilder superCall = new StringBuilder("super(");
+            for (int i = 0; i < parentFields.size(); i++) {
+                if (i > 0) superCall.append(", ");
+                var safeName = protectName(parentFields.get(i).name);
+                superCall.append(safeName);
+            }
+            superCall.append(")");
+            constructorBuilder.addStatement(superCall.toString());
+        }
+
+        // Add field initializations
+        for (CSharpField field : csharpClass.fields) {
+            String safeName = protectName(field.name);
+            constructorBuilder.addStatement("this.$N = $N", safeName, safeName);
+        }
+
+        // Add constructor to class
+        classBuilder.addMethod(constructorBuilder.build());
+
         // Build the Java file
         return JavaFile.builder("", classBuilder.build())
                 .addFileComment("Generated from C# class")
                 .build();
     }
 
+    static Set<String> keywords = Set.of("implements", "extends");
+    private static String protectName(String name) {
+        if (keywords.contains(name)) {
+            return name + "1";
+        } else {
+            return name;
+        }
+    }
+
     private static String convertCSharpTypeToJava(String csharpType) {
-        // Add more type conversions as needed
         Map<String, String> typeMap = new HashMap<>();
         typeMap.put("string", "String");
         typeMap.put("int", "int");
         typeMap.put("bool", "boolean");
+        typeMap.put("Int32", "int");
         typeMap.put("double", "double");
-        typeMap.put("List", "List");  // Keep List as is
-        typeMap.put("ModuleDefinition", "ModuleDefinition");  // Preserve custom types
-        typeMap.put("TopLevelDecl", "TopLevelDecl");  // Add custom type
+        typeMap.put("List", "List");
+        typeMap.put("ModuleDefinition", "ModuleDefinition");
+        typeMap.put("TopLevelDecl", "TopLevelDecl");
+        typeMap.put("Node", "Node");
+        typeMap.put("NodeWithComputedRange", "NodeWithComputedRange");
+        typeMap.put("Attributes", "Attributes");
 
         return typeMap.getOrDefault(csharpType, csharpType);
     }
@@ -180,15 +365,29 @@ public class CSharpToJavaConverter {
         return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
 
-    public static void writeJava(String cSharpCode, Appendable out) throws IOException {
+    public static void writeJava(String cSharpCode, Path outputDirectory) throws IOException {
 
         // Parse C# class
         List<CSharpClass> csharpClasses = parseCSharpClasses(cSharpCode);
+        List<CSharpEnum> csharpEnums = parseCSharpEnums(cSharpCode);
+        for (CSharpEnum cSharpEnum : csharpEnums) {
+            JavaFile javaFile = generateJavaEnum(cSharpEnum);
+            Path d = outputDirectory.resolve(cSharpEnum.enumName + ".java");
+            var filePath = Files.newBufferedWriter(d);
+            filePath.append("package org.example.generated;\n");
+            filePath.append("\n// Generated ").append(cSharpEnum.enumName).append(".java:\n");
+            javaFile.writeTo(filePath);
+            filePath.close();
+        }
 
         for (CSharpClass csharpClass : csharpClasses) {
             JavaFile javaFile = generateJavaClass(csharpClass);
-            out.append("\n// Generated ").append(csharpClass.className).append(".java:\n");
-            javaFile.writeTo(out);
+            Path d = outputDirectory.resolve(csharpClass.className + ".java");
+            var filePath = Files.newBufferedWriter(d);
+            filePath.append("package org.example.generated;\n");
+            filePath.append("\n// Generated ").append(csharpClass.className).append(".java:\n");
+            javaFile.writeTo(filePath);
+            filePath.close();
         }
     }
 }
