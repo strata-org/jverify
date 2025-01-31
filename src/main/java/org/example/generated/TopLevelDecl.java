@@ -7,9 +7,9 @@ import java.util.List;
 public class TopLevelDecl extends Declaration {
   private final List<TypeParameter> typeArgs;
 
-  public TopLevelDecl(SourceOrigin origin, Name name, Attributes attributes, Boolean isRefining,
+  public TopLevelDecl(SourceOrigin origin, Name name, Attributes attributes,
       List<TypeParameter> typeArgs) {
-    super(origin, name, attributes, isRefining);
+    super(origin, name, attributes);
     this.typeArgs = typeArgs;
   }
 

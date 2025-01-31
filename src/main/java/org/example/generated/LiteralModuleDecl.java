@@ -8,9 +8,8 @@ public class LiteralModuleDecl extends ModuleDecl {
   private final ModuleDefinition moduleDef;
 
   public LiteralModuleDecl(SourceOrigin origin, Name name, Attributes attributes,
-      Boolean isRefining, List<TypeParameter> typeArgs, Boolean opened, String cloneId,
-      ModuleDefinition moduleDef) {
-    super(origin, name, attributes, isRefining, typeArgs, opened, cloneId);
+      List<TypeParameter> typeArgs, String cloneId, ModuleDefinition moduleDef) {
+    super(origin, name, attributes, typeArgs, cloneId);
     this.moduleDef = moduleDef;
   }
 

@@ -11,6 +11,14 @@ import java.util.regex.*;
 import java.util.stream.Collectors;
 
 public class CSharpToJavaConverter {
+    Set<String> foundTypes = new HashSet<String>();
+
+    public CSharpToJavaConverter(String packageName) {
+        this.packageName = packageName;
+    }
+
+    String packageName;
+
     static class CSharpEnum {
         String enumName;
         List<String> values;
@@ -118,7 +126,7 @@ public class CSharpToJavaConverter {
         }
     }
 
-    public static List<CSharpClass> parseCSharpClasses(String csharpCode) {
+    public List<CSharpClass> parseCSharpClasses(String csharpCode) {
         List<CSharpClass> classes = new ArrayList<>();
         Map<String, CSharpClass> classMap = new HashMap<>();
 
@@ -184,6 +192,7 @@ public class CSharpToJavaConverter {
             }
 
             classes.add(csharpClass);
+            foundTypes.add(csharpClass.className);
             classMap.put(className, csharpClass);
         }
 
@@ -197,7 +206,7 @@ public class CSharpToJavaConverter {
         return classes;
     }
 
-    private static TypeName convertCSharpTypeToJavaType(CSharpField field, List<TypeParameter> typeParameters) {
+    private TypeName convertCSharpTypeToJavaType(CSharpField field, List<TypeParameter> typeParameters) {
         // Check if the type is a type parameter
         Optional<TypeParameter> typeParam = typeParameters.stream()
                 .filter(tp -> tp.name.equals(field.type))
@@ -219,7 +228,9 @@ public class CSharpToJavaConverter {
         }
 
         // Handle generic types
-        ClassName rawType = ClassName.get("java.util", baseType);
+        ClassName rawType = foundTypes.contains(baseType)
+                ? ClassName.get(packageName, baseType)
+                : ClassName.get("java.util", baseType);
         List<TypeName> typeArguments = field.genericTypes.stream()
                 .map(type -> {
                     // Check if the generic argument is a type parameter
@@ -237,7 +248,7 @@ public class CSharpToJavaConverter {
         return ParameterizedTypeName.get(rawType, typeArguments.toArray(new TypeName[0]));
     }
 
-    public static JavaFile generateJavaClass(CSharpClass csharpClass) {
+    public JavaFile generateJavaClass(CSharpClass csharpClass) {
         // Start building the class with type parameters
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(csharpClass.className)
                 .addModifiers(Modifier.PUBLIC);
@@ -365,7 +376,7 @@ public class CSharpToJavaConverter {
         return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
 
-    public static void writeJava(String cSharpCode, Path outputDirectory) throws IOException {
+    public void writeJava(String cSharpCode, Path outputDirectory) throws IOException {
 
         // Parse C# class
         List<CSharpClass> csharpClasses = parseCSharpClasses(cSharpCode);
@@ -374,17 +385,16 @@ public class CSharpToJavaConverter {
             JavaFile javaFile = generateJavaEnum(cSharpEnum);
             Path d = outputDirectory.resolve(cSharpEnum.enumName + ".java");
             var filePath = Files.newBufferedWriter(d);
-            filePath.append("package org.example.generated;\n");
+            filePath.append(String.format("package %s;\n", packageName));
             filePath.append("\n// Generated ").append(cSharpEnum.enumName).append(".java:\n");
             javaFile.writeTo(filePath);
             filePath.close();
         }
-
         for (CSharpClass csharpClass : csharpClasses) {
             JavaFile javaFile = generateJavaClass(csharpClass);
             Path d = outputDirectory.resolve(csharpClass.className + ".java");
             var filePath = Files.newBufferedWriter(d);
-            filePath.append("package org.example.generated;\n");
+            filePath.append(String.format("package %s;\n", packageName));
             filePath.append("\n// Generated ").append(csharpClass.className).append(".java:\n");
             javaFile.writeTo(filePath);
             filePath.close();

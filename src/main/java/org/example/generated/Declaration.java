@@ -7,13 +7,10 @@ public class Declaration extends RangeNode {
 
   private final Attributes attributes;
 
-  private final Boolean isRefining;
-
-  public Declaration(SourceOrigin origin, Name name, Attributes attributes, Boolean isRefining) {
+  public Declaration(SourceOrigin origin, Name name, Attributes attributes) {
     super(origin);
     this.name = name;
     this.attributes = attributes;
-    this.isRefining = isRefining;
   }
 
   public Name getName() {
@@ -22,9 +19,5 @@ public class Declaration extends RangeNode {
 
   public Attributes getAttributes() {
     return this.attributes;
-  }
-
-  public Boolean getIsRefining() {
-    return this.isRefining;
   }
 }

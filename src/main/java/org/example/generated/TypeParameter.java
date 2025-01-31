@@ -11,10 +11,10 @@ public class TypeParameter extends TopLevelDecl {
 
   private final List<Type> typeBounds;
 
-  public TypeParameter(SourceOrigin origin, Name name, Attributes attributes, Boolean isRefining,
+  public TypeParameter(SourceOrigin origin, Name name, Attributes attributes,
       List<TypeParameter> typeArgs, TypeParameterTPVarianceSyntax varianceSyntax,
       TypeParameterTypeParameterCharacteristics characteristics, List<Type> typeBounds) {
-    super(origin, name, attributes, isRefining, typeArgs);
+    super(origin, name, attributes, typeArgs);
     this.varianceSyntax = varianceSyntax;
     this.characteristics = characteristics;
     this.typeBounds = typeBounds;

@@ -11,8 +11,6 @@ public class ModuleDefinition extends RangeNode {
 
   private final ModuleKindEnum moduleKind;
 
-  private final Boolean isFacade;
-
   private final Implements implements1;
 
   private final Attributes attributes;
@@ -20,13 +18,12 @@ public class ModuleDefinition extends RangeNode {
   private final List<TopLevelDecl> sourceDecls;
 
   public ModuleDefinition(SourceOrigin origin, Name nameNode, List<SourceOrigin> prefixIds,
-      ModuleKindEnum moduleKind, Boolean isFacade, Implements implements1, Attributes attributes,
+      ModuleKindEnum moduleKind, Implements implements1, Attributes attributes,
       List<TopLevelDecl> sourceDecls) {
     super(origin);
     this.nameNode = nameNode;
     this.prefixIds = prefixIds;
     this.moduleKind = moduleKind;
-    this.isFacade = isFacade;
     this.implements1 = implements1;
     this.attributes = attributes;
     this.sourceDecls = sourceDecls;
@@ -42,10 +39,6 @@ public class ModuleDefinition extends RangeNode {
 
   public ModuleKindEnum getModuleKind() {
     return this.moduleKind;
-  }
-
-  public Boolean getIsFacade() {
-    return this.isFacade;
   }
 
   public Implements getImplements1() {
