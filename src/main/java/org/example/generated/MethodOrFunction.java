@@ -14,17 +14,20 @@ public class MethodOrFunction extends MemberDecl {
 
   private final List<AttributedExpression> ens;
 
+  private final Specification<FrameExpression> reads;
+
   private final Specification<Expression> decreases;
 
   public MethodOrFunction(SourceOrigin origin, Name name, Attributes attributes,
       Boolean hasStaticKeyword, Boolean isGhost, List<TypeParameter> typeArgs, List<Formal> ins,
       List<AttributedExpression> req, List<AttributedExpression> ens,
-      Specification<Expression> decreases) {
+      Specification<FrameExpression> reads, Specification<Expression> decreases) {
     super(origin, name, attributes, hasStaticKeyword, isGhost);
     this.typeArgs = typeArgs;
     this.ins = ins;
     this.req = req;
     this.ens = ens;
+    this.reads = reads;
     this.decreases = decreases;
   }
 
@@ -42,6 +45,10 @@ public class MethodOrFunction extends MemberDecl {
 
   public List<AttributedExpression> getEns() {
     return this.ens;
+  }
+
+  public Specification<FrameExpression> getReads() {
+    return this.reads;
   }
 
   public Specification<Expression> getDecreases() {

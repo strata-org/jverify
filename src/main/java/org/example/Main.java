@@ -1,6 +1,8 @@
 package org.example;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import org.example.generated.*;
 
 import java.io.IOException;
@@ -18,24 +20,26 @@ public class Main {
                 writeJava(input, Paths.get("/Users/rwillems/SourceCode/GradleBased/src/main/java/org/example/generated"));
 
         var program = getExampleDafnyProgram();
+
+        var output = Serializer.serialize(program);
+        System.out.println(output);
     }
 
-    private static LiteralModuleDecl getExampleDafnyProgram() {
+    private static FileModuleDefinition getExampleDafnyProgram() {
         var token = new Token(0,0);
         var origin = new SourceOrigin(token, token, token);
         var name = new Name(origin, "foo");
         var trueLiteral = new LiteralExpr(origin, true);
         var assertStatement = new AssertStmt(origin, null, trueLiteral, null);
-        var body = new BlockStmt(origin, null, List.of());
-        var fooMethod = new Method(origin, name, null, true, false, List.of(), List.of(),
-                List.of(), List.of(), new Specification<Expression>(origin, List.of(), null),
+        var body = new BlockStmt(origin, null, List.of(assertStatement));
+        var fooMethod = new Method(origin, name, null, true, false, List.of(), List.of(), List.of(),
+                List.of(), new Specification<FrameExpression>(origin, List.of(), null),
+                new Specification<Expression>(origin, List.of(), null),
                 List.of(), new Specification<FrameExpression>(origin, List.of(), null), body, null, false);
         var emptyClass = new ClassDecl(origin, name, null, List.of(), List.of(fooMethod), List.of(), false);
-        var moduleDef = new ModuleDefinition(origin, name, List.of(), ModuleKindEnum.Concrete, null,
+        var moduleDef = new FileModuleDefinition(origin, name, List.of(), ModuleKindEnum.Concrete, null,
                 null, List.of(emptyClass));
-        var literal = new LiteralModuleDecl(origin, name, null,
-                List.of(), "happy", moduleDef);
-        return literal;
+        return moduleDef;
     }
 
 //    import JSpec.*;

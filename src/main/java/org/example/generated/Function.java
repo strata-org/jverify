@@ -23,10 +23,10 @@ public class Function extends MethodOrFunction {
   public Function(SourceOrigin origin, Name name, Attributes attributes, Boolean hasStaticKeyword,
       Boolean isGhost, List<TypeParameter> typeArgs, List<Formal> ins,
       List<AttributedExpression> req, List<AttributedExpression> ens,
-      Specification<Expression> decreases, Boolean isOpaque, Formal result, Type resultType,
-      Expression body, SourceOrigin byMethodTok, BlockStmt byMethodBody,
-      SourceOrigin signatureEllipsis) {
-    super(origin, name, attributes, hasStaticKeyword, isGhost, typeArgs, ins, req, ens, decreases);
+      Specification<FrameExpression> reads, Specification<Expression> decreases, Boolean isOpaque,
+      Formal result, Type resultType, Expression body, SourceOrigin byMethodTok,
+      BlockStmt byMethodBody, SourceOrigin signatureEllipsis) {
+    super(origin, name, attributes, hasStaticKeyword, isGhost, typeArgs, ins, req, ens, reads, decreases);
     this.isOpaque = isOpaque;
     this.result = result;
     this.resultType = resultType;

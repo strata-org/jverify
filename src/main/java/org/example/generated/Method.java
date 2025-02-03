@@ -19,9 +19,10 @@ public class Method extends MethodOrFunction {
   public Method(SourceOrigin origin, Name name, Attributes attributes, Boolean hasStaticKeyword,
       Boolean isGhost, List<TypeParameter> typeArgs, List<Formal> ins,
       List<AttributedExpression> req, List<AttributedExpression> ens,
-      Specification<Expression> decreases, List<Formal> outs, Specification<FrameExpression> mod,
-      BlockStmt body, SourceOrigin signatureEllipsis, Boolean isByMethod) {
-    super(origin, name, attributes, hasStaticKeyword, isGhost, typeArgs, ins, req, ens, decreases);
+      Specification<FrameExpression> reads, Specification<Expression> decreases, List<Formal> outs,
+      Specification<FrameExpression> mod, BlockStmt body, SourceOrigin signatureEllipsis,
+      Boolean isByMethod) {
+    super(origin, name, attributes, hasStaticKeyword, isGhost, typeArgs, ins, req, ens, reads, decreases);
     this.outs = outs;
     this.mod = mod;
     this.body = body;
