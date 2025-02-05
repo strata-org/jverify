@@ -9,9 +9,9 @@ public class TopLevelDeclWithMembers extends TopLevelDecl {
 
   private final List<Type> traits;
 
-  public TopLevelDeclWithMembers(SourceOrigin origin, Name name, Attributes attributes,
+  public TopLevelDeclWithMembers(SourceOrigin origin, Name nameNode, Attributes attributes,
       List<TypeParameter> typeArgs, List<MemberDecl> members, List<Type> traits) {
-    super(origin, name, attributes, typeArgs);
+    super(origin, nameNode, attributes, typeArgs);
     this.members = members;
     this.traits = traits;
   }

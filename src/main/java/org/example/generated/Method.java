@@ -16,13 +16,13 @@ public class Method extends MethodOrFunction {
 
   private final Boolean isByMethod;
 
-  public Method(SourceOrigin origin, Name name, Attributes attributes, Boolean hasStaticKeyword,
+  public Method(SourceOrigin origin, Name nameNode, Attributes attributes, Boolean hasStaticKeyword,
       Boolean isGhost, List<TypeParameter> typeArgs, List<Formal> ins,
       List<AttributedExpression> req, List<AttributedExpression> ens,
       Specification<FrameExpression> reads, Specification<Expression> decreases, List<Formal> outs,
       Specification<FrameExpression> mod, BlockStmt body, SourceOrigin signatureEllipsis,
       Boolean isByMethod) {
-    super(origin, name, attributes, hasStaticKeyword, isGhost, typeArgs, ins, req, ens, reads, decreases);
+    super(origin, nameNode, attributes, hasStaticKeyword, isGhost, typeArgs, ins, req, ens, reads, decreases);
     this.outs = outs;
     this.mod = mod;
     this.body = body;

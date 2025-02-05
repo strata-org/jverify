@@ -18,11 +18,11 @@ public class MethodOrFunction extends MemberDecl {
 
   private final Specification<Expression> decreases;
 
-  public MethodOrFunction(SourceOrigin origin, Name name, Attributes attributes,
+  public MethodOrFunction(SourceOrigin origin, Name nameNode, Attributes attributes,
       Boolean hasStaticKeyword, Boolean isGhost, List<TypeParameter> typeArgs, List<Formal> ins,
       List<AttributedExpression> req, List<AttributedExpression> ens,
       Specification<FrameExpression> reads, Specification<Expression> decreases) {
-    super(origin, name, attributes, hasStaticKeyword, isGhost);
+    super(origin, nameNode, attributes, hasStaticKeyword, isGhost);
     this.typeArgs = typeArgs;
     this.ins = ins;
     this.req = req;

@@ -2,14 +2,11 @@ package org.example.generated;
 
 // Generated ModuleDecl.java:
 // Generated from C# class
-import java.util.List;
-
-public class ModuleDecl extends TopLevelDecl {
+public class ModuleDecl extends Declaration {
   private final String cloneId;
 
-  public ModuleDecl(SourceOrigin origin, Name name, Attributes attributes,
-      List<TypeParameter> typeArgs, String cloneId) {
-    super(origin, name, attributes, typeArgs);
+  public ModuleDecl(SourceOrigin origin, Name nameNode, Attributes attributes, String cloneId) {
+    super(origin, nameNode, attributes);
     this.cloneId = cloneId;
   }
 

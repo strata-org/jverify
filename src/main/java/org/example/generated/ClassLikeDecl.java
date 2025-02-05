@@ -5,8 +5,8 @@ package org.example.generated;
 import java.util.List;
 
 public class ClassLikeDecl extends TopLevelDeclWithMembers {
-  public ClassLikeDecl(SourceOrigin origin, Name name, Attributes attributes,
+  public ClassLikeDecl(SourceOrigin origin, Name nameNode, Attributes attributes,
       List<TypeParameter> typeArgs, List<MemberDecl> members, List<Type> traits) {
-    super(origin, name, attributes, typeArgs, members, traits);
+    super(origin, nameNode, attributes, typeArgs, members, traits);
   }
 }

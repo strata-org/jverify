@@ -4,27 +4,27 @@ package org.example.generated;
 // Generated from C# class
 import java.util.List;
 
-public class TypeParameter extends TopLevelDecl {
-  private final TypeParameterTPVarianceSyntax varianceSyntax;
+public class TypeParameter extends Declaration {
+  private final TPVarianceSyntax varianceSyntax;
 
-  private final TypeParameterTypeParameterCharacteristics characteristics;
+  private final TypeParameterCharacteristics characteristics;
 
   private final List<Type> typeBounds;
 
-  public TypeParameter(SourceOrigin origin, Name name, Attributes attributes,
-      List<TypeParameter> typeArgs, TypeParameterTPVarianceSyntax varianceSyntax,
-      TypeParameterTypeParameterCharacteristics characteristics, List<Type> typeBounds) {
-    super(origin, name, attributes, typeArgs);
+  public TypeParameter(SourceOrigin origin, Name nameNode, Attributes attributes,
+      TPVarianceSyntax varianceSyntax, TypeParameterCharacteristics characteristics,
+      List<Type> typeBounds) {
+    super(origin, nameNode, attributes);
     this.varianceSyntax = varianceSyntax;
     this.characteristics = characteristics;
     this.typeBounds = typeBounds;
   }
 
-  public TypeParameterTPVarianceSyntax getVarianceSyntax() {
+  public TPVarianceSyntax getVarianceSyntax() {
     return this.varianceSyntax;
   }
 
-  public TypeParameterTypeParameterCharacteristics getCharacteristics() {
+  public TypeParameterCharacteristics getCharacteristics() {
     return this.characteristics;
   }
 

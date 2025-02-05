@@ -7,6 +7,7 @@ import java.util.*;
 public class Serializer {
     private static final char ARRAY_END = ']';
     private static final char SEPARATOR = ',';
+    private static Map<String, String> simpleTypeNameMapping = Map.of();
 
     public static String serialize(Object obj) {
         if (obj == null) return "null";
@@ -39,6 +40,13 @@ public class Serializer {
         } else if (value instanceof Map<?, ?>) {
             serializeMap((Map<?, ?>) value, sb);
         } else if (isSimpleType(actualType)) {
+            if (!expectedType.equals(actualType) && !expectedType.isPrimitive()) {
+                var simpleName = actualType.getSimpleName();
+                if (simpleTypeNameMapping.containsKey(simpleName)) {
+                    simpleName = simpleTypeNameMapping.get(simpleName);
+                }
+                sb.append("+").append(simpleName).append(":");
+            }
             sb.append(value.toString());
         } else {
             // Add '+' prefix when actual type differs from expected
