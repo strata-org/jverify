@@ -9,14 +9,35 @@ import java.io.OutputStreamWriter;
 import java.util.List;
 
 public class Main {
+
     public static void main(String[] args) {
+        // Example usage
+        String javaCode = """
+package example;
 
-        var program = getExampleDafnyProgram();
-        var dafny = "/Users/rwillems/SourceCode/dafny/Scripts/dafny";
+class Main {
+  static void Foo() {
+    assert false;
+  }
+}
+""";
+        
+        assert true;
 
+        var program = new JavaASTAnalyzer().analyzeJavaCode(javaCode);
         var output = Serializer.serialize(program);
+        var dafny = "/Users/rwillems/SourceCode/dafny/Scripts/dafny";
         process(dafny, output);
     }
+    
+//    public static void main(String[] args) {
+//
+//        var program = getExampleDafnyProgram();
+//        var dafny = "/Users/rwillems/SourceCode/dafny/Scripts/dafny";
+//
+//        var output = Serializer.serialize(program);
+//        process(dafny, output);
+//    }
 
     public static void process(String dafnyPath, String program) {
         try {

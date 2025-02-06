@@ -11,6 +11,39 @@ repositories {
         url = uri("https://www.jetbrains.com/intellij-repository/releases")
     }
 }
+
+tasks.withType<JavaExec> {
+    jvmArgs = listOf(
+        "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
+    )
+}
+tasks.withType<Test> {
+    jvmArgs = listOf(
+        "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
+    )
+}
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.addAll(listOf(
+        "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
+    ))
+}
+
 dependencies {
     implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
     
