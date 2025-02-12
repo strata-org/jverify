@@ -1,2 +1,3 @@
-rootProject.name = "GradleBased"
-
+rootProject.name = "jverify-collection"
+include("javaTypesGenerator")
+include("jverify")

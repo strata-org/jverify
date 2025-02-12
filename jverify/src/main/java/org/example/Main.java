@@ -24,8 +24,8 @@ class Main {
         
         assert true;
 
-        var program = new JavaASTAnalyzer().analyzeJavaCode(javaCode);
-        var output = Serializer.serialize(program);
+        var dafnyEquivalent = new JavaASTAnalyzer().analyzeJavaCode(javaCode);
+        var output = Serializer.serialize(dafnyEquivalent);
         var dafny = "/Users/rwillems/SourceCode/dafny/Scripts/dafny";
         process(dafny, output);
     }

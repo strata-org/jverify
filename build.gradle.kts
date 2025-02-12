@@ -5,52 +5,65 @@ plugins {
 group = "org.example"
 version = "1.0-SNAPSHOT"
 
-repositories {
-    mavenCentral()
-    maven {
-        url = uri("https://www.jetbrains.com/intellij-repository/releases")
+allprojects {
+    apply(plugin = "java")
+    
+    repositories {
+        mavenCentral()
+        maven {
+            url = uri("https://www.jetbrains.com/intellij-repository/releases")
+        }
+    }
+
+}
+
+project(":javaTypesGenerator") {
+    dependencies {
+        // https://mvnrepository.com/artifact/com.squareup/javapoet
+        implementation("com.squareup:javapoet:1.13.0")
     }
 }
 
-tasks.withType<JavaExec> {
-    jvmArgs = listOf(
-        "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
-    )
-}
-tasks.withType<Test> {
-    jvmArgs = listOf(
-        "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
-    )
+project(":jverify") {
+    dependencies {
+        implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
+    }
+
+    tasks.withType<JavaExec> {
+        jvmArgs = listOf(
+            "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
+        )
+    }
+    tasks.withType<Test> {
+        jvmArgs = listOf(
+            "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
+        )
+    }
+
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.addAll(listOf(
+            "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
+        ))
+    }
 }
 
-tasks.withType<JavaCompile> {
-    options.compilerArgs.addAll(listOf(
-        "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
-        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
-    ))
-}
-
-dependencies {
-    implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
+//dependencies {
     
-    // https://mvnrepository.com/artifact/org.jsonschema2pojo/jsonschema2pojo-core
-    implementation("org.jsonschema2pojo:jsonschema2pojo-core:1.2.2")
-    // https://mvnrepository.com/artifact/com.squareup/javapoet
-    implementation("com.squareup:javapoet:1.13.0")
     
     // https://mvnrepository.com/artifact/com.jetbrains.intellij.platform/util
 //    implementation("com.jetbrains.intellij.platform:util:243.23654.166")
@@ -65,10 +78,10 @@ dependencies {
 //    implementation("com.jetbrains.intellij.java:java-psi:243.23654.153")
 
 
-    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-}
+//    testImplementation(platform("org.junit:junit-bom:5.10.0"))
+//    testImplementation("org.junit.jupiter:junit-jupiter")
+//}
 
-tasks.test {
-    useJUnitPlatform()
-}
+//tasks.test {
+//    useJUnitPlatform()
+//}

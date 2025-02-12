@@ -1,5 +1,3 @@
-package org.example;
-
 import com.squareup.javapoet.*;
 
 import javax.lang.model.element.Modifier;
