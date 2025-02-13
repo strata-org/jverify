@@ -2,27 +2,52 @@ package org.example;
 
 import org.example.generated.*;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import javax.tools.JavaFileObject;
+import javax.tools.SimpleJavaFileObject;
+import java.io.*;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+
+
+class SourceFile extends SimpleJavaFileObject {
+    final String content;
+
+    SourceFile(String path, String content) {
+        super(URI.create("string:///" + path), Kind.SOURCE);
+        this.content = content;
+    }
+
+    @Override
+    public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+        return content;
+    }
+}
 
 public class Main {
 
-    public static void main(String[] args) {
-        // Example usage
+    public static void main(String[] args) throws IOException {
+        var libraryLocation = "/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/JVerify.java";
+        String library = Files.readString(Path.of(libraryLocation));
+        
         String javaCode = """
 package example;
 
+import static com.aws.jverify.JVerify.*;
+
 class Main {
   static void Foo() {
-    assert false;
+    check(false);
   }
 }
 """;
 
-        var dafnyEquivalent = new JavaASTAnalyzer().analyzeJavaCode(javaCode);
+        List<JavaFileObject> files = List.of(new SourceFile("test.java", javaCode), new SourceFile(libraryLocation, library));
+        
+        var dafnyEquivalent = new JavaASTAnalyzer().analyzeJavaCode(files);
         var sb = new StringBuilder();
         new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
         var output = sb.toString();

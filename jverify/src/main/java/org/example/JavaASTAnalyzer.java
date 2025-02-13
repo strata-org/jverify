@@ -14,36 +14,21 @@ import com.sun.tools.javac.util.Position;
 import org.example.generated.*;
 
 import javax.tools.*;
+import java.lang.reflect.Array;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 public class JavaASTAnalyzer {
     JCTree.JCCompilationUnit compilationUnit;
-    
-    static class SourceFile extends SimpleJavaFileObject {
-        final String content;
 
-        SourceFile(String content) {
-            super(URI.create("string:///Test.java"), Kind.SOURCE);
-            this.content = content;
-        }
-
-        @Override
-        public CharSequence getCharContent(boolean ignoreEncodingErrors) {
-            return content;
-        }
-    }
-
-    public FileModuleDefinition analyzeJavaCode(String sourceCode) {
+    public FileModuleDefinition analyzeJavaCode(List<JavaFileObject> files) {
         // Get the Java compiler
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         Context context = new Context();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
-
-        // Create a file object from the source code string
-        JavaFileObject file = new SourceFile(sourceCode);
 
         List<String> options = List.of();
                 
@@ -57,7 +42,7 @@ public class JavaASTAnalyzer {
                 diagnostics,
                 options,  // Add classpath here
                 null,
-                Collections.singletonList(file)
+                files
         );
 
         // Parse the source file into an AST
@@ -158,8 +143,8 @@ public class JavaASTAnalyzer {
             if (expr instanceof JCTree.JCMethodInvocation invocation) {
 
                 var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-                if (methodSymbol.getQualifiedName().contentEquals("assert2")
-                  && methodSymbol.getEnclosingElement().getQualifiedName().contentEquals("com.github.jspec.JSpec")) {
+                if (methodSymbol.getQualifiedName().contentEquals("check")
+                  && methodSymbol.getEnclosingElement().getQualifiedName().contentEquals("com.aws.jverify.JVerify")) {
                     if (invocation.args.size() != 1) {
                         throw new RuntimeException();
                     }
