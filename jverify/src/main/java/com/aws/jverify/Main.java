@@ -12,20 +12,8 @@ import java.util.List;
 public class Main {
 
     public static void main(String[] args) throws IOException {
-        
-        String javaCode = """
-package example;
-
-import static com.aws.jverify.JVerify.*;
-
-class Main {
-  static void Foo() {
-    check(false);
-  }
-}
-""";
-
         Writer writer = new OutputStreamWriter(System.out);
+        var javaCode = Files.readString(Path.of(args[0]));
         var exitCode = Driver.verifyJavaExample(javaCode, writer);
         System.out.println("Process exited with code: " + exitCode);
     }
