@@ -2,7 +2,7 @@ plugins {
     id("java")
 }
 
-group = "org.example"
+group = "com.aws.jverify"
 version = "1.0-SNAPSHOT"
 
 allprojects {
@@ -29,42 +29,58 @@ project(":javaTypesGenerator") {
 }
 
 project(":jverify") {
+    
     dependencies {
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
 
         implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
+        
+        testImplementation(platform("org.junit:junit-bom:5.10.0"))
+        testImplementation("org.junit.jupiter:junit-jupiter")
+    }
+
+    tasks.test {
+        useJUnitPlatform()
+        jvmArgs = listOf(
+            "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED"
+        )
     }
 
     tasks.withType<JavaExec> {
         jvmArgs = listOf(
-            "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
+            "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify"
         )
     }
-    tasks.withType<Test> {
-        jvmArgs = listOf(
-            "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
-        )
-    }
+//    tasks.withType<Test> {
+//        jvmArgs = listOf(
+//            "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify",
+//            "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify",
+//            "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
+//            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
+//            "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
+//            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify"
+//        )
+//    }
 
     tasks.withType<JavaCompile> {
         options.compilerArgs.addAll(listOf(
-            "--add-exports=jdk.compiler/com.sun.tools.javac.api=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.file=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.util=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.code=org.example",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=org.example"
+            "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify"
         ))
     }
 }
@@ -85,10 +101,4 @@ project(":jverify") {
 //    implementation("com.jetbrains.intellij.java:java-psi:243.23654.153")
 
 
-//    testImplementation(platform("org.junit:junit-bom:5.10.0"))
-//    testImplementation("org.junit.jupiter:junit-jupiter")
-//}
-
-//tasks.test {
-//    useJUnitPlatform()
 //}

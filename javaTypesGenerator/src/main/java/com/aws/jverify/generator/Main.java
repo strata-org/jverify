@@ -9,12 +9,12 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
 
-        var dir = Paths.get("/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/org/example/generated");
+        var dir = Paths.get("/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/generated");
         if (!Files.exists(dir)) {
             Files.createDirectory(dir);
         }
         String input = Files.readString(Path.of("/Users/rwillems/SourceCode/dafny/Source/Scripts/bin/Debug/net8.0/parsedAst.cs"));
-        new CSharpToJavaConverter("org.example.generated").
+        new CSharpToJavaConverter("com.aws.jverify.generated").
                 writeJava(input, dir);
 
     }
