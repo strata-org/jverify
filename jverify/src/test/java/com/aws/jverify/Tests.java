@@ -14,7 +14,7 @@ public class Tests {
     public void assertFalse() throws IOException {
         var source = Files.readString(Path.of("/Users/rwillems/SourceCode/GradleBased/jverify/src/test/java/com/aws/jverify/AssertFalse.java"));
         StringWriter writer = new StringWriter();
-        var exitCode = Main.verifyJavaExample(source, writer);
+        var exitCode = Driver.verifyJavaExample(source, writer);
         var output = writer.toString();
         Assertions.assertEquals(4, exitCode);
         Assertions.assertEquals("<stdin>(7,14): Error: assertion might not hold\n" +
