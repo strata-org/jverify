@@ -2,7 +2,7 @@ package org.example.generated;
 
 // Generated MemberDecl.java:
 // Generated from C# class
-public class MemberDecl extends Declaration {
+public abstract class MemberDecl extends Declaration {
   private final Boolean hasStaticKeyword;
 
   private final Boolean isGhost;

@@ -5,7 +5,7 @@ package org.example.generated;
 import java.util.List;
 import org.example.generated.Specification;
 
-public class MethodOrFunction extends MemberDecl {
+public abstract class MethodOrFunction extends MemberDecl {
   private final List<TypeParameter> typeArgs;
 
   private final List<Formal> ins;

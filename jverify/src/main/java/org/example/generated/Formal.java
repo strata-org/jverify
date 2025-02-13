@@ -2,11 +2,15 @@ package org.example.generated;
 
 // Generated Formal.java:
 // Generated from C# class
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 public class Formal extends NonglobalVariable {
   private final Boolean inParam;
 
+  @Nullable
   private final Expression defaultValue;
 
+  @Nullable
   private final Attributes attributes;
 
   private final Boolean isOld;

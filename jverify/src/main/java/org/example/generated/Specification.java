@@ -3,10 +3,12 @@ package org.example.generated;
 // Generated Specification.java:
 // Generated from C# class
 import java.util.List;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class Specification<T extends Node> extends NodeWithComputedRange {
   private final List<T> expressions;
 
+  @Nullable
   private final Attributes attributes;
 
   public Specification(SourceOrigin origin, List<T> expressions, Attributes attributes) {

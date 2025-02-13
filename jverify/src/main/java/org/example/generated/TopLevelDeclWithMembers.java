@@ -4,7 +4,7 @@ package org.example.generated;
 // Generated from C# class
 import java.util.List;
 
-public class TopLevelDeclWithMembers extends TopLevelDecl {
+public abstract class TopLevelDeclWithMembers extends TopLevelDecl {
   private final List<MemberDecl> members;
 
   private final List<Type> traits;

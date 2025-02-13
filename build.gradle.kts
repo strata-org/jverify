@@ -19,6 +19,10 @@ allprojects {
 
 project(":javaTypesGenerator") {
     dependencies {
+        
+        // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
+        implementation("org.checkerframework:checker-qual:3.49.0")
+        
         // https://mvnrepository.com/artifact/com.squareup/javapoet
         implementation("com.squareup:javapoet:1.13.0")
     }
@@ -26,6 +30,9 @@ project(":javaTypesGenerator") {
 
 project(":jverify") {
     dependencies {
+        // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
+        implementation("org.checkerframework:checker-qual:3.49.0")
+
         implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
     }
 

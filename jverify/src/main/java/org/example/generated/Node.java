@@ -2,7 +2,7 @@ package org.example.generated;
 
 // Generated Node.java:
 // Generated from C# class
-public class Node {
+public abstract class Node {
   public Node() {
   }
 }

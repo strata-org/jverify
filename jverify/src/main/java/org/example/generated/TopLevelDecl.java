@@ -4,7 +4,7 @@ package org.example.generated;
 // Generated from C# class
 import java.util.List;
 
-public class TopLevelDecl extends Declaration {
+public abstract class TopLevelDecl extends Declaration {
   private final List<TypeParameter> typeArgs;
 
   public TopLevelDecl(SourceOrigin origin, Name nameNode, Attributes attributes,

@@ -2,7 +2,7 @@ package org.example.generated;
 
 // Generated ModuleDecl.java:
 // Generated from C# class
-public class ModuleDecl extends Declaration {
+public abstract class ModuleDecl extends Declaration {
   private final String cloneId;
 
   public ModuleDecl(SourceOrigin origin, Name nameNode, Attributes attributes, String cloneId) {

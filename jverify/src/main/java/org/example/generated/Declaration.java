@@ -2,9 +2,12 @@ package org.example.generated;
 
 // Generated Declaration.java:
 // Generated from C# class
-public class Declaration extends RangeNode {
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+public abstract class Declaration extends RangeNode {
   private final Name nameNode;
 
+  @Nullable
   private final Attributes attributes;
 
   public Declaration(SourceOrigin origin, Name nameNode, Attributes attributes) {

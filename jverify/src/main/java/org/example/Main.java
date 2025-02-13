@@ -21,23 +21,15 @@ class Main {
   }
 }
 """;
-        
-        assert true;
 
         var dafnyEquivalent = new JavaASTAnalyzer().analyzeJavaCode(javaCode);
-        var output = Serializer.serialize(dafnyEquivalent);
+        var sb = new StringBuilder();
+        new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
+        var output = sb.toString();
         var dafny = "/Users/rwillems/SourceCode/dafny/Scripts/dafny";
         process(dafny, output);
     }
     
-//    public static void main(String[] args) {
-//
-//        var program = getExampleDafnyProgram();
-//        var dafny = "/Users/rwillems/SourceCode/dafny/Scripts/dafny";
-//
-//        var output = Serializer.serialize(program);
-//        process(dafny, output);
-//    }
 
     public static void process(String dafnyPath, String program) {
         try {

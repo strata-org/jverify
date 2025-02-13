@@ -2,7 +2,7 @@ package org.example.generated;
 
 // Generated NodeWithComputedRange.java:
 // Generated from C# class
-public class NodeWithComputedRange extends Node {
+public abstract class NodeWithComputedRange extends Node {
   private final SourceOrigin origin;
 
   public NodeWithComputedRange(SourceOrigin origin) {

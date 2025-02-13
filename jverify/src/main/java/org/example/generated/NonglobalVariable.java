@@ -2,7 +2,7 @@ package org.example.generated;
 
 // Generated NonglobalVariable.java:
 // Generated from C# class
-public class NonglobalVariable extends NodeWithComputedRange {
+public abstract class NonglobalVariable extends NodeWithComputedRange {
   private final Name nameNode;
 
   private final Type type;

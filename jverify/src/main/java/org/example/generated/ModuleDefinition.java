@@ -3,6 +3,7 @@ package org.example.generated;
 // Generated ModuleDefinition.java:
 // Generated from C# class
 import java.util.List;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class ModuleDefinition extends RangeNode {
   private final Name nameNode;
@@ -11,8 +12,10 @@ public class ModuleDefinition extends RangeNode {
 
   private final ModuleKindEnum moduleKind;
 
+  @Nullable
   private final Implements implements1;
 
+  @Nullable
   private final Attributes attributes;
 
   private final List<TopLevelDecl> sourceDecls;

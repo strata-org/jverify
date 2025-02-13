@@ -1,110 +1,116 @@
 package org.example;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.lang.reflect.*;
 import java.util.*;
 
 public class Serializer {
-    private static final char ARRAY_END = ']';
-    private static final char SEPARATOR = ',';
+    Encoder encoder;
     private static Map<String, String> simpleTypeNameMapping = Map.of();
 
-    public static String serialize(Object obj) {
-        if (obj == null) return "null";
-        StringBuilder sb = new StringBuilder();
-        serializeValue(obj, obj.getClass(), sb);
-        return sb.toString();
+    public Serializer(Encoder encoder) {
+        this.encoder = encoder;
     }
 
-    private static void serializeValue(Object value, Class<?> expectedType, StringBuilder sb) {
+    public <T> void serialize(Object obj) {
+        serializeObject(obj);
+    }
+
+    private void serializeValue(Object value, AnnotatedType annotatedType) {
+        var isNullable = annotatedType.getAnnotation(Nullable.class) != null;
+        if (isNullable) {
+            encoder.writeNullable(value == null);
+            if (value == null) {
+                return;
+            }
+        }
         if (value == null) {
-            sb.append("null");
-            return;
+            throw new RuntimeException();
         }
 
-        Class<?> actualType = value.getClass();
-
-        if (actualType.isEnum()) {
-            // For enums, just output the ordinal
-            sb.append(((Enum<?>) value).ordinal());
-            return;
-        }
-
-
-        if (actualType.isArray()) {
-            serializeArray(value, sb);
-        } else if (value instanceof String) {
-            sb.append(escapeString((String) value));
-        } else if (value instanceof Collection<?>) {
-            serializeCollection((Collection<?>) value, sb);
-        } else if (value instanceof Map<?, ?>) {
-            serializeMap((Map<?, ?>) value, sb);
-        } else if (isSimpleType(actualType)) {
-            if (!expectedType.equals(actualType) && !expectedType.isPrimitive()) {
-                var simpleName = actualType.getSimpleName();
-                if (simpleTypeNameMapping.containsKey(simpleName)) {
-                    simpleName = simpleTypeNameMapping.get(simpleName);
-                }
-                sb.append("+").append(simpleName).append(":");
-            }
-            sb.append(value.toString());
+        var type = annotatedType.getType();
+        Class<?> expectedClass;
+        if (type instanceof Class<?> clazz) {
+            expectedClass = clazz;
+        } else if (type instanceof ParameterizedType parameterizedType) {
+            expectedClass = (Class<?>) parameterizedType.getRawType();
         } else {
-            // Add '+' prefix when actual type differs from expected
-            if (!expectedType.equals(actualType) && !expectedType.isPrimitive()) {
-                sb.append("+").append(actualType.getSimpleName()).append(":");
-            }
+            throw new RuntimeException();
+        }
+            
+        if (expectedClass.isEnum()) {
+            encoder.writeInt(((Enum<?>) value).ordinal());
+            return;
+        }
 
-            serializeObject(value, sb);
+        if (expectedClass.isArray()) {
+            serializeArray(value, (AnnotatedParameterizedType) annotatedType);
+            return;
+        } else if (value instanceof List<?> list){
+            serializeList(list, (AnnotatedParameterizedType) annotatedType);
+            return;
+        }
+
+        boolean isAbstract = Object.class == expectedClass || (Object.class.isAssignableFrom(expectedClass) && Modifier.isAbstract(expectedClass.getModifiers()));
+        if (isAbstract) {
+            Class<?> actualType = value.getClass();
+            encoder.writeQualifiedName(actualType.getSimpleName());
+        }
+        
+        if (value instanceof String s) {
+            encoder.writeString(s);
+        } else if (value instanceof Map<?, ?>) {
+            serializeMap((Map<?, ?>) value, (AnnotatedParameterizedType) annotatedType);
+        } else if (value instanceof Integer i) {
+            encoder.writeInt(i);
+        } else if (value instanceof Boolean b){
+            encoder.writeBool(b);
+        } else {
+            serializeObject(value);
         }
     }
 
-    private static void serializeArray(Object array, StringBuilder sb) {
-        int length = Array.getLength(array);
-        Class<?> componentType = array.getClass().getComponentType();
+    private void serializeList(List<?> list, AnnotatedParameterizedType arrayType) {
+        int length = list.size();
+        encoder.writeInt(length);
+        var elementType = arrayType.getAnnotatedActualTypeArguments()[0];
         for (int i = 0; i < length; i++) {
-            if (i > 0) sb.append(SEPARATOR);
-            serializeValue(Array.get(array, i), componentType, sb);
+            serializeValue(list.get(i), elementType);
         }
-        sb.append(ARRAY_END);
+    }
+    
+    private void serializeArray(Object array, AnnotatedParameterizedType arrayType) {
+        int length = Array.getLength(array);
+        encoder.writeInt(length);
+        var elementType = arrayType.getAnnotatedActualTypeArguments()[0];
+        for (int i = 0; i < length; i++) {
+            serializeValue(Array.get(array, i), elementType);
+        }
     }
 
-    private static void serializeCollection(Collection<?> collection, StringBuilder sb) {
-        boolean first = true;
-        for (Object item : collection) {
-            if (!first) sb.append(SEPARATOR);
-            serializeValue(item, Object.class, sb);
-            first = false;
-        }
-        sb.append(ARRAY_END);
-    }
-
-    private static void serializeMap(Map<?, ?> map, StringBuilder sb) {
-        boolean first = true;
+    private void serializeMap(Map<?, ?> map, AnnotatedParameterizedType mapType) {
+        encoder.writeInt(map.size());
+        var keyType = mapType.getAnnotatedActualTypeArguments()[0];
+        var valueType = mapType.getAnnotatedActualTypeArguments()[1];
         for (Map.Entry<?, ?> entry : map.entrySet()) {
-            if (!first) sb.append(SEPARATOR);
-            serializeValue(entry.getKey(), Object.class, sb);
-            sb.append(SEPARATOR);
-            serializeValue(entry.getValue(), Object.class, sb);
-            first = false;
+            serializeValue(entry.getKey(), keyType);
+            serializeValue(entry.getValue(), valueType);
         }
-        sb.append(ARRAY_END);
     }
 
-    private static void serializeObject(Object obj, StringBuilder sb) {
+    private void serializeObject(Object obj) {
         Class<?> clazz = obj.getClass();
         List<Field> fields = getSerializableFields(clazz);
 
-        boolean first = true;
         for (Field field : fields) {
-            if (!first) sb.append(SEPARATOR);
             try {
                 field.setAccessible(true);
                 Object value = field.get(obj);
-                serializeValue(value, field.getType(), sb);
+                serializeValue(value, field.getAnnotatedType());
             } catch (IllegalAccessException e) {
                 throw new RuntimeException("Failed to serialize field: " + field.getName(), e);
             }
-            first = false;
         }
     }
 
@@ -115,29 +121,6 @@ public class Serializer {
             clazz = clazz.getSuperclass();
         }
         return fields;
-    }
-
-    private static String escapeString(String str) {
-        StringBuilder sb = new StringBuilder("\"");
-        for (char c : str.toCharArray()) {
-            switch (c) {
-                case '"': sb.append("\\\""); break;
-                case '\\': sb.append("\\\\"); break;
-                case '\n': sb.append("\\n"); break;
-                case '\r': sb.append("\\r"); break;
-                case '\t': sb.append("\\t"); break;
-                default: sb.append(c);
-            }
-        }
-        sb.append("\"");
-        return sb.toString();
-    }
-
-    private static boolean isSimpleType(Class<?> type) {
-        return type.isPrimitive()
-                || Number.class.isAssignableFrom(type)
-                || Boolean.class.equals(type)
-                || Character.class.equals(type);
     }
 }
 

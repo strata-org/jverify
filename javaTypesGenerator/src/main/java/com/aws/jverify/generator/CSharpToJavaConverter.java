@@ -1,3 +1,5 @@
+package com.aws.jverify.generator;
+
 import com.squareup.javapoet.*;
 
 import javax.lang.model.element.Modifier;
@@ -7,6 +9,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.*;
 import java.util.stream.Collectors;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class CSharpToJavaConverter {
     Set<String> foundTypes = new HashSet<String>();
@@ -79,10 +82,12 @@ public class CSharpToJavaConverter {
         String className;
         String parentClass;
         List<CSharpField> fields;
+        boolean isAbstract;
         CSharpClass parentClassRef;
         List<TypeParameter> typeParameters;  // Generic type parameters
 
-        public CSharpClass(String className, String parentClass) {
+        public CSharpClass(boolean isAbstract, String className, String parentClass) {
+            this.isAbstract = isAbstract;
             this.className = className;
             this.parentClass = parentClass;
             this.fields = new ArrayList<>();
@@ -111,14 +116,16 @@ public class CSharpToJavaConverter {
     }
 
     static class CSharpField {
+        boolean isNullable;
         String type;
         String name;
         boolean isGeneric;
         List<String> genericTypes;
 
-        public CSharpField(String type, String name, boolean isGeneric, List<String> genericTypes) {
+        public CSharpField(String type, String name, boolean isNullable, boolean isGeneric, List<String> genericTypes) {
             this.type = type;
             this.name = name;
+            this.isNullable = isNullable;
             this.isGeneric = isGeneric;
             this.genericTypes = genericTypes;
         }
@@ -131,19 +138,20 @@ public class CSharpToJavaConverter {
         // Updated pattern for class declaration with generics and constraints
         // Example: "class Specification<T> : NodeWithComputedRange where T : Node"
         Pattern classWithBodyPattern = Pattern.compile(
-                "class\\s+(\\w+)\\s*(?:<([^>]+)>)?\\s*(?::\\s*(\\w+))?\\s*(?:where\\s+([^{]+))?\\s*\\{([^}]*)}",
+                "(abstract)?\\s+class\\s+(\\w+)\\s*(?:<([^>]+)>)?\\s*(?::\\s*(\\w+))?\\s*(?:where\\s+([^{]+))?\\s*\\{([^}]*)}",
                 Pattern.MULTILINE | Pattern.DOTALL
         );
         Matcher classWithBodyMatcher = classWithBodyPattern.matcher(csharpCode);
 
         while (classWithBodyMatcher.find()) {
-            String className = classWithBodyMatcher.group(1);
-            String typeParams = classWithBodyMatcher.group(2);  // Type parameters (e.g., "T")
-            String parentClass = classWithBodyMatcher.group(3); // Parent class
-            String constraints = classWithBodyMatcher.group(4); // Type constraints
-            String classBody = classWithBodyMatcher.group(5);
+            String abstractKeyword = classWithBodyMatcher.group(1);
+            String className = classWithBodyMatcher.group(2);
+            String typeParams = classWithBodyMatcher.group(3);  // Type parameters (e.g., "T")
+            String parentClass = classWithBodyMatcher.group(4); // Parent class
+            String constraints = classWithBodyMatcher.group(5); // Type constraints
+            String classBody = classWithBodyMatcher.group(6);
 
-            CSharpClass csharpClass = new CSharpClass(className, parentClass);
+            CSharpClass csharpClass = new CSharpClass(abstractKeyword != null, className, parentClass);
 
             // Parse type parameters and constraints
             if (typeParams != null) {
@@ -169,14 +177,15 @@ public class CSharpToJavaConverter {
 
             // Parse fields
             Pattern fieldPattern = Pattern.compile(
-                    "\\s+(\\w+)(?:<([\\w,\\s]+)>)?\\s+(\\w+)\\s*;"
+                    "\\s+(\\w+)(?:<([\\w,\\s]+)>)?(\\?)?\\s+(\\w+)\\s*;"
             );
             Matcher fieldMatcher = fieldPattern.matcher(classBody);
 
             while (fieldMatcher.find()) {
                 String baseType = fieldMatcher.group(1);
                 String genericTypesStr = fieldMatcher.group(2);
-                String fieldName = fieldMatcher.group(3);
+                String questionMark = fieldMatcher.group(3);
+                String fieldName = fieldMatcher.group(4);
 
                 boolean isGeneric = genericTypesStr != null;
                 List<String> genericTypes = new ArrayList<>();
@@ -185,8 +194,9 @@ public class CSharpToJavaConverter {
                             .map(String::trim)
                             .collect(Collectors.toList());
                 }
+                var isNullable = questionMark != null;
 
-                csharpClass.fields.add(new CSharpField(baseType, fieldName, isGeneric, genericTypes));
+                csharpClass.fields.add(new CSharpField(baseType, fieldName, isNullable, isGeneric, genericTypes));
             }
 
             classes.add(csharpClass);
@@ -261,7 +271,11 @@ public class CSharpToJavaConverter {
             );
             classBuilder.addTypeVariable(typeVariable);
         }
-
+        
+        if (csharpClass.isAbstract) {
+            classBuilder.addModifiers(Modifier.ABSTRACT);
+        }
+            
         // Add parent class if exists
         if (csharpClass.parentClass != null) {
             classBuilder.superclass(ClassName.get("", csharpClass.parentClass));
@@ -284,12 +298,17 @@ public class CSharpToJavaConverter {
 
                     // Only add field if it's from this class (not inherited)
                     if (csharpClass.fields.contains(field)) {
-                        FieldSpec fieldSpec = FieldSpec.builder(
-                                        fieldType,
-                                        newName,
-                                        Modifier.PRIVATE, Modifier.FINAL)
-                                .build();
+                        var builder = FieldSpec.builder(
+                                fieldType,
+                                newName,
+                                Modifier.PRIVATE, Modifier.FINAL);
+                        if (field.isNullable) {
+                            builder.addAnnotation(Nullable.class);
+                        }
+                        FieldSpec fieldSpec = builder.build();
                         classBuilder.addField(fieldSpec);
+                    } else {
+                        var b = 3;
                     }
 
                     // Add parameter to constructor

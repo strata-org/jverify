@@ -3,6 +3,7 @@ package org.example.generated;
 // Generated Method.java:
 // Generated from C# class
 import java.util.List;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.example.generated.Specification;
 
 public class Method extends MethodOrFunction {
@@ -10,8 +11,10 @@ public class Method extends MethodOrFunction {
 
   private final Specification<FrameExpression> mod;
 
+  @Nullable
   private final BlockStmt body;
 
+  @Nullable
   private final SourceOrigin signatureEllipsis;
 
   private final Boolean isByMethod;

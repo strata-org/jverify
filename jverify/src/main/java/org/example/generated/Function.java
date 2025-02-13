@@ -3,21 +3,27 @@ package org.example.generated;
 // Generated Function.java:
 // Generated from C# class
 import java.util.List;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.example.generated.Specification;
 
 public class Function extends MethodOrFunction {
   private final Boolean isOpaque;
 
+  @Nullable
   private final Formal result;
 
   private final Type resultType;
 
+  @Nullable
   private final Expression body;
 
+  @Nullable
   private final SourceOrigin byMethodTok;
 
+  @Nullable
   private final BlockStmt byMethodBody;
 
+  @Nullable
   private final SourceOrigin signatureEllipsis;
 
   public Function(SourceOrigin origin, Name nameNode, Attributes attributes,
