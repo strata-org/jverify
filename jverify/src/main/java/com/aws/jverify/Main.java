@@ -1,13 +1,8 @@
 package com.aws.jverify;
 
-import com.aws.jverify.generated.*;
-
-import javax.tools.JavaFileObject;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-
 
 public class Main {
 
