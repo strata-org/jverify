@@ -11,7 +11,7 @@ class Fibonacci {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        requires(Spec(n) < Integer.MAX_VALUE);
+        requires(Spec(n) < 0x7fffffff /*Integer.MAX_VALUE*/);
         ensures((Integer r) -> r == Spec(n));
 
         if (n == 0) {

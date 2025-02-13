@@ -14,12 +14,18 @@ public class Driver {
 
         List<JavaFileObject> files = List.of(new SourceFile("test.java", javaCode), new SourceFile(libraryLocation, library));
 
-        var dafnyEquivalent = new JavaASTAnalyzer().analyzeJavaCode(files);
+        var dafnyEquivalent = new JavaToDafnyCompiler().analyzeJavaCode(files);
         var sb = new StringBuilder();
         new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
-        var program = sb.toString();
+        var program = sb + additionalDafny;
         return runDafnyProcess(program, output);
     }
+    
+    static String additionalDafny = """
+            const intMax := 4294967296
+            type nat32 = x: int32 | x >= 0
+            type int32 = x: int | -4294967296 < x && x < intMax
+            """;
 
     public static int runDafnyProcess(String program, Writer output) {
         var dafnyPath = "/Users/rwillems/SourceCode/dafny/Scripts/dafny";

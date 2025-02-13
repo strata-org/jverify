@@ -48,7 +48,8 @@ project(":jverify") {
             "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
             "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
             "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED"
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED"
         )
     }
 
@@ -59,7 +60,8 @@ project(":jverify") {
             "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
             "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
             "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify"
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify"
         )
     }
 //    tasks.withType<Test> {
@@ -80,7 +82,8 @@ project(":jverify") {
             "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
             "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
             "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify"
+            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify",
+            "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify"
         ))
     }
 }
