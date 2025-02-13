@@ -21,4 +21,16 @@ public class Tests {
                 "\n" +
                 "Dafny program verifier finished with 0 verified, 1 error\n", output);
     }
+
+    @Test
+    public void fibonacci() throws IOException {
+        var source = Files.readString(Path.of("/Users/rwillems/SourceCode/GradleBased/jverify/src/test/java/com/aws/jverify/Fibonacci.java"));
+        StringWriter writer = new StringWriter();
+        var exitCode = Driver.verifyJavaExample(source, writer);
+        var output = writer.toString();
+        Assertions.assertEquals(0, exitCode);
+        Assertions.assertEquals("<stdin>(7,14): Error: assertion might not hold\n" +
+                "\n" +
+                "Dafny program verifier finished with 0 verified, 1 error\n", output);
+    }
 }
