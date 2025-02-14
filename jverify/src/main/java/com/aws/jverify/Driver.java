@@ -5,17 +5,35 @@ import java.io.*;
 import java.lang.constant.Constable;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Driver {
 
     public static int verifyJavaExample(String javaCode, Writer output) throws IOException {
+        var files = List.<JavaFileObject>of(new SourceFile("test.java", javaCode));
+        return verifyJavaFiles(files, output);
+    }
+
+    public static int verifyJavaPaths(List<Path> files, Writer output) throws IOException {
+        List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
+            try {
+                return new SourceFile(p.toString(), Files.readString(p));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toList());
+        return verifyJavaFiles(readFiles, output);
+    }
+
+    public static int verifyJavaFiles(List<JavaFileObject> readFiles, Writer output) throws IOException {
         var libraryLocation = "/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/JVerify.java";
         String library = Files.readString(Path.of(libraryLocation));
 
-        List<JavaFileObject> files = List.of(new SourceFile("test.java", javaCode), new SourceFile(libraryLocation, library));
+        readFiles.add(new SourceFile(libraryLocation, library));
 
-        var dafnyEquivalent = new JavaToDafnyCompiler().analyzeJavaCode(files);
+        var dafnyEquivalent = new JavaToDafnyCompiler().analyzeJavaCode(readFiles);
         var sb = new StringBuilder();
         new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
         var program = sb.toString();

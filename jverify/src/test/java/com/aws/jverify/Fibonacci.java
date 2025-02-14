@@ -15,7 +15,7 @@ class Fibonacci {
         ensures((Integer r) -> r == Spec(n));
 
         if (n == 0) {
-            return 0;
+            return 1;
         }
 
         int previousResult = 0;
