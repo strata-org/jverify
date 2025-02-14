@@ -31,6 +31,7 @@ public class Driver {
                     dafnyPath,  // Program path
                     "verify",                       // First argument
                     additionalDafnyPath,
+                    "--print=/Users/rwillems/SourceCode/dafny/out.dfy",
                     "--input-format",
                     "Binary",
                     "--stdin"                        // Second argument

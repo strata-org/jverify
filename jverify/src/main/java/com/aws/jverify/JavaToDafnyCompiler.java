@@ -17,6 +17,7 @@ import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.ToIntBiFunction;
 import java.util.stream.Collectors;
 import java.util.function.Function;
 
@@ -110,6 +111,10 @@ public class JavaToDafnyCompiler {
             var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
             var returnType = toType(method.getReturnType());
 
+            List<Formal> ins = method.getParameters().map(jvd -> 
+                    new Formal(toOrigin(jvd), name(jvd, jvd.getName()), toType(jvd.getType()), false, true,
+            null, null, false, false, false, null));
+            
             if (annotationsByName.containsKey("Pure")) {
                 if (method.body.stats.size() != 1) {
                     throw new RuntimeException();
@@ -122,7 +127,7 @@ public class JavaToDafnyCompiler {
                 if (statement instanceof JCTree.JCReturn returnStatement) {
                     var body = toExpr(returnStatement.expr);
                     return new com.aws.jverify.generated.Function(origin, name, null, isStatic, false, List.of(),
-                            List.of(), List.of(), List.of(), new Specification<>(origin, List.of(), null),
+                            ins, List.of(), List.of(), new Specification<>(origin, List.of(), null),
                             new Specification<>(origin, List.of(), null), false, null, returnType,
                             body, null, null, null
                             );
@@ -159,7 +164,7 @@ public class JavaToDafnyCompiler {
                 }
                 
                 return new Method(origin, name, null, isStatic, false, List.of(),
-                        List.of(), req, ens, new Specification<FrameExpression>(origin, List.of(), null),
+                        ins, req, ens, new Specification<FrameExpression>(origin, List.of(), null),
                         new Specification<>(origin, List.of(), null), outs,
                         new Specification<>(origin, List.of(), null), 
                         new BlockStmt(origin, null, statements), null, false);
@@ -293,7 +298,7 @@ public class JavaToDafnyCompiler {
                 var isBounded = primitiveTypeTree.type.getAnnotationsByType(Unbounded.class) == null;
                 if (isBounded) {
                     if (isNat) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "nat32", List.of()));
+                        return new UserDefinedType(origin, new NameSegment(origin, "nat32", null));
                     } else {
                         return new UserDefinedType(origin, new NameSegment(origin, "int32", List.of()));
                     }
