@@ -261,13 +261,13 @@ public class JavaToDafnyCompiler {
             //
             return new BinaryExpr(origin, toDafny(binary.getOperator()),left, right);
         } else if (expr instanceof JCTree.JCIdent identifier) {
-            return new NameSegment(origin, identifier.getName().toString(), List.of());
+            return new NameSegment(origin, identifier.getName().toString(), null);
         } else if (expr instanceof JCTree.JCLiteral literal) {
             return new LiteralExpr(origin, literal.value);
         } else if (expr instanceof JCTree.JCMethodInvocation invocation) {
             var target = toExpr(invocation.getMethodSelect());
             var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(origin, null, toExpr(a), false)).toList();
-            return new ApplySuffix(origin, target, origin, 
+            return new ApplySuffix(origin, target, null, 
                     new ActualBindings(origin, argBindings), 
                     origin.getEndToken());
         } else if (expr instanceof JCTree.JCParens parens) {
@@ -300,11 +300,11 @@ public class JavaToDafnyCompiler {
                     if (isNat) {
                         return new UserDefinedType(origin, new NameSegment(origin, "nat32", null));
                     } else {
-                        return new UserDefinedType(origin, new NameSegment(origin, "int32", List.of()));
+                        return new UserDefinedType(origin, new NameSegment(origin, "int32", null));
                     }
                 } else {
                     if (isNat) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "nat", List.of()));
+                        return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
                     } else {
                         return new IntType(origin);
                     }

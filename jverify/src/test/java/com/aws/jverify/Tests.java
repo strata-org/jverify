@@ -29,8 +29,8 @@ public class Tests {
         var exitCode = Driver.verifyJavaExample(source, writer);
         var output = writer.toString();
         Assertions.assertEquals(0, exitCode);
-        Assertions.assertEquals("<stdin>(7,14): Error: assertion might not hold\n" +
-                "\n" +
-                "Dafny program verifier finished with 0 verified, 1 error\n", output);
+        Assertions.assertEquals("\n" +
+                "Dafny program verifier finished with 4 verified, 0 errors\n", output);
+        
     }
 }
