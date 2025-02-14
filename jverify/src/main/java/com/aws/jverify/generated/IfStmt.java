@@ -2,6 +2,8 @@ package com.aws.jverify.generated;
 
 // Generated IfStmt.java:
 // Generated from C# class
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 public class IfStmt extends Statement {
   private final Boolean isBindingGuard;
 
@@ -9,6 +11,7 @@ public class IfStmt extends Statement {
 
   private final BlockStmt thn;
 
+  @Nullable
   private final Statement els;
 
   public IfStmt(SourceOrigin origin, Attributes attributes, Boolean isBindingGuard,

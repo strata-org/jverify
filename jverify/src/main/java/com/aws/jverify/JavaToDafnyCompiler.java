@@ -14,12 +14,11 @@ import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.TypeKind;
-import javax.swing.plaf.basic.BasicPopupMenuSeparatorUI;
 import javax.tools.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.ToIntBiFunction;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = "com.aws.jverify.JVerify";
@@ -97,7 +96,6 @@ public class JavaToDafnyCompiler {
     MemberDecl translateMember(JCTree member) {
         var origin = toOrigin(member);
         if (member instanceof JCTree.JCMethodDecl method) {
-            List<Statement> statements = new ArrayList<>();
             var name = name(method, method.name);
 
             if (method.name.contentEquals("<init>")) {
@@ -123,7 +121,7 @@ public class JavaToDafnyCompiler {
                 var statement = method.body.stats.getFirst();
                 if (statement instanceof JCTree.JCReturn returnStatement) {
                     var body = toExpr(returnStatement.expr);
-                    return new Function(origin, name, null, isStatic, false, List.of(),
+                    return new com.aws.jverify.generated.Function(origin, name, null, isStatic, false, List.of(),
                             List.of(), List.of(), List.of(), new Specification<>(origin, List.of(), null),
                             new Specification<>(origin, List.of(), null), false, null, returnType,
                             body, null, null, null
@@ -139,20 +137,11 @@ public class JavaToDafnyCompiler {
                 List<Name> returnNames = new ArrayList<>();
                 List<AttributedExpression> req = new ArrayList<>();
                 List<AttributedExpression> ens = new ArrayList<>();
-                
-                boolean inHeader = true;
-                for(var index = 0;index < method.body.stats.size(); index++) {
-                    var statement = method.body.stats.get(index);
-                    if (inHeader) {
-                        if (!findHeaderStatement(statement, req, ens, returnNames)) {
-                            inHeader = false;
-                        }
-                    }
-                    if (!inHeader) {
-                        statements.add(translateStatement(statement));
-                    }
-                }                    
-                
+                Function<JCTree.JCStatement, Boolean> function = 
+                        (JCTree.JCStatement s) -> findHeaderStatement(s, req, ens, returnNames);
+
+                var statements = processStatementsWithHeader(method.getBody().stats, function);
+
                 if (returnNames.size() > 1) {
                     throw new RuntimeException();
                 }
@@ -179,42 +168,69 @@ public class JavaToDafnyCompiler {
         throw new NotImplementedException();
     }
 
+    private List<Statement> processStatementWithHeader(JCTree.JCStatement statement,
+                                                        Function<JCTree.JCStatement, Boolean> checkPossibleHeader) {
+        var statements = statement instanceof JCTree.JCBlock block ? block.stats : List.of(statement);
+        return processStatementsWithHeader(statements, checkPossibleHeader);
+    }
+    
+    private List<Statement> processStatementsWithHeader(List<JCTree.JCStatement> stats, 
+                                                        Function<JCTree.JCStatement, Boolean> checkPossibleHeader) {
+        List<Statement> statements = new ArrayList<>();
+        boolean inHeader = true;
+        for(var index = 0; index < stats.size(); index++) {
+            var statement = stats.get(index);
+            if (inHeader) {
+                if (!checkPossibleHeader.apply(statement)) {
+                    inHeader = false;
+                }
+            }
+            if (!inHeader) {
+                statements.add(translateStatement(statement));
+            }
+        }
+        return statements;
+    }
+
     private boolean findHeaderStatement(JCTree.JCStatement statement, 
                                      List<AttributedExpression> requireses, 
                                      List<AttributedExpression> ensureses, 
                                         List<Name> returnNames) {
-        if (statement instanceof JCTree.JCExpressionStatement expressionStatement) {
-            var expr = expressionStatement.getExpression();
-            if (expr instanceof JCTree.JCMethodInvocation invocation) {
+        if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement)) {
+            return false;
+        }
+        var expr = expressionStatement.getExpression();
+        if (!(expr instanceof JCTree.JCMethodInvocation invocation)) {
+            return false;
+        }
 
-                var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-                if (fromJVerify(methodSymbol)) {
-                    if (methodSymbol.getQualifiedName().contentEquals("requires")) {
-                        if (invocation.args.size() != 1) {
-                            throw new RuntimeException();
-                        }
-                        requireses.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
-                        return true;
-                    }
+        var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
+        if (!fromJVerify(methodSymbol)) {
+            return false;
+        }
+        if (methodSymbol.getQualifiedName().contentEquals("requires")) {
+            if (invocation.args.size() != 1) {
+                throw new RuntimeException();
+            }
+            requireses.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
+            return true;
+        }
 
-                    if (methodSymbol.getQualifiedName().contentEquals("ensures")) {
-                        if (invocation.args.size() != 1) {
-                            throw new RuntimeException();
-                        }
-                        var first = invocation.getArguments().getFirst();
-                        if (first instanceof JCTree.JCLambda lambda) {
-                            if (lambda.getParameters().size() != 1) {
-                                throw new RuntimeException();
-                            }
-                            var parameter = lambda.getParameters().getFirst();
-                            returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
-                            ensureses.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
-                            return true;
-                        } else {
-                            throw new RuntimeException();
-                        }
-                    }
+        if (methodSymbol.getQualifiedName().contentEquals("ensures")) {
+            if (invocation.args.size() != 1) {
+                throw new RuntimeException();
+            }
+            var first = invocation.getArguments().getFirst();
+            if (first instanceof JCTree.JCLambda lambda) {
+                if (lambda.getParameters().size() != 1) {
+                    throw new RuntimeException();
                 }
+                var parameter = lambda.getParameters().getFirst();
+                returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
+                ensureses.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
+                return true;
+            } else {
+                throw new RuntimeException();
             }
         }
         return false;
@@ -257,10 +273,11 @@ public class JavaToDafnyCompiler {
     
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
         switch(operator.name.toString()) {
-            case "<": return BinaryExprOpcode.Le;
+            case "<": return BinaryExprOpcode.Lt;
             case "-": return BinaryExprOpcode.Sub;
             case "+": return BinaryExprOpcode.Add;
             case "==": return BinaryExprOpcode.Eq;
+            case "<=": return BinaryExprOpcode.Le;
             default: throw new RuntimeException();
         }
     }
@@ -328,6 +345,12 @@ public class JavaToDafnyCompiler {
                     }
                 }
             }
+            if (expressionStatement.getExpression() instanceof JCTree.JCAssign assign) {
+                var e = toExpr(assign.getExpression());
+                List<Expression> lhss = List.of(toExpr(assign.getVariable()));
+                List<AssignmentRhs> rhss = List.of(new ExprRhs(e.getOrigin(), null, e));
+                return new AssignStatement(e.getOrigin(), null, lhss, rhss, false);
+            }
         } else if (statement instanceof JCTree.JCAssert assertStmt) {
             return new AssertStmt(origin, null,
                     translateExpression(assertStmt.getCondition()), null);
@@ -348,17 +371,66 @@ public class JavaToDafnyCompiler {
             return new ReturnStmt(origin, null, 
                     List.of(new ExprRhs(toOrigin(expr), null, toExpr(expr))));
         } else if (statement instanceof JCTree.JCVariableDecl variableDecl) {
-            LocalVariable localVariable = new LocalVariable(toOrigin(variableDecl.nameexpr), 
-                    variableDecl.name.toString(), toType(variableDecl.getType()), false);
+            LocalVariable localVariable = new LocalVariable(toOrigin(variableDecl), 
+                    variableDecl.getName().toString(), toType(variableDecl.getType()), false);
             ConcreteAssignStatement initializer = null;
             if (variableDecl.getInitializer() != null) {
                 var e = toExpr(variableDecl.getInitializer());
-                initializer = new AssignStatement(e.getOrigin(), null, List.of());
+                List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
+                List<AssignmentRhs> rhss = List.of(new ExprRhs(e.getOrigin(), null, e));
+                initializer = new AssignStatement(e.getOrigin(), null, lhss, rhss, false);
             }
             
-            return new VarDeclStmt(origin, null, List.of(localVariable), initializer)
+            return new VarDeclStmt(origin, null, List.of(localVariable), initializer);
+        } else if (statement instanceof JCTree.JCWhileLoop whileLoop) {
+
+            List<AttributedExpression> invariants = new ArrayList<>();
+            List<Expression> decreases = new ArrayList<>();
+            List<FrameExpression> modifies = new ArrayList<>();
+            Function<JCTree.JCStatement, Boolean> function =
+                    (JCTree.JCStatement s) -> findWhileHeaderStatement(s, invariants, decreases, modifies);
+            var statements = processStatementWithHeader(whileLoop.body, function);
+            var condition = toExpr(whileLoop.getCondition());
+            return new WhileStmt(origin, null, invariants, new Specification<>(origin, decreases, null),
+                    new Specification<>(origin, modifies, null), new BlockStmt(origin, null, statements),
+                    condition);
         }
         throw new NotImplementedException();
+    }
+
+    private boolean findWhileHeaderStatement(JCTree.JCStatement statement,
+                                             List<AttributedExpression> invariants,
+                                             List<Expression> decreases, 
+                                             List<FrameExpression> modifies) {
+        if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement)) {
+            return false;
+        }
+        var expr = expressionStatement.getExpression();
+        if (!(expr instanceof JCTree.JCMethodInvocation invocation)) {
+            return false;
+        }
+
+        var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
+        if (!fromJVerify(methodSymbol)) {
+            return false;
+        }
+        
+        if (methodSymbol.getQualifiedName().contentEquals("invariant")) {
+            if (invocation.args.size() != 1) {
+                throw new RuntimeException();
+            }
+            invariants.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
+            return true;
+        }
+
+        if (methodSymbol.getQualifiedName().contentEquals("decreases")) {
+            if (invocation.args.size() != 1) {
+                throw new RuntimeException();
+            }
+            var first = invocation.getArguments().getFirst();
+            throw new NotImplementedException();
+        }
+        return false;
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {

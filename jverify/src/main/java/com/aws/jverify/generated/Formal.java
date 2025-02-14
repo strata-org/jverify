@@ -19,6 +19,7 @@ public class Formal extends NonglobalVariable {
 
   private final Boolean isOlder;
 
+  @Nullable
   private final String nameForCompilation;
 
   public Formal(SourceOrigin origin, Name nameNode, Type type, Boolean isGhost, Boolean inParam,
