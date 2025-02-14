@@ -10,6 +10,6 @@ public class Main {
         Writer writer = new OutputStreamWriter(System.out);
         var javaCode = Files.readString(Path.of(args[0]));
         var exitCode = Driver.verifyJavaExample(javaCode, writer);
-        System.out.println("Process exited with code: " + exitCode);
+        writer.flush();
     }
 }
