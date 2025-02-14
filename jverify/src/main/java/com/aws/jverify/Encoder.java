@@ -24,8 +24,8 @@ class TextEncoder implements Encoder {
     public void writeNullable(boolean isNull) {
         if (isNull) {
             writer.append("null");
+            writer.append(' ');
         }
-        writer.append(' ');
     }
     
     @Override
@@ -44,7 +44,7 @@ class TextEncoder implements Encoder {
     @Override
     public void writeQualifiedName(String name) {
        writer.append(name);
-        writer.append(' ');
+       writer.append(' ');
     }
 
     @Override

@@ -7,7 +7,7 @@ import java.util.*;
 
 public class Serializer {
     Encoder encoder;
-    private static Map<String, String> simpleTypeNameMapping = Map.of();
+    private static Map<String, String> simpleTypeNameMapping = Map.of("Integer", "Int32");
 
     public Serializer(Encoder encoder) {
         this.encoder = encoder;
@@ -55,7 +55,11 @@ public class Serializer {
         boolean isAbstract = Object.class == expectedClass || (Object.class.isAssignableFrom(expectedClass) && Modifier.isAbstract(expectedClass.getModifiers()));
         if (isAbstract) {
             Class<?> actualType = value.getClass();
-            encoder.writeQualifiedName(actualType.getSimpleName());
+            String simpleName = actualType.getSimpleName();
+            if (simpleTypeNameMapping.containsKey(simpleName)) {
+                simpleName = simpleTypeNameMapping.get(simpleName);
+            }
+            encoder.writeQualifiedName(simpleName);
         }
         
         if (value instanceof String s) {
