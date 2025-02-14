@@ -25,7 +25,7 @@ public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = "com.aws.jverify.JVerify";
     JCTree.JCCompilationUnit compilationUnit;
 
-    public FileModuleDefinition analyzeJavaCode(List<JavaFileObject> files) {
+    public FilesContainer analyzeJavaCode(List<JavaFileObject> files) {
         // Get the Java compiler
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         Context context = new Context();
@@ -46,30 +46,31 @@ public class JavaToDafnyCompiler {
                 files
         );
 
-        // Parse the source file into an AST
-        compilationUnit = (JCTree.JCCompilationUnit) task.parse().iterator().next();
         
+        List<FileStart> filesStarts = new ArrayList<>();
+        var parsed = task.parse();
         task.analyze();
+        
+        for (var compilationUnit : parsed) {
+            this.compilationUnit = (JCTree.JCCompilationUnit)compilationUnit;
 
-        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
-              throw new RuntimeException();   
+            if (compilationUnit.getSourceFile().getName().contains("JVerify.java")) {
+                continue;
             }
-        }
+            for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+                if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
+                    throw new RuntimeException();
+                }
+            }
 
-        ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
-        
-        var empty = new Token(0,1);
-        var emptyOrigin = new SourceOrigin(empty, empty, empty);
-        var emptyName = new Name(emptyOrigin, "unnamed");
-
-        for(var typeDecl : compilationUnit.getTypeDecls()) {
-            topLevelDecls.add(translateTypeDeclaration(typeDecl));
+            ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
+            for(var typeDecl : compilationUnit.getTypeDecls()) {
+                topLevelDecls.add(translateTypeDeclaration(typeDecl));
+            }
+            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls));
         }
         
-        var fileDefinition = new FileModuleDefinition(emptyOrigin, emptyName, List.of(), ModuleKindEnum.Concrete, 
-                null, null, topLevelDecls);
-        return fileDefinition;
+        return new FilesContainer(filesStarts);
     }
     
     TopLevelDecl translateTypeDeclaration(Tree tree) {
@@ -312,7 +313,7 @@ public class JavaToDafnyCompiler {
             }
         }
             
-        throw new RuntimeException();
+        throw new NotImplementedException();
     }
 
     private SourceOrigin toOrigin(JCTree node) {

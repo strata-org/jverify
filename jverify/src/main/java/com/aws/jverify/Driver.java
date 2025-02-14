@@ -5,6 +5,7 @@ import java.io.*;
 import java.lang.constant.Constable;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -12,7 +13,8 @@ import java.util.stream.Collectors;
 public class Driver {
 
     public static int verifyJavaExample(String javaCode, Writer output) throws IOException {
-        var files = List.<JavaFileObject>of(new SourceFile("test.java", javaCode));
+        var files = new ArrayList<JavaFileObject>();
+        files.add(new SourceFile("test.java", javaCode));
         return verifyJavaFiles(files, output);
     }
 

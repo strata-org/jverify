@@ -138,7 +138,7 @@ public class CSharpToJavaConverter {
         // Updated pattern for class declaration with generics and constraints
         // Example: "class Specification<T> : NodeWithComputedRange where T : Node"
         Pattern classWithBodyPattern = Pattern.compile(
-                "(abstract)?\\s+class\\s+(\\w+)\\s*(?:<([^>]+)>)?\\s*(?::\\s*(\\w+))?\\s*(?:where\\s+([^{]+))?\\s*\\{([^}]*)}",
+                "(abstract)?\\s*class\\s+(\\w+)\\s*(?:<([^>]+)>)?\\s*(?::\\s*(\\w+))?\\s*(?:where\\s+([^{]+))?\\s*\\{([^}]*)}",
                 Pattern.MULTILINE | Pattern.DOTALL
         );
         Matcher classWithBodyMatcher = classWithBodyPattern.matcher(csharpCode);
