@@ -11,11 +11,11 @@ class Fibonacci {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        requires(Spec(n) < 0x7fffffff /*Integer.MAX_VALUE*/);
-        ensures((Integer r) -> r == Spec(n));
+        requires(Spec(n) <  0x7fffffff /*Integer.MAX_VALUE*/);
+        ensures((Integer r) -> r == Spec(n));        
 
         if (n == 0) {
-            return 1; // Should be 0
+            return 0;
         }
 
         int previousResult = 0;

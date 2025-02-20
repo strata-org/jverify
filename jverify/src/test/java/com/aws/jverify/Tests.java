@@ -28,7 +28,7 @@ public class Tests {
         StringWriter writer = new StringWriter();
         var exitCode = Driver.verifyJavaExample(source, writer);
         var output = writer.toString();
-        Assertions.assertEquals("/test.java(18,13): Error: a postcondition could not be proved on this return path\n" +
+        Assertions.assertEquals("/test.java(19,13): Error: a postcondition could not be proved on this return path\n" +
                 "/test.java(15,34): Related location: this is the postcondition that could not be proved\n" +
                 "\n" +
                 "Dafny program verifier finished with 3 verified, 1 error\n", output);

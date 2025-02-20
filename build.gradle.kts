@@ -1,3 +1,5 @@
+import org.gradle.internal.instrumentation.api.annotations.ParameterKind.VarargParameter
+
 plugins {
     id("java")
     application
@@ -29,11 +31,31 @@ project(":javaTypesGenerator") {
     }
 }
 
+val allUnnamedArgs = listOf(
+"--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+"--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+"--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+"--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+"--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+"--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+"--add-exports=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED")
+
+val jverifyArgs = listOf(
+    "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify")
+
 project(":jverify") {
 
     apply(plugin = "application")
     application {
         mainClass.set("com.aws.jverify.Main")  // For a file named main.kt
+
+        applicationDefaultJvmArgs = allUnnamedArgs
     }
     
     dependencies {
@@ -52,52 +74,18 @@ project(":jverify") {
         )
     }
 
-    tasks.withType<JavaExec> {
+    tasks.withType<JavaExec> {                
         standardInput = System.`in`
         standardOutput = System.out
-
-//        isIgnoreExitValue = true
-//        outputs.upToDateWhen { false }
         
-        jvmArgs = listOf(
-            "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify"
-        )
+        jvmArgs = allUnnamedArgs + jverifyArgs
     }
     tasks.withType<Test> {
-        jvmArgs = listOf(
-            "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED",
-        )
+        jvmArgs = allUnnamedArgs
     }
 
     tasks.withType<JavaCompile> {
-        options.compilerArgs.addAll(listOf(
-            "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify",
-            "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify"
-        ))
+        options.compilerArgs.addAll(jverifyArgs)
     }
 }
 
