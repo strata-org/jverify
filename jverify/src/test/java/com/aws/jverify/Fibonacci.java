@@ -11,7 +11,7 @@ class Fibonacci {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        requires(Spec(n) <  0x7fffffff /*Integer.MAX_VALUE*/);
+        requires(Spec(n) <= 0x7fffffff /*Integer.MAX_VALUE*/);
         ensures((Integer r) -> r == Spec(n));        
 
         if (n == 0) {
@@ -28,10 +28,18 @@ class Fibonacci {
             invariant(i <= n);
 
             i = i + 1;
+            //SpecIsIncreasing(i, n);
             int addition = result + previousResult;
             previousResult = result;
             result = addition;
         }
         return result;
     }
+    
+//    @Proof
+//    static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
+//    {
+//        requires(i <= j);
+//        ensures(Spec(i) <= Spec(j));
+//    }
 }

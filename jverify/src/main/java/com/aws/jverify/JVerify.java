@@ -5,6 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class JVerify {
     public static void check(boolean condition) {
@@ -18,6 +19,14 @@ public class JVerify {
     
     public static <T> void ensures(Function<T, Boolean> predicate) {
     }
+
+    public static void ensures(Boolean predicate) {
+    }
+}
+
+@Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
+@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
+@interface Proof {
 }
 
 @Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime

@@ -2,11 +2,9 @@ package com.aws.jverify;
 
 import javax.tools.JavaFileObject;
 import java.io.*;
-import java.lang.constant.Constable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -15,10 +13,10 @@ public class Driver {
     public static int verifyJavaExample(String javaCode, Writer output) throws IOException {
         var files = new ArrayList<JavaFileObject>();
         files.add(new SourceFile("test.java", javaCode));
-        return verifyJavaFiles(files, output);
+        return verifyJavaFiles(files, new VerifierOptions(null, null), output);
     }
 
-    public static int verifyJavaPaths(List<Path> files, Writer output) throws IOException {
+    public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
             try {
                 return new SourceFile(p.toString(), Files.readString(p));
@@ -26,10 +24,10 @@ public class Driver {
                 throw new RuntimeException(e);
             }
         }).collect(Collectors.toList());
-        return verifyJavaFiles(readFiles, output);
+        return verifyJavaFiles(readFiles, verifierOptions, output);
     }
 
-    public static int verifyJavaFiles(List<JavaFileObject> readFiles, Writer output) throws IOException {
+    public static int verifyJavaFiles(List<JavaFileObject> readFiles, VerifierOptions verifierOptions, Writer output) throws IOException {
         var libraryLocation = "/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/JVerify.java";
         String library = Files.readString(Path.of(libraryLocation));
 
@@ -39,11 +37,13 @@ public class Driver {
         var sb = new StringBuilder();
         new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
         var program = sb.toString();
-        return runDafnyProcess(program, output);
+        if (verifierOptions.printBinaryDafny() != null) {
+            Files.writeString(verifierOptions.printBinaryDafny(), program);
+        }
+        return runDafnyProcess(program, verifierOptions, output);
     }
     
-
-    public static int runDafnyProcess(String program, Writer output) {
+    public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Writer output) {
         var additionalDafnyPath = "/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/additional.dfy";
         var dafnyPath = "/Users/rwillems/SourceCode/dafny2/Scripts/dafny";
         try {
@@ -51,11 +51,13 @@ public class Driver {
                     dafnyPath,  // Program path
                     "verify",                       // First argument
                     additionalDafnyPath,
-                    "--print=/Users/rwillems/SourceCode/dafny/out.dfy",
                     "--input-format",
                     "Binary",
                     "--stdin"                        // Second argument
             );
+            if (verifierOptions.printDafny() != null) {
+                processBuilder.command().add("--print=" + verifierOptions.printDafny());
+            }
 
             Process process = processBuilder.start();
 
