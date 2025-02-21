@@ -12,11 +12,13 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.util.Position;
 import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.units.qual.N;
 
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.ToIntBiFunction;
 import java.util.stream.Collectors;
 import java.util.function.Function;
@@ -235,6 +237,10 @@ public class JavaToDafnyCompiler {
                 returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
                 ensureses.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
                 return true;
+            } if (first instanceof JCTree.JCExpression expression) {
+                var dafnyExpr = toExpr(expression);
+                ensureses.add(new AttributedExpression(dafnyExpr, null, null));
+                return true;
             } else {
                 throw new RuntimeException();
             }
@@ -289,7 +295,11 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Type toType(JCTree tree) {
-        var origin = toOrigin(tree);
+        return toType(tree, null);
+    }
+    
+    private @Nullable Type toType(JCTree tree, @Nullable SourceOrigin originOverride) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(tree));
         if (tree instanceof JCTree.JCPrimitiveTypeTree primitiveTypeTree) {
             if (primitiveTypeTree.getPrimitiveTypeKind() == TypeKind.VOID)
                 return null;
@@ -352,6 +362,12 @@ public class JavaToDafnyCompiler {
                         return new AssertStmt(toOrigin(invocation), null,
                                 translateExpression(invocation.args.getFirst()), null);
                     }
+                } else {
+                    var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(origin, null, toExpr(a), false)).toList();
+                    ApplySuffix applySuffix = new ApplySuffix(toOrigin(invocation), toExpr(invocation.getMethodSelect()), null,
+                            new ActualBindings(origin, argBindings), null);
+                    return new AssignStatement(origin, null, List.of(),
+                            List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
                 }
             }
             if (expressionStatement.getExpression() instanceof JCTree.JCAssign assign) {
@@ -380,8 +396,8 @@ public class JavaToDafnyCompiler {
             return new ReturnStmt(origin, null, 
                     List.of(new ExprRhs(toOrigin(expr), null, toExpr(expr))));
         } else if (statement instanceof JCTree.JCVariableDecl variableDecl) {
-            LocalVariable localVariable = new LocalVariable(toOrigin(variableDecl), 
-                    variableDecl.getName().toString(), toType(variableDecl.getType()), false);
+            LocalVariable localVariable = new LocalVariable(origin, 
+                    variableDecl.getName().toString(), toType(variableDecl.getType(), origin), false);
             ConcreteAssignStatement initializer = null;
             if (variableDecl.getInitializer() != null) {
                 var e = toExpr(variableDecl.getInitializer());

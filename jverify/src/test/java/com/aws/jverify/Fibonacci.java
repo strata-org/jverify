@@ -15,7 +15,7 @@ class Fibonacci {
         ensures((Integer r) -> r == Spec(n));        
 
         if (n == 0) {
-            return 0;
+            return 1;
         }
 
         int previousResult = 0;
@@ -28,7 +28,7 @@ class Fibonacci {
             invariant(i <= n);
 
             i = i + 1;
-            //SpecIsIncreasing(i, n);
+            SpecIsIncreasing(i, n);
             int addition = result + previousResult;
             previousResult = result;
             result = addition;
@@ -36,10 +36,18 @@ class Fibonacci {
         return result;
     }
     
-//    @Proof
-//    static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
-//    {
-//        requires(i <= j);
-//        ensures(Spec(i) <= Spec(j));
-//    }
+    @Proof
+    static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
+    {
+        requires(i <= j);
+        ensures(Spec(i) <= Spec(j));
+
+        @Unbounded @Nat int x = i;
+        while(x < j)
+        {
+            invariant(x <= j);
+            invariant(Spec(i) <= Spec(x));
+            x = x + 1;
+        }
+    }
 }

@@ -41,7 +41,7 @@ public class JVerify {
 
 
 @Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
-@Target(ElementType.TYPE_USE)            // Can only be used on classes/interfaces
+@Target({ElementType.TYPE_USE})            // Can only be used on classes/interfaces
 @interface Unbounded {
 }
 
