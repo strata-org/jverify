@@ -296,9 +296,9 @@ public class JavaToDafnyCompiler {
 
             if (primitiveTypeTree.getPrimitiveTypeKind() == TypeKind.INT) {
                 var mirrors = primitiveTypeTree.type.getAnnotationMirrors();
-                var natAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals("com.aws.jverify.Nat")).findFirst();
+                var natAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Nat.class.getName())).findFirst();
                 var isNat = natAnnotation.isPresent();
-                var boundedAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals("com.aws.jverify.Unbounded")).findFirst();
+                var boundedAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Unbounded.class.getName())).findFirst();
                 var isBounded = boundedAnnotation.isEmpty();
                 if (isBounded) {
                     if (isNat) {
