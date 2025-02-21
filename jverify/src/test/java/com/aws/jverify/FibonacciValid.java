@@ -2,7 +2,7 @@ package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.*;
 
-class Fibonacci {
+class FibonacciInvalid {
     @Pure
     @Ghost
     static @Unbounded @Nat int Spec(@Unbounded @Nat int n) {
@@ -12,10 +12,10 @@ class Fibonacci {
     public static @Nat int Implementation(@Nat int n)
     {
         requires(Spec(n) <= 0x7fffffff /*Integer.MAX_VALUE*/);
-        ensures((Integer r) -> r == Spec(n));        
+        ensures((Integer r) -> r == Spec(n));
 
         if (n == 0) {
-            return 1;
+            return 0;
         }
 
         int previousResult = 0;
@@ -35,7 +35,7 @@ class Fibonacci {
         }
         return result;
     }
-    
+
     @Proof
     static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
     {
