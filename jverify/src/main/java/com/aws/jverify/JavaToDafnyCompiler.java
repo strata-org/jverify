@@ -129,10 +129,10 @@ public class JavaToDafnyCompiler {
                 var statement = method.body.stats.getFirst();
                 if (statement instanceof JCTree.JCReturn returnStatement) {
                     var body = toExpr(returnStatement.expr);
-                    return new com.aws.jverify.generated.Function(origin, name, null, isStatic, false, List.of(),
-                            ins, List.of(), List.of(), new Specification<>(origin, List.of(), null),
-                            new Specification<>(origin, List.of(), null), false, null, returnType,
-                            body, null, null, null
+                    return new com.aws.jverify.generated.Function(origin, name, null, isStatic, false, null, List.of(),
+                            ins, List.of(), List.of(), new Specification<FrameExpression>(origin, List.of(), null),
+                            new Specification<Expression>(origin, List.of(), null), false, null, returnType,
+                            body, null, null
                             );
                 } else {
                     throw new RuntimeException();
@@ -165,12 +165,20 @@ public class JavaToDafnyCompiler {
                             false, false, null, null, false, false, false, null);
                     outs.add(f);
                 }
-                
-                return new Method(origin, name, null, isStatic, false, List.of(),
-                        ins, req, ens, new Specification<FrameExpression>(origin, List.of(), null),
-                        new Specification<>(origin, List.of(), null), outs,
-                        new Specification<>(origin, List.of(), null), 
-                        new BlockStmt(origin, null, statements), null, false);
+
+                if (annotationsByName.containsKey("Proof")) {
+                    return new Method(origin, name, null, isStatic, false, null, List.of(),
+                            ins, req, ens, new Specification<FrameExpression>(origin, List.of(), null),
+                            new Specification<>(origin, List.of(), null), outs,
+                            new Specification<FrameExpression>(origin, List.of(), null),
+                            new BlockStmt(origin, null, statements), false);
+                } else {
+                    return new Method(origin, name, null, isStatic, false, null, List.of(),
+                            ins, req, ens, new Specification<FrameExpression>(origin, List.of(), null),
+                            new Specification<>(origin, List.of(), null), outs,
+                            new Specification<FrameExpression>(origin, List.of(), null),
+                            new BlockStmt(origin, null, statements), false);
+                }
             }
         }
         throw new NotImplementedException();

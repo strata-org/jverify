@@ -8,7 +8,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public class ModuleDefinition extends RangeNode {
   private final Name nameNode;
 
-  private final List<SourceOrigin> prefixIds;
+  private final List<IOrigin> prefixIds;
 
   private final ModuleKindEnum moduleKind;
 
@@ -20,7 +20,7 @@ public class ModuleDefinition extends RangeNode {
 
   private final List<TopLevelDecl> sourceDecls;
 
-  public ModuleDefinition(SourceOrigin origin, Name nameNode, List<SourceOrigin> prefixIds,
+  public ModuleDefinition(IOrigin origin, Name nameNode, List<IOrigin> prefixIds,
       ModuleKindEnum moduleKind, Implements implements1, Attributes attributes,
       List<TopLevelDecl> sourceDecls) {
     super(origin);
@@ -36,7 +36,7 @@ public class ModuleDefinition extends RangeNode {
     return this.nameNode;
   }
 
-  public List<SourceOrigin> getPrefixIds() {
+  public List<IOrigin> getPrefixIds() {
     return this.prefixIds;
   }
 

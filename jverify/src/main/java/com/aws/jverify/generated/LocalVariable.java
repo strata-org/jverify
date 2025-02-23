@@ -2,17 +2,20 @@ package com.aws.jverify.generated;
 
 // Generated LocalVariable.java:
 // Generated from C# class
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 public class LocalVariable extends RangeNode {
   private final String name;
 
-  private final Type type;
+  @Nullable
+  private final Type syntacticType;
 
   private final Boolean isGhost;
 
-  public LocalVariable(SourceOrigin origin, String name, Type type, Boolean isGhost) {
+  public LocalVariable(IOrigin origin, String name, Type syntacticType, Boolean isGhost) {
     super(origin);
     this.name = name;
-    this.type = type;
+    this.syntacticType = syntacticType;
     this.isGhost = isGhost;
   }
 
@@ -20,8 +23,8 @@ public class LocalVariable extends RangeNode {
     return this.name;
   }
 
-  public Type getType() {
-    return this.type;
+  public Type getSyntacticType() {
+    return this.syntacticType;
   }
 
   public Boolean getIsGhost() {

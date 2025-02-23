@@ -1,11 +1,11 @@
 package com.aws.jverify.generated;
 
-// Generated ClassLikeDecl.java:
+// Generated DefaultClassDecl.java:
 // Generated from C# class
 import java.util.List;
 
-public abstract class ClassLikeDecl extends TopLevelDeclWithMembers {
-  public ClassLikeDecl(IOrigin origin, Name nameNode, Attributes attributes,
+public class DefaultClassDecl extends TopLevelDeclWithMembers {
+  public DefaultClassDecl(IOrigin origin, Name nameNode, Attributes attributes,
       List<TypeParameter> typeArgs, List<MemberDecl> members, List<Type> traits) {
     super(origin, nameNode, attributes, typeArgs, members, traits);
   }

@@ -1,0 +1,6 @@
+[submodule "jverify/dafny"]
+	path = jverify/dafny
+	url = git@github.com:dafny-lang/dafny.git
+[submodule "dafny"]
+	path = dafny
+	url = git@github.com:dafny-lang/dafny.git

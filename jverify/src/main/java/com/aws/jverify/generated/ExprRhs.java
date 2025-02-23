@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 public class ExprRhs extends AssignmentRhs {
   private final Expression expr;
 
-  public ExprRhs(SourceOrigin origin, Attributes attributes, Expression expr) {
+  public ExprRhs(IOrigin origin, Attributes attributes, Expression expr) {
     super(origin, attributes);
     this.expr = expr;
   }

@@ -14,22 +14,17 @@ public class Method extends MethodOrFunction {
   @Nullable
   private final BlockStmt body;
 
-  @Nullable
-  private final SourceOrigin signatureEllipsis;
-
   private final Boolean isByMethod;
 
-  public Method(SourceOrigin origin, Name nameNode, Attributes attributes, Boolean hasStaticKeyword,
-      Boolean isGhost, List<TypeParameter> typeArgs, List<Formal> ins,
+  public Method(IOrigin origin, Name nameNode, Attributes attributes, Boolean hasStaticKeyword,
+      Boolean isGhost, IOrigin signatureEllipsis, List<TypeParameter> typeArgs, List<Formal> ins,
       List<AttributedExpression> req, List<AttributedExpression> ens,
       Specification<FrameExpression> reads, Specification<Expression> decreases, List<Formal> outs,
-      Specification<FrameExpression> mod, BlockStmt body, SourceOrigin signatureEllipsis,
-      Boolean isByMethod) {
-    super(origin, nameNode, attributes, hasStaticKeyword, isGhost, typeArgs, ins, req, ens, reads, decreases);
+      Specification<FrameExpression> mod, BlockStmt body, Boolean isByMethod) {
+    super(origin, nameNode, attributes, hasStaticKeyword, isGhost, signatureEllipsis, typeArgs, ins, req, ens, reads, decreases);
     this.outs = outs;
     this.mod = mod;
     this.body = body;
-    this.signatureEllipsis = signatureEllipsis;
     this.isByMethod = isByMethod;
   }
 
@@ -43,10 +38,6 @@ public class Method extends MethodOrFunction {
 
   public BlockStmt getBody() {
     return this.body;
-  }
-
-  public SourceOrigin getSignatureEllipsis() {
-    return this.signatureEllipsis;
   }
 
   public Boolean getIsByMethod() {

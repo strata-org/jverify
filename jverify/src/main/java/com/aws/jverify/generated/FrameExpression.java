@@ -7,7 +7,7 @@ public class FrameExpression extends NodeWithComputedRange {
 
   private final String fieldName;
 
-  public FrameExpression(SourceOrigin origin, Expression e, String fieldName) {
+  public FrameExpression(IOrigin origin, Expression e, String fieldName) {
     super(origin);
     this.e = e;
     this.fieldName = fieldName;

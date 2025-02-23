@@ -45,7 +45,7 @@ public class Driver {
     
     public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Writer output) {
         var additionalDafnyPath = "/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/additional.dfy";
-        var dafnyPath = "/Users/rwillems/SourceCode/dafny2/Scripts/dafny";
+        var dafnyPath = "../dafny/Scripts/dafny";
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(
                     dafnyPath,  // Program path

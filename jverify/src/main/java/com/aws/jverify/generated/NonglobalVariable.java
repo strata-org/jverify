@@ -9,7 +9,7 @@ public abstract class NonglobalVariable extends NodeWithComputedRange {
 
   private final Boolean isGhost;
 
-  public NonglobalVariable(SourceOrigin origin, Name nameNode, Type type, Boolean isGhost) {
+  public NonglobalVariable(IOrigin origin, Name nameNode, Type type, Boolean isGhost) {
     super(origin);
     this.nameNode = nameNode;
     this.type = type;

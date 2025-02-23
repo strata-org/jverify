@@ -8,7 +8,7 @@ public abstract class Statement extends RangeNode {
   @Nullable
   private final Attributes attributes;
 
-  public Statement(SourceOrigin origin, Attributes attributes) {
+  public Statement(IOrigin origin, Attributes attributes) {
     super(origin);
     this.attributes = attributes;
   }

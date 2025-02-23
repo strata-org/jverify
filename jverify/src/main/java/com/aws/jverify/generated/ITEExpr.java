@@ -11,7 +11,7 @@ public class ITEExpr extends Expression {
 
   private final Expression els;
 
-  public ITEExpr(SourceOrigin origin, Boolean isBindingGuard, Expression test, Expression thn,
+  public ITEExpr(IOrigin origin, Boolean isBindingGuard, Expression test, Expression thn,
       Expression els) {
     super(origin);
     this.isBindingGuard = isBindingGuard;

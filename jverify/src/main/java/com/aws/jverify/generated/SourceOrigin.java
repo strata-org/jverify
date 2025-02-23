@@ -2,7 +2,7 @@ package com.aws.jverify.generated;
 
 // Generated SourceOrigin.java:
 // Generated from C# class
-public class SourceOrigin {
+public class SourceOrigin extends IOrigin {
   private final Token startToken;
 
   private final Token endToken;

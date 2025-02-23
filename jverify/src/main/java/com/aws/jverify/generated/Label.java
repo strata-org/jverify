@@ -3,16 +3,16 @@ package com.aws.jverify.generated;
 // Generated Label.java:
 // Generated from C# class
 public class Label {
-  private final SourceOrigin tok;
+  private final IOrigin tok;
 
   private final String name;
 
-  public Label(SourceOrigin tok, String name) {
+  public Label(IOrigin tok, String name) {
     this.tok = tok;
     this.name = name;
   }
 
-  public SourceOrigin getTok() {
+  public IOrigin getTok() {
     return this.tok;
   }
 

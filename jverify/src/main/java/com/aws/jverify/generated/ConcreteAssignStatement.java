@@ -7,8 +7,7 @@ import java.util.List;
 public abstract class ConcreteAssignStatement extends Statement {
   private final List<Expression> lhss;
 
-  public ConcreteAssignStatement(SourceOrigin origin, Attributes attributes,
-      List<Expression> lhss) {
+  public ConcreteAssignStatement(IOrigin origin, Attributes attributes, List<Expression> lhss) {
     super(origin, attributes);
     this.lhss = lhss;
   }

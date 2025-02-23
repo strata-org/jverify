@@ -7,8 +7,8 @@ public abstract class MemberDecl extends Declaration {
 
   private final Boolean isGhost;
 
-  public MemberDecl(SourceOrigin origin, Name nameNode, Attributes attributes,
-      Boolean hasStaticKeyword, Boolean isGhost) {
+  public MemberDecl(IOrigin origin, Name nameNode, Attributes attributes, Boolean hasStaticKeyword,
+      Boolean isGhost) {
     super(origin, nameNode, attributes);
     this.hasStaticKeyword = hasStaticKeyword;
     this.isGhost = isGhost;

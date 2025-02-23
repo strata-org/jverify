@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 public abstract class PredicateStmt extends Statement {
   private final Expression expr;
 
-  public PredicateStmt(SourceOrigin origin, Attributes attributes, Expression expr) {
+  public PredicateStmt(IOrigin origin, Attributes attributes, Expression expr) {
     super(origin, attributes);
     this.expr = expr;
   }

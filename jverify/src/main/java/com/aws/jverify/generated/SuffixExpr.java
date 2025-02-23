@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 public abstract class SuffixExpr extends ConcreteSyntaxExpression {
   private final Expression lhs;
 
-  public SuffixExpr(SourceOrigin origin, Expression lhs) {
+  public SuffixExpr(IOrigin origin, Expression lhs) {
     super(origin);
     this.lhs = lhs;
   }

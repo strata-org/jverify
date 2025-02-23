@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 import java.util.List;
 
 public class ReturnStmt extends ProduceStmt {
-  public ReturnStmt(SourceOrigin origin, Attributes attributes, List<AssignmentRhs> rhss) {
+  public ReturnStmt(IOrigin origin, Attributes attributes, List<AssignmentRhs> rhss) {
     super(origin, attributes, rhss);
   }
 }

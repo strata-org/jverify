@@ -9,7 +9,7 @@ public class AssignStatement extends ConcreteAssignStatement {
 
   private final Boolean canMutateKnownState;
 
-  public AssignStatement(SourceOrigin origin, Attributes attributes, List<Expression> lhss,
+  public AssignStatement(IOrigin origin, Attributes attributes, List<Expression> lhss,
       List<AssignmentRhs> rhss, Boolean canMutateKnownState) {
     super(origin, attributes, lhss);
     this.rhss = rhss;

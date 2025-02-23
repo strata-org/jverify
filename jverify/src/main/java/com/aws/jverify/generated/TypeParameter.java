@@ -11,7 +11,7 @@ public class TypeParameter extends Declaration {
 
   private final List<Type> typeBounds;
 
-  public TypeParameter(SourceOrigin origin, Name nameNode, Attributes attributes,
+  public TypeParameter(IOrigin origin, Name nameNode, Attributes attributes,
       TPVarianceSyntax varianceSyntax, TypeParameterCharacteristics characteristics,
       List<Type> typeBounds) {
     super(origin, nameNode, attributes);

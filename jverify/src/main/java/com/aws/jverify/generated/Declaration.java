@@ -10,7 +10,7 @@ public abstract class Declaration extends RangeNode {
   @Nullable
   private final Attributes attributes;
 
-  public Declaration(SourceOrigin origin, Name nameNode, Attributes attributes) {
+  public Declaration(IOrigin origin, Name nameNode, Attributes attributes) {
     super(origin);
     this.nameNode = nameNode;
     this.attributes = attributes;

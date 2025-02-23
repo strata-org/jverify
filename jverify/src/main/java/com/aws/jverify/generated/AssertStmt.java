@@ -8,8 +8,7 @@ public class AssertStmt extends PredicateStmt {
   @Nullable
   private final AssertLabel label;
 
-  public AssertStmt(SourceOrigin origin, Attributes attributes, Expression expr,
-      AssertLabel label) {
+  public AssertStmt(IOrigin origin, Attributes attributes, Expression expr, AssertLabel label) {
     super(origin, attributes, expr);
     this.label = label;
   }

@@ -3,14 +3,14 @@ package com.aws.jverify.generated;
 // Generated NodeWithComputedRange.java:
 // Generated from C# class
 public abstract class NodeWithComputedRange extends Node {
-  private final SourceOrigin origin;
+  private final IOrigin origin;
 
-  public NodeWithComputedRange(SourceOrigin origin) {
+  public NodeWithComputedRange(IOrigin origin) {
     super();
     this.origin = origin;
   }
 
-  public SourceOrigin getOrigin() {
+  public IOrigin getOrigin() {
     return this.origin;
   }
 }

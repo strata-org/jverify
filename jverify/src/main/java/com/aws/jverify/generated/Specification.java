@@ -6,12 +6,13 @@ import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class Specification<T extends Node> extends NodeWithComputedRange {
+  @Nullable
   private final List<T> expressions;
 
   @Nullable
   private final Attributes attributes;
 
-  public Specification(SourceOrigin origin, List<T> expressions, Attributes attributes) {
+  public Specification(IOrigin origin, List<T> expressions, Attributes attributes) {
     super(origin);
     this.expressions = expressions;
     this.attributes = attributes;

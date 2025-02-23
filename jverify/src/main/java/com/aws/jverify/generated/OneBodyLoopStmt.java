@@ -8,7 +8,7 @@ import java.util.List;
 public abstract class OneBodyLoopStmt extends LoopStmt {
   private final BlockStmt body;
 
-  public OneBodyLoopStmt(SourceOrigin origin, Attributes attributes,
+  public OneBodyLoopStmt(IOrigin origin, Attributes attributes,
       List<AttributedExpression> invariants, Specification<Expression> decreases,
       Specification<FrameExpression> mod, BlockStmt body) {
     super(origin, attributes, invariants, decreases, mod);

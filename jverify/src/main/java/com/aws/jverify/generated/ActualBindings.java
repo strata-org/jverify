@@ -7,7 +7,7 @@ import java.util.List;
 public class ActualBindings extends NodeWithComputedRange {
   private final List<ActualBinding> argumentBindings;
 
-  public ActualBindings(SourceOrigin origin, List<ActualBinding> argumentBindings) {
+  public ActualBindings(IOrigin origin, List<ActualBinding> argumentBindings) {
     super(origin);
     this.argumentBindings = argumentBindings;
   }

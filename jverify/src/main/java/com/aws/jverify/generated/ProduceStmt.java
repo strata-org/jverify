@@ -7,7 +7,7 @@ import java.util.List;
 public abstract class ProduceStmt extends Statement {
   private final List<AssignmentRhs> rhss;
 
-  public ProduceStmt(SourceOrigin origin, Attributes attributes, List<AssignmentRhs> rhss) {
+  public ProduceStmt(IOrigin origin, Attributes attributes, List<AssignmentRhs> rhss) {
     super(origin, attributes);
     this.rhss = rhss;
   }

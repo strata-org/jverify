@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 public abstract class ModuleDecl extends Declaration {
   private final String cloneId;
 
-  public ModuleDecl(SourceOrigin origin, Name nameNode, Attributes attributes, String cloneId) {
+  public ModuleDecl(IOrigin origin, Name nameNode, Attributes attributes, String cloneId) {
     super(origin, nameNode, attributes);
     this.cloneId = cloneId;
   }

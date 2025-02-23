@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 public class IdentifierExpr extends Expression {
   private final String name;
 
-  public IdentifierExpr(SourceOrigin origin, String name) {
+  public IdentifierExpr(IOrigin origin, String name) {
     super(origin);
     this.name = name;
   }

@@ -11,7 +11,7 @@ public class NameSegment extends ConcreteSyntaxExpression {
   @Nullable
   private final List<Type> optTypeArguments;
 
-  public NameSegment(SourceOrigin origin, String name, List<Type> optTypeArguments) {
+  public NameSegment(IOrigin origin, String name, List<Type> optTypeArguments) {
     super(origin);
     this.name = name;
     this.optTypeArguments = optTypeArguments;

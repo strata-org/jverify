@@ -18,28 +18,24 @@ public class Function extends MethodOrFunction {
   private final Expression body;
 
   @Nullable
-  private final SourceOrigin byMethodTok;
+  private final IOrigin byMethodTok;
 
   @Nullable
   private final BlockStmt byMethodBody;
 
-  @Nullable
-  private final SourceOrigin signatureEllipsis;
-
-  public Function(SourceOrigin origin, Name nameNode, Attributes attributes,
-      Boolean hasStaticKeyword, Boolean isGhost, List<TypeParameter> typeArgs, List<Formal> ins,
+  public Function(IOrigin origin, Name nameNode, Attributes attributes, Boolean hasStaticKeyword,
+      Boolean isGhost, IOrigin signatureEllipsis, List<TypeParameter> typeArgs, List<Formal> ins,
       List<AttributedExpression> req, List<AttributedExpression> ens,
       Specification<FrameExpression> reads, Specification<Expression> decreases, Boolean isOpaque,
-      Formal result, Type resultType, Expression body, SourceOrigin byMethodTok,
-      BlockStmt byMethodBody, SourceOrigin signatureEllipsis) {
-    super(origin, nameNode, attributes, hasStaticKeyword, isGhost, typeArgs, ins, req, ens, reads, decreases);
+      Formal result, Type resultType, Expression body, IOrigin byMethodTok,
+      BlockStmt byMethodBody) {
+    super(origin, nameNode, attributes, hasStaticKeyword, isGhost, signatureEllipsis, typeArgs, ins, req, ens, reads, decreases);
     this.isOpaque = isOpaque;
     this.result = result;
     this.resultType = resultType;
     this.body = body;
     this.byMethodTok = byMethodTok;
     this.byMethodBody = byMethodBody;
-    this.signatureEllipsis = signatureEllipsis;
   }
 
   public Boolean getIsOpaque() {
@@ -58,15 +54,11 @@ public class Function extends MethodOrFunction {
     return this.body;
   }
 
-  public SourceOrigin getByMethodTok() {
+  public IOrigin getByMethodTok() {
     return this.byMethodTok;
   }
 
   public BlockStmt getByMethodBody() {
     return this.byMethodBody;
-  }
-
-  public SourceOrigin getSignatureEllipsis() {
-    return this.signatureEllipsis;
   }
 }

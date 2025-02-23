@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 public class Name extends RangeNode {
   private final String value;
 
-  public Name(SourceOrigin origin, String value) {
+  public Name(IOrigin origin, String value) {
     super(origin);
     this.value = value;
   }

@@ -8,7 +8,7 @@ public abstract class AssignmentRhs extends NodeWithComputedRange {
   @Nullable
   private final Attributes attributes;
 
-  public AssignmentRhs(SourceOrigin origin, Attributes attributes) {
+  public AssignmentRhs(IOrigin origin, Attributes attributes) {
     super(origin);
     this.attributes = attributes;
   }

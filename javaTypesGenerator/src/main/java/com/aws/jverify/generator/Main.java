@@ -13,7 +13,7 @@ public class Main {
         if (!Files.exists(dir)) {
             Files.createDirectory(dir);
         }
-        String input = Files.readString(Path.of("/Users/rwillems/SourceCode/dafny/Source/Scripts/bin/Debug/net8.0/parsedAst.cs"));
+        String input = Files.readString(Path.of("./dafny/Source/Scripts/Syntax.cs-schema"));
         new CSharpToJavaConverter("com.aws.jverify.generated").
                 writeJava(input, dir);
 

@@ -22,7 +22,7 @@ public class Formal extends NonglobalVariable {
   @Nullable
   private final String nameForCompilation;
 
-  public Formal(SourceOrigin origin, Name nameNode, Type type, Boolean isGhost, Boolean inParam,
+  public Formal(IOrigin origin, Name nameNode, Type type, Boolean isGhost, Boolean inParam,
       Expression defaultValue, Attributes attributes, Boolean isOld, Boolean isNameOnly,
       Boolean isOlder, String nameForCompilation) {
     super(origin, nameNode, type, isGhost);

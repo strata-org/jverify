@@ -7,7 +7,7 @@ import java.util.List;
 public abstract class DisplayExpression extends Expression {
   private final List<Expression> elements;
 
-  public DisplayExpression(SourceOrigin origin, List<Expression> elements) {
+  public DisplayExpression(IOrigin origin, List<Expression> elements) {
     super(origin);
     this.elements = elements;
   }

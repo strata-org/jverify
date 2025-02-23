@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 public class LiteralExpr extends Expression {
   private final Object value;
 
-  public LiteralExpr(SourceOrigin origin, Object value) {
+  public LiteralExpr(IOrigin origin, Object value) {
     super(origin);
     this.value = value;
   }

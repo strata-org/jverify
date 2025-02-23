@@ -9,7 +9,7 @@ public class BinaryExpr extends Expression {
 
   private final Expression e1;
 
-  public BinaryExpr(SourceOrigin origin, BinaryExprOpcode op, Expression e0, Expression e1) {
+  public BinaryExpr(IOrigin origin, BinaryExprOpcode op, Expression e0, Expression e1) {
     super(origin);
     this.op = op;
     this.e0 = e0;

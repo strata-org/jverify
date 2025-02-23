@@ -12,7 +12,7 @@ public abstract class LoopStmt extends Statement {
 
   private final Specification<FrameExpression> mod;
 
-  public LoopStmt(SourceOrigin origin, Attributes attributes, List<AttributedExpression> invariants,
+  public LoopStmt(IOrigin origin, Attributes attributes, List<AttributedExpression> invariants,
       Specification<Expression> decreases, Specification<FrameExpression> mod) {
     super(origin, attributes);
     this.invariants = invariants;

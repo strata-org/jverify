@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 public class UserDefinedType extends NonProxyType {
   private final Expression namePath;
 
-  public UserDefinedType(SourceOrigin origin, Expression namePath) {
+  public UserDefinedType(IOrigin origin, Expression namePath) {
     super(origin);
     this.namePath = namePath;
   }

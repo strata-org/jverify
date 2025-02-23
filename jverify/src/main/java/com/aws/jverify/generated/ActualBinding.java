@@ -6,13 +6,13 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class ActualBinding extends NodeWithComputedRange {
   @Nullable
-  private final SourceOrigin formalParameterName;
+  private final IOrigin formalParameterName;
 
   private final Expression actual;
 
   private final Boolean isGhost;
 
-  public ActualBinding(SourceOrigin origin, SourceOrigin formalParameterName, Expression actual,
+  public ActualBinding(IOrigin origin, IOrigin formalParameterName, Expression actual,
       Boolean isGhost) {
     super(origin);
     this.formalParameterName = formalParameterName;
@@ -20,7 +20,7 @@ public class ActualBinding extends NodeWithComputedRange {
     this.isGhost = isGhost;
   }
 
-  public SourceOrigin getFormalParameterName() {
+  public IOrigin getFormalParameterName() {
     return this.formalParameterName;
   }
 
