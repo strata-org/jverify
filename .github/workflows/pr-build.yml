@@ -25,4 +25,4 @@ jobs:
           dotnet build ./jverify-collection/dafny/Source/Dafny.sln
       - name: Gradle test
         run: |
-          ./jverify-collection/gradlew test
+          ./jverify-collection/gradlew init test

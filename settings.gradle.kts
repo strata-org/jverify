@@ -1,3 +1,3 @@
-rootProject.name = "jverify"
+rootProject.name = "collection"
 include("javaTypesGenerator")
 include("jverify")
