@@ -18,11 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          path: jverify
+          path: jverify-collection
           submodules: recursive
       - name: Build Dafny 
         run: |
-          dotnet build ./jverify/dafny/Source/Dafny.sln
+          dotnet build ./jverify-collection/dafny/Source/Dafny.sln
       - name: Gradle test
         run: |
-          ./jverify/gradlew test
+          ./jverify-collection/gradlew test
