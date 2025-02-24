@@ -21,6 +21,12 @@ allprojects {
 }
 
 project(":javaTypesGenerator") {
+
+    apply(plugin = "application")
+    application {
+        mainClass.set("com.aws.jverify.generator.Main")  // For a file named main.kt
+    }
+    
     dependencies {
         
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
