@@ -21,8 +21,8 @@ jobs:
           submodules: recursive
       - name: Build Dafny 
         run: |
-          dotnet build ./jverify-collection/dafny/Source/Dafny.sln
+          dotnet build ./jverify/dafny/Source/Dafny.sln
       - name: Gradle test
-        working-directory: ./jverify-collection
+        working-directory: ./jverify
         run: |
           ./gradlew init test
