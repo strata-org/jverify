@@ -1,4 +1,7 @@
-package com.aws.jverify;
+package com.aws.jverify.verifier;
+
+import com.aws.jverify.Nat;
+import com.aws.jverify.Unbounded;
 
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
@@ -12,7 +15,6 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.util.Position;
 import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.checker.units.qual.N;
 
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
@@ -20,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.ToIntBiFunction;
 import java.util.stream.Collectors;
 import java.util.function.Function;
 

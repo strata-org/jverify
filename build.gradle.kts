@@ -20,6 +20,10 @@ allprojects {
 
 }
 
+project(":library") {
+    
+}
+
 project(":javaTypesGenerator") {
 
     apply(plugin = "application")
@@ -60,7 +64,7 @@ val jverifyArgs = listOf(
     "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify",
     "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify")
 
-project(":jverify") {
+project(":verifier") {
 
     apply(plugin = "application")
     application {
@@ -70,6 +74,8 @@ project(":jverify") {
     }
     
     dependencies {
+        implementation(project(":library"))
+        
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
 

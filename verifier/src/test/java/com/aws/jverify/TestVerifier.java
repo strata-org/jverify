@@ -1,5 +1,6 @@
 package com.aws.jverify;
 
+import com.aws.jverify.verifier.Driver;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -8,7 +9,7 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class Tests {
+public class TestVerifier {
     
     @Test
     public void assertFalse() throws IOException {

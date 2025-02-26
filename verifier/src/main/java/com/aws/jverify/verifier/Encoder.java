@@ -1,6 +1,4 @@
-package com.aws.jverify;
-
-import java.io.Writer;
+package com.aws.jverify.verifier;
 
 public interface Encoder {
     void writeBool(boolean value);

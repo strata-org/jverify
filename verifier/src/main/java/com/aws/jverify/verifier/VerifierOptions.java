@@ -1,4 +1,4 @@
-package com.aws.jverify;
+package com.aws.jverify.verifier;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
