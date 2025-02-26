@@ -34,6 +34,11 @@ project(":javaTypesGenerator") {
         
         // https://mvnrepository.com/artifact/com.squareup/javapoet
         implementation("com.squareup:javapoet:1.13.0")
+
+        implementation("info.picocli:picocli:4.7.6")
+
+        // Optional: annotation processor for compile-time checking
+        annotationProcessor("info.picocli:picocli-codegen:4.7.6")
     }
 }
 
