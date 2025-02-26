@@ -324,7 +324,7 @@ public class CSharpToJavaConverter {
                         classBuilder.addMethod(getter);
                     }
                     break;
-                } catch(IllegalArgumentException _) {
+                } catch(IllegalArgumentException ignored) {
                 }
             }
             if (iteration == 5) {

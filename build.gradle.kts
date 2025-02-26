@@ -17,7 +17,12 @@ allprojects {
             url = uri("https://www.jetbrains.com/intellij-repository/releases")
         }
     }
+}
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(22))
+    }
 }
 
 project(":library") {
@@ -28,7 +33,7 @@ project(":javaTypesGenerator") {
 
     apply(plugin = "application")
     application {
-        mainClass.set("com.aws.jverify.generator.Main")  // For a file named main.kt
+        mainClass.set("com.aws.jverify.generator.Main")
     }
     
     dependencies {
