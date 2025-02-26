@@ -18,6 +18,7 @@ import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.ToIntBiFunction;
 import java.util.stream.Collectors;
@@ -61,7 +62,7 @@ public class JavaToDafnyCompiler {
             }
             for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
                 if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
-                    throw new RuntimeException();
+                    throw new RuntimeException("Java file had errors: " + diagnostic.getMessage(Locale.ENGLISH));
                 }
             }
 
@@ -87,10 +88,14 @@ public class JavaToDafnyCompiler {
             return new ClassDecl(toOrigin(classDecl), name(classDecl, classDecl.name), null,
                     List.of(), members, List.of(), false);
         }
-        throw new NotImplementedException();
+        throw new NotImplementedException(tree.getClass().getName());
     }
     
-    class NotImplementedException extends RuntimeException {}
+    class NotImplementedException extends RuntimeException {
+        public NotImplementedException(String message) {
+            super(message);
+        }
+    }
     
     Name name(JCTree tree, com.sun.tools.javac.util.Name name) {
         var token = toToken(tree.getPreferredPosition());
@@ -120,10 +125,10 @@ public class JavaToDafnyCompiler {
             
             if (annotationsByName.containsKey("Pure")) {
                 if (method.body.stats.size() != 1) {
-                    throw new RuntimeException();
+                    throw new RuntimeException("Pure method should have only one statement");
                 }
                 if (returnType == null) {
-                    throw new RuntimeException();
+                    throw new RuntimeException("Pure method should have a return type");
                 }
                 
                 var statement = method.body.stats.getFirst();
@@ -135,7 +140,7 @@ public class JavaToDafnyCompiler {
                             body, null, null
                             );
                 } else {
-                    throw new RuntimeException();
+                    throw new RuntimeException("Pure method statement should be a return");
                 }
             }
             
@@ -151,7 +156,7 @@ public class JavaToDafnyCompiler {
                 var statements = processStatementsWithHeader(method.getBody().stats, function);
 
                 if (returnNames.size() > 1) {
-                    throw new RuntimeException();
+                    throw new RuntimeException("Ensures clauses may introduce only one return variable name");
                 }
                 var outs = new ArrayList<Formal>();
                 if (returnType != null) {
@@ -181,7 +186,7 @@ public class JavaToDafnyCompiler {
                 }
             }
         }
-        throw new NotImplementedException();
+        throw new NotImplementedException(member.getClass().getName());
     }
 
     private List<Statement> processStatementWithHeader(JCTree.JCStatement statement,
@@ -226,7 +231,7 @@ public class JavaToDafnyCompiler {
         }
         if (methodSymbol.getQualifiedName().contentEquals("requires")) {
             if (invocation.args.size() != 1) {
-                throw new RuntimeException();
+                throw new RuntimeException("A requires call may have only one argument");
             }
             requireses.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
             return true;
@@ -234,12 +239,12 @@ public class JavaToDafnyCompiler {
 
         if (methodSymbol.getQualifiedName().contentEquals("ensures")) {
             if (invocation.args.size() != 1) {
-                throw new RuntimeException();
+                throw new RuntimeException("An ensures call may have only one argument");
             }
             var first = invocation.getArguments().getFirst();
             if (first instanceof JCTree.JCLambda lambda) {
                 if (lambda.getParameters().size() != 1) {
-                    throw new RuntimeException();
+                    throw new RuntimeException("An ensures call lambda may take only one argument");
                 }
                 var parameter = lambda.getParameters().getFirst();
                 returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
@@ -250,7 +255,7 @@ public class JavaToDafnyCompiler {
                 ensureses.add(new AttributedExpression(dafnyExpr, null, null));
                 return true;
             } else {
-                throw new RuntimeException();
+                throw new RuntimeException("An ensures clause must take either a lambda or an expression");
             }
         }
         return false;
@@ -260,7 +265,7 @@ public class JavaToDafnyCompiler {
         if (tree instanceof JCTree.JCExpression expression) {
             return toExpr(expression);
         }
-        throw new NotImplementedException();
+        throw new NotImplementedException(tree.getClass().getName());
     }
     
     private Expression toExpr(JCTree.JCExpression expr) {
@@ -288,7 +293,7 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCParens parens) {
             return toExpr(parens.getExpression());
         }
-        throw new NotImplementedException();
+        throw new NotImplementedException(expr.getClass().getName());
     }
     
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
@@ -298,7 +303,7 @@ public class JavaToDafnyCompiler {
             case "+": return BinaryExprOpcode.Add;
             case "==": return BinaryExprOpcode.Eq;
             case "<=": return BinaryExprOpcode.Le;
-            default: throw new RuntimeException();
+            default: throw new NotImplementedException("Operator" + operator.name);
         }
     }
 
@@ -334,7 +339,7 @@ public class JavaToDafnyCompiler {
             }
         }
             
-        throw new NotImplementedException();
+        throw new NotImplementedException(tree.getClass().getName());
     }
 
     private SourceOrigin toOrigin(JCTree node) {
@@ -365,7 +370,7 @@ public class JavaToDafnyCompiler {
                 if (fromJVerify(methodSymbol)) {
                     if (methodSymbol.getQualifiedName().contentEquals("check")) {
                         if (invocation.args.size() != 1) {
-                            throw new RuntimeException();
+                            throw new RuntimeException("Check should have a single argument");
                         }
                         return new AssertStmt(toOrigin(invocation), null,
                                 translateExpression(invocation.args.getFirst()), null);
@@ -428,7 +433,7 @@ public class JavaToDafnyCompiler {
                     new Specification<>(origin, modifies, null), new BlockStmt(origin, null, statements),
                     condition);
         }
-        throw new NotImplementedException();
+        throw new NotImplementedException(statement.getClass().getName());
     }
 
     private boolean findWhileHeaderStatement(JCTree.JCStatement statement,
@@ -450,7 +455,7 @@ public class JavaToDafnyCompiler {
         
         if (methodSymbol.getQualifiedName().contentEquals("invariant")) {
             if (invocation.args.size() != 1) {
-                throw new RuntimeException();
+                throw new RuntimeException("invariant should have a single argument");
             }
             invariants.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
             return true;
@@ -458,10 +463,10 @@ public class JavaToDafnyCompiler {
 
         if (methodSymbol.getQualifiedName().contentEquals("decreases")) {
             if (invocation.args.size() != 1) {
-                throw new RuntimeException();
+                throw new RuntimeException("decreases should have a single argument");
             }
             var first = invocation.getArguments().getFirst();
-            throw new NotImplementedException();
+            throw new NotImplementedException("decreases");
         }
         return false;
     }
@@ -476,6 +481,6 @@ public class JavaToDafnyCompiler {
                 return new LiteralExpr(toOrigin(literal), literal.value == (Object)0 ? false : 1);
             }
         }
-        throw new NotImplementedException();
+        throw new NotImplementedException(expression.getClass().getName());
     }
 }

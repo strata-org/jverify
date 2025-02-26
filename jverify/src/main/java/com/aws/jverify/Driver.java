@@ -13,7 +13,8 @@ public class Driver {
     public static int verifyJavaExample(String javaCode, Writer output) throws IOException {
         var files = new ArrayList<JavaFileObject>();
         files.add(new SourceFile("test.java", javaCode));
-        return verifyJavaFiles(files, new VerifierOptions(null, null), output);
+        var dafnyPath = "/Users/rwillems/SourceCode/GradleBased/dafny/Scripts/dafny";
+        return verifyJavaFiles(files, new VerifierOptions(dafnyPath, null, null, false), output);
     }
 
     public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
@@ -28,10 +29,13 @@ public class Driver {
     }
 
     public static int verifyJavaFiles(List<JavaFileObject> readFiles, VerifierOptions verifierOptions, Writer output) throws IOException {
-        var libraryLocation = "/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/JVerify.java";
-        String library = Files.readString(Path.of(libraryLocation));
+        List<String> files = List.of("JVerify", "Proof", "Nat", "Pure", "Unbounded", "Ghost");
+        var libraryLocation = Path.of("/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify");
 
-        readFiles.add(new SourceFile(libraryLocation, library));
+        for(var file : files) {
+            String fullPath = libraryLocation + "/" + file + ".java";
+            readFiles.add(new SourceFile(fullPath, Files.readString(Path.of(fullPath))));
+        }
 
         var dafnyEquivalent = new JavaToDafnyCompiler().analyzeJavaCode(readFiles);
         var sb = new StringBuilder();
@@ -45,7 +49,7 @@ public class Driver {
     
     public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Writer output) {
         var additionalDafnyPath = "/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/additional.dfy";
-        var dafnyPath = "../dafny/Scripts/dafny";
+        var dafnyPath = verifierOptions.dafnyPath();
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(
                     dafnyPath,  // Program path
@@ -57,6 +61,9 @@ public class Driver {
             );
             if (verifierOptions.printDafny() != null) {
                 processBuilder.command().add("--print=" + verifierOptions.printDafny());
+            }
+            if (verifierOptions.noSnippets()) {
+                processBuilder.command().add("--show-snippets=false");
             }
 
             Process process = processBuilder.start();

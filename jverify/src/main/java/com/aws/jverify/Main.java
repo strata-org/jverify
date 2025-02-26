@@ -31,11 +31,15 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--print-dafny", description = "Print the Dafny code that is generated from Java")
     private Path printDafny;
     
+    @Option(names = "--no-snippets", description = "Do not show code snippets for verification errors")
+    private boolean noSnippets;
+    
     @Override
     public Integer call() throws IOException {
         // This executes when no subcommand is specified
         Writer writer = new OutputStreamWriter(System.out);
-        var exitCode = Driver.verifyJavaPaths(inputs, new VerifierOptions(printDafny, printBinaryDafny), writer);
+        var dafnyPath = "/Users/rwillems/SourceCode/GradleBased/dafny/Scripts/dafny";
+        var exitCode = Driver.verifyJavaPaths(inputs, new VerifierOptions(dafnyPath, printDafny, printBinaryDafny, noSnippets), writer);
         writer.flush();
         System.exit(exitCode);
         return 0;

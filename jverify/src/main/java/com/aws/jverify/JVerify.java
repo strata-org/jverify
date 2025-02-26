@@ -24,28 +24,4 @@ public class JVerify {
     }
 }
 
-@Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
-@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
-@interface Proof {
-}
 
-@Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
-@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
-@interface Pure {
-}
-
-@Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
-@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
-@interface Ghost {
-}
-
-
-@Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
-@Target({ElementType.TYPE_USE})            // Can only be used on classes/interfaces
-@interface Unbounded {
-}
-
-@Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
-@Target(ElementType.TYPE_USE)            // Can only be used on classes/interfaces
-@interface Nat {
-}

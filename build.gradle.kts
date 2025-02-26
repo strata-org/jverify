@@ -84,7 +84,7 @@ project(":jverify") {
         jvmArgs = listOf(
         )
     }
-
+    
     tasks.withType<JavaExec> {                
         standardInput = System.`in`
         standardOutput = System.out
@@ -97,6 +97,15 @@ project(":jverify") {
 
     tasks.withType<JavaCompile> {
         options.compilerArgs.addAll(jverifyArgs)
+    }
+
+    tasks.named("run", JavaExec::class) {
+        // Override the jvmArgs to remove unwanted options
+        jvmArgs = allUnnamedArgs
+
+        // Keep the standard I/O settings
+        standardInput = System.`in`
+        standardOutput = System.out
     }
 }
 
