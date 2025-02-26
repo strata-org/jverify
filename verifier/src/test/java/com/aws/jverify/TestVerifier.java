@@ -5,10 +5,7 @@ import com.aws.jverify.verifier.VerifierOptions;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.io.Console;
-import java.io.IOException;
-import java.io.StringWriter;
-import java.io.Writer;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -16,7 +13,7 @@ public class TestVerifier {
     
     private int run(String inputFileName, Writer writer) throws IOException {
         var source = Files.readString(Path.of("./src/test/java/com/aws/jverify/" + inputFileName));
-        var dafnyPath = "../dafny/Scripts/dafny";
+        var dafnyPath = Path.of("../dafny/Scripts/dafny").toAbsolutePath();
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         var options = new VerifierOptions(dafnyPath, libraryJar, prelude, null, null, false);
@@ -56,6 +53,22 @@ public class TestVerifier {
                 "\n" +
                 "Dafny program verifier finished with 4 verified, 4 errors\n", output);
         Assertions.assertEquals(4, exitCode);
+
+    }
+    
+    @Test
+    public void testRunThroughGradle() throws IOException, InterruptedException {
+        var process = new ProcessBuilder(
+                "../gradlew",
+                ":verifier:run",
+                "--args=\"./src/test/java/com/aws/jverify/FibonacciValid.java\"").start();
+        var writer = new StringWriter();
+        var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+        reader.transferTo(writer);
+        var exitCode = process.waitFor();
+        reader.close();
+        Assertions.assertTrue(writer.toString().contains("Dafny program verifier finished with 6 verified, 0 errors"));
+        Assertions.assertEquals(0, exitCode);
 
     }
 }

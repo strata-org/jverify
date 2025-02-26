@@ -38,7 +38,7 @@ public class JavaToDafnyCompiler {
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
         
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
-            throw new IllegalArgumentException("Could not find file " + options.libraryJar());
+            throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
         List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();

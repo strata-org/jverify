@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier;
 
 import java.io.*;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,7 +12,6 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import com.aws.jverify.JVerify;
-import com.aws.jverify.Unbounded;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -37,28 +37,40 @@ class AppCommand implements Callable<Integer> {
     
     @Option(names = "--no-snippets", description = "Do not show code snippets for verification errors")
     private boolean noSnippets;
+
+    @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
+    private Path dafny;
     
     @Override
     public Integer call() throws IOException {
-        // This executes when no subcommand is specified
         Writer writer = new OutputStreamWriter(System.out);
 
         Class<?> clazz = JVerify.class;
-
-        // Get the location
-        String location = getJarLocationForClass(clazz);
+        String location = URI.create(getJarLocationForClass(clazz)).getPath();
 
         File tempFile = File.createTempFile("jverify-prelude-", ".dfy");
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        
-        
-        var dafnyPath = "/Users/rwillems/SourceCode/GradleBased/dafny/Scripts/dafny";
+
+        var dafnyPath = getDafnyPath();
         var exitCode = Driver.verifyJavaPaths(inputs, new VerifierOptions(dafnyPath, Path.of(location), tempFile.toPath(),
                 printDafny, printBinaryDafny, noSnippets), writer);
         writer.flush();
         System.exit(exitCode);
         return 0;
+    }
+
+    private Path getDafnyPath() {
+        var dafnyPath = dafny;
+        if (dafnyPath == null || !Files.exists(dafnyPath)) {
+            if (System.getenv("JVERIFY_DAFNY") != null) {
+                dafnyPath = Path.of(System.getenv("JVERIFY_DAFNY"));
+            }
+        }
+        if (dafnyPath == null || !Files.exists(dafnyPath)) {
+            dafnyPath = Path.of("dafny");
+        }
+        return dafnyPath;
     }
 
 

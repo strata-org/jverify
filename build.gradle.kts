@@ -68,11 +68,11 @@ project(":verifier") {
 
     apply(plugin = "application")
     application {
-        mainClass.set("com.aws.jverify.Main")  // For a file named main.kt
+        mainClass.set("com.aws.jverify.verifier.Main")  // For a file named main.kt
 
         applicationDefaultJvmArgs = allUnnamedArgs
     }
-    
+
     dependencies {
         implementation(project(":library"))
         
@@ -96,7 +96,9 @@ project(":verifier") {
         )
     }
     
-    tasks.withType<JavaExec> {                
+    tasks.withType<JavaExec> {
+        environment("JVERIFY_DAFNY", project.file("../dafny/Scripts/dafny").absolutePath)
+        
         standardInput = System.`in`
         standardOutput = System.out
         

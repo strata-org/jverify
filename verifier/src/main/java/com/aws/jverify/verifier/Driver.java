@@ -43,7 +43,7 @@ public class Driver {
         var dafnyPath = verifierOptions.dafnyPath();
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(
-                    dafnyPath,  // Program path
+                    dafnyPath.toString(),  // Program path
                     "verify",                       // First argument
                     verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
                     "--input-format",
