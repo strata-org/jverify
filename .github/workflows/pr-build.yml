@@ -25,7 +25,6 @@ jobs:
           dotnet build ./jverify-collection/dafny/Source/Dafny.sln
       - name: Set up JDK
         uses: actions/setup-java@v4
-        working-directory: ./jverify-collection
         with:
           distribution: 'corretto'
           java-version: '17'
