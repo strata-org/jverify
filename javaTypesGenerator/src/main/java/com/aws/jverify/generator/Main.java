@@ -29,8 +29,8 @@ class AppCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws IOException {
-        String input = Files.readString(dafnySchemaFile);
-        new CSharpToJavaConverter("com.aws.jverify.generated").writeJava(input, outputDirectory);
+        String input = Files.readString(dafnySchemaFile.toAbsolutePath());
+        new CSharpToJavaConverter("com.aws.jverify.generated").writeJava(input, outputDirectory.toAbsolutePath());
         return CommandLine.ExitCode.OK;
     }
 }
