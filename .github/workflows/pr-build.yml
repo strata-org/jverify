@@ -16,12 +16,6 @@ jobs:
   checks:
     runs-on: ubuntu-20.04
     steps:
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'corretto'
-          java-version: '17'
-          cache: gradle
       - uses: actions/checkout@v4
         with:
           path: jverify-collection
@@ -29,6 +23,13 @@ jobs:
       - name: Build Dafny 
         run: |
           dotnet build ./jverify-collection/dafny/Source/Dafny.sln
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        working-directory: ./jverify-collection
+        with:
+          distribution: 'corretto'
+          java-version: '17'
+          cache: gradle
       - name: Code generation has no diff
         working-directory: ./jverify-collection
         run: |
