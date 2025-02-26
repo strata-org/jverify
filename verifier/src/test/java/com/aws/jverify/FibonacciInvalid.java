@@ -2,7 +2,7 @@ package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.*;
 
-class FibonacciValid {
+class FibonacciInvalid {
     @Pure
     @Ghost
     static @Unbounded @Nat int Spec(@Unbounded @Nat int n) {

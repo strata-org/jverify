@@ -56,13 +56,13 @@ val allUnnamedArgs = listOf(
 "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED")
 
 val jverifyArgs = listOf(
-    "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify")
+    "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify.verifier",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify.verifier",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify.verifier",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify.verifier",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify.verifier",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify.verifier",
+    "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify.verifier")
 
 project(":verifier") {
 

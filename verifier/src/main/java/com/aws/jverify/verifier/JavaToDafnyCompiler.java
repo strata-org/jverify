@@ -17,7 +17,9 @@ import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.TypeKind;
+import javax.swing.*;
 import javax.tools.*;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -29,23 +31,22 @@ public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = "com.aws.jverify.JVerify";
     JCTree.JCCompilationUnit compilationUnit;
 
-    public FilesContainer analyzeJavaCode(List<JavaFileObject> files) {
+    public FilesContainer analyzeJavaCode(VerifierOptions options,  List<JavaFileObject> files) {
         // Get the Java compiler
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         Context context = new Context();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
-
-        List<String> options = List.of();
-                
-//                Arrays.asList(
-//                "-classpath", "/path/to/your.jar:/path/to/other.jar"
-//        );
+        
+        if (!Files.exists(options.libraryJar().toAbsolutePath())) {
+            throw new IllegalArgumentException("Could not find file " + options.libraryJar());
+        }
+        List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
                 null,
                 fileManager,
                 diagnostics,
-                options,  // Add classpath here
+                javacOptions,  // Add classpath here
                 null,
                 files
         );

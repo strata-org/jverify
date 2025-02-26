@@ -10,11 +10,10 @@ import java.util.stream.Collectors;
 
 public class Driver {
 
-    public static int verifyJavaExample(String javaCode, Writer output) throws IOException {
+    public static int verifyJavaExample(VerifierOptions options, String javaCode, Writer output) throws IOException {
         var files = new ArrayList<JavaFileObject>();
         files.add(new SourceFile("test.java", javaCode));
-        var dafnyPath = "/Users/rwillems/SourceCode/GradleBased/dafny/Scripts/dafny";
-        return verifyJavaFiles(files, new VerifierOptions(dafnyPath, null, null, false), output);
+        return verifyJavaFiles(files, options, output);
     }
 
     public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
@@ -29,15 +28,8 @@ public class Driver {
     }
 
     public static int verifyJavaFiles(List<JavaFileObject> readFiles, VerifierOptions verifierOptions, Writer output) throws IOException {
-        List<String> files = List.of("JVerify", "Proof", "Nat", "Pure", "Unbounded", "Ghost");
-        var libraryLocation = Path.of("/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify");
 
-        for(var file : files) {
-            String fullPath = libraryLocation + "/" + file + ".java";
-            readFiles.add(new SourceFile(fullPath, Files.readString(Path.of(fullPath))));
-        }
-
-        var dafnyEquivalent = new JavaToDafnyCompiler().analyzeJavaCode(readFiles);
+        var dafnyEquivalent = new JavaToDafnyCompiler().analyzeJavaCode(verifierOptions, readFiles);
         var sb = new StringBuilder();
         new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
         var program = sb.toString();
@@ -48,13 +40,12 @@ public class Driver {
     }
     
     public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Writer output) {
-        var additionalDafnyPath = "/Users/rwillems/SourceCode/GradleBased/jverify/src/main/java/com/aws/jverify/additional.dfy";
         var dafnyPath = verifierOptions.dafnyPath();
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(
                     dafnyPath,  // Program path
                     "verify",                       // First argument
-                    additionalDafnyPath,
+                    verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
                     "--input-format",
                     "Binary",
                     "--stdin"                        // Second argument
