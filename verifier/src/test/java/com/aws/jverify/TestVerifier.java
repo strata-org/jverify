@@ -48,7 +48,7 @@ public class TestVerifier {
         Assertions.assertEquals("/test.java(44,22): Error: value does not satisfy the subset constraints of 'nat32'\n" +
                 "/test.java(49,19): Error: value does not satisfy the subset constraints of 'nat32'\n" +
                 "/test.java(17,13): Error: a postcondition could not be proved on this return path\n" +
-                "/test.java(14,34): Related location: this is the postcondition that could not be proved\n" +
+                "/test.java(14,40): Related location: this is the postcondition that could not be proved\n" +
                 "/test.java(31,35): Error: value does not satisfy the subset constraints of 'int32'\n" +
                 "\n" +
                 "Dafny program verifier finished with 4 verified, 4 errors\n", output);
