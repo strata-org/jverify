@@ -29,7 +29,7 @@ jobs:
       - name: Build Dafny
         working-directory: ./jverify-collection/dafny
         run: |
-          dotnet build .Source/Dafny.sln
+          dotnet build ./Source/Dafny.sln
           make z3-ubuntu
       - name: Code generation has no diff
         working-directory: ./jverify-collection
