@@ -7,5 +7,5 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
 @Target(ElementType.METHOD)            // Can only be used on classes/interfaces
-public @interface Ghost {
+public @interface Erased {
 }

@@ -4,15 +4,15 @@ import static com.aws.jverify.JVerify.*;
 
 class FibonacciValid {
     @Pure
-    @Ghost
+    @Erased
     static @Unbounded @Nat int Spec(@Unbounded @Nat int n) {
         return n < 2 ? n : Spec(n - 1) + Spec(n - 2);
     }
 
     public static @Nat int Implementation(@Nat int n)
     {
-        requires(Spec(n) <= 0x7fffffff /*Integer.MAX_VALUE*/);
-        ensures((Integer r) -> r == Spec(n));
+        precondition(Spec(n) <= 0x7fffffff /*Integer.MAX_VALUE*/);
+        postcondition((Integer r) -> r == Spec(n));
 
         if (n == 0) {
             return 0;
@@ -39,8 +39,8 @@ class FibonacciValid {
     @Proof
     static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
     {
-        requires(i <= j);
-        ensures(Spec(i) <= Spec(j));
+        precondition(i <= j);
+        postcondition(Spec(i) <= Spec(j));
 
         @Unbounded @Nat int x = i;
         while(x < j)

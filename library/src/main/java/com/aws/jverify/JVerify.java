@@ -6,16 +6,16 @@ public class JVerify {
     public static void check(boolean condition) {
     }
 
-    public static <T> void requires(boolean condition) {
+    public static <T> void precondition(boolean condition) {
     }
 
     public static void invariant(boolean condition) {
     }
     
-    public static <T> void ensures(Function<T, Boolean> predicate) {
+    public static <T> void postcondition(Function<T, Boolean> predicate) {
     }
 
-    public static void ensures(Boolean predicate) {
+    public static void postcondition(Boolean predicate) {
     }
 }
 

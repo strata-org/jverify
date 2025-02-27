@@ -4,14 +4,14 @@ import static com.aws.jverify.JVerify.*;
 
 class FibonacciInvalid {
     @Pure
-    @Ghost
+    @Erased
     static @Unbounded @Nat int Spec(@Unbounded @Nat int n) {
         return n < 2 ? n : Spec(n - 1) + Spec(n - 2);
     }
 
     public static @Nat int Implementation(@Nat int n)
     {
-        ensures((Integer r) -> r == Spec(n));
+        postcondition((Integer r) -> r == Spec(n));
 
         if (n == 0) {
             return 1; // postcondition failure
@@ -38,8 +38,8 @@ class FibonacciInvalid {
     @Proof
     static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
     {
-        requires(i <= j);
-        ensures(Spec(i) <= Spec(j));
+        precondition(i <= j);
+        postcondition(Spec(i) <= Spec(j));
 
         @Nat int x = i; // overflow failure
         while(x < j)
