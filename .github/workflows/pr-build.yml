@@ -20,15 +20,15 @@ jobs:
         with:
           path: jverify-collection
           submodules: recursive
-      - name: Build Dafny 
-        run: |
-          dotnet build ./jverify-collection/dafny/Source/Dafny.sln
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'corretto'
           java-version: '17'
           cache: gradle
+      - name: Build Dafny 
+        run: |
+          dotnet build ./jverify-collection/dafny/Source/Dafny.sln
       - name: Code generation has no diff
         working-directory: ./jverify-collection
         run: |
