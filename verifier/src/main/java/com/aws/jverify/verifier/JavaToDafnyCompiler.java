@@ -216,8 +216,8 @@ public class JavaToDafnyCompiler {
     }
 
     private boolean findHeaderStatement(JCTree.JCStatement statement, 
-                                     List<AttributedExpression> requireses, 
-                                     List<AttributedExpression> ensureses, 
+                                     List<AttributedExpression> preconditions, 
+                                     List<AttributedExpression> postconditions, 
                                         List<Name> returnNames) {
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement)) {
             return false;
@@ -231,17 +231,17 @@ public class JavaToDafnyCompiler {
         if (!fromJVerify(methodSymbol)) {
             return false;
         }
-        if (methodSymbol.getQualifiedName().contentEquals("requires")) {
+        if (methodSymbol.getQualifiedName().contentEquals("precondition")) {
             if (invocation.args.size() != 1) {
-                throw new RuntimeException("A requires call may have only one argument");
+                throw new RuntimeException("A precondition call may have only one argument");
             }
-            requireses.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
+            preconditions.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
             return true;
         }
 
-        if (methodSymbol.getQualifiedName().contentEquals("ensures")) {
+        if (methodSymbol.getQualifiedName().contentEquals("postcondition")) {
             if (invocation.args.size() != 1) {
-                throw new RuntimeException("An ensures call may have only one argument");
+                throw new RuntimeException("An postcondition call may have only one argument");
             }
             var first = invocation.getArguments().getFirst();
             if (first instanceof JCTree.JCLambda lambda) {
@@ -250,11 +250,11 @@ public class JavaToDafnyCompiler {
                 }
                 var parameter = lambda.getParameters().getFirst();
                 returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
-                ensureses.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
+                postconditions.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
                 return true;
             } if (first instanceof JCTree.JCExpression expression) {
                 var dafnyExpr = toExpr(expression);
-                ensureses.add(new AttributedExpression(dafnyExpr, null, null));
+                postconditions.add(new AttributedExpression(dafnyExpr, null, null));
                 return true;
             } else {
                 throw new RuntimeException("An ensures clause must take either a lambda or an expression");

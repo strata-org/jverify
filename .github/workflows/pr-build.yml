@@ -26,13 +26,17 @@ jobs:
           distribution: 'corretto'
           java-version: '21'
           cache: gradle
-      - name: Build Dafny 
+      - name: Build Dafny
+        working-directory: ./jverify-collection/dafny
         run: |
-          dotnet build ./jverify-collection/dafny/Source/Dafny.sln
+          dotnet build .Source/Dafny.sln
+          make z3-ubuntu
       - name: Code generation has no diff
         working-directory: ./jverify-collection
         run: |
           make test-generation-nodiff
+      - name: Install Z3
+        run: |
       - name: Gradle test
         working-directory: ./jverify-collection
         run: |
