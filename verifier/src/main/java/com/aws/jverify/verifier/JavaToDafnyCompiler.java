@@ -59,9 +59,6 @@ public class JavaToDafnyCompiler {
         for (var compilationUnit : parsed) {
             this.compilationUnit = (JCTree.JCCompilationUnit)compilationUnit;
 
-            if (compilationUnit.getSourceFile().getName().contains("JVerify.java")) {
-                continue;
-            }
             for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
                 if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                     throw new RuntimeException("Java file had errors: " + diagnostic.getMessage(Locale.ENGLISH));

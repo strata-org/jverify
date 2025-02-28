@@ -5,7 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Retention(RetentionPolicy.SOURCE)  // Keep annotation at runtime
-@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
+@Retention(RetentionPolicy.SOURCE)
+@Target(ElementType.METHOD)
 public @interface Pure {
 }

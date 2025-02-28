@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class CSharpToJavaConverter {
-    Set<String> foundTypes = new HashSet<String>();
+    Set<String> foundClasses = new HashSet<>();
 
     public CSharpToJavaConverter(String packageName) {
         this.packageName = packageName;
@@ -138,7 +138,13 @@ public class CSharpToJavaConverter {
         // Updated pattern for class declaration with generics and constraints
         // Example: "class Specification<T> : NodeWithComputedRange where T : Node"
         Pattern classWithBodyPattern = Pattern.compile(
-                "(abstract)?\\s*class\\s+(\\w+)\\s*(?:<([^>]+)>)?\\s*(?::\\s*(\\w+))?\\s*(?:where\\s+([^{]+))?\\s*\\{([^}]*)}",
+                "(abstract)?\\s*" +
+                        "class\\s+" +
+                        "(?<name>\\w+)\\s*" +
+                        "(?:<(?<typeParams>[^>]+)>)?\\s*" +
+                        "(?::\\s*(?<baseClass>\\w+))?\\s*" +
+                        "(?:where\\s+(?<constraints>[^{]+))?\\s*" +
+                        "\\{(?<body>[^}]*)}",
                 Pattern.MULTILINE | Pattern.DOTALL
         );
         Matcher classWithBodyMatcher = classWithBodyPattern.matcher(csharpCode);
@@ -200,7 +206,7 @@ public class CSharpToJavaConverter {
             }
 
             classes.add(csharpClass);
-            foundTypes.add(csharpClass.className);
+            foundClasses.add(csharpClass.className);
             classMap.put(className, csharpClass);
         }
 
@@ -214,9 +220,9 @@ public class CSharpToJavaConverter {
         return classes;
     }
 
-    private TypeName convertCSharpTypeToJavaType(CSharpField field, List<TypeParameter> typeParameters) {
+    private TypeName convertCSharpFieldToJavaFieldType(CSharpField field, List<TypeParameter> classTypeParameters) {
         // Check if the type is a type parameter
-        Optional<TypeParameter> typeParam = typeParameters.stream()
+        Optional<TypeParameter> typeParam = classTypeParameters.stream()
                 .filter(tp -> tp.name.equals(field.type))
                 .findFirst();
 
@@ -236,13 +242,13 @@ public class CSharpToJavaConverter {
         }
 
         // Handle generic types
-        ClassName rawType = foundTypes.contains(baseType)
+        ClassName rawType = foundClasses.contains(baseType)
                 ? ClassName.get(packageName, baseType)
                 : ClassName.get("java.util", baseType);
         List<TypeName> typeArguments = field.genericTypes.stream()
                 .map(type -> {
                     // Check if the generic argument is a type parameter
-                    Optional<TypeParameter> genericTypeParam = typeParameters.stream()
+                    Optional<TypeParameter> genericTypeParam = classTypeParameters.stream()
                             .filter(tp -> tp.name.equals(type))
                             .findFirst();
 
@@ -291,10 +297,11 @@ public class CSharpToJavaConverter {
         // Add fields and prepare constructor parameters
         for (CSharpField field : allFields) {
             int iteration = 0;
+            // Try several names in case some collide with reserved names
             for(;iteration < 5;iteration++) {
                 var newName = field.name + (iteration == 0 ? "" : iteration);
                 try {
-                    TypeName fieldType = convertCSharpTypeToJavaType(field, csharpClass.typeParameters);
+                    TypeName fieldType = convertCSharpFieldToJavaFieldType(field, csharpClass.typeParameters);
 
                     // Only add field if it's from this class (not inherited)
                     if (csharpClass.fields.contains(field)) {
@@ -307,8 +314,6 @@ public class CSharpToJavaConverter {
                         }
                         FieldSpec fieldSpec = builder.build();
                         classBuilder.addField(fieldSpec);
-                    } else {
-                        var b = 3;
                     }
 
                     // Add parameter to constructor
@@ -328,7 +333,7 @@ public class CSharpToJavaConverter {
                 }
             }
             if (iteration == 5) {
-                throw new RuntimeException("failed");
+                throw new RuntimeException("could not find a valid name for field " + field.name + " after 5 attempts");
             }
         }
 

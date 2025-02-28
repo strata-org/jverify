@@ -26,7 +26,7 @@ public class Serializer {
             }
         }
         if (value == null) {
-            throw new RuntimeException();
+            throw new RuntimeException("Cannot serialize null value if no nullable type is expected");
         }
 
         var type = annotatedType.getType();
@@ -36,7 +36,7 @@ public class Serializer {
         } else if (type instanceof ParameterizedType parameterizedType) {
             expectedClass = (Class<?>) parameterizedType.getRawType();
         } else {
-            throw new RuntimeException();
+            throw new RuntimeException("No support for serializing " + type.getClass().getName());
         }
             
         if (expectedClass.isEnum()) {
@@ -61,17 +61,13 @@ public class Serializer {
             }
             encoder.writeQualifiedName(simpleName);
         }
-        
-        if (value instanceof String s) {
-            encoder.writeString(s);
-        } else if (value instanceof Map<?, ?>) {
-            serializeMap((Map<?, ?>) value, (AnnotatedParameterizedType) annotatedType);
-        } else if (value instanceof Integer i) {
-            encoder.writeInt(i);
-        } else if (value instanceof Boolean b){
-            encoder.writeBool(b);
-        } else {
-            serializeObject(value);
+
+        switch (value) {
+            case String s -> encoder.writeString(s);
+            case Map<?, ?> map -> serializeMap(map, (AnnotatedParameterizedType) annotatedType);
+            case Integer i -> encoder.writeInt(i);
+            case Boolean b -> encoder.writeBool(b);
+            default -> serializeObject(value);
         }
     }
 

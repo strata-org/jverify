@@ -26,7 +26,13 @@ java {
 }
 
 project(":library") {
-    
+}
+
+
+project(":examples") {
+    dependencies {
+        implementation(project(":library"))
+    }
 }
 
 project(":javaTypesGenerator") {
@@ -126,21 +132,3 @@ project(":verifier") {
         standardOutput = System.out
     }
 }
-
-//dependencies {
-    
-    
-    // https://mvnrepository.com/artifact/com.jetbrains.intellij.platform/util
-//    implementation("com.jetbrains.intellij.platform:util:243.23654.166")
-//
-//// https://mvnrepository.com/artifact/com.jetbrains.intellij.platform/core
-//    implementation("com.jetbrains.intellij.platform:core:243.23654.166")
-//    
-//// https://mvnrepository.com/artifact/com.jetbrains.intellij.platform/lang-impl
-//    implementation("com.jetbrains.intellij.platform:lang-impl:243.23654.166")
-//
-//// https://mvnrepository.com/artifact/com.jetbrains.intellij.java/java-psi
-//    implementation("com.jetbrains.intellij.java:java-psi:243.23654.153")
-
-
-//}

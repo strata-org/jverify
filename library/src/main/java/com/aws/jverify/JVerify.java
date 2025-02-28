@@ -6,7 +6,7 @@ public class JVerify {
     public static void check(boolean condition) {
     }
 
-    public static <T> void precondition(boolean condition) {
+    public static void precondition(boolean condition) {
     }
 
     public static void invariant(boolean condition) {
@@ -15,7 +15,7 @@ public class JVerify {
     public static <T> void postcondition(Function<T, Boolean> predicate) {
     }
 
-    public static void postcondition(Boolean predicate) {
+    public static void postcondition(boolean predicate) {
     }
 }
 

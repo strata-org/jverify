@@ -29,10 +29,10 @@ class AppCommand implements Callable<Integer> {
     @Parameters(description = "Java files to verify")
     private List<Path> inputs;
     
-    @Option(names = "--print-binary-dafny", description = "Print the binary Dafny code that is generated from Java")
+    @Option(names = "--print-binary-dafny", description = "Given a filepath, prints the binary Dafny code that is generated from Java")
     private Path printBinaryDafny;
 
-    @Option(names = "--print-dafny", description = "Print the Dafny code that is generated from Java")
+    @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
     
     @Option(names = "--no-snippets", description = "Do not show code snippets for verification errors")
@@ -45,15 +45,17 @@ class AppCommand implements Callable<Integer> {
     public Integer call() throws IOException {
         Writer writer = new OutputStreamWriter(System.out);
 
-        Class<?> clazz = JVerify.class;
-        String location = URI.create(getJarLocationForClass(clazz)).getPath();
+        // In the future we'll have to add an argument to specify jar files for dependencies of the input sources,
+        // And those will include the JVerify library jar.
+        // But right now we manually find the JVerify library jar and include it in the compilation.
+        var jverifyLibraryLocation = Path.of(URI.create(getJarLocationForClass(JVerify.class)).getPath());
 
         File tempFile = File.createTempFile("jverify-prelude-", ".dfy");
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
         var dafnyPath = getDafnyPath();
-        var exitCode = Driver.verifyJavaPaths(inputs, new VerifierOptions(dafnyPath, Path.of(location), tempFile.toPath(),
+        var exitCode = Driver.verifyJavaPaths(inputs, new VerifierOptions(dafnyPath, jverifyLibraryLocation, tempFile.toPath(),
                 printDafny, printBinaryDafny, noSnippets), writer);
         writer.flush();
         System.exit(exitCode);
