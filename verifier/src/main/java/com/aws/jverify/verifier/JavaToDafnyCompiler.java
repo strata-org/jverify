@@ -148,13 +148,17 @@ public class JavaToDafnyCompiler {
                 return null;
             } else {
                 List<Name> returnNames = new ArrayList<>();
-                List<AttributedExpression> req = new ArrayList<>();
-                List<AttributedExpression> ens = new ArrayList<>();
-                Function<JCTree.JCStatement, Boolean> function = 
-                        (JCTree.JCStatement s) -> findHeaderStatement(s, req, ens, returnNames);
 
-                var statements = processStatementsWithHeader(method.getBody().stats, function);
-
+                var preconditions = new ArrayList<AttributedExpression>();
+                var postconditions = new ArrayList<AttributedExpression>();
+                var invariants = new ArrayList<AttributedExpression>();
+                var decreases = new ArrayList<Expression>();
+                var modifies = new ArrayList<FrameExpression>();
+                        
+                var statements = processStatementsWithHeader(method.getBody().stats, 
+                        preconditions, postconditions, returnNames, invariants, decreases, modifies);
+                checkEmptyExpressions(invariants, "invariants", "method");
+                
                 if (returnNames.size() > 1) {
                     throw new RuntimeException("Ensures clauses may introduce only one return variable name");
                 }
@@ -173,13 +177,13 @@ public class JavaToDafnyCompiler {
 
                 if (annotationsByName.containsKey(Proof.class.getSimpleName())) {
                     return new Method(origin, name, null, isStatic, false, null, List.of(),
-                            ins, req, ens, new Specification<FrameExpression>(origin, List.of(), null),
+                            ins, preconditions, postconditions, new Specification<FrameExpression>(origin, List.of(), null),
                             new Specification<>(origin, List.of(), null), outs,
                             new Specification<FrameExpression>(origin, List.of(), null),
                             new BlockStmt(origin, null, statements), false);
                 } else {
                     return new Method(origin, name, null, isStatic, false, null, List.of(),
-                            ins, req, ens, new Specification<FrameExpression>(origin, List.of(), null),
+                            ins, preconditions, postconditions, new Specification<FrameExpression>(origin, List.of(), null),
                             new Specification<>(origin, List.of(), null), outs,
                             new Specification<FrameExpression>(origin, List.of(), null),
                             new BlockStmt(origin, null, statements), false);
@@ -190,74 +194,39 @@ public class JavaToDafnyCompiler {
     }
 
     private List<Statement> processStatementWithHeader(JCTree.JCStatement statement,
-                                                        Function<JCTree.JCStatement, Boolean> checkPossibleHeader) {
+                                                       List<AttributedExpression> preconditions,
+                                                       List<AttributedExpression> postconditions,
+                                                       List<Name> returnNames,
+                                                       List<AttributedExpression> invariants,
+                                                       List<Expression> decreases,
+                                                       List<FrameExpression> modifies) {
         var statements = statement instanceof JCTree.JCBlock block ? block.stats : List.of(statement);
-        return processStatementsWithHeader(statements, checkPossibleHeader);
+        return processStatementsWithHeader(statements, preconditions, postconditions, 
+                returnNames, invariants, decreases, modifies);
     }
     
-    private List<Statement> processStatementsWithHeader(List<JCTree.JCStatement> stats, 
-                                                        Function<JCTree.JCStatement, Boolean> checkPossibleHeader) {
+    private List<Statement> processStatementsWithHeader(List<JCTree.JCStatement> stats,
+                                                        List<AttributedExpression> preconditions,
+                                                        List<AttributedExpression> postconditions,
+                                                        List<Name> returnNames,
+                                                        List<AttributedExpression> invariants,
+                                                        List<Expression> decreases,
+                                                        List<FrameExpression> modifies) {
         List<Statement> statements = new ArrayList<>();
         boolean inHeader = true;
         for (JCTree.JCStatement statement : stats) {
             if (inHeader) {
-                if (!checkPossibleHeader.apply(statement)) {
+                var newStatement = translateStatement(statement, 
+                        preconditions, postconditions, returnNames, invariants, decreases, modifies);
+                if (newStatement != null) {
                     inHeader = false;
+                    statements.add(newStatement);
                 }
-            }
-            if (!inHeader) {
+            } else {
                 statements.add(translateStatement(statement));
             }
         }
         return statements;
-    }
-
-    private boolean findHeaderStatement(JCTree.JCStatement statement, 
-                                     List<AttributedExpression> preconditions, 
-                                     List<AttributedExpression> postconditions, 
-                                        List<Name> returnNames) {
-        if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement)) {
-            return false;
-        }
-        var expr = expressionStatement.getExpression();
-        if (!(expr instanceof JCTree.JCMethodInvocation invocation)) {
-            return false;
-        }
-
-        var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-        if (!fromJVerify(methodSymbol)) {
-            return false;
-        }
-        if (methodSymbol.getQualifiedName().contentEquals("precondition")) {
-            if (invocation.args.size() != 1) {
-                throw new RuntimeException("A precondition call may have only one argument");
-            }
-            preconditions.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
-            return true;
-        }
-
-        if (methodSymbol.getQualifiedName().contentEquals("postcondition")) {
-            if (invocation.args.size() != 1) {
-                throw new RuntimeException("An postcondition call may have only one argument");
-            }
-            var first = invocation.getArguments().getFirst();
-            if (first instanceof JCTree.JCLambda lambda) {
-                if (lambda.getParameters().size() != 1) {
-                    throw new RuntimeException("An ensures call lambda may take only one argument");
-                }
-                var parameter = lambda.getParameters().getFirst();
-                returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
-                postconditions.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
-                return true;
-            } if (first instanceof JCTree.JCExpression expression) {
-                var dafnyExpr = toExpr(expression);
-                postconditions.add(new AttributedExpression(dafnyExpr, null, null));
-                return true;
-            } else {
-                throw new RuntimeException("An ensures clause must take either a lambda or an expression");
-            }
-        }
-        return false;
     }
 
     private Expression toExpr(JCTree tree) {
@@ -361,7 +330,7 @@ public class JavaToDafnyCompiler {
                 (int)compilationUnit.getLineMap().getLineNumber(pos), 
                 (int) compilationUnit.getLineMap().getColumnNumber(pos) + 1);
     }
-    
+
     private Statement translateStatement(JCTree.JCStatement statement) {
         SourceOrigin origin = toOrigin(statement);
         if (statement instanceof JCTree.JCExpressionStatement expressionStatement) {
@@ -370,12 +339,17 @@ public class JavaToDafnyCompiler {
 
                 var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
                 if (fromJVerify(methodSymbol)) {
-                    if (methodSymbol.getQualifiedName().contentEquals("check")) {
+
+                    var name = methodSymbol.getQualifiedName().toString();
+                    if (name.equals("check")) {
                         if (invocation.args.size() != 1) {
                             throw new RuntimeException("Check should have a single argument");
                         }
                         return new AssertStmt(toOrigin(invocation), null,
                                 toExpr(invocation.args.getFirst()), null);
+                    } else {
+                        throw new RuntimeException("Call to JVerify header method " +
+                            methodSymbol.getQualifiedName() + " is not allowed after non-header statement");
                     }
                 } else {
                     var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(origin, null, toExpr(a), false)).toList();
@@ -401,17 +375,17 @@ public class JavaToDafnyCompiler {
             if (ifStatement.getElseStatement() != null) {
                 elseBranch = (BlockStmt) translateStatement(ifStatement.getElseStatement());
             }
-            return new IfStmt(origin, null, false, condition, 
+            return new IfStmt(origin, null, false, condition,
                     thenBranch, elseBranch);
         } else if (statement instanceof JCTree.JCBlock blockStatement) {
-            return new BlockStmt(origin, null, 
+            return new BlockStmt(origin, null,
                     blockStatement.getStatements().map(this::translateStatement).stream().toList());
         } else if (statement instanceof JCTree.JCReturn returnStatement) {
             var expr = returnStatement.getExpression();
-            return new ReturnStmt(origin, null, 
+            return new ReturnStmt(origin, null,
                     List.of(new ExprRhs(toOrigin(expr), null, toExpr(expr))));
         } else if (statement instanceof JCTree.JCVariableDecl variableDecl) {
-            LocalVariable localVariable = new LocalVariable(origin, 
+            LocalVariable localVariable = new LocalVariable(origin,
                     variableDecl.getName().toString(), toType(variableDecl.getType(), origin), false);
             ConcreteAssignStatement initializer = null;
             if (variableDecl.getInitializer() != null) {
@@ -420,16 +394,23 @@ public class JavaToDafnyCompiler {
                 List<AssignmentRhs> rhss = List.of(new ExprRhs(e.getOrigin(), null, e));
                 initializer = new AssignStatement(e.getOrigin(), null, lhss, rhss, false);
             }
-            
+
             return new VarDeclStmt(origin, null, List.of(localVariable), initializer);
         } else if (statement instanceof JCTree.JCWhileLoop whileLoop) {
 
+            List<AttributedExpression> preconditions = new ArrayList<>();
+            List<AttributedExpression> postconditions = new ArrayList<>();
             List<AttributedExpression> invariants = new ArrayList<>();
             List<Expression> decreases = new ArrayList<>();
             List<FrameExpression> modifies = new ArrayList<>();
-            Function<JCTree.JCStatement, Boolean> function =
-                    (JCTree.JCStatement s) -> findWhileHeaderStatement(s, invariants, decreases, modifies);
-            var statements = processStatementWithHeader(whileLoop.body, function);
+            List<Name> returnNames = new ArrayList<>();
+            
+            var statements = processStatementWithHeader(whileLoop.body, preconditions, postconditions,
+                    returnNames, invariants, decreases, modifies);
+            
+            checkEmptyExpressions(preconditions, "preconditions", "loop");
+            checkEmptyExpressions(preconditions, "postconditions", "loop");
+            
             var condition = toExpr(whileLoop.getCondition());
             return new WhileStmt(origin, null, invariants, new Specification<>(origin, decreases, null),
                     new Specification<>(origin, modifies, null), new BlockStmt(origin, null, statements),
@@ -438,39 +419,78 @@ public class JavaToDafnyCompiler {
         throw new NotImplementedException(statement.getClass().getName());
     }
 
-    private boolean findWhileHeaderStatement(JCTree.JCStatement statement,
-                                             List<AttributedExpression> invariants,
-                                             List<Expression> decreases, 
-                                             List<FrameExpression> modifies) {
-        if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement)) {
-            return false;
-        }
-        var expr = expressionStatement.getExpression();
-        if (!(expr instanceof JCTree.JCMethodInvocation invocation)) {
-            return false;
-        }
+    private void checkEmptyExpressions(List<AttributedExpression> expressions, 
+                                       String typeName, 
+                                       String containerName) {
+      for(var expr : expressions) {
+          throw new RuntimeException(typeName + " are not allowed in a " + containerName);
+      }
+    }
+    
+    private @Nullable Statement translateStatement(JCTree.JCStatement statement,
+                                         List<AttributedExpression> preconditions,
+                                         List<AttributedExpression> postconditions, 
+                                         List<Name> returnNames,
+                                         List<AttributedExpression> invariants,
+                                         List<Expression> decreases,
+                                         List<FrameExpression> modifies) {
+        if (statement instanceof JCTree.JCExpressionStatement expressionStatement) {
+            var expr = expressionStatement.getExpression();
+            if (expr instanceof JCTree.JCMethodInvocation invocation) {
 
-        var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-        if (!fromJVerify(methodSymbol)) {
-            return false;
-        }
-        
-        if (methodSymbol.getQualifiedName().contentEquals("invariant")) {
-            if (invocation.args.size() != 1) {
-                throw new RuntimeException("invariant should have a single argument");
-            }
-            invariants.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
-            return true;
-        }
+                var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
+                if (fromJVerify(methodSymbol)) {
+                    var name = methodSymbol.getQualifiedName().toString();
+                    switch (name) {
+                        case "precondition" -> {
+                            if (invocation.args.size() != 1) {
+                                throw new RuntimeException("A precondition call may have only one argument");
+                            }
+                            preconditions.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
+                            return null;
+                        }
+                        case "postcondition" -> {
+                            if (invocation.args.size() != 1) {
+                                throw new RuntimeException("An postcondition call may have only one argument");
+                            }
+                            var first = invocation.getArguments().getFirst();
+                            if (first instanceof JCTree.JCLambda lambda) {
+                                if (lambda.getParameters().size() != 1) {
+                                    throw new RuntimeException("An ensures call lambda may take only one argument");
+                                }
+                                var parameter = lambda.getParameters().getFirst();
+                                returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
+                                postconditions.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
+                                return null;
+                            }
+                            if (first instanceof JCTree.JCExpression expression) {
+                                var dafnyExpr = toExpr(expression);
+                                postconditions.add(new AttributedExpression(dafnyExpr, null, null));
+                                return null;
+                            } else {
+                                throw new RuntimeException("An ensures clause must take either a lambda or an expression");
+                            }
+                        }
+                        case "invariant" -> {
+                            if (invocation.args.size() != 1) {
+                                throw new RuntimeException("invariant should have a single argument");
+                            }
+                            invariants.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
+                            return null;
+                        }
+                        case "decreases" -> {
+                            if (invocation.args.size() != 1) {
+                                throw new RuntimeException("decreases should have a single argument");
+                            }
+                            var first = invocation.getArguments().getFirst();
+                            throw new NotImplementedException("decreases");
+                        }
+                    }
 
-        if (methodSymbol.getQualifiedName().contentEquals("decreases")) {
-            if (invocation.args.size() != 1) {
-                throw new RuntimeException("decreases should have a single argument");
+                }
             }
-            var first = invocation.getArguments().getFirst();
-            throw new NotImplementedException("decreases");
         }
-        return false;
+        return translateStatement(statement);
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
