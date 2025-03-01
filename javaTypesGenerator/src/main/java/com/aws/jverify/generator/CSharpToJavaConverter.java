@@ -138,11 +138,11 @@ public class CSharpToJavaConverter {
         // Updated pattern for class declaration with generics and constraints
         // Example: "class Specification<T> : NodeWithComputedRange where T : Node"
         Pattern classWithBodyPattern = Pattern.compile(
-                "(abstract)?\\s*" +
+                "(?<abstract>abstract)?\\s*" +
                         "class\\s+" +
                         "(?<name>\\w+)\\s*" +
                         "(?:<(?<typeParams>[^>]+)>)?\\s*" +
-                        "(?::\\s*(?<baseClass>\\w+))?\\s*" +
+                        "(?::\\s*(?<parentClass>\\w+))?\\s*" +
                         "(?:where\\s+(?<constraints>[^{]+))?\\s*" +
                         "\\{(?<body>[^}]*)}",
                 Pattern.MULTILINE | Pattern.DOTALL
@@ -150,12 +150,12 @@ public class CSharpToJavaConverter {
         Matcher classWithBodyMatcher = classWithBodyPattern.matcher(csharpCode);
 
         while (classWithBodyMatcher.find()) {
-            String abstractKeyword = classWithBodyMatcher.group(1);
-            String className = classWithBodyMatcher.group(2);
-            String typeParams = classWithBodyMatcher.group(3);  // Type parameters (e.g., "T")
-            String parentClass = classWithBodyMatcher.group(4); // Parent class
-            String constraints = classWithBodyMatcher.group(5); // Type constraints
-            String classBody = classWithBodyMatcher.group(6);
+            String abstractKeyword = classWithBodyMatcher.group("abstract");
+            String className = classWithBodyMatcher.group("name");
+            String typeParams = classWithBodyMatcher.group("typeParams");  // Type parameters (e.g., "T")
+            String parentClass = classWithBodyMatcher.group("parentClass"); // Parent class
+            String constraints = classWithBodyMatcher.group("constraints"); // Type constraints
+            String classBody = classWithBodyMatcher.group("body");
 
             CSharpClass csharpClass = new CSharpClass(abstractKeyword != null, className, parentClass);
 
