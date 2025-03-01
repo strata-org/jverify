@@ -1,6 +1,8 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.Nat;
+import com.aws.jverify.Proof;
+import com.aws.jverify.Pure;
 import com.aws.jverify.Unbounded;
 
 import com.sun.source.tree.*;
@@ -17,7 +19,6 @@ import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.TypeKind;
-import javax.swing.*;
 import javax.tools.*;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -90,7 +91,7 @@ public class JavaToDafnyCompiler {
         throw new NotImplementedException(tree.getClass().getName());
     }
     
-    class NotImplementedException extends RuntimeException {
+    static class NotImplementedException extends RuntimeException {
         public NotImplementedException(String message) {
             super(message);
         }
@@ -122,7 +123,7 @@ public class JavaToDafnyCompiler {
                     new Formal(toOrigin(jvd), name(jvd, jvd.getName()), toType(jvd.getType()), false, true,
             null, null, false, false, false, null));
             
-            if (annotationsByName.containsKey("Pure")) {
+            if (annotationsByName.containsKey(Pure.class.getSimpleName())) {
                 if (method.body.stats.size() != 1) {
                     throw new RuntimeException("Pure method should have only one statement");
                 }
@@ -170,7 +171,7 @@ public class JavaToDafnyCompiler {
                     outs.add(f);
                 }
 
-                if (annotationsByName.containsKey("Proof")) {
+                if (annotationsByName.containsKey(Proof.class.getSimpleName())) {
                     return new Method(origin, name, null, isStatic, false, null, List.of(),
                             ins, req, ens, new Specification<FrameExpression>(origin, List.of(), null),
                             new Specification<>(origin, List.of(), null), outs,
@@ -198,8 +199,7 @@ public class JavaToDafnyCompiler {
                                                         Function<JCTree.JCStatement, Boolean> checkPossibleHeader) {
         List<Statement> statements = new ArrayList<>();
         boolean inHeader = true;
-        for(var index = 0; index < stats.size(); index++) {
-            var statement = stats.get(index);
+        for (JCTree.JCStatement statement : stats) {
             if (inHeader) {
                 if (!checkPossibleHeader.apply(statement)) {
                     inHeader = false;
@@ -282,6 +282,9 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCIdent identifier) {
             return new NameSegment(origin, identifier.getName().toString(), null);
         } else if (expr instanceof JCTree.JCLiteral literal) {
+            if (literal.typetag == TypeTag.BOOLEAN) {
+                return new LiteralExpr(toOrigin(literal), literal.value != (Object)0);
+            }
             return new LiteralExpr(origin, literal.value);
         } else if (expr instanceof JCTree.JCMethodInvocation invocation) {
             var target = toExpr(invocation.getMethodSelect());
@@ -296,14 +299,14 @@ public class JavaToDafnyCompiler {
     }
     
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
-        switch(operator.name.toString()) {
-            case "<": return BinaryExprOpcode.Lt;
-            case "-": return BinaryExprOpcode.Sub;
-            case "+": return BinaryExprOpcode.Add;
-            case "==": return BinaryExprOpcode.Eq;
-            case "<=": return BinaryExprOpcode.Le;
-            default: throw new NotImplementedException("Operator" + operator.name);
-        }
+        return switch (operator.name.toString()) {
+            case "<" -> BinaryExprOpcode.Lt;
+            case "-" -> BinaryExprOpcode.Sub;
+            case "+" -> BinaryExprOpcode.Add;
+            case "==" -> BinaryExprOpcode.Eq;
+            case "<=" -> BinaryExprOpcode.Le;
+            default -> throw new NotImplementedException("Operator" + operator.name);
+        };
     }
 
     private @Nullable Type toType(JCTree tree) {
@@ -372,7 +375,7 @@ public class JavaToDafnyCompiler {
                             throw new RuntimeException("Check should have a single argument");
                         }
                         return new AssertStmt(toOrigin(invocation), null,
-                                translateExpression(invocation.args.getFirst()), null);
+                                toExpr(invocation.args.getFirst()), null);
                     }
                 } else {
                     var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(origin, null, toExpr(a), false)).toList();
@@ -390,7 +393,7 @@ public class JavaToDafnyCompiler {
             }
         } else if (statement instanceof JCTree.JCAssert assertStmt) {
             return new AssertStmt(origin, null,
-                    translateExpression(assertStmt.getCondition()), null);
+                    toExpr(assertStmt.getCondition()), null);
         } else if (statement instanceof JCTree.JCIf ifStatement) {
             var condition = toExpr(ifStatement.getCondition());
             var thenBranch = (BlockStmt)translateStatement(ifStatement.getThenStatement());
@@ -472,14 +475,5 @@ public class JavaToDafnyCompiler {
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
         return methodSymbol.getEnclosingElement().getQualifiedName().contentEquals(JVERIFY_CLASS);
-    }
-
-    private Expression translateExpression(JCTree.JCExpression expression) {
-        if (expression instanceof JCTree.JCLiteral literal) {
-            if (literal.typetag == TypeTag.BOOLEAN) {
-                return new LiteralExpr(toOrigin(literal), literal.value == (Object)0 ? false : 1);
-            }
-        }
-        throw new NotImplementedException(expression.getClass().getName());
     }
 }
