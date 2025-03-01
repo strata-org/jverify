@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import java.util.function.Function;
 
 public class JavaToDafnyCompiler {
-    public static final String JVERIFY_CLASS = "com.aws.jverify.JVerify";
+    public static final String JVERIFY_CLASS = com.aws.jverify.JVerify.class.getName();
     JCTree.JCCompilationUnit compilationUnit;
 
     public FilesContainer analyzeJavaCode(VerifierOptions options,  List<JavaFileObject> files) {
