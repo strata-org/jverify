@@ -20,18 +20,8 @@ public class CSharpToJavaConverter {
 
     String packageName;
 
-    static class CSharpEnum {
-        String enumName;
-        List<String> values;
-
-        public CSharpEnum(String enumName) {
-            this.enumName = enumName;
-            this.values = new ArrayList<>();
-        }
-    }
-
     // Add this method to parse enums
-    public static List<CSharpEnum> parseCSharpEnums(String csharpCode) {
+    static List<CSharpEnum> parseCSharpEnums(String csharpCode) {
         List<CSharpEnum> enums = new ArrayList<>();
 
         // Pattern for enum declaration: "enum EnumName { Value1, Value2, Value3 }"
@@ -63,7 +53,7 @@ public class CSharpToJavaConverter {
     }
 
     // Add this method to generate Java enum
-    public static JavaFile generateJavaEnum(CSharpEnum csharpEnum) {
+    static JavaFile generateJavaEnum(CSharpEnum csharpEnum) {
         TypeSpec.Builder enumBuilder = TypeSpec.enumBuilder(csharpEnum.enumName)
                 .addModifiers(Modifier.PUBLIC);
 
@@ -77,61 +67,7 @@ public class CSharpToJavaConverter {
                 .build();
     }
 
-    // Simple class to hold C# class information
-    static class CSharpClass {
-        String className;
-        String parentClass;
-        List<CSharpField> fields;
-        boolean isAbstract;
-        CSharpClass parentClassRef;
-        List<TypeParameter> typeParameters;  // Generic type parameters
-
-        public CSharpClass(boolean isAbstract, String className, String parentClass) {
-            this.isAbstract = isAbstract;
-            this.className = className;
-            this.parentClass = parentClass;
-            this.fields = new ArrayList<>();
-            this.parentClassRef = null;
-            this.typeParameters = new ArrayList<>();
-        }
-
-        public List<CSharpField> getAllFields() {
-            List<CSharpField> allFields = new ArrayList<>();
-            if (parentClassRef != null) {
-                allFields.addAll(parentClassRef.getAllFields());
-            }
-            allFields.addAll(fields);
-            return allFields;
-        }
-    }
-
-    static class TypeParameter {
-        String name;
-        String constraint;  // The type constraint (e.g., "Node" in "T : Node")
-
-        public TypeParameter(String name, String constraint) {
-            this.name = name;
-            this.constraint = constraint;
-        }
-    }
-
-    static class CSharpField {
-        boolean isNullable;
-        String type;
-        String name;
-        boolean isGeneric;
-        List<String> genericTypes;
-
-        public CSharpField(String type, String name, boolean isNullable, boolean isGeneric, List<String> genericTypes) {
-            this.type = type;
-            this.name = name;
-            this.isNullable = isNullable;
-            this.isGeneric = isGeneric;
-            this.genericTypes = genericTypes;
-        }
-    }
-
-    public List<CSharpClass> parseCSharpClasses(String csharpCode) {
+    private List<CSharpClass> parseCSharpClasses(String csharpCode) {
         List<CSharpClass> classes = new ArrayList<>();
         Map<String, CSharpClass> classMap = new HashMap<>();
 
@@ -245,7 +181,8 @@ public class CSharpToJavaConverter {
         ClassName rawType = foundClasses.contains(baseType)
                 ? ClassName.get(packageName, baseType)
                 : ClassName.get("java.util", baseType);
-        List<TypeName> typeArguments = field.genericTypes.stream()
+
+        return ParameterizedTypeName.get(rawType, field.genericTypes.stream()
                 .map(type -> {
                     // Check if the generic argument is a type parameter
                     Optional<TypeParameter> genericTypeParam = classTypeParameters.stream()
@@ -256,13 +193,10 @@ public class CSharpToJavaConverter {
                         return TypeVariableName.get(type);
                     }
                     return ClassName.get("", convertCSharpTypeToJava(type));
-                })
-                .collect(Collectors.toList());
-
-        return ParameterizedTypeName.get(rawType, typeArguments.toArray(new TypeName[0]));
+                }).toArray(TypeName[]::new));
     }
 
-    public JavaFile generateJavaClass(CSharpClass csharpClass) {
+    private JavaFile generateJavaClass(CSharpClass csharpClass) {
         // Start building the class with type parameters
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(csharpClass.className)
                 .addModifiers(Modifier.PUBLIC);
@@ -421,5 +355,69 @@ public class CSharpToJavaConverter {
             javaFile.writeTo(filePath);
             filePath.close();
         }
+    }
+}
+
+// Simple class to hold C# class information
+class CSharpClass {
+    String className;
+    String parentClass;
+    List<CSharpField> fields;
+    boolean isAbstract;
+    CSharpClass parentClassRef;
+    List<TypeParameter> typeParameters;  // Generic type parameters
+
+    public CSharpClass(boolean isAbstract, String className, String parentClass) {
+        this.isAbstract = isAbstract;
+        this.className = className;
+        this.parentClass = parentClass;
+        this.fields = new ArrayList<>();
+        this.parentClassRef = null;
+        this.typeParameters = new ArrayList<>();
+    }
+
+    public List<CSharpField> getAllFields() {
+        List<CSharpField> allFields = new ArrayList<>();
+        if (parentClassRef != null) {
+            allFields.addAll(parentClassRef.getAllFields());
+        }
+        allFields.addAll(fields);
+        return allFields;
+    }
+}
+
+class TypeParameter {
+    String name;
+    String constraint;  // The type constraint (e.g., "Node" in "T : Node")
+
+    public TypeParameter(String name, String constraint) {
+        this.name = name;
+        this.constraint = constraint;
+    }
+}
+
+class CSharpField {
+    boolean isNullable;
+    String type;
+    String name;
+    boolean isGeneric;
+    List<String> genericTypes;
+
+    public CSharpField(String type, String name, boolean isNullable, boolean isGeneric, List<String> genericTypes) {
+        this.type = type;
+        this.name = name;
+        this.isNullable = isNullable;
+        this.isGeneric = isGeneric;
+        this.genericTypes = genericTypes;
+    }
+}
+
+class CSharpEnum {
+    String enumName;
+    List<String> values;
+
+    public CSharpEnum(String enumName) {
+        this.enumName = enumName;
+        this.values = new ArrayList<>();
     }
 }
