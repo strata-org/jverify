@@ -6,4 +6,6 @@ module com.aws.jverify.verifier {
     requires java.desktop;
     requires info.picocli;
     requires com.aws.jverify;
+    
+    opens com.aws.jverify.verifier to info.picocli;
 }
