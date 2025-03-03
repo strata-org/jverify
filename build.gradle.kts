@@ -57,23 +57,68 @@ project(":javaTypesGenerator") {
     }
 }
 
-val allUnnamedArgs = listOf(
-"--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-"--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-"--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
-"--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-"--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-"--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
-"--add-exports=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED")
+fun createJavacExports(targets: List<String>): List<String> {
+    val javacPackages = listOf(
+        "jdk.compiler/com.sun.tools.javac.api",
+        "jdk.compiler/com.sun.tools.javac.file",
+        "jdk.compiler/com.sun.tools.javac.util",
+        "jdk.compiler/com.sun.tools.javac.tree",
+        "jdk.compiler/com.sun.tools.javac.code",
+        "jdk.compiler/com.sun.tools.javac.parser",
+        "jdk.compiler/com.sun.tools.javac.jvm"
+    )
 
-val jverifyArgs = listOf(
-    "--add-exports=jdk.compiler/com.sun.tools.javac.api=com.aws.jverify.verifier",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.file=com.aws.jverify.verifier",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.util=com.aws.jverify.verifier",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.tree=com.aws.jverify.verifier",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.code=com.aws.jverify.verifier",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.parser=com.aws.jverify.verifier",
-    "--add-exports=jdk.compiler/com.sun.tools.javac.jvm=com.aws.jverify.verifier")
+    return javacPackages.flatMap { pkg ->
+        targets.map { target ->
+            "--add-exports=$pkg=$target"
+        }
+    }
+}
+
+project(":common") {
+    dependencies {
+        implementation(project(":library"))
+    }
+
+    tasks.withType<JavaCompile> {
+    }
+}
+
+project(":javac-plugin") {
+    dependencies {
+        implementation(project(":common"))
+        implementation(project(":library"))
+
+        implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
+        
+        implementation("com.google.auto.service:auto-service-annotations:1.0.1")
+        annotationProcessor("com.google.auto.service:auto-service:1.0.1")
+        
+        // https://mvnrepository.com/artifact/com.google.testing.compile/compile-testing
+        testImplementation("com.google.testing.compile:compile-testing:0.21.0")
+
+        testImplementation(platform("org.junit:junit-bom:5.10.0"))
+        testImplementation("org.junit.jupiter:junit-jupiter")
+    }
+    
+    tasks.test {
+        useJUnitPlatform()
+        jvmArgs = listOf(
+        )
+    }
+
+    tasks.withType<JavaExec> {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin"))
+    }
+    tasks.withType<Test> {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+    }
+    
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
+        //options.compilerArgs.add("-proc:none")
+    }
+}
 
 project(":verifier") {
 
@@ -81,10 +126,11 @@ project(":verifier") {
     application {
         mainClass.set("com.aws.jverify.verifier.Main")  // For a file named main.kt
 
-        applicationDefaultJvmArgs = allUnnamedArgs
+        applicationDefaultJvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
 
     dependencies {
+        implementation(project(":common"))
         implementation(project(":library"))
         
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
@@ -113,19 +159,19 @@ project(":verifier") {
         standardInput = System.`in`
         standardOutput = System.out
         
-        jvmArgs = allUnnamedArgs + jverifyArgs
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.verifier"))
     }
     tasks.withType<Test> {
-        jvmArgs = allUnnamedArgs
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
 
     tasks.withType<JavaCompile> {
-        options.compilerArgs.addAll(jverifyArgs)
+        options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.verifier")))
     }
 
     tasks.named("run", JavaExec::class) {
         // Override the jvmArgs to remove unwanted options
-        jvmArgs = allUnnamedArgs
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
 
         // Keep the standard I/O settings
         standardInput = System.`in`

@@ -46,6 +46,7 @@ public class Driver {
                     dafnyPath.toString(),  // Program path
                     "verify",                       // First argument
                     verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
+                    //"--print-ranges",
                     "--input-format",
                     "Binary",
                     "--stdin"                        // Second argument

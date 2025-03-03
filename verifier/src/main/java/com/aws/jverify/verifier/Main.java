@@ -12,10 +12,15 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import com.aws.jverify.JVerify;
+import com.aws.jverify.common.Common;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+
+import javax.sql.CommonDataSource;
+
+import static com.aws.jverify.common.Common.*;
 
 public class Main {
     public static void main(String[] args) {
@@ -48,7 +53,7 @@ class AppCommand implements Callable<Integer> {
         // In the future we'll have to add an argument to specify jar files for dependencies of the input sources,
         // And those will include the JVerify library jar.
         // But right now we manually find the JVerify library jar and include it in the compilation.
-        var jverifyLibraryLocation = Path.of(URI.create(getJarLocationForClass(JVerify.class)).getPath());
+        var jverifyLibraryLocation = Path.of(URI.create(Common.getJarLocationForClass(JVerify.class)).getPath());
 
         File tempFile = File.createTempFile("jverify-prelude-", ".dfy");
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
@@ -73,39 +78,6 @@ class AppCommand implements Callable<Integer> {
             dafnyPath = Path.of("dafny");
         }
         return dafnyPath;
-    }
-
-
-    public static String getJarLocationForClass(Class<?> clazz) {
-        try {
-            ProtectionDomain protectionDomain = clazz.getProtectionDomain();
-            CodeSource codeSource = protectionDomain.getCodeSource();
-
-            if (codeSource != null) {
-                URL location = codeSource.getLocation();
-                return location.toString();
-            } else {
-                // For JDK classes, we might need a different approach
-                String resourcePath = "/" + clazz.getName().replace('.', '/') + ".class";
-                URL resource = clazz.getResource(resourcePath);
-
-                if (resource != null) {
-                    String path = resource.toString();
-
-                    // If it's in a jar, the URL will contain "jar:file:"
-                    if (path.startsWith("jar:file:")) {
-                        // Extract the path to the jar file
-                        path = path.substring(9, path.lastIndexOf('!'));
-                        return "file:" + path;
-                    }
-                    return path;
-                }
-            }
-
-            return "Cannot determine location";
-        } catch (Exception e) {
-            return "Error determining location: " + e.getMessage();
-        }
     }
 }
 
