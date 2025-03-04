@@ -97,6 +97,9 @@ project(":javac-plugin") {
         // https://mvnrepository.com/artifact/com.google.testing.compile/compile-testing
         testImplementation("com.google.testing.compile:compile-testing:0.21.0")
 
+        // https://mvnrepository.com/artifact/org.ow2.asm/asm
+        testImplementation("org.ow2.asm:asm:9.7.1")
+
         testImplementation(platform("org.junit:junit-bom:5.10.0"))
         testImplementation("org.junit.jupiter:junit-jupiter")
     }
