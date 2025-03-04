@@ -21,7 +21,7 @@ allprojects {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(22))
     }
 }
 
@@ -108,15 +108,16 @@ project(":javac-plugin") {
     }
 
     tasks.withType<JavaExec> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin"))
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin")).plus("--enable-preview")
     }
     tasks.withType<Test> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).plus("--enable-preview")
     }
     
     tasks.withType<JavaCompile> {
         options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
         //options.compilerArgs.add("-proc:none")
+        options.compilerArgs.add("--enable-preview")
     }
 }
 

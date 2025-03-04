@@ -1,10 +1,10 @@
 package com.aws.jverify.plugin;
 
+import com.aws.jverify.common.Common;
 import com.google.auto.service.AutoService;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
-import com.sun.source.util.Trees;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -19,11 +19,9 @@ import java.util.Set;
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_11)
 public class JVerifyProcessor extends AbstractProcessor {
-    private Trees trees;
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        // Process all elements
         return Collections.emptySet();
     }
     
@@ -48,9 +46,6 @@ public class JVerifyProcessor extends AbstractProcessor {
                 }
             }
         });
-
-        
-        this.trees = Trees.instance(processingEnv);
     }
     
     @Override
@@ -82,10 +77,7 @@ class RemoveJVerifyVisitor extends TreeScanner {
         tree.stats = outerStats.tail;
     }
     
-    // TODO deduplicate
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.getEnclosingElement().getQualifiedName().contentEquals(JVERIFY_CLASS);
+        return methodSymbol.getEnclosingElement().getQualifiedName().contentEquals(Common.JVERIFY_CLASS);
     }
-    // TODO deduplicate
-    public static final String JVERIFY_CLASS = com.aws.jverify.JVerify.class.getName();
 }

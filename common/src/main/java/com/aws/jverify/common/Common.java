@@ -1,11 +1,14 @@
 package com.aws.jverify.common;
 
+import com.sun.tools.javac.code.Symbol;
+
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
 
 public class Common {
-
+    public static final String JVERIFY_CLASS = com.aws.jverify.JVerify.class.getName();
+    
     public static String getJarLocationForClass(Class<?> clazz) {
         try {
             ProtectionDomain protectionDomain = clazz.getProtectionDomain();
