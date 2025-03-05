@@ -33,7 +33,8 @@ public class JVerifyProcessor extends AbstractProcessor {
         task.addTaskListener(new TaskListener() {
             @Override
             public void finished(TaskEvent e) {
-                if (e.getKind() == TaskEvent.Kind.ANALYZE) {
+                boolean resolutionInformationBecameAvailable = e.getKind() == TaskEvent.Kind.ANALYZE;
+                if (resolutionInformationBecameAvailable) {
                     JCTree.JCCompilationUnit cu = (JCTree.JCCompilationUnit) e.getCompilationUnit();
 
                     var visitor = new RemoveJVerifyVisitor();
@@ -58,6 +59,9 @@ class RemoveJVerifyVisitor extends TreeScanner {
     @Override
     public void visitBlock(JCTree.JCBlock tree) {
         super.visitBlock(tree);
+        
+        // The type of outerStats needs to be a pointer to a linked list
+        // We can use a linked list cons for that, where we ignore the head.
         var outerStats = tree.stats.prepend(null);
         var currentStats = outerStats;
         while(currentStats.size() > 1) {

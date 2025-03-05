@@ -25,12 +25,11 @@ import java.lang.classfile.*;
 public class TestPlugin {
 
     @Test
-    public void testASTModification() throws IOException {
-        // Create a source file to modify
+    public void checkCallsToVerifyAreNotPresentInClassfile() throws IOException {
         JavaFileObject source = JavaFileObjects.forSourceString(
                 "com.example.ModifyMe",
-                "package com.example;\n" +
-                        """
+                """
+package com.example;
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
@@ -50,9 +49,8 @@ public class ModifyMe {
                 .withClasspath(List.of(new File(jVerifyClass)))
                 .compile(source);
 
-        var g = compilation.generatedFiles();
-        for(var file : g) {
-            inspectConstantPool(file);
+        for(var generatedFile : compilation.generatedFiles()) {
+            inspectConstantPool(generatedFile);
         }
         
         CompilationSubject.assertThat(compilation).succeeded();
