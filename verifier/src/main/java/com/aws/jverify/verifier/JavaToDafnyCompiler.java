@@ -408,7 +408,7 @@ public class JavaToDafnyCompiler {
                     returnNames, invariants, decreases, modifies);
             
             checkEmptyExpressions(preconditions, "preconditions", "loop");
-            checkEmptyExpressions(preconditions, "postconditions", "loop");
+            checkEmptyExpressions(postconditions, "postconditions", "loop");
             
             var condition = toExpr(whileLoop.getCondition());
             return new WhileStmt(origin, null, invariants, new Specification<>(origin, decreases, null),
