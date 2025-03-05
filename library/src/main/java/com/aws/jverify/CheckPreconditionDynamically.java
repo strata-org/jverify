@@ -7,7 +7,5 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.METHOD)            // Can only be used on classes/interfaces
-public @interface Erased {
+public @interface CheckPreconditionDynamically {
 }
-
-
