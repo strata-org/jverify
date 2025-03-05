@@ -61,7 +61,7 @@ import java.lang.classfile.*;
 
             CompilationSubject.assertThat(compilation).succeeded();
 
-            executeGeneratedClass(compilation);
+            executeGeneratedClassAndCheckResult(compilation);
         }
 
         public void inspectConstantPool(JavaFileObject fileObject) throws IOException {
@@ -85,7 +85,7 @@ import java.lang.classfile.*;
             }
         }
 
-        private void executeGeneratedClass(Compilation compilation) {
+        private void executeGeneratedClassAndCheckResult(Compilation compilation) {
             try {
                 Path tempDir = saveGeneratedClassesToTempDirectory(compilation);
 
