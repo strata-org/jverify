@@ -2,12 +2,9 @@ package com.aws.jverify.verifier;
 
 import java.io.*;
 import java.net.URI;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.CodeSource;
-import java.security.ProtectionDomain;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -17,10 +14,6 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
-
-import javax.sql.CommonDataSource;
-
-import static com.aws.jverify.common.Common.*;
 
 public class Main {
     public static void main(String[] args) {
