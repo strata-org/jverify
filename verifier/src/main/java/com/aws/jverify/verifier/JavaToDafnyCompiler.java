@@ -33,7 +33,6 @@ public class JavaToDafnyCompiler {
     JCTree.JCCompilationUnit compilationUnit;
 
     public FilesContainer analyzeJavaCode(VerifierOptions options,  List<JavaFileObject> files) {
-        // Get the Java compiler
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         Context context = new Context();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
