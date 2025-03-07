@@ -86,8 +86,9 @@ import java.lang.classfile.*;
         }
 
         private void checkGeneratedClassStillWorks(Compilation compilation) {
+            Path tempDir = null;
             try {
-                Path tempDir = saveGeneratedClassesToTempDirectory(compilation);
+                tempDir = saveGeneratedClassesToTempDirectory(compilation);
 
                 URLClassLoader classLoader = new URLClassLoader(
                         new URL[] { tempDir.toUri().toURL() },
@@ -98,12 +99,13 @@ import java.lang.classfile.*;
                 Method barMethod = modifyMeClass.getDeclaredMethod("Bar");
                 var result = barMethod.invoke(instance);
                 Assertions.assertEquals(3, result);
-
                 classLoader.close();
-                deleteDirectory(tempDir.toFile());
-
             } catch (Exception e) {
                 Assertions.fail(STR."Failed to execute generated class: \{e.getMessage()}");
+            } finally {
+                if (tempDir != null) {
+                    deleteDirectory(tempDir.toFile());
+                }
             }
         }
 
@@ -127,25 +129,11 @@ import java.lang.classfile.*;
         }
 
         private String getClassName(JavaFileObject fileObject) {
-            String uri = fileObject.toUri().toString();
-            int classIndex = uri.lastIndexOf(".class");
-            if (classIndex != -1) {
-                        
-                // Extract class name from URI
-                String path = uri;
-                path = path.substring(0, classIndex);
-                if (path.startsWith("mem:")) {
-                    path = path.substring(4);
-                }
-
-                // Handle path format in compilation output
-                if (path.contains("/CLASS_OUTPUT/")) {
-                    int startIndex = path.indexOf("/CLASS_OUTPUT/") + "/CLASS_OUTPUT/".length();
-                    path = path.substring(startIndex);
-                    return path.replace('/', '.');
-                }
-            }
-            return null;
+            // URI in one of our tests is mem:///CLASS_OUTPUT/com/example/ModifyMe.class
+            String path = fileObject.toUri().getPath();
+            return path.
+                    substring("/CLASS_OUTPUT/".length(), path.length() - ".class".length()).
+                    replace('/', '.');
         }
 
         private Path createPathFromClassName(Path baseDir, String className) {

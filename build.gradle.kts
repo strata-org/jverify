@@ -88,8 +88,6 @@ project(":javac-plugin") {
     dependencies {
         implementation(project(":common"))
         implementation(project(":library"))
-
-        implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
         
         implementation("com.google.auto.service:auto-service-annotations:1.0.1")
         annotationProcessor("com.google.auto.service:auto-service:1.0.1")
@@ -111,15 +109,22 @@ project(":javac-plugin") {
     }
 
     tasks.withType<JavaExec> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin")).plus("--enable-preview")
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin")). 
+          // Using preview mode, so we can use the package java.lang.classfile
+          plus("--enable-preview")
     }
     tasks.withType<Test> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).plus("--enable-preview")
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).
+
+          // Using preview mode, so we can use the package java.lang.classfile
+          plus("--enable-preview")
     }
     
     tasks.withType<JavaCompile> {
         options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
         //options.compilerArgs.add("-proc:none")
+        
+        // Using preview mode, so we can use the package java.lang.classfile
         options.compilerArgs.add("--enable-preview")
     }
 }
@@ -139,8 +144,6 @@ project(":verifier") {
         
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
-
-        implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
         
         testImplementation(platform("org.junit:junit-bom:5.10.0"))
         testImplementation("org.junit.jupiter:junit-jupiter")
