@@ -1,4 +1,4 @@
-import org.gradle.internal.instrumentation.api.annotations.ParameterKind.VarargParameter
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 
 plugins {
     id("java")
@@ -161,8 +161,12 @@ project(":verifier") {
     }
     
     tasks.withType<JavaExec> {
-        environment("JVERIFY_DAFNY", project.file("../dafny/Scripts/dafny").absolutePath)
-        
+        if (DefaultNativePlatform.getCurrentOperatingSystem().isWindows) {
+            environment("JVERIFY_DAFNY", project.file("../dafny/Binaries/Dafny.exe").absolutePath)
+        } else {
+            environment("JVERIFY_DAFNY", project.file("../dafny/Scripts/dafny").absolutePath)
+        }
+
         standardInput = System.`in`
         standardOutput = System.out
         

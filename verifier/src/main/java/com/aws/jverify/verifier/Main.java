@@ -24,7 +24,7 @@ public class Main {
 
 @Command(name = "verify", description = "Verify Java code that calls the JVerify library")
 class AppCommand implements Callable<Integer> {
-    @Parameters(description = "Java files to verify")
+    @Parameters(description = "Java files to verify", arity = "1..*")
     private List<Path> inputs;
     
     @Option(names = "--print-binary-dafny", description = "Given a filepath, prints the binary Dafny code that is generated from Java")
@@ -46,7 +46,7 @@ class AppCommand implements Callable<Integer> {
         // In the future we'll have to add an argument to specify jar files for dependencies of the input sources,
         // And those will include the JVerify library jar.
         // But right now we manually find the JVerify library jar and include it in the compilation.
-        var jverifyLibraryLocation = Path.of(URI.create(Common.getJarLocationForClass(JVerify.class)).getPath());
+        var jverifyLibraryLocation = Path.of(URI.create(Common.getJarLocationForClass(JVerify.class)));
 
         File tempFile = File.createTempFile("jverify-prelude-", ".dfy");
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
