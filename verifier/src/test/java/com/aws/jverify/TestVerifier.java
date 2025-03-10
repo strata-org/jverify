@@ -10,10 +10,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class TestVerifier {
+    private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
     
     private int run(String inputFileName, Writer writer) throws IOException {
         var source = Files.readString(Path.of("./src/test/java/com/aws/jverify/" + inputFileName));
-        var dafnyPath = Path.of("../dafny/Scripts/dafny").toAbsolutePath();
+        var dafnyPath = Path.of("../dafny").toAbsolutePath()
+                .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         var options = new VerifierOptions(dafnyPath, libraryJar, prelude, null, null, false);
@@ -24,7 +26,7 @@ public class TestVerifier {
     public void assertFalse() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("AssertFalse.java", writer);
-        var output = writer.toString();
+        var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("/test.java(7,14): Error: assertion might not hold\n" +
                 "\n" +
                 "Dafny program verifier finished with 2 verified, 1 error\n", output);
@@ -35,7 +37,7 @@ public class TestVerifier {
     public void fibonacciValid() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("FibonacciValid.java", writer);
-        var output = writer.toString();
+        var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("\nDafny program verifier finished with 6 verified, 0 errors\n", output);
         Assertions.assertEquals(0, exitCode);
         
@@ -44,7 +46,7 @@ public class TestVerifier {
     public void fibonacciInvalid() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("FibonacciInvalid.java", writer);
-        var output = writer.toString();
+        var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("/test.java(44,22): Error: value does not satisfy the subset constraints of 'nat32'\n" +
                 "/test.java(49,19): Error: value does not satisfy the subset constraints of 'nat32'\n" +
                 "/test.java(17,13): Error: a postcondition could not be proved on this return path\n" +
@@ -58,8 +60,9 @@ public class TestVerifier {
     
     @Test
     public void testRunThroughGradle() throws IOException, InterruptedException {
+        var gradlePath = IS_WINDOWS ? "../gradlew.bat" : "../gradlew";
         var process = new ProcessBuilder(
-                "../gradlew",
+                gradlePath,
                 ":verifier:run",
                 "--args=\"./src/test/java/com/aws/jverify/FibonacciValid.java\"").start();
         var writer = new StringWriter();
@@ -67,8 +70,17 @@ public class TestVerifier {
         reader.transferTo(writer);
         var exitCode = process.waitFor();
         reader.close();
-        Assertions.assertTrue(writer.toString().contains("Dafny program verifier finished with 6 verified, 0 errors"));
+        var output = canonicalizeNewlines(writer.toString());
+        Assertions.assertTrue(output.contains("Dafny program verifier finished with 6 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
 
+    }
+
+    /**
+     * Returns the text with all CRLF sequences replaced with LF.
+     * This prevents erroneous failures of diff-based assertions on Windows platforms.
+     */
+    private static String canonicalizeNewlines(final String text) {
+        return text.replaceAll("\r\n", "\n");
     }
 }
