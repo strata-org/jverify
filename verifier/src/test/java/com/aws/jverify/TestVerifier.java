@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
@@ -40,7 +42,7 @@ public class TestVerifier {
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("\nDafny program verifier finished with 6 verified, 0 errors\n", output);
         Assertions.assertEquals(0, exitCode);
-        
+
     }
     @Test
     public void fibonacciInvalid() throws IOException {
@@ -56,6 +58,21 @@ public class TestVerifier {
                 "Dafny program verifier finished with 4 verified, 4 errors\n", output);
         Assertions.assertEquals(4, exitCode);
 
+    }
+
+    @Test
+    public void binarySearchValid() throws IOException {
+        StringWriter writer = new StringWriter();
+        var exitCode = run("BinarySearchValid.java", writer);
+        var output = canonicalizeNewlines(writer.toString());
+        Assertions.assertLinesMatch(
+                List.of(
+                        ">>>>",
+                        "Dafny program verifier finished with 5 verified, 0 errors"
+                ),
+                Arrays.stream(output.split("\n")).toList()
+        );
+        Assertions.assertEquals(0, exitCode);
     }
     
     @Test

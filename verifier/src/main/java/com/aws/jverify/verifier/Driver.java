@@ -48,7 +48,8 @@ public class Driver {
                     verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
                     "--input-format",
                     "Binary",
-                    "--stdin"                        // Second argument
+                    "--stdin",                        // Second argument
+                    "--allow-warnings"
             );
             if (verifierOptions.printDafny() != null) {
                 processBuilder.command().add("--print=" + verifierOptions.printDafny());

@@ -2,9 +2,12 @@ package com.aws.jverify.generated;
 
 // Generated FrameExpression.java:
 // Generated from C# class
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 public class FrameExpression extends NodeWithComputedRange {
   private final Expression e;
 
+  @Nullable
   private final String fieldName;
 
   public FrameExpression(IOrigin origin, Expression e, String fieldName) {
