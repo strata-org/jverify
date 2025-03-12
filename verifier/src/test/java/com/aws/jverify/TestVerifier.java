@@ -51,6 +51,7 @@ public class TestVerifier {
         Assertions.assertEquals(0, exitCode);
         
     }
+
     @Test
     public void fibonacciInvalid() throws IOException {
         StringWriter writer = new StringWriter();
