@@ -34,6 +34,15 @@ public class TestVerifier {
     }
 
     @Test
+    public void opetators() throws IOException {
+        StringWriter writer = new StringWriter();
+        var exitCode = run("Operators.java", writer);
+        var output = canonicalizeNewlines(writer.toString());
+        Assertions.assertEquals("Dafny program verifier finished with 11 verified, 0 error\n", output);
+        Assertions.assertEquals(0, exitCode);
+    }
+
+    @Test
     public void fibonacciValid() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("FibonacciValid.java", writer);
