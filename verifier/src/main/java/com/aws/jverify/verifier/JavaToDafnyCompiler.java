@@ -271,8 +271,14 @@ public class JavaToDafnyCompiler {
             case "<" -> BinaryExprOpcode.Lt;
             case "-" -> BinaryExprOpcode.Sub;
             case "+" -> BinaryExprOpcode.Add;
+            case "*" -> BinaryExprOpcode.Mul;
             case "==" -> BinaryExprOpcode.Eq;
             case "<=" -> BinaryExprOpcode.Le;
+            case ">" -> BinaryExprOpcode.Gt;
+            case ">=" -> BinaryExprOpcode.Ge;
+            case "||" -> BinaryExprOpcode.Or;
+            case "&&" -> BinaryExprOpcode.And;
+            case "%" -> BinaryExprOpcode.Mod;
             default -> throw new NotImplementedException("Operator" + operator.name);
         };
     }
