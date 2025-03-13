@@ -33,7 +33,7 @@ public class TestVerifier {
         Assertions.assertEquals(4, exitCode);
     }
 
-    static void checkErrorAt(String output, int line, int col) {
+    private static void checkErrorAt(String output, int line, int col) {
         Assertions.assertTrue(output.contains("/test.java("+line+","+col+"): Error: assertion might not hold");
     }
 
