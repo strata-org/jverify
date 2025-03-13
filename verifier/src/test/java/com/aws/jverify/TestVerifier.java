@@ -38,7 +38,7 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("Operators.java", writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("Dafny program verifier finished with 11 verified, 0 errors\n", output);
+        Assertions.assertEquals("\nDafny program verifier finished with 11 verified, 0 errors\n", output);
         Assertions.assertEquals(0, exitCode);
     }
 
