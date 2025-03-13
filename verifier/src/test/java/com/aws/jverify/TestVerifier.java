@@ -38,8 +38,17 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("Operators.java", writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("\nDafny program verifier finished with 11 verified, 0 errors\n", output);
-        Assertions.assertEquals(0, exitCode);
+        Assertions.assertTrue(output.contains("Dafny program verifier finished with 11 verified, 9 errors"));
+        Assertions.assertTrue(output.contains("check(z==6);"));
+        Assertions.assertTrue(output.contains("check(z==0);"));
+        Assertions.assertTrue(output.contains("check(z==11);"));
+        Assertions.assertTrue(output.contains("check(z==1);"));
+        Assertions.assertTrue(output.contains("check(x == y);"));
+        Assertions.assertTrue(output.contains("check(y >= x);"));
+        Assertions.assertTrue(output.contains("check(x <= y);"));
+        Assertions.assertTrue(output.contains("check(x < y);"));
+        Assertions.assertTrue(output.contains("check(y < x);"));
+        Assertions.assertEquals(4, exitCode);
     }
 
     @Test
