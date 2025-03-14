@@ -5,19 +5,19 @@ package com.aws.jverify.generated;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class FrameExpression extends NodeWithComputedRange {
-  private final Expression e;
+  private final Expression originalExpression;
 
   @Nullable
   private final String fieldName;
 
-  public FrameExpression(IOrigin origin, Expression e, String fieldName) {
+  public FrameExpression(IOrigin origin, Expression originalExpression, String fieldName) {
     super(origin);
-    this.e = e;
+    this.originalExpression = originalExpression;
     this.fieldName = fieldName;
   }
 
-  public Expression getE() {
-    return this.e;
+  public Expression getOriginalExpression() {
+    return this.originalExpression;
   }
 
   public String getFieldName() {
