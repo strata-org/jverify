@@ -33,6 +33,29 @@ public class TestVerifier {
         Assertions.assertEquals(4, exitCode);
     }
 
+    private static void checkErrorAt(String output, int line, int col) {
+        Assertions.assertTrue(output.contains("/test.java("+line+","+col+"): Error: assertion might not hold"));
+    }
+
+    @Test
+    public void opetators() throws IOException {
+        StringWriter writer = new StringWriter();
+        var exitCode = run("Operators.java", writer);
+        var output = canonicalizeNewlines(writer.toString());
+        Assertions.assertTrue(output.contains("Dafny program verifier finished with 11 verified, 9 errors"));
+        // Checking all 9 errors
+        checkErrorAt(output,17,14);
+        checkErrorAt(output, 31, 14);
+        checkErrorAt(output, 45, 14);
+        checkErrorAt(output, 59, 14);
+        checkErrorAt(output, 71, 14);
+        checkErrorAt(output, 83, 14);
+        checkErrorAt(output, 95, 14);
+        checkErrorAt(output, 107, 14);
+        checkErrorAt(output, 119, 14);
+        Assertions.assertEquals(4, exitCode);
+    }
+
     @Test
     public void fibonacciValid() throws IOException {
         StringWriter writer = new StringWriter();
@@ -42,6 +65,7 @@ public class TestVerifier {
         Assertions.assertEquals(0, exitCode);
         
     }
+
     @Test
     public void fibonacciInvalid() throws IOException {
         StringWriter writer = new StringWriter();
