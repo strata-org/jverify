@@ -66,7 +66,7 @@ public class JavaToDafnyCompiler {
             ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
             Stack<Tree> remainingTypes = new Stack<>();
             remainingTypes.addAll(compilationUnit.getTypeDecls());
-            while(remainingTypes.size() > 0) {
+            while(!remainingTypes.isEmpty()) {
                 var typeDecl = remainingTypes.pop();
                 topLevelDecls.add(translateTypeDeclaration(typeDecl, remainingTypes));
             }
@@ -319,9 +319,7 @@ public class JavaToDafnyCompiler {
     private boolean isEnum(JCTree.JCExpression selected) {
         if (selected instanceof JCTree.JCIdent jcIdent) {
             if (jcIdent.sym instanceof Symbol.ClassSymbol classSymbol) {
-                if (isEnum(classSymbol.type)) {
-                    return true;
-                }
+                return isEnum(classSymbol.type);
             }
         }
         return false;
@@ -594,7 +592,7 @@ public class JavaToDafnyCompiler {
     private void checkEmptyExpressions(List<AttributedExpression> expressions,
                                        String typeName,
                                        String containerName) {
-        for (var expr : expressions) {
+        for (var _ : expressions) {
             throw new RuntimeException(typeName + " are not allowed in a " + containerName);
         }
     }
