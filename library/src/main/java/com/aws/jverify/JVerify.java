@@ -35,6 +35,9 @@ public class JVerify {
     public static void reads(Object object) {
     }
 
+    public static void modifies(Object object) {
+    }
+
     public static <T> boolean forall(Function<T, Boolean> predicate) {
         throw new UnsupportedOperationException("Verification-only method called at runtime");
     }

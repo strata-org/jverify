@@ -1,5 +1,7 @@
 package com.aws.jverify;
 
+import static com.aws.jverify.JVerify.*;
+
 class UserProfile {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
@@ -16,13 +18,18 @@ class UserProfile {
     @Pure
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
+        reads(this);
         return accountType != AccountType.Premium || premiumFeatures != null;
     }
+    
     public void upgradeAccount() {
+        modifies(this);
         this.accountType = AccountType.Premium;
         // JVerify error: could not prove "premiumFeatures != null"
     }
+    
     public boolean applyTheme(Theme theme) {
+        modifies(premiumFeatures);
         if (AccountType.Premium == accountType) {
             // Checker framework will report this as a possible null pointer exception. 
             // JVerify accepts the code
@@ -37,6 +44,7 @@ class UserProfile {
         private Theme theme;
     
         public void setTheme(Theme theme) {
+            modifies(this);
             this.theme = theme;
         }
     

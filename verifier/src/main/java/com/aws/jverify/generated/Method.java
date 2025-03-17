@@ -6,10 +6,10 @@ import com.aws.jverify.generated.Specification;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class Method extends MethodOrFunction {
-  private final List<Formal> outs;
+public class Method extends MethodOrConstructor {
+  private final Boolean hasStaticKeyword;
 
-  private final Specification<FrameExpression> mod;
+  private final List<Formal> outs;
 
   @Nullable
   private final BlockStmt body;
@@ -17,23 +17,24 @@ public class Method extends MethodOrFunction {
   private final Boolean isByMethod;
 
   public Method(IOrigin origin, Name nameNode, Attributes attributes, Boolean isGhost,
-      Boolean hasStaticKeyword, IOrigin signatureEllipsis, List<TypeParameter> typeArgs,
-      List<Formal> ins, List<AttributedExpression> req, List<AttributedExpression> ens,
-      Specification<FrameExpression> reads, Specification<Expression> decreases, List<Formal> outs,
-      Specification<FrameExpression> mod, BlockStmt body, Boolean isByMethod) {
-    super(origin, nameNode, attributes, isGhost, hasStaticKeyword, signatureEllipsis, typeArgs, ins, req, ens, reads, decreases);
+      IOrigin signatureEllipsis, List<TypeParameter> typeArgs, List<Formal> ins,
+      List<AttributedExpression> req, List<AttributedExpression> ens,
+      Specification<FrameExpression> reads, Specification<Expression> decreases,
+      Specification<FrameExpression> mod, Boolean hasStaticKeyword, List<Formal> outs,
+      BlockStmt body, Boolean isByMethod) {
+    super(origin, nameNode, attributes, isGhost, signatureEllipsis, typeArgs, ins, req, ens, reads, decreases, mod);
+    this.hasStaticKeyword = hasStaticKeyword;
     this.outs = outs;
-    this.mod = mod;
     this.body = body;
     this.isByMethod = isByMethod;
   }
 
-  public List<Formal> getOuts() {
-    return this.outs;
+  public Boolean getHasStaticKeyword() {
+    return this.hasStaticKeyword;
   }
 
-  public Specification<FrameExpression> getMod() {
-    return this.mod;
+  public List<Formal> getOuts() {
+    return this.outs;
   }
 
   public BlockStmt getBody() {
