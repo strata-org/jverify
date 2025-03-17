@@ -18,7 +18,9 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.util.Position;
 import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.units.qual.A;
 
+import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
@@ -76,6 +78,8 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
 
+    List<AttributedExpression> invariants = new ArrayList<>();
+    
     TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var name = getName(classDecl, classDecl.name);
@@ -93,6 +97,20 @@ public class JavaToDafnyCompiler {
                 return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
             } 
             else {
+                invariants.clear();
+                for (var member : classDecl.getMembers()) {
+                    if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                        if (methodDecl.getModifiers().getAnnotations().stream().
+                                anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && 
+                                        ident.name.contentEquals("Invariant"))) {
+                            var invariantOrigin = toOrigin(methodDecl);
+                            ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
+                                    methodDecl.name.toString(), null), null, new ActualBindings(List.of()), null);
+                            invariants.add(new AttributedExpression(call,null, null)); 
+                        }
+                    }
+                }
+                
                 ArrayList<MemberDecl> members = new ArrayList<>();
                 for (var member : classDecl.getMembers()) {
                     var dafnyMember = translateMember(member, nestedTypes);
@@ -172,6 +190,7 @@ public class JavaToDafnyCompiler {
         if (annotationsByName.containsKey(Pure.class.getSimpleName())) {
             var header = new HeaderContainer();
             var postHeader = translateHeader(method.body.stats, header);
+            applyInvariants(method, header);
             if (postHeader.size() != 1) {
                 throw new RuntimeException("Pure method should have only one statement");
             }
@@ -194,6 +213,7 @@ public class JavaToDafnyCompiler {
         } else {
             var header = new HeaderContainer();
             var postHeader = translateHeader(method.getBody().stats, header);
+            applyInvariants(method, header);
             checkEmptyExpressions(header.invariants, "invariants", "method");
 
             if (header.returnNames.size() > 1) {
@@ -232,6 +252,18 @@ public class JavaToDafnyCompiler {
                         ins, header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), header.getModifies(), isStatic, outs,
                         new BlockStmt(origin, null, bodyStatements), false);
+            }
+        }
+    }
+
+    private void applyInvariants(JCTree.JCMethodDecl method, HeaderContainer header) {
+        boolean isPublic = (method.getModifiers().flags & Flags.PUBLIC) != 0;
+        if (isPublic) {
+            for(var invariant : invariants) {
+                if (!method.name.contentEquals("<init>")) {
+                    header.preconditions.add(invariant);
+                }
+                header.postconditions.add(invariant);
             }
         }
     }

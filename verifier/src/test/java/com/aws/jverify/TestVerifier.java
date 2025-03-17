@@ -19,9 +19,11 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("UserProfile.java", writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("/test.java(7,14): Error: assertion might not hold\n" +
+        Assertions.assertEquals("/test.java(25,5): Error: a postcondition could not be proved on this return path\n" +
+                "/test.java(20,21): Related location: this is the postcondition that could not be proved\n" +
+                "/test.java(22,51): Related location: this proposition could not be proved\n" +
                 "\n" +
-                "Dafny program verifier finished with 2 verified, 1 error\n", output);
+                "Dafny program verifier finished with 7 verified, 1 error\n", output);
         Assertions.assertEquals(4, exitCode);
     }
     
