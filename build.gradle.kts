@@ -32,6 +32,10 @@ project(":library") {
 project(":examples") {
     dependencies {
         implementation(project(":library"))
+        
+        // https://mvnrepository.com/artifact/net.jqwik/jqwik-api
+        implementation("net.jqwik:jqwik-api:1.9.2")
+
     }
 }
 

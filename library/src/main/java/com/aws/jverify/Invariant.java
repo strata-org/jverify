@@ -6,6 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
-public @interface Erased {
+@Target(ElementType.METHOD)
+public @interface Invariant {
 }
+
