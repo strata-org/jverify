@@ -4,8 +4,9 @@ import com.aws.jverify.Invariant;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 
+enum AccountType { Free, Premium }
+
 class VerifiedUserProfile {
-    public enum AccountType { Free, Premium }
     private AccountType accountType;
     private @Nullable PremiumFeatures premiumFeatures;  // Should be null for FREE accounts
 

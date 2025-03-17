@@ -16,12 +16,12 @@ public class Method extends MethodOrFunction {
 
   private final Boolean isByMethod;
 
-  public Method(IOrigin origin, Name nameNode, Attributes attributes, Boolean hasStaticKeyword,
-      Boolean isGhost, IOrigin signatureEllipsis, List<TypeParameter> typeArgs, List<Formal> ins,
-      List<AttributedExpression> req, List<AttributedExpression> ens,
+  public Method(IOrigin origin, Name nameNode, Attributes attributes, Boolean isGhost,
+      Boolean hasStaticKeyword, IOrigin signatureEllipsis, List<TypeParameter> typeArgs,
+      List<Formal> ins, List<AttributedExpression> req, List<AttributedExpression> ens,
       Specification<FrameExpression> reads, Specification<Expression> decreases, List<Formal> outs,
       Specification<FrameExpression> mod, BlockStmt body, Boolean isByMethod) {
-    super(origin, nameNode, attributes, hasStaticKeyword, isGhost, signatureEllipsis, typeArgs, ins, req, ens, reads, decreases);
+    super(origin, nameNode, attributes, isGhost, hasStaticKeyword, signatureEllipsis, typeArgs, ins, req, ens, reads, decreases);
     this.outs = outs;
     this.mod = mod;
     this.body = body;

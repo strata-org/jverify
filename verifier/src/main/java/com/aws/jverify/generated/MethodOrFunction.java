@@ -7,6 +7,8 @@ import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public abstract class MethodOrFunction extends MemberDecl {
+  private final Boolean hasStaticKeyword;
+
   @Nullable
   private final IOrigin signatureEllipsis;
 
@@ -22,12 +24,12 @@ public abstract class MethodOrFunction extends MemberDecl {
 
   private final Specification<Expression> decreases;
 
-  public MethodOrFunction(IOrigin origin, Name nameNode, Attributes attributes,
-      Boolean hasStaticKeyword, Boolean isGhost, IOrigin signatureEllipsis,
-      List<TypeParameter> typeArgs, List<Formal> ins, List<AttributedExpression> req,
-      List<AttributedExpression> ens, Specification<FrameExpression> reads,
-      Specification<Expression> decreases) {
-    super(origin, nameNode, attributes, hasStaticKeyword, isGhost);
+  public MethodOrFunction(IOrigin origin, Name nameNode, Attributes attributes, Boolean isGhost,
+      Boolean hasStaticKeyword, IOrigin signatureEllipsis, List<TypeParameter> typeArgs,
+      List<Formal> ins, List<AttributedExpression> req, List<AttributedExpression> ens,
+      Specification<FrameExpression> reads, Specification<Expression> decreases) {
+    super(origin, nameNode, attributes, isGhost);
+    this.hasStaticKeyword = hasStaticKeyword;
     this.signatureEllipsis = signatureEllipsis;
     this.typeArgs = typeArgs;
     this.ins = ins;
@@ -35,6 +37,10 @@ public abstract class MethodOrFunction extends MemberDecl {
     this.ens = ens;
     this.reads = reads;
     this.decreases = decreases;
+  }
+
+  public Boolean getHasStaticKeyword() {
+    return this.hasStaticKeyword;
   }
 
   public IOrigin getSignatureEllipsis() {

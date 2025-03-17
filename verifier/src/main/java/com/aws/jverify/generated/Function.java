@@ -23,13 +23,13 @@ public class Function extends MethodOrFunction {
   @Nullable
   private final BlockStmt byMethodBody;
 
-  public Function(IOrigin origin, Name nameNode, Attributes attributes, Boolean hasStaticKeyword,
-      Boolean isGhost, IOrigin signatureEllipsis, List<TypeParameter> typeArgs, List<Formal> ins,
-      List<AttributedExpression> req, List<AttributedExpression> ens,
+  public Function(IOrigin origin, Name nameNode, Attributes attributes, Boolean isGhost,
+      Boolean hasStaticKeyword, IOrigin signatureEllipsis, List<TypeParameter> typeArgs,
+      List<Formal> ins, List<AttributedExpression> req, List<AttributedExpression> ens,
       Specification<FrameExpression> reads, Specification<Expression> decreases, Boolean isOpaque,
       Formal result, Type resultType, Expression body, IOrigin byMethodTok,
       BlockStmt byMethodBody) {
-    super(origin, nameNode, attributes, hasStaticKeyword, isGhost, signatureEllipsis, typeArgs, ins, req, ens, reads, decreases);
+    super(origin, nameNode, attributes, isGhost, hasStaticKeyword, signatureEllipsis, typeArgs, ins, req, ens, reads, decreases);
     this.isOpaque = isOpaque;
     this.result = result;
     this.resultType = resultType;

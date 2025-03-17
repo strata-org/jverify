@@ -13,6 +13,17 @@ import java.util.List;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
+
+    @Test
+    public void userProfile() throws IOException {
+        StringWriter writer = new StringWriter();
+        var exitCode = run("UserProfile.java", writer);
+        var output = canonicalizeNewlines(writer.toString());
+        Assertions.assertEquals("/test.java(7,14): Error: assertion might not hold\n" +
+                "\n" +
+                "Dafny program verifier finished with 2 verified, 1 error\n", output);
+        Assertions.assertEquals(4, exitCode);
+    }
     
     private int run(String inputFileName, Writer writer) throws IOException {
         var source = Files.readString(Path.of("./src/test/java/com/aws/jverify/" + inputFileName));
@@ -20,7 +31,9 @@ public class TestVerifier {
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
-        var options = new VerifierOptions(dafnyPath, libraryJar, prelude, null, null, false);
+        var options = new VerifierOptions(dafnyPath, libraryJar, prelude,
+                Path.of("/Users/rwillems/SourceCode/GradleBased/out.dfy")
+                , null, false);
         return Driver.verifyJavaExample(options, source, writer);
     }
     
@@ -91,7 +104,6 @@ public class TestVerifier {
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertLinesMatch(
                 List.of(
-                        ">>>>",
                         "Dafny program verifier finished with 5 verified, 0 errors"
                 ),
                 Arrays.stream(output.split("\n")).toList()
