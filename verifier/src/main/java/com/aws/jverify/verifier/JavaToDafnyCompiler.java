@@ -307,17 +307,18 @@ public class JavaToDafnyCompiler {
 
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
         return switch (operator.name.toString()) {
-            case "&&" -> BinaryExprOpcode.And;
-            case "||" -> BinaryExprOpcode.Or;
-            case "<" -> BinaryExprOpcode.Lt;
-            case ">" -> BinaryExprOpcode.Gt;
             case "-" -> BinaryExprOpcode.Sub;
             case "+" -> BinaryExprOpcode.Add;
-            case "/" -> BinaryExprOpcode.Div;
             case "*" -> BinaryExprOpcode.Mul;
+            case "/" -> BinaryExprOpcode.Div;
             case "==" -> BinaryExprOpcode.Eq;
+            case "<" -> BinaryExprOpcode.Lt;
             case "<=" -> BinaryExprOpcode.Le;
+            case ">" -> BinaryExprOpcode.Gt;
             case ">=" -> BinaryExprOpcode.Ge;
+            case "||" -> BinaryExprOpcode.Or;
+            case "&&" -> BinaryExprOpcode.And;
+            case "%" -> BinaryExprOpcode.Mod;
             default -> throw new NotImplementedException("Operator" + operator.name);
         };
     }
