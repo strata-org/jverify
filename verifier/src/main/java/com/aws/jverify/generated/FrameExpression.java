@@ -4,7 +4,7 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class FrameExpression extends NodeWithComputedRange {
+public class FrameExpression extends NodeWithOrigin {
   private final Expression originalExpression;
 
   @Nullable

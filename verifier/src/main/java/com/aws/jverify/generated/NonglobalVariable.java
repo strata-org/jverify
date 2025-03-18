@@ -2,7 +2,7 @@ package com.aws.jverify.generated;
 
 // Generated NonglobalVariable.java:
 // Generated from C# class
-public abstract class NonglobalVariable extends NodeWithComputedRange {
+public abstract class NonglobalVariable extends NodeWithOrigin {
   private final Name nameNode;
 
   private final Type type;

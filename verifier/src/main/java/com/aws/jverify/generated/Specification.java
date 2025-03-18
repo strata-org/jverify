@@ -5,15 +5,15 @@ package com.aws.jverify.generated;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class Specification<T extends Node> extends NodeWithComputedRange {
+public class Specification<T extends Node> extends NodeWithoutOrigin {
   @Nullable
   private final List<T> expressions;
 
   @Nullable
   private final Attributes attributes;
 
-  public Specification(IOrigin origin, List<T> expressions, Attributes attributes) {
-    super(origin);
+  public Specification(List<T> expressions, Attributes attributes) {
+    super();
     this.expressions = expressions;
     this.attributes = attributes;
   }

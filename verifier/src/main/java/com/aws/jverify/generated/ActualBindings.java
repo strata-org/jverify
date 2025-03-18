@@ -4,11 +4,11 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import java.util.List;
 
-public class ActualBindings extends NodeWithComputedRange {
+public class ActualBindings extends NodeWithoutOrigin {
   private final List<ActualBinding> argumentBindings;
 
-  public ActualBindings(IOrigin origin, List<ActualBinding> argumentBindings) {
-    super(origin);
+  public ActualBindings(List<ActualBinding> argumentBindings) {
+    super();
     this.argumentBindings = argumentBindings;
   }
 
