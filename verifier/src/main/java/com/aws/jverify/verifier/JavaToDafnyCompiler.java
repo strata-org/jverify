@@ -99,7 +99,8 @@ public class JavaToDafnyCompiler {
 
     Name name(JCTree tree, com.sun.tools.javac.util.Name name) {
         var token = toToken(tree.getPreferredPosition());
-        return new Name(new SourceOrigin(token, token, token), name.toString());
+        var range = new TokenRange(token, token);
+        return new Name(new SourceOrigin(range, range), name.toString());
     }
 
     MemberDecl translateMember(JCTree member) {
@@ -137,8 +138,8 @@ public class JavaToDafnyCompiler {
                 if (statement instanceof JCTree.JCReturn returnStatement) {
                     var body = toExpr(returnStatement.expr);
                     return new Function(origin, name, null, isStatic, false, null, List.of(),
-                            ins, header.preconditions, header.postconditions, new Specification<>(origin, header.reads, null),
-                            new Specification<>(origin, header.decreases, null), false, null, returnType,
+                            ins, header.preconditions, header.postconditions, new Specification<>(header.reads, null),
+                            new Specification<>(header.decreases, null), false, null, returnType,
                             body, null, null
                     );
                 } else {
@@ -172,15 +173,15 @@ public class JavaToDafnyCompiler {
                 var bodyStatements = translateStatements(postHeader);
                 if (annotationsByName.containsKey(Proof.class.getSimpleName())) {
                     return new Method(origin, name, null, isStatic, false, null, List.of(),
-                            ins, header.preconditions, header.postconditions, new Specification<FrameExpression>(origin, List.of(), null),
-                            new Specification<>(origin, List.of(), null), outs,
-                            new Specification<FrameExpression>(origin, List.of(), null),
+                            ins, header.preconditions, header.postconditions, new Specification<FrameExpression>(List.of(), null),
+                            new Specification<>(List.of(), null), outs,
+                            new Specification<FrameExpression>(List.of(), null),
                             new BlockStmt(origin, null, bodyStatements), false);
                 } else {
                     return new Method(origin, name, null, isStatic, false, null, List.of(),
-                            ins, header.preconditions, header.postconditions, new Specification<FrameExpression>(origin, List.of(), null),
-                            new Specification<>(origin, List.of(), null), outs,
-                            new Specification<FrameExpression>(origin, List.of(), null),
+                            ins, header.preconditions, header.postconditions, new Specification<FrameExpression>(List.of(), null),
+                            new Specification<>(List.of(), null), outs,
+                            new Specification<FrameExpression>(List.of(), null),
                             new BlockStmt(origin, null, bodyStatements), false);
                 }
             }
@@ -227,10 +228,10 @@ public class JavaToDafnyCompiler {
             }
 
             var target = toExpr(invocation.getMethodSelect());
-            var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(origin, null, toExpr(a), false)).toList();
+            var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
             return new ApplySuffix(origin, target, null,
-                    new ActualBindings(origin, argBindings),
-                    origin.getEndToken());
+                    new ActualBindings(argBindings),
+                    null);
         } else if (expr instanceof JCTree.JCFieldAccess fieldAccess) {
             var selectedExpr = toExpr(fieldAccess.selected);
             // TODO does this work if the selected expression isn't trivially of array type?
@@ -403,9 +404,9 @@ public class JavaToDafnyCompiler {
     private SourceOrigin toOrigin(JCTree node, JCTree centerNode) {
         int endPos = TreeInfo.getEndPos(node, compilationUnit.endPositions);
         var startToken = toToken(TreeInfo.getStartPos(node));
-        return new SourceOrigin(startToken,
-                endPos == Position.NOPOS ? startToken : toToken(endPos),
-                toToken(centerNode.pos));
+        var endToken = endPos == Position.NOPOS ? startToken : toToken(endPos);
+        var range = new TokenRange(startToken, endToken);
+        return new SourceOrigin(range, range);
     }
 
     private Token toToken(int pos) {
@@ -437,9 +438,9 @@ public class JavaToDafnyCompiler {
                                 jverifyMethod.getQualifiedName() + " is not allowed after non-header statement");
                     }
                 } else {
-                    var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(origin, null, toExpr(a), false)).toList();
+                    var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
                     ApplySuffix applySuffix = new ApplySuffix(toOrigin(invocation), toExpr(invocation.getMethodSelect()), null,
-                            new ActualBindings(origin, argBindings), null);
+                            new ActualBindings(argBindings), null);
                     return new AssignStatement(origin, null, List.of(),
                             List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
                 }
@@ -490,8 +491,8 @@ public class JavaToDafnyCompiler {
 
             var bodyStatements = translateStatements(postHeader);
             var condition = toExpr(whileLoop.getCondition());
-            return new WhileStmt(origin, null, header.invariants, new Specification<>(origin, header.decreases, null),
-                    new Specification<>(origin, header.modifies, null), new BlockStmt(origin, null, bodyStatements),
+            return new WhileStmt(origin, null, header.invariants, new Specification<>(header.decreases, null),
+                    new Specification<>(header.modifies, null), new BlockStmt(origin, null, bodyStatements),
                     condition);
         }
         throw new NotImplementedException(statement.getClass().getName());
