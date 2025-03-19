@@ -400,15 +400,14 @@ public class JavaToDafnyCompiler {
     private SourceOrigin toOrigin(JCTree node) {
         return toOrigin(node, node);
     }
-
     private SourceOrigin toOrigin(JCTree node, JCTree centerNode) {
         int endPos = TreeInfo.getEndPos(node, compilationUnit.endPositions);
         var startToken = toToken(TreeInfo.getStartPos(node));
-        var endToken = endPos == Position.NOPOS ? startToken : toToken(endPos);
-        var range = new TokenRange(startToken, endToken);
-        return new SourceOrigin(range, range);
+        return new SourceOrigin(new TokenRange(startToken,
+                endPos == Position.NOPOS ? startToken : toToken(endPos)),
+                new TokenRange(toToken(centerNode.pos), toToken(centerNode.pos + 1)));
     }
-
+    
     private Token toToken(int pos) {
         return new Token(
                 (int) compilationUnit.getLineMap().getLineNumber(pos),
