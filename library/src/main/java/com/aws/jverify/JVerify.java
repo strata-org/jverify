@@ -27,19 +27,19 @@ public class JVerify {
     }
 
     public static <T> boolean forall(Function<T, Boolean> predicate) {
-        throw new UnsupportedOperationException("Verification-only method called at runtime");
+        throw new VerificationMethodExecutedException();
     }
 
     public static <T1, T2> boolean forall(BiFunction<T1, T2, Boolean> predicate) {
-        throw new UnsupportedOperationException("Verification-only method called at runtime");
+        throw new VerificationMethodExecutedException();
     }
 
     public static <T> Sequence<T> sequence(T[] array) {
-        return new ArraySequence<>(array);
+        throw new VerificationMethodExecutedException();
     }
 
     public static Sequence<Integer> sequence(int[] array) {
-        return new ArraySequence<>(array);
+        throw new VerificationMethodExecutedException();
     }
 
     public interface Sequence<T> {
@@ -47,7 +47,7 @@ public class JVerify {
          * Returns {@code true} if this sequence contains the specified element.
          */
         default boolean contains(T element) {
-            throw new UnsupportedOperationException("Verification-only method called at runtime");
+            throw new VerificationMethodExecutedException();
         }
 
         /**
@@ -55,7 +55,7 @@ public class JVerify {
          * contains the specified element.
          */
         default boolean contains(T element, int fromIndex) {
-            throw new UnsupportedOperationException("Verification-only method called at runtime");
+            throw new VerificationMethodExecutedException();
         }
 
         /**
@@ -63,12 +63,14 @@ public class JVerify {
          * and ending at {@code toIndex}, exclusive, contains the specified element.
          */
         default boolean contains(T element, int fromIndex, int toIndex) {
-            throw new UnsupportedOperationException("Verification-only method called at runtime");
+            throw new VerificationMethodExecutedException();
         }
     }
 
-    // Uses Object instead of T[] in order to accommodate primitive arrays
-    private record ArraySequence<T>(Object array) implements Sequence<T> {
+    public static class VerificationMethodExecutedException extends UnsupportedOperationException {
+        public VerificationMethodExecutedException() {
+            super("Verification-only method called at runtime");
+        }
     }
 }
 
