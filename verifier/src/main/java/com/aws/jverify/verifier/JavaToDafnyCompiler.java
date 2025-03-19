@@ -61,7 +61,8 @@ public class JavaToDafnyCompiler {
 
             for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
                 if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
-                    throw new RuntimeException("Java file had errors: " + diagnostic.getMessage(Locale.ENGLISH));
+                    throw new RuntimeException("Java file had errors: " + diagnostic.getSource().getName() + ":" + 
+                            diagnostic.getLineNumber() + "," + diagnostic.getColumnNumber() + "\n" + diagnostic.getMessage(Locale.ENGLISH));
                 }
             }
 

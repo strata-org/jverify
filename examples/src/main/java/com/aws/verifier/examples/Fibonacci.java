@@ -15,7 +15,7 @@ class Fibonacci {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        precondition(Spec(n) <= Integer.MAX_VALUE);
+        precondition(Spec(n) <= 0x7fffffff/*Integer.MAX_VALUE*/);
         postcondition((Integer r) -> r == Spec(n));
 //      ^ Related location: this is the postcondition that could not be proved
 
@@ -48,7 +48,9 @@ class Fibonacci {
         precondition(i <= j);
         postcondition(Spec(i) <= Spec(j));
 
-        @Unbounded @Nat int x = i;
+        @Unbounded 
+        @Nat 
+        int x = i;
         while(x < j)
         {
             invariant(x <= j);

@@ -1,7 +1,6 @@
 package com.aws.verifier.examples;
 
 import com.aws.jverify.*;
-import net.jqwik.api.Property;
 
 import static com.aws.jverify.JVerify.*;
 
@@ -14,19 +13,6 @@ class BinarySearch {
 
     return forall((Integer i) -> forall((Integer j) -> 
       implies(0 <= i && i < j && j < arr.length, arr[i] < arr[j])));
-  }
-  
-  
-  @Property 
-  boolean binarySearchProperty(int[] values, int target) {
-      if (!sorted(values)) {
-          return true;
-      }
-      
-      var r = binarySearch(values, target);
-      return sequence(values).contains(target)
-              ? 0 <= r && r < values.length && values[r] == target
-              : r == -1;
   }
 
   int binarySearch(int[] arr, int target) {
@@ -56,6 +42,11 @@ class BinarySearch {
         }
       }
       return -1;
+  }
+
+  @Pure
+  boolean implies(boolean ante, boolean cons) {
+    return !ante || cons;
   }
 
 }
