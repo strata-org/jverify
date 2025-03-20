@@ -141,7 +141,8 @@ public class JavaToDafnyCompiler {
 
     Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
         var token = toToken(tree.getPreferredPosition());
-        return new Name(new SourceOrigin(new TokenRange(token, token), new TokenRange(token, token)), name.toString());
+        var range = new TokenRange(token, token);
+        return new Name(new SourceOrigin(range, range), name.toString());
     }
 
     MemberDecl translateMember(JCTree member, Stack<Tree> nestedTypes) {
@@ -182,11 +183,10 @@ public class JavaToDafnyCompiler {
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
                 a -> a));
 
-        var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
-
         List<Formal> ins = method.getParameters().map(jvd ->
-                new Formal(toOrigin(jvd), getName(jvd, jvd.getName()), toType(jvd.getType(), false), false, true,
+                new Formal(toOrigin(jvd), getName(jvd, jvd.getName()), toType(jvd.getType()), false, true,
                         null, null, false, false, false, null));
+        var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
 
         if (annotationsByName.containsKey(Pure.class.getSimpleName())) {
             var header = new HeaderContainer();
@@ -196,8 +196,27 @@ public class JavaToDafnyCompiler {
                 throw new RuntimeException("Pure method should have only one statement");
             }
             var returnType = toType(method.getReturnType());
-            if (returnType == null) {
-                throw new RuntimeException("Pure method should have a return type");
+
+
+            if (annotationsByName.containsKey(Pure.class.getSimpleName())) {
+                if (postHeader.size() != 1) {
+                    throw new RuntimeException("Pure method should have only one statement");
+                }
+                if (returnType == null) {
+                    throw new RuntimeException("Pure method should have a return type");
+                }
+
+                var statement = postHeader.getFirst();
+                if (statement instanceof JCTree.JCReturn returnStatement) {
+                    var body = toExpr(returnStatement.expr);
+                    return new Function(origin, name, null, false, null, List.of(),
+                            ins, header.preconditions, header.postconditions, header.getReads(),
+                            header.getDecreases(), isStatic, false, null, returnType,
+                            body, null, null
+                    );
+                } else {
+                    throw new RuntimeException("Pure method statement should be a return");
+                }
             }
 
             var statement = postHeader.getFirst();
@@ -280,7 +299,7 @@ public class JavaToDafnyCompiler {
         var origin = toOrigin(expr);
         if (expr instanceof JCTree.JCNewClass newClass) {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-            return new TypeRhs(origin, null, toType(newClass.clazz), new ActualBindings(argBindings));
+            return new AllocateClass(origin, null, toType(newClass.clazz), new ActualBindings(argBindings));
         }
         var dafnyExpr = toExpr(expr);
         return new ExprRhs(origin, null, dafnyExpr);
@@ -324,8 +343,7 @@ public class JavaToDafnyCompiler {
             var target = toExpr(invocation.getMethodSelect());
             var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
             return new ApplySuffix(origin, target, null,
-                    new ActualBindings(argBindings),
-                    origin.getReportingRange().getEndToken());
+                    new ActualBindings(argBindings),null);
         } else if (expr instanceof JCTree.JCFieldAccess fieldAccess) {
             var selectedExpr = toExpr(fieldAccess.selected);
             // TODO does this work if the selected expression isn't trivially of array type?
@@ -418,18 +436,18 @@ public class JavaToDafnyCompiler {
 
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
         return switch (operator.name.toString()) {
-            case "&&" -> BinaryExprOpcode.And;
-            case "||" -> BinaryExprOpcode.Or;
-            case "<" -> BinaryExprOpcode.Lt;
-            case ">" -> BinaryExprOpcode.Gt;
             case "-" -> BinaryExprOpcode.Sub;
             case "+" -> BinaryExprOpcode.Add;
             case "*" -> BinaryExprOpcode.Mul;
             case "/" -> BinaryExprOpcode.Div;
             case "==" -> BinaryExprOpcode.Eq;
             case "!=" -> BinaryExprOpcode.Neq;
+            case "<" -> BinaryExprOpcode.Lt;
             case "<=" -> BinaryExprOpcode.Le;
+            case ">" -> BinaryExprOpcode.Gt;
             case ">=" -> BinaryExprOpcode.Ge;
+            case "||" -> BinaryExprOpcode.Or;
+            case "&&" -> BinaryExprOpcode.And;
             case "%" -> BinaryExprOpcode.Mod;
             default -> throw new NotImplementedException("Operator" + operator.name);
         };
@@ -519,7 +537,6 @@ public class JavaToDafnyCompiler {
     private SourceOrigin toOrigin(JCTree node) {
         return toOrigin(node, node);
     }
-
     private SourceOrigin toOrigin(JCTree node, JCTree centerNode) {
         int endPos = TreeInfo.getEndPos(node, compilationUnit.endPositions);
         var startToken = toToken(TreeInfo.getStartPos(node));
@@ -527,7 +544,7 @@ public class JavaToDafnyCompiler {
                 endPos == Position.NOPOS ? startToken : toToken(endPos)),
                 new TokenRange(toToken(centerNode.pos), toToken(centerNode.pos + 1)));
     }
-
+    
     private Token toToken(int pos) {
         return new Token(
                 (int) compilationUnit.getLineMap().getLineNumber(pos),
