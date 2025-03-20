@@ -34,8 +34,7 @@ public class TestVerifier {
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         var options = new VerifierOptions(dafnyPath, libraryJar, prelude,
-                Path.of("/Users/rwillems/SourceCode/GradleBased/out.dfy")
-                , null, false);
+                null, null, false);
         return Driver.verifyJavaExample(options, source, writer);
     }
     
@@ -55,7 +54,7 @@ public class TestVerifier {
     }
 
     @Test
-    public void opetators() throws IOException {
+    public void operators() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("Operators.java", writer);
         var output = canonicalizeNewlines(writer.toString());
