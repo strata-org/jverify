@@ -173,7 +173,6 @@ public class JavaToDafnyCompiler {
     }
 
     private MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
-;
         var name = getName(method, method.name);
         var origin = declToOrigin(method, name);
 
@@ -262,18 +261,18 @@ public class JavaToDafnyCompiler {
                 return new Constructor(origin, new Name(origin, "_ctor"), null, false, null, List.of(), ins,
                         header.preconditions, header.postconditions, header.getReads(), 
                         header.getDecreases(), header.getModifies(),
-                        new DividedBlockStmt(origin, null, bodyStatements, null, List.of()));
+                        new DividedBlockStmt(toOrigin(method.body), null, bodyStatements, null, List.of()));
             } else if (annotationsByName.containsKey(Proof.class.getSimpleName())) {
                 return new Method(origin, name, null, false, null, List.of(),
                         ins, header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), header.getModifies(), 
                         isStatic, outs,
-                        new BlockStmt(origin, null, bodyStatements), false);
+                        new BlockStmt(toOrigin(method.body), null, bodyStatements), false);
             } else {
                 return new Method(origin, name, null, false, null, List.of(),
                         ins, header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), header.getModifies(), isStatic, outs,
-                        new BlockStmt(origin, null, bodyStatements), false);
+                        new BlockStmt(toOrigin(method.body), null, bodyStatements), false);
             }
         }
     }
@@ -550,8 +549,8 @@ public class JavaToDafnyCompiler {
     }
     
     private TokenRangeOrigin toOrigin(JCTree node) {
-        int endPos = TreeInfo.getEndPos(node, compilationUnit.endPositions);
         var startToken = toToken(TreeInfo.getStartPos(node));
+        int endPos = TreeInfo.getEndPos(node, compilationUnit.endPositions);
         var endToken = endPos == Position.NOPOS ? toToken(TreeInfo.getStartPos(node) + 1) : toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
     }
@@ -726,8 +725,12 @@ public class JavaToDafnyCompiler {
                     blockStatement.getStatements().map(this::translateStatement).stream().toList());
         } else if (statement instanceof JCTree.JCReturn returnStatement) {
             var expr = returnStatement.getExpression();
-            return new ReturnStmt(origin, null,
-                    List.of(new ExprRhs(toOrigin(expr), null, toExpr(expr))));
+            if (expr == null) {
+                return new ReturnStmt(origin, null, List.of());
+            } else {
+                return new ReturnStmt(origin, null,
+                        List.of(new ExprRhs(toOrigin(expr), null, toExpr(expr))));
+            }
         } else if (statement instanceof JCTree.JCVariableDecl variableDecl) {
             LocalVariable localVariable = new LocalVariable(origin,
                     variableDecl.getName().toString(), toType(variableDecl.getType(), false, origin), false);

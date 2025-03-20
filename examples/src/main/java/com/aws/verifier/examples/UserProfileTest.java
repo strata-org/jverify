@@ -16,6 +16,7 @@ class UserProfileTest {
         if (AccountType.Premium == accountType) {
             //this.premiumFeatures = new PremiumFeatures();
         }
+        return;
     }
     
     @Pure

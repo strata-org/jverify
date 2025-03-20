@@ -19,9 +19,9 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("UserProfile.java", writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("/test.java(25:12-25:23): Error: a postcondition could not be proved on this return path\n" +
+        Assertions.assertEquals("/test.java(25:34-25:34): Error: a postcondition could not be proved on this return path\n" +
                 "/test.java(20:21-20:26): Related location: this is the postcondition that could not be proved\n" +
-                "/test.java(22:15-22:76): Related location: this proposition could not be proved\n" +
+                "/test.java(22:16-22:77): Related location: this proposition could not be proved\n" +
                 "\n" +
                 "Dafny program verifier finished with 7 verified, 1 error\n", output);
         Assertions.assertEquals(4, exitCode);
@@ -47,14 +47,14 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("AssertFalse.java", writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("/test.java(7,14): Error: assertion might not hold\n" +
+        Assertions.assertEquals("/test.java(7:9-7:21): Error: assertion might not hold\n" +
                 "\n" +
                 "Dafny program verifier finished with 2 verified, 1 error\n", output);
         Assertions.assertEquals(4, exitCode);
     }
 
     private static void checkErrorAt(String output, int line, int col) {
-        Assertions.assertTrue(output.contains("/test.java("+line+","+col+"): Error: assertion might not hold"));
+        Assertions.assertTrue(output.contains("/test.java(" + line + ":" + col + "-"));
     }
 
     @Test
@@ -64,15 +64,15 @@ public class TestVerifier {
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertTrue(output.contains("Dafny program verifier finished with 11 verified, 9 errors"));
         // Checking all 9 errors
-        checkErrorAt(output,17,14);
-        checkErrorAt(output, 31, 14);
-        checkErrorAt(output, 45, 14);
-        checkErrorAt(output, 59, 14);
-        checkErrorAt(output, 71, 14);
-        checkErrorAt(output, 83, 14);
-        checkErrorAt(output, 95, 14);
-        checkErrorAt(output, 107, 14);
-        checkErrorAt(output, 119, 14);
+        checkErrorAt(output,17,9);
+        checkErrorAt(output, 31, 9);
+        checkErrorAt(output, 45, 9);
+        checkErrorAt(output, 59, 9);
+        checkErrorAt(output, 71, 9);
+        checkErrorAt(output, 83, 9);
+        checkErrorAt(output, 95, 9);
+        checkErrorAt(output, 107, 9);
+        checkErrorAt(output, 119, 9);
         Assertions.assertEquals(4, exitCode);
     }
 
@@ -91,13 +91,15 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("FibonacciInvalid.java", writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("/test.java(44,22): Error: value does not satisfy the subset constraints of 'nat32'\n" +
-                "/test.java(49,19): Error: value does not satisfy the subset constraints of 'nat32'\n" +
-                "/test.java(17,13): Error: a postcondition could not be proved on this return path\n" +
-                "/test.java(14,40): Related location: this is the postcondition that could not be proved\n" +
-                "/test.java(31,35): Error: value does not satisfy the subset constraints of 'int32'\n" +
-                "\n" +
-                "Dafny program verifier finished with 4 verified, 4 errors\n", output);
+        Assertions.assertEquals("""
+/test.java(44:22-44:23): Error: value does not satisfy the subset constraints of 'nat32'
+/test.java(49:17-49:22): Error: value does not satisfy the subset constraints of 'nat32'
+/test.java(17:13-17:22): Error: a postcondition could not be proved on this return path
+/test.java(14:38-14:50): Related location: this is the postcondition that could not be proved
+/test.java(31:28-31:51): Error: value does not satisfy the subset constraints of 'int32'
+
+Dafny program verifier finished with 4 verified, 4 errors
+""", output);
         Assertions.assertEquals(4, exitCode);
 
     }
