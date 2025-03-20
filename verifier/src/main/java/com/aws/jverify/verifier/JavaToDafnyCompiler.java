@@ -24,6 +24,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -84,14 +85,15 @@ public class JavaToDafnyCompiler {
     TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var name = getName(classDecl, classDecl.name);
-            var origin = toOrigin(classDecl);
+            var origin = declToOrigin(classDecl, name);
 
             if (isEnum(classDecl.type)) {
                 List<DatatypeCtor> constructors = new ArrayList<>();
                 for(var member : classDecl.getMembers()) {
                     if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                        constructors.add(new DatatypeCtor(toOrigin(variableDecl), 
-                                getName(variableDecl, variableDecl.name), null, false, List.of()));
+                        Name constructorName = getName(variableDecl, variableDecl.name);
+                        constructors.add(new DatatypeCtor(declToOrigin(variableDecl, constructorName), constructorName, 
+                                null, false, List.of()));
     
                     }
                 }
@@ -104,7 +106,8 @@ public class JavaToDafnyCompiler {
                         if (methodDecl.getModifiers().getAnnotations().stream().
                                 anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && 
                                         ident.name.contentEquals("Invariant"))) {
-                            var invariantOrigin = toOrigin(methodDecl);
+                            var invariantName = getName(methodDecl, methodDecl.name);
+                            var invariantOrigin = declToOrigin(methodDecl, invariantName);
                             ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                                     methodDecl.name.toString(), null), null, new ActualBindings(List.of()), null);
                             invariants.add(new AttributedExpression(call,null, null)); 
@@ -119,7 +122,7 @@ public class JavaToDafnyCompiler {
                         members.add(dafnyMember);
                     }
                 }
-                return new ClassDecl(origin, getName(classDecl, classDecl.name), null,
+                return new ClassDecl(origin, name, null,
                         List.of(), members, List.of(), false);
             }
         }
@@ -139,27 +142,21 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
-        var token = toToken(tree.getPreferredPosition());
-        var range = new TokenRange(token, token);
-        return new Name(new SourceOrigin(range, range), name.toString());
-    }
-
     MemberDecl translateMember(JCTree member, Stack<Tree> nestedTypes) {
-        var origin = toOrigin(member);
         switch (member) {
             case JCTree.JCClassDecl classDecl -> {
                 nestedTypes.add(classDecl);
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
-                return translateMethodDecl(method, origin);
+                return translateMethodDecl(method);
             }
             case JCTree.JCVariableDecl variableDecl -> {
                 if (variableDecl.getInitializer() != null) {
                     throw new RuntimeException("Field initializers are not supported yet");
                 }
-                return new Field(origin, getName(variableDecl, variableDecl.name), 
+                Name fieldName = getName(variableDecl, variableDecl.name);
+                return new Field(declToOrigin(variableDecl, fieldName), fieldName, 
                         null, 
                         false, 
                         toType(variableDecl.vartype, isNullable(variableDecl.getModifiers())));
@@ -175,8 +172,10 @@ public class JavaToDafnyCompiler {
                 a -> a.getAnnotationType() instanceof  JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
     }
 
-    private MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method, SourceOrigin origin) {
+    private MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
+;
         var name = getName(method, method.name);
+        var origin = declToOrigin(method, name);
 
         var annotations = method.getModifiers().getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
@@ -184,8 +183,11 @@ public class JavaToDafnyCompiler {
                 a -> a));
 
         List<Formal> ins = method.getParameters().map(jvd ->
-                new Formal(toOrigin(jvd), getName(jvd, jvd.getName()), toType(jvd.getType()), false, true,
-                        null, null, false, false, false, null));
+        {
+            Name formalName = getName(jvd, jvd.getName());
+            return new Formal(declToOrigin(jvd, formalName), formalName, toType(jvd.getType()), false, true,
+                    null, null, false, false, false, null);
+        });
         var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
 
         if (annotationsByName.containsKey(Pure.class.getSimpleName())) {
@@ -461,7 +463,7 @@ public class JavaToDafnyCompiler {
         return toType(tree, isNullable, null);
     }
 
-    private @Nullable Type toType(JCTree tree, boolean isNullable, @Nullable SourceOrigin originOverride) {
+    private @Nullable Type toType(JCTree tree, boolean isNullable, @Nullable IOrigin originOverride) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(tree));
         
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(tree);
@@ -534,16 +536,131 @@ public class JavaToDafnyCompiler {
         return null;
     }
 
-    private SourceOrigin toOrigin(JCTree node) {
-        return toOrigin(node, node);
+
+    Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
+        int startPos = getStartPos(tree);
+        var startToken = toToken(startPos);
+        var endToken = toToken(startPos + name.length());
+        return new Name(new TokenRangeOrigin(startToken, endToken), name.toString());
     }
-    private SourceOrigin toOrigin(JCTree node, JCTree centerNode) {
+
+    private IOrigin declToOrigin(JCTree node, Name name) {
+        var entireRange = toOrigin(node);
+        return new SourceOrigin(originToRange(entireRange), originToRange((TokenRangeOrigin) name.getOrigin()));
+    }
+    
+    private TokenRangeOrigin toOrigin(JCTree node) {
         int endPos = TreeInfo.getEndPos(node, compilationUnit.endPositions);
         var startToken = toToken(TreeInfo.getStartPos(node));
-        return new SourceOrigin(new TokenRange(startToken,
-                endPos == Position.NOPOS ? startToken : toToken(endPos)),
-                new TokenRange(toToken(centerNode.pos), toToken(centerNode.pos + 1)));
+        var endToken = endPos == Position.NOPOS ? toToken(TreeInfo.getStartPos(node) + 1) : toToken(endPos);
+        return new TokenRangeOrigin(startToken, endToken);
     }
+    
+    private TokenRange originToRange(TokenRangeOrigin tokenRangeOrigin) {
+        return new TokenRange(tokenRangeOrigin.getStartToken(), tokenRangeOrigin.getEndToken());
+    }
+    
+    private int getStartPos(JCTree tree) {
+        return switch(tree) {
+            case JCTree.JCClassDecl classDecl -> getClassNamePosition(classDecl);
+            case JCTree.JCMethodDecl methodDecl -> getMethodNamePosition(methodDecl);
+            default -> tree.getStartPosition();
+        };
+    }
+
+    private int getMethodNamePosition(JCTree.JCMethodDecl methodDecl) {
+        CharSequence source;
+        try {
+            source = compilationUnit.getSourceFile().getCharContent(true);
+        } catch (IOException e) {
+            return Position.NOPOS;
+        }
+        String sourceText = source.toString();
+
+        int pos = methodDecl.pos;
+
+        if (methodDecl.mods != null && methodDecl.mods.pos != Position.NOPOS) {
+            pos = TreeInfo.getEndPos(methodDecl.mods, compilationUnit.endPositions);
+        }
+
+        String methodName = methodDecl.name.toString();
+        boolean isConstructor = TreeInfo.isConstructor(methodDecl);
+
+        if (isConstructor) {
+            if (methodDecl.typarams != null && !methodDecl.typarams.isEmpty()) {
+                pos = TreeInfo.getEndPos(methodDecl.typarams.last(), compilationUnit.endPositions);
+            }
+            return pos;
+        } else {
+            if (methodDecl.typarams != null && !methodDecl.typarams.isEmpty()) {
+                pos = TreeInfo.getEndPos(methodDecl.typarams.last(), compilationUnit.endPositions);
+            }
+
+            if (methodDecl.restype != null) {
+                pos = TreeInfo.getEndPos(methodDecl.restype, compilationUnit.endPositions);
+            }
+        }
+
+        while (pos < sourceText.length()) {
+            while (pos < sourceText.length() && Character.isWhitespace(sourceText.charAt(pos))) {
+                pos++;
+            }
+
+            if (pos + methodName.length() <= sourceText.length() &&
+                    sourceText.regionMatches(pos, methodName, 0, methodName.length())) {
+                // Verify this is the actual method name by checking if it's followed by a '('
+                int nextCharPos = pos + methodName.length();
+                while (nextCharPos < sourceText.length() && Character.isWhitespace(sourceText.charAt(nextCharPos))) {
+                    nextCharPos++;
+                }
+                if (nextCharPos < sourceText.length() && sourceText.charAt(nextCharPos) == '(') {
+                    return pos;
+                }
+            }
+
+            pos++;
+        }
+
+        return Position.NOPOS;
+    }
+    
+    private int getClassNamePosition(JCTree.JCClassDecl classDecl) {
+        CharSequence source;
+        try {
+            source = this.compilationUnit.getSourceFile().getCharContent(true);
+        } catch (IOException e) {
+            return Position.NOPOS;
+        }
+
+        int pos = classDecl.pos;
+        if (classDecl.mods != null && classDecl.mods.pos != Position.NOPOS) {
+            pos = TreeInfo.getEndPos(classDecl.mods, compilationUnit.endPositions);
+        }
+
+        // Find the class/interface/enum/record keyword and skip it
+        String sourceText = source.toString();
+        String[] keywords = {"class", "interface", "enum", "record"};
+
+        for (String keyword : keywords) {
+            int keywordPos = sourceText.indexOf(keyword + " ", pos);
+            if (keywordPos >= pos) {
+                // Found the keyword, the class name starts after it and any whitespace
+                int nameStart = keywordPos + keyword.length();
+                while (nameStart < sourceText.length() && Character.isWhitespace(sourceText.charAt(nameStart))) {
+                    nameStart++;
+                }
+
+                // Verify we've found the correct position by checking if the text matches the class name
+                String className = classDecl.name.toString();
+                if (sourceText.regionMatches(nameStart, className, 0, className.length())) {
+                    return nameStart;
+                }
+            }
+        }
+
+        return Position.NOPOS;
+    }
+        
     
     private Token toToken(int pos) {
         return new Token(
@@ -556,7 +673,7 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Statement translateStatement(JCTree.JCStatement statement) {
-        SourceOrigin origin = toOrigin(statement);
+        var origin = toOrigin(statement);
         if (statement instanceof JCTree.JCExpressionStatement expressionStatement) {
             var expr = expressionStatement.getExpression();
             if (expr instanceof JCTree.JCMethodInvocation invocation) {

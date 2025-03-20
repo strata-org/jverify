@@ -19,9 +19,9 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("UserProfile.java", writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("/test.java(25,5): Error: a postcondition could not be proved on this return path\n" +
-                "/test.java(20,21): Related location: this is the postcondition that could not be proved\n" +
-                "/test.java(22,51): Related location: this proposition could not be proved\n" +
+        Assertions.assertEquals("/test.java(25:12-25:23): Error: a postcondition could not be proved on this return path\n" +
+                "/test.java(20:21-20:26): Related location: this is the postcondition that could not be proved\n" +
+                "/test.java(22:15-22:76): Related location: this proposition could not be proved\n" +
                 "\n" +
                 "Dafny program verifier finished with 7 verified, 1 error\n", output);
         Assertions.assertEquals(4, exitCode);
@@ -34,7 +34,11 @@ public class TestVerifier {
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         var options = new VerifierOptions(dafnyPath, libraryJar, prelude,
-                null, null, false);
+                null, null, true,
+                new String[] { 
+                        //"--wait-for-debugger"
+                } 
+        );
         return Driver.verifyJavaExample(options, source, writer);
     }
     

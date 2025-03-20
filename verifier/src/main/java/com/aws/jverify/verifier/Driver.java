@@ -54,8 +54,13 @@ public class Driver {
             if (verifierOptions.printDafny() != null) {
                 processBuilder.command().add("--print=" + verifierOptions.printDafny());
             }
-            if (verifierOptions.noSnippets()) {
+            if (verifierOptions.showRanges()) {
+                // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
                 processBuilder.command().add("--show-snippets=false");
+                processBuilder.command().add("--print-ranges");
+            }                
+            for(var option : verifierOptions.additionalDafnyArguments()) {
+                processBuilder.command().add(option);
             }
 
             Process process = processBuilder.start();
