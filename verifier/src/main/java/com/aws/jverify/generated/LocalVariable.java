@@ -4,7 +4,7 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class LocalVariable extends RangeNode {
+public class LocalVariable extends NodeWithOrigin {
   private final String name;
 
   @Nullable

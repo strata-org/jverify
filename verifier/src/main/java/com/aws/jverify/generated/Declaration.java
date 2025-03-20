@@ -4,7 +4,7 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public abstract class Declaration extends RangeNode {
+public abstract class Declaration extends NodeWithOrigin {
   private final Name nameNode;
 
   @Nullable

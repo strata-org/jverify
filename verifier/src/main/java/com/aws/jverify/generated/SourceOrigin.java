@@ -3,28 +3,21 @@ package com.aws.jverify.generated;
 // Generated SourceOrigin.java:
 // Generated from C# class
 public class SourceOrigin extends IOrigin {
-  private final Token startToken;
+  private final TokenRange entireRange;
 
-  private final Token endToken;
+  private final TokenRange reportingRange;
 
-  private final Token center;
-
-  public SourceOrigin(Token startToken, Token endToken, Token center) {
+  public SourceOrigin(TokenRange entireRange, TokenRange reportingRange) {
     super();
-    this.startToken = startToken;
-    this.endToken = endToken;
-    this.center = center;
+    this.entireRange = entireRange;
+    this.reportingRange = reportingRange;
   }
 
-  public Token getStartToken() {
-    return this.startToken;
+  public TokenRange getEntireRange() {
+    return this.entireRange;
   }
 
-  public Token getEndToken() {
-    return this.endToken;
-  }
-
-  public Token getCenter() {
-    return this.center;
+  public TokenRange getReportingRange() {
+    return this.reportingRange;
   }
 }

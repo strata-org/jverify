@@ -4,7 +4,7 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public abstract class AssignmentRhs extends NodeWithComputedRange {
+public abstract class AssignmentRhs extends NodeWithOrigin {
   @Nullable
   private final Attributes attributes;
 

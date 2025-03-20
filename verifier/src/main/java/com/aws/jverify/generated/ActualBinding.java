@@ -4,7 +4,7 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class ActualBinding extends NodeWithComputedRange {
+public class ActualBinding extends NodeWithoutOrigin {
   @Nullable
   private final IOrigin formalParameterName;
 
@@ -12,9 +12,8 @@ public class ActualBinding extends NodeWithComputedRange {
 
   private final Boolean isGhost;
 
-  public ActualBinding(IOrigin origin, IOrigin formalParameterName, Expression actual,
-      Boolean isGhost) {
-    super(origin);
+  public ActualBinding(IOrigin formalParameterName, Expression actual, Boolean isGhost) {
+    super();
     this.formalParameterName = formalParameterName;
     this.actual = actual;
     this.isGhost = isGhost;

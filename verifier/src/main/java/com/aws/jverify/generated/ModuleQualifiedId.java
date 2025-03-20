@@ -4,7 +4,7 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import java.util.List;
 
-public class ModuleQualifiedId extends Node {
+public class ModuleQualifiedId extends NodeWithoutOrigin {
   private final List<Name> path;
 
   public ModuleQualifiedId(List<Name> path) {
