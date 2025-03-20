@@ -726,7 +726,7 @@ public class JavaToDafnyCompiler {
         } else if (statement instanceof JCTree.JCReturn returnStatement) {
             var expr = returnStatement.getExpression();
             if (expr == null) {
-                return new ReturnStmt(origin, null, List.of());
+                return new ReturnStmt(origin, null, null);
             } else {
                 return new ReturnStmt(origin, null,
                         List.of(new ExprRhs(toOrigin(expr), null, toExpr(expr))));

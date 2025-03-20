@@ -2,32 +2,33 @@ package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.*;
 
-class UserProfile {
+class UserProfileTest {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
     private AccountType accountType;
     private @Nullable PremiumFeatures premiumFeatures;  // Should be null for FREE accounts
 
-    public UserProfile(AccountType accountType) {
+    public UserProfileTest(AccountType accountType) {
         this.accountType = accountType;
         if (AccountType.Premium == accountType) {
             this.premiumFeatures = new PremiumFeatures();
         }
     }
-    
+
     @Pure
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
         reads(this);
         return accountType != AccountType.Premium || premiumFeatures != null;
     }
-    
+
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
-        // JVerify error: could not prove "premiumFeatures != null"
+        // this.premiumFeatures = new PremiumFeatures();
+        return;
     }
-    
+
     public boolean applyTheme(Theme theme) {
         modifies(premiumFeatures);
         if (AccountType.Premium == accountType) {
@@ -42,12 +43,12 @@ class UserProfile {
 
     static class PremiumFeatures {
         private Theme theme;
-    
+
         public void setTheme(Theme theme) {
             modifies(this);
             this.theme = theme;
         }
-    
+
         public Theme getTheme() {
             return theme;
         }

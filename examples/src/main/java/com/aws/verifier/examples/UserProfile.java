@@ -1,90 +1,59 @@
-package com.aws.verifier.examples;
+package main.java.com.aws.verifier.examples;
 
+import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.Invariant;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 
-enum AccountType { Free, Premium }
-
-class VerifiedUserProfile {
+class UserProfile {
+    public enum AccountType { Free, Premium }
     private AccountType accountType;
-    private @Nullable PremiumFeatures premiumFeatures;  // Should be null for FREE accounts
+    private PremiumFeatures premiumFeatures; // Should be null for FREE accounts
 
-    public VerifiedUserProfile(AccountType accountType) {
+    public UserProfile(AccountType accountType) {
         this.accountType = accountType;
-        if (AccountType.Premium.equals(accountType)) {
+        if (AccountType.Premium == accountType) {
             this.premiumFeatures = new PremiumFeatures();
         }
     }
-    @Pure
-    @Invariant // Makes this a pre- and post-condition of all public methods
-    private boolean valid() {
-        return !accountType.equals(AccountType.Premium) || premiumFeatures != null;
-    }
+    
     public void upgradeAccount() {
+        modifies(this);
         this.accountType = AccountType.Premium;
-        // JVerify error: could not prove "premiumFeatures != null"
+        // this.premiumFeatures = new PremiumFeatures();
+        return;
     }
-    public String applyTheme(String theme) {
-        if (AccountType.Premium.equals(accountType)) {
+    
+    public boolean applyTheme(Theme theme) {
+        modifies(premiumFeatures);
+        if (AccountType.Premium == accountType) {
             // Checker framework will report this as a possible null pointer exception. 
             // JVerify accepts the code
             premiumFeatures.setTheme(theme);
-            return "Theme applied: " + theme;
+            return true;
         } else {
-            return "Themes are only available for premium accounts";
+            return false;
         }
     }
+    
+    // @Pure
+    // @Invariant // Makes this a pre- and post-condition of all public methods
+    // private boolean valid() {
+    //     reads(this);
+    //     return accountType != AccountType.Premium || premiumFeatures != null;
+    // }
 }
-
-
-class UserProfile {
-    private String userId;
-    private String accountType;  // "FREE" or "PREMIUM"
-    private @Nullable PremiumFeatures premiumFeatures;  // Should be null for FREE accounts
-
-    public UserProfile(String userId, String accountType) {
-        this.userId = userId;
-        this.accountType = accountType;
-
-        if ("PREMIUM".equals(accountType)) {
-            this.premiumFeatures = new PremiumFeatures();
-        }
-    }
-
-    public void upgradeAccount() {
-        this.accountType = "PREMIUM";
-        // Bug: We forgot to initialize premiumFeatures when upgrading
-    }
-
-    public String applyTheme(String theme) {
-        if ("PREMIUM".equals(accountType)) {
-            // Checker framework will complain this may cause a null pointer exception
-            premiumFeatures.setTheme(theme);
-            return "Theme applied: " + theme;
-        } else {
-            return "Themes are only available for premium accounts";
-        }
-    }
-}
+enum Theme { Light, Dark }
 
 class PremiumFeatures {
-    private String theme = "Default";
-    private boolean customExports = false;
+    private Theme theme;
 
-    public void setTheme(String theme) {
+    public void setTheme(Theme theme) {
+        modifies(this);
         this.theme = theme;
     }
 
-    public String getTheme() {
+    public Theme getTheme() {
         return theme;
-    }
-
-    public void setCustomExports(boolean enabled) {
-        this.customExports = enabled;
-    }
-
-    public boolean hasCustomExports() {
-        return customExports;
     }
 }

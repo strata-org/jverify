@@ -19,7 +19,7 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("UserProfile.java", writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("/test.java(25:34-25:34): Error: a postcondition could not be proved on this return path\n" +
+        Assertions.assertEquals("/test.java(29:9-29:16): Error: a postcondition could not be proved on this return path\n" +
                 "/test.java(20:21-20:26): Related location: this is the postcondition that could not be proved\n" +
                 "/test.java(22:16-22:77): Related location: this proposition could not be proved\n" +
                 "\n" +
