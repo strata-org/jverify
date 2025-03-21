@@ -22,9 +22,15 @@ public class JVerify {
     public static <T> void postcondition(Function<T, Boolean> predicate) {
     }
 
+    /**
+     * The given function must evaluate to true after this method call
+     */
     public static <T> void postcondition(Supplier<Boolean> predicate) {
     }
 
+    /**
+     * The given expression must evaluate to true after this method call
+     */
     public static void postcondition(boolean predicate) {
     }
 
@@ -35,6 +41,9 @@ public class JVerify {
     public static void reads(Object object) {
     }
 
+    /**
+     * Specify that the given object(s) may be modified in this method.
+     */
     public static void modifies(Object object) {
     }
 
@@ -125,14 +134,6 @@ public class JVerify {
         public VerificationMethodExecutedException() {
             super("Verification-only method called at runtime");
         }
-    }
-    
-    public static boolean forall() {
-        throw new RuntimeException();
-    }
-    
-    public static <T> T old(T value) {
-        throw new RuntimeException();
     }
 }
 

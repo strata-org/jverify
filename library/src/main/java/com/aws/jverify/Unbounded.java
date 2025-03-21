@@ -5,7 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/*
+/**
 The annotated numeric variable can not overflow.
 Note that this prevents the containing method from being executed at runtime
  */

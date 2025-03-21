@@ -5,7 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/*
+/**
 This method will be added as a precondition and a postcondition to all public methods of the containing type.
 For constructors, it is only added as a postcondition.
  */

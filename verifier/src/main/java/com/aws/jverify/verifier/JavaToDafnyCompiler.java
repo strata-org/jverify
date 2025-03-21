@@ -88,45 +88,53 @@ public class JavaToDafnyCompiler {
             var origin = declToOrigin(classDecl, name);
 
             if (isEnum(classDecl.type)) {
-                List<DatatypeCtor> constructors = new ArrayList<>();
-                for(var member : classDecl.getMembers()) {
-                    if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                        Name constructorName = getName(variableDecl, variableDecl.name);
-                        constructors.add(new DatatypeCtor(declToOrigin(variableDecl, constructorName), constructorName, 
-                                null, false, List.of()));
-    
-                    }
-                }
-                return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
+                return translateEnum(classDecl, origin, name);
             } 
             else {
-                invariants.clear();
-                for (var member : classDecl.getMembers()) {
-                    if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                        if (methodDecl.getModifiers().getAnnotations().stream().
-                                anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && 
-                                        ident.name.contentEquals("Invariant"))) {
-                            var invariantName = getName(methodDecl, methodDecl.name);
-                            var invariantOrigin = declToOrigin(methodDecl, invariantName);
-                            ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
-                                    methodDecl.name.toString(), null), null, new ActualBindings(List.of()), null);
-                            invariants.add(new AttributedExpression(call,null, null)); 
-                        }
-                    }
-                }
-                
-                ArrayList<MemberDecl> members = new ArrayList<>();
-                for (var member : classDecl.getMembers()) {
-                    var dafnyMember = translateMember(member, nestedTypes);
-                    if (dafnyMember != null) {
-                        members.add(dafnyMember);
-                    }
-                }
-                return new ClassDecl(origin, name, null,
-                        List.of(), members, List.of(), false);
+                return translateClass(nestedTypes, classDecl, origin, name);
             }
         }
         throw new NotImplementedException(tree.getClass().getName());
+    }
+
+    private ClassDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+        invariants.clear();
+        for (var member : classDecl.getMembers()) {
+            if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                if (methodDecl.getModifiers().getAnnotations().stream().
+                        anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && 
+                                ident.name.contentEquals("Invariant"))) {
+                    var invariantName = getName(methodDecl, methodDecl.name);
+                    var invariantOrigin = declToOrigin(methodDecl, invariantName);
+                    ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
+                            methodDecl.name.toString(), null), null, new ActualBindings(List.of()), null);
+                    invariants.add(new AttributedExpression(call,null, null)); 
+                }
+            }
+        }
+
+        ArrayList<MemberDecl> members = new ArrayList<>();
+        for (var member : classDecl.getMembers()) {
+            var dafnyMember = translateMember(member, nestedTypes);
+            if (dafnyMember != null) {
+                members.add(dafnyMember);
+            }
+        }
+        return new ClassDecl(origin, name, null,
+                List.of(), members, List.of(), false);
+    }
+
+    private IndDatatypeDecl translateEnum(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+        List<DatatypeCtor> constructors = new ArrayList<>();
+        for(var member : classDecl.getMembers()) {
+            if (member instanceof JCTree.JCVariableDecl variableDecl) {
+                Name constructorName = getName(variableDecl, variableDecl.name);
+                constructors.add(new DatatypeCtor(declToOrigin(variableDecl, constructorName), constructorName, 
+                        null, false, List.of()));
+
+            }
+        }
+        return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
@@ -173,7 +181,7 @@ public class JavaToDafnyCompiler {
 
     private boolean isNullable(JCTree.JCModifiers modifiers) {
         return modifiers.getAnnotations().stream().anyMatch(
-                a -> a.getAnnotationType() instanceof  JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
+                a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
     }
 
     private MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
