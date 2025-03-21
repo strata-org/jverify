@@ -7,8 +7,9 @@ import com.aws.jverify.Pure;
 
 class UserProfile {
     public enum AccountType { Free, Premium }
+    public enum Theme { Light, Dark }
     private AccountType accountType;
-    private @Nullable PremiumFeatures premiumFeatures; // Should be null for FREE accounts
+    private @Nullable PremiumFeatures premiumFeatures;  // Should be null for FREE accounts
 
     public UserProfile(AccountType accountType) {
         this.accountType = accountType;
@@ -16,14 +17,21 @@ class UserProfile {
             this.premiumFeatures = new PremiumFeatures();
         }
     }
-    
+
+    @Pure
+    @Invariant // Makes this a pre- and post-condition of all public methods
+    private boolean valid() {
+        reads(this);
+        return accountType != AccountType.Premium || premiumFeatures != null;
+    }
+
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
-        this.premiumFeatures = new PremiumFeatures();
+        // this.premiumFeatures = new PremiumFeatures();
         return;
     }
-    
+
     public boolean applyTheme(Theme theme) {
         modifies(premiumFeatures);
         if (AccountType.Premium == accountType) {
@@ -35,25 +43,17 @@ class UserProfile {
             return false;
         }
     }
-    
-    @Pure
-    @Invariant // Makes this a pre- and post-condition of all public methods
-    private boolean valid() {
-        reads(this);
-        return accountType != AccountType.Premium || premiumFeatures != null;
-    }
-}
-enum Theme { Light, Dark }
 
-class PremiumFeatures {
-    private Theme theme;
+    static class PremiumFeatures {
+        private Theme theme;
 
-    public void setTheme(Theme theme) {
-        modifies(this);
-        this.theme = theme;
-    }
+        public void setTheme(Theme theme) {
+            modifies(this);
+            this.theme = theme;
+        }
 
-    public Theme getTheme() {
-        return theme;
+        public Theme getTheme() {
+            return theme;
+        }
     }
 }

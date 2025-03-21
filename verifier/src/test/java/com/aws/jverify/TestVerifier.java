@@ -17,18 +17,23 @@ public class TestVerifier {
     @Test
     public void userProfile() throws IOException {
         StringWriter writer = new StringWriter();
-        var exitCode = run("UserProfile.java", writer);
+        var exitCode = run("UserProfile.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("/test.java(29:9-29:16): Error: a postcondition could not be proved on this return path\n" +
-                "/test.java(20:21-20:26): Related location: this is the postcondition that could not be proved\n" +
-                "/test.java(22:16-22:77): Related location: this proposition could not be proved\n" +
-                "\n" +
-                "Dafny program verifier finished with 7 verified, 1 error\n", output);
+        Assertions.assertEquals("""
+/test.java(32:9-32:16): Error: a postcondition could not be proved on this return path
+/test.java(23:21-23:26): Related location: this is the postcondition that could not be proved
+/test.java(25:16-25:77): Related location: this proposition could not be proved
+
+Dafny program verifier finished with 7 verified, 1 error
+""", output);
         Assertions.assertEquals(4, exitCode);
     }
     
-    private int run(String inputFileName, Writer writer) throws IOException {
-        var source = Files.readString(Path.of("./src/test/java/com/aws/jverify/" + inputFileName));
+    private int run(String inputFileName, boolean fromExamples, Writer writer) throws IOException {
+        var directory = fromExamples 
+                ? Path.of("../examples/src/main/java/com/aws/verifier/examples") 
+                : Path.of("./src/test/java/com/aws/jverify");
+        var source = Files.readString(directory.resolve(inputFileName));
         var dafnyPath = Path.of("../dafny").toAbsolutePath()
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
@@ -45,7 +50,7 @@ public class TestVerifier {
     @Test
     public void assertFalse() throws IOException {
         StringWriter writer = new StringWriter();
-        var exitCode = run("AssertFalse.java", writer);
+        var exitCode = run("AssertFalse.java", false, writer);
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("/test.java(7:9-7:21): Error: assertion might not hold\n" +
                 "\n" +
@@ -60,7 +65,7 @@ public class TestVerifier {
     @Test
     public void operators() throws IOException {
         StringWriter writer = new StringWriter();
-        var exitCode = run("Operators.java", writer);
+        var exitCode = run("Operators.java", false, writer);
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertTrue(output.contains("Dafny program verifier finished with 11 verified, 9 errors"));
         // Checking all 9 errors
@@ -79,7 +84,7 @@ public class TestVerifier {
     @Test
     public void fibonacciValid() throws IOException {
         StringWriter writer = new StringWriter();
-        var exitCode = run("FibonacciValid.java", writer);
+        var exitCode = run("Fibonacci.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("\nDafny program verifier finished with 6 verified, 0 errors\n", output);
         Assertions.assertEquals(0, exitCode);
@@ -89,7 +94,7 @@ public class TestVerifier {
     @Test
     public void fibonacciInvalid() throws IOException {
         StringWriter writer = new StringWriter();
-        var exitCode = run("FibonacciInvalid.java", writer);
+        var exitCode = run("FibonacciInvalid.java", false, writer);
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("""
 /test.java(44:22-44:23): Error: value does not satisfy the subset constraints of 'nat32'
@@ -107,13 +112,13 @@ Dafny program verifier finished with 4 verified, 4 errors
     @Test
     public void binarySearchValid() throws IOException {
         StringWriter writer = new StringWriter();
-        var exitCode = run("BinarySearchValid.java", writer);
+        var exitCode = run("BinarySearch.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertLinesMatch(
-                List.of(
-                        "Dafny program verifier finished with 5 verified, 0 errors"
-                ),
-                Arrays.stream(output.split("\n")).toList()
+        Assertions.assertEquals("""
+
+Dafny program verifier finished with 5 verified, 0 errors
+""",
+                output
         );
         Assertions.assertEquals(0, exitCode);
     }
@@ -124,7 +129,7 @@ Dafny program verifier finished with 4 verified, 4 errors
         var process = new ProcessBuilder(
                 gradlePath,
                 ":verifier:run",
-                "--args=\"./src/test/java/com/aws/jverify/FibonacciValid.java\"").start();
+                "--args=\"../examples/src/main/java/com/aws/verifier/examples/Fibonacci.java\"").start();
         var writer = new StringWriter();
         var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
         reader.transferTo(writer);
