@@ -392,13 +392,17 @@ public class JavaToDafnyCompiler {
             return null;
         }
 
+        var receiver = invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
+                ? fieldAccess.selected
+                : null;
         var methodName = jverifyMethod.getQualifiedName().toString();
+        var args = invocation.getArguments();
         switch (methodName) {
             case "forall", "exists" -> {
-                if (invocation.getArguments().size() != 1) {
+                if (args.size() != 1) {
                     throw new RuntimeException("A %s call must have exactly one argument".formatted(methodName));
                 }
-                if (!(invocation.getArguments().getFirst() instanceof JCTree.JCLambda lambda)) {
+                if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
                     throw new RuntimeException("The argument to a %s call must be a lambda".formatted(methodName));
                 }
                 var origin = toOrigin(lambda.getBody());
@@ -416,23 +420,37 @@ public class JavaToDafnyCompiler {
                 }
             }
             case "sequence" -> {
-                // array conversion to sequence by appending "[..]"
-                var arg = toExpr(invocation.getArguments().getFirst());
-                return new SeqSelectExpr(toOrigin(invocation), false, arg, null, null, null);
+                // array conversion to sequence by appending "[..]", optionally with lo/hi
+                var array = args.get(0);
+                var fromIndex = args.length() > 1 ? args.get(1) : null;
+                var toIndex = args.length() > 2 ? args.get(2) : null;
+                return toSubsequence(array, fromIndex, toIndex);
+            }
+            case "drop" -> {
+                return toSubsequence(receiver, args.getFirst(), null);
+            }
+            case "take" -> {
+                return toSubsequence(receiver, null, args.getFirst());
+            }
+            case "subsequence" -> {
+                return toSubsequence(receiver, args.get(0), args.get(1));
             }
             case "contains" -> {
-                var args = invocation.getArguments();
                 var element = toExpr(args.getFirst());
-                var fromIndex = args.length() > 1 ? toExpr(args.get(1)) : null;
-                var toIndex = args.length() > 2 ? toExpr(args.get(2)) : null;
-
-                var origSeq = ((JCTree.JCFieldAccess) invocation.getMethodSelect()).selected;
-                var subSeq = new SeqSelectExpr(toOrigin(origSeq), false, toExpr(origSeq), fromIndex, toIndex, null);
-                return new BinaryExpr(toOrigin(invocation), BinaryExprOpcode.In, element, subSeq);
+                var seq = toExpr(receiver);
+                return new BinaryExpr(toOrigin(invocation), BinaryExprOpcode.In, element, seq);
             }
         }
 
         throw new NotImplementedException("Library method call: %s".formatted(jverifyMethod));
+    }
+
+    private SeqSelectExpr toSubsequence(JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
+        var origin = toOrigin(seqOrArray);
+        var seqOrArrayExpr = toExpr(seqOrArray);
+        var loExpr = lo == null ? null : toExpr(lo);
+        var hiExpr = hi == null ? null : toExpr(hi);
+        return new SeqSelectExpr(origin, false, seqOrArrayExpr, loExpr, hiExpr, null);
     }
 
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {

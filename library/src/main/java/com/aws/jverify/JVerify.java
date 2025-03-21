@@ -39,23 +39,92 @@ public class JVerify {
     }
 
     public static <T> boolean forall(Function<T, Boolean> predicate) {
-        throw new UnsupportedOperationException("Verification-only method called at runtime");
+        throw new VerificationMethodExecutedException();
     }
 
     public static <T1, T2> boolean forall(BiFunction<T1, T2, Boolean> predicate) {
-        throw new UnsupportedOperationException("Verification-only method called at runtime");
+        throw new VerificationMethodExecutedException();
     }
 
+    /**
+     * Returns a {@link Sequence} representing the contents of the specified array.
+     */
     public static <T> Sequence<T> sequence(T[] array) {
-        return new ArraySequence<>(array);
+        throw new VerificationMethodExecutedException();
     }
 
+    /**
+     * Returns a {@link Sequence} representing the contents of the portion of the specified array
+     * starting at {@code fromIndex}, inclusive.
+     */
+    public static <T> Sequence<T> sequence(T[] array, int fromIndex) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    /**
+     * Returns a {@link Sequence} representing the contents of the portion of the specified array
+     * starting at {@code fromIndex}, inclusive, and ending at {@code toIndex}, exclusive.
+     */
+    public static <T> Sequence<T> sequence(T[] array, int fromIndex, int toIndex) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    /**
+     * Same as {@link #sequence(Object[])}, but for a primitive {@code int} array.
+     */
     public static Sequence<Integer> sequence(int[] array) {
-        return new ArraySequence<>(array);
+        throw new VerificationMethodExecutedException();
     }
 
-    // Uses Object instead of T[] in order to accommodate primitive arrays
-    private record ArraySequence<T>(Object array) implements Sequence<T> {
+    /**
+     * Same as {@link #sequence(Object[], int)}, but for a primitive {@code int} array.
+     */
+    public static Sequence<Integer> sequence(int[] array, int fromIndex) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    /**
+     * Same as {@link #sequence(Object[], int, int)}, but for a primitive {@code int} array.
+     */
+    public static Sequence<Integer> sequence(int[] array, int fromIndex, int toIndex) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public interface Sequence<T> {
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        default Sequence<T> drop(int fromIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
+        default Sequence<T> take(int toIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
+         */
+        default Sequence<T> subsequence(int fromIndex, int toIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
+        default boolean contains(T element) {
+            throw new VerificationMethodExecutedException();
+        }
+    }
+
+    public static class VerificationMethodExecutedException extends UnsupportedOperationException {
+        public VerificationMethodExecutedException() {
+            super("Verification-only method called at runtime");
+        }
     }
     
     public static boolean forall() {

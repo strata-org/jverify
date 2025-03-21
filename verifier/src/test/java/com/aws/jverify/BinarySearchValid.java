@@ -26,8 +26,8 @@ class BinarySearchValid {
             invariant(0 <= lo);
             invariant(lo <= hi);
             invariant(hi <= arr.length);
-            invariant(!sequence(arr).contains(key, 0, lo));
-            invariant(!sequence(arr).contains(key, hi));
+            invariant(!sequence(arr).take(lo).contains(key));
+            invariant(!sequence(arr).drop(hi).contains(key));
 
             var mid = lo + (hi - lo) / 2;
             if (key < arr[mid]) {
