@@ -8,7 +8,7 @@ import com.aws.jverify.Pure;
 class UserProfile {
     public enum AccountType { Free, Premium }
     private AccountType accountType;
-    private PremiumFeatures premiumFeatures; // Should be null for FREE accounts
+    private @Nullable PremiumFeatures premiumFeatures; // Should be null for FREE accounts
 
     public UserProfile(AccountType accountType) {
         this.accountType = accountType;
@@ -20,7 +20,7 @@ class UserProfile {
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
-        // this.premiumFeatures = new PremiumFeatures();
+        this.premiumFeatures = new PremiumFeatures();
         return;
     }
     
@@ -36,12 +36,12 @@ class UserProfile {
         }
     }
     
-    // @Pure
-    // @Invariant // Makes this a pre- and post-condition of all public methods
-    // private boolean valid() {
-    //     reads(this);
-    //     return accountType != AccountType.Premium || premiumFeatures != null;
-    // }
+    @Pure
+    @Invariant // Makes this a pre- and post-condition of all public methods
+    private boolean valid() {
+        reads(this);
+        return accountType != AccountType.Premium || premiumFeatures != null;
+    }
 }
 enum Theme { Light, Dark }
 
