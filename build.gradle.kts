@@ -71,7 +71,8 @@ fun createJavacExports(targets: List<String>): List<String> {
         "jdk.compiler/com.sun.tools.javac.parser",
         "jdk.compiler/com.sun.tools.javac.jvm",
         "jdk.compiler/com.sun.tools.javac.comp",
-        "jdk.compiler/com.sun.tools.javac.model"
+        "jdk.compiler/com.sun.tools.javac.model",
+        "jdk.compiler/com.sun.tools.javac.processing"
     )
 
     return javacPackages.flatMap { pkg ->

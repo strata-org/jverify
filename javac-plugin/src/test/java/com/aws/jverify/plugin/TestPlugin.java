@@ -30,7 +30,29 @@ import java.lang.classfile.*;
     public class TestPlugin {
 
         @Test
-        public void checkCallsToVerifyAreNotPresentInClassfile() throws IOException {
+        public void checkPreconditionCheckedAtRuntime() throws IOException {
+            String source = Files.readString(Path.of("../examples/src/main/java/com/aws/verifier/examples/RuntimePreconditionExample.java"));
+            var sourceFile = JavaFileObjects.forSourceString("com.aws.verifier.examples.RuntimePreconditionExample", source);
+            var jVerifyClass = URI.create(Common.getJarLocationForClass(JVerify.class));
+
+            List<File> classPath = List.of(new File(jVerifyClass));
+            Compilation compilation = Compiler.javac()
+                    .withProcessors(new JVerifyProcessor())
+                    .withClasspath(classPath)
+                    .compile(sourceFile);
+
+            for(var generatedFile : compilation.generatedFiles()) {
+                inspectConstantPool(generatedFile);
+            }
+
+            CompilationSubject.assertThat(compilation).succeeded();
+
+            int exitCode = CompilationRunner.runGeneratedClassAndGetExitCode(compilation, classPath, "com.aws.verifier.examples.RuntimePreconditionExample");
+            Assertions.assertEquals(0, exitCode);
+        }
+        
+        @Test
+        public void checkCallsToJVerifyAreNotPresentInClassfile() throws IOException {
             JavaFileObject source = JavaFileObjects.forSourceString(
                     "com.example.ModifyMe",
                     """
