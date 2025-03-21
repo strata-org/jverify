@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.generated.FrameExpression;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.lang.reflect.*;
@@ -26,7 +27,7 @@ public class Serializer {
             }
         }
         if (value == null) {
-            throw new RuntimeException("Cannot serialize null value if no nullable type is expected");
+            throw new RuntimeException("Cannot serialize null value if no nullable type is expected. Type was " + annotatedType);
         }
 
         var type = annotatedType.getType();
@@ -35,6 +36,9 @@ public class Serializer {
             expectedClass = clazz;
         } else if (type instanceof ParameterizedType parameterizedType) {
             expectedClass = (Class<?>) parameterizedType.getRawType();
+        } else if (type instanceof TypeVariable<?> && value instanceof FrameExpression) {
+            // cheat a little bit for `MethodOrFunction.reads`
+            expectedClass = FrameExpression.class;
         } else {
             throw new RuntimeException("No support for serializing " + type.getClass().getName());
         }

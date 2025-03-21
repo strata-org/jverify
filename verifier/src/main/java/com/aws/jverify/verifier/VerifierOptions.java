@@ -9,4 +9,5 @@ public record VerifierOptions(Path dafnyPath,
                               Path additionalDafnyFile,
                               @Nullable Path printDafny, 
                               Path printBinaryDafny, 
-                              boolean noSnippets) {}
+                              boolean showRanges,
+                              String[] additionalDafnyArguments) {}

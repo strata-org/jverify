@@ -19,7 +19,7 @@ public class Driver {
     public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
             try {
-                return new SourceFile(p.toString(), Files.readString(p));
+                return new SourceFile(p, Files.readString(p));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -48,13 +48,21 @@ public class Driver {
                     verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
                     "--input-format",
                     "Binary",
-                    "--stdin"                        // Second argument
+                    "--stdin",                        // Second argument
+                    "--allow-warnings"
             );
             if (verifierOptions.printDafny() != null) {
                 processBuilder.command().add("--print=" + verifierOptions.printDafny());
             }
-            if (verifierOptions.noSnippets()) {
+            if (verifierOptions.showRanges()) {
+                // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
                 processBuilder.command().add("--show-snippets=false");
+                processBuilder.command().add("--print-ranges");
+            }
+            processBuilder.command().add("--ignore-indentation");
+            
+            for(var option : verifierOptions.additionalDafnyArguments()) {
+                processBuilder.command().add(option);
             }
 
             Process process = processBuilder.start();

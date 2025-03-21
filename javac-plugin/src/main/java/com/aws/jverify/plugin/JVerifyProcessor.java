@@ -2,7 +2,6 @@ package com.aws.jverify.plugin;
 
 import com.aws.jverify.CheckPreconditionDynamically;
 import com.aws.jverify.PreconditionFailure;
-import com.aws.jverify.Pure;
 import com.aws.jverify.common.Common;
 import com.google.auto.service.AutoService;
 import com.sun.source.util.JavacTask;
@@ -20,7 +19,7 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.comp.Flow;
 import com.sun.tools.javac.model.JavacElements;
-import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.tree.TreeScanner;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
@@ -51,7 +50,7 @@ public class JVerifyProcessor extends AbstractProcessor {
                 if (resolutionInformationBecameAvailable) {
                     JCTree.JCCompilationUnit cu = (JCTree.JCCompilationUnit) e.getCompilationUnit();
 
-                    var visitor = new RemoveJVerifyVisitor();
+                    var visitor = new RemoveJVerifyVisitor(null);
                     for (var rootElement : cu.getTypeDecls()) {
                         if (rootElement instanceof JCTree.JCClassDecl classDecl) {
                             visitor.visitClassDef(classDecl);

@@ -1,11 +1,11 @@
 package com.aws.jverify.generated;
 
-// Generated RangeNode.java:
+// Generated NodeWithOrigin.java:
 // Generated from C# class
-public abstract class RangeNode extends Node {
+public abstract class NodeWithOrigin extends Node {
   private final IOrigin origin;
 
-  public RangeNode(IOrigin origin) {
+  public NodeWithOrigin(IOrigin origin) {
     super();
     this.origin = origin;
   }

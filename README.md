@@ -1,11 +1,11 @@
-## My Project
+## Getting started
 
-TODO: Fill this README out!
-
-Be sure to:
-
-* Change the title in this README
-* Edit your repository description on GitHub
+- Checkout this repository and its submodules
+- Run `dotnet build dafny/Source/Dafny.sln`
+- Open the repository root in VSCode 
+- Open .java files in the examples folder
+- Java extensions for VSCode should work well on these examples
+- Run the VSCode task "verify" on examples to get verification diagnostics
 
 ## Security
 

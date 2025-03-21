@@ -4,7 +4,7 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import java.util.List;
 
-public class BlockStmt extends Statement {
+public class BlockStmt extends BlockLikeStmt {
   private final List<Statement> body;
 
   public BlockStmt(IOrigin origin, Attributes attributes, List<Statement> body) {

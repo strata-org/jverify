@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class Attributes extends NodeWithComputedRange {
+public class Attributes extends NodeWithOrigin {
   private final String name;
 
   private final List<Expression> args;

@@ -1,4 +1,4 @@
-import org.gradle.internal.instrumentation.api.annotations.ParameterKind.VarargParameter
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 
 plugins {
     id("java")
@@ -32,6 +32,10 @@ project(":library") {
 project(":examples") {
     dependencies {
         implementation(project(":library"))
+        
+        // https://mvnrepository.com/artifact/net.jqwik/jqwik-api
+        implementation("net.jqwik:jqwik-api:1.9.2")
+
     }
 }
 
@@ -65,7 +69,9 @@ fun createJavacExports(targets: List<String>): List<String> {
         "jdk.compiler/com.sun.tools.javac.tree",
         "jdk.compiler/com.sun.tools.javac.code",
         "jdk.compiler/com.sun.tools.javac.parser",
-        "jdk.compiler/com.sun.tools.javac.jvm"
+        "jdk.compiler/com.sun.tools.javac.jvm",
+        "jdk.compiler/com.sun.tools.javac.comp",
+        "jdk.compiler/com.sun.tools.javac.model"
     )
 
     return javacPackages.flatMap { pkg ->
@@ -88,8 +94,6 @@ project(":javac-plugin") {
     dependencies {
         implementation(project(":common"))
         implementation(project(":library"))
-
-        implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
         
         implementation("com.google.auto.service:auto-service-annotations:1.0.1")
         annotationProcessor("com.google.auto.service:auto-service:1.0.1")
@@ -111,15 +115,21 @@ project(":javac-plugin") {
     }
 
     tasks.withType<JavaExec> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin")).plus("--enable-preview")
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin")). 
+          // Using preview mode, so we can use the package java.lang.classfile
+          plus("--enable-preview")
     }
     tasks.withType<Test> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).plus("--enable-preview")
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).
+
+          // Using preview mode, so we can use the package java.lang.classfile
+          plus("--enable-preview")
     }
     
     tasks.withType<JavaCompile> {
         options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
         //options.compilerArgs.add("-proc:none")
+        // Using preview mode, so we can use the package java.lang.classfile
         options.compilerArgs.add("--enable-preview")
     }
 }
@@ -139,8 +149,6 @@ project(":verifier") {
         
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
-
-        implementation(files("${System.getProperty("java.home")}/../lib/tools.jar"))
         
         testImplementation(platform("org.junit:junit-bom:5.10.0"))
         testImplementation("org.junit.jupiter:junit-jupiter")
@@ -158,8 +166,12 @@ project(":verifier") {
     }
     
     tasks.withType<JavaExec> {
-        environment("JVERIFY_DAFNY", project.file("../dafny/Scripts/dafny").absolutePath)
-        
+        if (DefaultNativePlatform.getCurrentOperatingSystem().isWindows) {
+            environment("JVERIFY_DAFNY", project.file("../dafny/Binaries/Dafny.exe").absolutePath)
+        } else {
+            environment("JVERIFY_DAFNY", project.file("../dafny/Scripts/dafny").absolutePath)
+        }
+
         standardInput = System.`in`
         standardOutput = System.out
         

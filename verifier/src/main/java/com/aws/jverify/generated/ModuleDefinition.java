@@ -5,7 +5,7 @@ package com.aws.jverify.generated;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class ModuleDefinition extends RangeNode {
+public class ModuleDefinition extends NodeWithOrigin {
   private final Name nameNode;
 
   private final List<IOrigin> prefixIds;

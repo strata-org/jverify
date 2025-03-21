@@ -22,12 +22,11 @@ public abstract class MethodOrFunction extends MemberDecl {
 
   private final Specification<Expression> decreases;
 
-  public MethodOrFunction(IOrigin origin, Name nameNode, Attributes attributes,
-      Boolean hasStaticKeyword, Boolean isGhost, IOrigin signatureEllipsis,
-      List<TypeParameter> typeArgs, List<Formal> ins, List<AttributedExpression> req,
-      List<AttributedExpression> ens, Specification<FrameExpression> reads,
-      Specification<Expression> decreases) {
-    super(origin, nameNode, attributes, hasStaticKeyword, isGhost);
+  public MethodOrFunction(IOrigin origin, Name nameNode, Attributes attributes, Boolean isGhost,
+      IOrigin signatureEllipsis, List<TypeParameter> typeArgs, List<Formal> ins,
+      List<AttributedExpression> req, List<AttributedExpression> ens,
+      Specification<FrameExpression> reads, Specification<Expression> decreases) {
+    super(origin, nameNode, attributes, isGhost);
     this.signatureEllipsis = signatureEllipsis;
     this.typeArgs = typeArgs;
     this.ins = ins;
