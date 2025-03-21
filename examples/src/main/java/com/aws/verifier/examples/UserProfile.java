@@ -1,4 +1,4 @@
-package main.java.com.aws.verifier.examples;
+package com.aws.verifier.examples;
 
 import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.Invariant;

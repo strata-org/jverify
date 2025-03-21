@@ -1,9 +1,7 @@
 package com.aws.verifier.examples;
 
-import com.aws.jverify.JVerify;
 import com.aws.jverify.Proof;
 import com.aws.jverify.Pure;
-import com.aws.jverify.Sequence;
 import net.jqwik.api.*;
 
 import java.util.stream.IntStream;
