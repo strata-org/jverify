@@ -152,19 +152,23 @@ public class JavaToDafnyCompiler {
                 return translateMethodDecl(method);
             }
             case JCTree.JCVariableDecl variableDecl -> {
-                if (variableDecl.getInitializer() != null) {
-                    throw new RuntimeException("Field initializers are not supported yet");
-                }
-                Name fieldName = getName(variableDecl, variableDecl.name);
-                return new Field(declToOrigin(variableDecl, fieldName), fieldName, 
-                        null, 
-                        false, 
-                        toType(variableDecl.vartype, isNullable(variableDecl.getModifiers())));
+                return translateField(variableDecl);
             }
             case null, default -> {
             }
         }
         throw new NotImplementedException(member.getClass().getName());
+    }
+
+    private Field translateField(JCTree.JCVariableDecl variableDecl) {
+        if (variableDecl.getInitializer() != null) {
+            throw new RuntimeException("Field initializers are not supported yet");
+        }
+        Name fieldName = getName(variableDecl, variableDecl.name);
+        return new Field(declToOrigin(variableDecl, fieldName), fieldName,
+                null,
+                false,
+                toType(variableDecl.vartype, isNullable(variableDecl.getModifiers())));
     }
 
     private boolean isNullable(JCTree.JCModifiers modifiers) {
