@@ -9,8 +9,6 @@ import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Name;
-import com.sun.tools.javac.util.Names;
 
 import java.util.Stack;
 import java.util.stream.Collectors;
@@ -63,50 +61,38 @@ class RemoveJVerifyVisitor extends TreeScanner {
     public void visitBlock(JCTree.JCBlock tree) {
         
         super.visitBlock(tree);
-        
-        // The type of outerStats needs to be a pointer to a linked list
-        // We can use a linked list cons for that, where we ignore the head.
-        var outerStats = tree.stats.prepend(null);
-        var currentStats = outerStats;
-        while(currentStats.size() > 1) {
-            var statement = currentStats.tail.head;
-            if (handleCons(statement, currentStats)) {
-                currentStats = currentStats.tail;
-            }
-        }
-        tree.stats = outerStats.tail;
+        tree.stats = getNewStatements(tree.stats);
     }
 
-    private boolean handleCons(JCTree.JCStatement statement, List<JCTree.JCStatement> currentStats) {
+    private List<JCTree.JCStatement> getNewStatements(List<JCTree.JCStatement> currentStats) {
+        var statement = currentStats.head;
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement)) {
-            return true;
+            return currentStats;
         }
         
         var expr = expressionStatement.getExpression();
         if (!(expr instanceof JCTree.JCMethodInvocation invocation)) {
-            return true;
+            return currentStats;
         }
         
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         if (!fromJVerify(methodSymbol)) {
-            return true;
+            return currentStats;
         }
 
         if (dynamicPreconditions && methodSymbol.getQualifiedName().contentEquals(Common.PRECONDITION)) {                            
             JCTree.JCBlock emptyBlock = maker.Block(0, List.nil());
             JCTree.JCExpression head = invocation.getArguments().head;
 
-            currentStats.tail.head = maker.If(maker.Unary(JCTree.Tag.NOT, head), maker.Block(0, List.of(
+            var check = maker.If(maker.Unary(JCTree.Tag.NOT, head), maker.Block(0, List.of(
                     maker.Throw(maker.NewClass(null,null,
                             maker.QualIdent(getClassSymbol(PreconditionFailure.class, context)), 
                             List.nil(), null))
             )), emptyBlock);
-
+            return currentStats.tail.prepend(check);
         } else {
-            currentStats.tail = currentStats.tail.tail;
-            return false;
+            return currentStats.tail;
         }
-        return true;
     }
 
     public Symbol.ClassSymbol getClassSymbol(Class<?> clazz, Context context) {
