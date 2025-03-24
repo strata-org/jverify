@@ -5,7 +5,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * If used, any preconditions of this method will be translated to checks at runtime.
+ * If a precondition check fails, a PreconditionFailure exception is thrown.
+ */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
+@Target(ElementType.METHOD)
 public @interface CheckPreconditionsAtRuntime {
 }
