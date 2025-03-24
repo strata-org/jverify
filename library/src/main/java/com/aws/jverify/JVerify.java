@@ -6,8 +6,8 @@ import java.util.function.Supplier;
 
 public class JVerify {
 
-    public static boolean implies(boolean antecedant, boolean consequent) {
-        return !antecedant || consequent;
+    public static boolean implies(boolean antecedent, boolean consequent) {
+        return !antecedent || consequent;
     }
     
     public static void check(boolean condition) {
