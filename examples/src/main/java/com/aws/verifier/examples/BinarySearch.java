@@ -1,8 +1,11 @@
-package com.aws.jverify;
+package com.aws.verifier.examples;
 
 import static com.aws.jverify.JVerify.*;
 
-class BinarySearchValid {
+import com.aws.jverify.Erased;
+import com.aws.jverify.Pure;
+
+class BinarySearch {
     @Pure
     @Erased
     static boolean sorted(int[] arr) {

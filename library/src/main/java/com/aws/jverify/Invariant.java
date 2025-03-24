@@ -6,9 +6,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
-The annotated variable must be a natural number, i.e. >= 0
+This method will be added as a precondition and a postcondition to all public methods of the containing type.
+For constructors, it is only added as a postcondition.
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.TYPE_USE)
-public @interface Nat {
+@Target(ElementType.METHOD)
+public @interface Invariant {
 }
+

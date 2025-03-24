@@ -6,9 +6,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
-The annotated variable must be a natural number, i.e. >= 0
+ * Let the definitions in the class this annotation is attached to,
+ * serve as a contract for the class this annotation references 
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.TYPE_USE)
-public @interface Nat {
+@Target({ElementType.TYPE})
+public @interface ExternalContract {
+    Class<?> value();
 }

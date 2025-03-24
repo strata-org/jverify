@@ -2,8 +2,14 @@ package com.aws.jverify;
 
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class JVerify {
+
+    public static boolean implies(boolean antecedent, boolean consequent) {
+        return !antecedent || consequent;
+    }
+    
     public static void check(boolean condition) {
     }
 
@@ -16,6 +22,15 @@ public class JVerify {
     public static <T> void postcondition(Function<T, Boolean> predicate) {
     }
 
+    /**
+     * The given function must evaluate to true after this method call
+     */
+    public static <T> void postcondition(Supplier<Boolean> predicate) {
+    }
+
+    /**
+     * The given expression must evaluate to true after this method call
+     */
     public static void postcondition(boolean predicate) {
     }
 
@@ -24,6 +39,12 @@ public class JVerify {
      * This is only necessary within {@link Pure} methods, which otherwise cannot read the object or its fields.
      */
     public static void reads(Object object) {
+    }
+
+    /**
+     * Specify that the given object(s) may be modified in this method.
+     */
+    public static void modifies(Object object) {
     }
 
     public static <T> boolean forall(Function<T, Boolean> predicate) {

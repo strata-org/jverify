@@ -33,8 +33,8 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
     
-    @Option(names = "--no-snippets", description = "Do not show code snippets for verification errors")
-    private boolean noSnippets;
+    @Option(names = "--show-ranges", description = "Show source location ranges in diagnostics")
+    private boolean showRanges;
 
     @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
     private Path dafny;
@@ -54,7 +54,7 @@ class AppCommand implements Callable<Integer> {
 
         var dafnyPath = getDafnyPath();
         var exitCode = Driver.verifyJavaPaths(inputs, new VerifierOptions(dafnyPath, jverifyLibraryLocation, tempFile.toPath(),
-                printDafny, printBinaryDafny, noSnippets), writer);
+                printDafny, printBinaryDafny, showRanges, new String[0]), writer);
         writer.flush();
         System.exit(exitCode);
         return 0;

@@ -27,7 +27,7 @@ public class Serializer {
             }
         }
         if (value == null) {
-            throw new RuntimeException("Cannot serialize null value if no nullable type is expected");
+            throw new RuntimeException("Cannot serialize null value if no nullable type is expected. Type was " + annotatedType);
         }
 
         var type = annotatedType.getType();
