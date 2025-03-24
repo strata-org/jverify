@@ -15,10 +15,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-import javax.sql.CommonDataSource;
-
-import static com.aws.jverify.common.Common.*;
-
 public class Main {
     public static void main(String[] args) {
         int exitCode = new CommandLine(new AppCommand()).execute(args);
