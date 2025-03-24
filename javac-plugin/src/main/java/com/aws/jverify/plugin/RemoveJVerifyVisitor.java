@@ -6,12 +6,11 @@ import com.aws.jverify.common.Common;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.comp.*;
 import com.sun.tools.javac.model.JavacElements;
-import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.tree.TreeScanner;
+import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
+import com.sun.tools.javac.util.Name;
+import com.sun.tools.javac.util.Names;
 
 import java.util.Stack;
 import java.util.stream.Collectors;
@@ -49,6 +48,8 @@ class RemoveJVerifyVisitor extends TreeScanner {
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         methodStack.push(tree);
         super.visitMethodDef(tree);
+        Attr attr = Attr.instance(context);
+        attr.attribStat(tree, currentEnv);
         methodStack.pop();
     }
     
@@ -95,16 +96,13 @@ class RemoveJVerifyVisitor extends TreeScanner {
         if (dynamicPreconditions && methodSymbol.getQualifiedName().toString().equals("precondition")) {                            
             JCTree.JCBlock emptyBlock = maker.Block(0, List.nil());
             JCTree.JCExpression head = invocation.getArguments().head;
-            Attr attr = Attr.instance(context);
-            currentStats.tail.head = maker.If(head, maker.Block(0, List.of(
+
+            currentStats.tail.head = maker.If(maker.Unary(JCTree.Tag.NOT, head), maker.Block(0, List.of(
                     maker.Throw(maker.NewClass(null,null,
                             maker.QualIdent(getClassSymbol(PreconditionFailure.class, context)), 
                             List.nil(), null))
             )), emptyBlock);
 
-            attr.attribExpr(head, currentEnv);
-            attr.attribExpr(currentStats.tail.head, currentEnv);
-            //flow.analyzeTree(currentEnv, maker);
         } else {
             currentStats.tail = currentStats.tail.tail;
             return false;
