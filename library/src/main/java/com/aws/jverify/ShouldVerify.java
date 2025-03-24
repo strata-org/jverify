@@ -6,10 +6,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Specify whether this method should be verified or not
+ * Specify whether this symbol should be verified or not
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.METHOD)
+@Target({ElementType.METHOD, ElementType.TYPE, ElementType.PACKAGE})
 public @interface ShouldVerify {
     boolean shouldVerify() default true;
 }

@@ -19,15 +19,12 @@ class RemoveJVerifyVisitor extends TreeScanner {
 
     private final Stack<JCTree.JCMethodDecl> methodStack = new Stack<>();
     private final TreeMaker maker;
-    private final Flow flow;
     private Env<AttrContext> currentEnv;
-    private final Enter enter;
     private final Context context;
+    private boolean dynamicPreconditions;
 
     public RemoveJVerifyVisitor(Context context) {
         this.maker = TreeMaker.instance(context);
-        this.flow = Flow.instance(context);
-        this.enter = Enter.instance(context);
         this.context = context;
     }
 
@@ -36,7 +33,7 @@ class RemoveJVerifyVisitor extends TreeScanner {
         Env<AttrContext> prevEnv = currentEnv;
 
         if (tree.sym != null) {
-            currentEnv = enter.getClassEnv(tree.sym);
+            currentEnv = Enter.instance(context).getClassEnv(tree.sym);
         }
 
         super.visitClassDef(tree);
@@ -47,6 +44,15 @@ class RemoveJVerifyVisitor extends TreeScanner {
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         methodStack.push(tree);
+
+        var currentMethod = methodStack.peek();
+
+        var annotations = currentMethod.getModifiers().getAnnotations();
+        var annotationsByName = annotations.stream().collect(Collectors.toMap(
+                (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
+                a -> a));
+        this.dynamicPreconditions = annotationsByName.containsKey(CheckPreconditionsAtRuntime.class.getSimpleName());
+        
         super.visitMethodDef(tree);
         Attr attr = Attr.instance(context);
         attr.attribStat(tree, currentEnv);
@@ -55,6 +61,7 @@ class RemoveJVerifyVisitor extends TreeScanner {
     
     @Override
     public void visitBlock(JCTree.JCBlock tree) {
+        
         super.visitBlock(tree);
         
         // The type of outerStats needs to be a pointer to a linked list
@@ -84,16 +91,8 @@ class RemoveJVerifyVisitor extends TreeScanner {
         if (!fromJVerify(methodSymbol)) {
             return true;
         }
-        
-        var currentMethod = methodStack.peek();
 
-        var annotations = currentMethod.getModifiers().getAnnotations();
-        var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
-                a -> a));
-        var dynamicPreconditions = annotationsByName.containsKey(CheckPreconditionsAtRuntime.class.getSimpleName());
-
-        if (dynamicPreconditions && methodSymbol.getQualifiedName().toString().equals("precondition")) {                            
+        if (dynamicPreconditions && methodSymbol.getQualifiedName().contentEquals(Common.PRECONDITION)) {                            
             JCTree.JCBlock emptyBlock = maker.Block(0, List.nil());
             JCTree.JCExpression head = invocation.getArguments().head;
 

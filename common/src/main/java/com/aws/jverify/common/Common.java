@@ -6,6 +6,8 @@ import java.security.ProtectionDomain;
 
 public class Common {
     public static final String JVERIFY_CLASS = com.aws.jverify.JVerify.class.getName();
+
+    public static final String PRECONDITION = "precondition";
     
     public static String getJarLocationForClass(Class<?> clazz) {
         var protectionDomain = clazz.getProtectionDomain();
