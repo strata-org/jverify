@@ -5,7 +5,6 @@ import com.aws.jverify.verifier.VerifierOptions;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.beans.Transient;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -146,7 +145,6 @@ Dafny program verifier finished with 5 verified, 0 errors
     public void testNoConstructor() throws IOException, InterruptedException {
         StringWriter writer = new StringWriter();
         var exitCode = run("NoConstructor.java", false, writer);
-        var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals(0, exitCode);
     }
     /**
