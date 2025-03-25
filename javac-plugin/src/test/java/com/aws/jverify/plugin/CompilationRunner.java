@@ -110,7 +110,7 @@ public class CompilationRunner {
         }
     }
 
-    private static void deleteRecursively(Path path) throws IOException {
+    public static void deleteRecursively(Path path) throws IOException {
         if (Files.isDirectory(path)) {
             try (var files = Files.list(path)) {
                 for (Path file : files.toList()) {
