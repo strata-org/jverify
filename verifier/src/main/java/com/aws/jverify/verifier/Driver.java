@@ -10,9 +10,9 @@ import java.util.stream.Collectors;
 
 public class Driver {
 
-    public static int verifyJavaExample(VerifierOptions options, String javaCode, Writer output) throws IOException {
+    public static int verifyJavaExample(VerifierOptions options, Path javaFile, Writer output) throws IOException {
         var files = new ArrayList<JavaFileObject>();
-        files.add(new SourceFile("test.java", javaCode));
+        files.add(new SourceFile(javaFile, Files.readString(javaFile)));
         return verifyJavaFiles(files, options, output);
     }
 

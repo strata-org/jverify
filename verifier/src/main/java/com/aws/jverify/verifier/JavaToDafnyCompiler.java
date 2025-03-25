@@ -18,9 +18,7 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.util.Position;
 import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.checker.units.qual.A;
 
-import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
@@ -32,6 +30,7 @@ import java.util.stream.Collectors;
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     JCTree.JCCompilationUnit compilationUnit;
+    Stack<IOrigin> contextOrigins = new Stack<>();
 
     public FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
@@ -86,13 +85,17 @@ public class JavaToDafnyCompiler {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var name = getName(classDecl, classDecl.name);
             var origin = declToOrigin(classDecl, name);
+            contextOrigins.push(origin);
 
+            TopLevelDecl result;
             if (isEnum(classDecl.type)) {
-                return translateEnum(classDecl, origin, name);
+                result = translateEnum(classDecl, origin, name);
             } 
             else {
-                return translateClass(nestedTypes, classDecl, origin, name);
+                result = translateClass(nestedTypes, classDecl, origin, name);
             }
+            contextOrigins.pop();
+            return result;
         }
         throw new NotImplementedException(tree.getClass().getName());
     }
@@ -162,10 +165,8 @@ public class JavaToDafnyCompiler {
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateField(variableDecl);
             }
-            case null, default -> {
-            }
+            default -> throw new NotImplementedException(member.getClass().getName());
         }
-        throw new NotImplementedException(member.getClass().getName());
     }
 
     private Field translateField(JCTree.JCVariableDecl variableDecl) {
@@ -209,27 +210,11 @@ public class JavaToDafnyCompiler {
                 throw new RuntimeException("Pure method should have only one statement");
             }
             var returnType = toType(method.getReturnType());
-
-
-            if (annotationsByName.containsKey(Pure.class.getSimpleName())) {
-                if (postHeader.size() != 1) {
-                    throw new RuntimeException("Pure method should have only one statement");
-                }
-                if (returnType == null) {
-                    throw new RuntimeException("Pure method should have a return type");
-                }
-
-                var statement = postHeader.getFirst();
-                if (statement instanceof JCTree.JCReturn returnStatement) {
-                    var body = toExpr(returnStatement.expr);
-                    return new Function(origin, name, null, false, null, List.of(),
-                            ins, header.preconditions, header.postconditions, header.getReads(),
-                            header.getDecreases(), isStatic, false, null, returnType,
-                            body, null, null
-                    );
-                } else {
-                    throw new RuntimeException("Pure method statement should be a return");
-                }
+            if (postHeader.size() != 1) {
+                throw new RuntimeException("Pure method should have only one statement");
+            }
+            if (returnType == null) {
+                throw new RuntimeException("Pure method should have a return type");
             }
 
             var statement = postHeader.getFirst();
@@ -570,23 +555,33 @@ public class JavaToDafnyCompiler {
         int startPos = getStartPos(tree);
         var startToken = toToken(startPos);
         var endToken = toToken(startPos + name.length());
-        return new Name(new TokenRangeOrigin(startToken, endToken), name.toString());
+        var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
+        return new Name(origin, name.toString());
     }
 
     private IOrigin declToOrigin(JCTree node, Name name) {
         var entireRange = toOrigin(node);
-        return new SourceOrigin(originToRange(entireRange), originToRange((TokenRangeOrigin) name.getOrigin()));
+        return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
     }
     
-    private TokenRangeOrigin toOrigin(JCTree node) {
+    private IOrigin toOrigin(JCTree node) {
         var startToken = toToken(TreeInfo.getStartPos(node));
-        int endPos = TreeInfo.getEndPos(node, compilationUnit.endPositions);
+        if (startToken == null) {
+            return contextOrigins.peek();
+        }
+        int endPos = getEndPos(node);
         var endToken = endPos == Position.NOPOS ? toToken(TreeInfo.getStartPos(node) + 1) : toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
     }
     
-    private TokenRange originToRange(TokenRangeOrigin tokenRangeOrigin) {
-        return new TokenRange(tokenRangeOrigin.getStartToken(), tokenRangeOrigin.getEndToken());
+    private TokenRange originToRange(IOrigin tokenRangeOrigin) {
+        if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
+            return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
+        } else if (tokenRangeOrigin instanceof TokenRangeOrigin trOrigin) {
+            return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
+        } else {
+            throw new NotImplementedException(tokenRangeOrigin.getClass().getName());
+        }
     }
     
     private int getStartPos(JCTree tree) {
@@ -609,7 +604,7 @@ public class JavaToDafnyCompiler {
         int pos = methodDecl.pos;
 
         if (methodDecl.mods != null && methodDecl.mods.pos != Position.NOPOS) {
-            pos = TreeInfo.getEndPos(methodDecl.mods, compilationUnit.endPositions);
+            pos = getEndPos(methodDecl.mods);
         }
 
         String methodName = methodDecl.name.toString();
@@ -617,16 +612,17 @@ public class JavaToDafnyCompiler {
 
         if (isConstructor) {
             if (methodDecl.typarams != null && !methodDecl.typarams.isEmpty()) {
-                pos = TreeInfo.getEndPos(methodDecl.typarams.last(), compilationUnit.endPositions);
+                JCTree.JCTypeParameter last = methodDecl.typarams.last();
+                pos = getEndPos(last);
             }
             return pos;
         } else {
             if (methodDecl.typarams != null && !methodDecl.typarams.isEmpty()) {
-                pos = TreeInfo.getEndPos(methodDecl.typarams.last(), compilationUnit.endPositions);
+                pos = getEndPos(methodDecl.typarams.last());
             }
 
             if (methodDecl.restype != null) {
-                pos = TreeInfo.getEndPos(methodDecl.restype, compilationUnit.endPositions);
+                pos = getEndPos(methodDecl.restype);
             }
         }
 
@@ -652,7 +648,11 @@ public class JavaToDafnyCompiler {
 
         return Position.NOPOS;
     }
-    
+
+    private int getEndPos(JCTree node) {
+        return TreeInfo.getEndPos(node, compilationUnit.endPositions);
+    }
+
     private int getClassNamePosition(JCTree.JCClassDecl classDecl) {
         CharSequence source;
         try {
@@ -663,7 +663,7 @@ public class JavaToDafnyCompiler {
 
         int pos = classDecl.pos;
         if (classDecl.mods != null && classDecl.mods.pos != Position.NOPOS) {
-            pos = TreeInfo.getEndPos(classDecl.mods, compilationUnit.endPositions);
+            pos = getEndPos(classDecl.mods);
         }
 
         // Find the class/interface/enum/record keyword and skip it
@@ -693,11 +693,11 @@ public class JavaToDafnyCompiler {
     
     private Token toToken(int pos) {
         if (pos == Position.NOPOS) {
-            return new Token(-1, -1);
+            return null;
         }
         return new Token(
-                (int) compilationUnit.getLineMap().getLineNumber(pos),
-                (int) compilationUnit.getLineMap().getColumnNumber(pos) + 1);
+                compilationUnit.getLineMap().getLineNumber(pos),
+                compilationUnit.getLineMap().getColumnNumber(pos) + 1);
     }
 
     private List<Statement> translateStatements(List<JCTree.JCStatement> statements) {
@@ -903,7 +903,6 @@ public class JavaToDafnyCompiler {
                     if (invocation.args.size() != 1) {
                         throw new RuntimeException("decreases should have a single argument");
                     }
-                    var first = invocation.getArguments().getFirst();
                     throw new NotImplementedException("decreases");
                 }
                 case "reads" -> {

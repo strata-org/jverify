@@ -33,7 +33,7 @@ Dafny program verifier finished with 7 verified, 1 error
         var directory = fromExamples 
                 ? Path.of("../examples/src/main/java/com/aws/verifier/examples") 
                 : Path.of("./src/test/java/com/aws/jverify");
-        var source = Files.readString(directory.resolve(inputFileName));
+        var filePath = directory.resolve(inputFileName);
         var dafnyPath = Path.of("../dafny").toAbsolutePath()
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
@@ -44,7 +44,7 @@ Dafny program verifier finished with 7 verified, 1 error
                         //"--wait-for-debugger"
                 } 
         );
-        return Driver.verifyJavaExample(options, source, writer);
+        return Driver.verifyJavaExample(options, filePath, writer);
     }
     
     @Test
