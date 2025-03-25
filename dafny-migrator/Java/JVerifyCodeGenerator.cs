@@ -236,7 +236,7 @@ namespace Microsoft.Dafny.Compilers {
       var indices = new List<Action<ConcreteSyntaxTree>>();
       for (var i = 0; i < lhs.Indices.Count; i++) {
         var wIndex = new ConcreteSyntaxTree();
-        wIndex.Write("((java.math.BigInteger)");
+        wIndex.Write("(");
         EmitTupleSelect(tup, i + 1, wIndex);
         wIndex.Write(")");
         indices.Add(wr => wr.Write(wIndex.ToString()));
@@ -703,12 +703,12 @@ namespace Microsoft.Dafny.Compilers {
       } else if (xType is CharType) {
         return CharTypeName(boxed);
       } else if (xType is IntType or BigOrdinalType) {
-        return "java.math.BigInteger";
+        return "int";
       } else if (xType is RealType) {
         return DafnyBigRationalClass;
       } else if (xType is BitvectorType) {
         var t = (BitvectorType)xType;
-        return t.NativeType != null ? GetNativeTypeName(t.NativeType, boxed) : "java.math.BigInteger";
+        return t.NativeType != null ? GetNativeTypeName(t.NativeType, boxed) : "int";
       } else if (member == null && xType.AsNewtype != null) {
         var newtypeDecl = xType.AsNewtype;
         if (newtypeDecl.NativeType is { } nativeType) {
@@ -1141,13 +1141,13 @@ namespace Microsoft.Dafny.Compilers {
         EmitNativeIntegerLiteral((BigInteger)e.Value, nativeType, wr);
       } else if (e.Value is BigInteger i) {
         if (i.IsZero) {
-          wr.Write("java.math.BigInteger.ZERO");
+          wr.Write("0");
         } else if (i.IsOne) {
-          wr.Write("java.math.BigInteger.ONE");
+          wr.Write("1");
         } else if (long.MinValue <= i && i <= long.MaxValue) {
-          wr.Write($"java.math.BigInteger.valueOf({i}L)");
+          wr.Write($"{i}L");
         } else {
-          wr.Write($"new java.math.BigInteger(\"{i}\")");
+          wr.Write(i.ToString());
         }
       } else if (e.Value is BaseTypes.BigDec n) {
         if (0 <= n.Exponent) {
@@ -1286,7 +1286,7 @@ namespace Microsoft.Dafny.Compilers {
       } else if (rhs != null) {
         wr.WriteLine($" = {rhs};");
       } else if (type is { IsIntegerType: true }) {
-        wr.WriteLine(" = java.math.BigInteger.ZERO;");
+        wr.WriteLine(" = 0;");
       } else {
         wr.WriteLine(";");
       }
@@ -1362,8 +1362,6 @@ namespace Microsoft.Dafny.Compilers {
             compiledName = "dim" + (int)idParam;
           }
           if (id == SpecialField.ID.ArrayLength) {
-            preString = "java.math.BigInteger.valueOf(" + preString;
-            postString = postString + ")";
           }
           break;
         case SpecialField.ID.Floor:
@@ -2788,14 +2786,17 @@ namespace Microsoft.Dafny.Compilers {
               TrParenExpr("", expr, wr, inLetExprBody, wStmts);
               wr.Write(".cardinality()");
             } else if (collectionType is SetType or MapType) {
-              TrParenExpr("java.math.BigInteger.valueOf(", expr, wr, inLetExprBody, wStmts);
-              wr.Write(".size())");
+              TrParenExpr("", expr, wr, inLetExprBody, wStmts);
+              wr.Write(".size()");
             } else if (expr.Type.IsArrayType) {
-              TrParenExpr("java.math.BigInteger.valueOf(java.lang.reflect.Array.getLength", expr, wr, inLetExprBody, wStmts);
-              wr.Write(")");
+              TrParenExpr("java.lang.reflect.Array.getLength", expr, wr, inLetExprBody, wStmts);
             } else {
-              TrParenExpr("java.math.BigInteger.valueOf(", expr, wr, inLetExprBody, wStmts);
-              wr.Write(".length())");
+              if (expr.Origin.filename.Contains("Discount"))
+              {
+                var b = 3;
+              }
+              TrParenExpr("", expr, wr, inLetExprBody, wStmts);
+              wr.Write(".length()");
             }
             break;
           }
@@ -3201,7 +3202,7 @@ namespace Microsoft.Dafny.Compilers {
       } else if (xType is CharType) {
         return UnicodeCharEnabled ? $"((int){CharType.DefaultValueAsString})" : CharType.DefaultValueAsString;
       } else if (xType is IntType or BigOrdinalType) {
-        return "java.math.BigInteger.ZERO";
+        return "0";
       } else if (xType is RealType) {
         return $"{DafnyBigRationalClass}.ZERO";
       } else if (xType is BitvectorType) {
@@ -3374,6 +3375,16 @@ namespace Microsoft.Dafny.Compilers {
 
     protected override void EmitDestructor(Action<ConcreteSyntaxTree> source, Formal dtor, int formalNonGhostIndex,
       DatatypeCtor ctor, Func<List<Type>> getTypeArgs, Type bvType, ConcreteSyntaxTree wr) {
+      if (ctor.EnclosingDatatype.Name == "CrossServiceDiscount")
+      {
+        var b = 3;
+      }
+      if (ctor.EnclosingDatatype.IsRecordType)
+      {
+        wr.WriteLine($".{dtor.Name}");
+        return;
+      }
+      
       if (DatatypeWrapperEraser.IsErasableDatatypeWrapper(Options, ctor.EnclosingDatatype, out var coreDtor)) {
         Contract.Assert(coreDtor.CorrespondingFormals.Count == 1);
         Contract.Assert(dtor == coreDtor.CorrespondingFormals[0]); // any other destructor is a ghost
@@ -3856,7 +3867,7 @@ namespace Microsoft.Dafny.Compilers {
       var boundWriter = new ConcreteSyntaxTree();
       boundAction(boundWriter);
       var bound = boundWriter.ToString();
-      return wr.NewNamedBlock($"for (java.math.BigInteger {indexVar} = {start}; {indexVar}.compareTo({bound}) < 0; {indexVar} = {indexVar}.add(java.math.BigInteger.ONE))");
+      return wr.NewNamedBlock($"for (var {indexVar} = {start}; {indexVar}.compareTo({bound}) < 0; {indexVar} = {indexVar} + 1)");
     }
 
     protected override ConcreteSyntaxTree EmitForStmt(IOrigin tok, IVariable loopIndex, bool goingUp, string /*?*/ endVarName,
@@ -3880,7 +3891,7 @@ namespace Microsoft.Dafny.Compilers {
           wr.Write($"{loopIndex.GetOrCreateCompileName(currentIdGenerator)} < {endVarName}");
         }
         if (nativeType == null) {
-          bodyWr = wr.NewBlock($"; {loopIndex.GetOrCreateCompileName(currentIdGenerator)} = {loopIndex.GetOrCreateCompileName(currentIdGenerator)}.add(java.math.BigInteger.ONE))");
+          bodyWr = wr.NewBlock($"; {loopIndex.GetOrCreateCompileName(currentIdGenerator)} = {loopIndex.GetOrCreateCompileName(currentIdGenerator)} + 1)");
         } else {
           bodyWr = wr.NewBlock($"; {loopIndex.GetOrCreateCompileName(currentIdGenerator)}++)");
         }
@@ -3896,7 +3907,7 @@ namespace Microsoft.Dafny.Compilers {
         }
         bodyWr = wr.NewBlock($"; )");
         if (nativeType == null) {
-          bodyWr.WriteLine($"{loopIndex.GetOrCreateCompileName(currentIdGenerator)} = {loopIndex.GetOrCreateCompileName(currentIdGenerator)}.subtract(java.math.BigInteger.ONE);");
+          bodyWr.WriteLine($"{loopIndex.GetOrCreateCompileName(currentIdGenerator)} = {loopIndex.GetOrCreateCompileName(currentIdGenerator)} - 1;");
         } else {
           bodyWr.WriteLine($"{loopIndex.GetOrCreateCompileName(currentIdGenerator)}--;");
         }
@@ -4065,26 +4076,26 @@ namespace Microsoft.Dafny.Compilers {
     }
 
     protected override ConcreteSyntaxTree EmitCoercionToNativeInt(ConcreteSyntaxTree wr) {
-      wr.Write("((java.math.BigInteger)");
+      wr.Write("(");
       var w = wr.Fork();
       wr.Write(").intValue()");
       return w;
     }
 
     protected override ConcreteSyntaxTree CreateDoublingForLoop(string indexVar, int start, ConcreteSyntaxTree wr) {
-      return wr.NewNamedBlock($"for (java.math.BigInteger {indexVar} = java.math.BigInteger.valueOf({start}); ; {indexVar} = {indexVar}.multiply(new java.math.BigInteger(\"2\")))");
+      return wr.NewNamedBlock($"for (var {indexVar} = {start}; ; {indexVar} = {indexVar} * 2)");
     }
 
     protected override void EmitIsZero(string varName, ConcreteSyntaxTree wr) {
-      wr.Write($"{varName}.equals(java.math.BigInteger.ZERO)");
+      wr.Write($"{varName}.equals(0)");
     }
 
     protected override void EmitDecrementVar(string varName, ConcreteSyntaxTree wr) {
-      wr.WriteLine($"{varName} = {varName}.subtract(java.math.BigInteger.ONE);");
+      wr.WriteLine($"{varName} = {varName} - 1;");
     }
 
     protected override void EmitIncrementVar(string varName, ConcreteSyntaxTree wr) {
-      wr.WriteLine($"{varName} = {varName}.add(java.math.BigInteger.ONE);");
+      wr.WriteLine($"{varName} = {varName} + 1;");
     }
 
     protected override void EmitSingleValueGenerator(Expression e, bool inLetExprBody, string type, ConcreteSyntaxTree wr, ConcreteSyntaxTree wStmts) {
@@ -4094,8 +4105,8 @@ namespace Microsoft.Dafny.Compilers {
 
     protected override ConcreteSyntaxTree CreateIIFE1(int source, Type resultType, IOrigin resultTok, string bvName,
         ConcreteSyntaxTree wr, ConcreteSyntaxTree wStmts) {
-      wr.Write($"((java.util.function.Function<java.math.BigInteger, {BoxedTypeName(resultType, wr, resultTok)}>)(({bvName}) ->");
-      var w = wr.NewBigExprBlock("", $")).apply(java.math.BigInteger.valueOf({source}))");
+      wr.Write($"((java.util.function.Function<Integer, {BoxedTypeName(resultType, wr, resultTok)}>)(({bvName}) ->");
+      var w = wr.NewBigExprBlock("", $")).apply({source})");
       return w;
     }
 
@@ -4394,6 +4405,20 @@ namespace Microsoft.Dafny.Compilers {
       var catchBlock = wr.NewBlock("catch (dafny.DafnyHaltException e)");
       catchBlock.WriteLine($"dafny.DafnySequence<Character> {haltMessageVarName} = dafny.DafnySequence.asString(e.getMessage());");
       TrStmt(recoveryBody, catchBlock);
+    }
+
+    protected override void EmitMemberSelectExpr(bool inLetExprBody, ConcreteSyntaxTree wr, ConcreteSyntaxTree wStmts,
+      MemberSelectExpr selectExpr)
+    {
+      if (selectExpr.Member is DatatypeDestructor datatypeDestructor &&
+          datatypeDestructor.EnclosingCtors[0].EnclosingDatatype.IsRecordType)
+      {
+        var target = new ConcreteSyntaxTree();
+        EmitExpr(selectExpr.Obj, false, target, target);
+        wr.Write($"{target}.{selectExpr.Member.Name}");
+        return;
+      }
+      base.EmitMemberSelectExpr(inLetExprBody, wr, wStmts, selectExpr);
     }
 
     protected override void EmitUnchangedExpr(UnchangedExpr unchangedExpr, bool inLetExprBody, ConcreteSyntaxTree wr,
