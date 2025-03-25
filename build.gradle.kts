@@ -28,6 +28,9 @@ java {
 project(":library") {
 }
 
+project(":dafny-migrator") {
+    
+}
 
 project(":examples") {
     dependencies {
