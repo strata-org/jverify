@@ -13,8 +13,10 @@ using System.IO;
 using System.Diagnostics.Contracts;
 using System.Collections.ObjectModel;
 using System.CommandLine;
+using System.Diagnostics.Tracing;
 using System.Text.RegularExpressions;
 using JetBrains.Annotations;
+using OmniSharp.Extensions.LanguageServer.Protocol;
 using static Microsoft.Dafny.ConcreteSyntaxTreeUtils;
 
 namespace Microsoft.Dafny.Compilers {
@@ -529,11 +531,40 @@ namespace Microsoft.Dafny.Compilers {
         sep = ", ";
       }
       WriteFormals(sep, m.Ins, wr);
-      if (!createBody) {
+      var hasContract = m.Req.Any() || m.Ens.Any();
+      if (!createBody && !hasContract) {
         wr.WriteLine(");");
         return null; // We do not want to write a function body, so instead of returning a BTW, we return null.
-      } else {
-        return wr.NewBlock(")", null, BlockStyle.NewlineBrace, BlockStyle.NewlineBrace);
+      } else
+      {
+        var bodyWriter = wr.NewBlock(")", null, BlockStyle.NewlineBrace, BlockStyle.NewlineBrace);
+        foreach (var require in m.Req)
+        {
+          var condition = new ConcreteSyntaxTree();
+          EmitExpr(require.E, false, condition, condition);
+          bodyWriter.WriteLine($"precondition({condition})");
+        }
+        foreach (var ensure in m.Ens)
+        {
+          var condition = new ConcreteSyntaxTree();
+          EmitExpr(ensure.E, false, condition, condition);
+          var hasResult = m.Outs.Any();
+          if (hasResult)
+          {
+            bodyWriter.WriteLine($"postcondition({m.Outs.First().Name} -> {condition})");
+          }
+          else
+          {
+            bodyWriter.WriteLine($"postcondition({condition})");
+          }
+        }
+
+        if (createBody)
+        {
+          return bodyWriter;
+        }
+
+        return null;
       }
     }
 
@@ -607,7 +638,6 @@ namespace Microsoft.Dafny.Compilers {
     }
 
     private void EmitSuppression(ConcreteSyntaxTree wr) {
-      wr.WriteLine("@SuppressWarnings({\"unchecked\", \"deprecation\"})");
     }
 
     string TypeParameters(List<TypeParameter>/*?*/ targs, string suffix = "") {
@@ -1865,7 +1895,9 @@ namespace Microsoft.Dafny.Compilers {
       //TODO: Figure out how to resolve type checking warnings
       // from here on, write everything into the new block created here:
       EmitSuppression(wr);
-      wr.Write("public{0} class {1}", dt.IsRecordType ? "" : " abstract", DtT_protected);
+      var abs = dt.IsRecordType ? "" : " abstract";
+      var keyword = dt.IsRecordType ? "record" : "class";
+      wr.Write($"public{abs} {keyword} {DtT_protected}");
       var superTraits = dt.ParentTypeInformation.UniqueParentTraits();
       if (superTraits.Any()) {
         wr.Write($" implements {superTraits.Comma(trait => TypeName(trait, wr, dt.Origin))}");
@@ -2140,101 +2172,106 @@ namespace Microsoft.Dafny.Compilers {
         string typeParams = TypeParameters(dt.TypeArgs);
         wr.WriteLine($"public {dt.GetCompileName(Options)}{typeParams} Get() {{ return this; }}");
       }
-      // Equals method
-      wr.WriteLine();
-      wr.WriteLine("@Override");
-      {
-        var w = wr.NewBlock("public boolean equals(Object other)");
-        w.WriteLine("if (this == other) return true;");
-        w.WriteLine("if (other == null) return false;");
-        w.WriteLine("if (getClass() != other.getClass()) return false;");
-        string typeParams = TypeParameters(dt.TypeArgs);
-        w.WriteLine("{0} o = ({0})other;", DtCtorDeclarationName(ctor, dt.TypeArgs));
-        w.Write("return true");
-        i = 0;
-        foreach (var arg in ctor.Formals) {
-          if (!arg.IsGhost) {
-            var nm = FieldName(arg, i);
-            w.Write(" && ");
-            if (IsDirectlyComparable(DatatypeWrapperEraser.SimplifyType(Options, arg.Type))) {
-              w.Write($"this.{nm} == o.{nm}");
-            } else {
-              w.Write($"java.util.Objects.equals(this.{nm}, o.{nm})");
-            }
-            i++;
-          }
-        }
-        w.WriteLine(";");
-      }
-      // GetHashCode method (Uses the djb2 algorithm)
-      wr.WriteLine("@Override");
-      {
-        var w = wr.NewBlock("public int hashCode()");
-        w.WriteLine("long hash = 5381;");
-        w.WriteLine($"hash = ((hash << 5) + hash) + {constructorIndex};");
-        i = 0;
-        foreach (Formal arg in ctor.Formals) {
-          if (!arg.IsGhost) {
-            string nm = FieldName(arg, i);
-            w.Write("hash = ((hash << 5) + hash) + ");
-            if (IsJavaPrimitiveType(arg.Type)) {
-              w.WriteLine($"{BoxedTypeName(arg.Type, w, Token.NoToken)}.hashCode(this.{nm});");
-            } else {
-              w.WriteLine($"java.util.Objects.hashCode(this.{nm});");
-            }
-            i++;
-          }
-        }
-        w.WriteLine("return (int)hash;");
-      }
-
-      wr.WriteLine();
-      wr.WriteLine("@Override");
-      {
-        var w = wr.NewBlock("public String toString()");
-        string nm;
-        if (dt is TupleTypeDecl) {
-          nm = "";
-        } else {
-          nm = (dt.EnclosingModuleDefinition.TryToAvoidName ? "" : dt.EnclosingModuleDefinition.Name + ".") + dt.Name + "." + ctor.Name;
-        }
-        if (dt is TupleTypeDecl && ctor.Formals.Count == 0) {
-          // here we want parentheses and no name
-          w.WriteLine("return \"()\";");
-        } else if (dt is CoDatatypeDecl) {
-          w.WriteLine($"return \"{nm}\";");
-        } else {
-          var tempVar = GenVarName("s", ctor.Formals);
-          w.WriteLine($"StringBuilder {tempVar} = new StringBuilder();");
-          w.WriteLine($"{tempVar}.append(\"{nm}\");");
-          if (ctor.Formals.Count != 0) {
-            w.WriteLine($"{tempVar}.append(\"(\");");
-            i = 0;
-            foreach (var arg in ctor.Formals) {
-              if (!arg.IsGhost) {
-                if (i != 0) {
-                  w.WriteLine($"{tempVar}.append(\", \");");
-                }
-                w.Write($"{tempVar}.append(");
-                var memberName = FieldName(arg, i);
-                if (UnicodeCharEnabled && arg.Type.IsCharType) {
-                  w.Write($"{DafnyHelpersClass}.ToCharLiteral(this.{memberName})");
-                } else if (UnicodeCharEnabled && arg.Type.IsStringType) {
-                  w.Write($"{DafnyHelpersClass}.ToStringLiteral(this.{memberName})");
-                } else if (IsJavaPrimitiveType(arg.Type)) {
-                  w.Write($"this.{memberName}");
-                } else {
-                  w.Write($"{DafnyHelpersClass}.toString(this.{memberName})");
-                }
-                w.WriteLine(");");
-                i++;
+      if (!dt.IsRecordType)
+      {      
+        // Equals method
+        wr.WriteLine();
+        wr.WriteLine("@Override");
+        {
+          var w = wr.NewBlock("public boolean equals(Object other)");
+          w.WriteLine("if (this == other) return true;");
+          w.WriteLine("if (other == null) return false;");
+          w.WriteLine("if (getClass() != other.getClass()) return false;");
+          string typeParams = TypeParameters(dt.TypeArgs);
+          w.WriteLine("{0} o = ({0})other;", DtCtorDeclarationName(ctor, dt.TypeArgs));
+          w.Write("return true");
+          i = 0;
+          foreach (var arg in ctor.Formals) {
+            if (!arg.IsGhost) {
+              var nm = FieldName(arg, i);
+              w.Write(" && ");
+              if (IsDirectlyComparable(DatatypeWrapperEraser.SimplifyType(Options, arg.Type))) {
+                w.Write($"this.{nm} == o.{nm}");
+              } else {
+                w.Write($"java.util.Objects.equals(this.{nm}, o.{nm})");
               }
+              i++;
             }
-            w.WriteLine($"{tempVar}.append(\")\");");
           }
-          w.WriteLine($"return {tempVar}.toString();");
+          w.WriteLine(";");
         }
+        
+        // GetHashCode method (Uses the djb2 algorithm)
+        wr.WriteLine("@Override");
+        {
+          var w = wr.NewBlock("public int hashCode()");
+          w.WriteLine("long hash = 5381;");
+          w.WriteLine($"hash = ((hash << 5) + hash) + {constructorIndex};");
+          i = 0;
+          foreach (Formal arg in ctor.Formals) {
+            if (!arg.IsGhost) {
+              string nm = FieldName(arg, i);
+              w.Write("hash = ((hash << 5) + hash) + ");
+              if (IsJavaPrimitiveType(arg.Type)) {
+                w.WriteLine($"{BoxedTypeName(arg.Type, w, Token.NoToken)}.hashCode(this.{nm});");
+              } else {
+                w.WriteLine($"java.util.Objects.hashCode(this.{nm});");
+              }
+              i++;
+            }
+          }
+          w.WriteLine("return (int)hash;");
+        }
+
+        wr.WriteLine();
+        wr.WriteLine("@Override");
+        {
+          var w = wr.NewBlock("public String toString()");
+          string nm;
+          if (dt is TupleTypeDecl) {
+            nm = "";
+          } else {
+            nm = (dt.EnclosingModuleDefinition.TryToAvoidName ? "" : dt.EnclosingModuleDefinition.Name + ".") + dt.Name + "." + ctor.Name;
+          }
+          if (dt is TupleTypeDecl && ctor.Formals.Count == 0) {
+            // here we want parentheses and no name
+            w.WriteLine("return \"()\";");
+          } else if (dt is CoDatatypeDecl) {
+            w.WriteLine($"return \"{nm}\";");
+          } else {
+            var tempVar = GenVarName("s", ctor.Formals);
+            w.WriteLine($"StringBuilder {tempVar} = new StringBuilder();");
+            w.WriteLine($"{tempVar}.append(\"{nm}\");");
+            if (ctor.Formals.Count != 0) {
+              w.WriteLine($"{tempVar}.append(\"(\");");
+              i = 0;
+              foreach (var arg in ctor.Formals) {
+                if (!arg.IsGhost) {
+                  if (i != 0) {
+                    w.WriteLine($"{tempVar}.append(\", \");");
+                  }
+                  w.Write($"{tempVar}.append(");
+                  var memberName = FieldName(arg, i);
+                  if (UnicodeCharEnabled && arg.Type.IsCharType) {
+                    w.Write($"{DafnyHelpersClass}.ToCharLiteral(this.{memberName})");
+                  } else if (UnicodeCharEnabled && arg.Type.IsStringType) {
+                    w.Write($"{DafnyHelpersClass}.ToStringLiteral(this.{memberName})");
+                  } else if (IsJavaPrimitiveType(arg.Type)) {
+                    w.Write($"this.{memberName}");
+                  } else {
+                    w.Write($"{DafnyHelpersClass}.toString(this.{memberName})");
+                  }
+                  w.WriteLine(");");
+                  i++;
+                }
+              }
+              w.WriteLine($"{tempVar}.append(\")\");");
+            }
+            w.WriteLine($"return {tempVar}.toString();");
+          }
+        } 
       }
+      
     }
 
     string DtCtorDeclarationName(DatatypeCtor ctor, List<TypeParameter>/*?*/ typeParams) {
@@ -4357,6 +4394,36 @@ namespace Microsoft.Dafny.Compilers {
       var catchBlock = wr.NewBlock("catch (dafny.DafnyHaltException e)");
       catchBlock.WriteLine($"dafny.DafnySequence<Character> {haltMessageVarName} = dafny.DafnySequence.asString(e.getMessage());");
       TrStmt(recoveryBody, catchBlock);
+    }
+
+    protected override void EmitUnchangedExpr(UnchangedExpr unchangedExpr, bool inLetExprBody, ConcreteSyntaxTree wr,
+      ConcreteSyntaxTree wStmts)
+    {
+      // var expr = new ConcreteSyntaxTree();
+      // EmitExpr(unchangedExpr., false, expr, expr);
+      // wr.WriteLine($"old({expr}");
+    }
+
+    protected override void EmitOldExpr(OldExpr oldExpr, bool inLetExprBody, ConcreteSyntaxTree wr,
+      ConcreteSyntaxTree wStmts)
+    {
+      var expr = new ConcreteSyntaxTree();
+      EmitExpr(oldExpr.E, false, expr, expr);
+      wr.WriteLine($"old({expr}");
+    }
+
+    protected override void EmitUnaryExpr(bool inLetExprBody, ConcreteSyntaxTree wr, ConcreteSyntaxTree wStmts, UnaryOpExpr e)
+    {
+      if (e.ResolvedOp == UnaryOpExpr.ResolvedOpcode.Fresh)
+      {
+        var expr = new ConcreteSyntaxTree();
+        EmitExpr(e.E, false, expr, expr);
+        wr.WriteLine($"fresh({expr}");
+      }
+      else
+      {
+        base.EmitUnaryExpr(inLetExprBody, wr, wStmts, e);
+      }
     }
 
     protected override void EmitNestedMatchExpr(NestedMatchExpr match, bool inLetExprBody, ConcreteSyntaxTree output,
