@@ -30,7 +30,25 @@ import java.lang.classfile.*;
     public class TestPlugin {
 
         @Test
-        public void checkPreconditionCheckedAtRuntime() throws IOException {
+        public void checkPreconditionAtRuntimeTest() throws Exception {
+            String source = Files.readString(Path.of("./src/test/java/com/aws/jverify/plugin/CheckPreconditionAtRuntimeTest.java"));
+            String fullyQualifiedName = "com.aws.jverify.plugin.CheckPreconditionAtRuntimeTest";
+            var sourceFile = JavaFileObjects.forSourceString(fullyQualifiedName, source);
+            var jVerifyClass = URI.create(Common.getJarLocationForClass(JVerify.class));
+
+            List<File> classPath = List.of(new File(jVerifyClass));
+            Compilation compilation = Compiler.javac()
+                    .withProcessors(new JVerifyProcessor())
+                    .withClasspath(classPath)
+                    .compile(sourceFile);
+
+            CompilationSubject.assertThat(compilation).succeeded();
+
+            runMethodFromCompilation(compilation, fullyQualifiedName, "test");
+        }
+        
+        @Test
+        public void runtimePreconditionExampleTest() throws IOException {
             String source = Files.readString(Path.of("../examples/src/main/java/com/aws/verifier/examples/RuntimePreconditionExample.java"));
             var sourceFile = JavaFileObjects.forSourceString("com.aws.verifier.examples.RuntimePreconditionExample", source);
             var jVerifyClass = URI.create(Common.getJarLocationForClass(JVerify.class));
@@ -41,10 +59,6 @@ import java.lang.classfile.*;
                     .withClasspath(classPath)
                     .compile(sourceFile);
 
-            for(var generatedFile : compilation.generatedFiles()) {
-                inspectConstantPool(generatedFile);
-            }
-
             CompilationSubject.assertThat(compilation).succeeded();
 
             int exitCode = CompilationRunner.runGeneratedClassAndGetExitCode(compilation, classPath, "com.aws.verifier.examples.RuntimePreconditionExample");
@@ -52,7 +66,7 @@ import java.lang.classfile.*;
         }
         
         @Test
-        public void checkCallsToJVerifyAreNotPresentInClassfile() throws IOException {
+        public void checkCallsToJVerifyAreNotPresentInClassfile() throws Exception {
             JavaFileObject source = JavaFileObjects.forSourceString(
                     "com.example.ModifyMe",
                     """
@@ -83,7 +97,8 @@ import java.lang.classfile.*;
 
             CompilationSubject.assertThat(compilation).succeeded();
 
-            checkGeneratedClassStillWorks(compilation);
+            var result = runMethodFromCompilation(compilation, "com.example.ModifyMe", "Bar");
+            Assertions.assertEquals(3, result);
         }
 
         public void inspectConstantPool(JavaFileObject fileObject) throws IOException {
@@ -107,23 +122,22 @@ import java.lang.classfile.*;
             }
         }
 
-        private void checkGeneratedClassStillWorks(Compilation compilation) {
+        private Object runMethodFromCompilation(Compilation compilation,
+                                                String fullyQualifiedClassName,
+                                                String methodName) throws Exception {
             Path tempDir = null;
             try {
                 tempDir = saveGeneratedClassesToTempDirectory(compilation);
 
-                URLClassLoader classLoader = new URLClassLoader(
-                        new URL[] { tempDir.toUri().toURL() },
+                try (URLClassLoader classLoader = new URLClassLoader(
+                        new URL[]{tempDir.toUri().toURL()},
                         getClass().getClassLoader()
-                );
-                Class<?> modifyMeClass = classLoader.loadClass("com.example.ModifyMe");
-                Object instance = modifyMeClass.getDeclaredConstructor().newInstance();
-                Method barMethod = modifyMeClass.getDeclaredMethod("Bar");
-                var result = barMethod.invoke(instance);
-                Assertions.assertEquals(3, result);
-                classLoader.close();
-            } catch (Exception e) {
-                Assertions.fail(STR."Failed to execute generated class: \{e.getMessage()}");
+                )) {
+                    Class<?> clazz = classLoader.loadClass(fullyQualifiedClassName);
+                    Object instance = clazz.getDeclaredConstructor().newInstance();
+                    Method barMethod = clazz.getDeclaredMethod(methodName);
+                    return barMethod.invoke(instance);
+                }
             } finally {
                 if (tempDir != null) {
                     deleteDirectory(tempDir.toFile());

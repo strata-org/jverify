@@ -66,18 +66,23 @@ class RemoveJVerifyVisitor extends TreeScanner {
 
     private List<JCTree.JCStatement> getNewStatements(List<JCTree.JCStatement> statements) {
         var current = statements.head;
-        if (!(current instanceof JCTree.JCExpressionStatement expressionStatement)) {
+        if (current == null) {
             return statements;
+        }
+        var rest = statements.size() == 1 ? List.<JCTree.JCStatement>nil() : getNewStatements(statements.tail);
+        var unchangedHead = rest.prepend(current);
+        if (!(current instanceof JCTree.JCExpressionStatement expressionStatement)) {
+            return unchangedHead;
         }
         
         var expr = expressionStatement.getExpression();
         if (!(expr instanceof JCTree.JCMethodInvocation invocation)) {
-            return statements;
+            return unchangedHead;
         }
         
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         if (!fromJVerify(methodSymbol)) {
-            return statements;
+            return unchangedHead;
         }
 
         if (dynamicPreconditions && methodSymbol.getQualifiedName().contentEquals(Common.PRECONDITION)) {                            
@@ -89,9 +94,9 @@ class RemoveJVerifyVisitor extends TreeScanner {
                             maker.QualIdent(getClassSymbol(PreconditionFailure.class, context)), 
                             List.nil(), null))
             )), emptyBlock);
-            return statements.tail.prepend(check);
+            return rest.prepend(check);
         } else {
-            return statements.tail;
+            return rest;
         }
     }
 
