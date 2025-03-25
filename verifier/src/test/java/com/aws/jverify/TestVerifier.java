@@ -5,6 +5,7 @@ import com.aws.jverify.verifier.VerifierOptions;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.beans.Transient;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -141,6 +142,13 @@ Dafny program verifier finished with 5 verified, 0 errors
 
     }
 
+    @Test
+    public void testNoConstructor() throws IOException, InterruptedException {
+        StringWriter writer = new StringWriter();
+        var exitCode = run("NoConstructor.java", false, writer);
+        var output = canonicalizeNewlines(writer.toString());
+        Assertions.assertEquals(0, exitCode);
+    }
     /**
      * Returns the text with all CRLF sequences replaced with LF.
      * This prevents erroneous failures of diff-based assertions on Windows platforms.

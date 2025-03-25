@@ -692,6 +692,9 @@ public class JavaToDafnyCompiler {
         
     
     private Token toToken(int pos) {
+        if (pos == Position.NOPOS) {
+            return new Token(-1, -1);
+        }
         return new Token(
                 (int) compilationUnit.getLineMap().getLineNumber(pos),
                 (int) compilationUnit.getLineMap().getColumnNumber(pos) + 1);
