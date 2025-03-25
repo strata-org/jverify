@@ -6,15 +6,16 @@ import com.aws.jverify.PreconditionFailure;
 import static com.aws.jverify.JVerify.precondition;
 
 public class CheckPreconditionAtRuntimeTest {
-    public void test() {
+    public static void main(String[] args) {
         multiplePreconditions(1);
         try {
             multiplePreconditions(0);
-            throw new RuntimeException("fail");
+            System.exit(1);
         } catch(PreconditionFailure _) {
         }
         noPreconditions(1);
         noStatements(1);
+        System.exit(0);
     }
 
     @CheckPreconditionsAtRuntime

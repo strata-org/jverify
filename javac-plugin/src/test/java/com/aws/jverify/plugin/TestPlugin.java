@@ -44,7 +44,8 @@ import java.lang.classfile.*;
 
             CompilationSubject.assertThat(compilation).succeeded();
 
-            runMethodFromCompilation(compilation, fullyQualifiedName, "test");
+            int exitCode = CompilationRunner.runGeneratedClassAndGetExitCode(compilation, classPath, fullyQualifiedName);
+            Assertions.assertEquals(0, exitCode);
         }
         
         @Test
