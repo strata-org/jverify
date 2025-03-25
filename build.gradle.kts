@@ -25,11 +25,14 @@ java {
     }
 }
 
-project(":library") {
+project(":simple-migrator") {
+    apply(plugin = "application")
+    application {
+        mainClass.set("com.aws.jverify.migrator.DafnyToJavaTranslator")
+    }
 }
 
-project(":dafny-migrator") {
-    
+project(":library") {
 }
 
 project(":examples") {
