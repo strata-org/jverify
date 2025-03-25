@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dafny-migrator", "dafny-migrator.csproj", "{EC1D493A-6BF1-4E27-847E-8D7461250D0F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DafnyDriver", "..\dafny\Source\DafnyDriver\DafnyDriver.csproj", "{E8C4189F-73B6-447F-A003-46872AE7763A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DafnyCore", "..\dafny\Source\DafnyCore\DafnyCore.csproj", "{31769027-036C-4A1E-B266-DF23083B4A41}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EC1D493A-6BF1-4E27-847E-8D7461250D0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC1D493A-6BF1-4E27-847E-8D7461250D0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC1D493A-6BF1-4E27-847E-8D7461250D0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC1D493A-6BF1-4E27-847E-8D7461250D0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8C4189F-73B6-447F-A003-46872AE7763A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8C4189F-73B6-447F-A003-46872AE7763A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8C4189F-73B6-447F-A003-46872AE7763A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8C4189F-73B6-447F-A003-46872AE7763A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31769027-036C-4A1E-B266-DF23083B4A41}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31769027-036C-4A1E-B266-DF23083B4A41}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31769027-036C-4A1E-B266-DF23083B4A41}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31769027-036C-4A1E-B266-DF23083B4A41}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
