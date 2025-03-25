@@ -20,9 +20,9 @@ public class TestVerifier {
         var exitCode = run("UserProfile.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("""
-/test.java(32:9-32:16): Error: a postcondition could not be proved on this return path
-/test.java(23:21-23:26): Related location: this is the postcondition that could not be proved
-/test.java(25:16-25:77): Related location: this proposition could not be proved
+UserProfile.java(32:9-32:16): Error: a postcondition could not be proved on this return path
+UserProfile.java(23:21-23:26): Related location: this is the postcondition that could not be proved
+UserProfile.java(25:16-25:77): Related location: this proposition could not be proved
 
 Dafny program verifier finished with 7 verified, 1 error
 """, output);
@@ -41,6 +41,7 @@ Dafny program verifier finished with 7 verified, 1 error
         var options = new VerifierOptions(dafnyPath, libraryJar, prelude,
                 null, null, true,
                 new String[] { 
+                        "--use-basename-for-filename"
                         //"--wait-for-debugger"
                 } 
         );
@@ -52,14 +53,14 @@ Dafny program verifier finished with 7 verified, 1 error
         StringWriter writer = new StringWriter();
         var exitCode = run("AssertFalse.java", false, writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("/test.java(7:9-7:21): Error: assertion might not hold\n" +
+        Assertions.assertEquals("AssertFalse.java(7:9-7:21): Error: assertion might not hold\n" +
                 "\n" +
                 "Dafny program verifier finished with 2 verified, 1 error\n", output);
         Assertions.assertEquals(4, exitCode);
     }
 
     private static void checkErrorAt(String output, int line, int col) {
-        Assertions.assertTrue(output.contains("/test.java(" + line + ":" + col + "-"));
+        Assertions.assertTrue(output.contains("Operators.java(" + line + ":" + col + "-"));
     }
 
     @Test
@@ -97,11 +98,11 @@ Dafny program verifier finished with 7 verified, 1 error
         var exitCode = run("FibonacciInvalid.java", false, writer);
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("""
-/test.java(44:22-44:23): Error: value does not satisfy the subset constraints of 'nat32'
-/test.java(49:17-49:22): Error: value does not satisfy the subset constraints of 'nat32'
-/test.java(17:13-17:22): Error: a postcondition could not be proved on this return path
-/test.java(14:38-14:50): Related location: this is the postcondition that could not be proved
-/test.java(31:28-31:51): Error: value does not satisfy the subset constraints of 'int32'
+FibonacciInvalid.java(44:22-44:23): Error: value does not satisfy the subset constraints of 'nat32'
+FibonacciInvalid.java(49:17-49:22): Error: value does not satisfy the subset constraints of 'nat32'
+FibonacciInvalid.java(17:13-17:22): Error: a postcondition could not be proved on this return path
+FibonacciInvalid.java(14:38-14:50): Related location: this is the postcondition that could not be proved
+FibonacciInvalid.java(31:28-31:51): Error: value does not satisfy the subset constraints of 'int32'
 
 Dafny program verifier finished with 4 verified, 4 errors
 """, output);
