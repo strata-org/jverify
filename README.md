@@ -2,6 +2,7 @@
 
 - Checkout this repository and its submodules
 - Run `dotnet build dafny/Source/Dafny.sln`
+- Run `gradle installDist`
 - Open the repository root in VSCode 
 - Open .java files in the examples folder
 - Java extensions for VSCode should work well on these examples
