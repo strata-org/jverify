@@ -5,6 +5,7 @@
 //
 //-----------------------------------------------------------------------------
 
+using System.Diagnostics.Contracts;
 using System.Numerics;
 
 namespace Microsoft.Dafny.Compilers {
@@ -31,7 +32,7 @@ namespace Microsoft.Dafny.Compilers {
         var cls = c.EnclosingClass;
         var javaName = IdName(cls);
         wr.Write($"public {javaName}(");
-        WriteFormals(", ", m.Ins, wr);
+        WriteFormals("", m.Ins, wr);
         return wr.NewBlock(")", null, BlockStyle.NewlineBrace, BlockStyle.NewlineBrace);
       }
       return base.CreateMethod(m, typeArgs, createBody, wr, forBodyInheritance, lookasideBody);
@@ -55,14 +56,32 @@ namespace Microsoft.Dafny.Compilers {
       return wr;
     }
 
+    protected override void DeclareField(string name, bool isStatic, bool isConst, Type type, IOrigin tok, string? rhs, ClassWriter cw)
+    {
+      if (isStatic) {
+        var r = rhs ?? DefaultValue(type, cw.StaticMemberWriter, tok);
+        var t = StripTypeParameters(TypeName(type, cw.StaticMemberWriter, tok));
+        cw.StaticMemberWriter.WriteLine($"private static {t} {name} = {r};");
+      } else {
+        Contract.Assert(cw.CtorBodyWriter != null, "Unexpected instance field");
+        cw.InstanceMemberWriter.WriteLine("private {0} {1};", TypeName(type, cw.InstanceMemberWriter, tok), name);
+        cw.CtorBodyWriter.WriteLine("this.{0} = {1};", name, rhs ?? PlaceboValue(type, cw.CtorBodyWriter, tok));
+      }
+    }
+
     protected override string ActualTypeArgument(Type type, TypeParameter.TPVariance variance, ConcreteSyntaxTree wr, IOrigin tok)
     {
       return BoxedTypeName(type, wr, tok);
     }
 
+    protected override void EmitStringLiteral(ConcreteSyntaxTree wr, StringLiteralExpr str)
+    {
+      wr.Write("\"" + str.AsStringLiteral() + "\"");
+    }
+
     protected override void EmitUnboundedIntLiteral(ConcreteSyntaxTree wr, BigInteger i)
     {
-      wr.Write("\"" + i.ToString() + "\"");
+      wr.Write(i.ToString());
     }
 
     protected override void TrExprAsInt(Expression expr, ConcreteSyntaxTree wr, bool inLetExprBody, ConcreteSyntaxTree wStmts,
@@ -180,6 +199,23 @@ namespace Microsoft.Dafny.Compilers {
     protected override void TrParenExpr(Expression expr, ConcreteSyntaxTree wr, bool inLetExprBody, ConcreteSyntaxTree wStmts)
     {
       EmitExpr(expr, inLetExprBody, wr, wStmts);
+    }
+
+    protected override void EmitLambdaExpr(bool inLetExprBody, ConcreteSyntaxTree wr, ConcreteSyntaxTree wStmts, LambdaExpr lambdaExpr)
+    {
+      IVariable receiver = null;
+      var su = Substituter.EMPTY;
+      if (receiver != null) {
+        su = new Substituter(new IdentifierExpr(lambdaExpr.Origin, receiver), su.substMap, su.typeMap);
+      }
+
+      wr = CreateLambda(lambdaExpr.BoundVars.ConvertAll(bv => bv.Type), Token.NoToken, lambdaExpr.BoundVars.ConvertAll(IdName),
+        lambdaExpr.Body.Type, wr, wStmts);
+      wStmts = wr.Fork();
+      wr = EmitReturnExpr(wr);
+      // May need an upcast or boxing conversion to coerce to the generic arrow result type
+      wr = EmitCoercionIfNecessary(lambdaExpr.Body.Type, TypeForCoercion(lambdaExpr.Type.AsArrowType.Result), lambdaExpr.Body.Origin, wr);
+      EmitExpr(su.Substitute(lambdaExpr.Body), inLetExprBody, wr, wStmts);
     }
 
     protected override void EmitIdentifierExpr(bool inLetExprBody, ConcreteSyntaxTree wr, IdentifierExpr identifierExpr)
