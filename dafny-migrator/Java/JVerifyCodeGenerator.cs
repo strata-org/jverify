@@ -124,13 +124,12 @@ namespace Microsoft.Dafny.Compilers {
       ConcreteSyntaxTree wStmts)
     {
       wr.Write($"{DafnyMapClass}.of(");
-      string sep = " ";
+      string sep = "";
       foreach (ExpressionPair p in elements) {
         wr.Write(sep);
         wr.Append(Expr(p.A, inLetExprBody, wStmts));
         wr.Write(", ");
         wr.Append(Expr(p.B, inLetExprBody, wStmts));
-        wr.Write(")");
         sep = ", ";
       }
       wr.Write(")");
@@ -163,6 +162,24 @@ namespace Microsoft.Dafny.Compilers {
         wr.Write($"IntStream.range({lo},{hi})");
       });
     }
+
+    protected override void CompileFunction(Function f, IClassWriter cw, bool lookasideBody)
+    {
+      var w = cw.CreateFunction(IdName(f), CombineAllTypeArguments(f),
+        f.Ins, f.ResultType, f.Origin, f.IsStatic,
+        !IsExternallyImported(f), f, false, lookasideBody);
+      if (w != null) {
+        IVariable accVar = null;
+        Coverage.Instrument(f.Body.Origin, $"entry to function {f.FullName}", w);
+        Contract.Assert(enclosingFunction == null);
+        enclosingFunction = f;
+        CompileReturnBody(f.Body, f.OriginalResultTypeWithRenamings(), w, accVar);
+        Contract.Assert(enclosingFunction == f);
+        enclosingFunction = null;
+      }
+    }
+
+    public override bool HandleTailRecursion => false;
 
     protected override void EmitSeqBoundedPool(Expression of, bool includeDuplicates, string propertySuffix, bool inLetExprBody,
       ConcreteSyntaxTree wr, ConcreteSyntaxTree wStmts)
@@ -268,6 +285,7 @@ namespace Microsoft.Dafny.Compilers {
         BinaryExpr.ResolvedOpcode.Mul => "*",
         BinaryExpr.ResolvedOpcode.Div => "/",
         BinaryExpr.ResolvedOpcode.Mod => "%",
+        BinaryExpr.ResolvedOpcode.Concat => "+",
         _ => null
       };
 
@@ -296,6 +314,15 @@ namespace Microsoft.Dafny.Compilers {
     }
 
     protected override string InternalFieldPrefix => "";
+
+    protected override string SeqTypename(ConcreteSyntaxTree wr, IOrigin tok, bool erased, SeqType seqType)
+    {
+      if (seqType.TypeArgs[0] is CharType)
+      {
+        return "String";
+      }
+      return base.SeqTypename(wr, tok, erased, seqType);
+    }
 
     protected override string FullTypeName(UserDefinedType udt, MemberDecl member, bool useCompanionName)
     {
