@@ -7,6 +7,12 @@ import static com.aws.jverify.JVerify.precondition;
 
 public class CheckPreconditionAtRuntimeTest {
     public static void main(String[] args) {
+        happyCase(1);
+        try {
+            happyCase(0);
+            System.exit(1);
+        } catch(PreconditionFailure _) {
+        }
         multiplePreconditions(1);
         try {
             multiplePreconditions(0);
@@ -18,6 +24,12 @@ public class CheckPreconditionAtRuntimeTest {
         System.exit(0);
     }
 
+    @CheckPreconditionsAtRuntime
+    static int happyCase(int input) {
+        precondition(input != 0);
+        return input;
+    }
+    
     @CheckPreconditionsAtRuntime
     static int multiplePreconditions(int input) {
         precondition(true);
