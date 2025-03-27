@@ -39,10 +39,13 @@ public class CompilationRunner {
             writeCompiledClassFiles(compilation, tempDir);
 
             // Prepare command to run the class in a separate JVM
-            String javaHome = System.getProperty("java.home");
-            String javaBin = javaHome + File.separator + "bin" + File.separator + "java";
+            var javaBin = ProcessHandle.current().info().command();
+            if (javaBin.isEmpty()) {
+                System.err.println("Failed to find Java executable");
+                return -1;
+            }
 
-            var process = getProcess(classPath, qualifiedClassName, args, javaBin, tempDir);
+            var process = getProcess(classPath, qualifiedClassName, args, javaBin.get(), tempDir);
 
             int exitCode = process.waitFor();
             return exitCode;
