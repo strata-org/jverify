@@ -71,7 +71,7 @@ public class CompilationRunner {
         command.add("-cp");
         StringBuilder arg = new StringBuilder();
         for(var cpFile : classPath) {
-            arg.append(cpFile.toString()).append(":");
+            arg.append(cpFile.toString()).append(File.pathSeparator);
         }
         arg.append(tempDir.resolve("CLASS_OUTPUT"));
         command.add(arg.toString());
