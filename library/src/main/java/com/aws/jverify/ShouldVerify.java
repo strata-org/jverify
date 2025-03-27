@@ -6,13 +6,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
-Enables the use of these constructs: 
-- @Unbounded
-- forall, exists
-
-But prevents the method from being executed at runtime.
+ * Specify whether this symbol should be verified or not
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
-public @interface Erased {
+@Target({ElementType.METHOD, ElementType.TYPE, ElementType.PACKAGE})
+public @interface ShouldVerify {
+    boolean shouldVerify() default true;
 }
+

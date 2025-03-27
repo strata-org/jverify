@@ -6,6 +6,7 @@ import com.aws.jverify.Proof;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Unbounded;
 
+import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.code.Flags;
@@ -868,7 +869,7 @@ public class JavaToDafnyCompiler {
                     // not a header method, so stop here
                     break statementLoop;
                 }
-                case "precondition" -> {
+                case Common.PRECONDITION -> {
                     if (invocation.args.size() != 1) {
                         throw new RuntimeException("A precondition call may have only one argument");
                     }

@@ -69,7 +69,10 @@ fun createJavacExports(targets: List<String>): List<String> {
         "jdk.compiler/com.sun.tools.javac.tree",
         "jdk.compiler/com.sun.tools.javac.code",
         "jdk.compiler/com.sun.tools.javac.parser",
-        "jdk.compiler/com.sun.tools.javac.jvm"
+        "jdk.compiler/com.sun.tools.javac.jvm",
+        "jdk.compiler/com.sun.tools.javac.comp",
+        "jdk.compiler/com.sun.tools.javac.model",
+        "jdk.compiler/com.sun.tools.javac.processing"
     )
 
     return javacPackages.flatMap { pkg ->
@@ -127,7 +130,6 @@ project(":javac-plugin") {
     tasks.withType<JavaCompile> {
         options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
         //options.compilerArgs.add("-proc:none")
-        
         // Using preview mode, so we can use the package java.lang.classfile
         options.compilerArgs.add("--enable-preview")
     }
