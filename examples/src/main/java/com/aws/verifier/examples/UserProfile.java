@@ -9,7 +9,7 @@ class UserProfile {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
     private AccountType accountType;
-    private @Nullable PremiumFeatures premiumFeatures;  // Should be null for FREE accounts
+    private @Nullable PremiumFeatures premiumFeatures;  // Should be non-null for Premium accounts
 
     public UserProfile(AccountType accountType) {
         this.accountType = accountType;

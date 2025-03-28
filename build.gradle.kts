@@ -26,6 +26,11 @@ java {
 }
 
 project(":library") {
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17) // Use Java 17 for this subproject
+        }
+    }
 }
 
 
