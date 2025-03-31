@@ -46,6 +46,7 @@ jobs:
           dotnet build ./Source/Dafny.sln
       - name: Download Z3
         shell: pwsh
+        working-directory: ./jverify-collection/dafny
         run: |
           Invoke-WebRequest ${{env.z3BaseUri}}/z3-4.12.1-x64-${{matrix.os}}-bin.zip -OutFile z3.zip
           Expand-Archive z3.zip .
@@ -54,6 +55,7 @@ jobs:
           mv z3-* Binaries/z3/bin/
       - name: Set Z3 permissions
         if: ${{matrix.chmod}}
+        working-directory: ./jverify-collection/dafny
         run: |
           chmod +x Binaries/z3/bin/z3*
       - name: Code generation has no diff
