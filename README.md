@@ -1,5 +1,6 @@
 ## Getting started
 
+### Verify Java code using JVerify
 - Checkout this repository and its submodules
 - Run `dotnet build dafny/Source/Dafny.sln`
 - Run `gradle installDist`
@@ -7,6 +8,12 @@
 - Open .java files in the examples folder
 - Java extensions for VSCode should work well on these examples
 - Run the VSCode task "verify" on examples to get verification diagnostics
+
+### Compile Java code using JVerify
+- Checkout this repository and its submodules
+- Run `dotnet build dafny/Source/Dafny.sln`
+- Run `gradle compileWithJVerify -PjavacArgs="<pathToYourJavaFile>,-d=<yourDesiredOutputDirectory>`
+- Run the resulting class files using `java`
 
 ## Security
 
