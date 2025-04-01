@@ -30,7 +30,12 @@ import java.util.regex.Pattern;
  *
  * (>metadata::: ... <) A span of text in the file annotated with metdata.
  *
- * Additional encoded features can be added on a case by case basis.
+ * We also support Java line comments to specify annotated ranges:
+ * ```
+ *    some actual program text
+ * // ^^^^^^ this is the annotation with hats pointing to the range
+ * ```
+ * 
  */
 public class TestMarkup {
     private static final String SPAN_START_STRING = "[>";
