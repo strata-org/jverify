@@ -269,7 +269,15 @@ class TextBuffer {
         starts.add(0); // First line starts at index 0
 
         for (int i = 0; i < text.length(); i++) {
-            if (text.charAt(i) == '\n') {
+            char c = text.charAt(i);
+            if (c == '\n') {
+                starts.add(i + 1);
+            } else if (c == '\r') {
+                // Check for Windows-style \r\n
+                if (i + 1 < text.length() && text.charAt(i + 1) == '\n') {
+                    // Skip the next character (\n) since we're handling the pair
+                    i++;
+                }
                 starts.add(i + 1);
             }
         }
