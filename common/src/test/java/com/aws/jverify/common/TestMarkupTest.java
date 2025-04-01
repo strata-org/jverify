@@ -13,7 +13,7 @@ public class TestMarkupTest {
         String source = "int ><x = ><10;";
 
         List<Position> positions = new ArrayList<>();
-        List<TestMarkup.Range> ranges = new ArrayList<>();
+        List<Range> ranges = new ArrayList<>();
 
         var output = TestMarkup.getPositionsAndRanges(source, positions, ranges);
 
@@ -32,7 +32,7 @@ public class TestMarkupTest {
         String source = "int x = [>10<];";
 
         List<Position> positions = new ArrayList<>();
-        List<TestMarkup.Range> ranges = new ArrayList<>();
+        List<Range> ranges = new ArrayList<>();
 
         var output = TestMarkup.getPositionsAndRanges(source, positions, ranges);
 
@@ -56,7 +56,7 @@ public class TestMarkupTest {
         assertEquals("int x = 10;", result.output());
         assertEquals(1, result.ranges().size());
 
-        TestMarkup.AnnotatedRange span = result.ranges().getFirst();
+        var span = result.ranges().getFirst();
         assertEquals("Value", span.annotation);
         assertEquals(0, span.range.start.line);
         assertEquals(8, span.range.start.character);

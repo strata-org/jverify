@@ -1,6 +1,7 @@
 package com.aws.jverify;
 
 import com.aws.jverify.common.Position;
+import com.aws.jverify.common.Range;
 import com.aws.jverify.common.TestMarkup;
 import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.VerifierOptions;
@@ -125,7 +126,7 @@ Dafny program verifier finished with 5 verified, 0 errors
         return text.replaceAll("\r\n", "\n");
     }
 
-    String rangeToString(TestMarkup.Range range) {
+    String rangeToString(Range range) {
         return positionToString(range.start) + "-" + positionToString(range.end);
     }
 

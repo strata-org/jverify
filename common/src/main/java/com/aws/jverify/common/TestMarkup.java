@@ -237,37 +237,8 @@ public class TestMarkup {
         }
         return new GetPositionAndRangesResult(output, positions.getFirst());
     }
-
-    public static class AnnotatedRange {
-        public final String annotation;
-        public final Range range;
-
-        public AnnotatedRange(String annotation, Range range) {
-            this.annotation = annotation;
-            this.range = range;
-        }
-    }
-    
-    public static class Range {
-        public final Position start;
-        public final Position end;
-
-        public Range(Position start, Position end) {
-            this.start = start;
-            this.end = end;
-        }
-    }
-
-    public static class AnnotatedSpan {
-        public final String annotation;
-        public final TextSpan span;
-
-        public AnnotatedSpan(String annotation, TextSpan span) {
-            this.annotation = annotation;
-            this.span = span;
-        }
-    }
 }
+
 
 // Supporting classes needed for the translation
 class TextSpan {
@@ -317,17 +288,6 @@ class TextBuffer {
         int character = index - lineStarts[line];
         return new Position(line, character);
     }
-}
-
-// Extension method replacement
-class DictionaryHelper {
-    public static <K, V> V getOrCreate(Map<K, V> map, K key, Supplier<V> factory) {
-        return map.computeIfAbsent(key, k -> factory.get());
-    }
-}
-
-interface Supplier<T> {
-    T get();
 }
 
 class Pair<T, U> {
