@@ -41,21 +41,7 @@ Dafny program verifier finished with 7 verified, 1 error
 
     @Test
     public void operators() throws IOException {
-        StringWriter writer = new StringWriter();
-        var exitCode = run("Operators.java", false, writer);
-        var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertTrue(output.contains("Dafny program verifier finished with 11 verified, 9 errors"));
-        // Checking all 9 errors
-        checkErrorAt(output,17,9);
-        checkErrorAt(output, 31, 9);
-        checkErrorAt(output, 45, 9);
-        checkErrorAt(output, 59, 9);
-        checkErrorAt(output, 71, 9);
-        checkErrorAt(output, 83, 9);
-        checkErrorAt(output, 95, 9);
-        checkErrorAt(output, 107, 9);
-        checkErrorAt(output, 119, 9);
-        Assertions.assertEquals(4, exitCode);
+        testMarkedSourceFile("Operators.java", 11, 9);
     }
 
     @Test
@@ -129,10 +115,6 @@ Dafny program verifier finished with 5 verified, 0 errors
         var pluralization = result.ranges().size() > 1 ? "s" : "";
         Assertions.assertTrue(output.endsWith("Dafny program verifier finished with " + successCount + " verified, " + errorCount + " error" + pluralization + "\n"));
         Assertions.assertEquals(4, exitCode);
-    }
-
-    private static void checkErrorAt(String output, int line, int col) {
-        Assertions.assertTrue(output.contains("Operators.java(" + line + ":" + col + "-"));
     }
     
     /**
