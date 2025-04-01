@@ -46,9 +46,9 @@ public class TestMarkup {
 
         // A stack of span starts along with their associated annotation name.  [><] spans simply
         // have empty string for their annotation name.
-        Stack<Pair<Integer, String>> spanStartStack = new Stack<>();
-        Stack<Pair<Integer, String>> namedSpanStartStack = new Stack<>();
-        Stack<Pair<Integer, String>> annotatedSpanStartStack = new Stack<>();
+        Stack<Span> spanStartStack = new Stack<>();
+        Stack<Span> namedSpanStartStack = new Stack<>();
+        Stack<Span> annotatedSpanStartStack = new Stack<>();
 
         Pattern r = Pattern.compile("(?<Position>><)|" +
                 "(?<SpanStart>\\[>)|(?<SpanEnd><\\])" +
@@ -56,28 +56,28 @@ public class TestMarkup {
                 "|(?<AnnotatedSpanStart>\\(>(?<Annotation>(.|\\n)+)\\:\\:\\:)|(?<AnnotatedSpanEnd><\\))" +
                 "|(\\(>(?<StandaloneAnnotation>([.|\\n])+)<\\))");
 
-        int outputIndex = 0;
-        int inputIndex = 0;
+        int outputPosition = 0;
+        int inputPosition = 0;
         Matcher matcher = r.matcher(input);
 
         while (matcher.find()) {
-            int diff = inputIndex - outputIndex;
+            int diff = inputPosition - outputPosition;
             int matchIndexInOutput = matcher.start() - diff;
-            String outputPart = input.substring(inputIndex, matcher.start());
-            outputIndex += outputPart.length();
+            String outputPart = input.substring(inputPosition, matcher.start());
+            outputPosition += outputPart.length();
             outputBuilder.append(outputPart);
-            inputIndex = matcher.end();
+            inputPosition = matcher.end();
 
             if (matcher.group("Position") != null) {
                 positions.add(matchIndexInOutput);
             } else if (matcher.group("SpanStart") != null) {
-                spanStartStack.push(new Pair<>(matchIndexInOutput, ""));
+                spanStartStack.push(new Span(matchIndexInOutput, ""));
             } else if (matcher.group("NameSpanStart") != null) {
-                namedSpanStartStack.push(new Pair<>(matchIndexInOutput, matcher.group("Name")));
+                namedSpanStartStack.push(new Span(matchIndexInOutput, matcher.group("Name")));
             } else if (matcher.group("AnnotatedSpanStart") != null) {
-                annotatedSpanStartStack.push(new Pair<>(matchIndexInOutput, matcher.group("Annotation")));
+                annotatedSpanStartStack.push(new Span(matchIndexInOutput, matcher.group("Annotation")));
             } else if (matcher.group("StandaloneAnnotation") != null) {
-                annotatedSpanStartStack.push(new Pair<>(matchIndexInOutput, matcher.group("StandaloneAnnotation")));
+                annotatedSpanStartStack.push(new Span(matchIndexInOutput, matcher.group("StandaloneAnnotation")));
                 popSpan(annotatedSpanStartStack, spans, matchIndexInOutput);
             } else if (matcher.group("SpanEnd") != null) {
                 popSpan(spanStartStack, spans, matchIndexInOutput);
@@ -98,7 +98,7 @@ public class TestMarkup {
 
         
         // Append the remainder of the string.
-        outputBuilder.append(input.substring(inputIndex));
+        outputBuilder.append(input.substring(inputPosition));
         String output = outputBuilder.toString();
 
         var hatAnnotations = findHatAnnotations(output);
@@ -143,12 +143,12 @@ public class TestMarkup {
     }
 
     private static void popSpan(
-            Stack<Pair<Integer, String>> spanStartStack,
+            Stack<Span> spanStartStack,
             List<AnnotatedSpan> spans,
             int finalIndex) {
-        Pair<Integer, String> pair = spanStartStack.pop();
-        int matchIndex = pair.first;
-        String name = pair.second;
+        Span pair = spanStartStack.pop();
+        int matchIndex = pair.start();
+        String name = pair.content();
 
         TextSpan span = new TextSpan(matchIndex, finalIndex - matchIndex);
         spans.add(new AnnotatedSpan(name, span));
@@ -165,7 +165,7 @@ public class TestMarkup {
         
         var output = getPositionsAndAnnotatedRanges(input);
         for (AnnotatedRange annotatedRange : output.ranges) {
-            namedRanges.computeIfAbsent(annotatedRange.annotation, k -> new ArrayList<>())
+            namedRanges.computeIfAbsent(annotatedRange.annotation, _ -> new ArrayList<>())
                     .add(annotatedRange.range);
         }
         
@@ -184,15 +184,15 @@ public class TestMarkup {
         TextBuffer buffer = new TextBuffer(output);
 
         for (Integer index : positionIndices) {
-            positions.add(buffer.fromIndex(index));
+            positions.add(buffer.positionFromIndex(index));
         }
 
-        for (AnnotatedSpan span : spans) {
+        for (AnnotatedSpan annotatedSpan : spans) {
             Range range = new Range(
-                    buffer.fromIndex(span.span.start),
-                    buffer.fromIndex(span.span.end())
+                    buffer.positionFromIndex(annotatedSpan.span.start),
+                    buffer.positionFromIndex(annotatedSpan.span.end())
             );
-            ranges.add(new AnnotatedRange(span.annotation, range));
+            ranges.add(new AnnotatedRange(annotatedSpan.annotation, range));
         }
         return new GetPositionsAndAnnotatedRangesResult(output, positions, ranges);
     }
@@ -205,13 +205,13 @@ public class TestMarkup {
         TextBuffer buffer = new TextBuffer(output);
 
         for (Integer index : positionIndices) {
-            positions.add(buffer.fromIndex(index));
+            positions.add(buffer.positionFromIndex(index));
         }
 
         for (AnnotatedSpan span : spans) {
             ranges.add(new Range(
-                    buffer.fromIndex(span.span.start),
-                    buffer.fromIndex(span.span.end())
+                    buffer.positionFromIndex(span.span.start),
+                    buffer.positionFromIndex(span.span.end())
             ));
         }
         
@@ -230,8 +230,6 @@ public class TestMarkup {
     }
 }
 
-
-// Supporting classes needed for the translation
 class TextSpan {
     public final int start;
     public final int length;
@@ -276,7 +274,7 @@ class TextBuffer {
         return starts.stream().mapToInt(Integer::intValue).toArray();
     }
 
-    public Position fromIndex(int index) {
+    public Position positionFromIndex(int index) {
         // Binary search to find the line
         int line = Arrays.binarySearch(lineStarts, index);
         if (line < 0) {
@@ -289,12 +287,4 @@ class TextBuffer {
     }
 }
 
-class Pair<T, U> {
-    public final T first;
-    public final U second;
-
-    public Pair(T first, U second) {
-        this.first = first;
-        this.second = second;
-    }
-}
+record Span(Integer start, String content) {}
