@@ -96,29 +96,6 @@ project(":common") {
 }
 
 project(":javac-plugin") {
-    tasks.register<JavaExec>("compileWithJVerify") {
-        description = "Runs javac with the JVerify plugin"
-
-        mainClass.set("com.sun.tools.javac.Main")
-
-        classpath = files(
-            tasks.jar.flatMap { it.archiveFile },
-            configurations.getByName("runtimeClasspath")
-        )
-
-        val taskArgs = mutableListOf(
-            "-processor", "com.aws.jverify.plugin.JVerifyProcessor",
-            "-processorpath", tasks.jar.get().archiveFile.get().asFile.absolutePath
-        )
-
-        if (project.hasProperty("javacArgs")) {
-            taskArgs.addAll((project.property("javacArgs") as String).split(Regex("[,=]")))
-        }
-        args = taskArgs
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).plus("--enable-preview")
-        
-        dependsOn("jar")
-    }
     
     dependencies {
         implementation(project(":common"))
@@ -143,11 +120,11 @@ project(":javac-plugin") {
         )
     }
 
-//    tasks.withType<JavaExec> {
-//        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin")). 
-//          // Using preview mode, so we can use the package java.lang.classfile
-//          plus("--enable-preview")
-//    }
+    tasks.withType<JavaExec> {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")). 
+          // Using preview mode, so we can use the package java.lang.classfile
+          plus("--enable-preview")
+    }
     tasks.withType<Test> {
         jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).
 
@@ -160,6 +137,29 @@ project(":javac-plugin") {
         //options.compilerArgs.add("-proc:none")
         // Using preview mode, so we can use the package java.lang.classfile
         options.compilerArgs.add("--enable-preview")
+    }
+
+    tasks.register<JavaExec>("compileWithJVerify") {
+        description = "Runs javac with the JVerify plugin"
+
+        mainClass.set("com.sun.tools.javac.Main")
+
+        classpath = files(
+            tasks.jar.flatMap { it.archiveFile },
+            configurations.getByName("runtimeClasspath")
+        )
+
+        val taskArgs = mutableListOf(
+            "-processor", "com.aws.jverify.plugin.JVerifyProcessor",
+            "-processorpath", tasks.jar.get().archiveFile.get().asFile.absolutePath
+        )
+
+        if (project.hasProperty("javacArgs")) {
+            taskArgs.addAll((project.property("javacArgs") as String).split(Regex("[,=]")))
+        }
+        args = taskArgs
+
+        dependsOn("jar")
     }
 }
 
