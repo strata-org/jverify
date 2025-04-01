@@ -106,24 +106,16 @@ public class TestMarkup {
         
         return output;
     }
-    /**
-     * Finds hat-style annotations in the form:
-     * code line
-     * //. ^^^^^ annotation text
-     * where the carets point to the relevant code in the line above
-     */
+    
     private static List<AnnotatedSpan> findHatAnnotations(String text) {
         List<AnnotatedSpan> result = new ArrayList<>();
         String[] lines = text.split("\\r?\\n");
 
-        // Track cumulativePosition to convert line/col coordinates to absolute position
         int cumulativePosition = 0;
-
         for (int i = 0; i < lines.length - 1; i++) {
             String currentLine = lines[i];
             String nextLine = lines[i + 1];
 
-            // Look for hat annotation pattern in the next line
             Pattern pattern = Pattern.compile("^//\\s+(\\^+)\\s+(.+)$");
             Matcher matcher = pattern.matcher(nextLine);
 
@@ -131,25 +123,19 @@ public class TestMarkup {
                 String carets = matcher.group(1);
                 String annotation = matcher.group(2).trim();
 
-                // Find where in the next line the carets start
                 int caretStartIndex = nextLine.indexOf(carets);
 
-                // Check if caret position is within current line bounds 
                 if (caretStartIndex >= 0 && caretStartIndex < currentLine.length()) {
-                    // Calculate absolute position for the start of the annotated range
                     int spanStart = cumulativePosition + caretStartIndex;
                     int spanLength = carets.length();
 
-                    // Ensure the length doesn't exceed the current line
                     spanLength = Math.min(spanLength, currentLine.length() - caretStartIndex);
 
-                    // Create a span for the annotated region
                     TextSpan span = new TextSpan(spanStart, spanLength);
                     result.add(new AnnotatedSpan(annotation, span));
                 }
             }
 
-            // Update cumulative position for next iteration
             cumulativePosition += currentLine.length() + 1; // +1 for newline
         }
 
