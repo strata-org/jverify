@@ -1,5 +1,7 @@
 package com.aws.jverify;
 
+import com.aws.jverify.common.Position;
+import com.aws.jverify.common.TestMarkup;
 import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.VerifierOptions;
 import org.junit.jupiter.api.Assertions;
@@ -8,8 +10,6 @@ import org.junit.jupiter.api.Test;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
@@ -28,39 +28,15 @@ Dafny program verifier finished with 7 verified, 1 error
 """, output);
         Assertions.assertEquals(4, exitCode);
     }
-    
-    private int run(String inputFileName, boolean fromExamples, Writer writer) throws IOException {
-        var directory = fromExamples 
-                ? Path.of("../examples/src/main/java/com/aws/verifier/examples") 
-                : Path.of("./src/test/java/com/aws/jverify");
-        var filePath = directory.resolve(inputFileName);
-        var dafnyPath = Path.of("../dafny").toAbsolutePath()
-                .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
-        var libraryJar = Path.of("../library/build/libs/library.jar");
-        var prelude = Path.of("./src/main/resources/additional.dfy");
-        var options = new VerifierOptions(dafnyPath, libraryJar, prelude,
-                null, null, true,
-                new String[] { 
-                        "--use-basename-for-filename"
-                        //"--wait-for-debugger"
-                } 
-        );
-        return Driver.verifyJavaExample(options, filePath, writer);
-    }
-    
+        
     @Test
     public void assertFalse() throws IOException {
-        StringWriter writer = new StringWriter();
-        var exitCode = run("AssertFalse.java", false, writer);
-        var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("AssertFalse.java(7:9-7:21): Error: assertion might not hold\n" +
-                "\n" +
-                "Dafny program verifier finished with 2 verified, 1 error\n", output);
-        Assertions.assertEquals(4, exitCode);
+        testMarkedSourceFile("AssertFalse.java", 2, 1);
     }
 
-    private static void checkErrorAt(String output, int line, int col) {
-        Assertions.assertTrue(output.contains("Operators.java(" + line + ":" + col + "-"));
+    @Test
+    public void fibonacciInvalid() throws IOException {
+        testMarkedSourceFile("FibonacciInvalid.java", 4, 4);
     }
 
     @Test
@@ -89,24 +65,6 @@ Dafny program verifier finished with 7 verified, 1 error
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("\nDafny program verifier finished with 6 verified, 0 errors\n", output);
         Assertions.assertEquals(0, exitCode);
-
-    }
-
-    @Test
-    public void fibonacciInvalid() throws IOException {
-        StringWriter writer = new StringWriter();
-        var exitCode = run("FibonacciInvalid.java", false, writer);
-        var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("""
-FibonacciInvalid.java(44:22-44:23): Error: value does not satisfy the subset constraints of 'nat32'
-FibonacciInvalid.java(49:17-49:22): Error: value does not satisfy the subset constraints of 'nat32'
-FibonacciInvalid.java(17:13-17:22): Error: a postcondition could not be proved on this return path
-FibonacciInvalid.java(14:38-14:50): Related location: this is the postcondition that could not be proved
-FibonacciInvalid.java(31:28-31:51): Error: value does not satisfy the subset constraints of 'int32'
-
-Dafny program verifier finished with 4 verified, 4 errors
-""", output);
-        Assertions.assertEquals(4, exitCode);
 
     }
 
@@ -148,11 +106,71 @@ Dafny program verifier finished with 5 verified, 0 errors
         var exitCode = run("NoConstructor.java", false, writer);
         Assertions.assertEquals(0, exitCode);
     }
+
+    private void testMarkedSourceFile(String inputFileName, int successCount, int errorCount) throws IOException {
+        var directory = Path.of("./src/test/java/com/aws/jverify");
+        var filePath = directory.resolve(inputFileName);
+        testMarkedSource(Files.readString(filePath), successCount, errorCount);
+    }
+    
+    private void testMarkedSource(String markedSource, int successCount, int errorCount) throws IOException {
+        StringWriter writer = new StringWriter();
+        var options = getVerifierOptions();
+        var result = TestMarkup.getPositionsAndAnnotatedRanges(markedSource);
+        var source = result.output();
+        var exitCode = Driver.verifyJavaSource(options, source, writer);
+        var output = canonicalizeNewlines(writer.toString());
+        for(var range : result.ranges()) {
+            var positionString = "(" + rangeToString(range.range) + ")";
+            String expectation = positionString + ": " + range.annotation;
+            
+            Assertions.assertTrue(output.contains(expectation));
+        }
+        var pluralization = result.ranges().size() > 1 ? "s" : "";
+        Assertions.assertTrue(output.endsWith("Dafny program verifier finished with " + successCount + " verified, " + errorCount + " error" + pluralization + "\n"));
+        Assertions.assertEquals(4, exitCode);
+    }
+
+    private static void checkErrorAt(String output, int line, int col) {
+        Assertions.assertTrue(output.contains("Operators.java(" + line + ":" + col + "-"));
+    }
+    
     /**
      * Returns the text with all CRLF sequences replaced with LF.
      * This prevents erroneous failures of diff-based assertions on Windows platforms.
      */
     private static String canonicalizeNewlines(final String text) {
         return text.replaceAll("\r\n", "\n");
+    }
+
+    String rangeToString(TestMarkup.Range range) {
+        return positionToString(range.start) + "-" + positionToString(range.end);
+    }
+
+    String positionToString(Position position) {
+        return (position.line + 1) + ":" + (position.character + 1);
+    }
+
+    private int run(String inputFileName, boolean fromExamples, Writer writer) throws IOException {
+        var directory = fromExamples
+                ? Path.of("../examples/src/main/java/com/aws/verifier/examples")
+                : Path.of("./src/test/java/com/aws/jverify");
+        var filePath = directory.resolve(inputFileName);
+        var options = getVerifierOptions();
+        return Driver.verifyJavaExample(options, filePath, writer);
+    }
+
+    private static VerifierOptions getVerifierOptions() {
+        var dafnyPath = Path.of("../dafny").toAbsolutePath()
+                .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
+        var libraryJar = Path.of("../library/build/libs/library.jar");
+        var prelude = Path.of("./src/main/resources/additional.dfy");
+        return new VerifierOptions(dafnyPath, libraryJar, prelude,
+                null, null, true,
+                new String[] {
+                        "--use-basename-for-filename"
+                        //"--wait-for-debugger"
+                }
+        );
     }
 }
