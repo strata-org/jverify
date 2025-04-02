@@ -1,11 +1,15 @@
 package com.aws.jverify.verifier;
 
+import picocli.CommandLine;
+
+import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 public class Driver {
@@ -28,15 +32,26 @@ public class Driver {
     }
 
     public static int verifyJavaFiles(List<JavaFileObject> readFiles, VerifierOptions verifierOptions, Writer output) throws IOException {
-
-        var dafnyEquivalent = new JavaToDafnyCompiler().analyzeJavaCode(verifierOptions, readFiles);
-        var sb = new StringBuilder();
-        new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
-        var program = sb.toString();
-        if (verifierOptions.printBinaryDafny() != null) {
-            Files.writeString(verifierOptions.printBinaryDafny(), program);
+        var compiler = new JavaToDafnyCompiler();
+        var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles);
+        var hasErrors = false;
+        for(var diagnostic : compiler.diagnostics.getDiagnostics()) {
+            output.write(diagnostic.getMessage(Locale.ENGLISH) + "\n");
+            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
+                hasErrors = true;
+            }
         }
-        return runDafnyProcess(program, verifierOptions, output);
+        new Thread();
+        if (dafnyEquivalent != null && !hasErrors) {
+            var sb = new StringBuilder();
+            new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
+            var program = sb.toString();
+            if (verifierOptions.printBinaryDafny() != null) {
+                Files.writeString(verifierOptions.printBinaryDafny(), program);
+            }
+            return runDafnyProcess(program, verifierOptions, output);
+        }
+        return CommandLine.ExitCode.USAGE;
     }
     
     public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Writer output) {
