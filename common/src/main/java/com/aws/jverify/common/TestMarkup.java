@@ -43,6 +43,9 @@ public class TestMarkup {
 
     private static String parse(String input, List<Integer> positions, List<AnnotatedSpan> spans) {
         StringBuilder outputBuilder = new StringBuilder();
+        
+        // Without those, the calculated positions are incorrect on Windows
+        input = input.replaceAll("\r\n", "\n");
 
         // A stack of span starts along with their associated annotation name.  [><] spans simply
         // have empty string for their annotation name.
