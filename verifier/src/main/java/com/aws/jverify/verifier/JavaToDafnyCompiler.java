@@ -1,10 +1,6 @@
 package com.aws.jverify.verifier;
 
-import com.aws.jverify.JVerify;
-import com.aws.jverify.Nat;
-import com.aws.jverify.Proof;
-import com.aws.jverify.Pure;
-import com.aws.jverify.Unbounded;
+import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
@@ -127,6 +123,14 @@ public class JavaToDafnyCompiler {
             var origin = declToOrigin(classDecl, name);
             contextOrigins.push(origin);
 
+            var annotations = classDecl.getModifiers().getAnnotations();
+            var annotationsByName = annotations.stream().collect(Collectors.toMap(
+                    (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
+                    a -> a));
+            if (annotationsByName.containsKey(ValueType.class.getSimpleName())) {
+                reportError(classDecl, "notSupported", "@ValueType");
+            }
+            
             TopLevelDecl result;
             if (isEnum(classDecl.type)) {
                 result = translateEnum(classDecl, origin, name);
@@ -238,6 +242,11 @@ public class JavaToDafnyCompiler {
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
                 a -> a));
+        
+        if (annotationsByName.containsKey(InheritContract.class.getSimpleName())) {
+            reportError(method, "notSupported", "@InheritContract");
+            return null;
+        }
 
         List<Formal> ins = method.getParameters().map(jvd ->
         {
