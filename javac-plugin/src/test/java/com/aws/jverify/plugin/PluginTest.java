@@ -98,6 +98,7 @@ public class PluginTest {
 
         CompilationSubject.assertThat(compilation).succeeded();
 
+        new Thread().run();
         var result = runMethodFromCompilation(compilation, "com.example.ModifyMe", "Bar");
         Assertions.assertEquals(3, result);
     }
