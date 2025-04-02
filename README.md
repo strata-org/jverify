@@ -12,8 +12,8 @@
 ### Compile Java code using JVerify
 - Checkout this repository and its submodules
 - Run `dotnet build dafny/Source/Dafny.sln`
-- Run `gradle compileWithJVerify -PjavacArgs="<pathToYourJavaFile>,-d=<yourDesiredOutputDirectory>`
-- Run the resulting class files using `java`
+- Run `gradle compileWithJVerify -PjavacArgs="<pathToYourJavaFile>,-d=<yourDesiredOutputDirectory>`, note that the directory path will be relative to the `javac-plugin` folder.
+- Run the resulting class files using `java`, including the JVerify library on the class oath. For example: `java -cp <yourDesiredOutputDirectory>:library/build/libs/library.jar <fullQualifiedNameOfYourMainClass>`
 
 ## Security
 
