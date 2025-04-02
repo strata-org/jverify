@@ -162,6 +162,8 @@ project(":verifier") {
         
         testImplementation(platform("org.junit:junit-bom:5.10.0"))
         testImplementation("org.junit.jupiter:junit-jupiter")
+        testImplementation("org.hamcrest:hamcrest:2.2")
+        testImplementation("org.hamcrest:hamcrest-library:2.2")
         
         implementation("info.picocli:picocli:4.7.6")
 

@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.endsWith;
+import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
@@ -110,11 +113,14 @@ Dafny program verifier finished with 5 verified, 0 errors
         for(var range : result.ranges()) {
             var positionString = "(" + rangeToString(range.range) + ")";
             String expectation = positionString + ": " + range.annotation;
-            
-            Assertions.assertTrue(output.contains(expectation));
+
+            assertThat(output, containsString(expectation));
         }
         var pluralization = result.ranges().size() > 1 ? "s" : "";
-        Assertions.assertTrue(output.endsWith("Dafny program verifier finished with " + successCount + " verified, " + errorCount + " error" + pluralization + "\n"));
+        String ending = "Dafny program verifier finished with " + 
+                successCount + " verified, " + 
+                errorCount + " error" + pluralization + "\n";
+        assertThat(output, endsWith(ending));
         Assertions.assertEquals(4, exitCode);
     }
     
