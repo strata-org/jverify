@@ -12,9 +12,11 @@ class FibonacciInvalid {
     public static @Nat int Implementation(@Nat int n)
     {
         postcondition((Integer r) -> r == Spec(n));
+//                                   ^^^^^^^^^^^^ Related location: this is the postcondition that could not be proved
 
         if (n == 0) {
-            return 1; // postcondition failure
+            return 1;
+//          ^^^^^^^^^ Error: a postcondition could not be proved on this return path
         }
 
         int previousResult = 0;
@@ -28,7 +30,8 @@ class FibonacciInvalid {
 
             i = i + 1;
             SpecIsIncreasing(i, n);
-            int addition = result + previousResult; // overflow failure
+            int addition = result + previousResult;
+//                         ^^^^^^^^^^^^^^^^^^^^^^^ Error: value does not satisfy the subset constraints of 'int32'
             previousResult = result;
             result = addition;
         }
@@ -41,12 +44,14 @@ class FibonacciInvalid {
         precondition(i <= j);
         postcondition(Spec(i) <= Spec(j));
 
-        @Nat int x = i; // overflow failure
+        @Nat int x = i;
+//                   ^ Error: value does not satisfy the subset constraints of 'nat32'
         while(x < j)
         {
             invariant(x <= j);
             invariant(Spec(i) <= Spec(x));
-            x = x + 1; // overflow failure
+            x = x + 1;
+//              ^^^^^ Error: value does not satisfy the subset constraints of 'nat32'
         }
     }
 }

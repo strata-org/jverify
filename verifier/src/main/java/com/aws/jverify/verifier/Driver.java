@@ -14,6 +14,12 @@ import java.util.stream.Collectors;
 
 public class Driver {
 
+    public static int verifyJavaSource(VerifierOptions options, String source, Writer output) throws IOException {
+        var files = new ArrayList<JavaFileObject>();
+        files.add(new SourceFile("file:/test.java", source));
+        return verifyJavaFiles(files, options, output);
+    }
+    
     public static int verifyJavaExample(VerifierOptions options, Path javaFile, Writer output) throws IOException {
         var files = new ArrayList<JavaFileObject>();
         files.add(new SourceFile(javaFile, Files.readString(javaFile)));
