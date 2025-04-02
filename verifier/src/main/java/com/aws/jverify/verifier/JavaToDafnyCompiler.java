@@ -40,9 +40,8 @@ public class JavaToDafnyCompiler {
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     private JCDiagnostic.Factory diagnosticFactory;
 
-    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
+    public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        Context context = new Context();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
 
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
@@ -58,7 +57,6 @@ public class JavaToDafnyCompiler {
                 null,
                 files
         );
-
 
         List<FileStart> filesStarts = new ArrayList<>();
         var parsed = task.parse();
@@ -101,7 +99,10 @@ public class JavaToDafnyCompiler {
             remainingTypes.addAll(compilationUnit.getTypeDecls());
             while(!remainingTypes.isEmpty()) {
                 var typeDecl = remainingTypes.pop();
-                topLevelDecls.add(translateTypeDeclaration(typeDecl, remainingTypes));
+                TopLevelDecl dafnyDecl = translateTypeDeclaration(typeDecl, remainingTypes);
+                if (dafnyDecl != null) {
+                    topLevelDecls.add(dafnyDecl);
+                }
             }
             filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls));
         }
@@ -120,7 +121,7 @@ public class JavaToDafnyCompiler {
 
     List<AttributedExpression> invariants = new ArrayList<>();
     
-    TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
+    @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var name = getName(classDecl, classDecl.name);
             var origin = declToOrigin(classDecl, name);
@@ -136,7 +137,12 @@ public class JavaToDafnyCompiler {
             contextOrigins.pop();
             return result;
         }
-        throw new NotImplementedException(tree.getClass().getName());
+        if (tree instanceof JCTree jcTree) {
+            reportError(jcTree, "notSupported", tree.getClass().getSimpleName());
+            return null;
+        } else {
+            throw new NotImplementedException(tree.getClass().getName());
+        }
     }
 
     private ClassDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -261,8 +267,7 @@ public class JavaToDafnyCompiler {
                 return new Function(origin, name, null, false, null, List.of(),
                         ins, header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), isStatic, false, null, returnType,
-                        body, null, null
-                );
+                        body, null, null);
             } else {
                 reportError(method, "pureMethodNeedsReturnStatement");
                 return null;
@@ -354,7 +359,13 @@ public class JavaToDafnyCompiler {
         if (tree instanceof JCTree.JCExpression expression) {
             return toExpr(expression);
         }
-        throw new NotImplementedException(tree.getClass().getName());
+        reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
+        return getHole(toOrigin(tree));
+    }
+
+    private static LiteralExpr getHole(IOrigin origin) {
+        // TODO should be a typeless 'hole' expression, but Dafny does not have that.
+        return new LiteralExpr(origin, true);
     }
 
     private AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr) {
@@ -379,12 +390,18 @@ public class JavaToDafnyCompiler {
             if (unary.getOperator().name.toString().equals("!")) {
                 return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
             } else {
-                throw new NotImplementedException("Unary operator %s".formatted(unary.getOperator()));
+                reportError(unary, "notSupported", "unary operator" + unary.getOperator());
+                return getHole(origin);
             }
         } else if (expr instanceof JCTree.JCBinary binary) {
             var left = toExpr(binary.getLeftOperand());
             var right = toExpr(binary.getRightOperand());
-            return new BinaryExpr(origin, toDafny(binary.getOperator()), left, right);
+            BinaryExprOpcode dafnyOperator = toDafny(binary.getOperator());
+            if (dafnyOperator == null) {
+                reportError(binary, "notSupported", "operator" + binary.getOperator());
+                return getHole(origin);
+            }
+            return new BinaryExpr(origin, dafnyOperator, left, right);
         } else if (expr instanceof JCTree.JCIdent identifier) {
             if (identifier.name.contentEquals("this")) {
                 return new ThisExpr(origin);
@@ -425,7 +442,8 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCParens parens) {
             return toExpr(parens.getExpression());
         }
-        throw new NotImplementedException(expr.getClass().getName());
+        reportError(expr, "notSupported", expr.getClass().getSimpleName());
+        return getHole(origin);  
     }
 
     private boolean isEnum(JCTree.JCExpression selected) {
@@ -474,6 +492,9 @@ public class JavaToDafnyCompiler {
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
+                if (body == null) {
+                    return null;
+                }
                 if ("forall".equals(methodName)) {
                     return new ForallExpr(origin, boundVars, null, body, null);
                 } else {
@@ -503,7 +524,8 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        throw new NotImplementedException("Library method call: %s".formatted(jverifyMethod));
+        reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
+        return null;
     }
 
     private SeqSelectExpr toSubsequence(JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
@@ -514,7 +536,7 @@ public class JavaToDafnyCompiler {
         return new SeqSelectExpr(origin, false, seqOrArrayExpr, loExpr, hiExpr, null);
     }
 
-    BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
+    @Nullable BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
         return switch (operator.name.toString()) {
             case "-" -> BinaryExprOpcode.Sub;
             case "+" -> BinaryExprOpcode.Add;
@@ -529,7 +551,7 @@ public class JavaToDafnyCompiler {
             case "||" -> BinaryExprOpcode.Or;
             case "&&" -> BinaryExprOpcode.And;
             case "%" -> BinaryExprOpcode.Mod;
-            default -> throw new NotImplementedException("Operator" + operator.name);
+            default -> null;
         };
     }
 
@@ -588,7 +610,7 @@ public class JavaToDafnyCompiler {
             return new UserDefinedType(origin, new NameSegment(origin, identifier.getName().toString() + nullableSuffix, List.of()));
         }
 
-        reportError(tree, "notSupported", tree.getClass().getName());
+        reportError(tree, "notSupported", tree.getClass().getSimpleName());
         return null;
     }
 
@@ -856,7 +878,7 @@ public class JavaToDafnyCompiler {
                     new Specification<>(header.modifies, null), new BlockStmt(origin, null, bodyStatements),
                     condition);
         }
-        reportError(statement, "notSupported", statement.getClass().getName());
+        reportError(statement, "notSupported", statement.getClass().getSimpleName());
         return null;
     }
 
@@ -954,7 +976,10 @@ public class JavaToDafnyCompiler {
                         }
                         var parameter = lambda.getParameters().getFirst();
                         header.returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
-                        header.postconditions.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
+                        var postconditionPredicate = toExpr(lambda.getBody());
+                        if (postconditionPredicate != null) {
+                            header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
+                        }
                     } else {
                         var dafnyExpr = toExpr(first);
                         header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
