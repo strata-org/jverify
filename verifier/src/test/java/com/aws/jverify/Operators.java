@@ -15,6 +15,7 @@ class Operators {
         int y = 4;
         int z = x + y;
         check(z==6);
+//      ^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void Minus() {
@@ -29,6 +30,7 @@ class Operators {
         int y = 4;
         int z = y - x;
         check(z==0);
+//      ^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void Mult() {
@@ -43,6 +45,7 @@ class Operators {
         int y = 4;
         int z = x * y;
         check(z==11);
+//      ^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void Mod() {
@@ -57,6 +60,7 @@ class Operators {
         int y = 23;
         int z = y % x;
         check(z==1);
+//      ^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void Gt() {
@@ -69,6 +73,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(y > x);
+//      ^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void Lt() {
@@ -81,6 +86,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(x < y);
+//      ^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void Leq() {
@@ -93,6 +99,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(x <= y);
+//      ^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void Geq() {
@@ -105,6 +112,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(y >= x);
+//      ^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void Eq() {
@@ -117,7 +125,6 @@ class Operators {
         int x = 4;
         int y = 3;
         check(x == y);
+//      ^^^^^^^^^^^^^ Error: assertion might not hold
     }
-
-
 }

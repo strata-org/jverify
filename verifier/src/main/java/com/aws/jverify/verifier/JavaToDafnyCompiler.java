@@ -9,13 +9,17 @@ import com.aws.jverify.Unbounded;
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
+import com.sun.tools.javac.api.Messages;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.file.JavacFileManager;
+import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.util.DiagnosticSource;
+import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -28,14 +32,16 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
+
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     JCTree.JCCompilationUnit compilationUnit;
     Stack<IOrigin> contextOrigins = new Stack<>();
+    DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+    private JCDiagnostic.Factory diagnosticFactory;
 
-    public FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
+    public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        Context context = new Context();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
 
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
@@ -52,18 +58,39 @@ public class JavaToDafnyCompiler {
                 files
         );
 
-
         List<FileStart> filesStarts = new ArrayList<>();
         var parsed = task.parse();
         task.analyze();
+        this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
         for (var compilationUnit : parsed) {
             this.compilationUnit = (JCTree.JCCompilationUnit) compilationUnit;
 
             for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
                 if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
-                    throw new RuntimeException("Java file had errors: " + diagnostic.getSource().getName() + ":" + 
-                            diagnostic.getLineNumber() + "," + diagnostic.getColumnNumber() + "\n" + diagnostic.getMessage(Locale.ENGLISH));
+                    JCDiagnostic.DiagnosticPosition position = new JCDiagnostic.DiagnosticPosition() {
+                        @Override
+                        public JCTree getTree() {
+                            return null;
+                        }
+
+                        @Override
+                        public int getStartPosition() {
+                            return (int) diagnostic.getStartPosition();
+                        }
+
+                        @Override
+                        public int getPreferredPosition() {
+                            return (int) diagnostic.getPosition();
+                        }
+
+                        @Override
+                        public int getEndPosition(EndPosTable endPosTable) {
+                            return (int) diagnostic.getEndPosition();
+                        }
+                    };
+                    reportError(position, "javaError", diagnostic.getMessage(Locale.ENGLISH));
+                    return null;
                 }
             }
 
@@ -72,7 +99,10 @@ public class JavaToDafnyCompiler {
             remainingTypes.addAll(compilationUnit.getTypeDecls());
             while(!remainingTypes.isEmpty()) {
                 var typeDecl = remainingTypes.pop();
-                topLevelDecls.add(translateTypeDeclaration(typeDecl, remainingTypes));
+                TopLevelDecl dafnyDecl = translateTypeDeclaration(typeDecl, remainingTypes);
+                if (dafnyDecl != null) {
+                    topLevelDecls.add(dafnyDecl);
+                }
             }
             filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls));
         }
@@ -80,9 +110,18 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
 
+    private void reportError(JCTree tree, String key, Object... args) {
+        reportError(positionFromNode(tree), key, args);
+    }
+    private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
+        this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+                new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
+                args));
+    }
+
     List<AttributedExpression> invariants = new ArrayList<>();
     
-    TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
+    @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var name = getName(classDecl, classDecl.name);
             var origin = declToOrigin(classDecl, name);
@@ -98,7 +137,12 @@ public class JavaToDafnyCompiler {
             contextOrigins.pop();
             return result;
         }
-        throw new NotImplementedException(tree.getClass().getName());
+        if (tree instanceof JCTree jcTree) {
+            reportError(jcTree, "notSupported", tree.getClass().getSimpleName());
+            return null;
+        } else {
+            throw new NotImplementedException(tree.getClass().getName());
+        }
     }
 
     private ClassDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -186,7 +230,7 @@ public class JavaToDafnyCompiler {
                 a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
     }
 
-    private MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
+    private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         var name = getName(method, method.name);
         var origin = declToOrigin(method, name);
 
@@ -208,14 +252,13 @@ public class JavaToDafnyCompiler {
             var postHeader = translateHeader(method.body.stats, header);
             applyInvariants(method, header);
             if (postHeader.size() != 1) {
-                throw new RuntimeException("Pure method should have only one statement");
+                reportError(method, "pureMethodMultipleStatements");
+                return null;
             }
             var returnType = toType(method.getReturnType());
-            if (postHeader.size() != 1) {
-                throw new RuntimeException("Pure method should have only one statement");
-            }
             if (returnType == null) {
-                throw new RuntimeException("Pure method should have a return type");
+                reportError(method, "pureMethodsNeedsReturnType");
+                return null;
             }
 
             var statement = postHeader.getFirst();
@@ -224,19 +267,20 @@ public class JavaToDafnyCompiler {
                 return new Function(origin, name, null, false, null, List.of(),
                         ins, header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), isStatic, false, null, returnType,
-                        body, null, null
-                );
+                        body, null, null);
             } else {
-                throw new RuntimeException("Pure method statement should be a return");
+                reportError(method, "pureMethodNeedsReturnStatement");
+                return null;
             }
         } else {
             var header = new HeaderContainer();
             var postHeader = translateHeader(method.getBody().stats, header);
             applyInvariants(method, header);
-            checkEmptyExpressions(header.invariants, "invariants", "method");
+            checkEmptyExpressions(method, header.invariants, "invariants", "method");
 
             if (header.returnNames.size() > 1) {
-                throw new RuntimeException("Ensures clauses may introduce only one return variable name");
+                reportError(method, "multipleReturnNames");
+                return null;
             }
             var outs = new ArrayList<Formal>();
             if (method.getReturnType() != null) {
@@ -274,6 +318,30 @@ public class JavaToDafnyCompiler {
             }
         }
     }
+    
+    private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node) {
+        return new JCDiagnostic.DiagnosticPosition() {
+            @Override
+            public JCTree getTree() {
+                return node;
+            }
+
+            @Override
+            public int getStartPosition() {
+                return node.getStartPosition();
+            }
+
+            @Override
+            public int getPreferredPosition() {
+                return node.getPreferredPosition();
+            }
+
+            @Override
+            public int getEndPosition(EndPosTable endPosTable) {
+                return node.getEndPosition(compilationUnit.endPositions);
+            }
+        };
+    }
 
     private void applyInvariants(JCTree.JCMethodDecl method, HeaderContainer header) {
         boolean isPublic = (method.getModifiers().flags & Flags.PUBLIC) != 0;
@@ -291,7 +359,13 @@ public class JavaToDafnyCompiler {
         if (tree instanceof JCTree.JCExpression expression) {
             return toExpr(expression);
         }
-        throw new NotImplementedException(tree.getClass().getName());
+        reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
+        return getHole(toOrigin(tree));
+    }
+
+    private static LiteralExpr getHole(IOrigin origin) {
+        // TODO should be a typeless 'hole' expression, but Dafny does not have that.
+        return new LiteralExpr(origin, true);
     }
 
     private AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr) {
@@ -303,7 +377,6 @@ public class JavaToDafnyCompiler {
         var dafnyExpr = toExpr(expr);
         return new ExprRhs(origin, null, dafnyExpr);
     }
-    
     
     private Expression toExpr(JCTree.JCExpression expr) {
         var origin = toOrigin(expr);
@@ -317,12 +390,18 @@ public class JavaToDafnyCompiler {
             if (unary.getOperator().name.toString().equals("!")) {
                 return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
             } else {
-                throw new NotImplementedException("Unary operator %s".formatted(unary.getOperator()));
+                reportError(unary, "notSupported", "unary operator" + unary.getOperator());
+                return getHole(origin);
             }
         } else if (expr instanceof JCTree.JCBinary binary) {
             var left = toExpr(binary.getLeftOperand());
             var right = toExpr(binary.getRightOperand());
-            return new BinaryExpr(origin, toDafny(binary.getOperator()), left, right);
+            BinaryExprOpcode dafnyOperator = toDafny(binary.getOperator());
+            if (dafnyOperator == null) {
+                reportError(binary, "notSupported", "operator" + binary.getOperator());
+                return getHole(origin);
+            }
+            return new BinaryExpr(origin, dafnyOperator, left, right);
         } else if (expr instanceof JCTree.JCIdent identifier) {
             if (identifier.name.contentEquals("this")) {
                 return new ThisExpr(origin);
@@ -363,7 +442,8 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCParens parens) {
             return toExpr(parens.getExpression());
         }
-        throw new NotImplementedException(expr.getClass().getName());
+        reportError(expr, "notSupported", expr.getClass().getSimpleName());
+        return getHole(origin);  
     }
 
     private boolean isEnum(JCTree.JCExpression selected) {
@@ -398,10 +478,11 @@ public class JavaToDafnyCompiler {
         switch (methodName) {
             case "forall", "exists" -> {
                 if (args.size() != 1) {
-                    throw new RuntimeException("A %s call must have exactly one argument".formatted(methodName));
+                    throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
                 }
                 if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-                    throw new RuntimeException("The argument to a %s call must be a lambda".formatted(methodName));
+                    reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+                    return null;
                 }
                 var origin = toOrigin(lambda.getBody());
                 var boundVars = lambda.params.stream().map(param -> {
@@ -411,6 +492,9 @@ public class JavaToDafnyCompiler {
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
+                if (body == null) {
+                    return null;
+                }
                 if ("forall".equals(methodName)) {
                     return new ForallExpr(origin, boundVars, null, body, null);
                 } else {
@@ -440,7 +524,8 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        throw new NotImplementedException("Library method call: %s".formatted(jverifyMethod));
+        reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
+        return null;
     }
 
     private SeqSelectExpr toSubsequence(JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
@@ -451,7 +536,7 @@ public class JavaToDafnyCompiler {
         return new SeqSelectExpr(origin, false, seqOrArrayExpr, loExpr, hiExpr, null);
     }
 
-    BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
+    @Nullable BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
         return switch (operator.name.toString()) {
             case "-" -> BinaryExprOpcode.Sub;
             case "+" -> BinaryExprOpcode.Add;
@@ -466,7 +551,7 @@ public class JavaToDafnyCompiler {
             case "||" -> BinaryExprOpcode.Or;
             case "&&" -> BinaryExprOpcode.And;
             case "%" -> BinaryExprOpcode.Mod;
-            default -> throw new NotImplementedException("Operator" + operator.name);
+            default -> null;
         };
     }
 
@@ -511,7 +596,8 @@ public class JavaToDafnyCompiler {
                 }
             }
 
-            throw new NotImplementedException("Primitive type kind %s not supported".formatted(primitiveTypeKind));
+            reportError(tree, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
+            return null;
         } else if (tree instanceof JCTree.JCArrayTypeTree arrayTypeTree) {
             var elemType = toType(arrayTypeTree.getType(), false, originOverride);
             if (elemType == null) {
@@ -524,7 +610,8 @@ public class JavaToDafnyCompiler {
             return new UserDefinedType(origin, new NameSegment(origin, identifier.getName().toString() + nullableSuffix, List.of()));
         }
 
-        throw new NotImplementedException(tree.getClass().getName());
+        reportError(tree, "notSupported", tree.getClass().getSimpleName());
+        return null;
     }
 
     /**
@@ -715,18 +802,19 @@ public class JavaToDafnyCompiler {
                     var name = jverifyMethod.getQualifiedName().toString();
                     if (name.equals("check")) {
                         if (invocation.args.size() != 1) {
-                            throw new RuntimeException("Check should have a single argument");
+                            throw new JavaViolationException("Check should have a single argument");
                         }
                         return new AssertStmt(toOrigin(invocation), null,
                                 toExpr(invocation.args.getFirst()), null);
                     } else {
-                        throw new RuntimeException("Call to JVerify header method " +
-                                jverifyMethod.getQualifiedName() + " is not allowed after non-header statement");
+                        reportError(invocation, "contractAfterBody", jverifyMethod.getQualifiedName());
+                        return null;
                     }
                 } else {
                     if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
                         if (!invocation.getArguments().isEmpty()) {
-                            throw new RuntimeException("super calls with arguments not yet supported");
+                            reportError(invocation, "notSupported", "super calls with arguments");
+                            return null;
                         }
                         return null;
                     }
@@ -781,8 +869,8 @@ public class JavaToDafnyCompiler {
             var header = new HeaderContainer();
             var postHeader = translateHeader(whileLoop.body, header);
 
-            checkEmptyExpressions(header.preconditions, "preconditions", "loop");
-            checkEmptyExpressions(header.postconditions, "postconditions", "loop");
+            checkEmptyExpressions(whileLoop, header.preconditions, "preconditions", "loop");
+            checkEmptyExpressions(whileLoop, header.postconditions, "postconditions", "loop");
 
             var bodyStatements = translateStatements(postHeader);
             var condition = toExpr(whileLoop.getCondition());
@@ -790,14 +878,16 @@ public class JavaToDafnyCompiler {
                     new Specification<>(header.modifies, null), new BlockStmt(origin, null, bodyStatements),
                     condition);
         }
-        throw new NotImplementedException(statement.getClass().getName());
+        reportError(statement, "notSupported", statement.getClass().getSimpleName());
+        return null;
     }
 
-    private void checkEmptyExpressions(List<AttributedExpression> expressions,
+    private void checkEmptyExpressions(JCTree tree, 
+                                       List<AttributedExpression> expressions,
                                        String typeName,
                                        String containerName) {
         for (var _ : expressions) {
-            throw new RuntimeException(typeName + " are not allowed in a " + containerName);
+            reportError(tree, "wrongContract", typeName, containerName);
         }
     }
 
@@ -871,44 +961,46 @@ public class JavaToDafnyCompiler {
                 }
                 case Common.PRECONDITION -> {
                     if (invocation.args.size() != 1) {
-                        throw new RuntimeException("A precondition call may have only one argument");
+                        throw new JavaViolationException("A precondition call may have only one argument");
                     }
                     header.preconditions.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
                 }
                 case "postcondition" -> {
                     if (invocation.args.size() != 1) {
-                        throw new RuntimeException("An postcondition call may have only one argument");
+                        throw new JavaViolationException("An postcondition call may have only one argument");
                     }
                     var first = invocation.getArguments().getFirst();
                     if (first instanceof JCTree.JCLambda lambda) {
                         if (lambda.getParameters().size() != 1) {
-                            throw new RuntimeException("An ensures call lambda may take only one argument");
+                            throw new JavaViolationException("An ensures call lambda may take only one argument");
                         }
                         var parameter = lambda.getParameters().getFirst();
                         header.returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
-                        header.postconditions.add(new AttributedExpression(toExpr(lambda.getBody()), null, null));
-                    } else if (first instanceof JCTree.JCExpression expression) {
-                        var dafnyExpr = toExpr(expression);
-                        header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
+                        var postconditionPredicate = toExpr(lambda.getBody());
+                        if (postconditionPredicate != null) {
+                            header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
+                        }
                     } else {
-                        throw new RuntimeException("An ensures clause must take either a lambda or an expression");
+                        var dafnyExpr = toExpr(first);
+                        header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
                     }
                 }
                 case "invariant" -> {
                     if (invocation.args.size() != 1) {
-                        throw new RuntimeException("invariant should have a single argument");
+                        throw new JavaViolationException("invariant should have a single argument");
                     }
                     header.invariants.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
                 }
                 case "decreases" -> {
                     if (invocation.args.size() != 1) {
-                        throw new RuntimeException("decreases should have a single argument");
+                        throw new JavaViolationException("decreases should have a single argument");
                     }
-                    throw new NotImplementedException("decreases");
+                    reportError(invocation, "notSupported", "decreases");
+                    return null;
                 }
                 case "reads" -> {
                     if (invocation.args.size() != 1) {
-                        throw new RuntimeException("A reads call must have exactly one argument");
+                        throw new JavaViolationException("A reads call must have exactly one argument");
                     }
                     var origExpr = invocation.getArguments().getFirst();
                     var origin = toOrigin(origExpr);
@@ -917,14 +1009,17 @@ public class JavaToDafnyCompiler {
                 }
                 case "modifies" -> {
                     if (invocation.args.size() != 1) {
-                        throw new RuntimeException("A modifies call must have exactly one argument");
+                        throw new JavaViolationException("A modifies call must have exactly one argument");
                     }
                     var origExpr = invocation.getArguments().getFirst();
                     var origin = toOrigin(origExpr);
                     var expr = toExpr(origExpr);
                     header.modifies.add(new FrameExpression(origin, expr, null));
                 }
-                default -> throw new NotImplementedException("Header method: %s".formatted(methodName));
+                default -> {
+                    reportError(invocation, "notSupported", methodName);
+                    return null;
+                }
             }
             headerStatements++;
         }
@@ -953,5 +1048,15 @@ public class JavaToDafnyCompiler {
     private static Symbol.MethodSymbol getJVerifyMethod(JCTree.JCMethodInvocation invocation) {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         return fromJVerify(methodSymbol) ? methodSymbol : null;
+    }
+}
+
+/**
+ * Occurs when the contracts that we expect from Java resolution are violated
+ * Indicates a JVerify compiler bug
+ */
+class JavaViolationException extends RuntimeException {
+    public JavaViolationException(String message) {
+        super(message);
     }
 }
