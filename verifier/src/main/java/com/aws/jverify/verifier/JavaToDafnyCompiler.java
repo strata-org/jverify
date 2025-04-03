@@ -48,7 +48,7 @@ public class JavaToDafnyCompiler {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
 
-        //files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
+        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
                 
         List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
@@ -136,7 +136,7 @@ public class JavaToDafnyCompiler {
     
     @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
-            var name = getName(classDecl, classDecl.name);
+            Name name = getName(classDecl, classDecl.name);
             var origin = declToOrigin(classDecl, name);
             contextOrigins.push(origin);
 
@@ -145,7 +145,11 @@ public class JavaToDafnyCompiler {
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
                     a -> a));
             if (annotationsByName.containsKey(Contract.class.getSimpleName())) {
-                var b = 3;
+                JCTree.JCExpression firstArg = annotationsByName.get(Contract.class.getSimpleName()).args.get(0);
+                JCTree.JCExpression selected = ((JCTree.JCFieldAccess) ((JCTree.JCAssign) firstArg).rhs).selected;
+                var sym = ((JCTree.JCIdent)selected).sym;
+                var contractClass = (Symbol.ClassSymbol)sym;
+                name = new Name(name.getOrigin(), contractClass.name.toString());
             }
             if (annotationsByName.containsKey(Immutable.class.getSimpleName())) {
                 reportError(classDecl, "notSupported", "@ValueType");
@@ -252,7 +256,8 @@ public class JavaToDafnyCompiler {
             if (isFinal) {
                 var rhs = toExpr(variableDecl.getInitializer());
 
-                return new ConstantField(origin, fieldName, getAttributes(origin), false, type, rhs, false, false);
+                var isStatic = (variableDecl.mods.flags & Flags.STATIC) != 0;
+                return new ConstantField(origin, fieldName, getAttributes(origin), false, type, rhs, isStatic, false);
             } else {
                 reportError(variableDecl, "notSupported", "Field initializers");
                 return null;
