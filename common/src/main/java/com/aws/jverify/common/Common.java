@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 public class Common {
     public static final String JVERIFY_CLASS = com.aws.jverify.JVerify.class.getName();
@@ -87,14 +88,9 @@ public class Common {
         }
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            StringBuilder content = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                content.append(line).append("\n");
-            }
-            return content.toString();
+            return reader.lines().map(line -> line + "\n").collect(Collectors.joining());
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read contracts.java resource", e);
+            throw new RuntimeException("Failed to read " + name + " resource", e);
         }
     }
 }

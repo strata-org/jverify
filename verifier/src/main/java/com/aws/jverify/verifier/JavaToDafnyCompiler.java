@@ -43,7 +43,7 @@ public class JavaToDafnyCompiler {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
 
-        files.add(new SourceFile("contracts.java", Common.getResourceFile(getClass(), "/contracts.java")));
+        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), "/builtin-contracts.java")));
                 
         List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
