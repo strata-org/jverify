@@ -16,7 +16,6 @@ import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
-import com.sun.tools.javac.util.Options;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -24,7 +23,6 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.IOException;
-import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
