@@ -4,6 +4,6 @@ public record Range(Position start, Position end) {
 
     @Override
     public String toString() {
-        return start.toString() + "-" + start.toString();
+        return start.toString() + "-" + end.toString();
     }
 }
