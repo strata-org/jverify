@@ -1,5 +1,9 @@
 package com.aws.jverify.verifier;
 
+import com.sun.tools.javac.util.*;
+import picocli.CommandLine;
+
+import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.*;
 import java.nio.file.Files;
@@ -34,15 +38,72 @@ public class Driver {
     }
 
     public static int verifyJavaFiles(List<JavaFileObject> readFiles, VerifierOptions verifierOptions, Writer output) throws IOException {
+        var compiler = new JavaToDafnyCompiler();
+        var context = new Context();
+        var messages = JavacMessages.instance(context);
+        messages.add("com.aws.jverify.messages");
 
-        var dafnyEquivalent = new JavaToDafnyCompiler().analyzeJavaCode(verifierOptions, readFiles);
-        var sb = new StringBuilder();
-        new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
-        var program = sb.toString();
-        if (verifierOptions.printBinaryDafny() != null) {
-            Files.writeString(verifierOptions.printBinaryDafny(), program);
+        var dafnyEquivalent = compiler.analyzeJavaCode(context, verifierOptions, readFiles);
+        var hasErrors = false;
+        for(var diagnostic : compiler.diagnostics.getDiagnostics()) {
+            output.write(formatDiagnostic(diagnostic) + "\n");
+            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
+                hasErrors = true;
+            }
         }
-        return runDafnyProcess(program, verifierOptions, output);
+        if (dafnyEquivalent != null && !hasErrors) {
+            var programBuilder = new StringBuilder();
+            new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
+            var program = programBuilder.toString();
+            if (verifierOptions.printBinaryDafny() != null) {
+                Files.writeString(verifierOptions.printBinaryDafny(), program);
+            }
+            return runDafnyProcess(program, verifierOptions, output);
+        }
+        return CommandLine.ExitCode.USAGE;
+    }
+
+    private static String formatDiagnostic(Diagnostic<? extends JavaFileObject> diagnostic) {
+        StringBuilder sb = new StringBuilder();
+
+        if (diagnostic.getSource() != null) {
+            sb.append(diagnostic.getSource().getName());
+        }
+
+        sb.append("(");
+        sb.append(diagnostic.getLineNumber()).append(":");
+        sb.append(diagnostic.getColumnNumber());
+
+        if (diagnostic instanceof JCDiagnostic jcDiagnostic) {
+            long endPos = jcDiagnostic.getEndPosition();
+            if (endPos >= 0) {
+                var endLine = diagnostic.getLineNumber();
+                var endColumn = diagnostic.getColumnNumber() + 1;
+                sb.append("-").append(endLine).append(":").append(endColumn);
+            }
+        }
+
+        sb.append("): ");
+
+        switch (diagnostic.getKind()) {
+            case ERROR:
+                sb.append("error: ");
+                break;
+            case WARNING:
+                sb.append("warning: ");
+                break;
+            case MANDATORY_WARNING:
+                sb.append("required Warning: ");
+                break;
+            case NOTE:
+                sb.append("note: ");
+                break;
+            default:
+                sb.append(diagnostic.getKind()).append(": ");
+        }
+
+        sb.append(diagnostic.getMessage(null));
+        return sb.toString();
     }
     
     public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Writer output) {

@@ -1,12 +1,12 @@
 package com.aws.jverify;
 
-import com.aws.jverify.common.Position;
-import com.aws.jverify.common.Range;
 import com.aws.jverify.common.TestMarkup;
 import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.VerifierOptions;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import picocli.CommandLine;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -32,20 +32,25 @@ Dafny program verifier finished with 7 verified, 1 error
 """, output);
         Assertions.assertEquals(4, exitCode);
     }
-        
+
+    @Test
+    public void translationErrors() throws IOException {
+        testMarkedSourceFile("TranslationErrors.java", null);
+    }
+    
     @Test
     public void assertFalse() throws IOException {
-        testMarkedSourceFile("AssertFalse.java", 2, 1);
+        testMarkedSourceFile("AssertFalse.java", new DafnyResults(2, 1));
     }
 
     @Test
     public void fibonacciInvalid() throws IOException {
-        testMarkedSourceFile("FibonacciInvalid.java", 4, 4);
+        testMarkedSourceFile("FibonacciInvalid.java", new DafnyResults(4, 4));
     }
 
     @Test
     public void operators() throws IOException {
-        testMarkedSourceFile("Operators.java", 11, 9);
+        testMarkedSourceFile("Operators.java", new DafnyResults(11, 9));
     }
 
     @Test
@@ -97,13 +102,14 @@ Dafny program verifier finished with 5 verified, 0 errors
         Assertions.assertEquals(0, exitCode);
     }
 
-    private void testMarkedSourceFile(String inputFileName, int successCount, int errorCount) throws IOException {
+    record DafnyResults(int successCount, int errorCount) {}
+    private void testMarkedSourceFile(String inputFileName, @Nullable DafnyResults dafnyResults) throws IOException {
         var directory = Path.of("./src/test/java/com/aws/jverify");
         var filePath = directory.resolve(inputFileName);
-        testMarkedSource(Files.readString(filePath), successCount, errorCount);
+        testMarkedSource(Files.readString(filePath), dafnyResults);
     }
     
-    private void testMarkedSource(String markedSource, int successCount, int errorCount) throws IOException {
+    private void testMarkedSource(String markedSource, @Nullable DafnyResults dafnyResults) throws IOException {
         StringWriter writer = new StringWriter();
         var options = getVerifierOptions();
         var result = TestMarkup.getPositionsAndAnnotatedRanges(markedSource);
@@ -111,17 +117,21 @@ Dafny program verifier finished with 5 verified, 0 errors
         var exitCode = Driver.verifyJavaSource(options, source, writer);
         var output = canonicalizeNewlines(writer.toString());
         for(var range : result.ranges()) {
-            var positionString = "(" + rangeToString(range.range) + ")";
+            var positionString = "(" + range.range.toString() + ")";
             String expectation = positionString + ": " + range.annotation;
 
             assertThat(output, containsString(expectation));
         }
-        var pluralization = result.ranges().size() > 1 ? "s" : "";
-        String ending = "Dafny program verifier finished with " + 
-                successCount + " verified, " + 
-                errorCount + " error" + pluralization + "\n";
-        assertThat(output, endsWith(ending));
-        Assertions.assertEquals(4, exitCode);
+        if (dafnyResults != null) {
+            var pluralization = result.ranges().size() > 1 ? "s" : "";
+            String ending = "Dafny program verifier finished with " +
+                    dafnyResults.successCount() + " verified, " +
+                    dafnyResults.errorCount() + " error" + pluralization + "\n";
+            assertThat(output, endsWith(ending));
+            Assertions.assertEquals(4, exitCode);
+        } else {
+            Assertions.assertEquals(CommandLine.ExitCode.USAGE, exitCode);
+        }
     }
     
     /**
@@ -130,14 +140,6 @@ Dafny program verifier finished with 5 verified, 0 errors
      */
     private static String canonicalizeNewlines(final String text) {
         return text.replaceAll("\r\n", "\n");
-    }
-
-    String rangeToString(Range range) {
-        return positionToString(range.start) + "-" + positionToString(range.end);
-    }
-
-    String positionToString(Position position) {
-        return (position.line + 1) + ":" + (position.character + 1);
     }
 
     private int run(String inputFileName, boolean fromExamples, Writer writer) throws IOException {
