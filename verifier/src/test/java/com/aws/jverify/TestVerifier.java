@@ -69,7 +69,6 @@ Dafny program verifier finished with 7 verified, 1 error
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("\nDafny program verifier finished with 6 verified, 0 errors\n", output);
         Assertions.assertEquals(0, exitCode);
-
     }
 
     @Test
@@ -126,7 +125,7 @@ Dafny program verifier finished with 5 verified, 0 errors
         var exitCode = Driver.verifyJavaSource(options, source, writer);
         var output = canonicalizeNewlines(writer.toString());
         for(var range : result.ranges()) {
-            var positionString = "(" + rangeToString(range.range) + ")";
+            var positionString = "(" + range.range.toString() + ")";
             String expectation = positionString + ": " + range.annotation;
 
             assertThat(output, containsString(expectation));
@@ -149,14 +148,6 @@ Dafny program verifier finished with 5 verified, 0 errors
      */
     private static String canonicalizeNewlines(final String text) {
         return text.replaceAll("\r\n", "\n");
-    }
-
-    String rangeToString(Range range) {
-        return positionToString(range.start) + "-" + positionToString(range.end);
-    }
-
-    String positionToString(Position position) {
-        return (position.line + 1) + ":" + (position.character + 1);
     }
 
     private int run(String inputFileName, boolean fromExamples, Writer writer) throws IOException {

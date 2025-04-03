@@ -43,20 +43,18 @@ public class Driver {
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-
         var dafnyEquivalent = compiler.analyzeJavaCode(context, verifierOptions, readFiles);
         var hasErrors = false;
         for(var diagnostic : compiler.diagnostics.getDiagnostics()) {
-
             output.write(formatDiagnostic(diagnostic) + "\n");
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 hasErrors = true;
             }
         }
         if (dafnyEquivalent != null && !hasErrors) {
-            var sb = new StringBuilder();
-            new Serializer(new TextEncoder(sb)).serialize(dafnyEquivalent);
-            var program = sb.toString();
+            var programBuilder = new StringBuilder();
+            new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
+            var program = programBuilder.toString();
             if (verifierOptions.printBinaryDafny() != null) {
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
