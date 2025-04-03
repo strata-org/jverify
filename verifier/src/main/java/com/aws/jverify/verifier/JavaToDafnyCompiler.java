@@ -24,6 +24,7 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.IOException;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -142,16 +143,23 @@ public class JavaToDafnyCompiler {
 
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                    (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
+                    (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                     a -> a));
-            if (annotationsByName.containsKey(Contract.class.getSimpleName())) {
-                JCTree.JCExpression firstArg = annotationsByName.get(Contract.class.getSimpleName()).args.get(0);
-                JCTree.JCExpression selected = ((JCTree.JCFieldAccess) ((JCTree.JCAssign) firstArg).rhs).selected;
-                var sym = ((JCTree.JCIdent)selected).sym;
-                var contractClass = (Symbol.ClassSymbol)sym;
-                name = new Name(name.getOrigin(), contractClass.name.toString());
+            var contractAnnotation = annotationsByName.get(Contract.class.getName());
+            if (contractAnnotation != null) {
+                var arguments = contractAnnotation.args;
+                if (arguments.size() == 1 && 
+                    arguments.getFirst() instanceof JCTree.JCAssign assign && 
+                    assign.rhs instanceof JCTree.JCFieldAccess fieldAccess && 
+                    fieldAccess.selected instanceof JCTree.JCIdent ident) 
+                {
+                    var contractClass = (Symbol.ClassSymbol) ident.sym;
+                    name = new Name(name.getOrigin(), contractClass.name.toString());
+                } else {
+                    throw new JavaViolationException();
+                }
             }
-            if (annotationsByName.containsKey(Immutable.class.getSimpleName())) {
+            if (annotationsByName.containsKey(Immutable.class.getName())) {
                 reportError(classDecl, "notSupported", "@ValueType");
             }
             
@@ -255,7 +263,6 @@ public class JavaToDafnyCompiler {
             var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
             if (isFinal) {
                 var rhs = toExpr(variableDecl.getInitializer());
-
                 var isStatic = (variableDecl.mods.flags & Flags.STATIC) != 0;
                 return new ConstantField(origin, fieldName, getAttributes(origin), false, type, rhs, isStatic, false);
             } else {
@@ -1113,6 +1120,10 @@ public class JavaToDafnyCompiler {
  * Indicates a JVerify compiler bug
  */
 class JavaViolationException extends RuntimeException {
+    public JavaViolationException() {
+        super();
+    }
+    
     public JavaViolationException(String message) {
         super(message);
     }
