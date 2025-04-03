@@ -11,12 +11,13 @@ import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.code.Symbol;
+import com.aws.jverify.generated.*;
+import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.Options;
 import com.sun.tools.javac.util.Position;
-import com.aws.jverify.generated.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
@@ -33,9 +34,13 @@ public class JavaToDafnyCompiler {
     JCTree.JCCompilationUnit compilationUnit;
     Stack<IOrigin> contextOrigins = new Stack<>();
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+    
     private JCDiagnostic.Factory diagnosticFactory;
 
     public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {
+        Options compilerOptions = Options.instance(context);
+        compilerOptions.put("keepEndPositions", "true");
+        
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
 
@@ -43,7 +48,7 @@ public class JavaToDafnyCompiler {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
 
-        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), "/builtin-contracts.java")));
+        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
                 
         List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
@@ -122,8 +127,10 @@ public class JavaToDafnyCompiler {
         reportError(positionFromNode(tree), key, args);
     }
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
+        DiagnosticSource source = new DiagnosticSource(compilationUnit.getSourceFile(), null);
+        source.setEndPosTable(compilationUnit.endPositions);
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
-                new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
+                source, position, key,
                 args));
     }
 
@@ -190,6 +197,11 @@ public class JavaToDafnyCompiler {
         return new ClassDecl(origin, name, null,
                 List.of(), members, List.of(), false);
     }
+    
+    static final String builtinFile = "/builtin-contracts.java";
+    private boolean isAlreadyVerified() {
+        return compilationUnit.getSourceFile().getName().equals(builtinFile);
+    }
 
     private IndDatatypeDecl translateEnum(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         List<DatatypeCtor> constructors = new ArrayList<>();
@@ -241,7 +253,8 @@ public class JavaToDafnyCompiler {
             var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
             if (isFinal) {
                 var rhs = toExpr(variableDecl.getInitializer());
-                return new ConstantField(origin, fieldName, null, false, type, rhs, false, false);
+
+                return new ConstantField(origin, fieldName, getAttributes(origin), false, type, rhs, false, false);
             } else {
                 reportError(variableDecl, "notSupported", "Field initializers");
                 return null;
@@ -252,7 +265,15 @@ public class JavaToDafnyCompiler {
                 false,
                 type);
     }
-    
+
+    private Attributes getAttributes(IOrigin origin) {
+        return isAlreadyVerified() ? getVerifyFalse(origin) : null;
+    }
+
+    private static Attributes getVerifyFalse(IOrigin origin) {
+        return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
+    }
+
     private boolean isNullable(JCTree.JCModifiers modifiers) {
         return modifiers.getAnnotations().stream().anyMatch(
                 a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
