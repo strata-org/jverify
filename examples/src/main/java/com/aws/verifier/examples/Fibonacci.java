@@ -2,12 +2,9 @@ package com.aws.verifier.examples;
 
 import static com.aws.jverify.JVerify.*;
 
-import com.aws.jverify.Erased;
-import com.aws.jverify.Nat;
-import com.aws.jverify.Proof;
-import com.aws.jverify.Pure;
-import com.aws.jverify.Unbounded;
+import com.aws.jverify.*;
 
+@SuppressWarnings("ConstantValue")
 class Fibonacci {
     @Pure
     @Erased
@@ -17,7 +14,7 @@ class Fibonacci {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        precondition(Spec(n) <= 0x7fffffff /*Integer.MAX_VALUE*/);
+        precondition(Spec(n) <= Integer.MAX_VALUE);
         postcondition((Integer r) -> r == Spec(n));
 
         if (n == 0) {

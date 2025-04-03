@@ -42,6 +42,9 @@ public class JavaToDafnyCompiler {
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
+
+        files.add(new SourceFile("contracts.java", Common.getResourceFile(getClass(), "/contracts.java")));
+                
         List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
@@ -52,57 +55,67 @@ public class JavaToDafnyCompiler {
                 null,
                 files
         );
-
+                
         List<FileStart> filesStarts = new ArrayList<>();
         var parsed = task.parse();
         task.analyze();
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
         for (var compilationUnit : parsed) {
-            this.compilationUnit = (JCTree.JCCompilationUnit) compilationUnit;
-
-            for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-                if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
-                    JCDiagnostic.DiagnosticPosition position = new JCDiagnostic.DiagnosticPosition() {
-                        @Override
-                        public JCTree getTree() {
-                            return null;
-                        }
-
-                        @Override
-                        public int getStartPosition() {
-                            return (int) diagnostic.getStartPosition();
-                        }
-
-                        @Override
-                        public int getPreferredPosition() {
-                            return (int) diagnostic.getPosition();
-                        }
-
-                        @Override
-                        public int getEndPosition(EndPosTable endPosTable) {
-                            return (int) diagnostic.getEndPosition();
-                        }
-                    };
-                    reportError(position, "javaError", diagnostic.getMessage(Locale.ENGLISH));
-                    return null;
-                }
-            }
-
-            ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
-            Stack<Tree> remainingTypes = new Stack<>();
-            remainingTypes.addAll(compilationUnit.getTypeDecls());
-            while(!remainingTypes.isEmpty()) {
-                var typeDecl = remainingTypes.pop();
-                TopLevelDecl dafnyDecl = translateTypeDeclaration(typeDecl, remainingTypes);
-                if (dafnyDecl != null) {
-                    topLevelDecls.add(dafnyDecl);
-                }
-            }
-            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls));
+            var fileStart = translateFile(compilationUnit, diagnostics);
+            if (fileStart == null) return null;
+            filesStarts.add(fileStart);
         }
 
         return new FilesContainer(filesStarts);
+    }
+
+    private FileStart translateFile(CompilationUnitTree compilationUnit, DiagnosticCollector<JavaFileObject> diagnostics) {
+        this.compilationUnit = (JCTree.JCCompilationUnit) compilationUnit;
+
+        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
+                JCDiagnostic.DiagnosticPosition position = positionFromDiagnostic(diagnostic);
+                reportError(position, "javaError", diagnostic.getMessage(Locale.ENGLISH));
+                return null;
+            }
+        }
+
+        ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
+        Stack<Tree> remainingTypes = new Stack<>();
+        remainingTypes.addAll(compilationUnit.getTypeDecls());
+        while(!remainingTypes.isEmpty()) {
+            var typeDecl = remainingTypes.pop();
+            TopLevelDecl dafnyDecl = translateTypeDeclaration(typeDecl, remainingTypes);
+            if (dafnyDecl != null) {
+                topLevelDecls.add(dafnyDecl);
+            }
+        }
+        return new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls);
+    }
+
+    private static JCDiagnostic.DiagnosticPosition positionFromDiagnostic(Diagnostic<? extends JavaFileObject> diagnostic) {
+        return new JCDiagnostic.DiagnosticPosition() {
+            @Override
+            public JCTree getTree() {
+                return null;
+            }
+
+            @Override
+            public int getStartPosition() {
+                return (int) diagnostic.getStartPosition();
+            }
+
+            @Override
+            public int getPreferredPosition() {
+                return (int) diagnostic.getPosition();
+            }
+
+            @Override
+            public int getEndPosition(EndPosTable endPosTable) {
+                return (int) diagnostic.getEndPosition();
+            }
+        };
     }
 
     private void reportError(JCTree tree, String key, Object... args) {
@@ -126,6 +139,9 @@ public class JavaToDafnyCompiler {
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
                     a -> a));
+            if (annotationsByName.containsKey(Contract.class.getSimpleName())) {
+                var b = 3;
+            }
             if (annotationsByName.containsKey(Immutable.class.getSimpleName())) {
                 reportError(classDecl, "notSupported", "@ValueType");
             }

@@ -1,5 +1,6 @@
 package com.aws.jverify;
 
+import com.aws.jverify.common.Common;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.aws.jverify.common.TestMarkup;
@@ -38,6 +39,12 @@ Dafny program verifier finished with 7 verified, 1 error
     @Test
     public void translationErrors() throws IOException {
         testMarkedSourceFile("TranslationErrors.java", null);
+    }
+    
+    @Test
+    public void javaError() throws IOException {
+        var source = Common.getResourceFile(getClass(), "/JavaError.java");
+        testMarkedSource(source, null);
     }
     
     @Test
