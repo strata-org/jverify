@@ -5,7 +5,6 @@ import com.aws.jverify.*;
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
-import com.sun.tools.javac.api.Messages;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.file.JavacFileManager;
@@ -127,7 +126,7 @@ public class JavaToDafnyCompiler {
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
                     a -> a));
-            if (annotationsByName.containsKey(ValueType.class.getSimpleName())) {
+            if (annotationsByName.containsKey(Immutable.class.getSimpleName())) {
                 reportError(classDecl, "notSupported", "@ValueType");
             }
             
