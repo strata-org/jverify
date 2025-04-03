@@ -75,12 +75,9 @@ public class Driver {
         sb.append(diagnostic.getColumnNumber());
 
         if (diagnostic instanceof JCDiagnostic jcDiagnostic) {
-            long endPos = jcDiagnostic.getEndPosition();
-            if (endPos >= 0) {
-                var endLine = diagnostic.getLineNumber();
-                var endColumn = diagnostic.getColumnNumber() + 1;
-                sb.append("-").append(endLine).append(":").append(endColumn);
-            }
+            var endLine = diagnostic.getLineNumber();
+            var endColumn = diagnostic.getColumnNumber() + 1;
+            sb.append("-").append(endLine).append(":").append(endColumn);
         }
 
         sb.append("): ");

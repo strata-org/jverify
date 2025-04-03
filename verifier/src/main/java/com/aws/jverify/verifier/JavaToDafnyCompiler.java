@@ -38,8 +38,8 @@ public class JavaToDafnyCompiler {
     private JCDiagnostic.Factory diagnosticFactory;
 
     public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {
-        Options compilerOptions = Options.instance(context);
-        compilerOptions.put("keepEndPositions", "true");
+//        Options compilerOptions = Options.instance(context);
+//        compilerOptions.put("keepEndPositions", "true");
         
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
@@ -48,7 +48,7 @@ public class JavaToDafnyCompiler {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
 
-        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
+        //files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
                 
         List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
@@ -124,13 +124,11 @@ public class JavaToDafnyCompiler {
     }
 
     private void reportError(JCTree tree, String key, Object... args) {
-        reportError(positionFromNode(tree), key, args);
+        reportError(positionFromNode(tree, compilationUnit), key, args);
     }
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
-        DiagnosticSource source = new DiagnosticSource(compilationUnit.getSourceFile(), null);
-        source.setEndPosTable(compilationUnit.endPositions);
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
-                source, position, key,
+                new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
     }
 
@@ -373,7 +371,7 @@ public class JavaToDafnyCompiler {
         }
     }
     
-    private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node) {
+    private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node, JCTree.JCCompilationUnit compilationUnit) {
         return new JCDiagnostic.DiagnosticPosition() {
             @Override
             public JCTree getTree() {

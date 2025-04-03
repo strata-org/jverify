@@ -1,8 +1,6 @@
 package com.aws.jverify;
 
 import com.aws.jverify.common.Common;
-import com.aws.jverify.common.Position;
-import com.aws.jverify.common.Range;
 import com.aws.jverify.common.TestMarkup;
 import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.VerifierOptions;
