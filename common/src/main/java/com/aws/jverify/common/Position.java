@@ -1,11 +1,9 @@
 package com.aws.jverify.common;
 
-public class Position {
-    public final int line;
-    public final int character;
+public record Position(int line, int character) {
 
-    public Position(int line, int character) {
-        this.line = line;
-        this.character = character;
+    @Override
+    public String toString() {
+        return (line + 1) + ":" + (character + 1);
     }
 }
