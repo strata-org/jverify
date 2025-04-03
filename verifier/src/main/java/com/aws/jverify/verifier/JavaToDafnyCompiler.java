@@ -51,7 +51,7 @@ public class JavaToDafnyCompiler {
                 null,
                 fileManager,
                 diagnostics,
-                javacOptions,  // Add classpath here
+                javacOptions,
                 null,
                 files
         );
@@ -233,17 +233,26 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private Field translateField(JCTree.JCVariableDecl variableDecl) {
-        if (variableDecl.getInitializer() != null) {
-            throw new RuntimeException("Field initializers are not supported yet");
-        }
+    private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
         Name fieldName = getName(variableDecl, variableDecl.name);
-        return new Field(declToOrigin(variableDecl, fieldName), fieldName,
+        IOrigin origin = declToOrigin(variableDecl, fieldName);
+        Type type = toType(variableDecl.vartype, isNullable(variableDecl.getModifiers()));
+        if (variableDecl.getInitializer() != null) {
+            var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
+            if (isFinal) {
+                var rhs = toExpr(variableDecl.getInitializer());
+                return new ConstantField(origin, fieldName, null, false, type, rhs, false, false);
+            } else {
+                reportError(variableDecl, "notSupported", "Field initializers");
+                return null;
+            }
+        }
+        return new Field(origin, fieldName,
                 null,
                 false,
-                toType(variableDecl.vartype, isNullable(variableDecl.getModifiers())));
+                type);
     }
-
+    
     private boolean isNullable(JCTree.JCModifiers modifiers) {
         return modifiers.getAnnotations().stream().anyMatch(
                 a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));

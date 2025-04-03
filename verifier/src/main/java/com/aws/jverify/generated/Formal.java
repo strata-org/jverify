@@ -19,13 +19,12 @@ public class Formal extends NonglobalVariable {
 
   private final Boolean isOlder;
 
-  @Nullable
   private final String nameForCompilation;
 
-  public Formal(IOrigin origin, Name nameNode, Type type, Boolean isGhost, Boolean inParam,
+  public Formal(IOrigin origin, Name nameNode, Type syntacticType, Boolean isGhost, Boolean inParam,
       Expression defaultValue, Attributes attributes, Boolean isOld, Boolean isNameOnly,
       Boolean isOlder, String nameForCompilation) {
-    super(origin, nameNode, type, isGhost);
+    super(origin, nameNode, syntacticType, isGhost);
     this.inParam = inParam;
     this.defaultValue = defaultValue;
     this.attributes = attributes;
