@@ -18,6 +18,7 @@ import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.units.qual.N;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
@@ -35,6 +36,7 @@ public class JavaToDafnyCompiler {
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     
     private JCDiagnostic.Factory diagnosticFactory;
+    private Symbol.@Nullable ClassSymbol contractClass;
 
     public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {
 //        Options compilerOptions = Options.instance(context);
@@ -79,7 +81,7 @@ public class JavaToDafnyCompiler {
 
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
-                JCDiagnostic.DiagnosticPosition position = positionFromDiagnostic(diagnostic);
+                JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
                 reportError(position, "javaError", diagnostic.getMessage(Locale.ENGLISH));
                 return null;
             }
@@ -96,30 +98,6 @@ public class JavaToDafnyCompiler {
             }
         }
         return new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls);
-    }
-
-    private static JCDiagnostic.DiagnosticPosition positionFromDiagnostic(Diagnostic<? extends JavaFileObject> diagnostic) {
-        return new JCDiagnostic.DiagnosticPosition() {
-            @Override
-            public JCTree getTree() {
-                return null;
-            }
-
-            @Override
-            public int getStartPosition() {
-                return (int) diagnostic.getStartPosition();
-            }
-
-            @Override
-            public int getPreferredPosition() {
-                return (int) diagnostic.getPosition();
-            }
-
-            @Override
-            public int getEndPosition(EndPosTable endPosTable) {
-                return (int) diagnostic.getEndPosition();
-            }
-        };
     }
 
     private void reportError(JCTree tree, String key, Object... args) {
@@ -151,7 +129,7 @@ public class JavaToDafnyCompiler {
                     assign.rhs instanceof JCTree.JCFieldAccess fieldAccess && 
                     fieldAccess.selected instanceof JCTree.JCIdent ident) 
                 {
-                    var contractClass = (Symbol.ClassSymbol) ident.sym;
+                    contractClass = (Symbol.ClassSymbol) ident.sym;
                     name = new Name(name.getOrigin(), contractClass.name.toString());
                 } else {
                     throw new JavaViolationException();
@@ -168,6 +146,7 @@ public class JavaToDafnyCompiler {
             else {
                 result = translateClass(nestedTypes, classDecl, origin, name);
             }
+            contractClass = null;
             contextOrigins.pop();
             return result;
         }
@@ -202,8 +181,7 @@ public class JavaToDafnyCompiler {
                 members.add(dafnyMember);
             }
         }
-        return new ClassDecl(origin, name, null,
-                List.of(), members, List.of(), false);
+        return new ClassDecl(origin, name, null, List.of(), members, List.of(), false);
     }
     
     static final String builtinFile = "/builtin-contracts.java";
@@ -293,10 +271,10 @@ public class JavaToDafnyCompiler {
 
         var annotations = method.getModifiers().getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
+                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
         
-        if (annotationsByName.containsKey(InheritContract.class.getSimpleName())) {
+        if (annotationsByName.containsKey(InheritContract.class.getName())) {
             reportError(method, "notSupported", "@InheritContract");
             return null;
         }
@@ -325,7 +303,7 @@ public class JavaToDafnyCompiler {
 
             var statement = postHeader.getFirst();
             if (statement instanceof JCTree.JCReturn returnStatement) {
-                var body = toExpr(returnStatement.expr);
+                var body = contractClass == null ? null : toExpr(returnStatement.expr);
                 return new Function(origin, name, null, false, null, List.of(),
                         ins, header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), isStatic, false, null, returnType,
@@ -360,23 +338,38 @@ public class JavaToDafnyCompiler {
                 }
             }
 
-            var bodyStatements = translateStatements(postHeader);
             if (method.name.contentEquals("<init>")) {
+                DividedBlockStmt body;
+                if (contractClass == null) {
+                    body = null;
+                } else {
+                    var bodyStatements = translateStatements(postHeader);
+                    body = new DividedBlockStmt(toOrigin(method.body), null, bodyStatements, null, List.of());
+                }
                 return new Constructor(origin, new Name(origin, "_ctor"), null, false, null, List.of(), ins,
                         header.preconditions, header.postconditions, header.getReads(), 
                         header.getDecreases(), header.getModifies(),
-                        new DividedBlockStmt(toOrigin(method.body), null, bodyStatements, null, List.of()));
-            } else if (annotationsByName.containsKey(Proof.class.getSimpleName())) {
-                return new Method(origin, name, null, false, null, List.of(),
-                        ins, header.preconditions, header.postconditions, header.getReads(),
-                        header.getDecreases(), header.getModifies(), 
-                        isStatic, outs,
-                        new BlockStmt(toOrigin(method.body), null, bodyStatements), false);
+                        body);
             } else {
-                return new Method(origin, name, null, false, null, List.of(),
-                        ins, header.preconditions, header.postconditions, header.getReads(),
-                        header.getDecreases(), header.getModifies(), isStatic, outs,
-                        new BlockStmt(toOrigin(method.body), null, bodyStatements), false);
+                BlockStmt body;
+                if (contractClass != null) {
+                    body = null;
+                } else {
+                    var bodyStatements = translateStatements(postHeader);
+                    body = new BlockStmt(toOrigin(method.body), null, bodyStatements);
+                }
+                if (annotationsByName.containsKey(Proof.class.getSimpleName())) {
+                    return new Method(origin, name, null, false, null, List.of(),
+                            ins, header.preconditions, header.postconditions, header.getReads(),
+                            header.getDecreases(), header.getModifies(), 
+                            isStatic, outs,
+                            body, false);
+                } else {
+                    return new Method(origin, name, null, false, null, List.of(),
+                            ins, header.preconditions, header.postconditions, header.getReads(),
+                            header.getDecreases(), header.getModifies(), isStatic, outs,
+                            body, false);
+                }
             }
         }
     }
@@ -668,6 +661,14 @@ public class JavaToDafnyCompiler {
             }
             return new UserDefinedType(origin, new NameSegment(origin, "array", List.of(elemType)));
         } else if (tree instanceof JCTree.JCIdent identifier) {
+            var nullableSuffix = isNullable ? "?" : "";
+            return new UserDefinedType(origin, new NameSegment(origin, identifier.getName().toString() + nullableSuffix, List.of()));
+        } 
+        if (tree instanceof JCTree.JCIdent identifier) {
+            var nullableSuffix = isNullable ? "?" : "";
+            return new UserDefinedType(origin, new NameSegment(origin, identifier.getName().toString() + nullableSuffix, List.of()));
+        } else if (tree instanceof JCTree.JCFieldAccess fieldAccess) {
+            fieldAccess.selected
             var nullableSuffix = isNullable ? "?" : "";
             return new UserDefinedType(origin, new NameSegment(origin, identifier.getName().toString() + nullableSuffix, List.of()));
         }
@@ -1111,6 +1112,7 @@ public class JavaToDafnyCompiler {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
+
 }
 
 /**

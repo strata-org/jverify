@@ -20,6 +20,17 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
+    public void externalContract() throws IOException {
+        StringWriter writer = new StringWriter();
+        var exitCode = run("ExternalContract.java", true, writer);
+        var output = canonicalizeNewlines(writer.toString());
+        Assertions.assertEquals("""
+Dafny program verifier finished with 7 verified, 1 error
+""", output);
+        Assertions.assertEquals(4, exitCode);
+    }
+    
+    @Test
     public void userProfile() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("UserProfile.java", true, writer);
