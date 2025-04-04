@@ -76,10 +76,10 @@ public class JavaToDafnyCompiler {
         }
 
         for (var compilationUnit : parsed) {
-            findExternalContracts(compilationUnit);
+            findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
         for (var compilationUnit : parsed) {
-            var fileStart = translateFile(compilationUnit);
+            var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
             filesStarts.add(fileStart);
         }
 
@@ -87,7 +87,8 @@ public class JavaToDafnyCompiler {
     }
     
     private final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
-    private void findExternalContracts(CompilationUnitTree compilationUnit) {
+    private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
+        this.compilationUnit = compilationUnit;
         // TODO support nested classes
         for (var typeDecl : compilationUnit.getTypeDecls()) {
             if (typeDecl instanceof JCTree.JCClassDecl classDecl) {
@@ -97,24 +98,31 @@ public class JavaToDafnyCompiler {
                         a -> a));
                 var contractAnnotation = annotationsByName.get(Contract.class.getName());
                 if (contractAnnotation != null) {
-                    var arguments = contractAnnotation.args;
-                    if (arguments.size() == 1 &&
-                            arguments.getFirst() instanceof JCTree.JCAssign assign &&
-                            assign.rhs instanceof JCTree.JCFieldAccess fieldAccess &&
-                            fieldAccess.selected instanceof JCTree.JCIdent ident)
-                    {
-                        var contractClass = (Symbol.ClassSymbol) ident.sym;
-                        classWithExternalContract.add(contractClass);
-                    } else {
-                        throw new JavaViolationException();
+                    var arguments = getArguments(contractAnnotation);
+                    Symbol.ClassSymbol classSymbol = getClassSymbol(arguments.get("value"));
+                    if (!classWithExternalContract.add(classSymbol)) {
+                        reportError(contractAnnotation, "duplicateContract", classDecl.name);
                     }
                 }
             }
         }
     }
 
-    private FileStart translateFile(CompilationUnitTree compilationUnit) {
-        this.compilationUnit = (JCTree.JCCompilationUnit) compilationUnit;
+    private static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument) {
+        Symbol.ClassSymbol classSymbol;
+        if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess &&
+            fieldAccess.selected instanceof JCTree.JCIdent ident &&
+            ident.sym instanceof Symbol.ClassSymbol classSymbol2)
+        {
+            classSymbol = classSymbol2;
+        } else {
+            throw new JavaViolationException();
+        }
+        return classSymbol;
+    }
+
+    private FileStart translateFile(JCTree.JCCompilationUnit compilationUnit) {
+        this.compilationUnit = compilationUnit;
 
         ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
         Stack<Tree> remainingTypes = new Stack<>();
@@ -129,9 +137,18 @@ public class JavaToDafnyCompiler {
         return new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls);
     }
 
+    private void reportError(IOrigin origin, String key, Object... args) {
+        reportError(positionFromOrigin(origin), key, args);
+    }
+
+    private JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
+        return new DiagnosticPositionFromOrigin(originToRange(origin), compilationUnit.lineMap);
+    }
+
     private void reportError(JCTree tree, String key, Object... args) {
         reportError(positionFromNode(tree, compilationUnit), key, args);
     }
+    
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
@@ -228,30 +245,22 @@ public class JavaToDafnyCompiler {
             } else {
                 addShouldVerify(ShouldVerifyMode.Inherit);
             }
-            
+
+            Name name = getName(classDecl, classDecl.name);
             if (classWithExternalContract.contains(classDecl.sym)) {
                 if (shouldVerify()) {
-                    reportError(classDecl, "verifiedTypeWithExternalContract");
+                    reportError(name.getOrigin(), "verifiedTypeWithExternalContract", classDecl.name);
                 }
                 return null;
             }
-            Name name = getName(classDecl, classDecl.name);
             var origin = declToOrigin(classDecl, name);
             contextOrigins.push(origin);
 
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
-                var arguments = contractAnnotation.args;
-                if (arguments.size() == 1 && 
-                    arguments.getFirst() instanceof JCTree.JCAssign assign && 
-                    assign.rhs instanceof JCTree.JCFieldAccess fieldAccess && 
-                    fieldAccess.selected instanceof JCTree.JCIdent ident) 
-                {
-                    contractClass = (Symbol.ClassSymbol) ident.sym;
-                    name = new Name(name.getOrigin(), contractClass.name.toString());
-                } else {
-                    throw new JavaViolationException();
-                }
+                var arguments = getArguments(contractAnnotation);
+                contractClass = getClassSymbol(arguments.get("value"));
+                name = new Name(name.getOrigin(), contractClass.name.toString());
             }
             if (annotationsByName.containsKey(Immutable.class.getName())) {
                 reportError(classDecl, "notSupported", "@ValueType");
@@ -934,9 +943,11 @@ public class JavaToDafnyCompiler {
         }
 
         int pos = classDecl.pos;
-        if (classDecl.mods != null && classDecl.mods.pos != Position.NOPOS) {
-            pos = getEndPos(classDecl.mods);
-        }
+
+//        if (classDecl.mods != null && classDecl.mods.pos != Position.NOPOS) {
+//            pos = getEndPos(classDecl.mods);
+//        }
+        compilationUnit.getLineMap().getColumnNumber(325);
 
         // Find the class/interface/enum/record keyword and skip it
         String sourceText = source.toString();

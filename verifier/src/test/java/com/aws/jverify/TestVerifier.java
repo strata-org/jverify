@@ -20,6 +20,11 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
+    public void contractErrors() throws IOException {
+        testMarkedSourceFile("ContractErrors.java", null);
+    }
+    
+    @Test
     public void externalContract() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("ExternalContract.java", true, writer);
@@ -174,7 +179,7 @@ Dafny program verifier finished with 5 verified, 0 errors
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
-        return new VerifierOptions(dafnyPath, libraryJar, prelude, null, true,
+        return new VerifierOptions(dafnyPath, libraryJar, prelude, null, null, true,
                 new String[] {
                         "--use-basename-for-filename"
                         //"--wait-for-debugger"
