@@ -70,7 +70,11 @@ public class JavaToDafnyCompiler {
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
-                reportError(position, "javaError", diagnostic.getMessage(Locale.ENGLISH));
+
+                this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+                        new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
+                        diagnostic.getMessage(Locale.ENGLISH)));
+                
                 return new FilesContainer(filesStarts);
             }
         }
