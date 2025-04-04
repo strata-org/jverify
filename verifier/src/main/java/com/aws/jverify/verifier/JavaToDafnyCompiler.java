@@ -414,7 +414,7 @@ public class JavaToDafnyCompiler {
         });
         var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
 
-        if (annotationsByName.containsKey(Pure.class.getSimpleName())) {
+        if (annotationsByName.containsKey(Pure.class.getName())) {
             var header = new HeaderContainer();
             var postHeader = translateHeader(method.body.stats, header);
             applyInvariants(method, header);
@@ -885,7 +885,8 @@ public class JavaToDafnyCompiler {
         int pos = methodDecl.pos;
 
         if (methodDecl.mods != null && methodDecl.mods.pos != Position.NOPOS) {
-            pos = getEndPos(methodDecl.mods);
+            // not sure if this statement is ever useful
+            pos = Math.max(pos, getEndPos(methodDecl.mods));
         }
 
         String methodName = methodDecl.name.toString();
