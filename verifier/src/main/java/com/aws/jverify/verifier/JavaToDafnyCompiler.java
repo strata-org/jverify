@@ -945,9 +945,9 @@ public class JavaToDafnyCompiler {
 
         int pos = classDecl.pos;
 
-//        if (classDecl.mods != null && classDecl.mods.pos != Position.NOPOS) {
-//            pos = getEndPos(classDecl.mods);
-//        }
+        if (classDecl.mods != null && classDecl.mods.pos != Position.NOPOS) {
+            pos = Math.max(pos, getEndPos(classDecl.mods));
+        }
         compilationUnit.getLineMap().getColumnNumber(325);
 
         // Find the class/interface/enum/record keyword and skip it
