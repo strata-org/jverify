@@ -660,17 +660,20 @@ public class JavaToDafnyCompiler {
                 throw new IllegalArgumentException("Array type without element type");
             }
             return new UserDefinedType(origin, new NameSegment(origin, "array", List.of(elemType)));
-        } else if (tree instanceof JCTree.JCIdent identifier) {
+        } else if (tree instanceof JCTree.JCExpression expr) {
+            var expression = toExpr(expr);
             var nullableSuffix = isNullable ? "?" : "";
-            return new UserDefinedType(origin, new NameSegment(origin, identifier.getName().toString() + nullableSuffix, List.of()));
-        } 
-        if (tree instanceof JCTree.JCIdent identifier) {
-            var nullableSuffix = isNullable ? "?" : "";
-            return new UserDefinedType(origin, new NameSegment(origin, identifier.getName().toString() + nullableSuffix, List.of()));
-        } else if (tree instanceof JCTree.JCFieldAccess fieldAccess) {
-            fieldAccess.selected
-            var nullableSuffix = isNullable ? "?" : "";
-            return new UserDefinedType(origin, new NameSegment(origin, identifier.getName().toString() + nullableSuffix, List.of()));
+            
+            // Remove the name qualification because we do not support that yet
+            Expression nameSegment;
+            if (expression instanceof ExprDotName exprDotName) {
+                nameSegment = new NameSegment(exprDotName.getOrigin(), exprDotName.getSuffixNameNode().getValue(), null);
+            } else if (expression instanceof NameSegment nameSegment1) {
+                nameSegment = nameSegment1;
+            } else {
+                nameSegment = expression;
+            }
+            return new UserDefinedType(origin, nameSegment);
         }
 
         reportError(tree, "notSupported", tree.getClass().getSimpleName());
@@ -921,10 +924,10 @@ public class JavaToDafnyCompiler {
                     variableDecl.getName().toString(), toType(variableDecl.getType(), false, origin), false);
             ConcreteAssignStatement initializer = null;
             if (variableDecl.getInitializer() != null) {
-                var e = toExpr(variableDecl.getInitializer());
+                var rhs = toAssignmentRhs(variableDecl.getInitializer());
                 List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
-                List<AssignmentRhs> rhss = List.of(new ExprRhs(e.getOrigin(), null, e));
-                initializer = new AssignStatement(e.getOrigin(), null, lhss, rhss, false);
+                List<AssignmentRhs> rhss = List.of(rhs);
+                initializer = new AssignStatement(rhs.getOrigin(), null, lhss, rhss, false);
             }
 
             return new VarDeclStmt(origin, null, List.of(localVariable), initializer);

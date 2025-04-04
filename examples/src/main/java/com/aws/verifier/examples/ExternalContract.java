@@ -2,9 +2,11 @@ package com.aws.verifier.examples;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.ShouldVerify;
 
 import static com.aws.jverify.JVerify.*;
 
+@ShouldVerify(shouldVerify = false)
 class Foo {
     public final static int c = 42;
     
@@ -13,8 +15,10 @@ class Foo {
     }
 }
 
-@Contract(Class.class)
+@Contract(Foo.class)
 public class ExternalContract {
+    public final static int c = 43;
+    
     int foo(int x) {
         precondition(x > 0);
         postcondition((Integer i) -> i >= i + 1);
@@ -27,6 +31,6 @@ class User {
         var foo = new Foo();
         var result = foo.foo(2);
         check(result > 2 + 1);
-        check(Foo.c == 42);
+        check(Foo.c == 43);
     }
 }
