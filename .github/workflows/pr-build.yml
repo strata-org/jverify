@@ -38,6 +38,12 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'corretto'
+          java-version: '17'
+          cache: gradle
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
           java-version: '22'
           cache: gradle
       - name: Build Dafny

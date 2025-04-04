@@ -26,8 +26,13 @@ java {
 }
 
 project(":library") {
+    java {
+        toolchain {
+            // Use Java 17 for this subproject, so Java 17 projects can depend on it at compile-/run-time
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
 }
-
 
 project(":examples") {
     dependencies {
@@ -101,6 +106,7 @@ project(":common") {
 }
 
 project(":javac-plugin") {
+    
     dependencies {
         implementation(project(":common"))
         implementation(project(":library"))
@@ -125,7 +131,7 @@ project(":javac-plugin") {
     }
 
     tasks.withType<JavaExec> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.plugin")). 
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")). 
           // Using preview mode, so we can use the package java.lang.classfile
           plus("--enable-preview")
     }
@@ -141,6 +147,29 @@ project(":javac-plugin") {
         //options.compilerArgs.add("-proc:none")
         // Using preview mode, so we can use the package java.lang.classfile
         options.compilerArgs.add("--enable-preview")
+    }
+
+    tasks.register<JavaExec>("compileWithJVerify") {
+        description = "Runs javac with the JVerify plugin"
+
+        mainClass.set("com.sun.tools.javac.Main")
+
+        classpath = files(
+            tasks.jar.flatMap { it.archiveFile },
+            configurations.getByName("runtimeClasspath")
+        )
+
+        val taskArgs = mutableListOf(
+            "-processor", "com.aws.jverify.plugin.JVerifyProcessor",
+            "-processorpath", tasks.jar.get().archiveFile.get().asFile.absolutePath
+        )
+
+        if (project.hasProperty("javacArgs")) {
+            taskArgs.addAll((project.property("javacArgs") as String).split(Regex("[,=]")))
+        }
+        args = taskArgs
+
+        dependsOn("jar")
     }
 }
 
