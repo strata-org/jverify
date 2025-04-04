@@ -789,7 +789,6 @@ public class JavaToDafnyCompiler {
             return new UserDefinedType(origin, new NameSegment(origin, "array", List.of(elemType)));
         } else if (tree instanceof JCTree.JCExpression expr) {
             var expression = toExpr(expr);
-            var nullableSuffix = isNullable ? "?" : "";
             
             // Remove the name qualification because we do not support that yet
             Expression nameSegment;
@@ -799,6 +798,9 @@ public class JavaToDafnyCompiler {
                 nameSegment = nameSegment1;
             } else {
                 nameSegment = expression;
+            }
+            if (isNullable && nameSegment instanceof NameSegment ns) {
+                nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + "?", ns.getOptTypeArguments());
             }
             return new UserDefinedType(origin, nameSegment);
         }
@@ -946,6 +948,7 @@ public class JavaToDafnyCompiler {
         int pos = classDecl.pos;
 
         if (classDecl.mods != null && classDecl.mods.pos != Position.NOPOS) {
+            // Not sure if this statement is useful
             pos = Math.max(pos, getEndPos(classDecl.mods));
         }
         compilationUnit.getLineMap().getColumnNumber(325);
