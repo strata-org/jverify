@@ -37,6 +37,10 @@ public class JavaToDafnyCompiler {
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol contractClass;
 
+    public JavaToDafnyCompiler() {
+        shouldVerifies.push(ShouldVerifyMode.DefaultYes);
+    }
+    
     public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {        
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
@@ -70,8 +74,10 @@ public class JavaToDafnyCompiler {
                 return new FilesContainer(filesStarts);
             }
         }
-        
-        findExternalContracts();
+
+        for (var compilationUnit : parsed) {
+            findExternalContracts(compilationUnit);
+        }
         for (var compilationUnit : parsed) {
             var fileStart = translateFile(compilationUnit);
             filesStarts.add(fileStart);
@@ -81,7 +87,7 @@ public class JavaToDafnyCompiler {
     }
     
     private final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
-    private void findExternalContracts() {
+    private void findExternalContracts(CompilationUnitTree compilationUnit) {
         // TODO support nested classes
         for (var typeDecl : compilationUnit.getTypeDecls()) {
             if (typeDecl instanceof JCTree.JCClassDecl classDecl) {
@@ -153,8 +159,39 @@ public class JavaToDafnyCompiler {
             shouldVerifies.push(ShouldVerifyMode.AlwaysYes);
         } else if (shouldVerifies.peek() == ShouldVerifyMode.AlwaysNo) {
             shouldVerifies.push(ShouldVerifyMode.AlwaysNo);
+        } else if (mode == ShouldVerifyMode.Inherit) {
+            shouldVerifies.push(shouldVerifies.peek());
         } else {
             shouldVerifies.push(mode);
+        }
+    }
+    
+    Map<String, JCTree.JCExpression> getArguments(JCTree.JCAnnotation annotation) {
+        var result = new HashMap<String, JCTree.JCExpression>();
+        for(var argument : annotation.getArguments()) {
+            if (argument instanceof JCTree.JCAssign assign &&
+                    assign.lhs instanceof JCTree.JCIdent ident) {
+                result.put(ident.name.toString(), assign.rhs);
+            } else {
+                throw new JavaViolationException();
+            }
+        }
+        return result;
+    }
+    
+    private ShouldVerifyMode getVerifyMode(boolean should, boolean pushDown) {
+        if (should) {
+            if (pushDown) {
+                return ShouldVerifyMode.AlwaysYes;
+            } else {
+                return ShouldVerifyMode.DefaultYes;
+            }
+        } else {
+            if (pushDown) {
+                return ShouldVerifyMode.AlwaysNo;
+            } else {
+                return ShouldVerifyMode.DefaultNo;
+            }
         }
     }
     
@@ -164,6 +201,33 @@ public class JavaToDafnyCompiler {
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                     a -> a));
+            
+            var verifyAnnotation = annotationsByName.get(Verify.class.getName());
+            if (verifyAnnotation != null) {
+                var arguments = getArguments(verifyAnnotation);
+                var shouldArgument = arguments.get("should");
+                var should = true;
+                if (shouldArgument != null) {
+                    if (shouldArgument instanceof JCTree.JCLiteral literal) {
+                        should = literal.value.equals(true);
+                    } else {
+                        throw new JavaViolationException();
+                    }
+                }
+
+                var pushDownArgument = arguments.get("pushDown");
+                var pushDown = true;
+                if (pushDownArgument != null) {
+                    if (pushDownArgument instanceof JCTree.JCLiteral literal) {
+                        pushDown = literal.value.equals(true);
+                    } else {
+                        throw new JavaViolationException();
+                    }
+                }
+                addShouldVerify(getVerifyMode(should, pushDown));
+            } else {
+                addShouldVerify(ShouldVerifyMode.Inherit);
+            }
             
             if (classWithExternalContract.contains(classDecl.sym)) {
                 if (shouldVerify()) {

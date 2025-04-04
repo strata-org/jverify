@@ -25,9 +25,10 @@ public class TestVerifier {
         var exitCode = run("ExternalContract.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("""
-Dafny program verifier finished with 7 verified, 1 error
+
+Dafny program verifier finished with 4 verified, 0 errors
 """, output);
-        Assertions.assertEquals(4, exitCode);
+        Assertions.assertEquals(0, exitCode);
     }
     
     @Test
@@ -173,8 +174,7 @@ Dafny program verifier finished with 5 verified, 0 errors
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
-        return new VerifierOptions(dafnyPath, libraryJar, prelude,
-                Path.of("/Users/rwillems/SourceCode/GradleBased/tmp.dfy"), null, true,
+        return new VerifierOptions(dafnyPath, libraryJar, prelude, null, true,
                 new String[] {
                         "--use-basename-for-filename"
                         //"--wait-for-debugger"

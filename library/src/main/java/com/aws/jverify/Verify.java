@@ -10,7 +10,8 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target({ElementType.METHOD, ElementType.TYPE, ElementType.PACKAGE})
-public @interface ShouldVerify {
-    boolean shouldVerify() default true;
+public @interface Verify {
+    boolean should() default true;
+    boolean pushDown() default false;
 }
 

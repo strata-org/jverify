@@ -2,11 +2,11 @@ package com.aws.verifier.examples;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import com.aws.jverify.ShouldVerify;
+import com.aws.jverify.Verify;
 
 import static com.aws.jverify.JVerify.*;
 
-@ShouldVerify(shouldVerify = false)
+@Verify(should = false)
 class Foo {
     public final static int c = 42;
     

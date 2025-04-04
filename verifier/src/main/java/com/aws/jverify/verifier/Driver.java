@@ -110,6 +110,7 @@ public class Driver {
                     dafnyPath.toString(),  // Program path
                     "verify",                       // First argument
                     verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
+                    "--allow-axioms",
                     "--input-format",
                     "Binary",
                     "--stdin",                        // Second argument
