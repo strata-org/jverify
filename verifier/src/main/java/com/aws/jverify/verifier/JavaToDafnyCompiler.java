@@ -6,6 +6,7 @@ import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.code.Flags;
+import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.tree.EndPosTable;
@@ -93,7 +94,6 @@ public class JavaToDafnyCompiler {
     private final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
     private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
-        // TODO support nested classes
         for (var typeDecl : compilationUnit.getTypeDecls()) {
             if (typeDecl instanceof JCTree.JCClassDecl classDecl) {
                 var annotations = classDecl.getModifiers().getAnnotations();
@@ -262,6 +262,9 @@ public class JavaToDafnyCompiler {
 
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
+                if (isNestedClass(classDecl)) {
+                    reportError(contractAnnotation, "nestedContractClass", classDecl.name);
+                }
                 var arguments = getArguments(contractAnnotation);
                 contractClass = getClassSymbol(arguments.get("value"));
                 name = new Name(name.getOrigin(), contractClass.name.toString());
@@ -288,7 +291,15 @@ public class JavaToDafnyCompiler {
             throw new NotImplementedException(tree.getClass().getName());
         }
     }
+    
+    private boolean isNestedClass(JCTree.JCClassDecl classDecl) {
+        if (classDecl.sym != null && classDecl.sym.owner != null) {
+            return classDecl.sym.owner.kind == Kinds.Kind.TYP;
+        }
 
+        return false;
+    }
+    
     private ClassDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
         for (var member : classDecl.getMembers()) {

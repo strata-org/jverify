@@ -20,4 +20,9 @@ class FooContract2 {
     void bar(int x) {
         check(x < 0);
     }
+    
+    @Contract(Foo.class)
+//  ^ error: a class with @Contract may not be nested inside another type
+    class NestedContractClass {
+    }
 }
