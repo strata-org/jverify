@@ -18,7 +18,6 @@ import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.checker.units.qual.N;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
@@ -38,10 +37,7 @@ public class JavaToDafnyCompiler {
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol contractClass;
 
-    public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {
-//        Options compilerOptions = Options.instance(context);
-//        compilerOptions.put("keepEndPositions", "true");
-        
+    public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {        
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         JavacFileManager fileManager = new JavacFileManager(context, true, null);
 
@@ -67,25 +63,52 @@ public class JavaToDafnyCompiler {
         task.analyze();
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
+        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
+                JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
+                reportError(position, "javaError", diagnostic.getMessage(Locale.ENGLISH));
+                return new FilesContainer(filesStarts);
+            }
+        }
+        
+        findExternalContracts();
         for (var compilationUnit : parsed) {
-            var fileStart = translateFile(compilationUnit, diagnostics);
-            if (fileStart == null) return null;
+            var fileStart = translateFile(compilationUnit);
             filesStarts.add(fileStart);
         }
 
         return new FilesContainer(filesStarts);
     }
-
-    private FileStart translateFile(CompilationUnitTree compilationUnit, DiagnosticCollector<JavaFileObject> diagnostics) {
-        this.compilationUnit = (JCTree.JCCompilationUnit) compilationUnit;
-
-        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
-                JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
-                reportError(position, "javaError", diagnostic.getMessage(Locale.ENGLISH));
-                return null;
+    
+    private final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
+    private void findExternalContracts() {
+        // TODO support nested classes
+        for (var typeDecl : compilationUnit.getTypeDecls()) {
+            if (typeDecl instanceof JCTree.JCClassDecl classDecl) {
+                var annotations = classDecl.getModifiers().getAnnotations();
+                var annotationsByName = annotations.stream().collect(Collectors.toMap(
+                        (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                        a -> a));
+                var contractAnnotation = annotationsByName.get(Contract.class.getName());
+                if (contractAnnotation != null) {
+                    var arguments = contractAnnotation.args;
+                    if (arguments.size() == 1 &&
+                            arguments.getFirst() instanceof JCTree.JCAssign assign &&
+                            assign.rhs instanceof JCTree.JCFieldAccess fieldAccess &&
+                            fieldAccess.selected instanceof JCTree.JCIdent ident)
+                    {
+                        var contractClass = (Symbol.ClassSymbol) ident.sym;
+                        classWithExternalContract.add(contractClass);
+                    } else {
+                        throw new JavaViolationException();
+                    }
+                }
             }
         }
+    }
+
+    private FileStart translateFile(CompilationUnitTree compilationUnit) {
+        this.compilationUnit = (JCTree.JCCompilationUnit) compilationUnit;
 
         ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
         Stack<Tree> remainingTypes = new Stack<>();
@@ -111,16 +134,47 @@ public class JavaToDafnyCompiler {
 
     List<AttributedExpression> invariants = new ArrayList<>();
     
+    enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
+    private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
+    private boolean shouldVerify() {
+        for (int i = shouldVerifies.size() - 1; i >= 0; i--) {
+            var mode = shouldVerifies.get(i);
+            if (mode == ShouldVerifyMode.AlwaysYes || mode == ShouldVerifyMode.DefaultYes) {
+                return true;
+            } else if (mode == ShouldVerifyMode.AlwaysNo || mode == ShouldVerifyMode.DefaultNo) {
+                return false;
+            }
+        }
+        return false;
+    }
+    
+    private void addShouldVerify(ShouldVerifyMode mode) {
+        if (shouldVerifies.peek() == ShouldVerifyMode.AlwaysYes) {
+            shouldVerifies.push(ShouldVerifyMode.AlwaysYes);
+        } else if (shouldVerifies.peek() == ShouldVerifyMode.AlwaysNo) {
+            shouldVerifies.push(ShouldVerifyMode.AlwaysNo);
+        } else {
+            shouldVerifies.push(mode);
+        }
+    }
+    
     @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
-            Name name = getName(classDecl, classDecl.name);
-            var origin = declToOrigin(classDecl, name);
-            contextOrigins.push(origin);
-
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                     a -> a));
+            
+            if (classWithExternalContract.contains(classDecl.sym)) {
+                if (shouldVerify()) {
+                    reportError(classDecl, "verifiedTypeWithExternalContract");
+                }
+                return null;
+            }
+            Name name = getName(classDecl, classDecl.name);
+            var origin = declToOrigin(classDecl, name);
+            contextOrigins.push(origin);
+
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
                 var arguments = contractAnnotation.args;
