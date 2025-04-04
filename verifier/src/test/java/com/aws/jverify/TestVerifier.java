@@ -180,7 +180,7 @@ Dafny program verifier finished with 5 verified, 0 errors
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         return new VerifierOptions(dafnyPath, libraryJar, prelude, 
-                Path.of("/Users/rwillems/SourceCode/GradleBased/tmp.dfy"), null, true,
+                null, null, true,
                 new String[] {
                         "--use-basename-for-filename"
                         //"--wait-for-debugger"
