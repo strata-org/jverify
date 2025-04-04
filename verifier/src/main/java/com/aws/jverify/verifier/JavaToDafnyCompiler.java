@@ -430,7 +430,7 @@ public class JavaToDafnyCompiler {
 
             var statement = postHeader.getFirst();
             if (statement instanceof JCTree.JCReturn returnStatement) {
-                var body = contractClass == null ? null : toExpr(returnStatement.expr);
+                var body = contractClass != null ? null : toExpr(returnStatement.expr);
                 return new Function(origin, name, null, false, null, List.of(),
                         ins, header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), isStatic, false, null, returnType,
@@ -467,7 +467,7 @@ public class JavaToDafnyCompiler {
 
             if (method.name.contentEquals("<init>")) {
                 DividedBlockStmt body;
-                if (contractClass == null) {
+                if (contractClass != null) {
                     body = null;
                 } else {
                     var bodyStatements = translateStatements(postHeader);
@@ -485,7 +485,7 @@ public class JavaToDafnyCompiler {
                     var bodyStatements = translateStatements(postHeader);
                     body = new BlockStmt(toOrigin(method.body), null, bodyStatements);
                 }
-                if (annotationsByName.containsKey(Proof.class.getSimpleName())) {
+                if (annotationsByName.containsKey(Proof.class.getName())) {
                     return new Method(origin, name, null, false, null, List.of(),
                             ins, header.preconditions, header.postconditions, header.getReads(),
                             header.getDecreases(), header.getModifies(), 
