@@ -21,7 +21,7 @@ public class TestVerifier {
 
     @Test
     public void types() throws IOException {
-        testMarkedSourceFile("Types.java", new DafnyResults(2, 4));
+        testMarkedSourceFile("Types.java", new DafnyResults(6, 3));
     }
     
     @Test
@@ -193,7 +193,7 @@ Dafny program verifier finished with 5 verified, 0 errors
                 null, null, true,
                 new String[] {
                         "--use-basename-for-filename"
-                        //"--wait-for-debugger"
+                        //,"--wait-for-debugger"
                 }
         );
     }
