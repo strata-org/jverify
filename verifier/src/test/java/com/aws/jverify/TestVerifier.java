@@ -20,6 +20,11 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
+    public void types() throws IOException {
+        testMarkedSourceFile("Types.java", new DafnyResults(2, 4));
+    }
+    
+    @Test
     public void shouldVerify() throws IOException {
         testMarkedSourceFile("ShouldVerify.java", new DafnyResults(2, 4));
     }

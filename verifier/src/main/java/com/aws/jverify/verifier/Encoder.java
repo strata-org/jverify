@@ -4,6 +4,7 @@ public interface Encoder {
     void writeBool(boolean value);
 
     void writeInt(int value);
+    void writeLong(long value);
 
     void writeQualifiedName(String name);
 
@@ -34,6 +35,13 @@ class TextEncoder implements Encoder {
 
     @Override
     public void writeInt(int value) {
+        writer.append(value);
+        writer.append(";");
+        writer.append(' ');
+    }
+
+    @Override
+    public void writeLong(long value) {
         writer.append(value);
         writer.append(";");
         writer.append(' ');

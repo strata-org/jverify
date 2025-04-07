@@ -8,7 +8,10 @@ import java.util.*;
 
 public class Serializer {
     Encoder encoder;
-    private static Map<String, String> simpleTypeNameMapping = Map.of("Integer", "Int32");
+    private static Map<String, String> simpleTypeNameMapping = 
+            Map.of("Integer", "Int32",
+                    "Long", "Int64",
+                    "Short", "Int16");
 
     public Serializer(Encoder encoder) {
         this.encoder = encoder;
@@ -70,6 +73,7 @@ public class Serializer {
             case String s -> encoder.writeString(s);
             case Map<?, ?> map -> serializeMap(map, (AnnotatedParameterizedType) annotatedType);
             case Integer i -> encoder.writeInt(i);
+            case Long l -> encoder.writeLong(l);
             case Boolean b -> encoder.writeBool(b);
             default -> serializeObject(value);
         }
@@ -113,6 +117,8 @@ public class Serializer {
                 Object value = field.get(obj);
                 serializeValue(value, field.getAnnotatedType());
             } catch (IllegalAccessException e) {
+                throw new RuntimeException("Failed to serialize field: " + field.getName(), e);
+            } catch (InaccessibleObjectException e) {
                 throw new RuntimeException("Failed to serialize field: " + field.getName(), e);
             }
         }
