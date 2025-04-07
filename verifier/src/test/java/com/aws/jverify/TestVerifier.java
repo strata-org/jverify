@@ -21,12 +21,12 @@ public class TestVerifier {
 
     @Test
     public void types() throws IOException {
-        testMarkedSourceFile("Types.java", new DafnyResults(8, 3));
+        testMarkedSourceFile("Types.java", new DafnyResults(0, 3));
     }
     
     @Test
     public void shouldVerify() throws IOException {
-        testMarkedSourceFile("ShouldVerify.java", new DafnyResults(2, 4));
+        testMarkedSourceFile("ShouldVerify.java", new DafnyResults(0, 4));
     }
     
     @Test
@@ -41,7 +41,7 @@ public class TestVerifier {
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("""
 
-Dafny program verifier finished with 4 verified, 0 errors
+Dafny program verifier finished with 2 verified, 0 errors
 """, output);
         Assertions.assertEquals(0, exitCode);
     }
@@ -56,7 +56,7 @@ UserProfile.java(32:9-32:16): Error: a postcondition could not be proved on this
 UserProfile.java(23:21-23:26): Related location: this is the postcondition that could not be proved
 UserProfile.java(25:16-25:77): Related location: this proposition could not be proved
 
-Dafny program verifier finished with 7 verified, 1 error
+Dafny program verifier finished with 5 verified, 1 error
 """, output);
         Assertions.assertEquals(4, exitCode);
     }
@@ -74,17 +74,17 @@ Dafny program verifier finished with 7 verified, 1 error
     
     @Test
     public void assertFalse() throws IOException {
-        testMarkedSourceFile("AssertFalse.java", new DafnyResults(2, 1));
+        testMarkedSourceFile("AssertFalse.java", new DafnyResults(0, 1));
     }
 
     @Test
     public void fibonacciInvalid() throws IOException {
-        testMarkedSourceFile("FibonacciInvalid.java", new DafnyResults(4, 4));
+        testMarkedSourceFile("FibonacciInvalid.java", new DafnyResults(2, 4));
     }
 
     @Test
     public void operators() throws IOException {
-        testMarkedSourceFile("Operators.java", new DafnyResults(11, 9));
+        testMarkedSourceFile("Operators.java", new DafnyResults(9, 9));
     }
 
     @Test
@@ -92,7 +92,7 @@ Dafny program verifier finished with 7 verified, 1 error
         StringWriter writer = new StringWriter();
         var exitCode = run("Fibonacci.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("\nDafny program verifier finished with 6 verified, 0 errors\n", output);
+        Assertions.assertEquals("\nDafny program verifier finished with 4 verified, 0 errors\n", output);
         Assertions.assertEquals(0, exitCode);
     }
 
@@ -103,7 +103,7 @@ Dafny program verifier finished with 7 verified, 1 error
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("""
 
-Dafny program verifier finished with 5 verified, 0 errors
+Dafny program verifier finished with 3 verified, 0 errors
 """,
                 output
         );
@@ -123,7 +123,7 @@ Dafny program verifier finished with 5 verified, 0 errors
         var exitCode = process.waitFor();
         reader.close();
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertTrue(output.contains("Dafny program verifier finished with 6 verified, 0 errors"));
+        Assertions.assertTrue(output.contains("Dafny program verifier finished with 4 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
 
     }

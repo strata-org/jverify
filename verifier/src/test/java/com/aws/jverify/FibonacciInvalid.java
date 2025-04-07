@@ -45,13 +45,13 @@ class FibonacciInvalid {
         postcondition(Spec(i) <= Spec(j));
 
         @Nat int x = i;
-//                   ^ Error: value does not satisfy the subset constraints of 'nat32'
+//                   ^ Error: value does not satisfy the subset constraints of 'nat31'
         while(x < j)
         {
             invariant(x <= j);
             invariant(Spec(i) <= Spec(x));
             x = x + 1;
-//              ^^^^^ Error: value does not satisfy the subset constraints of 'nat32'
+//              ^^^^^ Error: value does not satisfy the subset constraints of 'nat31'
         }
     }
 }
