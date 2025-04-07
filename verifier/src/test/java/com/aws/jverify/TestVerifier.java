@@ -1,5 +1,6 @@
 package com.aws.jverify;
 
+import com.aws.jverify.common.Common;
 import com.aws.jverify.common.TestMarkup;
 import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.VerifierOptions;
@@ -19,6 +20,28 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
+    public void shouldVerify() throws IOException {
+        testMarkedSourceFile("ShouldVerify.java", new DafnyResults(2, 4));
+    }
+    
+    @Test
+    public void contractErrors() throws IOException {
+        testMarkedSourceFile("ContractErrors.java", null);
+    }
+    
+    @Test
+    public void externalContract() throws IOException {
+        StringWriter writer = new StringWriter();
+        var exitCode = run("ExternalContract.java", true, writer);
+        var output = canonicalizeNewlines(writer.toString());
+        Assertions.assertEquals("""
+
+Dafny program verifier finished with 4 verified, 0 errors
+""", output);
+        Assertions.assertEquals(0, exitCode);
+    }
+    
+    @Test
     public void userProfile() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("UserProfile.java", true, writer);
@@ -36,6 +59,12 @@ Dafny program verifier finished with 7 verified, 1 error
     @Test
     public void translationErrors() throws IOException {
         testMarkedSourceFile("TranslationErrors.java", null);
+    }
+    
+    @Test
+    public void javaError() throws IOException {
+        var source = Common.getResourceFile(getClass(), "/JavaError.java");
+        testMarkedSource(source, null);
     }
     
     @Test
@@ -60,7 +89,6 @@ Dafny program verifier finished with 7 verified, 1 error
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertEquals("\nDafny program verifier finished with 6 verified, 0 errors\n", output);
         Assertions.assertEquals(0, exitCode);
-
     }
 
     @Test
@@ -156,7 +184,7 @@ Dafny program verifier finished with 5 verified, 0 errors
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
-        return new VerifierOptions(dafnyPath, libraryJar, prelude,
+        return new VerifierOptions(dafnyPath, libraryJar, prelude, 
                 null, null, true,
                 new String[] {
                         "--use-basename-for-filename"
