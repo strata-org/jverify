@@ -164,6 +164,9 @@ public class JavaToDafnyCompiler {
     enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
     private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
     private boolean shouldVerify() {
+        if (contractClass != null) {
+            return false;
+        }
         for (int i = shouldVerifies.size() - 1; i >= 0; i--) {
             var mode = shouldVerifies.get(i);
             if (mode == ShouldVerifyMode.AlwaysYes || mode == ShouldVerifyMode.DefaultYes) {
@@ -222,25 +225,8 @@ public class JavaToDafnyCompiler {
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                     a -> a));
-            
-            var verifyAnnotation = annotationsByName.get(Verify.class.getName());
-            if (verifyAnnotation != null) {
-                var arguments = getArguments(verifyAnnotation);
-                var shouldArgument = arguments.get("should");
-                var should = true;
-                if (shouldArgument != null) {
-                    should = (boolean) getLiteralValue(shouldArgument);
-                }
 
-                var pushDownArgument = arguments.get("members");
-                var includeMembers = true;
-                if (pushDownArgument != null) {
-                    includeMembers = (boolean) getLiteralValue(shouldArgument);
-                }
-                addShouldVerify(getVerifyMode(should, includeMembers));
-            } else {
-                addShouldVerify(ShouldVerifyMode.Inherit);
-            }
+            processVerifyAnnotation(annotationsByName);
 
             Name name = getName(classDecl, classDecl.name);
             if (classWithExternalContract.contains(classDecl.sym)) {
@@ -274,6 +260,7 @@ public class JavaToDafnyCompiler {
             }
             contractClass = null;
             contextOrigins.pop();
+            shouldVerifies.pop();
             return result;
         }
         if (tree instanceof JCTree jcTree) {
@@ -284,9 +271,30 @@ public class JavaToDafnyCompiler {
         }
     }
 
+    private void processVerifyAnnotation(Map<String, JCTree.JCAnnotation> annotationsByName) {
+        var verifyAnnotation = annotationsByName.get(Verify.class.getName());
+        if (verifyAnnotation != null) {
+            var arguments = getArguments(verifyAnnotation);
+            var shouldArgument = arguments.get("value");
+            var should = true;
+            if (shouldArgument != null) {
+                should = (boolean) getLiteralValue(shouldArgument);
+            }
+
+            var pushDownArgument = arguments.get("overrideChildren");
+            var includeMembers = true;
+            if (pushDownArgument != null) {
+                includeMembers = (boolean) getLiteralValue(pushDownArgument);
+            }
+            addShouldVerify(getVerifyMode(should, includeMembers));
+        } else {
+            addShouldVerify(ShouldVerifyMode.Inherit);
+        }
+    }
+
     private static Object getLiteralValue(JCTree.JCExpression expression) {
         if (expression instanceof JCTree.JCLiteral literal) {
-            return literal.value;
+            return literal.getValue();
         } else {
             throw new JavaViolationException();
         }
@@ -411,10 +419,15 @@ public class JavaToDafnyCompiler {
         var name = getName(method, method.name);
         var origin = declToOrigin(method, name);
 
+
         var annotations = method.getModifiers().getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
+        
+        processVerifyAnnotation(annotationsByName);
+        boolean shouldVerify = shouldVerify();
+        shouldVerifies.pop();
         
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
             reportError(method, "notSupported", "@InheritContract");
@@ -445,7 +458,7 @@ public class JavaToDafnyCompiler {
 
             var statement = postHeader.getFirst();
             if (statement instanceof JCTree.JCReturn returnStatement) {
-                var body = contractClass != null ? null : toExpr(returnStatement.expr);
+                var body = shouldVerify ? toExpr(returnStatement.expr) : null;
                 return new Function(origin, name, null, false, null, List.of(),
                         ins, header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), isStatic, false, null, returnType,
@@ -482,11 +495,11 @@ public class JavaToDafnyCompiler {
 
             if (method.name.contentEquals("<init>")) {
                 DividedBlockStmt body;
-                if (contractClass != null) {
-                    body = null;
-                } else {
+                if (shouldVerify) {
                     var bodyStatements = translateStatements(postHeader);
                     body = new DividedBlockStmt(toOrigin(method.body), null, bodyStatements, null, List.of());
+                } else {
+                    body = null;
                 }
                 return new Constructor(origin, new Name(origin, "_ctor"), null, false, null, List.of(), ins,
                         header.preconditions, header.postconditions, header.getReads(), 
@@ -494,11 +507,11 @@ public class JavaToDafnyCompiler {
                         body);
             } else {
                 BlockStmt body;
-                if (contractClass != null) {
-                    body = null;
-                } else {
+                if (shouldVerify) {
                     var bodyStatements = translateStatements(postHeader);
                     body = new BlockStmt(toOrigin(method.body), null, bodyStatements);
+                } else {
+                    body = null;
                 }
                 if (annotationsByName.containsKey(Proof.class.getName())) {
                     return new Method(origin, name, null, false, null, List.of(),

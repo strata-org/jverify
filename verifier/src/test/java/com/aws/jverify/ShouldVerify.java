@@ -6,7 +6,7 @@ import static com.aws.jverify.JVerify.check;
 class ShouldVerify1 {
     
     @Verify(false)
-    void foo() {
+    void foo1() {
         check(false);
 //      ^^^^^^^^^^^^ Error: assertion might not hold
     }
@@ -15,7 +15,7 @@ class ShouldVerify1 {
 @Verify(value = false, overrideChildren = true)
 class ShouldVerify2 {
     @Verify(true)
-    void foo() {
+    void foo2() {
         check(false);
     }
 }
@@ -23,12 +23,12 @@ class ShouldVerify2 {
 @Verify(value = false, overrideChildren = false)
 class ShouldVerify3 {
     @Verify(true)
-    void foo() {
+    void foo3() {
         check(false);
 //      ^^^^^^^^^^^^ Error: assertion might not hold
     }
     
-    void bar() {
+    void foo4() {
         check(false);
     }
 }
@@ -36,12 +36,12 @@ class ShouldVerify3 {
 @Verify(value = true, overrideChildren = false)
 class ShouldVerify4 {
     @Verify(true)
-    void foo() {
+    void foo5() {
         check(false);
 //      ^^^^^^^^^^^^ Error: assertion might not hold
     }
 
-    void bar() {
+    void foo6() {
         check(false);
 //      ^^^^^^^^^^^^ Error: assertion might not hold
     }

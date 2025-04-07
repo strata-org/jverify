@@ -21,7 +21,7 @@ public class TestVerifier {
 
     @Test
     public void shouldVerify() throws IOException {
-        testMarkedSourceFile("ShouldVerify.java", new DafnyResults(4, 4));
+        testMarkedSourceFile("ShouldVerify.java", new DafnyResults(2, 4));
     }
     
     @Test
