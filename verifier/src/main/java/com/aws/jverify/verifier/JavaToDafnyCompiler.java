@@ -619,9 +619,12 @@ public class JavaToDafnyCompiler {
             return new NameSegment(origin, identifier.getName().toString(), null);
         } else if (expr instanceof JCTree.JCLiteral literal) {
             if (literal.typetag == TypeTag.BOOLEAN) {
-                return new LiteralExpr(toOrigin(literal), literal.value != (Object) 0);
+                return new LiteralExpr(toOrigin(literal), literal.getValue());
             }
-            return new LiteralExpr(origin, literal.value);
+            if (literal.typetag == TypeTag.CHAR) {
+                return new CharLiteralExpr(toOrigin(literal), literal.getValue());
+            }
+            return new LiteralExpr(origin, literal.getValue());
         } else if (expr instanceof JCTree.JCMethodInvocation invocation) {
             var jverifyMethodExpr = jverifyLibMethodToExpr(invocation);
             if (jverifyMethodExpr != null) {
@@ -816,12 +819,16 @@ public class JavaToDafnyCompiler {
                     }
                 }
                 case BYTE -> {
+                    return new UserDefinedType(origin, new NameSegment(origin, "byte", null));
                 }
                 case CHAR -> {
+                    return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
                 }
                 case FLOAT -> {
+                    return new UserDefinedType(origin, new NameSegment(origin, "Float", null));
                 }
                 case DOUBLE -> {
+                    return new UserDefinedType(origin, new NameSegment(origin, "Double", null));
                 }
             }
 

@@ -20,5 +20,10 @@ class Types {
 //        x = (short)y;
 //        y = (int)z;
 //        z = (long)x;
+        
+        char c = 'q';
+        byte b = 10;
+        float f;
+        double d;
     }
 }

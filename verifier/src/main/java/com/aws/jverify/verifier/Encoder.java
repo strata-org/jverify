@@ -10,6 +10,8 @@ public interface Encoder {
 
     void writeString(String value);
     void writeNullable(boolean isNull);
+
+    void writeDouble(Double d);
 }
 
 class TextEncoder implements Encoder {
@@ -26,7 +28,14 @@ class TextEncoder implements Encoder {
             writer.append(' ');
         }
     }
-    
+
+    @Override
+    public void writeDouble(Double value) {
+        writer.append(value);
+        writer.append(";");
+        writer.append(' ');
+    }
+
     @Override
     public void writeBool(boolean value) {
         writer.append(value ? "true" : "false");
