@@ -6,7 +6,7 @@ import com.aws.jverify.Verify;
 
 import static com.aws.jverify.JVerify.*;
 
-@Verify(should = false)
+@Verify(value = false)
 class Foo {
     public final static int c = 42;
     

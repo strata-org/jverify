@@ -172,7 +172,7 @@ public class JavaToDafnyCompiler {
                 return false;
             }
         }
-        return false;
+        throw new RuntimeException("shouldVerify should never be empty");
     }
     
     private void addShouldVerify(ShouldVerifyMode mode) {
@@ -229,23 +229,15 @@ public class JavaToDafnyCompiler {
                 var shouldArgument = arguments.get("should");
                 var should = true;
                 if (shouldArgument != null) {
-                    if (shouldArgument instanceof JCTree.JCLiteral literal) {
-                        should = literal.value.equals(true);
-                    } else {
-                        throw new JavaViolationException();
-                    }
+                    should = (boolean) getLiteralValue(shouldArgument);
                 }
 
-                var pushDownArgument = arguments.get("pushDown");
-                var pushDown = true;
+                var pushDownArgument = arguments.get("members");
+                var includeMembers = true;
                 if (pushDownArgument != null) {
-                    if (pushDownArgument instanceof JCTree.JCLiteral literal) {
-                        pushDown = literal.value.equals(true);
-                    } else {
-                        throw new JavaViolationException();
-                    }
+                    includeMembers = (boolean) getLiteralValue(shouldArgument);
                 }
-                addShouldVerify(getVerifyMode(should, pushDown));
+                addShouldVerify(getVerifyMode(should, includeMembers));
             } else {
                 addShouldVerify(ShouldVerifyMode.Inherit);
             }
@@ -291,7 +283,15 @@ public class JavaToDafnyCompiler {
             throw new NotImplementedException(tree.getClass().getName());
         }
     }
-    
+
+    private static Object getLiteralValue(JCTree.JCExpression expression) {
+        if (expression instanceof JCTree.JCLiteral literal) {
+            return literal.value;
+        } else {
+            throw new JavaViolationException();
+        }
+    }
+
     private boolean isNestedClass(JCTree.JCClassDecl classDecl) {
         if (classDecl.sym != null && classDecl.sym.owner != null) {
             return classDecl.sym.owner.kind == Kinds.Kind.TYP;
@@ -809,8 +809,6 @@ public class JavaToDafnyCompiler {
             Expression nameSegment;
             if (expression instanceof ExprDotName exprDotName) {
                 nameSegment = new NameSegment(exprDotName.getOrigin(), exprDotName.getSuffixNameNode().getValue(), null);
-            } else if (expression instanceof NameSegment nameSegment1) {
-                nameSegment = nameSegment1;
             } else {
                 nameSegment = expression;
             }
@@ -966,7 +964,6 @@ public class JavaToDafnyCompiler {
             // Not sure if this statement is useful
             pos = Math.max(pos, getEndPos(classDecl.mods));
         }
-        compilationUnit.getLineMap().getColumnNumber(325);
 
         // Find the class/interface/enum/record keyword and skip it
         String sourceText = source.toString();
