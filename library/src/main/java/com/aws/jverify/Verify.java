@@ -12,12 +12,12 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.TYPE, ElementType.PACKAGE})
 public @interface Verify {
     /**
-     * Whether this symbol should be verified or not
+     * Whether this symbol and nested symbols should be verified or not
      */
     boolean value() default true;
     /**
-     * Whether this annotation should apply recursively to members of this symbol 
+     * Whether this annotation overrides any @Verify annotations applied on nested symbols 
      */
-    boolean members() default true;
+    boolean overrideChildren() default false;
 }
 
