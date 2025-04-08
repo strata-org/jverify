@@ -21,7 +21,7 @@ public class TestVerifier {
     @Test
     public void testLongResolutionErrors() throws IOException {
         testMarkedSource(getTestFileContent("ResolutionErrorsLong.java"),
-                5, CommandLine.ExitCode.USAGE);
+                10, CommandLine.ExitCode.USAGE);
     }
     
     @Test

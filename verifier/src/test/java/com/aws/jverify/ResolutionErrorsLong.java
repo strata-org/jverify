@@ -6,6 +6,7 @@ import static com.aws.jverify.JVerify.check;
 class ResolutionErrorsLong {
     public void foo() {
         var l = 3L;
+        var r = 3L;
         var incrementPostfix = l++;
 //                              ^ error: unary operator++(long) is not supported
         check(incrementPostfix == 3L);
@@ -26,5 +27,16 @@ class ResolutionErrorsLong {
         var bitwiseNot = ~l;
 //                       ^ error: unary operator~(long) is not supported
         check(bitwiseNot != l);
+
+        var plusEquals = l += r;
+//                         ^ error: since '+=' performs mutation, it may only be used where a statement is allowed
+        var minEquals = l -= r;
+//                        ^ error: since '-=' performs mutation, it may only be used where a statement is allowed
+        var mulEquals = l *= r;
+//                        ^ error: since '*=' performs mutation, it may only be used where a statement is allowed
+        var divEquals = l /= r;
+//                        ^ error: since '/=' performs mutation, it may only be used where a statement is allowed
+        var modEquals = l %= r;
+//                        ^ error: since '%=' performs mutation, it may only be used where a statement is allowed
     } 
 }

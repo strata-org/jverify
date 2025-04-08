@@ -654,6 +654,9 @@ public class JavaToDafnyCompiler {
             return new SeqSelectExpr(origin, true, arrayExpr, indexExpr, null, null);
         } else if (expr instanceof JCTree.JCParens parens) {
             return toExpr(parens.getExpression());
+        } else if (expr instanceof JCTree.JCAssignOp assignOp) {
+            reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
+            return getHole(origin);
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
