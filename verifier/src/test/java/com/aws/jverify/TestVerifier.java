@@ -19,14 +19,25 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
-    public void testLongResolutionErrors() throws IOException {
-        testMarkedSource(getTestFileContent("ResolutionErrorsLong.java"),
+    public void resolutionErrorIntegerTest() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsIntegerOnlyOperators.java"),
                 10, CommandLine.ExitCode.USAGE);
+    }
+
+    @Test
+    public void verifyIntegerTest() throws IOException {
+        verifyMarkedSourceFile("VerifyIntegerOnlyOperators.java", new DafnyResults(0, 1));
     }
     
     @Test
-    public void longTest() throws IOException {
-        verifyMarkedSourceFile("VerifyLong.java", new DafnyResults(1, 0));
+    public void resolutionErrorNumericTest() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsNumericOperators.java"),
+                10, CommandLine.ExitCode.USAGE);
+    }
+
+    @Test
+    public void verifyNumericTest() throws IOException {
+        verifyMarkedSourceFile("VerifyNumericOperators.java", new DafnyResults(0, 1));
     }
     
     @Test

@@ -2,24 +2,26 @@ package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.check;
 
+/**
+ * Numeric operators are those that apply to the types:
+ * byte, short, int, long, float, double, char
+ */
 @SuppressWarnings("ConstantValue")
-class VerifyLong {
+class VerifyNumericOperators {
     public void foo() {
+        check(false);
+//      ^^^^^^^^^^^^ Error: assertion might not hold
+
         var l = 3L;
         var r = 3L;
-        /*var incrementPostfix =*/ l++;
-        // check(incrementPostfix == 3L);
+        l++;
         check(l == 4L);
-        /*var decrementPostfix =*/ l--;
-        //check(decrementPostfix == 4L);
+        l--;
         check(l == 3L);
-        /*var incrementPrefix =*/ ++l;
-        //check(incrementPrefix == 4L);
+        ++l;
         check(l == 4L);
-        /*var decrementPrefix =*/ --l;
-        //check(decrementPrefix == 3L);
+        --l;
         check(l == 3L);
-        
         
         var multiplication = l * r;
         check(multiplication == 9L);
@@ -39,6 +41,7 @@ class VerifyLong {
         check(lessThanOrEquals);
         var greaterThanOrEquals = l >= r;
         check(greaterThanOrEquals);
+        
         l += r;
         check(l == 6L);
         l -= r;

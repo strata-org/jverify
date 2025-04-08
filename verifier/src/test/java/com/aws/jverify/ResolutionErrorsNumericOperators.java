@@ -2,31 +2,31 @@ package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.check;
 
+/**
+ * Numeric operators are those that apply to the types:
+ * byte, short, int, long, float, double, char
+ */
 @SuppressWarnings("ConstantValue")
-class ResolutionErrorsLong {
+class ResolutionErrorsNumericOperators {
     public void foo() {
-        var l = 3L;
-        var r = 3L;
+        var l = 3f;
+        var r = 3f;
         var incrementPostfix = l++;
 //                              ^ error: unary operator++(long) is not supported
-        check(incrementPostfix == 3L);
+        check(incrementPostfix == 3f);
         check(l == 4L);
         var decrementPostfix = l--;
 //                              ^ error: unary operator--(long) is not supported
-        check(decrementPostfix == 4L);
+        check(decrementPostfix == 4f);
         check(l == 3L);
         var incrementPrefix = ++l;
 //                            ^ error: unary operator++(long) is not supported
-        check(incrementPrefix == 4L);
-        check(l == 4L);
+        check(incrementPrefix == 4f);
+        check(l == 4f);
         var decrementPrefix = --l;
 //                            ^ error: unary operator--(long) is not supported
-        check(decrementPrefix == 3L);
-        check(l == 3L);
-
-        var bitwiseNot = ~l;
-//                       ^ error: unary operator~(long) is not supported
-        check(bitwiseNot != l);
+        check(decrementPrefix == 3f);
+        check(l == 3f);
 
         var plusEquals = l += r;
 //                         ^ error: since '+=' performs mutation, it may only be used where a statement is allowed
