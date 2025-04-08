@@ -19,6 +19,12 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
+    public void testLongResolutionErrors() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsLong.java"),
+                5, CommandLine.ExitCode.USAGE);
+    }
+    
+    @Test
     public void longTest() throws IOException {
         verifyMarkedSourceFile("VerifyLong.java", new DafnyResults(1, 0));
     }
@@ -35,7 +41,8 @@ public class TestVerifier {
     
     @Test
     public void contractErrors() throws IOException {
-        testMarkedSource(getTestFileContent("ContractErrors.java"), 3, CommandLine.ExitCode.USAGE);
+        testMarkedSource(getTestFileContent("ContractErrors.java"), 
+                3, CommandLine.ExitCode.USAGE);
     }
     
     @Test
@@ -174,7 +181,7 @@ Dafny program verifier finished with 3 verified, 0 errors
 
             assertThat(output, containsString(expectation));
         }
-        Assertions.assertEquals(expectedErrorCount, result.ranges().size());
+        Assertions.assertEquals(expectedErrorCount, result.ranges().size(), output);
         Assertions.assertEquals(expectedExitCode, exitCode, output);
         return output;
     }
