@@ -10,7 +10,14 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target({ElementType.METHOD, ElementType.TYPE, ElementType.PACKAGE})
-public @interface ShouldVerify {
-    boolean shouldVerify() default true;
+public @interface Verify {
+    /**
+     * Whether this symbol and nested symbols should be verified or not
+     */
+    boolean value() default true;
+    /**
+     * Whether this annotation overrides any @Verify annotations applied on nested symbols 
+     */
+    boolean overrideChildren() default false;
 }
 

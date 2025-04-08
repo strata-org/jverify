@@ -7,7 +7,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public class IfStmt extends Statement {
   private final Boolean isBindingGuard;
 
-  @Nullable
   private final Expression guard;
 
   private final BlockStmt thn;

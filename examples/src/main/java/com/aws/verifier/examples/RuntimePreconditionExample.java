@@ -2,7 +2,7 @@ package com.aws.verifier.examples;
 
 import com.aws.jverify.CheckPreconditionsAtRuntime;
 import com.aws.jverify.PreconditionFailure;
-import com.aws.jverify.ShouldVerify;
+import com.aws.jverify.Verify;
 
 import static com.aws.jverify.JVerify.*;
 
@@ -17,7 +17,7 @@ public class RuntimePreconditionExample {
         }
     }
     
-    @ShouldVerify
+    @Verify
     @CheckPreconditionsAtRuntime
     static int division(int dividend, int divisor) {
         precondition(divisor != 0);
