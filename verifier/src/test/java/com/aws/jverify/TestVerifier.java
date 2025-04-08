@@ -4,7 +4,6 @@ import com.aws.jverify.common.Common;
 import com.aws.jverify.common.TestMarkup;
 import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.VerifierOptions;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
@@ -21,17 +20,17 @@ public class TestVerifier {
 
     @Test
     public void types() throws IOException {
-        testMarkedSourceFile("Types.java", new DafnyResults(0, 3));
+        verifyMarkedSourceFile("Types.java", new DafnyResults(0, 3));
     }
     
     @Test
     public void shouldVerify() throws IOException {
-        testMarkedSourceFile("ShouldVerify.java", new DafnyResults(0, 4));
+        verifyMarkedSourceFile("ShouldVerify.java", new DafnyResults(0, 4));
     }
     
     @Test
     public void contractErrors() throws IOException {
-        testMarkedSourceFile("ContractErrors.java", null);
+        testMarkedSource(getTestFileContent("ContractErrors.java"), 3, CommandLine.ExitCode.USAGE);
     }
     
     @Test
@@ -63,28 +62,29 @@ Dafny program verifier finished with 5 verified, 1 error
 
     @Test
     public void translationErrors() throws IOException {
-        testMarkedSourceFile("TranslationErrors.java", null);
+        String markedSource = getTestFileContent("TranslationErrors.java");
+        var output = testMarkedSource(markedSource, 10, CommandLine.ExitCode.USAGE);
     }
     
     @Test
     public void javaError() throws IOException {
         var source = Common.getResourceFile(getClass(), "/JavaError.java");
-        testMarkedSource(source, null);
+        testMarkedSource(source, 1, CommandLine.ExitCode.USAGE);
     }
     
     @Test
     public void assertFalse() throws IOException {
-        testMarkedSourceFile("AssertFalse.java", new DafnyResults(0, 1));
+        verifyMarkedSourceFile("AssertFalse.java", new DafnyResults(0, 1));
     }
 
     @Test
     public void fibonacciInvalid() throws IOException {
-        testMarkedSourceFile("FibonacciInvalid.java", new DafnyResults(2, 4));
+        verifyMarkedSourceFile("FibonacciInvalid.java", new DafnyResults(2, 5));
     }
 
     @Test
     public void operators() throws IOException {
-        testMarkedSourceFile("Operators.java", new DafnyResults(9, 9));
+        verifyMarkedSourceFile("Operators.java", new DafnyResults(9, 9));
     }
 
     @Test
@@ -136,13 +136,27 @@ Dafny program verifier finished with 3 verified, 0 errors
     }
 
     record DafnyResults(int successCount, int errorCount) {}
-    private void testMarkedSourceFile(String inputFileName, @Nullable DafnyResults dafnyResults) throws IOException {
+    private void verifyMarkedSourceFile(String inputFileName, DafnyResults dafnyResults) throws IOException {
+        testMarkedSourceVerification(getTestFileContent(inputFileName), dafnyResults);
+    }
+
+    private static String getTestFileContent(String inputFileName) throws IOException {
         var directory = Path.of("./src/test/java/com/aws/jverify");
         var filePath = directory.resolve(inputFileName);
-        testMarkedSource(Files.readString(filePath), dafnyResults);
+        String markedSource = Files.readString(filePath);
+        return markedSource;
     }
-    
-    private void testMarkedSource(String markedSource, @Nullable DafnyResults dafnyResults) throws IOException {
+
+    private void testMarkedSourceVerification(String markedSource, DafnyResults dafnyResults) throws IOException {
+        var output = testMarkedSource(markedSource, dafnyResults.errorCount(), 4);
+        var pluralization = dafnyResults.errorCount() > 1 ? "s" : "";
+        String ending = "Dafny program verifier finished with " +
+                dafnyResults.successCount() + " verified, " +
+                dafnyResults.errorCount() + " error" + pluralization + "\n";
+        assertThat(output, endsWith(ending));
+    }
+
+    private static String testMarkedSource(String markedSource, int expectedErrorCount, int expectedExitCode) throws IOException {
         StringWriter writer = new StringWriter();
         var options = getVerifierOptions();
         var result = TestMarkup.getPositionsAndAnnotatedRanges(markedSource);
@@ -155,18 +169,11 @@ Dafny program verifier finished with 3 verified, 0 errors
 
             assertThat(output, containsString(expectation));
         }
-        if (dafnyResults != null) {
-            var pluralization = result.ranges().size() > 1 ? "s" : "";
-            String ending = "Dafny program verifier finished with " +
-                    dafnyResults.successCount() + " verified, " +
-                    dafnyResults.errorCount() + " error" + pluralization + "\n";
-            assertThat(output, endsWith(ending));
-            Assertions.assertEquals(4, exitCode);
-        } else {
-            Assertions.assertEquals(CommandLine.ExitCode.USAGE, exitCode);
-        }
+        Assertions.assertEquals(expectedErrorCount, result.ranges().size());
+        Assertions.assertEquals(expectedExitCode, exitCode);
+        return output;
     }
-    
+
     /**
      * Returns the text with all CRLF sequences replaced with LF.
      * This prevents erroneous failures of diff-based assertions on Windows platforms.
