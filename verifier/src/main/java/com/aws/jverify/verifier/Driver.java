@@ -109,8 +109,10 @@ public class Driver {
             ProcessBuilder processBuilder = new ProcessBuilder(
                     dafnyPath.toString(),  // Program path
                     "verify",                       // First argument
+                    "--library",
                     verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
                     "--allow-axioms",
+                    "--dont-verify-dependencies",
                     "--input-format",
                     "Binary",
                     "--stdin",                        // Second argument

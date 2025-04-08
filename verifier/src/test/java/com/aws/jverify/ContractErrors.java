@@ -14,8 +14,8 @@ class FooContract1 {
     }
 }
 
-  @Contract(Foo.class)
-//^ error: a class may only be referenced by a @Contract annotation once
+   @Contract(Foo.class)
+// ^ error: a class may not be referenced by more than one @Contract annotation
 class FooContract2 {
     void bar(int x) {
         check(x < 0);

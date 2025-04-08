@@ -11,7 +11,7 @@ public interface Encoder {
     void writeString(String value);
     void writeNullable(boolean isNull);
 
-    void writeDouble(Double d);
+    void writeDouble(double d);
 }
 
 class TextEncoder implements Encoder {
@@ -30,7 +30,7 @@ class TextEncoder implements Encoder {
     }
 
     @Override
-    public void writeDouble(Double value) {
+    public void writeDouble(double value) {
         writer.append(value);
         writer.append(";");
         writer.append(' ');
