@@ -1,5 +1,6 @@
-package com.aws.jverify;
+package com.aws.jverify.builtin;
 
+import com.aws.jverify.Contract;
 import java.lang.annotation.Native;
 
 @Contract(Short.class)
