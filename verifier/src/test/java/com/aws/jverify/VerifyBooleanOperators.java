@@ -2,7 +2,7 @@ package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.check;
 
-@SuppressWarnings("ConstantValue")
+@SuppressWarnings({"ConstantValue", "PointlessBooleanExpression"})
 class VerifyBooleanOperators {
     public void foo() {
         check(false);
@@ -11,15 +11,10 @@ class VerifyBooleanOperators {
         var p = true;
         var q = false;
         var and = p && q;
+        check(and == false);
         var or = p || q;
+        check(or == true);
         var not = !p;
-        
-        var bitwiseAnd = p & q;
-        var bitwiseOr = p | q;
-        var xor = p ^ q;
-        
-        p &= q;
-        p |= q;
-        p ^= q;
+        check(not == false);
     } 
 }

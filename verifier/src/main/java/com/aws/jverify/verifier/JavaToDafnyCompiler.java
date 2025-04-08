@@ -607,9 +607,19 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCBinary binary) {
             var left = toExpr(binary.getLeftOperand());
             var right = toExpr(binary.getRightOperand());
+            var isBoolean = binary.type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType && 
+                    primitiveType.getTag() == TypeTag.BOOLEAN;
+            var isBitwise = switch (binary.getTag()) {
+                case JCTree.Tag.BITAND, JCTree.Tag.BITOR, JCTree.Tag.BITXOR -> true;
+                default -> false;        
+            };
+            if (isBitwise && isBoolean) {
+                reportError(binary, "notSupported", "operator " + binary.getOperator());
+                return getHole(origin);
+            }
             BinaryExprOpcode dafnyOperator = toDafny(binary.getOperator());
             if (dafnyOperator == null) {
-                reportError(binary, "notSupported", "operator" + binary.getOperator());
+                reportError(binary, "notSupported", "operator " + binary.getOperator());
                 return getHole(origin);
             }
             return new BinaryExpr(origin, dafnyOperator, left, right);
@@ -768,6 +778,9 @@ public class JavaToDafnyCompiler {
             case "||" -> BinaryExprOpcode.Or;
             case "&&" -> BinaryExprOpcode.And;
             case "%" -> BinaryExprOpcode.Mod;
+            case "&" -> BinaryExprOpcode.BitwiseAnd;
+            case "|" -> BinaryExprOpcode.BitwiseOr;
+            case "^" -> BinaryExprOpcode.BitwiseXor;
             default -> null;
         };
     }
@@ -1148,7 +1161,7 @@ public class JavaToDafnyCompiler {
                 default -> false;
             };
             if (isIntegerOnly) {
-                reportError(origin, "notSupported", "operator " + assignOp.getOperator().name.toString());
+                reportError(origin, "notSupported", "operator " + assignOp.getOperator());
                 return null;
             }
             var operated = new BinaryExpr(origin, toDafny(assignOp.getOperator()), target, toExpr(assignOp.getExpression()));
