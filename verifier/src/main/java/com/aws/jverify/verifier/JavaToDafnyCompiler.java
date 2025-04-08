@@ -18,6 +18,7 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
+import jdk.dynalink.linker.support.SimpleLinkRequest;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
@@ -1103,8 +1104,8 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Statement translateExpressionStatement(JCTree.JCExpressionStatement statement) {
-        var origin = toOrigin(statement);
         var expr = statement.getExpression();
+        var origin = toOrigin(expr);
         if (expr instanceof JCTree.JCMethodInvocation invocation) {
             var jverifyMethod = getJVerifyMethod(invocation);
             if (jverifyMethod != null) {
@@ -1134,17 +1135,25 @@ public class JavaToDafnyCompiler {
                         List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
             }
         }
-        if (statement.getExpression() instanceof JCTree.JCAssign assign) {
+        if (expr instanceof JCTree.JCAssign assign) {
             List<Expression> lhss = List.of(toExpr(assign.getVariable()));
             List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression()));
             return new AssignStatement(toOrigin(assign), null, lhss, rhss, false);
         }
-        if (statement.getExpression() instanceof JCTree.JCAssignOp assignOp) {
+        if (expr instanceof JCTree.JCAssignOp assignOp) {
             Expression target = toExpr(assignOp.getVariable());
             List<Expression> lhss = List.of(target);
+            var isIntegerOnly = switch(assignOp.getTag()) {
+                case JCTree.Tag.BITAND_ASG, BITOR_ASG, BITXOR_ASG, SL_ASG, SR_ASG, USR_ASG -> true;
+                default -> false;
+            };
+            if (isIntegerOnly) {
+                reportError(origin, "notSupported", "operator " + assignOp.getOperator().name.toString());
+                return null;
+            }
             var operated = new BinaryExpr(origin, toDafny(assignOp.getOperator()), target, toExpr(assignOp.getExpression()));
             List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
-            return new AssignStatement(toOrigin(assignOp), null, lhss, rhss, false);
+            return new AssignStatement(origin, null, lhss, rhss, false);
         }
         if (expr instanceof JCTree.JCUnary unary) {
             JCTree.Tag tag = unary.getTag();

@@ -8,6 +8,7 @@ module com.aws.jverify.verifier {
     requires info.picocli;
     requires com.aws.jverify;
     requires java.sql;
+    requires jdk.dynalink;
 
     opens com.aws.jverify.verifier to info.picocli;
 }

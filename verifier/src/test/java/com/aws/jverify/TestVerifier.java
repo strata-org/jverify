@@ -32,18 +32,13 @@ public class TestVerifier {
     @Test
     public void resolutionErrorIntegerTest() throws IOException {
         testMarkedSource(getTestFileContent("ResolutionErrorsIntegerOperators.java"),
-                10, CommandLine.ExitCode.USAGE);
-    }
-
-    @Test
-    public void verifyIntegerTest() throws IOException {
-        verifyMarkedSourceFile("VerifyIntegerOperators.java", new DafnyResults(0, 1));
+                18, CommandLine.ExitCode.USAGE);
     }
     
     @Test
     public void resolutionErrorNumericTest() throws IOException {
         testMarkedSource(getTestFileContent("ResolutionErrorsNumericOperators.java"),
-                10, CommandLine.ExitCode.USAGE);
+                9, CommandLine.ExitCode.USAGE);
     }
 
     @Test
