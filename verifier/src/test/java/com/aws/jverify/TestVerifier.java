@@ -79,7 +79,7 @@ Dafny program verifier finished with 5 verified, 1 error
 
     @Test
     public void fibonacciInvalid() throws IOException {
-        verifyMarkedSourceFile("FibonacciInvalid.java", new DafnyResults(2, 5));
+        verifyMarkedSourceFile("FibonacciInvalid.java", new DafnyResults(2, 4));
     }
 
     @Test
@@ -163,14 +163,18 @@ Dafny program verifier finished with 3 verified, 0 errors
         var source = result.output();
         var exitCode = Driver.verifyJavaSource(options, source, writer);
         var output = canonicalizeNewlines(writer.toString());
+        var errorsFound = 0;
         for(var range : result.ranges()) {
             var positionString = "(" + range.range.toString() + ")";
             String expectation = positionString + ": " + range.annotation;
+            if (range.annotation.startsWith("Error:") || range.annotation.startsWith("error: ")) {
+                errorsFound++;
+            }
 
             assertThat(output, containsString(expectation));
         }
-        Assertions.assertEquals(expectedErrorCount, result.ranges().size());
-        Assertions.assertEquals(expectedExitCode, exitCode);
+        Assertions.assertEquals(expectedErrorCount, errorsFound, output);
+        Assertions.assertEquals(expectedExitCode, exitCode, output);
         return output;
     }
 
