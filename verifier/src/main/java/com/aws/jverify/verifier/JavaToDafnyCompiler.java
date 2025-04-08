@@ -18,7 +18,6 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
-import jdk.dynalink.linker.support.SimpleLinkRequest;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
@@ -607,8 +606,6 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCBinary binary) {
             var left = toExpr(binary.getLeftOperand());
             var right = toExpr(binary.getRightOperand());
-            var isBoolean = binary.type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType && 
-                    primitiveType.getTag() == TypeTag.BOOLEAN;
             var isBitwise = switch (binary.getTag()) {
                 case JCTree.Tag.BITAND, JCTree.Tag.BITOR, JCTree.Tag.BITXOR -> true;
                 default -> false;        
