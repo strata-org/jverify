@@ -1,19 +1,8 @@
 package com.aws.jverify.common;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import java.util.stream.Collectors;
 
 public class Common {
     public static final String JVERIFY_CLASS = com.aws.jverify.JVerify.class.getName();
@@ -29,19 +18,6 @@ public class Common {
             return location.toString();
         } else {
             throw new RuntimeException("Not supported");
-        }
-    }
-
-    public static String getResourceFile(Class<?> clazz, String name) {
-        InputStream stream = clazz.getResourceAsStream(name);
-        if (stream == null) {
-            return null;
-        }
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            return reader.lines().map(line -> line + "\n").collect(Collectors.joining());
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read " + name + " resource", e);
         }
     }
 }

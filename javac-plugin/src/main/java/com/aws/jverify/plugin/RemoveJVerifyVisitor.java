@@ -47,9 +47,9 @@ class RemoveJVerifyVisitor extends TreeScanner {
 
         var annotations = currentMethod.getModifiers().getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                (JCTree.JCAnnotation a) -> a.getAnnotationType().toString(),
                 a -> a));
-        this.dynamicPreconditions = annotationsByName.containsKey(CheckPreconditionsAtRuntime.class.getName());
+        this.dynamicPreconditions = annotationsByName.containsKey(CheckPreconditionsAtRuntime.class.getSimpleName());
         
         super.visitMethodDef(tree);
         Attr attr = Attr.instance(context);
