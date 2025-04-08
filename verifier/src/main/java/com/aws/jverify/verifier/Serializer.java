@@ -8,7 +8,11 @@ import java.util.*;
 
 public class Serializer {
     Encoder encoder;
-    private static Map<String, String> simpleTypeNameMapping = Map.of("Integer", "Int32");
+    private static Map<String, String> simpleTypeNameMapping = 
+            Map.of("Integer", "Int32",
+                    "Long", "Int64",
+                    "Short", "Int16",
+                    "Character", "Char");
 
     public Serializer(Encoder encoder) {
         this.encoder = encoder;
@@ -70,7 +74,11 @@ public class Serializer {
             case String s -> encoder.writeString(s);
             case Map<?, ?> map -> serializeMap(map, (AnnotatedParameterizedType) annotatedType);
             case Integer i -> encoder.writeInt(i);
+            case Long l -> encoder.writeLong(l);
+            case Float f -> encoder.writeDouble((double)f);
+            case Double d -> encoder.writeDouble(d);
             case Boolean b -> encoder.writeBool(b);
+            case Character c -> encoder.writeString(new String(new char[] {c}));
             default -> serializeObject(value);
         }
     }
@@ -105,6 +113,9 @@ public class Serializer {
 
     private void serializeObject(Object obj) {
         Class<?> clazz = obj.getClass();
+        if (!clazz.getPackageName().contains("generated")) {
+            throw new RuntimeException("serializeObject should not be called on value of type " + clazz);
+        }
         List<Field> fields = getSerializableFields(clazz);
 
         for (Field field : fields) {
@@ -113,6 +124,8 @@ public class Serializer {
                 Object value = field.get(obj);
                 serializeValue(value, field.getAnnotatedType());
             } catch (IllegalAccessException e) {
+                throw new RuntimeException("Failed to serialize field: " + field.getName(), e);
+            } catch (InaccessibleObjectException e) {
                 throw new RuntimeException("Failed to serialize field: " + field.getName(), e);
             }
         }

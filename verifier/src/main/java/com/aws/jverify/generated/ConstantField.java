@@ -2,7 +2,10 @@ package com.aws.jverify.generated;
 
 // Generated ConstantField.java:
 // Generated from C# class
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 public class ConstantField extends Field {
+  @Nullable
   private final Expression rhs;
 
   private final Boolean hasStaticKeyword;

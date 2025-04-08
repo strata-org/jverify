@@ -619,9 +619,12 @@ public class JavaToDafnyCompiler {
             return new NameSegment(origin, identifier.getName().toString(), null);
         } else if (expr instanceof JCTree.JCLiteral literal) {
             if (literal.typetag == TypeTag.BOOLEAN) {
-                return new LiteralExpr(toOrigin(literal), literal.value != (Object) 0);
+                return new LiteralExpr(toOrigin(literal), literal.getValue());
             }
-            return new LiteralExpr(origin, literal.value);
+            if (literal.typetag == TypeTag.CHAR) {
+                return new CharLiteralExpr(toOrigin(literal), literal.getValue());
+            }
+            return new LiteralExpr(origin, literal.getValue());
         } else if (expr instanceof JCTree.JCMethodInvocation invocation) {
             var jverifyMethodExpr = jverifyLibMethodToExpr(invocation);
             if (jverifyMethodExpr != null) {
@@ -778,33 +781,57 @@ public class JavaToDafnyCompiler {
         
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(tree);
         if (primitiveTypeKind != null) {
-            if (primitiveTypeKind == TypeKind.VOID)
-                return null;
-
-            if (primitiveTypeKind == TypeKind.BOOLEAN) {
-                return new BoolType(origin);
-            }
-
-            if (primitiveTypeKind == TypeKind.INT) {
-                var mirrors = tree.type.getAnnotationMirrors();
-                var natAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Nat.class.getName())).findFirst();
-                var isNat = natAnnotation.isPresent();
-                var boundedAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Unbounded.class.getName())).findFirst();
-                var isBounded = boundedAnnotation.isEmpty();
-                if (isBounded) {
-                    if (isNat) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "nat32", null));
+            switch (primitiveTypeKind) {
+                case VOID -> {
+                    return null;
+                }
+                case BOOLEAN -> {
+                    return new BoolType(origin);
+                }
+                case INT, SHORT, LONG -> {
+                    var mirrors = tree.type.getAnnotationMirrors();
+                    var natAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Nat.class.getName())).findFirst();
+                    var isNat = natAnnotation.isPresent();
+                    var boundedAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Unbounded.class.getName())).findFirst();
+                    var isBounded = boundedAnnotation.isEmpty();
+                    if (isBounded) {
+                        var number = switch (primitiveTypeKind) {
+                            case SHORT -> 16;
+                            case INT -> 32;
+                            case LONG -> 64;
+                            default -> throw new IllegalStateException("Unexpected value: " + primitiveTypeKind);
+                        };
+                        if (isNat) {
+                            number = number - 1;
+                            return new UserDefinedType(origin, new NameSegment(origin, "nat" + number, null));
+                        } else {
+                            return new UserDefinedType(origin, new NameSegment(origin, "int" + number, null));
+                        }
                     } else {
-                        return new UserDefinedType(origin, new NameSegment(origin, "int32", null));
-                    }
-                } else {
-                    if (isNat) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
-                    } else {
-                        return new IntType(origin);
+                        if (primitiveTypeKind != TypeKind.INT) {
+                            reportError(tree, "unboundedNonInt", tree.toString());
+                        }
+                        if (isNat) {
+                            return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
+                        } else {
+                            return new IntType(origin);
+                        }
                     }
                 }
+                case BYTE -> {
+                    return new UserDefinedType(origin, new NameSegment(origin, "byte", null));
+                }
+                case CHAR -> {
+                    return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
+                }
+                case FLOAT -> {
+                    return new UserDefinedType(origin, new NameSegment(origin, "Float", null));
+                }
+                case DOUBLE -> {
+                    return new UserDefinedType(origin, new NameSegment(origin, "Double", null));
+                }
             }
+
 
             reportError(tree, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;

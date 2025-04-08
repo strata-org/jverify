@@ -4,11 +4,14 @@ public interface Encoder {
     void writeBool(boolean value);
 
     void writeInt(int value);
+    void writeLong(long value);
 
     void writeQualifiedName(String name);
 
     void writeString(String value);
     void writeNullable(boolean isNull);
+
+    void writeDouble(double d);
 }
 
 class TextEncoder implements Encoder {
@@ -25,7 +28,14 @@ class TextEncoder implements Encoder {
             writer.append(' ');
         }
     }
-    
+
+    @Override
+    public void writeDouble(double value) {
+        writer.append(value);
+        writer.append(";");
+        writer.append(' ');
+    }
+
     @Override
     public void writeBool(boolean value) {
         writer.append(value ? "true" : "false");
@@ -34,6 +44,13 @@ class TextEncoder implements Encoder {
 
     @Override
     public void writeInt(int value) {
+        writer.append(value);
+        writer.append(";");
+        writer.append(' ');
+    }
+
+    @Override
+    public void writeLong(long value) {
         writer.append(value);
         writer.append(";");
         writer.append(' ');

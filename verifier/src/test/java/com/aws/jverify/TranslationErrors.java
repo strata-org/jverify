@@ -33,11 +33,6 @@ class TranslationErrors {
 //                   ^ error: The argument to a forall call must be a lambda
     }
     
-    void unsupported() {
-        double f = 3.0;
-//      ^ error: Primitive type kind DOUBLE is not supported
-    }
-    
     void contractAfterBody(int x) {
         x = x + 3;
         precondition(x == 3);
