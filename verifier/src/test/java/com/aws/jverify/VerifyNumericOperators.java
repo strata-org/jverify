@@ -29,10 +29,12 @@ class VerifyNumericOperators {
         check(division == 1L);
         var remainder = l % 2L;
         check(remainder == 1L);
+        
         var addition = l + r;
         check(addition == 6L);
         var subtraction = l - r;
         check(subtraction == 0);
+        
         var lessThan = l < r;
         check(!lessThan);
         var greaterThan = l > r;

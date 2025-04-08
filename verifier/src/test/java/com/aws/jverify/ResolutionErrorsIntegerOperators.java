@@ -14,31 +14,33 @@ class ResolutionErrorsIntegerOperators {
         var r = 3;
 
         var bitwiseAnd = l & r;
-//                         ^ error: operator&(int,int) is not supported
-        var bitwiseExclusiveOr = l ^ r;
-//                                 ^ error: operator^(int,int) is not supported
+//                         ^ error: operator &(int,int) is not supported
         var bitwiseInclusiveOr = l | r;
-//                                 ^ error: operator|(int,int) is not supported
+//                                 ^ error: operator |(int,int) is not supported
+        var bitwiseExclusiveOr = l ^ r;
+//                                 ^ error: operator ^(int,int) is not supported
+        var bitWiseComplement = ~l;
+//                              ^ error: operator ~(int) is not supported
 
         var shiftLeft = l << r;
-//                        ^ error: operator<<(int,int) is not supported
+//                        ^ error: operator <<(int,int) is not supported
         var shiftRight = l >> r;
-//                         ^ error: operator>>(int,int) is not supported
+//                         ^ error: operator >>(int,int) is not supported
         var unsignedShiftRight = l >>> r;
-//                                 ^ error: operator>>>(int,int) is not supported
+//                                 ^ error: operator >>>(int,int) is not supported
 
         l &= r;
-//      ^ error: operator & is not supported
+//      ^ error: operator &(int,int) is not supported
         l |= r;
-//      ^ error: operator | is not supported
+//      ^ error: operator |(int,int) is not supported
         l ^= r;
-//      ^ error: operator ^ is not supported
+//      ^ error: operator ^(int,int) is not supported
         l <<= r;
-//      ^ error: operator << is not supported
+//      ^ error: operator <<(int,int) is not supported
         l >>= r;
-//      ^ error: operator >> is not supported
+//      ^ error: operator >>(int,int) is not supported
         l >>>= r;
-//      ^ error: operator >>> is not supported
+//      ^ error: operator >>>(int,int) is not supported
 
         var a1 = l &= r;
 //                 ^ error: since '&=' performs mutation, it may only be used where a statement is allowed

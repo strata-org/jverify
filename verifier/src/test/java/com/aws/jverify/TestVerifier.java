@@ -32,7 +32,7 @@ public class TestVerifier {
     @Test
     public void resolutionErrorIntegerTest() throws IOException {
         testMarkedSource(getTestFileContent("ResolutionErrorsIntegerOperators.java"),
-                18, CommandLine.ExitCode.USAGE);
+                19, CommandLine.ExitCode.USAGE);
     }
     
     @Test

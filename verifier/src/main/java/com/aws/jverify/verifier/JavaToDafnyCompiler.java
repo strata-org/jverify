@@ -601,7 +601,7 @@ public class JavaToDafnyCompiler {
             if (unary.getTag() == JCTree.Tag.NOT) {
                 return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
             } else {
-                reportError(unary, "notSupported", "unary operator" + unary.getOperator());
+                reportError(unary, "notSupported", "operator " + unary.getOperator());
                 return getHole(origin);
             }
         } else if (expr instanceof JCTree.JCBinary binary) {
@@ -613,7 +613,7 @@ public class JavaToDafnyCompiler {
                 case JCTree.Tag.BITAND, JCTree.Tag.BITOR, JCTree.Tag.BITXOR -> true;
                 default -> false;        
             };
-            if (isBitwise && isBoolean) {
+            if (isBitwise) {
                 reportError(binary, "notSupported", "operator " + binary.getOperator());
                 return getHole(origin);
             }
