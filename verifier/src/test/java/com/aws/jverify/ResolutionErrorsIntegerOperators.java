@@ -30,17 +30,17 @@ class ResolutionErrorsIntegerOperators {
 //                                 ^ error: operator >>>(int,int) is not supported
 
         l &= r;
-//      ^ error: operator &(int,int) is not supported
+//        ^ error: operator &(int,int) is not supported
         l |= r;
-//      ^ error: operator |(int,int) is not supported
+//        ^ error: operator |(int,int) is not supported
         l ^= r;
-//      ^ error: operator ^(int,int) is not supported
+//        ^ error: operator ^(int,int) is not supported
         l <<= r;
-//      ^ error: operator <<(int,int) is not supported
+//        ^ error: operator <<(int,int) is not supported
         l >>= r;
-//      ^ error: operator >>(int,int) is not supported
+//        ^ error: operator >>(int,int) is not supported
         l >>>= r;
-//      ^ error: operator >>>(int,int) is not supported
+//        ^ error: operator >>>(int,int) is not supported
 
         var a1 = l &= r;
 //                 ^ error: since '&=' performs mutation, it may only be used where a statement is allowed

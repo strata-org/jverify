@@ -9,28 +9,28 @@ import static com.aws.jverify.JVerify.check;
 @SuppressWarnings("ConstantValue")
 class ResolutionErrorsNumericOperators {
     public void foo() {
-        var l = 3f;
-        var r = 3f;
+        var l = 3;
+        var r = 3;
         var incrementPostfix = l++;
-//                              ^ error: unary operator ++(float) is not supported
-        check(incrementPostfix == 3f);
+//                              ^ error: operator ++(int) is not supported
+        check(incrementPostfix == 3);
         check(l == 4L);
         var decrementPostfix = l--;
-//                              ^ error: unary operator --(float) is not supported
-        check(decrementPostfix == 4f);
+//                              ^ error: operator --(int) is not supported
+        check(decrementPostfix == 4);
         check(l == 3L);
         var incrementPrefix = ++l;
-//                            ^ error: unary operator ++(float) is not supported
-        check(incrementPrefix == 4f);
+//                            ^ error: operator ++(int) is not supported
+        check(incrementPrefix == 4);
         check(l == 4f);
         var decrementPrefix = --l;
-//                            ^ error: unary operator --(float) is not supported
-        check(decrementPrefix == 3f);
-        check(l == 3f);
+//                            ^ error: operator --(int) is not supported
+        check(decrementPrefix == 3);
+        check(l == 3);
         
         var negation = -l;
-//                     ^ error: unary operator -(float) is not supported
-        check(negation == -3L);
+//                     ^ error: operator -(int) is not supported
+        check(negation == -3);
         
         var plusEquals = l += r;
 //                         ^ error: since '+=' performs mutation, it may only be used where a statement is allowed

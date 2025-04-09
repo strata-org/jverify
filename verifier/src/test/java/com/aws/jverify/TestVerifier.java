@@ -38,12 +38,19 @@ public class TestVerifier {
     @Test
     public void resolutionErrorNumericTest() throws IOException {
         testMarkedSource(getTestFileContent("ResolutionErrorsNumericOperators.java"),
-                9, CommandLine.ExitCode.USAGE);
+                10, CommandLine.ExitCode.USAGE);
     }
 
     @Test
-    public void verifyFloatingPointTest() throws IOException {
-        verifyMarkedSourceFile("VerifyFloatingPointOperators.java", new DafnyResults(0, 1));
+    public void resolutionErrorsDouble() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsDoubleOperators.java"),
+                20, CommandLine.ExitCode.USAGE);
+    }
+    
+    @Test
+    public void resolutionErrorsFloat() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsFloatOperators.java"),
+                20, CommandLine.ExitCode.USAGE);
     }
 
     @Test

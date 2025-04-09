@@ -22,6 +22,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
+import javax.swing.text.html.HTML;
 import javax.tools.*;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -606,20 +607,8 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCBinary binary) {
             var left = toExpr(binary.getLeftOperand());
             var right = toExpr(binary.getRightOperand());
-            var isBitwise = switch (binary.getTag()) {
-                case JCTree.Tag.BITAND, JCTree.Tag.BITOR, JCTree.Tag.BITXOR -> true;
-                default -> false;        
-            };
-            if (isBitwise) {
-                reportError(binary, "notSupported", "operator " + binary.getOperator());
-                return getHole(origin);
-            }
-            BinaryExprOpcode dafnyOperator = toDafny(binary.getOperator());
-            if (dafnyOperator == null) {
-                reportError(binary, "notSupported", "operator " + binary.getOperator());
-                return getHole(origin);
-            }
-            return new BinaryExpr(origin, dafnyOperator, left, right);
+            Symbol.OperatorSymbol operator = binary.getOperator();
+            return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
         } else if (expr instanceof JCTree.JCIdent identifier) {
             if (identifier.name.contentEquals("this")) {
                 return new ThisExpr(origin);
@@ -668,6 +657,31 @@ public class JavaToDafnyCompiler {
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
+    }
+
+    private Expression translateBinary(JCTree node,
+                                       com.sun.tools.javac.code.Type resultType,
+                                       com.sun.tools.javac.code.Type leftType,  
+                                       Symbol.OperatorSymbol operator, Expression left, Expression right) {
+        var origin = toOrigin(node);
+        if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
+            reportError(node, "notSupported", "operator " + operator);
+        }
+        var isBitwise = switch (operator.name.toString()) {
+            case "&", "|", "^", "<<", ">>", ">>>" -> true;
+            default -> false;        
+        };
+
+        if (isBitwise) {
+            reportError(node, "notSupported", "operator " + operator);
+            return getHole(origin);
+        }
+        BinaryExprOpcode dafnyOperator = toDafny(operator);
+        if (dafnyOperator == null) {
+            reportError(node, "notSupported", "operator " + operator);
+            return getHole(origin);
+        }
+        return new BinaryExpr(origin, dafnyOperator, left, right);
     }
 
     private boolean isEnum(JCTree.JCExpression selected) {
@@ -1153,15 +1167,8 @@ public class JavaToDafnyCompiler {
         if (expr instanceof JCTree.JCAssignOp assignOp) {
             Expression target = toExpr(assignOp.getVariable());
             List<Expression> lhss = List.of(target);
-            var isIntegerOnly = switch(assignOp.getTag()) {
-                case JCTree.Tag.BITAND_ASG, BITOR_ASG, BITXOR_ASG, SL_ASG, SR_ASG, USR_ASG -> true;
-                default -> false;
-            };
-            if (isIntegerOnly) {
-                reportError(origin, "notSupported", "operator " + assignOp.getOperator());
-                return null;
-            }
-            var operated = new BinaryExpr(origin, toDafny(assignOp.getOperator()), target, toExpr(assignOp.getExpression()));
+            var operated = translateBinary(assignOp, assignOp.type, assignOp.getVariable().type, assignOp.getOperator(), 
+                    target, toExpr(assignOp.getExpression()));
             List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
             return new AssignStatement(origin, null, lhss, rhss, false);
         }
@@ -1169,13 +1176,20 @@ public class JavaToDafnyCompiler {
             JCTree.Tag tag = unary.getTag();
             switch(tag) {
                 case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
-                    Expression target = toExpr(unary.getExpression());
-                    List<Expression> lhss = List.of(target);
-                    var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC) 
-                            ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
-                    var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
-                    List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
-                    return new AssignStatement(origin, null, lhss, rhss, false);
+                    if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
+                        reportError(unary, "notSupported", "operator " + unary.getOperator());
+                        return null;
+                    } else {
+                        Expression target = toExpr(unary.getExpression());
+                        List<Expression> lhss = List.of(target);
+                        
+                        var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
+                                ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
+                        var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
+                        List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
+                        return new AssignStatement(origin, null, lhss, rhss, false);
+                    }
+                    
                 }
             }
         }

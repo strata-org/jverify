@@ -16,11 +16,11 @@ class ResolutionErrorsBooleanOperators {
 //                  ^ error: operator ^(boolean,boolean) is not supported
 
         p &= q;
-//      ^ error: operator &(boolean,boolean) is not supported
+//        ^ error: operator &(boolean,boolean) is not supported
         p |= q;
-//      ^ error: operator |(boolean,boolean) is not supported
+//        ^ error: operator |(boolean,boolean) is not supported
         p ^= q;
-//      ^ error: operator ^(boolean,boolean) is not supported
+//        ^ error: operator ^(boolean,boolean) is not supported
         
         var a1 = p &= q;
 //                 ^ error: since '&=' performs mutation, it may only be used where a statement is allowed
