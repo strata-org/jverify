@@ -42,6 +42,11 @@ public class TestVerifier {
     }
 
     @Test
+    public void verifyFloatingPointTest() throws IOException {
+        verifyMarkedSourceFile("VerifyFloatingPointOperators.java", new DafnyResults(0, 1));
+    }
+
+    @Test
     public void verifyNumericTest() throws IOException {
         verifyMarkedSourceFile("VerifyNumericOperators.java", new DafnyResults(0, 1));
     }

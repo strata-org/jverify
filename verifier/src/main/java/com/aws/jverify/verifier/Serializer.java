@@ -12,6 +12,8 @@ public class Serializer {
             Map.of("Integer", "Int32",
                     "Long", "Int64",
                     "Short", "Int16",
+                    "Float", "Single",
+                    "Double", "Double",
                     "Character", "Char");
 
     public Serializer(Encoder encoder) {
