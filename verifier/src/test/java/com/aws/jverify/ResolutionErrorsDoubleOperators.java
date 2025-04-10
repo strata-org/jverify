@@ -30,7 +30,7 @@ class ResolutionErrorsDoubleOperators {
         var division = l / r;
 //                       ^ error: operator /(double,double) is not supported
         //check(division == 1f);
-        var remainder = l % 2f;
+        var remainder = l % 2d;
 //                        ^ error: operator %(double,double) is not supported
         //check(remainder == 1f);
         
