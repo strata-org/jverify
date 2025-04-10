@@ -12,35 +12,31 @@ class ResolutionErrorsNumericOperators {
         var l = 3;
         var r = 3;
         var incrementPostfix = l++;
-//                              ^ error: operator ++(int) is not supported
+//                              ^ error: since ++ performs mutation, it may only be used where a statement is allowed
         check(incrementPostfix == 3);
         check(l == 4L);
         var decrementPostfix = l--;
-//                              ^ error: operator --(int) is not supported
+//                              ^ error: since -- performs mutation, it may only be used where a statement is allowed
         check(decrementPostfix == 4);
         check(l == 3L);
         var incrementPrefix = ++l;
-//                            ^ error: operator ++(int) is not supported
+//                            ^ error: since ++ performs mutation, it may only be used where a statement is allowed
         check(incrementPrefix == 4);
         check(l == 4f);
         var decrementPrefix = --l;
-//                            ^ error: operator --(int) is not supported
+//                            ^ error: since -- performs mutation, it may only be used where a statement is allowed
         check(decrementPrefix == 3);
         check(l == 3);
         
-        var negation = -l;
-//                     ^ error: operator -(int) is not supported
-        check(negation == -3);
-        
         var plusEquals = l += r;
-//                         ^ error: since '+=' performs mutation, it may only be used where a statement is allowed
+//                         ^ error: since += performs mutation, it may only be used where a statement is allowed
         var minEquals = l -= r;
-//                        ^ error: since '-=' performs mutation, it may only be used where a statement is allowed
+//                        ^ error: since -= performs mutation, it may only be used where a statement is allowed
         var mulEquals = l *= r;
-//                        ^ error: since '*=' performs mutation, it may only be used where a statement is allowed
+//                        ^ error: since *= performs mutation, it may only be used where a statement is allowed
         var divEquals = l /= r;
-//                        ^ error: since '/=' performs mutation, it may only be used where a statement is allowed
+//                        ^ error: since /= performs mutation, it may only be used where a statement is allowed
         var modEquals = l %= r;
-//                        ^ error: since '%=' performs mutation, it may only be used where a statement is allowed
+//                        ^ error: since %= performs mutation, it may only be used where a statement is allowed
     } 
 }

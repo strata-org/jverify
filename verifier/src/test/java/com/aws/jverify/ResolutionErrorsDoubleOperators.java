@@ -66,7 +66,7 @@ class ResolutionErrorsDoubleOperators {
         l /= r;
 //        ^ error: operator /(double,double) is not supported
         //check(l == 3f);
-        l %= 2L;
+        l %= 2;
 //        ^ error: operator %(double,double) is not supported
         //check(l == 1f);
     } 

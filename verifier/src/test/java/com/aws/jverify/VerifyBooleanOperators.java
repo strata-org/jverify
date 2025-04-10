@@ -5,9 +5,6 @@ import static com.aws.jverify.JVerify.check;
 @SuppressWarnings({"ConstantValue", "PointlessBooleanExpression"})
 class VerifyBooleanOperators {
     public void foo() {
-        check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
-
         var p = true;
         var q = false;
         var and = p && q;
@@ -16,5 +13,8 @@ class VerifyBooleanOperators {
         check(or == true);
         var not = !p;
         check(not == false);
+        
+        check(false);
+//      ^^^^^^^^^^^^ Error: assertion might not hold
     } 
 }

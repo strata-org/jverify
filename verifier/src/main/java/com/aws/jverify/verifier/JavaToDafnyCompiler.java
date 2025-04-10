@@ -22,7 +22,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
-import javax.swing.text.html.HTML;
 import javax.tools.*;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -598,11 +597,24 @@ public class JavaToDafnyCompiler {
             return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
         } else if (expr instanceof JCTree.JCUnary unary) {
             var innerExpr = toExpr(unary.getExpression());
-            if (unary.getTag() == JCTree.Tag.NOT) {
-                return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
-            } else {
-                reportError(unary, "notSupported", "operator " + unary.getOperator());
-                return getHole(origin);
+            switch(unary.getTag()) {
+                case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
+                    reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
+                    return getHole(origin);
+                }
+                case JCTree.Tag.NOT -> {
+                    return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
+                }
+                case JCTree.Tag.NEG -> {
+                    return new BinaryExpr(origin, BinaryExprOpcode.Mul, innerExpr, new LiteralExpr(origin, -1));
+                }
+                case JCTree.Tag.POS -> {
+                    return innerExpr;
+                }
+                default -> {
+                    reportError(unary, "notSupported", "operator " + unary.getOperator());
+                    return getHole(origin);
+                }
             }
         } else if (expr instanceof JCTree.JCBinary binary) {
             var left = toExpr(binary.getLeftOperand());

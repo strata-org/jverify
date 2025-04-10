@@ -9,9 +9,6 @@ import static com.aws.jverify.JVerify.check;
 @SuppressWarnings("ConstantValue")
 class VerifyNumericOperators {
     public void foo() {
-        check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
-
         var l = 3L;
         var r = 3L;
         l++;
@@ -22,6 +19,12 @@ class VerifyNumericOperators {
         check(l == 4L);
         --l;
         check(l == 3L);
+
+        var positive = +l;
+        check(positive == 3);
+
+        var negation = -l;
+        check(negation == -3);
         
         var multiplication = l * r;
         check(multiplication == 9L);
@@ -54,5 +57,8 @@ class VerifyNumericOperators {
         check(l == 3L);
         l %= 2L;
         check(l == 1L);
+        
+        check(false);
+//      ^^^^^^^^^^^^ Error: assertion might not hold
     } 
 }
