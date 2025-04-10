@@ -1,7 +1,9 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.generated.Expression;
 import com.aws.jverify.generated.FrameExpression;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.w3c.dom.html.HTMLFieldSetElement;
 
 import java.lang.reflect.*;
 import java.util.*;
@@ -43,6 +45,9 @@ public class Serializer {
         } else if (type instanceof TypeVariable<?> && value instanceof FrameExpression) {
             // cheat a little bit for `MethodOrFunction.reads`
             expectedClass = FrameExpression.class;
+        } else if (type instanceof TypeVariable<?> && value instanceof Expression) {
+            // cheat a little bit for `MethodOrFunction.decreases`
+            expectedClass = Expression.class;
         } else {
             throw new RuntimeException("No support for serializing " + type.getClass().getName());
         }

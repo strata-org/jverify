@@ -16,6 +16,9 @@ public class JVerify {
     public static void precondition(boolean condition) {
     }
 
+    public static void decreases(Object value) {
+    }
+    
     public static void invariant(boolean condition) {
     }
     

@@ -19,6 +19,11 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
+    public void statements() throws IOException {
+        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(2, 0));
+    }
+    
+    @Test
     public void types() throws IOException {
         verifyMarkedSourceFile("Types.java", new DafnyResults(0, 3));
     }
@@ -143,13 +148,13 @@ Dafny program verifier finished with 3 verified, 0 errors
     private static String getTestFileContent(String inputFileName) throws IOException {
         var directory = Path.of("./src/test/java/com/aws/jverify");
         var filePath = directory.resolve(inputFileName);
-        String markedSource = Files.readString(filePath);
-        return markedSource;
+        return Files.readString(filePath);
     }
 
     private void testMarkedSourceVerification(String markedSource, DafnyResults dafnyResults) throws IOException {
-        var output = testMarkedSource(markedSource, dafnyResults.errorCount(), 4);
-        var pluralization = dafnyResults.errorCount() > 1 ? "s" : "";
+        var exitCode = dafnyResults.errorCount() > 0 ? 4 : 0;
+        var output = testMarkedSource(markedSource, dafnyResults.errorCount(), exitCode);
+        var pluralization = dafnyResults.errorCount() != 1 ? "s" : "";
         String ending = "Dafny program verifier finished with " +
                 dafnyResults.successCount() + " verified, " +
                 dafnyResults.errorCount() + " error" + pluralization + "\n";
@@ -201,7 +206,9 @@ Dafny program verifier finished with 3 verified, 0 errors
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         return new VerifierOptions(dafnyPath, libraryJar, prelude, 
-                null, null, true,
+                //Path.of("../temp.dfy"),
+                null,
+                null, true,
                 new String[] {
                         "--use-basename-for-filename"
                         //,"--wait-for-debugger"

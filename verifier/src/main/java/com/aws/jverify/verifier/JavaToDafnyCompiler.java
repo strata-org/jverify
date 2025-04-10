@@ -1129,9 +1129,23 @@ public class JavaToDafnyCompiler {
                     new Specification<>(header.modifies, null), new BlockStmt(origin, null, bodyStatements),
                     condition);
         } else if (statement instanceof JCTree.JCContinue jcContinue) {
-            return new BreakOrContinueStmt(origin, null, getName(jcContinue, jcContinue.label), 0, true);
+            Name targetLabel = null;
+            int breakAndContinueCount = 0;
+            if (jcContinue.label == null) {
+                breakAndContinueCount++;
+            } else {
+                targetLabel = getName(jcContinue, jcContinue.label);
+            }
+            return new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, true);
         } else if (statement instanceof JCTree.JCBreak jcBreak) {
-            return new BreakOrContinueStmt(origin, null, getName(jcBreak, jcBreak.label), 0, true);
+            Name targetLabel = null;
+            int breakAndContinueCount = 0;
+            if (jcBreak.label == null) {
+                breakAndContinueCount++;
+            } else {
+                targetLabel = getName(jcBreak, jcBreak.label);
+            }
+            return new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, false);
         } else if (statement instanceof JCTree.JCLabeledStatement labeledStatement) {
             reportError(statement, "notSupported", statement.getClass().getSimpleName());
             return null;
@@ -1253,8 +1267,7 @@ public class JavaToDafnyCompiler {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("decreases should have a single argument");
                     }
-                    reportError(invocation, "notSupported", "decreases");
-                    return null;
+                    header.decreases.add(toExpr(invocation.getArguments().getFirst()));
                 }
                 case "reads" -> {
                     if (invocation.args.size() != 1) {
