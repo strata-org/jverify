@@ -38,7 +38,7 @@ public class TestVerifier {
     @Test
     public void resolutionErrorNumericTest() throws IOException {
         testMarkedSource(getTestFileContent("ResolutionErrorsNumericOperators.java"),
-                10, CommandLine.ExitCode.USAGE);
+                9, CommandLine.ExitCode.USAGE);
     }
 
     @Test

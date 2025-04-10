@@ -43,16 +43,16 @@ class ResolutionErrorsIntegerOperators {
 //        ^ error: operator >>>(int,int) is not supported
 
         var a1 = l &= r;
-//                 ^ error: since '&=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since &= performs mutation, it may only be used where a statement is allowed
         var a2 = l |= r;
-//                 ^ error: since '|=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since |= performs mutation, it may only be used where a statement is allowed
         var a3 = l ^= r;
-//                 ^ error: since '^=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since ^= performs mutation, it may only be used where a statement is allowed
         var a4 = l <<= r;
-//                 ^ error: since '<<=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since <<= performs mutation, it may only be used where a statement is allowed
         var a5 = l >>= r;
-//                 ^ error: since '>>=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since >>= performs mutation, it may only be used where a statement is allowed
         var a6 = l >>>= r;
-//                 ^ error: since '>>>=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since >>>= performs mutation, it may only be used where a statement is allowed
     } 
 }

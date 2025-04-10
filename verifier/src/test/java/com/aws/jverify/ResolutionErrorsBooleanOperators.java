@@ -23,10 +23,10 @@ class ResolutionErrorsBooleanOperators {
 //        ^ error: operator ^(boolean,boolean) is not supported
         
         var a1 = p &= q;
-//                 ^ error: since '&=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since &= performs mutation, it may only be used where a statement is allowed
         var a2 = p |= q;
-//                 ^ error: since '|=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since |= performs mutation, it may only be used where a statement is allowed
         var a3 = p ^= q;
-//                 ^ error: since '^=' performs mutation, it may only be used where a statement is allowed
+//                 ^ error: since ^= performs mutation, it may only be used where a statement is allowed
     } 
 }
