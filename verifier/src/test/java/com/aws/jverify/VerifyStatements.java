@@ -3,8 +3,7 @@ package com.aws.jverify;
 import java.util.function.Predicate;
 import java.util.logging.XMLFormatter;
 
-import static com.aws.jverify.JVerify.check;
-import static com.aws.jverify.JVerify.decreases;
+import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody"})
 class VerifyStatements {
@@ -31,10 +30,8 @@ class VerifyStatements {
     }
     
     void forLoop() {
-        int i;
-        int x = 0;
+        int i = 0;
         for(i = 0; i < 5; i = i + 1) {
-            x += 1;
         }
         check(i == 5);
     }

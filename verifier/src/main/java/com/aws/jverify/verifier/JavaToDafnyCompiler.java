@@ -4,6 +4,7 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
+import com.sun.source.util.TreeScanner;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
@@ -37,6 +38,7 @@ public class JavaToDafnyCompiler {
     
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol contractClass;
+    private int generatedIndex = 0; 
 
     public JavaToDafnyCompiler() {
         shouldVerifies.push(ShouldVerifyMode.DefaultYes);
@@ -497,7 +499,7 @@ public class JavaToDafnyCompiler {
                 DividedBlockStmt body;
                 if (shouldVerify) {
                     var bodyStatements = translateStatements(postHeader);
-                    body = new DividedBlockStmt(toOrigin(method.body), null, bodyStatements, null, List.of());
+                    body = new DividedBlockStmt(toOrigin(method.body), null, List.of(), bodyStatements, null, List.of());
                 } else {
                     body = null;
                 }
@@ -509,7 +511,7 @@ public class JavaToDafnyCompiler {
                 BlockStmt body;
                 if (shouldVerify) {
                     var bodyStatements = translateStatements(postHeader);
-                    body = new BlockStmt(toOrigin(method.body), null, bodyStatements);
+                    body = new BlockStmt(toOrigin(method.body), null, List.of(), bodyStatements);
                 } else {
                     body = null;
                 }
@@ -1039,7 +1041,7 @@ public class JavaToDafnyCompiler {
                 compilationUnit.getLineMap().getColumnNumber(pos) + 1);
     }
 
-    private List<Statement> translateStatements(List<JCTree.JCStatement> statements) {
+    private <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements) {
         return statements.stream().map(this::translateStatement).filter(Objects::nonNull).toList();
     }
 
@@ -1094,7 +1096,7 @@ public class JavaToDafnyCompiler {
             return new IfStmt(origin, null, false, condition,
                     thenBranch, elseBranch);
         } else if (statement instanceof JCTree.JCBlock blockStatement) {
-            return new BlockStmt(origin, null,
+            return new BlockStmt(origin, null, List.of(),
                     blockStatement.getStatements().map(this::translateStatement).stream().toList());
         } else if (statement instanceof JCTree.JCReturn returnStatement) {
             var expr = returnStatement.getExpression();
@@ -1125,8 +1127,8 @@ public class JavaToDafnyCompiler {
 
             var bodyStatements = translateStatements(postHeader);
             var condition = toExpr(whileLoop.getCondition());
-            return new WhileStmt(origin, null, header.invariants, new Specification<>(header.decreases, null),
-                    new Specification<>(header.modifies, null), new BlockStmt(origin, null, bodyStatements),
+            return new WhileStmt(origin, null, List.of(), header.invariants, new Specification<>(header.decreases, null),
+                    new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), bodyStatements),
                     condition);
         } else if (statement instanceof JCTree.JCForLoop forLoop) {
             var header = new HeaderContainer();
@@ -1135,11 +1137,24 @@ public class JavaToDafnyCompiler {
             checkEmptyExpressions(forLoop, header.preconditions, "preconditions", "loop");
             checkEmptyExpressions(forLoop, header.postconditions, "postconditions", "loop");
 
+            var continueLabel = findOuterContinue(forLoop.body);
+
+            List<Statement> outerBody;
+            List<Statement> steps = translateStatements(forLoop.step);
             var bodyStatements = translateStatements(postHeader);
+            if (continueLabel != null) {
+                var wrappedBody = new BlockStmt(origin, null, List.of(new Label(origin, continueLabel)), bodyStatements);
+                steps.addFirst(wrappedBody);
+                outerBody = steps;
+            } else {
+                outerBody = new ArrayList<>(bodyStatements.size() + steps.size());
+                outerBody.addAll(bodyStatements);
+                outerBody.addAll(steps);
+            }
+
             var condition = toExpr(forLoop.getCondition());
-            var wrappedBody = new BlockStmt()
-            return new WhileStmt(origin, null, header.invariants, new Specification<>(header.decreases, null),
-                    new Specification<>(header.modifies, null), new BlockStmt(origin, null, bodyStatements),
+            return new WhileStmt(origin, null, List.of(), header.invariants, new Specification<>(header.decreases, null),
+                    new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), outerBody),
                     condition);
             
         } else if (statement instanceof JCTree.JCContinue jcContinue) {
@@ -1166,6 +1181,38 @@ public class JavaToDafnyCompiler {
         }
         reportError(statement, "notSupported", statement.getClass().getSimpleName());
         return null;
+    }
+
+    private String findOuterContinue(JCTree.JCStatement body) {
+        return new OuterContinueVisitor().scan(body, null);
+    }
+    
+    class OuterContinueVisitor extends TreeScanner<String, Void>
+    {
+        @Override
+        public String visitContinue(ContinueTree node, Void unused) {
+            return "generated" + generatedIndex++;
+        }
+
+        @Override
+        public String visitDoWhileLoop(DoWhileLoopTree node, Void unused) {
+            return null;
+        }
+
+        @Override
+        public String visitWhileLoop(WhileLoopTree node, Void unused) {
+            return null;
+        }
+
+        @Override
+        public String visitForLoop(ForLoopTree node, Void unused) {
+            return null;
+        }
+
+        @Override
+        public String visitEnhancedForLoop(EnhancedForLoopTree node, Void unused) {
+            return null;
+        }
     }
 
     private void checkEmptyExpressions(JCTree tree, 
@@ -1318,7 +1365,7 @@ public class JavaToDafnyCompiler {
     private static BlockStmt blockifyStatement(Statement statement) {
         return statement instanceof BlockStmt block
                 ? block
-                : new BlockStmt(statement.getOrigin(), null, List.of(statement));
+                : new BlockStmt(statement.getOrigin(), null, List.of(), List.of(statement));
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
