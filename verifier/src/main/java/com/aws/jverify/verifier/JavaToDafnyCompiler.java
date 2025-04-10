@@ -1128,6 +1128,20 @@ public class JavaToDafnyCompiler {
             return new WhileStmt(origin, null, header.invariants, new Specification<>(header.decreases, null),
                     new Specification<>(header.modifies, null), new BlockStmt(origin, null, bodyStatements),
                     condition);
+        } else if (statement instanceof JCTree.JCForLoop forLoop) {
+            var header = new HeaderContainer();
+            var postHeader = translateHeader(forLoop.body, header);
+
+            checkEmptyExpressions(forLoop, header.preconditions, "preconditions", "loop");
+            checkEmptyExpressions(forLoop, header.postconditions, "postconditions", "loop");
+
+            var bodyStatements = translateStatements(postHeader);
+            var condition = toExpr(forLoop.getCondition());
+            var wrappedBody = new BlockStmt()
+            return new WhileStmt(origin, null, header.invariants, new Specification<>(header.decreases, null),
+                    new Specification<>(header.modifies, null), new BlockStmt(origin, null, bodyStatements),
+                    condition);
+            
         } else if (statement instanceof JCTree.JCContinue jcContinue) {
             Name targetLabel = null;
             int breakAndContinueCount = 0;
