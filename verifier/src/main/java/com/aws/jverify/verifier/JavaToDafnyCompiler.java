@@ -1045,6 +1045,7 @@ public class JavaToDafnyCompiler {
         return statements.stream().map(this::translateStatement).filter(Objects::nonNull).toList();
     }
 
+    String loopContinueLabel;
     private @Nullable Statement translateStatement(JCTree.JCStatement statement) {
         var origin = toOrigin(statement);
         if (statement instanceof JCTree.JCExpressionStatement expressionStatement) {
@@ -1119,6 +1120,7 @@ public class JavaToDafnyCompiler {
 
             return new VarDeclStmt(origin, null, List.of(localVariable), initializer);
         } else if (statement instanceof JCTree.JCWhileLoop whileLoop) {
+            loopContinueLabel = null;
             var header = new HeaderContainer();
             var postHeader = translateHeader(whileLoop.body, header);
 
@@ -1131,21 +1133,26 @@ public class JavaToDafnyCompiler {
                     new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), bodyStatements),
                     condition);
         } else if (statement instanceof JCTree.JCForLoop forLoop) {
+            loopContinueLabel = null;
             var header = new HeaderContainer();
             var postHeader = translateHeader(forLoop.body, header);
 
             checkEmptyExpressions(forLoop, header.preconditions, "preconditions", "loop");
             checkEmptyExpressions(forLoop, header.postconditions, "postconditions", "loop");
 
-            var continueLabel = findOuterContinue(forLoop.body);
-
+            var hasContinue = findOuterContinue(forLoop.body);
+            if (hasContinue) {
+                loopContinueLabel = "generated" + generatedIndex++;
+            }
+            
             List<Statement> outerBody;
             List<Statement> steps = translateStatements(forLoop.step);
             var bodyStatements = translateStatements(postHeader);
-            if (continueLabel != null) {
-                var wrappedBody = new BlockStmt(origin, null, List.of(new Label(origin, continueLabel)), bodyStatements);
-                steps.addFirst(wrappedBody);
-                outerBody = steps;
+            if (hasContinue) {
+                var wrappedBody = new BlockStmt(origin, null, List.of(new Label(origin, loopContinueLabel)), bodyStatements);
+                outerBody = new ArrayList<>(1 + steps.size());
+                outerBody.add(wrappedBody);
+                outerBody.addAll(steps);
             } else {
                 outerBody = new ArrayList<>(bodyStatements.size() + steps.size());
                 outerBody.addAll(bodyStatements);
@@ -1160,12 +1167,18 @@ public class JavaToDafnyCompiler {
         } else if (statement instanceof JCTree.JCContinue jcContinue) {
             Name targetLabel = null;
             int breakAndContinueCount = 0;
+            var isContinue = true;
             if (jcContinue.label == null) {
-                breakAndContinueCount++;
+                if (loopContinueLabel == null) {
+                    breakAndContinueCount++;
+                } else {
+                    targetLabel = new Name(origin, loopContinueLabel);
+                    isContinue = false;
+                }
             } else {
                 targetLabel = getName(jcContinue, jcContinue.label);
             }
-            return new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, true);
+            return new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, isContinue);
         } else if (statement instanceof JCTree.JCBreak jcBreak) {
             Name targetLabel = null;
             int breakAndContinueCount = 0;
@@ -1183,35 +1196,49 @@ public class JavaToDafnyCompiler {
         return null;
     }
 
-    private String findOuterContinue(JCTree.JCStatement body) {
-        return new OuterContinueVisitor().scan(body, null);
+    private boolean findOuterContinue(JCTree.JCStatement body) {
+        var result = new OuterContinueVisitor().scan(body, null);
+        if (result == null) {
+            return false;
+        }
+        return result;
     }
     
-    class OuterContinueVisitor extends TreeScanner<String, Void>
+    class OuterContinueVisitor extends TreeScanner<Boolean, Void>
     {
         @Override
-        public String visitContinue(ContinueTree node, Void unused) {
-            return "generated" + generatedIndex++;
+        public Boolean reduce(Boolean r1, Boolean r2) {
+            if (r1 == null) {
+                return r2;
+            } else if (r2 == null) {
+                return r1;
+            }
+            return r1 || r2;
         }
 
         @Override
-        public String visitDoWhileLoop(DoWhileLoopTree node, Void unused) {
-            return null;
+        public Boolean visitContinue(ContinueTree node, Void unused) {
+            return true;
         }
 
         @Override
-        public String visitWhileLoop(WhileLoopTree node, Void unused) {
-            return null;
+        public Boolean visitDoWhileLoop(DoWhileLoopTree node, Void unused) {
+            return false;
         }
 
         @Override
-        public String visitForLoop(ForLoopTree node, Void unused) {
-            return null;
+        public Boolean visitWhileLoop(WhileLoopTree node, Void unused) {
+            return false;
         }
 
         @Override
-        public String visitEnhancedForLoop(EnhancedForLoopTree node, Void unused) {
-            return null;
+        public Boolean visitForLoop(ForLoopTree node, Void unused) {
+            return false;
+        }
+
+        @Override
+        public Boolean visitEnhancedForLoop(EnhancedForLoopTree node, Void unused) {
+            return false;
         }
     }
 

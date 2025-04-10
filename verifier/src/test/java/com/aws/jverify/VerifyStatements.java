@@ -35,6 +35,19 @@ class VerifyStatements {
         }
         check(i == 5);
     }
+
+    void forLoopContinue() {
+        int i = 0;
+        int x = 0;
+        for(i = 0; i < 5; i = i + 1) {
+            invariant(i <= 3 ? x == i : x == i - 1);
+            if (i == 3) {
+                continue;
+            }
+            x = x + 1;
+        }
+        check(i == 5);
+    }
     
 //    void labelledBreak() {
 //        outerLoop:
