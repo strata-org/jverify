@@ -5,7 +5,7 @@ import java.util.logging.XMLFormatter;
 
 import static com.aws.jverify.JVerify.*;
 
-@SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody"})
+@SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
 class VerifyStatements {
     void breakk() {
         var x = 0;
@@ -43,6 +43,21 @@ class VerifyStatements {
             invariant(i <= 3 ? x == i : x == i - 1);
             if (i == 3) {
                 continue;
+            }
+            x = x + 1;
+        }
+        check(i == 5);
+    }
+
+    void forLoopBreak() {
+        int i = 0;
+        int x = 0;
+        for(i = 0; true; i = i + 1) {
+            decreases(5 - i);
+            invariant(i <= 5);
+            invariant(x == i);
+            if (i == 5) {
+                break;
             }
             x = x + 1;
         }
