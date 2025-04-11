@@ -244,7 +244,7 @@ public class StatementCompiler {
                 return translateAssignOp(assignOp);
             }
             case JCTree.JCUnary unary -> {
-                return translateUnary(unary);
+                return translateUnaryExpressionStatement(unary);
             }
             default -> {
                 compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
@@ -253,7 +253,7 @@ public class StatementCompiler {
         }
     }
 
-    private List<Statement> translateUnary(JCTree.JCUnary unary) {
+    private List<Statement> translateUnaryExpressionStatement(JCTree.JCUnary unary) {
         var origin = compiler.toOrigin(unary);
         var tag = unary.getTag();
         switch (tag) {
@@ -274,8 +274,8 @@ public class StatementCompiler {
 
             }
             default -> {
-                compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                return List.of();
+                // non-mutating unary expressions are not valid Java statements
+                throw new JavaViolationException();
             }
         }
     }
