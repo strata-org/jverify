@@ -14,6 +14,8 @@ public class Serializer {
             Map.of("Integer", "Int32",
                     "Long", "Int64",
                     "Short", "Int16",
+                    "Float", "BigDec",
+                    "Double", "BigDec",
                     "Character", "Char");
 
     public Serializer(Encoder encoder) {

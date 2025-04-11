@@ -600,21 +600,30 @@ public class JavaToDafnyCompiler {
             return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
         } else if (expr instanceof JCTree.JCUnary unary) {
             var innerExpr = toExpr(unary.getExpression());
-            if (unary.getOperator().name.toString().equals("!")) {
-                return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
-            } else {
-                reportError(unary, "notSupported", "unary operator" + unary.getOperator());
-                return getHole(origin);
+            switch(unary.getTag()) {
+                case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
+                    reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
+                    return getHole(origin);
+                }
+                case JCTree.Tag.NOT -> {
+                    return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
+                }
+                case JCTree.Tag.NEG -> {
+                    return new BinaryExpr(origin, BinaryExprOpcode.Mul, innerExpr, new LiteralExpr(origin, -1));
+                }
+                case JCTree.Tag.POS -> {
+                    return innerExpr;
+                }
+                default -> {
+                    reportError(unary, "notSupported", "operator " + unary.getOperator());
+                    return getHole(origin);
+                }
             }
         } else if (expr instanceof JCTree.JCBinary binary) {
             var left = toExpr(binary.getLeftOperand());
             var right = toExpr(binary.getRightOperand());
-            BinaryExprOpcode dafnyOperator = toDafny(binary.getOperator());
-            if (dafnyOperator == null) {
-                reportError(binary, "notSupported", "operator" + binary.getOperator());
-                return getHole(origin);
-            }
-            return new BinaryExpr(origin, dafnyOperator, left, right);
+            Symbol.OperatorSymbol operator = binary.getOperator();
+            return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
         } else if (expr instanceof JCTree.JCIdent identifier) {
             if (identifier.name.contentEquals("this")) {
                 return new ThisExpr(origin);
@@ -657,9 +666,37 @@ public class JavaToDafnyCompiler {
             return new SeqSelectExpr(origin, true, arrayExpr, indexExpr, null, null);
         } else if (expr instanceof JCTree.JCParens parens) {
             return toExpr(parens.getExpression());
+        } else if (expr instanceof JCTree.JCAssignOp assignOp) {
+            reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
+            return getHole(origin);
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
+    }
+
+    private Expression translateBinary(JCTree node,
+                                       com.sun.tools.javac.code.Type resultType,
+                                       com.sun.tools.javac.code.Type leftType,  
+                                       Symbol.OperatorSymbol operator, Expression left, Expression right) {
+        var origin = toOrigin(node);
+        if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
+            reportError(node, "notSupported", "operator " + operator);
+        }
+        var isBitwise = switch (operator.name.toString()) {
+            case "&", "|", "^", "<<", ">>", ">>>" -> true;
+            default -> false;        
+        };
+
+        if (isBitwise) {
+            reportError(node, "notSupported", "operator " + operator);
+            return getHole(origin);
+        }
+        BinaryExprOpcode dafnyOperator = toDafny(operator);
+        if (dafnyOperator == null) {
+            reportError(node, "notSupported", "operator " + operator);
+            return getHole(origin);
+        }
+        return new BinaryExpr(origin, dafnyOperator, left, right);
     }
 
     private boolean isEnum(JCTree.JCExpression selected) {
@@ -767,6 +804,9 @@ public class JavaToDafnyCompiler {
             case "||" -> BinaryExprOpcode.Or;
             case "&&" -> BinaryExprOpcode.And;
             case "%" -> BinaryExprOpcode.Mod;
+            case "&" -> BinaryExprOpcode.BitwiseAnd;
+            case "|" -> BinaryExprOpcode.BitwiseOr;
+            case "^" -> BinaryExprOpcode.BitwiseXor;
             default -> null;
         };
     }
@@ -1065,41 +1105,7 @@ public class JavaToDafnyCompiler {
 
         switch (statement) {
             case JCTree.JCExpressionStatement expressionStatement -> {
-                var expr = expressionStatement.getExpression();
-                if (expr instanceof JCTree.JCMethodInvocation invocation) {
-                    var jverifyMethod = getJVerifyMethod(invocation);
-                    if (jverifyMethod != null) {
-                        var name = jverifyMethod.getQualifiedName().toString();
-                        if (name.equals("check")) {
-                            if (invocation.args.size() != 1) {
-                                throw new JavaViolationException("Check should have a single argument");
-                            }
-                            return new AssertStmt(toOrigin(invocation), null,
-                                    toExpr(invocation.args.getFirst()), null);
-                        } else {
-                            reportError(invocation, "contractAfterBody", jverifyMethod.getQualifiedName());
-                            return null;
-                        }
-                    } else {
-                        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
-                            if (!invocation.getArguments().isEmpty()) {
-                                reportError(invocation, "notSupported", "super calls with arguments");
-                                return null;
-                            }
-                            return null;
-                        }
-                        var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-                        ApplySuffix applySuffix = new ApplySuffix(toOrigin(invocation), toExpr(invocation.getMethodSelect()), null,
-                                new ActualBindings(argBindings), null);
-                        return new AssignStatement(origin, null, List.of(),
-                                List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
-                    }
-                }
-                if (expressionStatement.getExpression() instanceof JCTree.JCAssign assign) {
-                    List<Expression> lhss = List.of(toExpr(assign.getVariable()));
-                    List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression()));
-                    return new AssignStatement(toOrigin(assign), null, lhss, rhss, false);
-                }
+                return translateExpressionStatement(expressionStatement);
             }
             case JCTree.JCAssert assertStmt -> {
                 return new AssertStmt(origin, null,
@@ -1247,6 +1253,76 @@ public class JavaToDafnyCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, shouldVerifies -> "generated" + generatedIndex++);
+    }
+    
+    private @Nullable Statement translateExpressionStatement(JCTree.JCExpressionStatement statement) {
+        var expr = statement.getExpression();
+        var origin = toOrigin(expr);
+        if (expr instanceof JCTree.JCMethodInvocation invocation) {
+            var jverifyMethod = getJVerifyMethod(invocation);
+            if (jverifyMethod != null) {
+                var name = jverifyMethod.getQualifiedName().toString();
+                if (name.equals("check")) {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("Check should have a single argument");
+                    }
+                    return new AssertStmt(toOrigin(invocation), null,
+                            toExpr(invocation.args.getFirst()), null);
+                } else {
+                    reportError(invocation, "contractAfterBody", jverifyMethod.getQualifiedName());
+                    return null;
+                }
+            } else {
+                if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
+                    if (!invocation.getArguments().isEmpty()) {
+                        reportError(invocation, "notSupported", "super calls with arguments");
+                        return null;
+                    }
+                    return null;
+                }
+                var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
+                ApplySuffix applySuffix = new ApplySuffix(toOrigin(invocation), toExpr(invocation.getMethodSelect()), null,
+                        new ActualBindings(argBindings), null);
+                return new AssignStatement(origin, null, List.of(),
+                        List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
+            }
+        }
+        if (expr instanceof JCTree.JCAssign assign) {
+            List<Expression> lhss = List.of(toExpr(assign.getVariable()));
+            List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression()));
+            return new AssignStatement(toOrigin(assign), null, lhss, rhss, false);
+        }
+        if (expr instanceof JCTree.JCAssignOp assignOp) {
+            Expression target = toExpr(assignOp.getVariable());
+            List<Expression> lhss = List.of(target);
+            var operated = translateBinary(assignOp, assignOp.type, assignOp.getVariable().type, assignOp.getOperator(), 
+                    target, toExpr(assignOp.getExpression()));
+            List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
+            return new AssignStatement(origin, null, lhss, rhss, false);
+        }
+        if (expr instanceof JCTree.JCUnary unary) {
+            JCTree.Tag tag = unary.getTag();
+            switch(tag) {
+                case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
+                    if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
+                        reportError(unary, "notSupported", "operator " + unary.getOperator());
+                        return null;
+                    } else {
+                        Expression target = toExpr(unary.getExpression());
+                        List<Expression> lhss = List.of(target);
+                        
+                        var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
+                                ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
+                        var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
+                        List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
+                        return new AssignStatement(origin, null, lhss, rhss, false);
+                    }
+                    
+                }
+            }
+        }
+        reportError(statement, "notSupported", statement.getClass().getSimpleName());
+        return null;
     }
 
     private void checkEmptyExpressions(JCTree tree, 

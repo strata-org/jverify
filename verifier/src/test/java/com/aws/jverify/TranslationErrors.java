@@ -6,19 +6,19 @@ class TranslationErrors {
     
     @Pure
     int pureWithMultipleStatements() {
-//      ^ error: Pure method should have only one statement
+//      ^ error: pure method should have only one statement
         foo();
         return 3;
     }
 
     @Pure
     void pureWithoutReturn() {        
-//       ^ error: Pure method should have a return type
+//       ^ error: pure method should have a return type
         var x = 3;
     }
     
     int multipleReturnNames() {
-//      ^ error: Ensures clauses may introduce only one return variable name
+//      ^ error: ensures clauses may introduce only one return variable name
        postcondition((Integer i) -> i > 0);
        postcondition((Integer j) -> j < 2);
        return 1;
@@ -30,13 +30,13 @@ class TranslationErrors {
                 (Integer i) -> i > 0;
 //              ^ error: JCLambda is not supported
         check(forall(f));
-//                   ^ error: The argument to a forall call must be a lambda
+//                   ^ error: the argument to a forall call must be a lambda
     }
     
     void contractAfterBody(int x) {
         x = x + 3;
         precondition(x == 3);
-//                  ^ error: Call to JVerify header method precondition is not allowed after non-header statement
+//                  ^ error: call to JVerify header method precondition is not allowed after non-header statement
     }
     
     void wrongContractMethod(int x) {

@@ -11,5 +11,5 @@ type char16 = c: char | '\U{0000}' <= c <= '\U{ffff}'
 
 type byte = x | 0 <= x < 256
 
-type Float
-type Double
+type Float = real
+type Double = real
