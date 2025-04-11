@@ -4,7 +4,6 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
-import com.sun.source.util.TreeScanner;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
@@ -26,7 +25,6 @@ import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.sql.CallableStatement;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -1148,55 +1146,27 @@ public class JavaToDafnyCompiler {
                 return new VarDeclStmt(origin, null, List.of(localVariable), initializer);
             }
             case JCTree.JCWhileLoop whileLoop -> {
-                var header = new HeaderContainer();
-                var postHeader = translateHeader(whileLoop.body, header);
-
-                checkEmptyExpressions(whileLoop, header.preconditions, "preconditions", "loop");
-                checkEmptyExpressions(whileLoop, header.postconditions, "postconditions", "loop");
-
-                outerLoop = whileLoop;
-                for(var label : labels) {
-                    labelToLoop.put(label.getName(), whileLoop);
-                }
-                
-                var bodyStatements = translateStatements(postHeader);
-                var condition = toExpr(whileLoop.getCondition());
-                return new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
-                        new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), bodyStatements),
-                        condition);
+                return translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x);
             }
             case JCTree.JCForLoop forLoop -> {
-                var header = new HeaderContainer();
-                var postHeader = translateHeader(forLoop.body, header);
-
-                checkEmptyExpressions(forLoop, header.preconditions, "preconditions", "loop");
-                checkEmptyExpressions(forLoop, header.postconditions, "postconditions", "loop");
-
-                outerLoop = forLoop;
-                for(var label : labels) {
-                    labelToLoop.put(label.getName(), forLoop);
-                }
-
-                List<Statement> outerBody;
-                List<Statement> steps = translateStatements(forLoop.step);
-                var bodyStatements = translateStatements(postHeader);
-                if (loopsWithContinue.contains(forLoop)) {
-                    var continueLabel = getForLoopContinueLabel(forLoop);
-                    var wrappedBody = new BlockStmt(origin, null, List.of(new Label(origin, continueLabel)), bodyStatements);
-                    outerBody = new ArrayList<>(1 + steps.size());
-                    outerBody.add(wrappedBody);
-                    outerBody.addAll(steps);
-                } else {
-                    outerBody = new ArrayList<>(bodyStatements.size() + steps.size());
-                    outerBody.addAll(bodyStatements);
-                    outerBody.addAll(steps);
-                }
-
-                var condition = toExpr(forLoop.getCondition());
-                var loop = new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
-                        new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), outerBody),
-                        condition);
-                List<Statement> initializer = translateStatements(forLoop.getInitializer());
+                var loop = translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
+                    List<Statement> outerBody;
+                    List<Statement> steps = translateStatements(forLoop.step);
+                    if (loopsWithContinue.contains(forLoop)) {
+                        var continueLabel = getForLoopContinueLabel(forLoop);
+                        var wrappedBody = new BlockStmt(origin, null, List.of(new Label(origin, continueLabel)), bodyStatements);
+                        outerBody = new ArrayList<>(1 + steps.size());
+                        outerBody.add(wrappedBody);
+                        outerBody.addAll(steps);
+                    } else {
+                        outerBody = new ArrayList<>(bodyStatements.size() + steps.size());
+                        outerBody.addAll(bodyStatements);
+                        outerBody.addAll(steps);
+                    }
+                    return outerBody;
+                });
+                
+                var initializer = translateStatements(forLoop.getInitializer());
                 var result = new ArrayList<Statement>(initializer.size() + 1);
                 result.addAll(initializer);
                 result.add(loop);
@@ -1252,6 +1222,31 @@ public class JavaToDafnyCompiler {
         }
         reportError(statement, "notSupported", statement.getClass().getSimpleName());
         return null;
+    }
+
+    private WhileStmt translateLoop(JCTree.JCStatement loop, 
+                                    JCTree.JCExpression condition, 
+                                    JCTree.JCStatement body,
+                                    List<Label> labels,
+                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
+        var origin = toOrigin(loop);
+        var header = new HeaderContainer();
+        var postHeader = translateHeader(body, header);
+
+        checkEmptyExpressions(loop, header.preconditions, "preconditions", "loop");
+        checkEmptyExpressions(loop, header.postconditions, "postconditions", "loop");
+
+        outerLoop = loop;
+        for(var label : labels) {
+            labelToLoop.put(label.getName(), loop);
+        }
+
+        var dafnyCondition = toExpr(condition);
+        var bodyStatements = translateStatements(postHeader);
+        var newBodyStatements = transformBody.apply(bodyStatements);
+        return new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
+                new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),
+                dafnyCondition);
     }
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
