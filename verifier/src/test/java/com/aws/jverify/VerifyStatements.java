@@ -1,13 +1,10 @@
 package com.aws.jverify;
 
-import java.util.function.Predicate;
-import java.util.logging.XMLFormatter;
-
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
 class VerifyStatements {
-    void breakk() {
+    void whileWithBreak() {
         var x = 0;
         while(true) {
             decreases(10 - x);
@@ -18,7 +15,7 @@ class VerifyStatements {
         }
     }
     
-    void continuee() {
+    void whileWithContinue() {
         var x = 0;
         while(x < 10) {
             if (P(x)) {
@@ -32,19 +29,6 @@ class VerifyStatements {
     void forLoop() {
         int i = 0;
         for(i = 0; i < 5; i = i + 1) {
-        }
-        check(i == 5);
-    }
-
-    void forLoopContinue() {
-        int i = 0;
-        int x = 0;
-        for(i = 0; i < 5; i = i + 1) {
-            invariant(i <= 3 ? x == i : x == i - 1);
-            if (i == 3) {
-                continue;
-            }
-            x = x + 1;
         }
         check(i == 5);
     }
@@ -63,19 +47,53 @@ class VerifyStatements {
         }
         check(i == 5);
     }
+
+    void forLoopContinue() {
+        int i = 0;
+        int x = 0;
+        for(i = 0; i < 5; i = i + 1) {
+            invariant(i <= 3 ? x == i : x == i - 1);
+            if (i == 3) {
+                continue;
+            }
+            x = x + 1;
+        }
+        check(i == 5);
+    }
+
+    void nestedForLoop() {
+        int x = 0;
+        for (int i = 0; i < 5; i = i + 1) {
+            invariant(x == i * 5);
+            for (int j = 0; j < 5; j = j + 1) {
+                invariant(x == j + i * 5);
+                x = x + 1;
+            }
+        }
+        check(x == 25);
+    }
     
-//    void labelledBreak() {
-//        outerLoop:
-//        for (int i = 0; i < 5; i++) {
-//            for (int j = 0; j < 5; j++) {
-//                if (i == 2 && j == 2) {
-//                    System.out.println("  Breaking out of outer loop");
-//                    break outerLoop; // Breaks out of the loop labeled 'outerLoop'
-//                }
-//            }
-//        }
-//        System.out.println("After loops");
-//    }
+    void nestedForLoopContinue() {
+        int x = 0;
+        outerLoop:
+        for (int i = 0; i < 5; i = i + 1) {
+            invariant(i <= 2 ? x == i * 5 : true);
+            invariant(i <= 2 ? true : x == 12 + (i - 2) * 5);
+            invariant(i <= 2 ? x == i * 5 : x == 12 + (i - 2) * 5);
+            
+            for (int j = 0; j < 5; j = j + 1) {
+                invariant(i <= 2 ? x == j + i * 5 : x == j + 12 + (i - 2) * 5);
+                if (i == 2 && j == 2) {
+                    check(x == 12);
+                    continue outerLoop;
+                }
+                x = x + 1;
+            }
+            check(i < 2 ? x == (i+1) * 5 : true);
+            check(i < 2 ? true : x == 12 + (i - 1) * 5);
+            check(i < 2 ? x == (i + 1) * 5 : x == 12 + (i - 1) * 5);
+        }
+    }
     
     @Pure
     boolean P(int x) {

@@ -206,8 +206,8 @@ Dafny program verifier finished with 3 verified, 0 errors
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         return new VerifierOptions(dafnyPath, libraryJar, prelude, 
-                //Path.of("../temp.dfy"),
-                null,
+                Path.of("../temp.dfy"),
+                //null,
                 null, true,
                 new String[] {
                         "--use-basename-for-filename"
