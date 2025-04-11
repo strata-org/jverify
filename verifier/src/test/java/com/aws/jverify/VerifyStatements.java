@@ -115,6 +115,10 @@ class VerifyStatements {
         ;;;;
         check(true);
     }
+
+    void nativeAssert() {
+        assert true;
+    }
     
     @Pure
     boolean P(int x) {
