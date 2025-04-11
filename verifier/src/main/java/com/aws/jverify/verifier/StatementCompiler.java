@@ -10,17 +10,17 @@ import java.util.*;
 
 public class StatementCompiler {
 
-    JavaToDafnyCompiler compiler;
+    private final JavaToDafnyCompiler compiler;
 
     public StatementCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
     }
 
-    Queue<Label> labels = new LinkedList<>();
-    JCTree.JCStatement outerLoop;
-    Map<String, JCTree.JCStatement> labelToLoop = new HashMap<>();
-    Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
-    Set<JCTree.JCStatement> loopsWithContinue = new HashSet<>();
+    private final Queue<Label> labels = new LinkedList<>();
+    private final Map<String, JCTree.JCStatement> labelToLoop = new HashMap<>();
+    private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
+    private final Set<JCTree.JCStatement> loopsWithContinue = new HashSet<>();
+    private JCTree.JCStatement outerLoop;
     
     @Nullable
     public Statement translateStatement(JCTree.JCStatement statement) {
