@@ -41,10 +41,10 @@ public class StatementCompiler {
             }
             case JCTree.JCIf ifStatement -> {
                 var condition = compiler.toExpr(ifStatement.getCondition());
-                var thenBranch = compiler.blockifyStatement(translateStatement(ifStatement.getThenStatement()));
+                var thenBranch = JavaToDafnyCompiler.blockifyStatement(translateStatement(ifStatement.getThenStatement()));
                 BlockStmt elseBranch = null;
                 if (ifStatement.getElseStatement() != null) {
-                    elseBranch = compiler.blockifyStatement(translateStatement(ifStatement.getElseStatement()));
+                    elseBranch = JavaToDafnyCompiler.blockifyStatement(translateStatement(ifStatement.getElseStatement()));
                 }
                 return new IfStmt(origin, null, false, condition,
                         thenBranch, elseBranch);
@@ -144,10 +144,10 @@ public class StatementCompiler {
                 }
                 return new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, false);
             }
-            case JCTree.JCSkip skip -> {
+            case JCTree.JCSkip _ -> {
                 return null;
             }
-            case null, default -> {
+            default -> {
             }
         }
         compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
