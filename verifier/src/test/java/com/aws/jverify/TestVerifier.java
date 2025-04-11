@@ -19,6 +19,46 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
+    public void resolutionErrorBooleanTest() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsBooleanOperators.java"),
+                9, CommandLine.ExitCode.USAGE);
+    }
+
+    @Test
+    public void verifyBooleanTest() throws IOException {
+        verifyMarkedSourceFile("VerifyBooleanOperators.java", new DafnyResults(0, 1));
+    }
+    
+    @Test
+    public void resolutionErrorIntegerTest() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsIntegerOperators.java"),
+                19, CommandLine.ExitCode.USAGE);
+    }
+    
+    @Test
+    public void resolutionErrorNumericTest() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsNumericOperators.java"),
+                9, CommandLine.ExitCode.USAGE);
+    }
+
+    @Test
+    public void resolutionErrorsDouble() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsDoubleOperators.java"),
+                20, CommandLine.ExitCode.USAGE);
+    }
+    
+    @Test
+    public void resolutionErrorsFloat() throws IOException {
+        testMarkedSource(getTestFileContent("ResolutionErrorsFloatOperators.java"),
+                20, CommandLine.ExitCode.USAGE);
+    }
+
+    @Test
+    public void verifyNumericTest() throws IOException {
+        verifyMarkedSourceFile("VerifyNumericOperators.java", new DafnyResults(0, 1));
+    }
+    
+    @Test
     public void types() throws IOException {
         verifyMarkedSourceFile("Types.java", new DafnyResults(0, 3));
     }
@@ -30,7 +70,8 @@ public class TestVerifier {
     
     @Test
     public void contractErrors() throws IOException {
-        testMarkedSource(getTestFileContent("ContractErrors.java"), 3, CommandLine.ExitCode.USAGE);
+        testMarkedSource(getTestFileContent("ContractErrors.java"), 
+                3, CommandLine.ExitCode.USAGE);
     }
     
     @Test
@@ -143,13 +184,13 @@ Dafny program verifier finished with 3 verified, 0 errors
     private static String getTestFileContent(String inputFileName) throws IOException {
         var directory = Path.of("./src/test/java/com/aws/jverify");
         var filePath = directory.resolve(inputFileName);
-        String markedSource = Files.readString(filePath);
-        return markedSource;
+        return Files.readString(filePath);
     }
 
     private void testMarkedSourceVerification(String markedSource, DafnyResults dafnyResults) throws IOException {
-        var output = testMarkedSource(markedSource, dafnyResults.errorCount(), 4);
-        var pluralization = dafnyResults.errorCount() > 1 ? "s" : "";
+        int expectedExitCode = dafnyResults.errorCount() > 0 ? 4 : 0;
+        var output = testMarkedSource(markedSource, dafnyResults.errorCount(), expectedExitCode);
+        var pluralization = dafnyResults.errorCount() != 1 ? "s" : "";
         String ending = "Dafny program verifier finished with " +
                 dafnyResults.successCount() + " verified, " +
                 dafnyResults.errorCount() + " error" + pluralization + "\n";
