@@ -90,6 +90,26 @@ class VerifyStatements {
             }
         }
     }
+
+    void nestedForLoopBreak() {
+        int x = 0;
+        outerLoop:
+        for (int i = 0; i < 5; i = i + 1) {
+            invariant(x == i * 5);
+            invariant(i <= 2);
+
+            for (int j = 0; j < 5; j = j + 1) {
+                invariant(x == j + i * 5);
+                invariant(i == 2 ? j <= 2 : true);
+                if (i == 2 && j == 2) {
+                    check(x == 12);
+                    break outerLoop;
+                }
+                x = x + 1;
+            }
+        }
+        check(x == 12);
+    }
     
     @Pure
     boolean P(int x) {
