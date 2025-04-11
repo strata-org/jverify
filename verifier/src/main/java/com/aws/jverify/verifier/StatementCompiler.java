@@ -2,6 +2,7 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -11,7 +12,7 @@ import java.util.*;
 public class StatementCompiler {
 
     private final JavaToDafnyCompiler compiler;
-    TreeMaker maker;
+    private final TreeMaker maker;
 
     public StatementCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -38,31 +39,17 @@ public class StatementCompiler {
                 return translateExpressionStatement(expressionStatement);
             }
             case JCTree.JCAssert assertStmt -> {
-                return List.of(new AssertStmt(origin, null,
-                        compiler.toExpr(assertStmt.getCondition()), null));
+                return List.of(new AssertStmt(origin, null, compiler.toExpr(assertStmt.getCondition()), null));
             }
             case JCTree.JCIf ifStatement -> {
-                var condition = compiler.toExpr(ifStatement.getCondition());
-                var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
-                BlockStmt elseBranch = null;
-                if (ifStatement.getElseStatement() != null) {
-                    elseBranch = blockifyStatements(origin, translateStatement(ifStatement.getElseStatement()));
-                }
-                return List.of(new IfStmt(origin, null, false, condition,
-                        thenBranch, elseBranch));
+                return translateIfStatement(ifStatement);
             }
             case JCTree.JCBlock blockStatement -> {
                 return List.of(new BlockStmt(origin, null, List.of(),
                         translateStatements(blockStatement.getStatements())));
             }
             case JCTree.JCReturn returnStatement -> {
-                var expr = returnStatement.getExpression();
-                if (expr == null) {
-                    return List.of(new ReturnStmt(origin, null, null));
-                } else {
-                    return List.of(new ReturnStmt(origin, null,
-                            List.of(new ExprRhs(compiler.toOrigin(expr), null, compiler.toExpr(expr)))));
-                }
+                return translateReturn(returnStatement);
             }
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateVariableDeclaration(origin, variableDecl.getName().toString(), variableDecl.getType(), variableDecl.getInitializer());
@@ -71,52 +58,17 @@ public class StatementCompiler {
                 return List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x));
             }
             case JCTree.JCDoWhileLoop doWhileLoop -> {
-                return translateDoWhileLoop(doWhileLoop, labels, origin);
+                return translateDoWhileLoop(doWhileLoop, labels);
             }
             case JCTree.JCForLoop forLoop -> {
-                return translateForLoop(forLoop, labels, origin);
+                return translateForLoop(forLoop, labels);
             }
 
             case JCTree.JCContinue jcContinue -> {
-                Name targetLabel = null;
-                int breakAndContinueCount = 0;
-                var isContinue = true;
-
-                if (jcContinue.label == null) {
-                    if (outerLoop == null) {
-                        throw new JavaViolationException();
-                    } else {
-                        loopsWithContinue.add(outerLoop);
-                        if (outerLoop instanceof JCTree.JCForLoop forLoop) {
-                            var label = getForLoopContinueLabel(forLoop);
-                            targetLabel = compiler.getName(jcContinue, label);
-                            isContinue = false;
-                        } else {
-                            breakAndContinueCount++;
-                        }
-                    }
-                } else {
-                    var loop = this.labelToLoop.get(jcContinue.label.toString());
-                    loopsWithContinue.add(loop);
-                    if (loop instanceof JCTree.JCForLoop forLoop) {
-                        var label = getForLoopContinueLabel(forLoop);
-                        targetLabel = compiler.getName(jcContinue, label);
-                        isContinue = false;
-                    } else {
-                        targetLabel = compiler.getName(jcContinue, jcContinue.label);
-                    }
-                }
-                return List.of(new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, isContinue));
+                return translateContinue(jcContinue);
             }
             case JCTree.JCBreak jcBreak -> {
-                Name targetLabel = null;
-                int breakAndContinueCount = 0;
-                if (jcBreak.label == null) {
-                    breakAndContinueCount++;
-                } else {
-                    targetLabel = compiler.getName(jcBreak, jcBreak.label);
-                }
-                return List.of(new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, false));
+                return translateBreak(jcBreak);
             }
             case JCTree.JCSkip _ -> {
                 return List.of();
@@ -128,7 +80,76 @@ public class StatementCompiler {
         return List.of();
     }
 
-    private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels, IOrigin origin) {
+    private List<Statement> translateBreak(JCTree.JCBreak jcBreak) {
+        var origin = compiler.toOrigin(jcBreak);
+        Name targetLabel = null;
+        int breakAndContinueCount = 0;
+        if (jcBreak.label == null) {
+            breakAndContinueCount++;
+        } else {
+            targetLabel = compiler.getName(jcBreak, jcBreak.label);
+        }
+        return List.of(new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, false));
+    }
+
+    private List<Statement> translateContinue(JCTree.JCContinue jcContinue) {
+        var origin = compiler.toOrigin(jcContinue);
+        Name targetLabel = null;
+        int breakAndContinueCount = 0;
+        var isContinue = true;
+
+        if (jcContinue.label == null) {
+            if (outerLoop == null) {
+                throw new JavaViolationException();
+            } else {
+                loopsWithContinue.add(outerLoop);
+                if (outerLoop instanceof JCTree.JCForLoop forLoop) {
+                    var label = getForLoopContinueLabel(forLoop);
+                    targetLabel = compiler.getName(jcContinue, label);
+                    isContinue = false;
+                } else {
+                    breakAndContinueCount++;
+                }
+            }
+        } else {
+            var loop = this.labelToLoop.get(jcContinue.label.toString());
+            loopsWithContinue.add(loop);
+            if (loop instanceof JCTree.JCForLoop forLoop) {
+                var label = getForLoopContinueLabel(forLoop);
+                targetLabel = compiler.getName(jcContinue, label);
+                isContinue = false;
+            } else {
+                targetLabel = compiler.getName(jcContinue, jcContinue.label);
+            }
+        }
+        return List.of(new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, isContinue));
+    }
+
+    private List<Statement> translateReturn(JCTree.JCReturn returnStatement) {
+        var origin = compiler.toOrigin(returnStatement);
+        var expr = returnStatement.getExpression();
+        if (expr == null) {
+            return List.of(new ReturnStmt(origin, null, null));
+        } else {
+            return List.of(new ReturnStmt(origin, null,
+                    List.of(new ExprRhs(compiler.toOrigin(expr), null, compiler.toExpr(expr)))));
+        }
+    }
+
+    private List<Statement> translateIfStatement(JCTree.JCIf ifStatement) {
+        var origin = compiler.toOrigin(ifStatement);
+        var condition = compiler.toExpr(ifStatement.getCondition());
+        var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
+        BlockStmt elseBranch = null;
+        if (ifStatement.getElseStatement() != null) {
+            elseBranch = blockifyStatements(origin, translateStatement(ifStatement.getElseStatement()));
+        }
+        return List.of(new IfStmt(origin, null, false, condition,
+                thenBranch, elseBranch));
+    }
+
+    private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels) {
+        var origin = compiler.toOrigin(forLoop);
         var loop = translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
             List<Statement> outerBody;
             List<Statement> steps = translateStatements(forLoop.step);
@@ -153,7 +174,7 @@ public class StatementCompiler {
         return result;
     }
 
-    private List<Statement> translateDoWhileLoop(JCTree.JCDoWhileLoop doWhileLoop, List<Label> labels, IOrigin origin) {
+    private List<Statement> translateDoWhileLoop(JCTree.JCDoWhileLoop doWhileLoop, List<Label> labels) {
         var whileLoop = translateLoop(doWhileLoop, doWhileLoop.getCondition(), doWhileLoop.body, labels, x -> x);
         var firstBlock = whileLoop.getBody();
         return List.of(firstBlock, whileLoop);
@@ -212,74 +233,107 @@ public class StatementCompiler {
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement) {
         var expr = statement.getExpression();
-        var origin = compiler.toOrigin(expr);
-        if (expr instanceof JCTree.JCMethodInvocation invocation) {
-            var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
-            if (jverifyMethod != null) {
-                var name = jverifyMethod.getQualifiedName().toString();
-                if (name.equals("check")) {
-                    if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("Check should have a single argument");
-                    }
-                    return List.of(new AssertStmt(compiler.toOrigin(invocation), null,
-                            compiler.toExpr(invocation.args.getFirst()), null));
-                } else {
-                    compiler.reportError(invocation, "contractAfterBody", jverifyMethod.getQualifiedName());
-                    return List.of();
-                }
-            } else {
-                if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
-                    if (!invocation.getArguments().isEmpty()) {
-                        compiler.reportError(invocation, "notSupported", "super calls with arguments");
-                        return List.of();
-                    }
-                    return List.of();
-                }
-                var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, compiler.toExpr(a), false)).toList();
-                ApplySuffix applySuffix = new ApplySuffix(compiler.toOrigin(invocation), compiler.toExpr(invocation.getMethodSelect()), null,
-                        new ActualBindings(argBindings), null);
-                return List.of(new AssignStatement(origin, null, List.of(),
-                        List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+        switch (expr) {
+            case JCTree.JCMethodInvocation invocation -> {
+                return translateMethodInvocation(invocation);
+            }
+            case JCTree.JCAssign assign -> {
+                return translateAssign(assign);
+            }
+            case JCTree.JCAssignOp assignOp -> {
+                return translateAssignOp(assignOp);
+            }
+            case JCTree.JCUnary unary -> {
+                return translateUnary(unary);
+            }
+            default -> {
+                compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
+                return List.of();
             }
         }
-        if (expr instanceof JCTree.JCAssign assign) {
-            List<Expression> lhss = List.of(compiler.toExpr(assign.getVariable()));
-            List<AssignmentRhs> rhss = List.of(compiler.toAssignmentRhs(assign.getExpression()));
-            return List.of(new AssignStatement(compiler.toOrigin(assign), null, lhss, rhss, false));
-        }
-        if (expr instanceof JCTree.JCAssignOp assignOp) {
-            Expression target = compiler.toExpr(assignOp.getVariable());
-            List<Expression> lhss = List.of(target);
-            var operated = compiler.translateBinary(assignOp, assignOp.type, assignOp.getVariable().type, assignOp.getOperator(),
-                    target, compiler.toExpr(assignOp.getExpression()));
-            List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
-            return List.of(new AssignStatement(origin, null, lhss, rhss, false));
-        }
-        if (expr instanceof JCTree.JCUnary unary) {
-            JCTree.Tag tag = unary.getTag();
-            switch(tag) {
-                case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
-                    if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
-                        compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                        return List.of();
-                    } else {
-                        Expression target = compiler.toExpr(unary.getExpression());
-                        List<Expression> lhss = List.of(target);
-
-                        var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
-                                ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
-                        var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
-                        List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
-                        return List.of(new AssignStatement(origin, null, lhss, rhss, false));
-                    }
-
-                }
-            }
-        }
-        compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
-        return List.of();
     }
 
+    private List<Statement> translateUnary(JCTree.JCUnary unary) {
+        var origin = compiler.toOrigin(unary);
+        var tag = unary.getTag();
+        switch (tag) {
+            case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
+                if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
+                    compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
+                    return List.of();
+                } else {
+                    Expression target = compiler.toExpr(unary.getExpression());
+                    List<Expression> lhss = List.of(target);
+
+                    var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
+                            ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
+                    var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
+                    List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
+                    return List.of(new AssignStatement(origin, null, lhss, rhss, false));
+                }
+
+            }
+            default -> {
+                compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
+                return List.of();
+            }
+        }
+    }
+
+    private List<Statement> translateAssignOp(JCTree.JCAssignOp assignOp) {
+        var origin = compiler.toOrigin(assignOp);
+        Expression target = compiler.toExpr(assignOp.getVariable());
+        List<Expression> lhss = List.of(target);
+        var operated = compiler.translateBinary(assignOp, assignOp.type, assignOp.getVariable().type, assignOp.getOperator(),
+                target, compiler.toExpr(assignOp.getExpression()));
+        List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
+        return List.of(new AssignStatement(origin, null, lhss, rhss, false));
+    }
+
+    private List<Statement> translateAssign(JCTree.JCAssign assign) {
+        List<Expression> lhss = List.of(compiler.toExpr(assign.getVariable()));
+        List<AssignmentRhs> rhss = List.of(compiler.toAssignmentRhs(assign.getExpression()));
+        return List.of(new AssignStatement(compiler.toOrigin(assign), null, lhss, rhss, false));
+    }
+
+    private List<Statement> translateMethodInvocation(JCTree.JCMethodInvocation invocation) {
+        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        if (jverifyMethod != null) {
+            return translateJVerifyMethodInvocation(invocation, jverifyMethod);
+        } else {
+            return translateVanillaJavaMethodInvocation(invocation);
+        }
+    }
+
+    private List<Statement> translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation, Symbol.MethodSymbol jverifyMethod) {
+        var name = jverifyMethod.getQualifiedName().toString();
+        if (name.equals("check")) {
+            if (invocation.args.size() != 1) {
+                throw new JavaViolationException("Check should have a single argument");
+            }
+            return List.of(new AssertStmt(compiler.toOrigin(invocation), null,
+                    compiler.toExpr(invocation.args.getFirst()), null));
+        } else {
+            compiler.reportError(invocation, "contractAfterBody", jverifyMethod.getQualifiedName());
+            return List.of();
+        }
+    }
+
+    private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
+        var origin = compiler.toOrigin(invocation);
+        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
+            if (!invocation.getArguments().isEmpty()) {
+                compiler.reportError(invocation, "notSupported", "super calls with arguments");
+                return List.of();
+            }
+            return List.of();
+        }
+        var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, compiler.toExpr(a), false)).toList();
+        ApplySuffix applySuffix = new ApplySuffix(compiler.toOrigin(invocation), compiler.toExpr(invocation.getMethodSelect()), null,
+                new ActualBindings(argBindings), null);
+        return List.of(new AssignStatement(origin, null, List.of(),
+                List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+    }
 
     public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements) {
         return statements.stream().flatMap(s -> translateStatement(s).stream()).toList();
