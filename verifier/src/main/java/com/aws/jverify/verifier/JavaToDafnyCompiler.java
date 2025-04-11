@@ -447,7 +447,7 @@ public class JavaToDafnyCompiler {
 
         if (annotationsByName.containsKey(Pure.class.getName())) {
             var header = new HeaderContainer();
-            var postHeader = translateHeader(method.body.stats, header);
+            var postHeader = statementCompiler.translateHeader(method.body.stats, header);
             applyInvariants(method, header);
             if (postHeader.size() != 1) {
                 reportError(method, "pureMethodMultipleStatements");
@@ -472,9 +472,9 @@ public class JavaToDafnyCompiler {
             }
         } else {
             var header = new HeaderContainer();
-            var postHeader = translateHeader(method.getBody().stats, header);
+            var postHeader = statementCompiler.translateHeader(method.getBody().stats, header);
             applyInvariants(method, header);
-            checkEmptyExpressions(method, header.invariants, "invariants", "method");
+            statementCompiler.checkEmptyExpressions(method, header.invariants, "invariants", "method");
 
             if (header.returnNames.size() > 1) {
                 reportError(method, "multipleReturnNames");
@@ -499,7 +499,7 @@ public class JavaToDafnyCompiler {
             if (method.name.contentEquals("<init>")) {
                 DividedBlockStmt body;
                 if (shouldVerify) {
-                    var bodyStatements = translateStatements(postHeader);
+                    var bodyStatements = statementCompiler.translateStatements(postHeader);
                     body = new DividedBlockStmt(toOrigin(method.body), null, List.of(), bodyStatements, null, List.of());
                 } else {
                     body = null;
@@ -511,7 +511,7 @@ public class JavaToDafnyCompiler {
             } else {
                 BlockStmt body;
                 if (shouldVerify) {
-                    var bodyStatements = translateStatements(postHeader);
+                    var bodyStatements = statementCompiler.translateStatements(postHeader);
                     body = new BlockStmt(toOrigin(method.body), null, List.of(), bodyStatements);
                 } else {
                     body = null;
@@ -1084,132 +1084,6 @@ public class JavaToDafnyCompiler {
         return new Token(
                 compilationUnit.getLineMap().getLineNumber(pos),
                 compilationUnit.getLineMap().getColumnNumber(pos) + 1);
-    }
-
-    public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements) {
-        return statements.stream().map(s -> statementCompiler.translateStatement(s)).filter(Objects::nonNull).toList();
-    }
-    
-
-    public void checkEmptyExpressions(JCTree tree,
-                                      List<AttributedExpression> expressions,
-                                      String typeName,
-                                      String containerName) {
-        for (var _ : expressions) {
-            reportError(tree, "wrongContract", typeName, containerName);
-        }
-    }
-
-    /**
-     * @see #translateHeader(List, HeaderContainer)
-     */
-    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, HeaderContainer header) {
-        var statements = statement instanceof JCTree.JCBlock block
-                ? block.getStatements()
-                : List.of(statement);
-        return translateHeader(statements, header);
-    }
-
-    /**
-     * Translates header statements from the start of {@code statements}
-     * until the first non-header statement or the end of the list,
-     * appending the translations to the given {@link HeaderContainer},
-     * and returning a list view of the remaining statements.
-     *
-     * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
-     * namely, that it is backed by the original list.
-     */
-    private List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, HeaderContainer header) {
-        var headerStatements = 0;
-        statementLoop: for (var statement : statements) {
-            if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
-                    && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
-                break;
-            }
-            var jverifyMethod = getJVerifyMethod(invocation);
-            if (jverifyMethod == null) {
-                break;
-            }
-            var methodName = jverifyMethod.getQualifiedName().toString();
-            switch (methodName) {
-                case "check" -> {
-                    // not a header method, so stop here
-                    break statementLoop;
-                }
-                case Common.PRECONDITION -> {
-                    if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("A precondition call may have only one argument");
-                    }
-                    header.preconditions.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
-                }
-                case "postcondition" -> {
-                    if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("An postcondition call may have only one argument");
-                    }
-                    var first = invocation.getArguments().getFirst();
-                    if (first instanceof JCTree.JCLambda lambda) {
-                        if (lambda.getParameters().size() != 1) {
-                            throw new JavaViolationException("An ensures call lambda may take only one argument");
-                        }
-                        var parameter = lambda.getParameters().getFirst();
-                        header.returnNames.add(new Name(toOrigin(lambda), parameter.getName().toString()));
-                        var postconditionPredicate = toExpr(lambda.getBody());
-                        if (postconditionPredicate != null) {
-                            header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
-                        }
-                    } else {
-                        var dafnyExpr = toExpr(first);
-                        header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
-                    }
-                }
-                case "invariant" -> {
-                    if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("invariant should have a single argument");
-                    }
-                    header.invariants.add(new AttributedExpression(toExpr(invocation.getArguments().getFirst()), null, null));
-                }
-                case "decreases" -> {
-                    if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("decreases should have a single argument");
-                    }
-                    header.decreases.add(toExpr(invocation.getArguments().getFirst()));
-                }
-                case "reads" -> {
-                    if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("A reads call must have exactly one argument");
-                    }
-                    var origExpr = invocation.getArguments().getFirst();
-                    var origin = toOrigin(origExpr);
-                    var expr = toExpr(origExpr);
-                    header.reads.add(new FrameExpression(origin, expr, null));
-                }
-                case "modifies" -> {
-                    if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("A modifies call must have exactly one argument");
-                    }
-                    var origExpr = invocation.getArguments().getFirst();
-                    var origin = toOrigin(origExpr);
-                    var expr = toExpr(origExpr);
-                    header.modifies.add(new FrameExpression(origin, expr, null));
-                }
-                default -> {
-                    reportError(invocation, "notSupported", methodName);
-                    return null;
-                }
-            }
-            headerStatements++;
-        }
-        return statements.subList(headerStatements, statements.size());
-    }
-
-    /**
-     * Returns the specified statement as-is if it's already a {@link BlockStmt},
-     * or wraps it in a singleton block otherwise.
-     */
-    public static BlockStmt blockifyStatement(Statement statement) {
-        return statement instanceof BlockStmt block
-                ? block
-                : new BlockStmt(statement.getOrigin(), null, List.of(), List.of(statement));
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {

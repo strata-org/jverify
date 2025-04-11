@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -41,10 +42,10 @@ public class StatementCompiler {
             }
             case JCTree.JCIf ifStatement -> {
                 var condition = compiler.toExpr(ifStatement.getCondition());
-                var thenBranch = JavaToDafnyCompiler.blockifyStatement(translateStatement(ifStatement.getThenStatement()));
+                var thenBranch = blockifyStatement(translateStatement(ifStatement.getThenStatement()));
                 BlockStmt elseBranch = null;
                 if (ifStatement.getElseStatement() != null) {
-                    elseBranch = JavaToDafnyCompiler.blockifyStatement(translateStatement(ifStatement.getElseStatement()));
+                    elseBranch = blockifyStatement(translateStatement(ifStatement.getElseStatement()));
                 }
                 return new IfStmt(origin, null, false, condition,
                         thenBranch, elseBranch);
@@ -81,7 +82,7 @@ public class StatementCompiler {
             case JCTree.JCForLoop forLoop -> {
                 var loop = translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
                     List<Statement> outerBody;
-                    List<Statement> steps = compiler.translateStatements(forLoop.step);
+                    List<Statement> steps = translateStatements(forLoop.step);
                     if (loopsWithContinue.contains(forLoop)) {
                         var continueLabel = getForLoopContinueLabel(forLoop);
                         var wrappedBody = new BlockStmt(origin, null, List.of(new Label(origin, continueLabel)), bodyStatements);
@@ -96,7 +97,7 @@ public class StatementCompiler {
                     return outerBody;
                 });
 
-                var initializer = compiler.translateStatements(forLoop.getInitializer());
+                var initializer = translateStatements(forLoop.getInitializer());
                 var result = new ArrayList<Statement>(initializer.size() + 1);
                 result.addAll(initializer);
                 result.add(loop);
@@ -161,10 +162,10 @@ public class StatementCompiler {
                                     java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new HeaderContainer();
-        var postHeader = compiler.translateHeader(body, header);
+        var postHeader = translateHeader(body, header);
 
-        compiler.checkEmptyExpressions(loop, header.preconditions, "preconditions", "loop");
-        compiler.checkEmptyExpressions(loop, header.postconditions, "postconditions", "loop");
+        checkEmptyExpressions(loop, header.preconditions, "preconditions", "loop");
+        checkEmptyExpressions(loop, header.postconditions, "postconditions", "loop");
 
         outerLoop = loop;
         for(var label : labels) {
@@ -172,7 +173,7 @@ public class StatementCompiler {
         }
 
         var dafnyCondition = compiler.toExpr(condition);
-        var bodyStatements = compiler.translateStatements(postHeader);
+        var bodyStatements = translateStatements(postHeader);
         var newBodyStatements = transformBody.apply(bodyStatements);
         return new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
                 new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),
@@ -251,5 +252,131 @@ public class StatementCompiler {
         }
         compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
         return null;
+    }
+
+
+    public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements) {
+        return statements.stream().map(this::translateStatement).filter(Objects::nonNull).toList();
+    }
+
+    public void checkEmptyExpressions(JCTree tree,
+                                      List<AttributedExpression> expressions,
+                                      String typeName,
+                                      String containerName) {
+        for (var _ : expressions) {
+            compiler.reportError(tree, "wrongContract", typeName, containerName);
+        }
+    }
+
+    /**
+     * @see #translateHeader(List, HeaderContainer)
+     */
+    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, HeaderContainer header) {
+        var statements = statement instanceof JCTree.JCBlock block
+                ? block.getStatements()
+                : List.of(statement);
+        return translateHeader(statements, header);
+    }
+
+    /**
+     * Translates header statements from the start of {@code statements}
+     * until the first non-header statement or the end of the list,
+     * appending the translations to the given {@link HeaderContainer},
+     * and returning a list view of the remaining statements.
+     *
+     * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
+     * namely, that it is backed by the original list.
+     */
+    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, HeaderContainer header) {
+        var headerStatements = 0;
+        statementLoop: for (var statement : statements) {
+            if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
+                    && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
+                break;
+            }
+            var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+            if (jverifyMethod == null) {
+                break;
+            }
+            var methodName = jverifyMethod.getQualifiedName().toString();
+            switch (methodName) {
+                case "check" -> {
+                    // not a header method, so stop here
+                    break statementLoop;
+                }
+                case Common.PRECONDITION -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("A precondition call may have only one argument");
+                    }
+                    header.preconditions.add(new AttributedExpression(compiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                }
+                case "postcondition" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("An postcondition call may have only one argument");
+                    }
+                    var first = invocation.getArguments().getFirst();
+                    if (first instanceof JCTree.JCLambda lambda) {
+                        if (lambda.getParameters().size() != 1) {
+                            throw new JavaViolationException("An ensures call lambda may take only one argument");
+                        }
+                        var parameter = lambda.getParameters().getFirst();
+                        header.returnNames.add(new Name(compiler.toOrigin(lambda), parameter.getName().toString()));
+                        var postconditionPredicate = compiler.toExpr(lambda.getBody());
+                        if (postconditionPredicate != null) {
+                            header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
+                        }
+                    } else {
+                        var dafnyExpr = compiler.toExpr(first);
+                        header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
+                    }
+                }
+                case "invariant" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("invariant should have a single argument");
+                    }
+                    header.invariants.add(new AttributedExpression(compiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                }
+                case "decreases" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("decreases should have a single argument");
+                    }
+                    header.decreases.add(compiler.toExpr(invocation.getArguments().getFirst()));
+                }
+                case "reads" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("A reads call must have exactly one argument");
+                    }
+                    var origExpr = invocation.getArguments().getFirst();
+                    var origin = compiler.toOrigin(origExpr);
+                    var expr = compiler.toExpr(origExpr);
+                    header.reads.add(new FrameExpression(origin, expr, null));
+                }
+                case "modifies" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("A modifies call must have exactly one argument");
+                    }
+                    var origExpr = invocation.getArguments().getFirst();
+                    var origin = compiler.toOrigin(origExpr);
+                    var expr = compiler.toExpr(origExpr);
+                    header.modifies.add(new FrameExpression(origin, expr, null));
+                }
+                default -> {
+                    compiler.reportError(invocation, "notSupported", methodName);
+                    return null;
+                }
+            }
+            headerStatements++;
+        }
+        return statements.subList(headerStatements, statements.size());
+    }
+
+    /**
+     * Returns the specified statement as-is if it's already a {@link BlockStmt},
+     * or wraps it in a singleton block otherwise.
+     */
+    public static BlockStmt blockifyStatement(Statement statement) {
+        return statement instanceof BlockStmt block
+                ? block
+                : new BlockStmt(statement.getOrigin(), null, List.of(), List.of(statement));
     }
 }
