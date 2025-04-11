@@ -20,7 +20,7 @@ public class TestVerifier {
 
     @Test
     public void statements() throws IOException {
-        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(8, 0));
+        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(9, 0));
     }
     
     public void resolutionErrorBooleanTest() throws IOException {
@@ -249,8 +249,8 @@ Dafny program verifier finished with 3 verified, 0 errors
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         return new VerifierOptions(dafnyPath, libraryJar, prelude, 
-                Path.of("../temp.dfy"),
-                //null,
+                //Path.of("../temp.dfy"),
+                null,
                 null, true,
                 new String[] {
                         "--use-basename-for-filename"

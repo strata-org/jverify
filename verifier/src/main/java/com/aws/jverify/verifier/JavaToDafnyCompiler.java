@@ -1244,6 +1244,9 @@ public class JavaToDafnyCompiler {
                 }
                 return new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, false);
             }
+            case JCTree.JCSkip skip -> {
+                return null;
+            }
             case null, default -> {
             }
         }

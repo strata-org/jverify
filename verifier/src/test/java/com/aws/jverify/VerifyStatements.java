@@ -111,6 +111,11 @@ class VerifyStatements {
         check(x == 12);
     }
     
+    void skip() {
+        ;;;;
+        check(true);
+    }
+    
     @Pure
     boolean P(int x) {
         return x > 10;
