@@ -20,7 +20,7 @@ public class TestVerifier {
 
     @Test
     public void statements() throws IOException {
-        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(5, 0));
+        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(7, 0));
     }
     
     public void resolutionErrorBooleanTest() throws IOException {
@@ -163,11 +163,14 @@ Dafny program verifier finished with 3 verified, 0 errors
                 ":verifier:run",
                 "--args=\"../examples/src/main/java/com/aws/verifier/examples/Fibonacci.java\"").start();
         var writer = new StringWriter();
-        var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        reader.transferTo(writer);
-        var exitCode = process.waitFor();
-        reader.close();
+        int exitCode;
+        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            reader.transferTo(writer);
+            exitCode = process.waitFor();
+            reader.close();
+        }
         var output = canonicalizeNewlines(writer.toString());
+        // amazonq-ignore-next-line
         Assertions.assertTrue(output.contains("Dafny program verifier finished with 4 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
 

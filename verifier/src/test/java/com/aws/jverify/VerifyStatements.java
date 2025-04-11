@@ -77,21 +77,17 @@ class VerifyStatements {
         int x = 0;
         outerLoop:
         for (int i = 0; i < 5; i = i + 1) {
-            invariant(i <= 2 ? x == i * 5 : true);
-            invariant(i <= 2 ? true : x == 12 + (i - 2) * 5);
-            invariant(i <= 2 ? x == i * 5 : x == 12 + (i - 2) * 5);
+            invariant(i <= 2 ? x == i * 5 : x == 12 + (i - 3) * 5);
             
             for (int j = 0; j < 5; j = j + 1) {
-                invariant(i <= 2 ? x == j + i * 5 : x == j + 12 + (i - 2) * 5);
+                invariant(i <= 2 ? x == j + i * 5 : x == j + 12 + (i - 3) * 5);
+                invariant(i == 2 ? j <= 2 : true);
                 if (i == 2 && j == 2) {
                     check(x == 12);
                     continue outerLoop;
                 }
                 x = x + 1;
             }
-            check(i < 2 ? x == (i+1) * 5 : true);
-            check(i < 2 ? true : x == 12 + (i - 1) * 5);
-            check(i < 2 ? x == (i + 1) * 5 : x == 12 + (i - 1) * 5);
         }
     }
     
