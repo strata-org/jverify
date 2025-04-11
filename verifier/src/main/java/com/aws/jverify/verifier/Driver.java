@@ -4,6 +4,7 @@ import com.sun.tools.javac.util.*;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
+import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import java.io.*;
 import java.nio.file.Files;
@@ -38,12 +39,12 @@ public class Driver {
     }
 
     public static int verifyJavaFiles(List<JavaFileObject> readFiles, VerifierOptions verifierOptions, Writer output) throws IOException {
-        var compiler = new JavaToDafnyCompiler();
         var context = new Context();
+        var compiler = new JavaToDafnyCompiler(context);
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var dafnyEquivalent = compiler.analyzeJavaCode(context, verifierOptions, readFiles);
+        var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles);
         var hasErrors = false;
         for(var diagnostic : compiler.diagnostics.getDiagnostics()) {
             output.write(formatDiagnostic(diagnostic) + "\n");

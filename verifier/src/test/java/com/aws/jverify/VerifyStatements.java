@@ -111,6 +111,16 @@ class VerifyStatements {
         check(x == 12);
     }
     
+    void doWhileLoop() {
+        int x = 0;
+        do {
+            decreases(5 - x);
+            invariant(x <= 5);
+            x = x + 1;
+        } while(x < 5);
+        check(x == 5);
+    }
+    
     void skip() {
         ;;;;
         check(true);

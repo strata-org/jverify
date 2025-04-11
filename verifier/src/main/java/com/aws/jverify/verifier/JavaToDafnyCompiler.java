@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public final Context context;
     JCTree.JCCompilationUnit compilationUnit;
     Stack<IOrigin> contextOrigins = new Stack<>();
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
@@ -40,15 +41,17 @@ public class JavaToDafnyCompiler {
     private Symbol.@Nullable ClassSymbol contractClass;
     public int generatedIndex = 0; 
 
-    public JavaToDafnyCompiler() {
+    public JavaToDafnyCompiler(Context context) {
+        this.context = context;
+        JavacFileManager fileManager = new JavacFileManager(context, true, null);
         shouldVerifies.push(ShouldVerifyMode.DefaultYes);
         statementCompiler = new StatementCompiler(this);
     }
     
-    public @Nullable FilesContainer analyzeJavaCode(Context context, VerifierOptions options, List<JavaFileObject> files) {        
+    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        JavacFileManager fileManager = new JavacFileManager(context, true, null);
-
+        var fileManager = context.get(JavaFileManager.class);
+        
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }

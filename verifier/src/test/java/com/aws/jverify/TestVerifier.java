@@ -20,7 +20,7 @@ public class TestVerifier {
 
     @Test
     public void statements() throws IOException {
-        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(10, 0));
+        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(11, 0));
     }
     
     public void resolutionErrorBooleanTest() throws IOException {
