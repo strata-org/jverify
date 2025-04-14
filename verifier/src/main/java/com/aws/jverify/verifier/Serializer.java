@@ -3,7 +3,6 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.generated.Expression;
 import com.aws.jverify.generated.FrameExpression;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.w3c.dom.html.HTMLFieldSetElement;
 
 import java.lang.reflect.*;
 import java.util.*;

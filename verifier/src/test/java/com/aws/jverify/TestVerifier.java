@@ -170,10 +170,8 @@ Dafny program verifier finished with 3 verified, 0 errors
             reader.close();
         }
         var output = canonicalizeNewlines(writer.toString());
-        // amazonq-ignore-next-line
         Assertions.assertTrue(output.contains("Dafny program verifier finished with 4 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
-
     }
 
     @Test

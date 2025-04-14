@@ -5,25 +5,24 @@ import com.aws.jverify.generated.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeMaker;
 
 import java.util.*;
 
-public class StatementCompiler {
+public class MethodCompiler {
 
     private final JavaToDafnyCompiler compiler;
-    private final TreeMaker maker;
 
-    public StatementCompiler(JavaToDafnyCompiler compiler) {
+    public MethodCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
-        this.maker = TreeMaker.instance(compiler.context);
     }
 
     private final Queue<Label> labels = new LinkedList<>();
     private final Map<String, JCTree.JCStatement> labelToLoop = new HashMap<>();
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
-    private final Set<JCTree.JCStatement> loopsWithContinue = new HashSet<>();
+    private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
     private JCTree.JCStatement outerLoop;
+
+    public int generatedIndex = 0;
     
     public List<Statement> translateStatement(JCTree.JCStatement statement) {
         var origin = compiler.toOrigin(statement);
@@ -94,35 +93,36 @@ public class StatementCompiler {
 
     private List<Statement> translateContinue(JCTree.JCContinue jcContinue) {
         var origin = compiler.toOrigin(jcContinue);
-        Name targetLabel = null;
-        int breakAndContinueCount = 0;
-        var isContinue = true;
-
         if (jcContinue.label == null) {
             if (outerLoop == null) {
                 throw new JavaViolationException();
             } else {
-                loopsWithContinue.add(outerLoop);
                 if (outerLoop instanceof JCTree.JCForLoop forLoop) {
-                    var label = getForLoopContinueLabel(forLoop);
-                    targetLabel = compiler.getName(jcContinue, label);
-                    isContinue = false;
+                    return translateContinueForForLoop(jcContinue, forLoop);
                 } else {
-                    breakAndContinueCount++;
+                    return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
                 }
             }
         } else {
             var loop = this.labelToLoop.get(jcContinue.label.toString());
-            loopsWithContinue.add(loop);
             if (loop instanceof JCTree.JCForLoop forLoop) {
-                var label = getForLoopContinueLabel(forLoop);
-                targetLabel = compiler.getName(jcContinue, label);
-                isContinue = false;
+                return translateContinueForForLoop(jcContinue, forLoop);
             } else {
-                targetLabel = compiler.getName(jcContinue, jcContinue.label);
+                var targetLabel = compiler.getName(jcContinue, jcContinue.label);
+                return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));
             }
         }
-        return List.of(new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, isContinue));
+    }
+
+    /**
+     * For for-loops, the continue statement must jump to before the increment, instead of to before the guard 
+     */
+    private List<Statement> translateContinueForForLoop(JCTree.JCContinue jcContinue, JCTree.JCForLoop forLoop) {
+        var origin = compiler.toOrigin(jcContinue);
+        forLoopsWithContinue.add(outerLoop);
+        var label = getForLoopContinueLabel(forLoop);
+        return List.of(new BreakOrContinueStmt(origin, null, compiler.getName(jcContinue, label), 
+                0, false));
     }
 
     private List<Statement> translateReturn(JCTree.JCReturn returnStatement) {
@@ -153,7 +153,7 @@ public class StatementCompiler {
         var loop = translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
             List<Statement> outerBody;
             List<Statement> steps = translateStatements(forLoop.step);
-            if (loopsWithContinue.contains(forLoop)) {
+            if (forLoopsWithContinue.contains(forLoop)) {
                 var continueLabel = getForLoopContinueLabel(forLoop);
                 var wrappedBody = new BlockStmt(origin, null, List.of(new Label(origin, continueLabel)), bodyStatements);
                 outerBody = new ArrayList<>(1 + steps.size());
@@ -224,11 +224,7 @@ public class StatementCompiler {
     }
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
-        return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + compiler.generatedIndex++);
-    }
-
-    private String getName(String prefix) {
-        return "$" + prefix + compiler.generatedIndex++;
+        return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
     }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement) {
@@ -458,5 +454,9 @@ public class StatementCompiler {
         return statements.getFirst() instanceof BlockStmt block
                 ? block
                 : new BlockStmt(origin, null, List.of(), statements);
+    }
+
+    private String getName(String prefix) {
+        return "$" + prefix + generatedIndex++;
     }
 }

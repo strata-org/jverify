@@ -36,16 +36,12 @@ public class JavaToDafnyCompiler {
     Stack<IOrigin> contextOrigins = new Stack<>();
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     
-    StatementCompiler statementCompiler;
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol contractClass;
-    public int generatedIndex = 0; 
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
-        JavacFileManager fileManager = new JavacFileManager(context, true, null);
         shouldVerifies.push(ShouldVerifyMode.DefaultYes);
-        statementCompiler = new StatementCompiler(this);
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
@@ -422,9 +418,11 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
+
+        var methodCompiler = new MethodCompiler(this);
+        
         var name = getName(method, method.name);
         var origin = declToOrigin(method, name);
-
 
         var annotations = method.getModifiers().getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
@@ -450,7 +448,7 @@ public class JavaToDafnyCompiler {
 
         if (annotationsByName.containsKey(Pure.class.getName())) {
             var header = new HeaderContainer();
-            var postHeader = statementCompiler.translateHeader(method.body.stats, header);
+            var postHeader = methodCompiler.translateHeader(method.body.stats, header);
             applyInvariants(method, header);
             if (postHeader.size() != 1) {
                 reportError(method, "pureMethodMultipleStatements");
@@ -475,9 +473,9 @@ public class JavaToDafnyCompiler {
             }
         } else {
             var header = new HeaderContainer();
-            var postHeader = statementCompiler.translateHeader(method.getBody().stats, header);
+            var postHeader = methodCompiler.translateHeader(method.getBody().stats, header);
             applyInvariants(method, header);
-            statementCompiler.checkEmptyExpressions(method, header.invariants, "invariants", "method");
+            methodCompiler.checkEmptyExpressions(method, header.invariants, "invariants", "method");
 
             if (header.returnNames.size() > 1) {
                 reportError(method, "multipleReturnNames");
@@ -502,7 +500,7 @@ public class JavaToDafnyCompiler {
             if (method.name.contentEquals("<init>")) {
                 DividedBlockStmt body;
                 if (shouldVerify) {
-                    var bodyStatements = statementCompiler.translateStatements(postHeader);
+                    var bodyStatements = methodCompiler.translateStatements(postHeader);
                     body = new DividedBlockStmt(toOrigin(method.body), null, List.of(), bodyStatements, null, List.of());
                 } else {
                     body = null;
@@ -514,7 +512,7 @@ public class JavaToDafnyCompiler {
             } else {
                 BlockStmt body;
                 if (shouldVerify) {
-                    var bodyStatements = statementCompiler.translateStatements(postHeader);
+                    var bodyStatements = methodCompiler.translateStatements(postHeader);
                     body = new BlockStmt(toOrigin(method.body), null, List.of(), bodyStatements);
                 } else {
                     body = null;
@@ -717,7 +715,7 @@ public class JavaToDafnyCompiler {
      *
      * <p>Note: header methods like {@link JVerify#precondition(boolean)}
      * and {@link JVerify#postcondition(boolean)}
-     * must be translated by {@link StatementCompiler#translateStatement(JCTree.JCStatement)},
+     * must be translated by {@link MethodCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
      */
     private @Nullable Expression jverifyLibMethodToExpr(JCTree.JCMethodInvocation invocation) {
