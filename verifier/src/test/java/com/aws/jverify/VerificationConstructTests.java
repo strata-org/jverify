@@ -7,6 +7,12 @@ import java.io.IOException;
 import static com.aws.jverify.TestUtilities.*;
 
 public class VerificationConstructTests {
+
+    @Test
+    public void termination() throws IOException {
+        verifyMarkedSourceFile("Termination.java", new DafnyResults(1, 1));
+    }
+    
     @Test
     public void freshAndOld() throws IOException {
         verifyMarkedSourceFile("FreshAndOld.java", new DafnyResults(2, 0));

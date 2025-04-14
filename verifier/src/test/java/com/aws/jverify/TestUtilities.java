@@ -56,7 +56,7 @@ public class TestUtilities {
 
             assertThat(output, containsString(expectation));
         }
-        Assertions.assertEquals(expectedErrorCount, errorsFound, output);
+        Assertions.assertEquals(expectedErrorCount, errorsFound, "Marked test file did not contain right amount of expected errors");
         Assertions.assertEquals(expectedExitCode, exitCode, output);
         return output;
     }
