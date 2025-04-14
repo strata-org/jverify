@@ -144,7 +144,7 @@ public class MethodCompiler {
         if (ifStatement.getElseStatement() != null) {
             elseBranch = blockifyStatements(origin, translateStatement(ifStatement.getElseStatement()));
         }
-        return List.of(new IfStmt(origin, null, false, condition,
+        return List.of(new IfStmt(origin, null, List.of(), false, condition,
                 thenBranch, elseBranch));
     }
 

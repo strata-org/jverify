@@ -4,16 +4,15 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class QuantifiedVar extends BoundVar {
+public class QuantifiedVar extends NodeWithOrigin {
   @Nullable
   private final Expression domain;
 
   @Nullable
   private final Expression range;
 
-  public QuantifiedVar(IOrigin origin, Name nameNode, Type syntacticType, Boolean isGhost,
-      Expression domain, Expression range) {
-    super(origin, nameNode, syntacticType, isGhost);
+  public QuantifiedVar(IOrigin origin, Expression domain, Expression range) {
+    super(origin);
     this.domain = domain;
     this.range = range;
   }
