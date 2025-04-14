@@ -119,7 +119,7 @@ public class MethodCompiler {
      */
     private List<Statement> translateContinueForForLoop(JCTree.JCContinue jcContinue, JCTree.JCForLoop forLoop) {
         var origin = compiler.toOrigin(jcContinue);
-        forLoopsWithContinue.add(outerLoop);
+        forLoopsWithContinue.add(forLoop);
         var label = getForLoopContinueLabel(forLoop);
         return List.of(new BreakOrContinueStmt(origin, null, compiler.getName(jcContinue, label), 
                 0, false));
