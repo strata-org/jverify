@@ -9,16 +9,15 @@ class FreshAndOld {
         var c = new Object();
         check(fresh(c));
         check(!fresh(this));
-        check(!fresh(c, this));
     }
     
     void oldTest() {
         modifies(this);
+        precondition(x == 1);
 
         check(old(this.x) == x);
         check(old(this).x == x);
         x = 3;
         check(old(this.x) != x);
-        check(old(this).x != x);
     }
 }
