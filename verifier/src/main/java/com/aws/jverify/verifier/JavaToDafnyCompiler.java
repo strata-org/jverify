@@ -779,12 +779,11 @@ public class JavaToDafnyCompiler {
             case "old" -> {
                 var element = toExpr(args.getFirst());
                 var seq = toExpr(receiver);
-                return new OldExpr(toOrigin(invocation), BinaryExprOpcode.In, element, seq);
+                return new OldExpr(toOrigin(invocation), element, null);
             }
             case "fresh" -> {
                 var element = toExpr(args.getFirst());
-                var seq = toExpr(receiver);
-                return new FreshExpr(toOrigin(invocation), BinaryExprOpcode.In, element, seq);
+                return new FreshExpr(toOrigin(invocation), element, null /* ignored */, null);
             }
         }
 
