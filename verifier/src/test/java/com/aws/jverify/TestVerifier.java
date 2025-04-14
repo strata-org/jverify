@@ -19,6 +19,10 @@ public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     @Test
+    public void statements() throws IOException {
+        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(11, 0));
+    }
+    
     public void resolutionErrorBooleanTest() throws IOException {
         testMarkedSource(getTestFileContent("ResolutionErrorsBooleanOperators.java"),
                 9, CommandLine.ExitCode.USAGE);
@@ -159,14 +163,15 @@ Dafny program verifier finished with 3 verified, 0 errors
                 ":verifier:run",
                 "--args=\"../examples/src/main/java/com/aws/verifier/examples/Fibonacci.java\"").start();
         var writer = new StringWriter();
-        var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        reader.transferTo(writer);
-        var exitCode = process.waitFor();
-        reader.close();
+        int exitCode;
+        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            reader.transferTo(writer);
+            exitCode = process.waitFor();
+            reader.close();
+        }
         var output = canonicalizeNewlines(writer.toString());
         Assertions.assertTrue(output.contains("Dafny program verifier finished with 4 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
-
     }
 
     @Test
@@ -242,7 +247,9 @@ Dafny program verifier finished with 3 verified, 0 errors
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         return new VerifierOptions(dafnyPath, libraryJar, prelude, 
-                null, null, true,
+                //Path.of("../temp.dfy"),
+                null,
+                null, true,
                 new String[] {
                         "--use-basename-for-filename"
                         //,"--wait-for-debugger"

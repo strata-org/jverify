@@ -13,8 +13,8 @@ public class ConstantField extends Field {
   private final Boolean isOpaque;
 
   public ConstantField(IOrigin origin, Name nameNode, Attributes attributes, Boolean isGhost,
-      Type type, Expression rhs, Boolean hasStaticKeyword, Boolean isOpaque) {
-    super(origin, nameNode, attributes, isGhost, type);
+      Type explicitType, Expression rhs, Boolean hasStaticKeyword, Boolean isOpaque) {
+    super(origin, nameNode, attributes, isGhost, explicitType);
     this.rhs = rhs;
     this.hasStaticKeyword = hasStaticKeyword;
     this.isOpaque = isOpaque;
