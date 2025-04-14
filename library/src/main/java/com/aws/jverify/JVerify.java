@@ -80,7 +80,7 @@ public class JVerify {
     /**
      * Returns true if the given objects(s) were allocated during the current method call.
      */
-    public static <T> T fresh(Object... objects) {
+    public static <T> boolean fresh(Object... objects) {
         throw new ContractException();
     }
 

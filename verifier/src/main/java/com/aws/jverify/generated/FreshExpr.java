@@ -4,12 +4,12 @@ package com.aws.jverify.generated;
 // Generated from C# class
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class FreshExpr extends UnaryOpExpr {
+public class FreshExpr extends UnaryExpr {
   @Nullable
   private final String at;
 
-  public FreshExpr(IOrigin origin, Expression e, UnaryOpExprOpcode op, String at) {
-    super(origin, e, op);
+  public FreshExpr(IOrigin origin, Expression e, String at) {
+    super(origin, e);
     this.at = at;
   }
 
