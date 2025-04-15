@@ -108,7 +108,7 @@ Dafny program verifier finished with 5 verified, 1 error
     @Test
     public void translationErrors() throws IOException {
         String markedSource = getTestFileContent("TranslationErrors.java");
-        var output = testMarkedSource(markedSource, 10, CommandLine.ExitCode.USAGE);
+        testMarkedSource(markedSource, 15, CommandLine.ExitCode.USAGE);
     }
     
     @Test
@@ -130,6 +130,11 @@ Dafny program verifier finished with 5 verified, 1 error
     @Test
     public void operators() throws IOException {
         verifyMarkedSourceFile("Operators.java", new DafnyResults(9, 9));
+    }
+
+    @Test
+    public void switches() throws IOException {
+        verifyMarkedSourceFile("Switches.java", new DafnyResults(2, 2));
     }
 
     @Test
@@ -202,6 +207,13 @@ Dafny program verifier finished with 3 verified, 0 errors
         assertThat(output, endsWith(ending));
     }
 
+    /**
+     * Verifies the given source code, asserting that each markup annotation appears in the output,
+     * and that the exit code and number of matched error annotations are as expected.
+     * <p>
+     * NOTE: Errors that appear in the verification output, but which don't appear in the marked-up source code,
+     * are currently silently ignored.
+     */
     private static String testMarkedSource(String markedSource, int expectedErrorCount, int expectedExitCode) throws IOException {
         StringWriter writer = new StringWriter();
         var options = getVerifierOptions();
@@ -219,8 +231,10 @@ Dafny program verifier finished with 3 verified, 0 errors
 
             assertThat(output, containsString(expectation));
         }
-        Assertions.assertEquals(expectedErrorCount, errorsFound, output);
-        Assertions.assertEquals(expectedExitCode, exitCode, output);
+        Assertions.assertEquals(expectedErrorCount, errorsFound,
+                () -> "Mismatched error count in output:\n%s".formatted(output));
+        Assertions.assertEquals(expectedExitCode, exitCode,
+                () -> "Mismatched exit code; output:\n%s".formatted(output));
         return output;
     }
 
