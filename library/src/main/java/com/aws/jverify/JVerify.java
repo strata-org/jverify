@@ -16,6 +16,15 @@ public class JVerify {
     public static void precondition(boolean condition) {
     }
 
+    /**
+     * Tell JVerify which value decreases on each
+     * - iteration of the loop, when used in a loop
+     * - recursive call, when used on a recursive method
+     * Knowing which value decreases is required for termination proofs
+     */
+    public static void decreases(Object value) {
+    }
+    
     public static void invariant(boolean condition) {
     }
     
