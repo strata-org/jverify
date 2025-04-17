@@ -8,7 +8,6 @@ import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.TypeTag;
-import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -441,7 +440,8 @@ public class JavaToDafnyCompiler {
         List<Formal> ins = method.getParameters().map(jvd ->
         {
             Name formalName = getName(jvd, jvd.getName());
-            return new Formal(declToOrigin(jvd, formalName), formalName, toType(jvd.getType()), false, true,
+            var syntacticType = toType(jvd.getType(), isNullable(jvd.getModifiers()));
+            return new Formal(declToOrigin(jvd, formalName), formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
         var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
@@ -599,6 +599,8 @@ public class JavaToDafnyCompiler {
             var thenBranch = toExpr(conditional.getTrueExpression());
             var elseBranch = toExpr(conditional.getFalseExpression());
             return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
+        } else if (expr instanceof JCTree.JCSwitchExpression switchExpr) {
+            return toExpr(switchExpr);
         } else if (expr instanceof JCTree.JCUnary unary) {
             var innerExpr = toExpr(unary.getExpression());
             switch(unary.getTag()) {
@@ -812,6 +814,74 @@ public class JavaToDafnyCompiler {
         };
     }
 
+    private Expression toExpr(JCTree.JCSwitchExpression switchExpr) {
+        var origin = toOrigin(switchExpr);
+
+        // A switch block consists of either *switch rules* (label -> body)
+        // or *switch labeled statement groups* (label: {label:} stmts).
+        // Unlike switch rules, switch labeled statement groups automatically "fall through" without break statements,
+        // but Dafny's match statement/expression can't express that easily.
+        // So for now we only support switch blocks using switch rules.
+        if (switchExpr.getCases().getFirst().getCaseKind().equals(JCTree.JCCase.STATEMENT)) {
+            reportError(switchExpr, "notSupported", "switch labeled statement group");
+            return getHole(origin);
+        }
+
+        // Each case has a *switch label*, which is either a *default label* or a *case label*.
+        // A *case label* consists of either:
+        //  - a list of *case constants*
+        //  - a null literal (which the javac AST treats like another case constant)
+        //  - a *case pattern* (not supported)
+        var translatedCases = new ArrayList<NestedMatchCaseExpr>();
+        for (var cas : switchExpr.getCases()) {
+            // note: if the case label is a null literal, this is the singleton list of the null literal
+            var caseConstants = cas.getExpressions();
+            var defaultLabel = cas.getLabels().stream()
+                    .filter(label -> label instanceof JCTree.JCDefaultCaseLabel)
+                    .findFirst();
+
+            final ExtendedPattern translatedPattern;
+            if (caseConstants.nonEmpty()) {
+                var literals = caseConstants.stream().map(labelExpr -> {
+                    var labelOrigin = toOrigin(labelExpr);
+                    final LiteralExpr litExpr;
+                    if (labelExpr instanceof JCTree.JCLiteral) {
+                        litExpr = (LiteralExpr)toExpr(labelExpr);
+                    } else {
+                        reportError(labelExpr, "notSupported", "non-literal case constant");
+                        litExpr = getHole(labelOrigin);
+                    }
+                    return (ExtendedPattern) new LitPattern(labelOrigin, false, litExpr);
+                }).toList();
+                translatedPattern = new DisjunctivePattern(toOrigin(cas), false, literals);
+            } else if (defaultLabel.isPresent()) {
+                var labelOrigin = toOrigin(defaultLabel.get());
+                translatedPattern = new IdPattern(labelOrigin, false, "_", null, null, false);
+            } else {
+                reportError(cas, "notSupported", "case pattern");
+                translatedPattern = null;
+            }
+
+            final Expression translatedBody;
+            if (cas.getBody() instanceof JCTree.JCExpression) {
+                translatedBody = toExpr(cas.getBody());
+            } else {
+                var bodyKind = cas.getBody() instanceof JCTree.JCBlock ? "block" : "throw statement";
+                reportError(cas, "notSupported", "switch rule %s".formatted(bodyKind));
+                translatedBody = null;
+            }
+
+            if (translatedPattern == null || translatedBody == null) {
+                return getHole(origin);
+            } else {
+                translatedCases.add(new NestedMatchCaseExpr(toOrigin(cas), translatedPattern, translatedBody, null));
+            }
+        }
+
+        var source = toExpr(switchExpr.getExpression());
+        return new NestedMatchExpr(origin, source, translatedCases, true, null);
+    }
+
     private @Nullable Type toType(JCTree tree) {
         return toType(tree, false, null);
     }
@@ -823,7 +893,8 @@ public class JavaToDafnyCompiler {
     @Nullable
     public Type toType(JCTree tree, boolean isNullable, @Nullable IOrigin originOverride) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(tree));
-        
+        var nullableSuffix = isNullable ? "?" : "";
+
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(tree);
         if (primitiveTypeKind != null) {
             switch (primitiveTypeKind) {
@@ -886,7 +957,7 @@ public class JavaToDafnyCompiler {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");
             }
-            return new UserDefinedType(origin, new NameSegment(origin, "array", List.of(elemType)));
+            return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
         } else if (tree instanceof JCTree.JCExpression expr) {
             var expression = toExpr(expr);
             
@@ -898,7 +969,7 @@ public class JavaToDafnyCompiler {
                 nameSegment = expression;
             }
             if (isNullable && nameSegment instanceof NameSegment ns) {
-                nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + "?", ns.getOptTypeArguments());
+                nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
             }
             return new UserDefinedType(origin, nameSegment);
         }

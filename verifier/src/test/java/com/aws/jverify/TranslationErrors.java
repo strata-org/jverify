@@ -2,8 +2,8 @@ package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.*;
 
+@SuppressWarnings("unused")
 class TranslationErrors {
-    
     @Pure
     int pureWithMultipleStatements() {
 //      ^ error: pure method should have only one statement
@@ -53,6 +53,64 @@ class TranslationErrors {
             postcondition(x == 3);
             x = x - 1;
         }
+    }
+
+    int switchLabeledStatementGroup(int i) {
+        var acc = 0;
+        var ret = switch (i) {
+//                ^ error: switch labeled statement group is not supported
+            case 0:
+                acc += 100;
+                yield 0;
+            case 1, 2, 3:
+                acc += 200;
+                yield i * 2;
+            default:
+                yield -1;
+        };
+        return acc + ret;
+    }
+
+    int switchCaseConstantExpr(int i) {
+        return switch (i) {
+            case 0, 1 -> 0;
+            case 1 + 1 -> 1;
+//                 ^ error: non-literal case constant is not supported
+            default -> 2;
+        };
+    }
+
+    int switchCasePattern(Integer i) {
+        return switch (i) {
+            case Integer ii when ii < 0 -> ii * 3;
+//          ^ error: case pattern is not supported
+            case Integer ii when 0 < ii -> ii * 2;
+            default -> 0;
+        };
+    }
+
+    int switchBlockBody(int i) {
+        return switch (i) {
+            case 0 -> 0;
+            case 1, 2, 3 -> {
+//          ^ error: switch rule block is not supported
+                var acc = 0;
+                for (int j = 0; j < i; j++) {
+                    acc += j * j;
+                }
+                yield acc;
+            }
+            default -> i;
+        };
+    }
+
+    int switchThrowBody(int i) {
+        return switch (i) {
+            case 0 -> throw new RuntimeException("");
+//          ^ error: switch rule throw statement is not supported
+            case 1, 2 -> -i;
+            default -> i * i * i;
+        };
     }
     
     void foo() {}
