@@ -43,6 +43,25 @@ class Switches {
             default -> 4;
         };
         check(1 <= group && group <= 3);
-//                          ^^^^^^^^^^  Error: assertion might not hold
+//                          ^^^^^^^^^^ Error: assertion might not hold
+    }
+
+    static void switchExprObj(@Nullable int[] arr) {
+        //noinspection SwitchStatementWithTooFewBranches
+        var isNull = switch (arr) {
+            case null -> true;
+            default -> false;
+        };
+        check(isNull == (arr == null));
+    }
+
+    static void switchExprObjBad(@Nullable int[] arr) {
+        //noinspection SwitchStatementWithTooFewBranches
+        var isNull = switch (arr) {
+            case null -> true;
+            default -> false;
+        };
+        check(!isNull);
+//      ^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 }

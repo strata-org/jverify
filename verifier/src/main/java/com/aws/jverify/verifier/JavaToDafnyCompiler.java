@@ -440,7 +440,8 @@ public class JavaToDafnyCompiler {
         List<Formal> ins = method.getParameters().map(jvd ->
         {
             Name formalName = getName(jvd, jvd.getName());
-            return new Formal(declToOrigin(jvd, formalName), formalName, toType(jvd.getType()), false, true,
+            var syntacticType = toType(jvd.getType(), isNullable(jvd.getModifiers()));
+            return new Formal(declToOrigin(jvd, formalName), formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
         var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
@@ -829,7 +830,7 @@ public class JavaToDafnyCompiler {
         // Each case has a *switch label*, which is either a *default label* or a *case label*.
         // A *case label* consists of either:
         //  - a list of *case constants*
-        //  - a null literal
+        //  - a null literal (which the javac AST treats like another case constant)
         //  - a *case pattern* (not supported)
         var translatedCases = new ArrayList<NestedMatchCaseExpr>();
         for (var cas : switchExpr.getCases()) {
@@ -892,7 +893,8 @@ public class JavaToDafnyCompiler {
     @Nullable
     public Type toType(JCTree tree, boolean isNullable, @Nullable IOrigin originOverride) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(tree));
-        
+        var nullableSuffix = isNullable ? "?" : "";
+
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(tree);
         if (primitiveTypeKind != null) {
             switch (primitiveTypeKind) {
@@ -955,7 +957,7 @@ public class JavaToDafnyCompiler {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");
             }
-            return new UserDefinedType(origin, new NameSegment(origin, "array", List.of(elemType)));
+            return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
         } else if (tree instanceof JCTree.JCExpression expr) {
             var expression = toExpr(expr);
             
@@ -967,7 +969,7 @@ public class JavaToDafnyCompiler {
                 nameSegment = expression;
             }
             if (isNullable && nameSegment instanceof NameSegment ns) {
-                nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + "?", ns.getOptTypeArguments());
+                nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
             }
             return new UserDefinedType(origin, nameSegment);
         }

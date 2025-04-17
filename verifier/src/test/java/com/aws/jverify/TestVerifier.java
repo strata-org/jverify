@@ -134,7 +134,7 @@ Dafny program verifier finished with 5 verified, 1 error
 
     @Test
     public void switches() throws IOException {
-        verifyMarkedSourceFile("Switches.java", new DafnyResults(2, 2));
+        verifyMarkedSourceFile("Switches.java", new DafnyResults(3, 3));
     }
 
     @Test
