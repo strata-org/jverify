@@ -101,7 +101,7 @@ Dafny program verifier finished with 5 verified, 1 error
     @Test
     public void translationErrors() throws IOException {
         String markedSource = getTestFileContent("TranslationErrors.java");
-        var output = testMarkedSource(markedSource, 10, CommandLine.ExitCode.USAGE);
+        testMarkedSource(markedSource, 15, CommandLine.ExitCode.USAGE);
     }
     
     @Test
@@ -123,6 +123,11 @@ Dafny program verifier finished with 5 verified, 1 error
     @Test
     public void operators() throws IOException {
         verifyMarkedSourceFile("Operators.java", new DafnyResults(9, 9));
+    }
+
+    @Test
+    public void switches() throws IOException {
+        verifyMarkedSourceFile("Switches.java", new DafnyResults(3, 3));
     }
 
     @Test
@@ -174,4 +179,3 @@ Dafny program verifier finished with 3 verified, 0 errors
         Assertions.assertEquals(0, exitCode);
     }
 }
-

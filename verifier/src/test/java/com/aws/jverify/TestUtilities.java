@@ -39,6 +39,13 @@ public class TestUtilities {
         assertThat(output, endsWith(ending));
     }
 
+    /**
+     * Verifies the given source code, asserting that each markup annotation appears in the output,
+     * and that the exit code and number of matched error annotations are as expected.
+     * <p>
+     * NOTE: Errors that appear in the verification output, but which don't appear in the marked-up source code,
+     * are currently silently ignored.
+     */
     public static String testMarkedSource(String markedSource, int expectedErrorCount, int expectedExitCode) throws IOException {
         StringWriter writer = new StringWriter();
         var options = getVerifierOptions();
@@ -56,8 +63,10 @@ public class TestUtilities {
 
             assertThat(output, containsString(expectation));
         }
-        Assertions.assertEquals(expectedErrorCount, errorsFound, "Marked test file did not contain right amount of expected errors");
-        Assertions.assertEquals(expectedExitCode, exitCode, output);
+        Assertions.assertEquals(expectedErrorCount, errorsFound,
+                () -> "Mismatched error count in output:\n%s".formatted(output));
+        Assertions.assertEquals(expectedExitCode, exitCode,
+                () -> "Mismatched exit code; output:\n%s".formatted(output));
         return output;
     }
 
