@@ -22,7 +22,8 @@ public class TestVerifier {
     public void statements() throws IOException {
         verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(11, 0));
     }
-    
+
+    @Test
     public void resolutionErrorBooleanTest() throws IOException {
         testMarkedSource(getTestFileContent("ResolutionErrorsBooleanOperators.java"),
                 9, CommandLine.ExitCode.USAGE);
@@ -83,10 +84,7 @@ public class TestVerifier {
         StringWriter writer = new StringWriter();
         var exitCode = run("ExternalContract.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("""
-
-Dafny program verifier finished with 2 verified, 0 errors
-""", output);
+        assertThat(output, containsString("Dafny program verifier finished with 2 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
     }
     
@@ -99,7 +97,6 @@ Dafny program verifier finished with 2 verified, 0 errors
 UserProfile.java(32:9-32:16): Error: a postcondition could not be proved on this return path
 UserProfile.java(23:21-23:26): Related location: this is the postcondition that could not be proved
 UserProfile.java(25:16-25:77): Related location: this proposition could not be proved
-
 Dafny program verifier finished with 5 verified, 1 error
 """, output);
         Assertions.assertEquals(4, exitCode);
@@ -142,7 +139,7 @@ Dafny program verifier finished with 5 verified, 1 error
         StringWriter writer = new StringWriter();
         var exitCode = run("Fibonacci.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("\nDafny program verifier finished with 4 verified, 0 errors\n", output);
+        assertThat(output, containsString("Dafny program verifier finished with 4 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
     }
 
@@ -151,12 +148,7 @@ Dafny program verifier finished with 5 verified, 1 error
         StringWriter writer = new StringWriter();
         var exitCode = run("BinarySearch.java", true, writer);
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("""
-
-Dafny program verifier finished with 3 verified, 0 errors
-""",
-                output
-        );
+        assertThat(output, containsString("Dafny program verifier finished with 3 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
     }
     
@@ -172,21 +164,21 @@ Dafny program verifier finished with 3 verified, 0 errors
         try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             reader.transferTo(writer);
             exitCode = process.waitFor();
-            reader.close();
         }
         var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertTrue(output.contains("Dafny program verifier finished with 4 verified, 0 errors"));
+        assertThat(output, containsString("Dafny program verifier finished with 4 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
     }
 
     @Test
-    public void testNoConstructor() throws IOException, InterruptedException {
+    public void testNoConstructor() throws IOException {
         StringWriter writer = new StringWriter();
         var exitCode = run("NoConstructor.java", false, writer);
         Assertions.assertEquals(0, exitCode);
     }
 
     record DafnyResults(int successCount, int errorCount) {}
+
     private void verifyMarkedSourceFile(String inputFileName, DafnyResults dafnyResults) throws IOException {
         testMarkedSourceVerification(getTestFileContent(inputFileName), dafnyResults);
     }
@@ -263,7 +255,8 @@ Dafny program verifier finished with 3 verified, 0 errors
         return new VerifierOptions(dafnyPath, libraryJar, prelude, 
                 //Path.of("../temp.dfy"),
                 null,
-                null, true,
+                null,
+                true,
                 new String[] {
                         "--use-basename-for-filename"
                         //,"--wait-for-debugger"

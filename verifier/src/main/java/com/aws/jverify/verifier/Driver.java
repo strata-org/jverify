@@ -1,5 +1,7 @@
 package com.aws.jverify.verifier;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.tools.javac.util.*;
 import picocli.CommandLine;
 
@@ -10,7 +12,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Driver {
 
@@ -37,7 +42,11 @@ public class Driver {
         return verifyJavaFiles(readFiles, verifierOptions, output);
     }
 
-    public static int verifyJavaFiles(List<JavaFileObject> readFiles, VerifierOptions verifierOptions, Writer output) throws IOException {
+    public static int verifyJavaFiles(
+            List<JavaFileObject> readFiles,
+            VerifierOptions verifierOptions,
+            Consumer<Diagnostic<?>> diagnosticConsumer
+    ) throws IOException {
         var context = new Context();
         var compiler = new JavaToDafnyCompiler(context);
         var messages = JavacMessages.instance(context);
@@ -45,77 +54,112 @@ public class Driver {
 
         var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles);
         var hasErrors = false;
-        for(var diagnostic : compiler.diagnostics.getDiagnostics()) {
-            output.write(formatDiagnostic(diagnostic) + "\n");
+        for (var diagnostic : compiler.diagnostics.getDiagnostics()) {
+            diagnosticConsumer.accept(diagnostic);
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 hasErrors = true;
             }
         }
-        if (dafnyEquivalent != null && !hasErrors) {
-            var programBuilder = new StringBuilder();
-            new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
-            var program = programBuilder.toString();
-            if (verifierOptions.printBinaryDafny() != null) {
-                Files.writeString(verifierOptions.printBinaryDafny(), program);
-            }
-            return runDafnyProcess(program, verifierOptions, output);
+        if (dafnyEquivalent == null || hasErrors) {
+            return CommandLine.ExitCode.USAGE;
         }
-        return CommandLine.ExitCode.USAGE;
+
+        var programBuilder = new StringBuilder();
+        new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
+        var program = programBuilder.toString();
+        if (verifierOptions.printBinaryDafny() != null) {
+            Files.writeString(verifierOptions.printBinaryDafny(), program);
+        }
+        return runDafnyProcess(program, verifierOptions, diagnosticConsumer::accept);
     }
 
-    private static String formatDiagnostic(Diagnostic<? extends JavaFileObject> diagnostic) {
-        StringBuilder sb = new StringBuilder();
+    public static int verifyJavaFiles(
+            List<JavaFileObject> readFiles,
+            VerifierOptions verifierOptions,
+            Writer output
+    ) throws IOException {
+        return verifyJavaFiles(readFiles, verifierOptions, diagnostic -> {
+            try {
+                output.write(formatDiagnostic(diagnostic));
+                output.write('\n');
+                if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                        && dafnyDiagnostic.relatedInformation != null) {
+                    for (var relatedInfo : dafnyDiagnostic.relatedInformation) {
+                        output.write(formatDiagnostic(relatedInfo.asDiagnostic()));
+                        output.write('\n');
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Exception while writing verification output", e);
+            }
+        });
+    }
 
-        if (diagnostic.getSource() != null) {
-            sb.append(diagnostic.getSource().getName());
-        }
-
-        sb.append("(");
-        sb.append(diagnostic.getLineNumber()).append(":");
-        sb.append(diagnostic.getColumnNumber());
+    private static String formatDiagnostic(Diagnostic<?> diagnostic) {
+        var sb = new StringBuilder();
 
         if (diagnostic instanceof JCDiagnostic jcDiagnostic) {
-            var endLine = diagnostic.getLineNumber();
-            var endColumn = diagnostic.getColumnNumber() + 1;
-            sb.append("-").append(endLine).append(":").append(endColumn);
-        }
+            sb.append(jcDiagnostic.getSource().getName());
 
-        sb.append("): ");
+            var line = diagnostic.getLineNumber();
+            var column = diagnostic.getColumnNumber();
+            sb.append("(");
+            sb.append(line).append(":").append(column);
+            sb.append("-");
+            sb.append(line).append(":").append(column + 1);
+            sb.append("): ");
 
-        switch (diagnostic.getKind()) {
-            case ERROR:
-                sb.append("error: ");
-                break;
-            case WARNING:
-                sb.append("warning: ");
-                break;
-            case MANDATORY_WARNING:
-                sb.append("required Warning: ");
-                break;
-            case NOTE:
-                sb.append("note: ");
-                break;
-            default:
-                sb.append(diagnostic.getKind()).append(": ");
+            switch (diagnostic.getKind()) {
+                case ERROR:
+                    sb.append("error: ");
+                    break;
+                case WARNING:
+                    sb.append("warning: ");
+                    break;
+                case MANDATORY_WARNING:
+                    sb.append("required Warning: ");
+                    break;
+                case NOTE:
+                    sb.append("note: ");
+                    break;
+                default:
+                    sb.append(diagnostic.getKind()).append(": ");
+            }
+        } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
+            if (dafnyDiagnostic.location != null) {
+                sb.append(dafnyDiagnostic.getSource());
+
+                var start = dafnyDiagnostic.location.range().start();
+                var end = dafnyDiagnostic.location.range().end();
+                sb.append("(");
+                sb.append(start.line()).append(":").append(start.character());
+                sb.append("-");
+                sb.append(end.line()).append(":").append(end.character());
+                sb.append("): ");
+            }
+        } else {
+            throw new IllegalArgumentException(
+                    "Formatting not implemented for diagnostic type " + diagnostic.getClass().getName());
         }
 
         sb.append(diagnostic.getMessage(null));
         return sb.toString();
     }
-    
-    public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Writer output) {
+
+    public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Consumer<DafnyDiagnostic> diagnosticConsumer) {
         var dafnyPath = verifierOptions.dafnyPath();
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(
                     dafnyPath.toString(),  // Program path
-                    "verify",                       // First argument
+                    "verify",
                     "--library",
                     verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
                     "--allow-axioms",
                     "--dont-verify-dependencies",
                     "--input-format",
                     "Binary",
-                    "--stdin",                        // Second argument
+                    "--stdin",
+                    "--json-diagnostics",
                     "--allow-warnings"
             );
             if (verifierOptions.printDafny() != null) {
@@ -132,30 +176,48 @@ public class Driver {
                 processBuilder.command().add(option);
             }
 
-            Process process = processBuilder.start();
-
-            var writer = new OutputStreamWriter(process.getOutputStream());
-            writer.write(program);
-            writer.close();
-
-            
-            // Read the output
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()))) {
-                reader.transferTo(output);
+            // Redirect stderr into stdout, instead of reading one and then the other,
+            // in order to preserve the order of output and to avoid potential deadlock.
+            var process = processBuilder.redirectErrorStream(true).start();
+            try (var stdin = new OutputStreamWriter(process.getOutputStream())) {
+                stdin.write(program);
             }
-
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream()))) {
-                reader.transferTo(output);
+            try (var stdout = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                parseDafnyJsonOutput(stdout).forEach(diagnosticConsumer);
+                return process.waitFor();
             }
-
-            int exitCode = process.waitFor();
-            return exitCode;
-
         } catch (InterruptedException | IOException e) {
             e.printStackTrace();
             return -1;
         }
+    }
+
+    private static final Pattern dafnySummaryPattern = Pattern.compile(
+            "Dafny program verifier finished with \\d+ verified, \\d+ errors?");
+
+    /**
+     * Parses the given {@code dafny verify} output into a stream of diagnostics,
+     * including a diagnostic of the verification summary ("Dafny program verifier finished with ...").
+     * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
+     */
+    private static Stream<DafnyDiagnostic> parseDafnyJsonOutput(BufferedReader dafnyOutput) {
+        var objectMapper = new ObjectMapper();
+        return dafnyOutput.lines().flatMap(line -> {
+            if (line.isBlank()) {
+                return Stream.empty();
+            } else if (line.startsWith("{")) {
+                final DafnyDiagnostic diagnostic;
+                try {
+                    diagnostic = objectMapper.readValue(line, DafnyDiagnostic.class);
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
+                }
+                return Stream.of(diagnostic);
+            } else if (dafnySummaryPattern.matcher(line).matches()) {
+                return Stream.of(DafnyDiagnostic.forSummary(line));
+            } else {
+                throw new RuntimeException("Could not parse line of Dafny output: " + line);
+            }
+        });
     }
 }

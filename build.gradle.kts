@@ -198,6 +198,8 @@ project(":verifier") {
 
         // Optional: annotation processor for compile-time checking
         annotationProcessor("info.picocli:picocli-codegen:4.7.6")
+
+        implementation("com.fasterxml.jackson.core:jackson-databind:2.18.3")
     }
 
     tasks.test {
