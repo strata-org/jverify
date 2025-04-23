@@ -20,11 +20,11 @@ public class TestMarkupTest {
         assertEquals("int x = 10;", output);
         assertEquals(2, positions.size());
 
-        assertEquals(0, positions.get(0).line());
-        assertEquals(4, positions.get(0).character());
+        assertEquals(1, positions.get(0).line());
+        assertEquals(5, positions.get(0).character());
 
-        assertEquals(0, positions.get(1).line());
-        assertEquals(8, positions.get(1).character());
+        assertEquals(1, positions.get(1).line());
+        assertEquals(9, positions.get(1).character());
     }
 
     @Test
@@ -41,10 +41,10 @@ public class TestMarkupTest {
         assertEquals(1, ranges.size());
 
         var span = ranges.getFirst();
-        assertEquals(0, span.start().line());
-        assertEquals(8, span.start().character());
-        assertEquals(0, span.end().line());
-        assertEquals(10, span.end().character());
+        assertEquals(1, span.start().line());
+        assertEquals(9, span.start().character());
+        assertEquals(1, span.end().line());
+        assertEquals(11, span.end().character());
     }
 
     @Test
@@ -57,11 +57,11 @@ public class TestMarkupTest {
         assertEquals(1, result.ranges().size());
 
         var span = result.ranges().getFirst();
-        assertEquals("Value", span.annotation);
-        assertEquals(0, span.range.start().line());
-        assertEquals(8, span.range.start().character());
-        assertEquals(0, span.range.end().line());
-        assertEquals(10, span.range.end().character());
+        assertEquals("Value", span.annotation());
+        assertEquals(1, span.range().start().line());
+        assertEquals(9, span.range().start().character());
+        assertEquals(1, span.range().end().line());
+        assertEquals(11, span.range().end().character());
     }
 
     @Test
@@ -75,10 +75,10 @@ public class TestMarkupTest {
         assertEquals(1, result.ranges().size());
 
         var span = result.ranges().getFirst();
-        assertEquals("Variable declaration", span.annotation);
-        assertEquals(0, span.range.start().line());
-        assertEquals(3, span.range.start().character());
-        assertEquals(0, span.range.end().line());
-        assertEquals(8, span.range.end().character());
+        assertEquals("Variable declaration", span.annotation());
+        assertEquals(1, span.range().start().line());
+        assertEquals(4, span.range().start().character());
+        assertEquals(1, span.range().end().line());
+        assertEquals(9, span.range().end().character());
     }
 }

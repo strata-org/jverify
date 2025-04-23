@@ -17,25 +17,24 @@ import java.util.regex.Pattern;
  * string with the "><" string in it.  This allows for easy creation of "FIT" tests where all
  * that needs to be provided are strings that encode every bit of state necessary in the string
  * itself.
- *
+ * <p>
  * The current set of encoded features we support are: 
- *
+ * <p>
  * >< - The position in the file.  There can be zero or more of these.
- *
- * [> ... <] - A span of text in the file.  There can be many of these and they can be nested
+ * <p>
+ * [> ... <] - A span of text in the file.  There can be many of these, and they can be nested
  * and/or overlap the >< position(s).
- *
+ * <p>
  * {>Name: ... <} A span of text in the file annotated with an identifier.  There can be many of
  * these, including ones with the same name.
- *
- * (>metadata::: ... <) A span of text in the file annotated with metdata.
- *
+ * <p>
+ * (>metadata::: ... <) A span of text in the file annotated with metadata.
+ * <p>
  * We also support Java line comments to specify annotated ranges:
- * ```
+ * {@snippet :
  *    some actual program text
  * // ^^^^^^ this is the annotation with hats pointing to the range
- * ```
- * 
+ * }
  */
 public class TestMarkup {
     private static final String SPAN_START_STRING = "[>";
@@ -168,8 +167,8 @@ public class TestMarkup {
         
         var output = getPositionsAndAnnotatedRanges(input);
         for (AnnotatedRange annotatedRange : output.ranges) {
-            namedRanges.computeIfAbsent(annotatedRange.annotation, _ -> new ArrayList<>())
-                    .add(annotatedRange.range);
+            namedRanges.computeIfAbsent(annotatedRange.annotation(), _ -> new ArrayList<>())
+                    .add(annotatedRange.range());
         }
         
         return new GetPositionsAndNamedRangesResult(output.output, output.positions, namedRanges);
@@ -286,7 +285,7 @@ class TextBuffer {
         }
 
         int character = index - lineStarts[line];
-        return new Position(line, character);
+        return new Position(line + 1, character + 1);
     }
 }
 

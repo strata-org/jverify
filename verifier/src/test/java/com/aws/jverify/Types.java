@@ -1,3 +1,7 @@
+// exitCode: 4
+// dafnyVerified: 0
+// dafnyErrors: 3
+
 package com.aws.jverify;
 
 class Types {

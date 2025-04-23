@@ -1,3 +1,5 @@
+// exitCode: 2
+
 package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.check;

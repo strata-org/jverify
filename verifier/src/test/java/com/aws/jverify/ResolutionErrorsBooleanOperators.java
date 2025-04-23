@@ -1,6 +1,6 @@
-package com.aws.jverify;
+// exitCode: 2
 
-import static com.aws.jverify.JVerify.check;
+package com.aws.jverify;
 
 @SuppressWarnings("ConstantValue")
 class ResolutionErrorsBooleanOperators {
