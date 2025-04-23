@@ -1,8 +1,11 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.common.Position;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.tools.javac.util.*;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
@@ -12,25 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Driver {
-
-    public static int verifyJavaSource(VerifierOptions options, String source, Writer output) throws IOException {
-        var files = new ArrayList<JavaFileObject>();
-        files.add(new SourceFile("file:/test.java", source));
-        return verifyJavaFiles(files, options, output);
-    }
-    
-    public static int verifyJavaExample(VerifierOptions options, Path javaFile, Writer output) throws IOException {
-        var files = new ArrayList<JavaFileObject>();
-        files.add(new SourceFile(javaFile, Files.readString(javaFile)));
-        return verifyJavaFiles(files, options, output);
-    }
-
     public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
             try {
@@ -42,11 +31,17 @@ public class Driver {
         return verifyJavaFiles(readFiles, verifierOptions, output);
     }
 
-    public static int verifyJavaFiles(
+    public static VerificationResults verifyJavaFile(JavaFileObject javaFile, VerifierOptions options)
+            throws IOException {
+        return verifyJavaFiles(List.of(javaFile), options);
+    }
+
+    public static VerificationResults verifyJavaFiles(
             List<JavaFileObject> readFiles,
-            VerifierOptions verifierOptions,
-            Consumer<Diagnostic<?>> diagnosticConsumer
+            VerifierOptions verifierOptions
     ) throws IOException {
+        var verificationResults = new VerificationResults();
+
         var context = new Context();
         var compiler = new JavaToDafnyCompiler(context);
         var messages = JavacMessages.instance(context);
@@ -55,22 +50,23 @@ public class Driver {
         var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles);
         var hasErrors = false;
         for (var diagnostic : compiler.diagnostics.getDiagnostics()) {
-            diagnosticConsumer.accept(diagnostic);
+            verificationResults.diagnostics.add(diagnostic);
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 hasErrors = true;
             }
         }
         if (dafnyEquivalent == null || hasErrors) {
-            return CommandLine.ExitCode.USAGE;
+            verificationResults.exitCode = CommandLine.ExitCode.USAGE;
+        } else {
+            var programBuilder = new StringBuilder();
+            new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
+            var program = programBuilder.toString();
+            if (verifierOptions.printBinaryDafny() != null) {
+                Files.writeString(verifierOptions.printBinaryDafny(), program);
+            }
+            runDafnyProcess(program, verifierOptions, verificationResults);
         }
-
-        var programBuilder = new StringBuilder();
-        new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
-        var program = programBuilder.toString();
-        if (verifierOptions.printBinaryDafny() != null) {
-            Files.writeString(verifierOptions.printBinaryDafny(), program);
-        }
-        return runDafnyProcess(program, verifierOptions, diagnosticConsumer::accept);
+        return verificationResults;
     }
 
     public static int verifyJavaFiles(
@@ -78,21 +74,59 @@ public class Driver {
             VerifierOptions verifierOptions,
             Writer output
     ) throws IOException {
-        return verifyJavaFiles(readFiles, verifierOptions, diagnostic -> {
-            try {
-                output.write(formatDiagnostic(diagnostic));
-                output.write('\n');
-                if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
-                        && dafnyDiagnostic.relatedInformation != null) {
-                    for (var relatedInfo : dafnyDiagnostic.relatedInformation) {
-                        output.write(formatDiagnostic(relatedInfo.asDiagnostic()));
-                        output.write('\n');
-                    }
+        var verificationResults = verifyJavaFiles(readFiles, verifierOptions);
+        for (var diagnostic : verificationResults.diagnostics) {
+            output.write(formatDiagnostic(diagnostic));
+            output.write('\n');
+            if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                    && dafnyDiagnostic.relatedInformation != null) {
+                for (var relatedInfo : dafnyDiagnostic.relatedInformation) {
+                    output.write(formatDiagnostic(relatedInfo.asDiagnostic()));
+                    output.write('\n');
                 }
-            } catch (IOException e) {
-                throw new RuntimeException("Exception while writing verification output", e);
             }
-        });
+        }
+        assert verificationResults.dafnyFinishedMessage != null;
+        output.write(verificationResults.dafnyFinishedMessage);
+        return verificationResults.exitCode;
+    }
+
+    public static final class VerificationResults {
+        // dummy value to tell when it hasn't been set
+        private int exitCode = -999;
+
+        private final List<Diagnostic<?>> diagnostics = new ArrayList<>();
+
+        /**
+         * Can be null if verification failed before invoking Dafny.
+         */
+        private @Nullable Integer dafnyVerifiedCount;
+
+        /**
+         * Can be null if verification failed before invoking Dafny.
+         */
+        private @Nullable Integer dafnyErrorCount;
+
+        /**
+         * Can be null if verification failed before invoking Dafny.
+         */
+        private @Nullable String dafnyFinishedMessage;
+
+        public int getExitCode() {
+            return exitCode;
+        }
+
+        public List<Diagnostic<?>> getDiagnostics() {
+            return diagnostics;
+        }
+
+        public @Nullable Integer getDafnyVerifiedCount() {
+            return dafnyVerifiedCount;
+        }
+
+        public @Nullable Integer getDafnyErrorCount() {
+            return dafnyErrorCount;
+        }
     }
 
     private static String formatDiagnostic(Diagnostic<?> diagnostic) {
@@ -108,74 +142,64 @@ public class Driver {
             sb.append("-");
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
-
-            switch (diagnostic.getKind()) {
-                case ERROR:
-                    sb.append("error: ");
-                    break;
-                case WARNING:
-                    sb.append("warning: ");
-                    break;
-                case MANDATORY_WARNING:
-                    sb.append("required Warning: ");
-                    break;
-                case NOTE:
-                    sb.append("note: ");
-                    break;
-                default:
-                    sb.append(diagnostic.getKind()).append(": ");
-            }
         } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            if (dafnyDiagnostic.location != null) {
-                sb.append(dafnyDiagnostic.getSource());
-
-                var start = dafnyDiagnostic.location.range().start();
-                var end = dafnyDiagnostic.location.range().end();
-                sb.append("(");
-                sb.append(start.line()).append(":").append(start.character());
-                sb.append("-");
-                sb.append(end.line()).append(":").append(end.character());
-                sb.append("): ");
-            }
+            sb.append(dafnyDiagnostic.getSource())
+                    .append("(")
+                    .append(dafnyDiagnostic.getRange())
+                    .append("): ");
         } else {
             throw new IllegalArgumentException(
                     "Formatting not implemented for diagnostic type " + diagnostic.getClass().getName());
         }
 
-        sb.append(diagnostic.getMessage(null));
+        sb.append(formatMessage(diagnostic));
         return sb.toString();
     }
 
-    public static int runDafnyProcess(String program, VerifierOptions verifierOptions, Consumer<DafnyDiagnostic> diagnosticConsumer) {
-        var dafnyPath = verifierOptions.dafnyPath();
-        try {
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                    dafnyPath.toString(),  // Program path
-                    "verify",
-                    "--library",
-                    verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
-                    "--allow-axioms",
-                    "--dont-verify-dependencies",
-                    "--input-format",
-                    "Binary",
-                    "--stdin",
-                    "--json-diagnostics",
-                    "--allow-warnings"
-            );
-            if (verifierOptions.printDafny() != null) {
-                processBuilder.command().add("--print=" + verifierOptions.printDafny());
-            }
-            if (verifierOptions.showRanges()) {
-                // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
-                processBuilder.command().add("--show-snippets=false");
-                processBuilder.command().add("--print-ranges");
-            }
-            processBuilder.command().add("--ignore-indentation");
-            
-            for(var option : verifierOptions.additionalDafnyArguments()) {
-                processBuilder.command().add(option);
-            }
+    public static String formatMessage(Diagnostic<?> diagnostic) {
+        if (diagnostic instanceof JCDiagnostic) {
+            var prefix = switch (diagnostic.getKind()) {
+                case ERROR -> "error";
+                case WARNING -> "warning";
+                case MANDATORY_WARNING -> "required warning";
+                case NOTE -> "note";
+                default -> diagnostic.getKind();
+            };
+            return prefix + ": " + diagnostic.getMessage(null);
+        }
 
+        return diagnostic.getMessage(null);
+    }
+
+    public static void runDafnyProcess(
+            String program, VerifierOptions verifierOptions, VerificationResults outResults) {
+        var processBuilder = new ProcessBuilder(
+                verifierOptions.dafnyPath().toString(),
+                "verify",
+                "--library",
+                verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
+                "--allow-axioms",
+                "--dont-verify-dependencies",
+                "--input-format",
+                "Binary",
+                "--stdin",
+                "--json-diagnostics",
+                "--allow-warnings"
+        );
+        if (verifierOptions.printDafny() != null) {
+            processBuilder.command().add("--print=" + verifierOptions.printDafny());
+        }
+        if (verifierOptions.showRanges()) {
+            // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
+            processBuilder.command().add("--show-snippets=false");
+            processBuilder.command().add("--print-ranges");
+        }
+        processBuilder.command().add("--ignore-indentation");
+        for (var option : verifierOptions.additionalDafnyArguments()) {
+            processBuilder.command().add(option);
+        }
+
+        try {
             // Redirect stderr into stdout, instead of reading one and then the other,
             // in order to preserve the order of output and to avoid potential deadlock.
             var process = processBuilder.redirectErrorStream(true).start();
@@ -183,41 +207,52 @@ public class Driver {
                 stdin.write(program);
             }
             try (var stdout = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                parseDafnyJsonOutput(stdout).forEach(diagnosticConsumer);
-                return process.waitFor();
+                parseDafnyJsonOutput(stdout, outResults);
+                outResults.exitCode = process.waitFor();
             }
         } catch (InterruptedException | IOException e) {
             e.printStackTrace();
-            return -1;
+            outResults.exitCode = -1;
         }
     }
 
     private static final Pattern dafnySummaryPattern = Pattern.compile(
-            "Dafny program verifier finished with \\d+ verified, \\d+ errors?");
+            "Dafny program verifier finished with (?<VerifiedCount>\\d+) verified, (?<ErrorCount>\\d+) errors?");
 
     /**
-     * Parses the given {@code dafny verify} output into a stream of diagnostics,
-     * including a diagnostic of the verification summary ("Dafny program verifier finished with ...").
+     * Parses the given {@code dafny verify} output,
+     * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static Stream<DafnyDiagnostic> parseDafnyJsonOutput(BufferedReader dafnyOutput) {
+    private static void parseDafnyJsonOutput(BufferedReader dafnyOutput, VerificationResults outResults) {
         var objectMapper = new ObjectMapper();
-        return dafnyOutput.lines().flatMap(line -> {
+        objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
+
+        dafnyOutput.lines().forEach(line -> {
+            Matcher matcher;
             if (line.isBlank()) {
-                return Stream.empty();
+                //noinspection UnnecessaryReturnStatement
+                return;  // nothing to do
             } else if (line.startsWith("{")) {
-                final DafnyDiagnostic diagnostic;
                 try {
-                    diagnostic = objectMapper.readValue(line, DafnyDiagnostic.class);
+                    outResults.diagnostics.add(objectMapper.readValue(line, DafnyDiagnostic.class));
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
                 }
-                return Stream.of(diagnostic);
-            } else if (dafnySummaryPattern.matcher(line).matches()) {
-                return Stream.of(DafnyDiagnostic.forSummary(line));
+            } else if ((matcher = dafnySummaryPattern.matcher(line)).matches()) {
+                outResults.dafnyVerifiedCount = Integer.parseInt(matcher.group("VerifiedCount"));
+                outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
+                outResults.dafnyFinishedMessage = line;
             } else {
                 throw new RuntimeException("Could not parse line of Dafny output: " + line);
             }
         });
     }
+
+    /**
+     * Used as an {@link ObjectMapper} mixin when parsing {@link Position},
+     * since Dafny JSON diagnostics include a {@code pos} field that we don't use or need.
+     */
+    @JsonIgnoreProperties({"pos"})
+    private static abstract class DafnyJsonPosition {}
 }

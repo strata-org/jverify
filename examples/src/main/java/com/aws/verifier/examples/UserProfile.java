@@ -1,3 +1,7 @@
+// exitCode: 4
+// dafnyVerified: 5
+// dafnyErrors: 1
+
 package com.aws.verifier.examples;
 
 import static com.aws.jverify.JVerify.*;
@@ -21,8 +25,10 @@ class UserProfile {
     @Pure
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
+//                  ^^^^^ Related location: this is the postcondition that could not be proved
         reads(this);
         return accountType != AccountType.Premium || premiumFeatures != null;
+//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
     }
 
     public void upgradeAccount() {
@@ -30,6 +36,7 @@ class UserProfile {
         this.accountType = AccountType.Premium;
         // this.premiumFeatures = new PremiumFeatures();
         return;
+//      ^^^^^^^ Error: a postcondition could not be proved on this return path
     }
 
     public boolean applyTheme(Theme theme) {

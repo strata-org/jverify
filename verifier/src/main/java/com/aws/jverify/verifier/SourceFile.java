@@ -4,7 +4,7 @@ import javax.tools.SimpleJavaFileObject;
 import java.net.URI;
 import java.nio.file.Path;
 
-class SourceFile extends SimpleJavaFileObject {
+public class SourceFile extends SimpleJavaFileObject {
     final String content;
 
     /**
@@ -15,7 +15,7 @@ class SourceFile extends SimpleJavaFileObject {
      * then you should instead use {@link SourceFile#SourceFile(Path, String)}
      * in order to ensure correct functionality across different operating systems.
      */
-    SourceFile(String path, String content) {
+    public SourceFile(String path, String content) {
         super(URI.create("string:///" + path), Kind.SOURCE);
         this.content = content;
     }
@@ -23,13 +23,13 @@ class SourceFile extends SimpleJavaFileObject {
     /**
      * Constructs a {@link SourceFile} with the given path and content.
      */
-    SourceFile(Path path, String content) {
+    public SourceFile(Path path, String content) {
         super(path.toUri(), Kind.SOURCE);
         this.content = content;
     }
 
     @Override
-    public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+    public String getCharContent(boolean ignoreEncodingErrors) {
         return content;
     }
 }

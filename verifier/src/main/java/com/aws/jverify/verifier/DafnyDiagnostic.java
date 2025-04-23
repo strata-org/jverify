@@ -1,10 +1,12 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.common.Range;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.tools.Diagnostic;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 /**
  * Adapts Dafny's {@code --json-diagnostics} output to the {@link Diagnostic} interface.
@@ -29,11 +31,8 @@ public class DafnyDiagnostic implements Diagnostic<String> {
 
     public List<RelatedInfo> relatedInformation;
 
-    public static DafnyDiagnostic forSummary(String summaryLine) {
-        var diagnostic = new DafnyDiagnostic();
-        diagnostic.severity = SEVERITY_INFO;
-        diagnostic.message = summaryLine;
-        return diagnostic;
+    public Range getRange() {
+        return location.range;
     }
 
     @Override
@@ -58,22 +57,30 @@ public class DafnyDiagnostic implements Diagnostic<String> {
 
     @Override
     public long getStartPosition() {
-        return location.range.start.pos;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public long getEndPosition() {
-        return location.range.end.pos;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public long getLineNumber() {
-        return location.range.start.line;
+        return location.range.start().line();
+    }
+
+    public long getEndLineNumber() {
+        return location.range.end().line();
     }
 
     @Override
     public long getColumnNumber() {
-        return location.range.start.character;
+        return location.range.start().character();
+    }
+
+    public long getEndColumnNumber() {
+        return location.range.end().character();
     }
 
     @Override
@@ -86,9 +93,13 @@ public class DafnyDiagnostic implements Diagnostic<String> {
         return message;
     }
 
-    public record Position(int pos, int line, int character) {}
-
-    public record Range(Position start, Position end) {}
+    /**
+     * Returns a stream containing this diagnostic and its related information as diagnostics.
+     */
+    public Stream<DafnyDiagnostic> flattenRelated() {
+        Stream<RelatedInfo> relatedStream = relatedInformation == null ? Stream.empty() : relatedInformation.stream();
+        return Stream.concat(Stream.of(this), relatedStream.map(RelatedInfo::asDiagnostic));
+    }
 
     public record Location(String filename, String uri, Range range) {}
 

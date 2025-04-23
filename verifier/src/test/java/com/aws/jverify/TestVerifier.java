@@ -1,157 +1,88 @@
 package com.aws.jverify;
 
+import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Common;
+import com.aws.jverify.common.Position;
+import com.aws.jverify.common.Range;
 import com.aws.jverify.common.TestMarkup;
+import com.aws.jverify.verifier.DafnyDiagnostic;
 import com.aws.jverify.verifier.Driver;
+import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import picocli.CommandLine;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
-import java.io.*;
+import javax.tools.Diagnostic;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.endsWith;
+import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
-    @Test
-    public void statements() throws IOException {
-        verifyMarkedSourceFile("VerifyStatements.java", new DafnyResults(11, 0));
-    }
+    private static final Path TEST_FILES_DIRECTORY = Path.of("./src/test/java/com/aws/jverify");
 
-    @Test
-    public void resolutionErrorBooleanTest() throws IOException {
-        testMarkedSource(getTestFileContent("ResolutionErrorsBooleanOperators.java"),
-                9, CommandLine.ExitCode.USAGE);
-    }
+    private static final Path EXAMPLES_DIRECTORY = Path.of("../examples/src/main/java/com/aws/verifier/examples");
 
-    @Test
-    public void verifyBooleanTest() throws IOException {
-        verifyMarkedSourceFile("VerifyBooleanOperators.java", new DafnyResults(0, 1));
-    }
-    
-    @Test
-    public void resolutionErrorIntegerTest() throws IOException {
-        testMarkedSource(getTestFileContent("ResolutionErrorsIntegerOperators.java"),
-                19, CommandLine.ExitCode.USAGE);
-    }
-    
-    @Test
-    public void resolutionErrorNumericTest() throws IOException {
-        testMarkedSource(getTestFileContent("ResolutionErrorsNumericOperators.java"),
-                9, CommandLine.ExitCode.USAGE);
-    }
-
-    @Test
-    public void resolutionErrorsDouble() throws IOException {
-        testMarkedSource(getTestFileContent("ResolutionErrorsDoubleOperators.java"),
-                20, CommandLine.ExitCode.USAGE);
-    }
-    
-    @Test
-    public void resolutionErrorsFloat() throws IOException {
-        testMarkedSource(getTestFileContent("ResolutionErrorsFloatOperators.java"),
-                20, CommandLine.ExitCode.USAGE);
-    }
-
-    @Test
-    public void verifyNumericTest() throws IOException {
-        verifyMarkedSourceFile("VerifyNumericOperators.java", new DafnyResults(0, 1));
-    }
-    
-    @Test
-    public void types() throws IOException {
-        verifyMarkedSourceFile("Types.java", new DafnyResults(0, 3));
-    }
-    
-    @Test
-    public void shouldVerify() throws IOException {
-        verifyMarkedSourceFile("ShouldVerify.java", new DafnyResults(0, 4));
-    }
-    
-    @Test
-    public void contractErrors() throws IOException {
-        testMarkedSource(getTestFileContent("ContractErrors.java"), 
-                3, CommandLine.ExitCode.USAGE);
-    }
-    
-    @Test
-    public void externalContract() throws IOException {
-        StringWriter writer = new StringWriter();
-        var exitCode = run("ExternalContract.java", true, writer);
-        var output = canonicalizeNewlines(writer.toString());
-        assertThat(output, containsString("Dafny program verifier finished with 2 verified, 0 errors"));
-        Assertions.assertEquals(0, exitCode);
-    }
-    
-    @Test
-    public void userProfile() throws IOException {
-        StringWriter writer = new StringWriter();
-        var exitCode = run("UserProfile.java", true, writer);
-        var output = canonicalizeNewlines(writer.toString());
-        Assertions.assertEquals("""
-UserProfile.java(32:9-32:16): Error: a postcondition could not be proved on this return path
-UserProfile.java(23:21-23:26): Related location: this is the postcondition that could not be proved
-UserProfile.java(25:16-25:77): Related location: this proposition could not be proved
-Dafny program verifier finished with 5 verified, 1 error
-""", output);
-        Assertions.assertEquals(4, exitCode);
-    }
-
-    @Test
-    public void translationErrors() throws IOException {
-        String markedSource = getTestFileContent("TranslationErrors.java");
-        testMarkedSource(markedSource, 15, CommandLine.ExitCode.USAGE);
-    }
-    
     @Test
     public void javaError() throws IOException {
         var source = Common.getResourceFile(getClass(), "/JavaError.java");
-        testMarkedSource(source, 1, CommandLine.ExitCode.USAGE);
-    }
-    
-    @Test
-    public void assertFalse() throws IOException {
-        verifyMarkedSourceFile("AssertFalse.java", new DafnyResults(0, 1));
+        testMarkedSource(new SourceFile("JavaError.java", source));
     }
 
-    @Test
-    public void fibonacciInvalid() throws IOException {
-        verifyMarkedSourceFile("FibonacciInvalid.java", new DafnyResults(2, 4));
+    // TODO: read from directory instead of hard-coding
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "AssertFalse.java",
+            "ContractErrors.java",
+            "FibonacciInvalid.java",
+            "NoConstructor.java",
+            "Operators.java",
+            "ResolutionErrorsBooleanOperators.java",
+            "ResolutionErrorsDoubleOperators.java",
+            "ResolutionErrorsFloatOperators.java",
+            "ResolutionErrorsIntegerOperators.java",
+            "ResolutionErrorsNumericOperators.java",
+            "ShouldVerify.java",
+            "Switches.java",
+            "TranslationErrors.java",
+            "Types.java",
+            "VerifyBooleanOperators.java",
+            "VerifyNumericOperators.java",
+            "VerifyStatements.java",
+    })
+    public void verifyTestFile(String fileName) throws IOException {
+        testMarkedSource(TEST_FILES_DIRECTORY.resolve(fileName));
     }
 
-    @Test
-    public void operators() throws IOException {
-        verifyMarkedSourceFile("Operators.java", new DafnyResults(9, 9));
+    // Files are hard-coded for now since not all examples can be compiled and run as-is:
+    //  - RuntimePreconditionExample: the try-catch can't be translated yet
+    //  - BinarySearchProperty: the jqwik dependency needs to be added to the classpath
+    //
+    // TODO: read from directory instead of hard-coding
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "BinarySearch.java",
+            "ExternalContract.java",
+            "Fibonacci.java",
+            "UserProfile.java",
+    })
+    public void verifyExampleFile(String fileName) throws IOException {
+        testMarkedSource(EXAMPLES_DIRECTORY.resolve(fileName));
     }
 
-    @Test
-    public void switches() throws IOException {
-        verifyMarkedSourceFile("Switches.java", new DafnyResults(3, 3));
-    }
-
-    @Test
-    public void fibonacciValid() throws IOException {
-        StringWriter writer = new StringWriter();
-        var exitCode = run("Fibonacci.java", true, writer);
-        var output = canonicalizeNewlines(writer.toString());
-        assertThat(output, containsString("Dafny program verifier finished with 4 verified, 0 errors"));
-        Assertions.assertEquals(0, exitCode);
-    }
-
-    @Test
-    public void binarySearchValid() throws IOException {
-        StringWriter writer = new StringWriter();
-        var exitCode = run("BinarySearch.java", true, writer);
-        var output = canonicalizeNewlines(writer.toString());
-        assertThat(output, containsString("Dafny program verifier finished with 3 verified, 0 errors"));
-        Assertions.assertEquals(0, exitCode);
-    }
-    
     @Test
     public void testRunThroughGradle() throws IOException, InterruptedException {
         var gradlePath = IS_WINDOWS ? "../gradlew.bat" : "../gradlew";
@@ -170,64 +101,96 @@ Dafny program verifier finished with 5 verified, 1 error
         Assertions.assertEquals(0, exitCode);
     }
 
-    @Test
-    public void testNoConstructor() throws IOException {
-        StringWriter writer = new StringWriter();
-        var exitCode = run("NoConstructor.java", false, writer);
-        Assertions.assertEquals(0, exitCode);
-    }
-
-    record DafnyResults(int successCount, int errorCount) {}
-
-    private void verifyMarkedSourceFile(String inputFileName, DafnyResults dafnyResults) throws IOException {
-        testMarkedSourceVerification(getTestFileContent(inputFileName), dafnyResults);
-    }
-
-    private static String getTestFileContent(String inputFileName) throws IOException {
-        var directory = Path.of("./src/test/java/com/aws/jverify");
-        var filePath = directory.resolve(inputFileName);
-        return Files.readString(filePath);
-    }
-
-    private void testMarkedSourceVerification(String markedSource, DafnyResults dafnyResults) throws IOException {
-        int expectedExitCode = dafnyResults.errorCount() > 0 ? 4 : 0;
-        var output = testMarkedSource(markedSource, dafnyResults.errorCount(), expectedExitCode);
-        var pluralization = dafnyResults.errorCount() != 1 ? "s" : "";
-        String ending = "Dafny program verifier finished with " +
-                dafnyResults.successCount() + " verified, " +
-                dafnyResults.errorCount() + " error" + pluralization + "\n";
-        assertThat(output, endsWith(ending));
+    /**
+     * @see #testMarkedSource(SourceFile)
+     */
+    private static void testMarkedSource(Path markedSourcePath) throws IOException {
+        var markedSource = Files.readString(markedSourcePath);
+        testMarkedSource(new SourceFile(markedSourcePath, markedSource));
     }
 
     /**
-     * Verifies the given source code, asserting that each markup annotation appears in the output,
-     * and that the exit code and number of matched error annotations are as expected.
-     * <p>
-     * NOTE: Errors that appear in the verification output, but which don't appear in the marked-up source code,
-     * are currently silently ignored.
+     * Verifies the given source code and asserts that the exit code, emitted diagnostics,
+     * and verified/error counts (from Dafny) match the specified values in the source code's test metadata.
+     * See {@link #parseMetadata(String)} for details on the metadata format.
      */
-    private static String testMarkedSource(String markedSource, int expectedErrorCount, int expectedExitCode) throws IOException {
-        StringWriter writer = new StringWriter();
-        var options = getVerifierOptions();
-        var result = TestMarkup.getPositionsAndAnnotatedRanges(markedSource);
-        var source = result.output();
-        var exitCode = Driver.verifyJavaSource(options, source, writer);
-        var output = canonicalizeNewlines(writer.toString());
-        var errorsFound = 0;
-        for(var range : result.ranges()) {
-            var positionString = "(" + range.range.toString() + ")";
-            String expectation = positionString + ": " + range.annotation;
-            if (range.annotation.startsWith("Error:") || range.annotation.startsWith("error: ")) {
-                errorsFound++;
-            }
+    private static void testMarkedSource(SourceFile markedSourceFile) throws IOException {
+        var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
+        var source = parsedMarkup.output();
+        var metadata = parseMetadata(source);
 
-            assertThat(output, containsString(expectation));
+        var options = getVerifierOptions();
+        var verificationResults = Driver.verifyJavaFile(markedSourceFile, options);
+
+        var diagnosticsAsAnnotations = verificationResults.getDiagnostics().stream()
+                .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                        ? dafnyDiagnostic.flattenRelated()
+                        : Stream.of(diagnostic))
+                .map(TestVerifier::diagnosticAsAnnotatedRange)
+                .sorted()
+                .toList();
+        var expectedAnnotations = parsedMarkup.ranges().stream().sorted().toList();
+        assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
+
+        assertThat("exit code", verificationResults.getExitCode(), is(metadata.exitCode));
+        assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), is(metadata.dafnyVerified));
+        assertThat("Dafny error count", verificationResults.getDafnyErrorCount(), is(metadata.dafnyErrors));
+    }
+
+    private static final Pattern TEST_METADATA_PATTERN = Pattern.compile(
+            "^// (?<ExitCodeLine>exitCode: (?<ExitCode>-?\\d+))$"
+                    + "|^// (?<DafnyVerifiedLine>dafnyVerified: (?<DafnyVerified>\\d+))$"
+                    + "|^// (?<DafnyErrorsLine>dafnyErrors: (?<DafnyErrors>\\d+))$",
+            Pattern.MULTILINE
+    );
+
+    private record TestMetadata(int exitCode, Integer dafnyVerified, Integer dafnyErrors) {}
+
+    /**
+     * Parses test metadata from the given source content.
+     * <p>
+     * Note that if verification is expected to fail before invoking Dafny
+     * (i.e. if there are errors in normal Java type-checking or during compilation to Dafny),
+     * then the {@code dafnyVerified} and {@code dafnyErrors} metadata should not appear in the source code.
+     * <p>
+     * Example test metadata:
+     * {@snippet :
+     * // exitCode: 4
+     * // dafnyVerified: 1
+     * // dafnyErrors: 2
+     *
+     * class Foo {
+     *     // ...
+     * }
+     * }
+     */
+    private static TestMetadata parseMetadata(String source) {
+        Integer exitCode = null;
+        Integer dafnyVerified = null;
+        Integer dafnyErrors = null;
+        var metadataMatcher = TEST_METADATA_PATTERN.matcher(source);
+        while (metadataMatcher.find()) {
+            if (metadataMatcher.group("ExitCodeLine") != null) {
+                exitCode = Integer.parseInt(metadataMatcher.group("ExitCode"));
+            } else if (metadataMatcher.group("DafnyVerifiedLine") != null) {
+                dafnyVerified = Integer.parseInt(metadataMatcher.group("DafnyVerified"));
+            } else if (metadataMatcher.group("DafnyErrorsLine") != null) {
+                dafnyErrors = Integer.parseInt(metadataMatcher.group("DafnyErrors"));
+            }
         }
-        Assertions.assertEquals(expectedErrorCount, errorsFound,
-                () -> "Mismatched error count in output:\n%s".formatted(output));
-        Assertions.assertEquals(expectedExitCode, exitCode,
-                () -> "Mismatched exit code; output:\n%s".formatted(output));
-        return output;
+        if (exitCode == null) {
+            throw new AssertionError("Expected exit code not found in marked source");
+        }
+        return new TestMetadata(exitCode, dafnyVerified, dafnyErrors);
+    }
+
+    private static AnnotatedRange diagnosticAsAnnotatedRange(Diagnostic<?> diagnostic) {
+        var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
+        var endPos = diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
+                : new Position(startPos.line(), startPos.character() + 1);
+        var range = new Range(startPos, endPos);
+        return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
     }
 
     /**
@@ -238,26 +201,17 @@ Dafny program verifier finished with 5 verified, 1 error
         return text.replaceAll("\r\n", "\n");
     }
 
-    private int run(String inputFileName, boolean fromExamples, Writer writer) throws IOException {
-        var directory = fromExamples
-                ? Path.of("../examples/src/main/java/com/aws/verifier/examples")
-                : Path.of("./src/test/java/com/aws/jverify");
-        var filePath = directory.resolve(inputFileName);
-        var options = getVerifierOptions();
-        return Driver.verifyJavaExample(options, filePath, writer);
-    }
-
     private static VerifierOptions getVerifierOptions() {
         var dafnyPath = Path.of("../dafny").toAbsolutePath()
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
-        return new VerifierOptions(dafnyPath, libraryJar, prelude, 
+        return new VerifierOptions(dafnyPath, libraryJar, prelude,
                 //Path.of("../temp.dfy"),
                 null,
                 null,
                 true,
-                new String[] {
+                new String[]{
                         "--use-basename-for-filename"
                         //,"--wait-for-debugger"
                 }
