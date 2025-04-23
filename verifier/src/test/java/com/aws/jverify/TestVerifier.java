@@ -19,10 +19,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -149,9 +147,11 @@ public class TestVerifier {
     /**
      * Parses test metadata from the given source content.
      * <p>
-     * Note that if verification is expected to fail before invoking Dafny
-     * (i.e. if there are errors in normal Java type-checking or during compilation to Dafny),
-     * then the {@code dafnyVerified} and {@code dafnyErrors} metadata should not appear in the source code.
+     * The {@code exitCode} value is required.
+     * The {@code dafnyVerified} and {@code dafnyErrors} values must either both be present or both be absent
+     * according to whether or not verification is expected to reach the Dafny verification phase.
+     * (That is, if they are present but Dafny is never invoked because there are javac errors,
+     * or if they are absent but Dafny is invoked and terminates normally, then the test should fail.)
      * <p>
      * Example test metadata:
      * {@snippet :
@@ -180,6 +180,9 @@ public class TestVerifier {
         }
         if (exitCode == null) {
             throw new AssertionError("Expected exit code not found in marked source");
+        }
+        if ((dafnyVerified == null) != (dafnyErrors == null)) {
+            throw new AssertionError("Found only one of dafnyVerified and dafnyErrors");
         }
         return new TestMetadata(exitCode, dafnyVerified, dafnyErrors);
     }
