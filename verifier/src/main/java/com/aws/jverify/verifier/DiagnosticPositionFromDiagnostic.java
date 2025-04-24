@@ -3,12 +3,11 @@ package com.aws.jverify.verifier;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.JCDiagnostic;
-
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 
-record DiagnosticPositionFromDiagnostic(
-        Diagnostic<? extends JavaFileObject> diagnostic) implements JCDiagnostic.DiagnosticPosition {
+record DiagnosticPositionFromDiagnostic(Diagnostic<? extends JavaFileObject> diagnostic)
+        implements JCDiagnostic.DiagnosticPosition {
 
     @Override
     public JCTree getTree() {

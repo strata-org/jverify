@@ -1,4 +1,3 @@
-
 module com.aws.jverify.verifier {
     requires jdk.compiler;
     requires org.checkerframework.checker.qual;
@@ -11,5 +10,6 @@ module com.aws.jverify.verifier {
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.databind;
 
-    opens com.aws.jverify.verifier to info.picocli;
+    opens com.aws.jverify.verifier to
+            info.picocli;
 }
