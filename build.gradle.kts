@@ -3,6 +3,8 @@ import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 plugins {
     id("java")
     application
+
+    id("com.diffplug.spotless") version "7.0.3"
 }
 
 group = "com.aws.jverify"
@@ -15,6 +17,16 @@ allprojects {
         mavenCentral()
         maven {
             url = uri("https://www.jetbrains.com/intellij-repository/releases")
+        }
+    }
+
+    apply(plugin = "com.diffplug.spotless")
+    spotless {
+        java {
+            googleJavaFormat().aosp()
+
+            targetExclude("src/main/java/**/generated/**/*.java")
+            targetExcludeIfContentContainsRegex("(?m)^// TEST:")
         }
     }
 }
