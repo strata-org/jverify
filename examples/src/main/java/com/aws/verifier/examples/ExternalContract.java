@@ -1,6 +1,4 @@
-// exitCode: 0
-// dafnyVerified: 2
-// dafnyErrors: 0
+// TEST: exitCode=0 dafnyVerified=2 dafnyErrors=0
 
 package com.aws.verifier.examples;
 

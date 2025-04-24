@@ -1,6 +1,8 @@
-// exitCode: 2
+// TEST: exitCode=2
 
-package com.aws.jverify;
+package com.aws.jverify.verifier.tests;
+
+import com.aws.jverify.Contract;
 
 import static com.aws.jverify.JVerify.check;
 

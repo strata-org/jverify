@@ -1,4 +1,4 @@
-// exitCode: 2
+// TEST: exitCode=2
 
 package com.aws.jverify;
 

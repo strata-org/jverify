@@ -1,18 +1,16 @@
-package com.aws.jverify;
+package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.aws.jverify.common.TestMarkup;
-import com.aws.jverify.verifier.DafnyDiagnostic;
-import com.aws.jverify.verifier.Driver;
-import com.aws.jverify.verifier.SourceFile;
-import com.aws.jverify.verifier.VerifierOptions;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.TestFactory;
 
 import javax.tools.Diagnostic;
 import java.io.BufferedReader;
@@ -21,6 +19,7 @@ import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -30,7 +29,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
-    private static final Path TEST_FILES_DIRECTORY = Path.of("./src/test/java/com/aws/jverify");
+    private static final Path TEST_FILES_DIRECTORY = Path.of("./src/test/java/com/aws/jverify/verifier/tests");
 
     private static final Path EXAMPLES_DIRECTORY = Path.of("../examples/src/main/java/com/aws/verifier/examples");
 
@@ -40,45 +39,26 @@ public class TestVerifier {
         testMarkedSource(new SourceFile("JavaError.java", source));
     }
 
-    // TODO: read from directory instead of hard-coding
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "AssertFalse.java",
-            "ContractErrors.java",
-            "FibonacciInvalid.java",
-            "NoConstructor.java",
-            "Operators.java",
-            "ResolutionErrorsBooleanOperators.java",
-            "ResolutionErrorsDoubleOperators.java",
-            "ResolutionErrorsFloatOperators.java",
-            "ResolutionErrorsIntegerOperators.java",
-            "ResolutionErrorsNumericOperators.java",
-            "ShouldVerify.java",
-            "Switches.java",
-            "TranslationErrors.java",
-            "Types.java",
-            "VerifyBooleanOperators.java",
-            "VerifyNumericOperators.java",
-            "VerifyStatements.java",
-    })
-    public void verifyTestFile(String fileName) throws IOException {
-        testMarkedSource(TEST_FILES_DIRECTORY.resolve(fileName));
+    @TestFactory
+    public Stream<DynamicTest> verifyTestFiles() throws IOException {
+        //noinspection resource (JUnit will close the stream)
+        return Files.walk(TEST_FILES_DIRECTORY)
+                .filter(Files::isRegularFile)
+                .map(path -> {
+                    var name = TEST_FILES_DIRECTORY.relativize(path).toString();
+                    return DynamicTest.dynamicTest(name, () -> testMarkedSource(path));
+                });
     }
 
-    // Files are hard-coded for now since not all examples can be compiled and run as-is:
-    //  - RuntimePreconditionExample: the try-catch can't be translated yet
-    //  - BinarySearchProperty: the jqwik dependency needs to be added to the classpath
-    //
-    // TODO: read from directory instead of hard-coding
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "BinarySearch.java",
-            "ExternalContract.java",
-            "Fibonacci.java",
-            "UserProfile.java",
-    })
-    public void verifyExampleFile(String fileName) throws IOException {
-        testMarkedSource(EXAMPLES_DIRECTORY.resolve(fileName));
+    @TestFactory
+    public Stream<DynamicTest> verifyExampleFiles() throws IOException {
+        //noinspection resource (JUnit will close the stream)
+        return Files.walk(EXAMPLES_DIRECTORY)
+                .filter(Files::isRegularFile)
+                .map(path -> {
+                    var name = EXAMPLES_DIRECTORY.relativize(path).toString();
+                    return DynamicTest.dynamicTest(name, () -> testMarkedSource(path));
+                });
     }
 
     @Test
@@ -116,6 +96,8 @@ public class TestVerifier {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         var source = parsedMarkup.output();
         var metadata = parseMetadata(source);
+        // Skip test if metadata instructs to do so
+        Assumptions.assumeFalse(metadata == null);
 
         var options = getVerifierOptions();
         var verificationResults = Driver.verifyJavaFile(markedSourceFile, options);
@@ -135,55 +117,66 @@ public class TestVerifier {
         assertThat("Dafny error count", verificationResults.getDafnyErrorCount(), is(metadata.dafnyErrors));
     }
 
-    private static final Pattern TEST_METADATA_PATTERN = Pattern.compile(
-            "^// (?<ExitCodeLine>exitCode: (?<ExitCode>-?\\d+))$"
-                    + "|^// (?<DafnyVerifiedLine>dafnyVerified: (?<DafnyVerified>\\d+))$"
-                    + "|^// (?<DafnyErrorsLine>dafnyErrors: (?<DafnyErrors>\\d+))$",
-            Pattern.MULTILINE
-    );
+    private static final Pattern TEST_METADATA_PATTERN = Pattern.compile("^// TEST: (.+)$", Pattern.MULTILINE);
 
     private record TestMetadata(int exitCode, Integer dafnyVerified, Integer dafnyErrors) {}
 
     /**
-     * Parses test metadata from the given source content.
+     * Parses and returns test metadata from the given source content,
+     * or returns {@code null} if the metadata indicates that the test should be skipped.
+     * Throws if the test metadata is absent or malformed.
      * <p>
-     * The {@code exitCode} value is required.
-     * The {@code dafnyVerified} and {@code dafnyErrors} values must either both be present or both be absent
-     * according to whether or not verification is expected to reach the Dafny verification phase.
-     * (That is, if they are present but Dafny is never invoked because there are javac errors,
-     * or if they are absent but Dafny is invoked and terminates normally, then the test should fail.)
-     * <p>
-     * Example test metadata:
+     * Valid metadata formats:
      * {@snippet :
-     * // exitCode: 4
-     * // dafnyVerified: 1
-     * // dafnyErrors: 2
+     * (1)
+     * // TEST: skip
      *
-     * class Foo {
-     *     // ...
+     * (2)
+     * // TEST: exitCode=X
+     *
+     * (3)
+     * // TEST: exitCode=X dafnyVerified=Y dafnyErrors=Z
      * }
-     * }
+     * <ol>
+     *     <li>The test should be skipped.</li>
+     *     <li>
+     *         Verification should finish with exit code {@code X} without Dafny terminating normally
+     *         (i.e. Dafny is never invoked because there are javac errors, or Dafny terminates abnormally).
+     *     </li>
+     *     <li>
+     *         Verification should finish with exit code {@code X}, Dafny terminates normally,
+     *         and Dafny's summary reports {@code Y} verified symbols and {@code Z} errors.
+     *     </li>
+     * </ol>
      */
-    private static TestMetadata parseMetadata(String source) {
+    private static @Nullable TestMetadata parseMetadata(String source) {
+        var metadataMatcher = TEST_METADATA_PATTERN.matcher(source);
+        if (!metadataMatcher.find()) {
+            throw new AssertionError("Test metadata not found");
+        }
+        var tokens = Arrays.asList(metadataMatcher.group(1).split("\\s+"));
+        if (tokens.contains("skip")) {
+            assertThat("'skip' must not appear with other tokens", tokens.size(), is(1));
+            return null;
+        }
+
         Integer exitCode = null;
         Integer dafnyVerified = null;
         Integer dafnyErrors = null;
-        var metadataMatcher = TEST_METADATA_PATTERN.matcher(source);
-        while (metadataMatcher.find()) {
-            if (metadataMatcher.group("ExitCodeLine") != null) {
-                exitCode = Integer.parseInt(metadataMatcher.group("ExitCode"));
-            } else if (metadataMatcher.group("DafnyVerifiedLine") != null) {
-                dafnyVerified = Integer.parseInt(metadataMatcher.group("DafnyVerified"));
-            } else if (metadataMatcher.group("DafnyErrorsLine") != null) {
-                dafnyErrors = Integer.parseInt(metadataMatcher.group("DafnyErrors"));
+        for (var token : tokens) {
+            var parts = token.split("=", 2);
+            assertThat("Metadata token must have key=value format", parts.length, is(2));
+            switch (parts[0]) {
+                case "exitCode" -> exitCode = Integer.parseInt(parts[1]);
+                case "dafnyVerified" -> dafnyVerified = Integer.parseInt(parts[1]);
+                case "dafnyErrors" -> dafnyErrors = Integer.parseInt(parts[1]);
+                default -> Assertions.fail("Invalid token in test metadata: " + token);
             }
         }
-        if (exitCode == null) {
-            throw new AssertionError("Expected exit code not found in marked source");
-        }
-        if ((dafnyVerified == null) != (dafnyErrors == null)) {
-            throw new AssertionError("Found only one of dafnyVerified and dafnyErrors");
-        }
+        assertThat("Metadata must include expectedExitCode", exitCode, notNullValue());
+        assertThat("Metadata must include both or neither of dafnyVerified and dafnyErrors",
+                (dafnyVerified == null) == (dafnyErrors == null));
+
         return new TestMetadata(exitCode, dafnyVerified, dafnyErrors);
     }
 
