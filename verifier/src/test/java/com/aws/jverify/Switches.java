@@ -1,3 +1,7 @@
+// exitCode: 4
+// dafnyVerified: 3
+// dafnyErrors: 3
+
 package com.aws.jverify;
 
 import static com.aws.jverify.JVerify.check;

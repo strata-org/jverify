@@ -51,6 +51,8 @@ public class JavaToDafnyCompiler {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
 
+        // don't assume the argument is modifiable
+        files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
                 
         List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
