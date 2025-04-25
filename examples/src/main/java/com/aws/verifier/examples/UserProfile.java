@@ -1,7 +1,3 @@
-// exitCode: 4
-// dafnyVerified: 5
-// dafnyErrors: 1
-
 package com.aws.verifier.examples;
 
 import static com.aws.jverify.JVerify.*;
@@ -64,3 +60,5 @@ class UserProfile {
         }
     }
 }
+
+// TEST: exitCode=4 dafnyVerified=5 dafnyErrors=1

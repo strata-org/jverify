@@ -1,7 +1,3 @@
-// exitCode: 0
-// dafnyVerified: 4
-// dafnyErrors: 0
-
 package com.aws.verifier.examples;
 
 import static com.aws.jverify.JVerify.*;
@@ -58,3 +54,5 @@ class Fibonacci {
         }
     }
 }
+
+// TEST: exitCode=0 dafnyVerified=4 dafnyErrors=0

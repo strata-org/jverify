@@ -9,7 +9,6 @@ import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
-
 import java.util.Stack;
 import java.util.stream.Collectors;
 
@@ -46,20 +45,25 @@ class RemoveJVerifyVisitor extends TreeScanner {
         var currentMethod = methodStack.peek();
 
         var annotations = currentMethod.getModifiers().getAnnotations();
-        var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                a -> a));
-        this.dynamicPreconditions = annotationsByName.containsKey(CheckPreconditionsAtRuntime.class.getName());
-        
+        var annotationsByName =
+                annotations.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        (JCTree.JCAnnotation a) ->
+                                                a.getAnnotationType().type.toString(),
+                                        a -> a));
+        this.dynamicPreconditions =
+                annotationsByName.containsKey(CheckPreconditionsAtRuntime.class.getName());
+
         super.visitMethodDef(tree);
         Attr attr = Attr.instance(context);
         attr.attribStat(tree, currentEnv);
         methodStack.pop();
     }
-    
+
     @Override
     public void visitBlock(JCTree.JCBlock tree) {
-        
+
         super.visitBlock(tree);
         tree.stats = getNewStatements(tree.stats);
     }
@@ -69,31 +73,48 @@ class RemoveJVerifyVisitor extends TreeScanner {
         if (current == null) {
             return statements;
         }
-        var rest = statements.size() == 1 ? List.<JCTree.JCStatement>nil() : getNewStatements(statements.tail);
+        var rest =
+                statements.size() == 1
+                        ? List.<JCTree.JCStatement>nil()
+                        : getNewStatements(statements.tail);
         var unchangedHead = rest.prepend(current);
         if (!(current instanceof JCTree.JCExpressionStatement expressionStatement)) {
             return unchangedHead;
         }
-        
+
         var expr = expressionStatement.getExpression();
         if (!(expr instanceof JCTree.JCMethodInvocation invocation)) {
             return unchangedHead;
         }
-        
+
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         if (!fromJVerify(methodSymbol)) {
             return unchangedHead;
         }
 
-        if (dynamicPreconditions && methodSymbol.getQualifiedName().contentEquals(Common.PRECONDITION)) {                            
+        if (dynamicPreconditions
+                && methodSymbol.getQualifiedName().contentEquals(Common.PRECONDITION)) {
             JCTree.JCBlock emptyBlock = maker.Block(0, List.nil());
             JCTree.JCExpression head = invocation.getArguments().head;
 
-            var check = maker.If(maker.Unary(JCTree.Tag.NOT, head), maker.Block(0, List.of(
-                    maker.Throw(maker.NewClass(null,null,
-                            maker.QualIdent(getClassSymbol(PreconditionFailure.class, context)), 
-                            List.nil(), null))
-            )), emptyBlock);
+            var check =
+                    maker.If(
+                            maker.Unary(JCTree.Tag.NOT, head),
+                            maker.Block(
+                                    0,
+                                    List.of(
+                                            maker.Throw(
+                                                    maker.NewClass(
+                                                            null,
+                                                            null,
+                                                            maker.QualIdent(
+                                                                    getClassSymbol(
+                                                                            PreconditionFailure
+                                                                                    .class,
+                                                                            context)),
+                                                            List.nil(),
+                                                            null)))),
+                            emptyBlock);
             return rest.prepend(check);
         } else {
             return rest;
@@ -104,8 +125,11 @@ class RemoveJVerifyVisitor extends TreeScanner {
         var elements = JavacElements.instance(context);
         return elements.getTypeElement(clazz.getCanonicalName());
     }
-    
+
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.getEnclosingElement().getQualifiedName().contentEquals(Common.JVERIFY_CLASS);
+        return methodSymbol
+                .getEnclosingElement()
+                .getQualifiedName()
+                .contentEquals(Common.JVERIFY_CLASS);
     }
 }

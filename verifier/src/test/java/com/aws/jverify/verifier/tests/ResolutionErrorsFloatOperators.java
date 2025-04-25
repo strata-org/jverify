@@ -1,6 +1,6 @@
-// exitCode: 2
+// TEST: exitCode=2
 
-package com.aws.jverify;
+package com.aws.jverify.verifier.tests;
 
 @SuppressWarnings("ConstantValue")
 class ResolutionErrorsFloatOperators {

@@ -1,8 +1,6 @@
-// exitCode: 4
-// dafnyVerified: 9
-// dafnyErrors: 9
+// TEST: exitCode=4 dafnyVerified=9 dafnyErrors=9
 
-package com.aws.jverify;
+package com.aws.jverify.verifier.tests;
 
 import static com.aws.jverify.JVerify.*;
 

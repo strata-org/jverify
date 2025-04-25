@@ -1,31 +1,27 @@
 package com.aws.jverify.plugin;
 
-import com.google.errorprone.annotations.Var;
 import com.google.testing.compile.Compilation;
-import com.sun.source.doctree.ValueTree;
-import org.jetbrains.annotations.NotNull;
-
-import javax.tools.JavaFileObject;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
+import javax.tools.JavaFileObject;
+import org.jetbrains.annotations.NotNull;
 
 public class CompilationRunner {
 
     /**
-     * Runs the main method of a generated class from a Compilation and returns the exit code.
-     * This method launches the class in a separate JVM process to properly capture the exit code.
+     * Runs the main method of a generated class from a Compilation and returns the exit code. This
+     * method launches the class in a separate JVM process to properly capture the exit code.
      */
     public static int runGeneratedClassAndGetExitCode(
-            Compilation compilation, Iterable<File> classPath, String qualifiedClassName, String... args) {
+            Compilation compilation,
+            Iterable<File> classPath,
+            String qualifiedClassName,
+            String... args) {
 
         Path tempDir;
         try {
@@ -65,12 +61,18 @@ public class CompilationRunner {
     }
 
     @NotNull
-    private static Process getProcess(Iterable<File> classPath, String qualifiedClassName, String[] args, String javaBin, Path tempDir) throws IOException {
+    private static Process getProcess(
+            Iterable<File> classPath,
+            String qualifiedClassName,
+            String[] args,
+            String javaBin,
+            Path tempDir)
+            throws IOException {
         List<String> command = new ArrayList<>();
         command.add(javaBin);
         command.add("-cp");
         StringBuilder arg = new StringBuilder();
-        for(var cpFile : classPath) {
+        for (var cpFile : classPath) {
             arg.append(cpFile.toString()).append(File.pathSeparator);
         }
         arg.append(tempDir.resolve("CLASS_OUTPUT"));
@@ -87,14 +89,17 @@ public class CompilationRunner {
         return builder.start();
     }
 
-    private static void writeCompiledClassFiles(Compilation compilation, Path tempDir) throws IOException {
+    private static void writeCompiledClassFiles(Compilation compilation, Path tempDir)
+            throws IOException {
         for (JavaFileObject generatedFile : compilation.generatedFiles()) {
             if (generatedFile.getKind() != JavaFileObject.Kind.CLASS) {
                 continue;
             }
-            var binaryName = generatedFile.getName()
-                    .substring(1, generatedFile.getName().length() - ".class".length())
-                    .replace('/', '.');
+            var binaryName =
+                    generatedFile
+                            .getName()
+                            .substring(1, generatedFile.getName().length() - ".class".length())
+                            .replace('/', '.');
 
             // Create package directories
             int lastDotIndex = binaryName.lastIndexOf('.');

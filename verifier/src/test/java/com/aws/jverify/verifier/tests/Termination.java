@@ -1,6 +1,9 @@
-package com.aws.jverify;
+// TEST: exitCode=4 dafnyVerified=1 dafnyErrors=1
 
-import static com.aws.jverify.JVerify.check;
+package com.aws.jverify.verifier.tests;
+
+import com.aws.jverify.Nat;
+
 import static com.aws.jverify.JVerify.decreases;
 
 class Termination {
