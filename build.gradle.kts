@@ -8,8 +8,6 @@ plugins {
     id("java")
     application
 
-    id("com.diffplug.spotless") version "7.0.3"
-
     id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.10"
 }
 
@@ -23,16 +21,6 @@ allprojects {
         mavenCentral()
         maven {
             url = uri("https://www.jetbrains.com/intellij-repository/releases")
-        }
-    }
-
-    apply(plugin = "com.diffplug.spotless")
-    spotless {
-        java {
-            googleJavaFormat().aosp()
-
-            targetExclude("src/main/java/**/generated/**/*.java")
-            targetExcludeIfContentContainsRegex("(?m)^// TEST:")
         }
     }
 }

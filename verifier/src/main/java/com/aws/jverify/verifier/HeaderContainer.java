@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.generated.*;
+
 import java.util.ArrayList;
 import java.util.List;
 
