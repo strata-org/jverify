@@ -62,6 +62,8 @@ public class TestVerifier {
             "VerifyBooleanOperators.java",
             "VerifyNumericOperators.java",
             "VerifyStatements.java",
+            "Termination.java",
+            "FreshAndOld.java"
     })
     public void verifyTestFile(String fileName) throws IOException {
         testMarkedSource(TEST_FILES_DIRECTORY.resolve(fileName));
