@@ -2,12 +2,15 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Range;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import javax.tools.Diagnostic;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
-import javax.tools.Diagnostic;
 
-/** Adapts Dafny's {@code --json-diagnostics} output to the {@link Diagnostic} interface. */
+/**
+ * Adapts Dafny's {@code --json-diagnostics} output to the {@link Diagnostic} interface.
+ */
 public class DafnyDiagnostic implements Diagnostic<String> {
     private static final int SEVERITY_ERROR = 1;
     private static final int SEVERITY_WARNING = 2;
@@ -20,8 +23,8 @@ public class DafnyDiagnostic implements Diagnostic<String> {
     public String message;
 
     /**
-     * Corresponds to Dafny's {@code MessageSource} enum, whose values include {@code Parser},
-     * {@code Resolver}, {@code Verifier}, etc.
+     * Corresponds to Dafny's {@code MessageSource} enum,
+     * whose values include {@code Parser}, {@code Resolver}, {@code Verifier}, etc.
      */
     @JsonProperty("source")
     public String messageSource;
@@ -90,10 +93,11 @@ public class DafnyDiagnostic implements Diagnostic<String> {
         return message;
     }
 
-    /** Returns a stream containing this diagnostic and its related information as diagnostics. */
+    /**
+     * Returns a stream containing this diagnostic and its related information as diagnostics.
+     */
     public Stream<DafnyDiagnostic> flattenRelated() {
-        Stream<RelatedInfo> relatedStream =
-                relatedInformation == null ? Stream.empty() : relatedInformation.stream();
+        Stream<RelatedInfo> relatedStream = relatedInformation == null ? Stream.empty() : relatedInformation.stream();
         return Stream.concat(Stream.of(this), relatedStream.map(RelatedInfo::asDiagnostic));
     }
 

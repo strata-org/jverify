@@ -1,10 +1,14 @@
 package com.aws.jverify.generator;
 
+import picocli.CommandLine;
+
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
-import picocli.CommandLine;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
@@ -26,8 +30,7 @@ class AppCommand implements Callable<Integer> {
     @Override
     public Integer call() throws IOException {
         String input = Files.readString(dafnySchemaFile.toAbsolutePath());
-        new CSharpToJavaConverter("com.aws.jverify.generated")
-                .writeJava(input, outputDirectory.toAbsolutePath());
+        new CSharpToJavaConverter("com.aws.jverify.generated").writeJava(input, outputDirectory.toAbsolutePath());
         return CommandLine.ExitCode.OK;
     }
 }

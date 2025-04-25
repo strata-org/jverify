@@ -1,13 +1,14 @@
 package com.aws.jverify.generator;
 
 import com.squareup.javapoet.*;
+
+import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.*;
 import java.util.stream.Collectors;
-import javax.lang.model.element.Modifier;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class CSharpToJavaConverter {
@@ -24,7 +25,10 @@ public class CSharpToJavaConverter {
         List<CSharpEnum> enums = new ArrayList<>();
 
         // Pattern for enum declaration: "enum EnumName { Value1, Value2, Value3 }"
-        Pattern enumPattern = Pattern.compile("enum\\s+(\\w+)\\s*\\{([^}]*)\\}", Pattern.MULTILINE);
+        Pattern enumPattern = Pattern.compile(
+                "enum\\s+(\\w+)\\s*\\{([^}]*)\\}",
+                Pattern.MULTILINE
+        );
         Matcher enumMatcher = enumPattern.matcher(csharpCode);
 
         while (enumMatcher.find()) {
@@ -50,8 +54,8 @@ public class CSharpToJavaConverter {
 
     // Add this method to generate Java enum
     static JavaFile generateJavaEnum(CSharpEnum csharpEnum) {
-        TypeSpec.Builder enumBuilder =
-                TypeSpec.enumBuilder(csharpEnum.enumName).addModifiers(Modifier.PUBLIC);
+        TypeSpec.Builder enumBuilder = TypeSpec.enumBuilder(csharpEnum.enumName)
+                .addModifiers(Modifier.PUBLIC);
 
         // Add enum constants
         for (String value : csharpEnum.values) {
@@ -69,29 +73,27 @@ public class CSharpToJavaConverter {
 
         // Updated pattern for class declaration with generics and constraints
         // Example: "class Specification<T> : NodeWithComputedRange where T : Node"
-        Pattern classWithBodyPattern =
-                Pattern.compile(
-                        "(?<abstract>abstract)?\\s*"
-                                + "class\\s+"
-                                + "(?<name>\\w+)\\s*"
-                                + "(?:<(?<typeParams>[^>]+)>)?\\s*"
-                                + "(?::\\s*(?<parentClass>\\w+))?\\s*"
-                                + "(?:where\\s+(?<constraints>[^{]+))?\\s*"
-                                + "\\{(?<body>[^}]*)}",
-                        Pattern.MULTILINE | Pattern.DOTALL);
+        Pattern classWithBodyPattern = Pattern.compile(
+                "(?<abstract>abstract)?\\s*" +
+                        "class\\s+" +
+                        "(?<name>\\w+)\\s*" +
+                        "(?:<(?<typeParams>[^>]+)>)?\\s*" +
+                        "(?::\\s*(?<parentClass>\\w+))?\\s*" +
+                        "(?:where\\s+(?<constraints>[^{]+))?\\s*" +
+                        "\\{(?<body>[^}]*)}",
+                Pattern.MULTILINE | Pattern.DOTALL
+        );
         Matcher classWithBodyMatcher = classWithBodyPattern.matcher(csharpCode);
 
         while (classWithBodyMatcher.find()) {
             String abstractKeyword = classWithBodyMatcher.group("abstract");
             String className = classWithBodyMatcher.group("name");
-            String typeParams =
-                    classWithBodyMatcher.group("typeParams"); // Type parameters (e.g., "T")
+            String typeParams = classWithBodyMatcher.group("typeParams");  // Type parameters (e.g., "T")
             String parentClass = classWithBodyMatcher.group("parentClass"); // Parent class
             String constraints = classWithBodyMatcher.group("constraints"); // Type constraints
             String classBody = classWithBodyMatcher.group("body");
 
-            CSharpClass csharpClass =
-                    new CSharpClass(abstractKeyword != null, className, parentClass);
+            CSharpClass csharpClass = new CSharpClass(abstractKeyword != null, className, parentClass);
 
             // Parse type parameters and constraints
             if (typeParams != null) {
@@ -102,7 +104,9 @@ public class CSharpToJavaConverter {
 
                     // Find matching constraint if it exists
                     if (constraints != null) {
-                        Pattern constraintPattern = Pattern.compile(paramName + "\\s*:\\s*(\\w+)");
+                        Pattern constraintPattern = Pattern.compile(
+                                paramName + "\\s*:\\s*(\\w+)"
+                        );
                         Matcher constraintMatcher = constraintPattern.matcher(constraints);
                         if (constraintMatcher.find()) {
                             constraint = constraintMatcher.group(1);
@@ -114,8 +118,9 @@ public class CSharpToJavaConverter {
             }
 
             // Parse fields
-            Pattern fieldPattern =
-                    Pattern.compile("\\s+(\\w+)(?:<([\\w,\\s]+)>)?(\\?)?\\s+(\\w+)\\s*;");
+            Pattern fieldPattern = Pattern.compile(
+                    "\\s+(\\w+)(?:<([\\w,\\s]+)>)?(\\?)?\\s+(\\w+)\\s*;"
+            );
             Matcher fieldMatcher = fieldPattern.matcher(classBody);
 
             while (fieldMatcher.find()) {
@@ -127,15 +132,13 @@ public class CSharpToJavaConverter {
                 boolean isGeneric = genericTypesStr != null;
                 List<String> genericTypes = new ArrayList<>();
                 if (isGeneric) {
-                    genericTypes =
-                            Arrays.stream(genericTypesStr.split(","))
-                                    .map(String::trim)
-                                    .collect(Collectors.toList());
+                    genericTypes = Arrays.stream(genericTypesStr.split(","))
+                            .map(String::trim)
+                            .collect(Collectors.toList());
                 }
                 var isNullable = questionMark != null;
 
-                csharpClass.fields.add(
-                        new CSharpField(baseType, fieldName, isNullable, isGeneric, genericTypes));
+                csharpClass.fields.add(new CSharpField(baseType, fieldName, isNullable, isGeneric, genericTypes));
             }
 
             classes.add(csharpClass);
@@ -153,11 +156,11 @@ public class CSharpToJavaConverter {
         return classes;
     }
 
-    private TypeName convertCSharpFieldToJavaFieldType(
-            CSharpField field, List<TypeParameter> classTypeParameters) {
+    private TypeName convertCSharpFieldToJavaFieldType(CSharpField field, List<TypeParameter> classTypeParameters) {
         // Check if the type is a type parameter
-        Optional<TypeParameter> typeParam =
-                classTypeParameters.stream().filter(tp -> tp.name.equals(field.type)).findFirst();
+        Optional<TypeParameter> typeParam = classTypeParameters.stream()
+                .filter(tp -> tp.name.equals(field.type))
+                .findFirst();
 
         if (typeParam.isPresent()) {
             // If it's a type parameter with a constraint, return the bounded type
@@ -175,58 +178,52 @@ public class CSharpToJavaConverter {
         }
 
         // Handle generic types
-        ClassName rawType =
-                foundClasses.contains(baseType)
-                        ? ClassName.get(packageName, baseType)
-                        : ClassName.get("java.util", baseType);
+        ClassName rawType = foundClasses.contains(baseType)
+                ? ClassName.get(packageName, baseType)
+                : ClassName.get("java.util", baseType);
 
-        return ParameterizedTypeName.get(
-                rawType,
-                field.genericTypes.stream()
-                        .map(
-                                type -> {
-                                    // Check if the generic argument is a type parameter
-                                    Optional<TypeParameter> genericTypeParam =
-                                            classTypeParameters.stream()
-                                                    .filter(tp -> tp.name.equals(type))
-                                                    .findFirst();
+        return ParameterizedTypeName.get(rawType, field.genericTypes.stream()
+                .map(type -> {
+                    // Check if the generic argument is a type parameter
+                    Optional<TypeParameter> genericTypeParam = classTypeParameters.stream()
+                            .filter(tp -> tp.name.equals(type))
+                            .findFirst();
 
-                                    if (genericTypeParam.isPresent()) {
-                                        return TypeVariableName.get(type);
-                                    }
-                                    return ClassName.get("", convertCSharpTypeToJava(type));
-                                })
-                        .toArray(TypeName[]::new));
+                    if (genericTypeParam.isPresent()) {
+                        return TypeVariableName.get(type);
+                    }
+                    return ClassName.get("", convertCSharpTypeToJava(type));
+                }).toArray(TypeName[]::new));
     }
 
     private JavaFile generateJavaClass(CSharpClass csharpClass) {
         // Start building the class with type parameters
-        TypeSpec.Builder classBuilder =
-                TypeSpec.classBuilder(csharpClass.className).addModifiers(Modifier.PUBLIC);
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(csharpClass.className)
+                .addModifiers(Modifier.PUBLIC);
 
         // Add type parameters with bounds
         for (TypeParameter typeParam : csharpClass.typeParameters) {
-            TypeVariableName typeVariable =
-                    TypeVariableName.get(
-                            typeParam.name,
-                            typeParam.constraint != null
-                                    ? ClassName.get("", typeParam.constraint)
-                                    : TypeName.OBJECT);
+            TypeVariableName typeVariable = TypeVariableName.get(
+                    typeParam.name,
+                    typeParam.constraint != null
+                            ? ClassName.get("", typeParam.constraint)
+                            : TypeName.OBJECT
+            );
             classBuilder.addTypeVariable(typeVariable);
         }
-
+        
         if (csharpClass.isAbstract) {
             classBuilder.addModifiers(Modifier.ABSTRACT);
         }
-
+            
         // Add parent class if exists
         if (csharpClass.parentClass != null) {
             classBuilder.superclass(ClassName.get("", csharpClass.parentClass));
         }
 
         // Prepare constructor
-        MethodSpec.Builder constructorBuilder =
-                MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PUBLIC);
 
         // Get all fields including inherited ones
         List<CSharpField> allFields = csharpClass.getAllFields();
@@ -235,17 +232,17 @@ public class CSharpToJavaConverter {
         for (CSharpField field : allFields) {
             int iteration = 0;
             // Try several names in case some collide with reserved names
-            for (; iteration < 5; iteration++) {
+            for(;iteration < 5;iteration++) {
                 var newName = field.name + (iteration == 0 ? "" : iteration);
                 try {
-                    TypeName fieldType =
-                            convertCSharpFieldToJavaFieldType(field, csharpClass.typeParameters);
+                    TypeName fieldType = convertCSharpFieldToJavaFieldType(field, csharpClass.typeParameters);
 
                     // Only add field if it's from this class (not inherited)
                     if (csharpClass.fields.contains(field)) {
-                        var builder =
-                                FieldSpec.builder(
-                                        fieldType, newName, Modifier.PRIVATE, Modifier.FINAL);
+                        var builder = FieldSpec.builder(
+                                fieldType,
+                                newName,
+                                Modifier.PRIVATE, Modifier.FINAL);
                         if (field.isNullable) {
                             builder.addAnnotation(Nullable.class);
                         }
@@ -258,23 +255,19 @@ public class CSharpToJavaConverter {
 
                     // Add getter only for fields from this class
                     if (csharpClass.fields.contains(field)) {
-                        MethodSpec getter =
-                                MethodSpec.methodBuilder("get" + capitalize(newName))
-                                        .addModifiers(Modifier.PUBLIC)
-                                        .returns(fieldType)
-                                        .addStatement("return this.$N", newName)
-                                        .build();
+                        MethodSpec getter = MethodSpec.methodBuilder("get" + capitalize(newName))
+                                .addModifiers(Modifier.PUBLIC)
+                                .returns(fieldType)
+                                .addStatement("return this.$N", newName)
+                                .build();
                         classBuilder.addMethod(getter);
                     }
                     break;
-                } catch (IllegalArgumentException ignored) {
+                } catch(IllegalArgumentException ignored) {
                 }
             }
             if (iteration == 5) {
-                throw new RuntimeException(
-                        "could not find a valid name for field "
-                                + field.name
-                                + " after 5 attempts");
+                throw new RuntimeException("could not find a valid name for field " + field.name + " after 5 attempts");
             }
         }
 
@@ -307,7 +300,6 @@ public class CSharpToJavaConverter {
     }
 
     static Set<String> keywords = Set.of("implements", "extends");
-
     private static String protectName(String name) {
         if (keywords.contains(name)) {
             return name + "1";
@@ -373,7 +365,7 @@ class CSharpClass {
     List<CSharpField> fields;
     boolean isAbstract;
     CSharpClass parentClassRef;
-    List<TypeParameter> typeParameters; // Generic type parameters
+    List<TypeParameter> typeParameters;  // Generic type parameters
 
     public CSharpClass(boolean isAbstract, String className, String parentClass) {
         this.isAbstract = isAbstract;
@@ -396,7 +388,7 @@ class CSharpClass {
 
 class TypeParameter {
     String name;
-    String constraint; // The type constraint (e.g., "Node" in "T : Node")
+    String constraint;  // The type constraint (e.g., "Node" in "T : Node")
 
     public TypeParameter(String name, String constraint) {
         this.name = name;
@@ -411,12 +403,7 @@ class CSharpField {
     boolean isGeneric;
     List<String> genericTypes;
 
-    public CSharpField(
-            String type,
-            String name,
-            boolean isNullable,
-            boolean isGeneric,
-            List<String> genericTypes) {
+    public CSharpField(String type, String name, boolean isNullable, boolean isGeneric, List<String> genericTypes) {
         this.type = type;
         this.name = name;
         this.isNullable = isNullable;

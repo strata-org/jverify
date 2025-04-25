@@ -4,13 +4,11 @@ public interface Encoder {
     void writeBool(boolean value);
 
     void writeInt(int value);
-
     void writeLong(long value);
 
     void writeQualifiedName(String name);
 
     void writeString(String value);
-
     void writeNullable(boolean isNull);
 
     void writeDouble(double d);
@@ -60,8 +58,8 @@ class TextEncoder implements Encoder {
 
     @Override
     public void writeQualifiedName(String name) {
-        writer.append(name);
-        writer.append(' ');
+       writer.append(name);
+       writer.append(' ');
     }
 
     @Override
@@ -69,31 +67,22 @@ class TextEncoder implements Encoder {
         writer.append(escapeString(value));
         writer.append(' ');
     }
-
+    
     private static String escapeString(String str) {
         StringBuilder sb = new StringBuilder("\"");
         for (char c : str.toCharArray()) {
             switch (c) {
-                case '"':
-                    sb.append("\\\"");
-                    break;
-                case '\\':
-                    sb.append("\\\\");
-                    break;
-                case '\n':
-                    sb.append("\\n");
-                    break;
-                case '\r':
-                    sb.append("\\r");
-                    break;
-                case '\t':
-                    sb.append("\\t");
-                    break;
-                default:
-                    sb.append(c);
+                case '"': sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\n': sb.append("\\n"); break;
+                case '\r': sb.append("\\r"); break;
+                case '\t': sb.append("\\t"); break;
+                default: sb.append(c);
             }
         }
         sb.append("\"");
         return sb.toString();
     }
 }
+
+

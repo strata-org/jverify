@@ -2,26 +2,20 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.generated.Expression;
 import com.aws.jverify.generated.FrameExpression;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 import java.lang.reflect.*;
 import java.util.*;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class Serializer {
     Encoder encoder;
-    private static Map<String, String> simpleTypeNameMapping =
-            Map.of(
-                    "Integer",
-                    "Int32",
-                    "Long",
-                    "Int64",
-                    "Short",
-                    "Int16",
-                    "Float",
-                    "BigDec",
-                    "Double",
-                    "BigDec",
-                    "Character",
-                    "Char");
+    private static Map<String, String> simpleTypeNameMapping = 
+            Map.of("Integer", "Int32",
+                    "Long", "Int64",
+                    "Short", "Int16",
+                    "Float", "BigDec",
+                    "Double", "BigDec",
+                    "Character", "Char");
 
     public Serializer(Encoder encoder) {
         this.encoder = encoder;
@@ -40,9 +34,7 @@ public class Serializer {
             }
         }
         if (value == null) {
-            throw new RuntimeException(
-                    "Cannot serialize null value if no nullable type is expected. Type was "
-                            + annotatedType);
+            throw new RuntimeException("Cannot serialize null value if no nullable type is expected. Type was " + annotatedType);
         }
 
         var type = annotatedType.getType();
@@ -60,7 +52,7 @@ public class Serializer {
         } else {
             throw new RuntimeException("No support for serializing " + type.getClass().getName());
         }
-
+            
         if (expectedClass.isEnum()) {
             encoder.writeInt(((Enum<?>) value).ordinal());
             return;
@@ -69,15 +61,12 @@ public class Serializer {
         if (expectedClass.isArray()) {
             serializeArray(value, (AnnotatedParameterizedType) annotatedType);
             return;
-        } else if (value instanceof List<?> list) {
+        } else if (value instanceof List<?> list){
             serializeList(list, (AnnotatedParameterizedType) annotatedType);
             return;
         }
 
-        boolean isAbstract =
-                Object.class == expectedClass
-                        || (Object.class.isAssignableFrom(expectedClass)
-                                && Modifier.isAbstract(expectedClass.getModifiers()));
+        boolean isAbstract = Object.class == expectedClass || (Object.class.isAssignableFrom(expectedClass) && Modifier.isAbstract(expectedClass.getModifiers()));
         if (isAbstract) {
             Class<?> actualType = value.getClass();
             String simpleName = actualType.getSimpleName();
@@ -92,7 +81,7 @@ public class Serializer {
             case Map<?, ?> map -> serializeMap(map, (AnnotatedParameterizedType) annotatedType);
             case Integer i -> encoder.writeInt(i);
             case Long l -> encoder.writeLong(l);
-            case Float f -> encoder.writeDouble((double) f);
+            case Float f -> encoder.writeDouble((double)f);
             case Double d -> encoder.writeDouble(d);
             case Boolean b -> encoder.writeBool(b);
             case Character c -> encoder.writeString(new String(new char[] {c}));
@@ -108,7 +97,7 @@ public class Serializer {
             serializeValue(list.get(i), elementType);
         }
     }
-
+    
     private void serializeArray(Object array, AnnotatedParameterizedType arrayType) {
         int length = Array.getLength(array);
         encoder.writeInt(length);
@@ -131,8 +120,7 @@ public class Serializer {
     private void serializeObject(Object obj) {
         Class<?> clazz = obj.getClass();
         if (!clazz.getPackageName().contains("generated")) {
-            throw new RuntimeException(
-                    "serializeObject should not be called on value of type " + clazz);
+            throw new RuntimeException("serializeObject should not be called on value of type " + clazz);
         }
         List<Field> fields = getSerializableFields(clazz);
 
@@ -158,3 +146,4 @@ public class Serializer {
         return fields;
     }
 }
+

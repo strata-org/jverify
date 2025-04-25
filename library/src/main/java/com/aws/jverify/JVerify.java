@@ -9,37 +9,52 @@ public class JVerify {
     public static boolean implies(boolean antecedent, boolean consequent) {
         return !antecedent || consequent;
     }
+    
+    public static void check(boolean condition) {
+    }
 
-    public static void check(boolean condition) {}
-
-    public static void precondition(boolean condition) {}
+    public static void precondition(boolean condition) {
+    }
 
     /**
-     * Tell JVerify which value decreases on each - iteration of the loop, when used in a loop -
-     * recursive call, when used on a recursive method Knowing which value decreases is required for
-     * termination proofs
+     * Tell JVerify which value decreases on each
+     * - iteration of the loop, when used in a loop
+     * - recursive call, when used on a recursive method
+     * Knowing which value decreases is required for termination proofs
      */
-    public static void decreases(Object value) {}
+    public static void decreases(Object value) {
+    }
+    
+    public static void invariant(boolean condition) {
+    }
+    
+    public static <T> void postcondition(Function<T, Boolean> predicate) {
+    }
 
-    public static void invariant(boolean condition) {}
+    /**
+     * The given function must evaluate to true after this method call
+     */
+    public static <T> void postcondition(Supplier<Boolean> predicate) {
+    }
 
-    public static <T> void postcondition(Function<T, Boolean> predicate) {}
-
-    /** The given function must evaluate to true after this method call */
-    public static <T> void postcondition(Supplier<Boolean> predicate) {}
-
-    /** The given expression must evaluate to true after this method call */
-    public static void postcondition(boolean predicate) {}
+    /**
+     * The given expression must evaluate to true after this method call
+     */
+    public static void postcondition(boolean predicate) {
+    }
 
     /**
      * Specifies that the given heap object (and its fields) may be read in the current context.
-     * This is only necessary within {@link Pure} methods, which otherwise cannot read the object or
-     * its fields.
+     * This is only necessary within {@link Pure} methods, which otherwise cannot read the object or its fields.
      */
-    public static void reads(Object object) {}
+    public static void reads(Object object) {
+    }
 
-    /** Specify that the given object(s) may be modified in this method. */
-    public static void modifies(Object object) {}
+    /**
+     * Specify that the given object(s) may be modified in this method.
+     */
+    public static void modifies(Object object) {
+    }
 
     public static <T> boolean forall(Function<T, Boolean> predicate) {
         throw new VerificationMethodExecutedException();
@@ -49,7 +64,9 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
-    /** Returns a {@link Sequence} representing the contents of the specified array. */
+    /**
+     * Returns a {@link Sequence} representing the contents of the specified array.
+     */
     public static <T> Sequence<T> sequence(T[] array) {
         throw new VerificationMethodExecutedException();
     }
@@ -70,41 +87,53 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
-    /** Same as {@link #sequence(Object[])}, but for a primitive {@code int} array. */
+    /**
+     * Same as {@link #sequence(Object[])}, but for a primitive {@code int} array.
+     */
     public static Sequence<Integer> sequence(int[] array) {
         throw new VerificationMethodExecutedException();
     }
 
-    /** Same as {@link #sequence(Object[], int)}, but for a primitive {@code int} array. */
+    /**
+     * Same as {@link #sequence(Object[], int)}, but for a primitive {@code int} array.
+     */
     public static Sequence<Integer> sequence(int[] array, int fromIndex) {
         throw new VerificationMethodExecutedException();
     }
 
-    /** Same as {@link #sequence(Object[], int, int)}, but for a primitive {@code int} array. */
+    /**
+     * Same as {@link #sequence(Object[], int, int)}, but for a primitive {@code int} array.
+     */
     public static Sequence<Integer> sequence(int[] array, int fromIndex, int toIndex) {
         throw new VerificationMethodExecutedException();
     }
 
     public interface Sequence<T> {
-        /** Returns the subsequence starting at {@code fromIndex}, inclusive. */
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
         default Sequence<T> drop(int fromIndex) {
             throw new VerificationMethodExecutedException();
         }
 
-        /** Returns the subsequence ending at {@code toIndex}, inclusive. */
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
         default Sequence<T> take(int toIndex) {
             throw new VerificationMethodExecutedException();
         }
 
         /**
-         * Returns the subsequence starting at {@code fromIndex}, inclusive, and ending at {@code
-         * toIndex}, exclusive.
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
          */
         default Sequence<T> subsequence(int fromIndex, int toIndex) {
             throw new VerificationMethodExecutedException();
         }
 
-        /** Returns {@code true} if this sequence contains the specified element. */
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
         default boolean contains(T element) {
             throw new VerificationMethodExecutedException();
         }
@@ -116,3 +145,5 @@ public class JVerify {
         }
     }
 }
+
+
