@@ -1,10 +1,16 @@
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
+import org.jetbrains.gradle.ext.ActionDelegationConfig
+import org.jetbrains.gradle.ext.delegateActions
+import org.jetbrains.gradle.ext.runConfigurations
+import org.jetbrains.gradle.ext.settings
 
 plugins {
     id("java")
     application
 
     id("com.diffplug.spotless") version "7.0.3"
+
+    id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.10"
 }
 
 group = "com.aws.jverify"
@@ -12,7 +18,7 @@ version = "1.0-SNAPSHOT"
 
 allprojects {
     apply(plugin = "java")
-    
+
     repositories {
         mavenCentral()
         maven {
@@ -37,6 +43,27 @@ java {
     }
 }
 
+idea {
+    project {
+        settings {
+            delegateActions {
+                // Run tests using IntelliJ instead of Gradle, since Gradle can't yet run individual dynamic tests.
+                // More context:
+                //  - <https://github.com/gradle/gradle/issues/19897>
+                //  - <https://github.com/gradle/gradle/issues/21302>
+                testRunner = ActionDelegationConfig.TestRunner.PLATFORM
+            }
+
+            runConfigurations {
+                defaults(org.jetbrains.gradle.ext.JUnit::class.java) {
+                    vmParameters = createJavacExports(listOf("ALL-UNNAMED"))
+                        .joinToString(" ")
+                }
+            }
+        }
+    }
+}
+
 project(":library") {
     java {
         toolchain {
@@ -49,7 +76,7 @@ project(":library") {
 project(":examples") {
     dependencies {
         implementation(project(":library"))
-        
+
         // https://mvnrepository.com/artifact/net.jqwik/jqwik-api
         implementation("net.jqwik:jqwik-api:1.9.2")
 
@@ -62,12 +89,12 @@ project(":javaTypesGenerator") {
     application {
         mainClass.set("com.aws.jverify.generator.Main")
     }
-    
+
     dependencies {
-        
+
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
-        
+
         // https://mvnrepository.com/artifact/com.squareup/javapoet
         implementation("com.squareup:javapoet:1.13.0")
 
@@ -102,11 +129,11 @@ fun createJavacExports(targets: List<String>): List<String> {
 project(":common") {
     dependencies {
         implementation(project(":library"))
-        
-        testImplementation(platform("org.junit:junit-bom:5.10.0"))
+
+        testImplementation(platform("org.junit:junit-bom:5.12.2"))
         testImplementation("org.junit.jupiter:junit-jupiter")
     }
-    
+
     tasks.test {
         useJUnitPlatform()
         jvmArgs = listOf(
@@ -118,24 +145,24 @@ project(":common") {
 }
 
 project(":javac-plugin") {
-    
+
     dependencies {
         implementation(project(":common"))
         implementation(project(":library"))
-        
+
         implementation("com.google.auto.service:auto-service-annotations:1.0.1")
         annotationProcessor("com.google.auto.service:auto-service:1.0.1")
-        
+
         // https://mvnrepository.com/artifact/com.google.testing.compile/compile-testing
         testImplementation("com.google.testing.compile:compile-testing:0.21.0")
 
         // https://mvnrepository.com/artifact/org.ow2.asm/asm
         testImplementation("org.ow2.asm:asm:9.7.1")
 
-        testImplementation(platform("org.junit:junit-bom:5.10.0"))
+        testImplementation(platform("org.junit:junit-bom:5.12.2"))
         testImplementation("org.junit.jupiter:junit-jupiter")
     }
-    
+
     tasks.test {
         useJUnitPlatform()
         jvmArgs = listOf(
@@ -143,7 +170,7 @@ project(":javac-plugin") {
     }
 
     tasks.withType<JavaExec> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")). 
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).
           // Using preview mode, so we can use the package java.lang.classfile
           plus("--enable-preview")
     }
@@ -153,7 +180,7 @@ project(":javac-plugin") {
           // Using preview mode, so we can use the package java.lang.classfile
           plus("--enable-preview")
     }
-    
+
     tasks.withType<JavaCompile> {
         options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
         //options.compilerArgs.add("-proc:none")
@@ -197,15 +224,15 @@ project(":verifier") {
     dependencies {
         implementation(project(":common"))
         implementation(project(":library"))
-        
+
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
-        
-        testImplementation(platform("org.junit:junit-bom:5.10.0"))
+
+        testImplementation(platform("org.junit:junit-bom:5.12.2"))
         testImplementation("org.junit.jupiter:junit-jupiter")
         testImplementation("org.hamcrest:hamcrest:2.2")
         testImplementation("org.hamcrest:hamcrest-library:2.2")
-        
+
         implementation("info.picocli:picocli:4.7.6")
 
         // Optional: annotation processor for compile-time checking
@@ -219,7 +246,7 @@ project(":verifier") {
         jvmArgs = listOf(
         )
     }
-    
+
     tasks.withType<JavaExec> {
         if (DefaultNativePlatform.getCurrentOperatingSystem().isWindows) {
             environment("JVERIFY_DAFNY", project.file("../dafny/Binaries/Dafny.exe").absolutePath)
@@ -229,7 +256,7 @@ project(":verifier") {
 
         standardInput = System.`in`
         standardOutput = System.out
-        
+
         jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.verifier"))
     }
     tasks.withType<Test> {
