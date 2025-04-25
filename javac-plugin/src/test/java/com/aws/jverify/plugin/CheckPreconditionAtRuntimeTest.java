@@ -1,9 +1,9 @@
 package com.aws.jverify.plugin;
 
-import static com.aws.jverify.JVerify.precondition;
-
 import com.aws.jverify.CheckPreconditionsAtRuntime;
 import com.aws.jverify.PreconditionFailure;
+
+import static com.aws.jverify.JVerify.precondition;
 
 public class CheckPreconditionAtRuntimeTest {
     public static void main(String[] args) {
@@ -11,13 +11,13 @@ public class CheckPreconditionAtRuntimeTest {
         try {
             happyCase(0);
             System.exit(1);
-        } catch (PreconditionFailure _) {
+        } catch(PreconditionFailure _) {
         }
         multiplePreconditions(1);
         try {
             multiplePreconditions(0);
             System.exit(1);
-        } catch (PreconditionFailure _) {
+        } catch(PreconditionFailure _) {
         }
         noPreconditions(1);
         noStatements(1);
@@ -29,7 +29,7 @@ public class CheckPreconditionAtRuntimeTest {
         precondition(input != 0);
         return input;
     }
-
+    
     @CheckPreconditionsAtRuntime
     static int multiplePreconditions(int input) {
         precondition(true);
@@ -43,5 +43,6 @@ public class CheckPreconditionAtRuntimeTest {
     }
 
     @CheckPreconditionsAtRuntime
-    static void noStatements(int input) {}
+    static void noStatements(int input) {
+    }
 }

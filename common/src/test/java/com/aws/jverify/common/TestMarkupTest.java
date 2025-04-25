@@ -1,9 +1,10 @@
 package com.aws.jverify.common;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 import java.util.*;
-import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestMarkupTest {
 
@@ -65,8 +66,7 @@ public class TestMarkupTest {
 
     @Test
     public void testHatAnnotations() {
-        String source =
-                """
+        String source = """
    int x = 10;
 // ^^^^^ Variable declaration
 """;

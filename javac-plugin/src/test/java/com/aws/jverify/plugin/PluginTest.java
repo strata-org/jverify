@@ -6,11 +6,15 @@ import com.google.testing.compile.Compilation;
 import com.google.testing.compile.CompilationSubject;
 import com.google.testing.compile.Compiler;
 import com.google.testing.compile.JavaFileObjects;
+
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+import javax.tools.JavaFileObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.classfile.*;
 import java.lang.classfile.constantpool.ClassEntry;
 import java.lang.reflect.Method;
 import java.net.URI;
@@ -19,76 +23,58 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import javax.tools.JavaFileObject;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
+
+import java.lang.classfile.*;
 
 @SuppressWarnings("preview")
 public class PluginTest {
 
     @Test
     public void checkPreconditionAtRuntimeTest() throws Exception {
-        String source =
-                Files.readString(
-                        Path.of(
-                                "./src/test/java/com/aws/jverify/plugin/CheckPreconditionAtRuntimeTest.java"));
+        String source = Files.readString(Path.of("./src/test/java/com/aws/jverify/plugin/CheckPreconditionAtRuntimeTest.java"));
         String fullyQualifiedName = "com.aws.jverify.plugin.CheckPreconditionAtRuntimeTest";
         var sourceFile = JavaFileObjects.forSourceString(fullyQualifiedName, source);
         var jVerifyClass = URI.create(Common.getJarLocationForClass(JVerify.class));
 
         List<File> classPath = List.of(new File(jVerifyClass));
-        Compilation compilation =
-                Compiler.javac()
-                        .withProcessors(new JVerifyProcessor())
-                        .withClasspath(classPath)
-                        .compile(sourceFile);
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new JVerifyProcessor())
+                .withClasspath(classPath)
+                .compile(sourceFile);
 
         CompilationSubject.assertThat(compilation).succeeded();
 
-        int exitCode =
-                CompilationRunner.runGeneratedClassAndGetExitCode(
-                        compilation, classPath, fullyQualifiedName);
+        int exitCode = CompilationRunner.runGeneratedClassAndGetExitCode(compilation, classPath, fullyQualifiedName);
         Assertions.assertEquals(0, exitCode);
     }
 
     @Test
     public void runtimePreconditionExampleTest() throws IOException {
-        String source =
-                Files.readString(
-                        Path.of(
-                                "../examples/src/main/java/com/aws/verifier/examples/RuntimePreconditionExample.java"));
-        var sourceFile =
-                JavaFileObjects.forSourceString(
-                        "com.aws.verifier.examples.RuntimePreconditionExample", source);
+        String source = Files.readString(Path.of("../examples/src/main/java/com/aws/verifier/examples/RuntimePreconditionExample.java"));
+        var sourceFile = JavaFileObjects.forSourceString("com.aws.verifier.examples.RuntimePreconditionExample", source);
         var jVerifyClass = URI.create(Common.getJarLocationForClass(JVerify.class));
 
         List<File> classPath = List.of(new File(jVerifyClass));
-        Compilation compilation =
-                Compiler.javac()
-                        .withProcessors(new JVerifyProcessor())
-                        .withClasspath(classPath)
-                        .compile(sourceFile);
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new JVerifyProcessor())
+                .withClasspath(classPath)
+                .compile(sourceFile);
 
         CompilationSubject.assertThat(compilation).succeeded();
 
-        int exitCode =
-                CompilationRunner.runGeneratedClassAndGetExitCode(
-                        compilation,
-                        classPath,
-                        "com.aws.verifier.examples.RuntimePreconditionExample");
+        int exitCode = CompilationRunner.runGeneratedClassAndGetExitCode(compilation, classPath, "com.aws.verifier.examples.RuntimePreconditionExample");
         Assertions.assertEquals(0, exitCode);
     }
 
     @Test
     public void checkCallsToJVerifyAreNotPresentInClassfile() throws Exception {
-        JavaFileObject source =
-                JavaFileObjects.forSourceString(
-                        "com.example.ModifyMe",
-                        """
+        JavaFileObject source = JavaFileObjects.forSourceString(
+                "com.example.ModifyMe",
+                """
                         package com.example;
                         import com.aws.jverify.*;
                         import static com.aws.jverify.JVerify.*;
-
+                        
                         public class ModifyMe {
                           public int Bar() {
                             precondition(false);
@@ -96,15 +82,15 @@ public class PluginTest {
                             invariant(false);
                             return 3;
                           }
-                        }""");
+                        }"""
+        );
 
         var jVerifyClass = URI.create(Common.getJarLocationForClass(JVerify.class));
 
-        Compilation compilation =
-                Compiler.javac()
-                        .withProcessors(new JVerifyProcessor())
-                        .withClasspath(List.of(new File(jVerifyClass)))
-                        .compile(source);
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new JVerifyProcessor())
+                .withClasspath(List.of(new File(jVerifyClass)))
+                .compile(source);
 
         for (var generatedFile : compilation.generatedFiles()) {
             inspectConstantPool(generatedFile);
@@ -137,16 +123,17 @@ public class PluginTest {
         }
     }
 
-    private Object runMethodFromCompilation(
-            Compilation compilation, String fullyQualifiedClassName, String methodName)
-            throws Exception {
+    private Object runMethodFromCompilation(Compilation compilation,
+                                            String fullyQualifiedClassName,
+                                            String methodName) throws Exception {
         Path tempDir = null;
         try {
             tempDir = saveGeneratedClassesToTempDirectory(compilation);
 
-            try (URLClassLoader classLoader =
-                    new URLClassLoader(
-                            new URL[] {tempDir.toUri().toURL()}, getClass().getClassLoader())) {
+            try (URLClassLoader classLoader = new URLClassLoader(
+                    new URL[]{tempDir.toUri().toURL()},
+                    getClass().getClassLoader()
+            )) {
                 Class<?> clazz = classLoader.loadClass(fullyQualifiedClassName);
                 Object instance = clazz.getDeclaredConstructor().newInstance();
                 Method barMethod = clazz.getDeclaredMethod(methodName);
@@ -181,8 +168,9 @@ public class PluginTest {
     private String getClassName(JavaFileObject fileObject) {
         // URI in one of our tests is mem:///CLASS_OUTPUT/com/example/ModifyMe.class
         String path = fileObject.toUri().getPath();
-        return path.substring("/CLASS_OUTPUT/".length(), path.length() - ".class".length())
-                .replace('/', '.');
+        return path.
+                substring("/CLASS_OUTPUT/".length(), path.length() - ".class".length()).
+                replace('/', '.');
     }
 
     private Path createPathFromClassName(Path baseDir, String className) {
