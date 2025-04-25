@@ -105,8 +105,7 @@ public class TestVerifier {
                 TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         var source = parsedMarkup.output();
         var metadata = parseMetadata(source);
-        // Skip test if metadata instructs to do so
-        Assumptions.assumeFalse(metadata == null);
+        Assumptions.assumeFalse(metadata == null, "Skipping test according to metadata");
 
         var options = getVerifierOptions();
         var verificationResults = Driver.verifyJavaFile(markedSourceFile, options);
