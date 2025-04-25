@@ -1,6 +1,3 @@
-// Skipping because we don't translate try-catch yet
-// TEST: skip
-
 package com.aws.verifier.examples;
 
 import com.aws.jverify.CheckPreconditionsAtRuntime;
@@ -27,3 +24,6 @@ public class RuntimePreconditionExample {
         return dividend / divisor;
     }
 }
+
+// Skipping because we don't translate try-catch yet
+// TEST: skip

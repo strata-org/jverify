@@ -1,6 +1,3 @@
-// Skipping because jqwik isn't on the classpath when compiling/running tests
-// TEST: skip
-
 package com.aws.verifier.examples;
 
 import com.aws.jverify.AsProperty;
@@ -47,3 +44,6 @@ class BinarySearchProperty {
     }
 
 }
+
+// Skipping because jqwik isn't on the classpath when compiling/running tests
+// TEST: skip

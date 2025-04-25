@@ -1,5 +1,3 @@
-// TEST: exitCode=0 dafnyVerified=2 dafnyErrors=0
-
 package com.aws.verifier.examples;
 
 import com.aws.jverify.Contract;
@@ -36,3 +34,5 @@ class User {
         check(Foo.c == 43);
     }
 }
+
+// TEST: exitCode=0 dafnyVerified=2 dafnyErrors=0

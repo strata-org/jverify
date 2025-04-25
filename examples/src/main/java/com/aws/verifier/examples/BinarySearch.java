@@ -1,5 +1,3 @@
-// TEST: exitCode=0 dafnyVerified=3 dafnyErrors=0
-
 package com.aws.verifier.examples;
 
 import static com.aws.jverify.JVerify.*;
@@ -47,3 +45,5 @@ class BinarySearch {
         return -1;
     }
 }
+
+// TEST: exitCode=0 dafnyVerified=3 dafnyErrors=0
