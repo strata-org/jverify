@@ -130,8 +130,10 @@ project(":common") {
     dependencies {
         implementation(project(":library"))
 
-        testImplementation(platform("org.junit:junit-bom:5.12.2"))
-        testImplementation("org.junit.jupiter:junit-jupiter")
+        // Explicit junit-platform-launcher dependency ensures alignment of JUnit artifacts on test runtime classpath.
+        // See also: <https://junit.org/junit5/docs/current/user-guide/#running-tests-build-gradle-bom>
+        testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+        testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     }
 
     tasks.test {
@@ -159,8 +161,8 @@ project(":javac-plugin") {
         // https://mvnrepository.com/artifact/org.ow2.asm/asm
         testImplementation("org.ow2.asm:asm:9.7.1")
 
-        testImplementation(platform("org.junit:junit-bom:5.12.2"))
-        testImplementation("org.junit.jupiter:junit-jupiter")
+        testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+        testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     }
 
     tasks.test {
@@ -228,8 +230,8 @@ project(":verifier") {
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
 
-        testImplementation(platform("org.junit:junit-bom:5.12.2"))
-        testImplementation("org.junit.jupiter:junit-jupiter")
+        testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+        testRuntimeOnly("org.junit.platform:junit-platform-launcher")
         testImplementation("org.hamcrest:hamcrest:2.2")
         testImplementation("org.hamcrest:hamcrest-library:2.2")
 
