@@ -2,6 +2,9 @@
 
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.testengine.JVerifyTest;
+
+@JVerifyTest
 class NoConstructor {
     public int f;
 }

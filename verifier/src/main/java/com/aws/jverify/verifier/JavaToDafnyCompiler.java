@@ -25,10 +25,13 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class JavaToDafnyCompiler {
@@ -56,8 +59,15 @@ public class JavaToDafnyCompiler {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
-                
-        List<String> javacOptions = List.of("-classpath", options.libraryJar().toAbsolutePath().toString());
+
+        var classpath = String.join(
+                File.pathSeparator,
+                options.libraryJar().toAbsolutePath().toString(),
+                // TODO clean up
+                Path.of("../test-engine/build/classes/java/main").toAbsolutePath().toString()
+        );
+        var javacOptions = List.of("-classpath", classpath);
+
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
                 null,

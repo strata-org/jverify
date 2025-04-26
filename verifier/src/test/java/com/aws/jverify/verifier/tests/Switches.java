@@ -3,10 +3,12 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Nullable;
+import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@SuppressWarnings({"ConstantValue", "unused"})
+@SuppressWarnings("ConstantValue")
+@JVerifyTest
 class Switches {
     static void switchExprInt(int i) {
         var num = switch (i) {

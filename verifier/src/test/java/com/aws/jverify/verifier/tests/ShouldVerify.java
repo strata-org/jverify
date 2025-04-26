@@ -3,8 +3,12 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Verify;
+import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
+
+@JVerifyTest
+public class ShouldVerify {}
 
 @Verify(value = true, overrideChildren = true)
 class ShouldVerify1 {

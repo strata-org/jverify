@@ -2,8 +2,11 @@
 
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.testengine.JVerifyTest;
+
 import static com.aws.jverify.JVerify.*;
 
+@JVerifyTest
 class Operators {
     static void Plus() {
         int x = 3;

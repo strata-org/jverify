@@ -2,14 +2,17 @@
 
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.testengine.JVerifyTest;
+
 /**
  * Integer operators are those that apply to the types:
  * byte, short, int, long, char
- * 
+ * <p>
  * Since none of integer specific operators are currently supported,
  * there currently is no corresponding 'verify integer operators' file
  */
 @SuppressWarnings("ConstantValue")
+@JVerifyTest
 class ResolutionErrorsIntegerOperators {
     public void foo() {
         var l = 3;

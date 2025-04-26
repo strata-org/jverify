@@ -7,9 +7,11 @@ import com.aws.jverify.Nat;
 import com.aws.jverify.Proof;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Unbounded;
+import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
+@JVerifyTest
 class FibonacciInvalid {
     @Pure
     @Erased

@@ -1,10 +1,12 @@
-package com.aws.verifier.examples;
+package com.aws.jverify.examples;
 
 import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.Invariant;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
+import com.aws.jverify.testengine.JVerifyTest;
 
+@JVerifyTest
 class UserProfile {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
