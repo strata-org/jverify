@@ -5,13 +5,17 @@ import com.aws.jverify.*;
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
+import com.sun.tools.javac.api.JavacTool;
+import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
+import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.code.TypeTag;
+import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.code.Symbol;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
@@ -21,7 +25,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
+import javax.lang.model.util.ElementFilter;
 import javax.tools.*;
+import java.awt.event.ContainerListener;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
@@ -44,8 +50,9 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        var fileManager = context.get(JavaFileManager.class);
+        JavacTool compiler = JavacTool.create();
+//        JavacFileManager.preRegister(context);
+//        var fileManager = context.get(JavaFileManager.class);
         
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
@@ -59,11 +66,12 @@ public class JavaToDafnyCompiler {
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
                 null,
-                fileManager,
+                null,
                 diagnostics,
                 javacOptions,
                 null,
-                files
+                files,
+                context
         );
                 
         List<FileStart> filesStarts = new ArrayList<>();
@@ -233,7 +241,7 @@ public class JavaToDafnyCompiler {
 
             Name name = getName(classDecl, classDecl.name);
             if (classWithExternalContract.contains(classDecl.sym)) {
-                boolean isInterface = (classDecl.mods.flags & Flags.INTERFACE) != 0;
+                boolean isInterface = isInterface(classDecl);
                 if (!isInterface && shouldVerify()) {
                     reportError(name.getOrigin(), "verifiedTypeWithExternalContract", classDecl.name);
                 }
@@ -275,6 +283,14 @@ public class JavaToDafnyCompiler {
         }
     }
 
+    private static boolean isInterface(JCTree.JCClassDecl classDecl) {
+        return (classDecl.mods.flags & Flags.INTERFACE) != 0;
+    }
+
+    private static boolean isInterface(Symbol.ClassSymbol classDecl) {
+        return (classDecl.flags() & Flags.INTERFACE) != 0;
+    }
+
     private void processVerifyAnnotation(Map<String, JCTree.JCAnnotation> annotationsByName) {
         var verifyAnnotation = annotationsByName.get(Verify.class.getName());
         if (verifyAnnotation != null) {
@@ -312,7 +328,7 @@ public class JavaToDafnyCompiler {
         return false;
     }
     
-    private ClassDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    private ClassLikeDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
@@ -328,14 +344,24 @@ public class JavaToDafnyCompiler {
             }
         }
 
+        var isInterface = typeForWhichCurrentClassIsDefiningContract == null ? isInterface(classDecl) :
+                isInterface(typeForWhichCurrentClassIsDefiningContract);
+        
         ArrayList<MemberDecl> members = new ArrayList<>();
         for (var member : classDecl.getMembers()) {
             var dafnyMember = translateMember(member, nestedTypes);
             if (dafnyMember != null) {
+                if (dafnyMember instanceof Constructor && isInterface) {
+                    continue;
+                }
                 members.add(dafnyMember);
             }
         }
-        return new ClassDecl(origin, name, null, List.of(), members, List.of(), false);
+        if (isInterface) {
+            return new TraitDecl(origin, name, null, List.of(), members, List.of(), false);
+        } else {
+            return new ClassDecl(origin, name, null, List.of(), members, List.of(), false);
+        }
     }
     
     static final String builtinFile = "/builtin-contracts.java";
@@ -436,6 +462,10 @@ public class JavaToDafnyCompiler {
         shouldVerifies.pop();
         
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
+//            var types = Types.instance(context);
+//            var container = method.sym.enclClass();
+//            var parent = container; //containergetSuperclass().tsym;
+//            var impl = method.sym.implemented(parent, types);
             reportError(method, "notSupported", "@InheritContract");
             return null;
         }

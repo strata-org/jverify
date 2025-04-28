@@ -1,12 +1,7 @@
-// TEST: exitCode=0 dafnyVerified=0 dafnyErrors=0
+// TEST: exitCode=4 dafnyVerified=5 dafnyErrors=3
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.ContractException;
-import com.aws.jverify.Pure;
-
-import java.lang.module.ModuleDescriptor;
-import java.lang.reflect.Array;
+import com.aws.jverify.*;
 
 import static com.aws.jverify.JVerify.*;
 
@@ -32,32 +27,76 @@ class IContract implements I {
     }
 }
 
-class CValid implements I {
-    Object object;
+class Container {
+    int x;
+}
+
+class CInvalidContract implements I {
+    Container c;
+
+    CInvalidContract() {
+        c = new Container();
+    }
     
     @Override
     public int f(int x) {
-        return object == null ? 3 : 4;
+//             ^ Error: contract not inherited
+        return c.x;
     }
 
     @Override
     public int m() {
-        object = new Object();
+//             ^ Error: contract not inherited
+        return 0;
+    }
+}
+
+class CValid implements I {
+    @Nullable Object obj;
+
+    //@InheritContract
+    @Pure
+    @Override
+    public int f(int x) {
+        precondition(x > 2);
+        reads(this);
+        return obj == null ? 3 : 4;
+    }
+
+    //@InheritContract
+    @Override
+    public int m() {
+        modifies(this);
+        postcondition((Integer r) -> r > 2);
+        obj = new Object();
         return 3;
     }
 }
 
-class CInvalid implements I {
-    int[] array;
-    
-    @Override
-    public int f(int x) {
-        return array.length;
+class CInvalidImplementation implements I {
+    Container c;
+
+    CInvalidImplementation() {
+        c = new Container();
     }
 
+    //@InheritContract
+    @Pure
+    @Override
+    public int f(int x) {
+        precondition(x > 2);
+        reads(this);
+        return c.x;
+//             ^^^ Error: insufficient reads clause to read field; Consider adding 'reads c' or 'reads c`x' in the enclosing function specification for resolution
+    }
+
+    //@InheritContract
     @Override
     public int m() {
-        array[0] = 3;
+        modifies(this);
+        postcondition((Integer r) -> r > 2);
+        c.x = 3;
+//      ^^^ Error: assignment might update an object not in the enclosing context's modifies clause
         return 0;
     }
 }

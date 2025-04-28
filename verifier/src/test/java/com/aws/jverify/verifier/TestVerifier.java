@@ -19,6 +19,7 @@ import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -115,6 +116,7 @@ public class TestVerifier {
                 .sorted()
                 .toList();
         var expectedAnnotations = parsedMarkup.ranges().stream().sorted().toList();
+
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
         assertThat("exit code", verificationResults.getExitCode(), is(metadata.exitCode));
@@ -208,8 +210,8 @@ public class TestVerifier {
         var libraryJar = Path.of("../library/build/libs/library.jar");
         var prelude = Path.of("./src/main/resources/additional.dfy");
         return new VerifierOptions(dafnyPath, libraryJar, prelude,
-                //Path.of("../temp.dfy"),
-                null,
+                Path.of("../verifier/build/tmp/temp.dfy"),
+                //null,
                 null,
                 true,
                 new String[]{
