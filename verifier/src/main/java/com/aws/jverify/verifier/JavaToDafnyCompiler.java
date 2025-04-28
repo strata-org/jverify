@@ -4,6 +4,7 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
+import com.sun.source.util.Trees;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
 import com.sun.tools.javac.api.JavacTrees;
@@ -357,10 +358,18 @@ public class JavaToDafnyCompiler {
                 members.add(dafnyMember);
             }
         }
+        var definingSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
+        var interfaces = definingSymbol.getInterfaces();
+        var trees = JavacTrees.instance(context);
+        var superTraits = interfaces.stream().
+                filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
+                map((com.sun.tools.javac.code.Type type) ->
+                    new UserDefinedType(origin, new NameSegment(origin, type.tsym.name.toString(), null))).
+                collect(Collectors.<Type>toList());
         if (isInterface) {
-            return new TraitDecl(origin, name, null, List.of(), members, List.of(), false);
+            return new TraitDecl(origin, name, null, List.of(), members, superTraits, false);
         } else {
-            return new ClassDecl(origin, name, null, List.of(), members, List.of(), false);
+            return new ClassDecl(origin, name, null, List.of(), members, superTraits, false);
         }
     }
     
@@ -494,18 +503,25 @@ public class JavaToDafnyCompiler {
             }
 
             var statement = postHeader.getFirst();
-            if (statement instanceof JCTree.JCReturn returnStatement) {
-                var body = shouldVerify ? toExpr(returnStatement.expr) : null;
-                return new Function(origin, name, null, false, null, List.of(),
-                        ins, header.preconditions, header.postconditions, header.getReads(),
-                        header.getDecreases(), isStatic, false, null, returnType,
-                        body, null, null);
-            } else {
-                if (shouldVerify) {
+            Expression body;
+            if (shouldVerify) {
+                if (statement instanceof JCTree.JCReturn returnStatement) {
+                    body = toExpr(returnStatement.expr);
+                    return new Function(origin, name, null, false, null, List.of(),
+                            ins, header.preconditions, header.postconditions, header.getReads(),
+                            header.getDecreases(), isStatic, false, null, returnType,
+                            body, null, null);
+                } else {
                     reportError(method, "pureMethodNeedsReturnStatement");
+                    return null;
                 }
-                return null;
+            } else {
+                body = null;
             }
+            return new Function(origin, name, null, false, null, List.of(),
+                    ins, header.preconditions, header.postconditions, header.getReads(),
+                    header.getDecreases(), isStatic, false, null, returnType,
+                    body, null, null);
         } else {
             var header = new HeaderContainer();
             var postHeader = methodCompiler.translateHeader(method.getBody().stats, header);

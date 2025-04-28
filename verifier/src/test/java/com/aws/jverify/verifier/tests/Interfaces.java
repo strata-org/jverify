@@ -1,4 +1,4 @@
-// TEST: exitCode=4 dafnyVerified=5 dafnyErrors=3
+// TEST: exitCode=4 dafnyVerified=10 dafnyErrors=4
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.*;
@@ -38,15 +38,16 @@ class CInvalidContract implements I {
         c = new Container();
     }
     
+    @Pure
     @Override
     public int f(int x) {
-//             ^ Error: contract not inherited
-        return c.x;
+//             ^ Error: function's (possibly automatically generated) decreases clause must be below or equal to that in the trait
+        return 0;
     }
 
     @Override
     public int m() {
-//             ^ Error: contract not inherited
+//             ^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
         return 0;
     }
 }
