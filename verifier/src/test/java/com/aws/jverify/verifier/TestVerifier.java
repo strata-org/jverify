@@ -38,6 +38,12 @@ public class TestVerifier {
         var source = Common.getResourceFile(getClass(), "/JavaError.java");
         testMarkedSource(new SourceFile("JavaError.java", source));
     }
+    
+    
+    @Test
+    public void interfaces() throws IOException {
+        testMarkedSource(TEST_FILES_DIRECTORY.resolve(Path.of("Interfaces.java")));
+    }
 
     @TestFactory
     public Stream<DynamicTest> verifyTestFiles() throws IOException {

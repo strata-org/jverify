@@ -36,7 +36,7 @@ public class JavaToDafnyCompiler {
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     
     private JCDiagnostic.Factory diagnosticFactory;
-    private Symbol.@Nullable ClassSymbol contractClass;
+    private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
@@ -167,7 +167,7 @@ public class JavaToDafnyCompiler {
     enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
     private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
     private boolean shouldVerify() {
-        if (contractClass != null) {
+        if (typeForWhichCurrentClassIsDefiningContract != null) {
             return false;
         }
         for (int i = shouldVerifies.size() - 1; i >= 0; i--) {
@@ -233,7 +233,8 @@ public class JavaToDafnyCompiler {
 
             Name name = getName(classDecl, classDecl.name);
             if (classWithExternalContract.contains(classDecl.sym)) {
-                if (shouldVerify()) {
+                boolean isInterface = (classDecl.mods.flags & Flags.INTERFACE) != 0;
+                if (!isInterface && shouldVerify()) {
                     reportError(name.getOrigin(), "verifiedTypeWithExternalContract", classDecl.name);
                 }
                 return null;
@@ -247,8 +248,8 @@ public class JavaToDafnyCompiler {
                     reportError(contractAnnotation, "nestedContractClass", classDecl.name);
                 }
                 var arguments = getArguments(contractAnnotation);
-                contractClass = getClassSymbol(arguments.get("value"));
-                name = new Name(name.getOrigin(), contractClass.name.toString());
+                typeForWhichCurrentClassIsDefiningContract = getClassSymbol(arguments.get("value"));
+                name = new Name(name.getOrigin(), typeForWhichCurrentClassIsDefiningContract.name.toString());
             }
             if (annotationsByName.containsKey(Immutable.class.getName())) {
                 reportError(classDecl, "notSupported", "@ValueType");
@@ -261,7 +262,7 @@ public class JavaToDafnyCompiler {
             else {
                 result = translateClass(nestedTypes, classDecl, origin, name);
             }
-            contractClass = null;
+            typeForWhichCurrentClassIsDefiningContract = null;
             contextOrigins.pop();
             shouldVerifies.pop();
             return result;
@@ -470,7 +471,9 @@ public class JavaToDafnyCompiler {
                         header.getDecreases(), isStatic, false, null, returnType,
                         body, null, null);
             } else {
-                reportError(method, "pureMethodNeedsReturnStatement");
+                if (shouldVerify) {
+                    reportError(method, "pureMethodNeedsReturnStatement");
+                }
                 return null;
             }
         } else {
