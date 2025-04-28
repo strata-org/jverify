@@ -185,7 +185,10 @@ public class Driver {
                 "Binary",
                 "--stdin",
                 "--json-diagnostics",
-                "--allow-warnings"
+                "--allow-warnings",
+                "--type-system-refresh",
+                "--general-newtypes",
+                "--general-traits=datatype"
         );
         if (verifierOptions.printDafny() != null) {
             processBuilder.command().add("--print=" + verifierOptions.printDafny());

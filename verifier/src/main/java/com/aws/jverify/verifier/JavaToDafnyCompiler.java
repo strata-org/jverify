@@ -367,6 +367,7 @@ public class JavaToDafnyCompiler {
                     new UserDefinedType(origin, new NameSegment(origin, type.tsym.name.toString(), null))).
                 collect(Collectors.<Type>toList());
         if (isInterface) {
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
             return new TraitDecl(origin, name, null, List.of(), members, superTraits, false);
         } else {
             return new ClassDecl(origin, name, null, List.of(), members, superTraits, false);
