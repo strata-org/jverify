@@ -52,8 +52,6 @@ public class JavaToDafnyCompiler {
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
         JavacTool compiler = JavacTool.create();
-//        JavacFileManager.preRegister(context);
-//        var fileManager = context.get(JavaFileManager.class);
         
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
@@ -353,6 +351,8 @@ public class JavaToDafnyCompiler {
             var dafnyMember = translateMember(member, nestedTypes);
             if (dafnyMember != null) {
                 if (dafnyMember instanceof Constructor && isInterface) {
+                    // When a contract class defines the contract for an interface,
+                    // Ignore any constructors
                     continue;
                 }
                 members.add(dafnyMember);
@@ -473,8 +473,7 @@ public class JavaToDafnyCompiler {
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
 //            var types = Types.instance(context);
 //            var container = method.sym.enclClass();
-//            var parent = container; //containergetSuperclass().tsym;
-//            var impl = method.sym.implemented(parent, types);
+//            var impl = method.sym.implemented(container, types);
             reportError(method, "notSupported", "@InheritContract");
             return null;
         }
