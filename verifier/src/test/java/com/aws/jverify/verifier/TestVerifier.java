@@ -34,10 +34,10 @@ public class TestVerifier {
 
     private static final Path EXAMPLES_DIRECTORY = Path.of("../examples/src/main/java/com/aws/verifier/examples");
 
-//    @Test
-//    public void interfaces() throws IOException {
-//        testMarkedSource(TEST_FILES_DIRECTORY.resolve(Path.of("Interfaces.java")));
-//    }
+    @Test
+    public void interfaces() throws IOException {
+        testMarkedSource(TEST_FILES_DIRECTORY.resolve(Path.of("Interfaces.java")));
+    }
     
     @Test
     public void javaError() throws IOException {

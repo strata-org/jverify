@@ -27,6 +27,10 @@ class IContract implements I {
     }
 }
 
+class User {
+
+}
+
 class Container {
     int x;
 }

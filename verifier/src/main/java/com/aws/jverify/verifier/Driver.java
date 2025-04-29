@@ -232,9 +232,12 @@ public class Driver {
         var objectMapper = new ObjectMapper();
         objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
 
+        StringBuilder exceptionOutput = new StringBuilder();
         dafnyOutput.lines().forEach(line -> {
             Matcher matcher;
-            if (line.isBlank()) {
+            if (!exceptionOutput.isEmpty()) {
+                exceptionOutput.append(line + "\n");
+            } else if (line.isBlank()) {
                 //noinspection UnnecessaryReturnStatement
                 return;  // nothing to do
             } else if (line.startsWith("{")) {
@@ -248,9 +251,12 @@ public class Driver {
                 outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
                 outResults.dafnyFinishedMessage = line;
             } else {
-                throw new RuntimeException("Could not parse line of Dafny output: " + line);
+                exceptionOutput.append(line + "\n");
             }
         });
+        if (!exceptionOutput.isEmpty()) {
+            throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput);
+        }
     }
 
     /**
