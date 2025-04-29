@@ -654,6 +654,14 @@ public class JavaToDafnyCompiler {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
             return new AllocateClass(origin, null, toType(newClass.clazz), new ActualBindings(argBindings));
         }
+        if (expr instanceof JCTree.JCNewArray newArray) {
+            var arrayDimensions = newArray.getDimensions().stream().map(d -> toExpr(d)).toList();
+            var arrayInitializers = newArray.getInitializers();
+            if (arrayInitializers != null && arrayInitializers.size() > 0) {
+                reportError(expr, "notSupported", "new array with initializers");
+            }
+            return new AllocateArray(origin, null, null, arrayDimensions, null);
+        }
         var dafnyExpr = toExpr(expr);
         return new ExprRhs(origin, null, dafnyExpr);
     }
