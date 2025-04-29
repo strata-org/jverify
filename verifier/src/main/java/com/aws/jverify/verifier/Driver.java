@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public class Driver {
@@ -236,7 +237,7 @@ public class Driver {
         dafnyOutput.lines().forEach(line -> {
             Matcher matcher;
             if (!exceptionOutput.isEmpty()) {
-                exceptionOutput.append(line + "\n");
+                exceptionOutput.append(line).append("\n");
             } else if (line.isBlank()) {
                 //noinspection UnnecessaryReturnStatement
                 return;  // nothing to do
@@ -251,11 +252,12 @@ public class Driver {
                 outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
                 outResults.dafnyFinishedMessage = line;
             } else {
-                exceptionOutput.append(line + "\n");
+                exceptionOutput.append(line).append("\n");
             }
         });
         if (!exceptionOutput.isEmpty()) {
-            throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput);
+            String diagnostics = outResults.getDiagnostics().stream().map(Object::toString).collect(Collectors.joining("\n"));
+            throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput + "\n" + diagnostics);
         }
     }
 

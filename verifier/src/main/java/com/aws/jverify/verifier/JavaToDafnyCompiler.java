@@ -705,7 +705,7 @@ public class JavaToDafnyCompiler {
             var selectedExpr = toExpr(fieldAccess.selected);
             // TODO does this work if the selected expression isn't trivially of array type?
             if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
-                return new MemberSelectExpr(origin, selectedExpr, new Name(origin, "Length"));
+                return new ExprDotName(origin, selectedExpr, getName(fieldAccess, "Length"), null);
             }
             
             if (isEnum(fieldAccess.selected)) {
