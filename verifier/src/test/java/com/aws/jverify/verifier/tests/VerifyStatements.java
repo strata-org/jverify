@@ -153,16 +153,18 @@ class VerifyStatements {
     void newIntArray() {
         int[] arr = new int[5];
         check(arr.length == 5);
-        arr[0] = 0;
-        arr[1] = arr[0]+1;
+        for (var i = 0; i < 5; i++) {
+            arr[i] = i;
+        }
         check(arr[1] == 1);
     }
 
     void newAuxArray() {
         var arr = new Aux[15];
         check(arr.length == 15);
-        arr[0] = new Aux(1,2);
-        arr[13] = new Aux(4,5);
+        for (var i = 0; i < 15; i++) {
+            arr[i] = new Aux(i, i + 1);
+        }
         var tmp = arr[13].getB();
         check(tmp > 0);
     }
