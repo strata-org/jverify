@@ -21,9 +21,21 @@ public class JVerify {
      * - iteration of the loop, when used in a loop
      * - recursive call, when used on a recursive method
      * Knowing which value decreases is required for termination proofs
+     * <p>
+     * When JVerify sees a recursive call, it compares the decreases call of the caller
+     * with that of the callee, and will emit an error if the former is not greater than the latter.
+     * <p>
+     * Multiple values can be passed to the decreases call. 
+     * If the caller and callee have decreases calls with different lengths,
+     * then JVerify implicitly pads the shortest with a 'top' value, 
+     * until they are the same length.
+     * <p>
+     * The top value is considered larger than any other value.
+     * After padding, JVerify compares both lists of decreases values 
+     * in the same way as two tuples would be compared, 
+     * also known as a lexicographical comparison.
      */
-    public static void decreases(Object value) {
-    }
+    public static void decreases(Object... values) {}
     
     public static void invariant(boolean condition) {
     }
@@ -44,7 +56,7 @@ public class JVerify {
     }
 
     /**
-     * Specifies that the given heap object (and its fields) may be read in the current context.
+     * Specifies that the given heap object(s) (and its fields) may be read in the current context.
      * This is only necessary within {@link Pure} methods, which otherwise cannot read the object or its fields.
      */
     public static void reads(Object object) {
@@ -56,6 +68,22 @@ public class JVerify {
     public static void modifies(Object object) {
     }
 
+
+    /**
+     * Evaluates the given value using the program state with which the current method was called with.
+     * This method can only be used in an erased context.
+     */
+    public static <T> T old(T value) {
+        throw new ContractException();
+    }
+
+    /**
+     * Returns true if the given object were allocated during the current method call.
+     */
+    public static <T> boolean fresh(Object object) {
+        throw new ContractException();
+    }
+    
     public static <T> boolean forall(Function<T, Boolean> predicate) {
         throw new VerificationMethodExecutedException();
     }

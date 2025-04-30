@@ -614,7 +614,7 @@ public class JavaToDafnyCompiler {
                     return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
                 }
                 case JCTree.Tag.NEG -> {
-                    return new BinaryExpr(origin, BinaryExprOpcode.Mul, innerExpr, new LiteralExpr(origin, -1));
+                    return new NegationExpression(origin, innerExpr);
                 }
                 case JCTree.Tag.POS -> {
                     return innerExpr;
@@ -779,6 +779,14 @@ public class JavaToDafnyCompiler {
                 var element = toExpr(args.getFirst());
                 var seq = toExpr(receiver);
                 return new BinaryExpr(toOrigin(invocation), BinaryExprOpcode.In, element, seq);
+            }
+            case "old" -> {
+                var element = toExpr(args.getFirst());
+                return new OldExpr(toOrigin(invocation), element, null);
+            }
+            case "fresh" -> {
+                var element = toExpr(args.getFirst());
+                return new FreshExpr(toOrigin(invocation), element, null);
             }
         }
 
