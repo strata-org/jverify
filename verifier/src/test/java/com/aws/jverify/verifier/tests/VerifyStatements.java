@@ -1,4 +1,4 @@
-// TEST: exitCode=0 dafnyVerified=11 dafnyErrors=0
+// TEST: exitCode=0 dafnyVerified=12 dafnyErrors=0
 
 package com.aws.jverify.verifier.tests;
 
@@ -6,6 +6,20 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
+
+class Aux {
+    int a;
+    int b;
+    Aux(int a, int b) {
+        this.a = a;
+        this.b = b;
+    }
+    public int getB() {
+        postcondition((Integer x) -> x > 0);
+        return 1;
+    }
+}
+
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
 @JVerifyTest
@@ -135,7 +149,24 @@ class VerifyStatements {
     void nativeAssert() {
         assert true;
     }
-    
+
+    void newIntArray() {
+        int[] arr = new int[5];
+        check(arr.length == 5);
+        arr[0] = 0;
+        arr[1] = arr[0]+1;
+        check(arr[1] == 1);
+    }
+
+    void newAuxArray() {
+        var arr = new Aux[15];
+        check(arr.length == 15);
+        arr[0] = new Aux(1,2);
+        arr[13] = new Aux(4,5);
+        var tmp = arr[13].getB();
+        check(tmp > 0);
+    }
+
     @Pure
     boolean P(int x) {
         return x > 10;
