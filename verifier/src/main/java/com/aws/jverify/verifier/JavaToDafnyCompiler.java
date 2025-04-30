@@ -657,10 +657,12 @@ public class JavaToDafnyCompiler {
         if (expr instanceof JCTree.JCNewArray newArray) {
             var arrayDimensions = newArray.getDimensions().stream().map(d -> toExpr(d)).toList();
             var arrayInitializers = newArray.getInitializers();
+            var arrType = toType(newArray.getType(),true);
+
             if (arrayInitializers != null && arrayInitializers.size() > 0) {
                 reportError(expr, "notSupported", "new array with initializers");
             }
-            return new AllocateArray(origin, null, null, arrayDimensions, null);
+            return new AllocateArray(origin, null, arrType, arrayDimensions, null);
         }
         var dafnyExpr = toExpr(expr);
         return new ExprRhs(origin, null, dafnyExpr);
@@ -1039,7 +1041,7 @@ public class JavaToDafnyCompiler {
             reportError(tree, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         } else if (tree instanceof JCTree.JCArrayTypeTree arrayTypeTree) {
-            var elemType = toType(arrayTypeTree.getType(), false, originOverride);
+            var elemType = toType(arrayTypeTree.getType(), true, originOverride);
             if (elemType == null) {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");
