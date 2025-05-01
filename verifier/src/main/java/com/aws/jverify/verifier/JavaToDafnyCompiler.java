@@ -740,9 +740,30 @@ public class JavaToDafnyCompiler {
                 return new ExprDotName(origin, toExpr(fieldAccess.selected), getName(fieldAccess, fieldAccess.name), null);
             }
         } else if (expr instanceof JCTree.JCArrayAccess arrayAccess) {
-            var arrayExpr = toExpr(arrayAccess.getExpression());
-            var indexExpr = toExpr(arrayAccess.getIndex());
-            return new SeqSelectExpr(origin, true, arrayExpr, indexExpr, null, null);
+            // If subExpr is of type Array, this means we have an access to a full slice
+            // of a multidimensiobnal array, i.e. something like
+            // int[][] tab = new int[4][4];
+            // tab[1] = new int[4];
+            // This is not supported yet
+            if (expr.type instanceof ArrayType _) {
+                reportError(expr, "Access to slices of multi-dimensions arrays not yet supported");
+                return getHole(origin);
+            }
+            var subExpr = arrayAccess.getExpression();
+            List<Expression> indexE = new ArrayList<>();
+            indexE.add(toExpr(arrayAccess.getIndex()));
+            while(subExpr instanceof JCTree.JCArrayAccess arrayAccess_) {
+                subExpr = arrayAccess_.getExpression();
+                indexE.addFirst(toExpr(arrayAccess_.getIndex()));
+            }
+
+            var arrayExpr = toExpr(subExpr);
+            if (indexE.size() > 1) {
+                return new MultiSelectExpr(origin, arrayExpr, indexE);
+            }
+            else {
+                return new SeqSelectExpr(origin, true, arrayExpr, indexE.getFirst(), null, null);
+            }
         } else if (expr instanceof JCTree.JCParens parens) {
             return toExpr(parens.getExpression());
         } else if (expr instanceof JCTree.JCAssignOp assignOp) {
@@ -1041,12 +1062,19 @@ public class JavaToDafnyCompiler {
             reportError(tree, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         } else if (tree instanceof JCTree.JCArrayTypeTree arrayTypeTree) {
-            var elemType = toType(arrayTypeTree.getType(), true, originOverride);
+            var elemTy = arrayTypeTree.getType();
+            int dimensions = 1;
+            while (elemTy instanceof JCTree.JCArrayTypeTree x) {
+                dimensions++;
+                elemTy = x.getType();
+            }
+            var elemType = toType(elemTy, true, originOverride);
             if (elemType == null) {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");
             }
-            return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
+            var arrayBase = (dimensions == 1) ? "array" : "array" + dimensions;
+            return new UserDefinedType(origin, new NameSegment(origin, arrayBase + nullableSuffix, List.of(elemType)));
         } else if (tree instanceof JCTree.JCExpression expr) {
             var expression = toExpr(expr);
             
