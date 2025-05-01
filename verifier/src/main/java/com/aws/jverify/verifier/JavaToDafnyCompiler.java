@@ -4,16 +4,13 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
-import com.sun.source.util.Trees;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.code.TypeTag;
-import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -26,9 +23,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
-import javax.lang.model.util.ElementFilter;
 import javax.tools.*;
-import java.awt.event.ContainerListener;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
@@ -350,11 +345,6 @@ public class JavaToDafnyCompiler {
         for (var member : classDecl.getMembers()) {
             var dafnyMember = translateMember(member, nestedTypes);
             if (dafnyMember != null) {
-                if (dafnyMember instanceof Constructor && isInterface) {
-                    // When a contract class defines the contract for an interface,
-                    // Ignore any constructors
-                    continue;
-                }
                 members.add(dafnyMember);
             }
         }
@@ -472,6 +462,7 @@ public class JavaToDafnyCompiler {
         shouldVerifies.pop();
         
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
+// Hints for whenever this is implemented.
 //            var types = Types.instance(context);
 //            var container = method.sym.enclClass();
 //            var impl = method.sym.implemented(container, types);
@@ -549,6 +540,18 @@ public class JavaToDafnyCompiler {
             }
 
             if (method.name.contentEquals("<init>")) {
+                var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null && 
+                        isInterface(typeForWhichCurrentClassIsDefiningContract);
+                if (containerIsInterface) {
+                    var synthetic = (method.mods.flags & Flags.SYNTHETIC) != 0;
+                    if (synthetic) {
+                        // ignore default constructors in interfaces classes
+                        return null;
+                    } else {
+                        reportError(method, "constructorInInterfaceContract");
+                        return null;
+                    }
+                }
                 DividedBlockStmt body;
                 if (shouldVerify) {
                     var bodyStatements = methodCompiler.translateStatements(postHeader);

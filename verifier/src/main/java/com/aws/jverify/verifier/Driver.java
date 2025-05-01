@@ -186,7 +186,6 @@ public class Driver {
                 "Binary",
                 "--stdin",
                 "--json-diagnostics",
-                "--allow-warnings",
                 "--type-system-refresh",
                 "--general-newtypes",
                 "--general-traits=datatype"
