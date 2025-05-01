@@ -770,6 +770,11 @@ public class JavaToDafnyCompiler {
             reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
             return getHole(origin);
         }
+        else if (expr instanceof JCTree.JCInstanceOf instanceOf) {
+            var expression = toExpr(instanceOf.getExpression());
+            var jcType = toType(instanceOf.getType());
+            return new TypeTestExpr(origin, expression, jcType);
+        }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
     }
