@@ -4,6 +4,7 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
+import com.sun.source.util.Trees;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
 import com.sun.tools.javac.api.JavacTrees;
@@ -543,7 +544,8 @@ public class JavaToDafnyCompiler {
                 var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null && 
                         isInterface(typeForWhichCurrentClassIsDefiningContract);
                 if (containerIsInterface) {
-                    var synthetic = (method.mods.flags & Flags.SYNTHETIC) != 0;
+                    var containerPos = JavacTrees.instance(context).getTree(method.sym.enclClass()).pos;
+                    var synthetic = method.pos == containerPos;
                     if (synthetic) {
                         // ignore default constructors in interfaces classes
                         return null;

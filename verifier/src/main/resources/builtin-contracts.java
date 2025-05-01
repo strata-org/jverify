@@ -24,7 +24,3 @@ class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
 }
-
-@Contract(Object.class)
-class ObjectContract {
-}
