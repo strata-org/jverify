@@ -3,6 +3,10 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.testengine.JVerifyTest;
+
+@JVerifyTest
+class InterfaceResolutionErrors {}
 
 interface I2 {
 }
