@@ -231,7 +231,7 @@ public class MethodCompiler {
         var expr = statement.getExpression();
         switch (expr) {
             case JCTree.JCMethodInvocation invocation -> {
-                return translateMethodInvocation(invocation);
+                return translateStatementMethodInvocation(invocation);
             }
             case JCTree.JCAssign assign -> {
                 return translateAssign(assign);
@@ -292,7 +292,7 @@ public class MethodCompiler {
         return List.of(new AssignStatement(compiler.toOrigin(assign), null, lhss, rhss, false));
     }
 
-    private List<Statement> translateMethodInvocation(JCTree.JCMethodInvocation invocation) {
+    private List<Statement> translateStatementMethodInvocation(JCTree.JCMethodInvocation invocation) {
         var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
         if (jverifyMethod != null) {
             return translateJVerifyMethodInvocation(invocation, jverifyMethod);
@@ -325,7 +325,8 @@ public class MethodCompiler {
             return List.of();
         }
         var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, compiler.toExpr(a), false)).toList();
-        ApplySuffix applySuffix = new ApplySuffix(compiler.toOrigin(invocation), compiler.toExpr(invocation.getMethodSelect()), null,
+        Expression expr = compiler.toExpr(invocation.getMethodSelect());
+        ApplySuffix applySuffix = new ApplySuffix(origin, expr, null,
                 new ActualBindings(argBindings), null);
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
@@ -413,10 +414,9 @@ public class MethodCompiler {
                     header.invariants.add(new AttributedExpression(compiler.toExpr(invocation.getArguments().getFirst()), null, null));
                 }
                 case "decreases" -> {
-                    if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("decreases should have a single argument");
+                    for(var decrease : invocation.getArguments()) {
+                        header.decreases.add(compiler.toExpr(decrease));
                     }
-                    header.decreases.add(compiler.toExpr(invocation.getArguments().getFirst()));
                 }
                 case "reads" -> {
                     if (invocation.args.size() != 1) {
