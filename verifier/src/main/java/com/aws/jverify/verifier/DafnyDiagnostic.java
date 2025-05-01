@@ -112,4 +112,15 @@ public class DafnyDiagnostic implements Diagnostic<String> {
             return diagnostic;
         }
     }
+
+    @Override
+    public String toString() {
+        return "DafnyDiagnostic {" +
+                "\n  location=" + location +
+                "\n  severity=" + severity +
+                "\n  message='" + message + '\'' +
+                "\n  messageSource='" + messageSource + '\'' +
+                "\n  relatedInformation=" + relatedInformation +
+                "\n}";
+    }
 }

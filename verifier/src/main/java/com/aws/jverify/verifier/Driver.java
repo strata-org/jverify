@@ -9,6 +9,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
+import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import java.io.*;
 import java.nio.file.Files;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public class Driver {
@@ -184,7 +186,9 @@ public class Driver {
                 "Binary",
                 "--stdin",
                 "--json-diagnostics",
-                "--allow-warnings"
+                "--type-system-refresh",
+                "--general-newtypes",
+                "--general-traits=datatype"
         );
         if (verifierOptions.printDafny() != null) {
             processBuilder.command().add("--print=" + verifierOptions.printDafny());
@@ -228,9 +232,12 @@ public class Driver {
         var objectMapper = new ObjectMapper();
         objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
 
+        StringBuilder exceptionOutput = new StringBuilder();
         dafnyOutput.lines().forEach(line -> {
             Matcher matcher;
-            if (line.isBlank()) {
+            if (!exceptionOutput.isEmpty()) {
+                exceptionOutput.append(line).append("\n");
+            } else if (line.isBlank()) {
                 //noinspection UnnecessaryReturnStatement
                 return;  // nothing to do
             } else if (line.startsWith("{")) {
@@ -244,9 +251,13 @@ public class Driver {
                 outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
                 outResults.dafnyFinishedMessage = line;
             } else {
-                throw new RuntimeException("Could not parse line of Dafny output: " + line);
+                exceptionOutput.append(line).append("\n");
             }
         });
+        if (!exceptionOutput.isEmpty()) {
+            String diagnostics = outResults.getDiagnostics().stream().map(Object::toString).collect(Collectors.joining("\n"));
+            throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput + "\n" + diagnostics);
+        }
     }
 
     /**
