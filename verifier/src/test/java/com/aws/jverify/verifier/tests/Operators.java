@@ -1,11 +1,14 @@
+<<<<<<< HEAD
 // TEST: exitCode=4 dafnyVerified=11 dafnyErrors=9
+=======
+// TEST: exitCode=4 dafnyVerified=10 dafnyErrors=9
+>>>>>>> 9ba9118 (Support of instanceof)
 
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
-import com.aws.jverify.Nullable;
 
 interface DummyInterface {}
 class DummyClass implements DummyInterface {
@@ -14,6 +17,7 @@ class DummyClass implements DummyInterface {
 class DummyClass2 implements DummyInterface {
     public static DummyInterface create() {return new DummyClass2();}
 }
+
 
 @JVerifyTest
 class Operators {
@@ -142,6 +146,7 @@ class Operators {
 //      ^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
+<<<<<<< HEAD
     void InstanceOfTrivial() {
         check(this instanceof Operators);
     }
@@ -155,4 +160,11 @@ class Operators {
         DummyInterface di = DummyClass.create();
         check(dc instanceof DummyClass2);
     }
+=======
+    void InstanceOf() {
+        check(this instanceof Operators);
+        DummyClass dc = new DummyClass();
+        check(dc instanceof DummyClass);
+    }
+>>>>>>> 9ba9118 (Support of instanceof)
 }
