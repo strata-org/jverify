@@ -80,8 +80,4 @@ class VerifyNewArray {
         check(i == 15);
     }
 
-    @Pure
-    boolean P(int x) {
-        return x > 10;
-    }
 }
