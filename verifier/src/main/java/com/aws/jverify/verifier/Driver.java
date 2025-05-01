@@ -88,8 +88,9 @@ public class Driver {
                 }
             }
         }
-        assert verificationResults.dafnyFinishedMessage != null;
-        output.write(verificationResults.dafnyFinishedMessage);
+        if (verificationResults.dafnyFinishedMessage != null) {
+            output.write(verificationResults.dafnyFinishedMessage);
+        }
         return verificationResults.exitCode;
     }
 

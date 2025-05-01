@@ -21,6 +21,7 @@ import org.junit.platform.engine.TestEngine;
 import org.junit.platform.engine.UniqueId;
 import org.junit.platform.engine.discovery.ClassSelector;
 import org.junit.platform.engine.discovery.ClasspathRootSelector;
+import org.junit.platform.engine.discovery.MethodSelector;
 import org.junit.platform.engine.support.descriptor.AbstractTestDescriptor;
 import org.junit.platform.engine.support.descriptor.EngineDescriptor;
 import org.junit.platform.engine.support.hierarchical.EngineExecutionContext;
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -59,9 +61,16 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                             ReflectionSupport.findAllClassesInClasspathRoot(
                                     cpRootSelector.getClasspathRoot(), this::isJVerifyTest, _ -> true)
                             .stream();
+                    case MethodSelector methodSelector -> {
+                        var testClass = methodSelector.getJavaClass();
+                        LOGGER.warning(() ->
+                                "Verifying individual methods isn't supported yet; verifying its class %s instead"
+                                        .formatted(testClass.getName()));
+                        yield Stream.of(testClass).filter(this::isJVerifyTest);
+                    }
                     default -> {
                         LOGGER.warning(() -> "Unexpected selector: " + selector);
-                        yield Stream.empty();
+                        throw new UnsupportedOperationException("Unsupported selector: " + selector);
                     }
                 })
                 .forEach(testClass -> {
@@ -83,7 +92,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         private final Class<?> testClass;
 
         JVerifyTestDescriptor(UniqueId uniqueId, Class<?> testClass) {
-            super(uniqueId, testClass.getSimpleName());
+            super(uniqueId, "Verify %s".formatted(testClass.getSimpleName()));
             this.testClass = testClass;
         }
 
@@ -98,16 +107,22 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         {
             LOGGER.fine(() -> "Executing test for class: " + testClass);
 
+            // We assume that the working directory is the root of the current Gradle project (as is default),
+            // and that the test sources are in the standard "src/test/java" subdirectory of the project root.
             var sourceRoot = Path.of(System.getProperty("user.dir") , "src", "test", "java");
-            Assumptions.assumeTrue(Files.exists(sourceRoot) && Files.isDirectory(sourceRoot),
-                    () -> "Test sources root directory for %s not found at %s".formatted(testClass, sourceRoot));
+            if (!Files.exists(sourceRoot) || !Files.isDirectory(sourceRoot)) {
+                Assertions.fail(() ->
+                        "Test sources root directory for %s not found at %s".formatted(testClass, sourceRoot));
+            }
 
             // We assume the class's source file is at the path corresponding to its package and class name,
             // just as Java requires for public classes.
             var pkgPath = sourceRoot.resolve("", testClass.getPackageName().split("\\."));
             var sourcePath = pkgPath.resolve(testClass.getSimpleName() + ".java");
-            Assumptions.assumeTrue(Files.exists(sourcePath) && Files.isRegularFile(sourcePath),
-                    () -> "Source file for %s not found at %s".formatted(testClass, sourcePath));
+            if (!Files.exists(sourcePath) || !Files.isRegularFile(sourcePath)) {
+                Assertions.fail(() ->
+                        "Source file for %s not found at %s".formatted(testClass, sourcePath));
+            }
             LOGGER.fine(() -> "Found source file: " + sourcePath);
 
             testMarkedSource(sourcePath);
@@ -235,8 +250,13 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var dafnyPath = Path.of("../dafny").toAbsolutePath()
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
+        var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
-        return new VerifierOptions(dafnyPath, libraryJar, prelude,
+        return new VerifierOptions(
+                dafnyPath,
+                libraryJar,
+                List.of(testEngineClassPath),
+                prelude,
                 //Path.of("../temp.dfy"),
                 null,
                 null,

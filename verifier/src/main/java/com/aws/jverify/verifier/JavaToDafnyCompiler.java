@@ -60,12 +60,12 @@ public class JavaToDafnyCompiler {
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
 
-        var classpath = String.join(
-                File.pathSeparator,
-                options.libraryJar().toAbsolutePath().toString(),
-                // TODO clean up
-                Path.of("../test-engine/build/classes/java/main").toAbsolutePath().toString()
-        );
+        var classpathEntries = new ArrayList<Path>();
+        classpathEntries.add(options.libraryJar().toAbsolutePath());
+        classpathEntries.addAll(options.extraClassPathEntries());
+        var classpath = classpathEntries.stream()
+                .map(Path::toString)
+                .collect(Collectors.joining(File.pathSeparator));
         var javacOptions = List.of("-classpath", classpath);
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
