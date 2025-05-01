@@ -1,4 +1,4 @@
-package com.aws.verifier.examples;
+package com.aws.jverify.examples;
 
 import com.aws.jverify.CheckPreconditionsAtRuntime;
 import com.aws.jverify.PreconditionFailure;
@@ -6,6 +6,7 @@ import com.aws.jverify.Verify;
 
 import static com.aws.jverify.JVerify.*;
 
+// @JVerifyTest
 public class RuntimePreconditionExample {
     public static void main(String[] args) {
         division(3, 1);

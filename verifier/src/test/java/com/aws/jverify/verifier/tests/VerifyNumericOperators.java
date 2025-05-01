@@ -2,6 +2,8 @@
 
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.testengine.JVerifyTest;
+
 import static com.aws.jverify.JVerify.check;
 
 /**
@@ -9,6 +11,7 @@ import static com.aws.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
+@JVerifyTest
 class VerifyNumericOperators {
     public void foo() {
         var l = 3L;

@@ -47,14 +47,17 @@ class AppCommand implements Callable<Integer> {
         // And those will include the JVerify library jar.
         // But right now we manually find the JVerify library jar and include it in the compilation.
         var jverifyLibraryLocation = Path.of(URI.create(Common.getJarLocationForClass(JVerify.class)));
+        // Likewise, we manually add the test engine jar so that our examples will work as-is
+        var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
 
         File tempFile = File.createTempFile("jverify-prelude-", ".dfy");
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
         var dafnyPath = getDafnyPath();
-        var exitCode = Driver.verifyJavaPaths(inputs, new VerifierOptions(dafnyPath, jverifyLibraryLocation, tempFile.toPath(),
-                printDafny, printBinaryDafny, showRanges, new String[0]), writer);
+        var verifierOptions = new VerifierOptions(dafnyPath, jverifyLibraryLocation, List.of(testEngineClassPath), tempFile.toPath(),
+                printDafny, printBinaryDafny, showRanges, new String[0]);
+        var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
         System.exit(exitCode);
         return 0;

@@ -3,7 +3,9 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Nat;
+import com.aws.jverify.testengine.JVerifyTest;
 
+@JVerifyTest
 class Types {
     public void foo(int s) {
         short x = 10;

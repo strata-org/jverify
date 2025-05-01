@@ -3,10 +3,12 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Pure;
+import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
+@JVerifyTest
 class VerifyStatements {
     void whileWithBreak() {
         var x = 0;

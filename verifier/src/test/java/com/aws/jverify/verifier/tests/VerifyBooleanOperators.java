@@ -2,9 +2,12 @@
 
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.testengine.JVerifyTest;
+
 import static com.aws.jverify.JVerify.check;
 
 @SuppressWarnings({"ConstantValue", "PointlessBooleanExpression"})
+@JVerifyTest
 class VerifyBooleanOperators {
     public void foo() {
         var p = true;

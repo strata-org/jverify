@@ -1,21 +1,23 @@
-package com.aws.verifier.examples;
+package com.aws.jverify.examples;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Verify;
+import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
 @Verify(value = false)
 class Foo {
     public final static int c = 42;
-    
+
     int foo(int x) {
         return x + 2;
     }
 }
 
 @Contract(Foo.class)
+@JVerifyTest
 public class ExternalContract {
     public final static int c = 43;
     

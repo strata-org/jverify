@@ -1,4 +1,4 @@
-package com.aws.verifier.examples;
+package com.aws.jverify.examples;
 
 import com.aws.jverify.AsProperty;
 import com.aws.jverify.Erased;
@@ -9,6 +9,7 @@ import net.jqwik.api.Property;
 
 import static com.aws.jverify.JVerify.*;
 
+// @JVerifyTest
 class BinarySearchProperty {
     
     @AsProperty

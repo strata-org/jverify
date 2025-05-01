@@ -50,7 +50,7 @@ public class PluginTest {
 
     @Test
     public void runtimePreconditionExampleTest() throws IOException {
-        String source = Files.readString(Path.of("../examples/src/main/java/com/aws/verifier/examples/RuntimePreconditionExample.java"));
+        String source = Files.readString(Path.of("../examples/src/test/java/com/aws/jverify/examples/RuntimePreconditionExample.java"));
         var sourceFile = JavaFileObjects.forSourceString("com.aws.verifier.examples.RuntimePreconditionExample", source);
         var jVerifyClass = URI.create(Common.getJarLocationForClass(JVerify.class));
 
@@ -62,7 +62,7 @@ public class PluginTest {
 
         CompilationSubject.assertThat(compilation).succeeded();
 
-        int exitCode = CompilationRunner.runGeneratedClassAndGetExitCode(compilation, classPath, "com.aws.verifier.examples.RuntimePreconditionExample");
+        int exitCode = CompilationRunner.runGeneratedClassAndGetExitCode(compilation, classPath, "com.aws.jverify.examples.RuntimePreconditionExample");
         Assertions.assertEquals(0, exitCode);
     }
 

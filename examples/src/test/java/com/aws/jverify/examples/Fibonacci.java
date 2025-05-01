@@ -1,10 +1,12 @@
-package com.aws.verifier.examples;
+package com.aws.jverify.examples;
 
 import static com.aws.jverify.JVerify.*;
 
 import com.aws.jverify.*;
+import com.aws.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("ConstantValue")
+@JVerifyTest
 class Fibonacci {
     @Pure
     @Erased

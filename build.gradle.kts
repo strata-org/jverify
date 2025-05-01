@@ -7,6 +7,7 @@ import org.jetbrains.gradle.ext.settings
 plugins {
     id("java")
     application
+    id("java-library")
 
     id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.10"
 }
@@ -63,11 +64,24 @@ project(":library") {
 
 project(":examples") {
     dependencies {
-        implementation(project(":library"))
+        testImplementation(project(":library"))
+
+        testImplementation(project(":test-engine"))
+        testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+        testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
         // https://mvnrepository.com/artifact/net.jqwik/jqwik-api
-        implementation("net.jqwik:jqwik-api:1.9.2")
+        testImplementation("net.jqwik:jqwik-api:1.9.2")
+    }
 
+    tasks.test {
+        useJUnitPlatform()
+        jvmArgs = listOf(
+        )
+    }
+
+    tasks.withType<Test> {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
 }
 
@@ -218,8 +232,10 @@ project(":verifier") {
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
 
+        testImplementation(project(":test-engine"))
         testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
         testImplementation("org.hamcrest:hamcrest:2.2")
         testImplementation("org.hamcrest:hamcrest-library:2.2")
 
@@ -264,5 +280,27 @@ project(":verifier") {
         // Keep the standard I/O settings
         standardInput = System.`in`
         standardOutput = System.out
+    }
+}
+
+project(":test-engine") {
+    apply(plugin = "java-library")
+
+    dependencies {
+        implementation(project(":common"))
+        implementation(project(":verifier"))
+
+        implementation("org.junit.jupiter:junit-jupiter")
+        // Must be transitive in order to export our engine, which subclasses HierarchicalTestEngine
+        api("org.junit.platform:junit-platform-engine:1.12.2")
+
+        implementation("org.hamcrest:hamcrest:2.2")
+        implementation("org.hamcrest:hamcrest-library:2.2")
+
+        implementation("org.checkerframework:checker-qual:3.49.0")
+
+        // for test engine registration
+        implementation("com.google.auto.service:auto-service-annotations:1.0.1")
+        annotationProcessor("com.google.auto.service:auto-service:1.0.1")
     }
 }

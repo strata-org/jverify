@@ -88,8 +88,9 @@ public class Driver {
                 }
             }
         }
-        assert verificationResults.dafnyFinishedMessage != null;
-        output.write(verificationResults.dafnyFinishedMessage);
+        if (verificationResults.dafnyFinishedMessage != null) {
+            output.write(verificationResults.dafnyFinishedMessage);
+        }
         return verificationResults.exitCode;
     }
 
@@ -179,7 +180,7 @@ public class Driver {
                 verifierOptions.dafnyPath().toString(),
                 "verify",
                 "--library",
-                verifierOptions.additionalDafnyFile().toAbsolutePath().toString(),
+                verifierOptions.additionalDafnyFile().toAbsolutePath().normalize().toString(),
                 "--allow-axioms",
                 "--dont-verify-dependencies",
                 "--input-format",
@@ -207,10 +208,10 @@ public class Driver {
             // Redirect stderr into stdout, instead of reading one and then the other,
             // in order to preserve the order of output and to avoid potential deadlock.
             var process = processBuilder.redirectErrorStream(true).start();
-            try (var stdin = new OutputStreamWriter(process.getOutputStream())) {
+            try (var stdin = process.outputWriter()) {
                 stdin.write(program);
             }
-            try (var stdout = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            try (var stdout = process.inputReader()) {
                 parseDafnyJsonOutput(stdout, outResults);
                 outResults.exitCode = process.waitFor();
             }
