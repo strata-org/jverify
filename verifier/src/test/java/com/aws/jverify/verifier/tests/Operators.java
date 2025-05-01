@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 // TEST: exitCode=4 dafnyVerified=11 dafnyErrors=9
-=======
-// TEST: exitCode=4 dafnyVerified=10 dafnyErrors=9
->>>>>>> 9ba9118 (Support of instanceof)
 
 package com.aws.jverify.verifier.tests;
 
@@ -147,6 +143,7 @@ class Operators {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     void InstanceOfTrivial() {
         check(this instanceof Operators);
     }
@@ -162,7 +159,13 @@ class Operators {
     }
 =======
     void InstanceOf() {
+=======
+    void InstanceOfTrivial() {
+>>>>>>> 7260e2a (Improved test)
         check(this instanceof Operators);
+    }
+
+    void InstanceOfDummyClass() {
         DummyClass dc = new DummyClass();
         check(dc instanceof DummyClass);
     }
