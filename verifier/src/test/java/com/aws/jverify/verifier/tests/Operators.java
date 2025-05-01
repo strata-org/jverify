@@ -1,4 +1,4 @@
-// TEST: exitCode=4 dafnyVerified=10 dafnyErrors=9
+// TEST: exitCode=4 dafnyVerified=11 dafnyErrors=9
 
 package com.aws.jverify.verifier.tests;
 
@@ -135,8 +135,11 @@ class Operators {
 //      ^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
-    void InstanceOf() {
+    void InstanceOfTrivial() {
         check(this instanceof Operators);
+    }
+
+    void InstanceOfDummyClass() {
         DummyClass dc = new DummyClass();
         check(dc instanceof DummyClass);
     }
