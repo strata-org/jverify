@@ -137,7 +137,6 @@ class VerifyStatements {
         assert true;
     }
 
-
     @Pure
     boolean P(int x) {
         return x > 10;
