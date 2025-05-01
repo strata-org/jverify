@@ -7,25 +7,6 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-<<<<<<< HEAD
-=======
-class Aux {
-    int a;
-    int b;
-    Aux(int a, int b) {
-        // Need a postcondition on the ctor to be able to prove better assertions in
-        // newAuxArray
-        this.a = a;
-        this.b = b;
-    }
-
-    public int getB() {
-        postcondition((Integer x) -> x == this.b);
-        return b;
-    }
-}
-
->>>>>>> 206f144 (Improved testing)
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
 @JVerifyTest
