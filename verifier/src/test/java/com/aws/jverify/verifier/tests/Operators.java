@@ -5,8 +5,15 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
+import com.aws.jverify.Nullable;
 
-class DummyClass {}
+interface DummyInterface {}
+class DummyClass implements DummyInterface {
+    public static DummyInterface create() {return new DummyClass();}
+}
+class DummyClass2 implements DummyInterface {
+    public static DummyInterface create() {return new DummyClass2();}
+}
 
 @JVerifyTest
 class Operators {
@@ -142,5 +149,10 @@ class Operators {
     void InstanceOfDummyClass() {
         DummyClass dc = new DummyClass();
         check(dc instanceof DummyClass);
+    }
+
+    void InstanceOfNull() {
+        DummyInterface di = DummyClass.create();
+        check(dc instanceof DummyClass2);
     }
 }
