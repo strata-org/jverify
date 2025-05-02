@@ -152,7 +152,7 @@ class Operators {
         check(dc instanceof DummyClass);
     }
 
-    void InstanceOfNull() {
+    void InstanceOfKO() {
         DummyInterface di = DummyClass.create();
         check(di instanceof DummyClass2);
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
