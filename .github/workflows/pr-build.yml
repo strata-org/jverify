@@ -44,7 +44,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'corretto'
-          java-version: '23'
+          java-version: '22'
           cache: gradle
       - name: Build Dafny
         working-directory: ./jverify-collection/dafny
