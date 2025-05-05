@@ -1,10 +1,20 @@
-// TEST: exitCode=4 dafnyVerified=9 dafnyErrors=9
+// TEST: exitCode=4 dafnyVerified=13 dafnyErrors=10
 
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
+
+interface DummyInterface {}
+class DummyClass implements DummyInterface {
+    public static DummyInterface create() {
+        DummyInterface t =  new DummyClass(); return t; }
+}
+class DummyClass2 implements DummyInterface {
+    public static DummyInterface create() {DummyInterface t =  new DummyClass2(); return t;}
+}
+
 
 @JVerifyTest
 class Operators {
@@ -131,5 +141,21 @@ class Operators {
         int y = 3;
         check(x == y);
 //      ^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
+    void InstanceOfTrivial() {
+        check(this instanceof Operators);
+    }
+
+    void InstanceOfDummyClass() {
+        DummyClass dc = new DummyClass();
+        check(dc instanceof DummyClass);
+    }
+
+    void InstanceOfKO() {
+        DummyInterface di = DummyClass.create();
+        check(di instanceof DummyClass2);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+
     }
 }
