@@ -1,16 +1,9 @@
-<<<<<<< HEAD
 // TEST: exitCode=0 dafnyVerified=4 dafnyErrors=0
-=======
-// TEST: exitCode=0 dafnyVerified=14 dafnyErrors=0
->>>>>>> 2cd86d8 (support of multidim arrays)
 
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Pure;
-<<<<<<< HEAD
 import com.aws.jverify.testengine.JVerifyTest;
-=======
->>>>>>> 2cd86d8 (support of multidim arrays)
 
 import static com.aws.jverify.JVerify.*;
 
@@ -32,10 +25,7 @@ class Aux {
 
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
-<<<<<<< HEAD
 @JVerifyTest
-=======
->>>>>>> 2cd86d8 (support of multidim arrays)
 class VerifyNewArray {
 
     void newIntArray() {
@@ -53,22 +43,11 @@ class VerifyNewArray {
         check(arr[0] == 0);
     }
 
-<<<<<<< HEAD
     void newIntArray2() {
         int[][] arr2 = new int[5][3];
         // no support of length for multi-dimensional arrays yet
         // check(arr2.length == 5);
         // check(arr2[0].length == 3);
-=======
-
-
-
-
-    void newIntArray2() {
-        int[][] arr2 = new int[5][3];
-//        check(arr2.length == 5);
-//        check(arr2[0].length == 3);
->>>>>>> 2cd86d8 (support of multidim arrays)
         arr2[0][0] = 0;
         for (var i = 1; i < 5; i++) {
             modifies(arr2);
