@@ -741,7 +741,7 @@ public class JavaToDafnyCompiler {
             }
         } else if (expr instanceof JCTree.JCArrayAccess arrayAccess) {
             // If subExpr is of type Array, this means we have an access to a full slice
-            // of a multidimensiobnal array, i.e. something like
+            // of a multidimensional array, i.e. something like
             // int[][] tab = new int[4][4];
             // tab[1] = new int[4];
             // This is not supported yet
