@@ -4,9 +4,10 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
-import com.sun.source.util.Trees;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
+import com.sun.tools.javac.comp.CompileStates;
+import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
@@ -49,9 +50,9 @@ public class JavaToDafnyCompiler {
         shouldVerifies.push(ShouldVerifyMode.DefaultYes);
     }
     
-    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
-        JavacTool compiler = JavacTool.create();
-        
+    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
+        JavacTool javac = JavacTool.create();
+
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
@@ -69,7 +70,8 @@ public class JavaToDafnyCompiler {
         var javacOptions = List.of("-classpath", classpath);
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
+
+        JavacTaskImpl task = (JavacTaskImpl) javac.getTask(
                 null,
                 null,
                 diagnostics,
@@ -78,10 +80,19 @@ public class JavaToDafnyCompiler {
                 files,
                 context
         );
-                
+
+        JavaCompiler compiler = JavaCompiler.instance(context);
+        compiler.processAnnotations(
+                compiler.enterTrees(
+                        compiler.initModules(
+                                compiler.parseFiles(files))));
+        var units = compiler.desugar(compiler.flow(compiler.attribute(compiler.todo)));
+
+
         List<FileStart> filesStarts = new ArrayList<>();
         var parsed = task.parse();
         task.analyze();
+
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
@@ -96,10 +107,10 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        for (var compilationUnit : parsed) {
+        for (var compilationUnit : units) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
-        for (var compilationUnit : parsed) {
+        for (var compilationUnit : units) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
             filesStarts.add(fileStart);
         }
@@ -489,6 +500,12 @@ public class JavaToDafnyCompiler {
                     null, null, false, false, false, null);
         });
         var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
+
+        if (method.getBody() == null) {
+            // TODO: Improve error message - could also be because the method wasn't implemented?
+            reportError(method, "missingContract");
+            return null;
+        }
 
         if (annotationsByName.containsKey(Pure.class.getName())) {
             var header = new HeaderContainer();
