@@ -7,10 +7,10 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-class Aux {
+class Point {
     int a;
     int b;
-    Aux(int a, int b) {
+    Point(int a, int b) {
         // Need a postcondition on the ctor to be able to prove better assertions in
         // newAuxArray
         this.a = a;
@@ -63,10 +63,10 @@ class VerifyNewArray {
     }
 
 
-    void newAuxArray() {
-        var arr = new Aux[15];
+    void newPointArray() {
+        var arr = new Point[15];
         check(arr.length == 15);
-        arr[0] = new Aux(0, 0);
+        arr[0] = new Point(0, 0);
         int i;
         for (i = 1; i < 15; i++) {
             invariant(arr[0] != null);
@@ -74,7 +74,7 @@ class VerifyNewArray {
             int finalI = i;
             // Crash with the invariant below
             // invariant(forall((Integer j) -> implies(0<=j && j<finalI,arr[j] != null)));
-            arr[i] = new Aux(i, i + 1);
+            arr[i] = new Point(i, i + 1);
         }
         check(i == 15);
     }
