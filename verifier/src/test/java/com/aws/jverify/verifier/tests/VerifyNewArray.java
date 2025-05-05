@@ -45,8 +45,9 @@ class VerifyNewArray {
 
     void newIntArray2() {
         int[][] arr2 = new int[5][3];
-//        check(arr2.length == 5);
-//        check(arr2[0].length == 3);
+        // no support of length for multi-dimensional arrays yet
+        // check(arr2.length == 5);
+        // check(arr2[0].length == 3);
         arr2[0][0] = 0;
         for (var i = 1; i < 5; i++) {
             modifies(arr2);
