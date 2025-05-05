@@ -71,4 +71,4 @@ jobs:
       - name: Gradle test
         working-directory: ./jverify-collection
         run: |
-          ./gradlew init test --info
+          ./gradlew test --info
