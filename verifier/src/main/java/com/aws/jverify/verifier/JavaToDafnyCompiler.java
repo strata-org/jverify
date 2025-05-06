@@ -87,13 +87,18 @@ public class JavaToDafnyCompiler {
         context.put(JavaFileManager.class, fileManager);
         var args = Arguments.instance(context);
         args.init("javac", javacOptions, null, files);
+
         var compiler = JavaCompiler.instance(context);
+        compiler.keepComments = true;
+        compiler.genEndPos = true;
+        compiler.initProcessAnnotations(null, args.getFileObjects(), args.getClassNames());
         var parsed = compiler.parseFiles(files);
         compiler.processAnnotations(
             compiler.enterTrees(
                 compiler.initModules(parsed)));
 
-        var desugared = compiler.desugar(compiler.flow(compiler.attribute(compiler.todo)));
+        var flowed = compiler.flow(compiler.attribute(compiler.todo));
+        var desugared = compiler.desugar(flowed);
 
         List<FileStart> filesStarts = new ArrayList<>();
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
