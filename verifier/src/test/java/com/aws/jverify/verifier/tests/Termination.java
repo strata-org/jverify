@@ -3,9 +3,11 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Nat;
+import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.decreases;
 
+@JVerifyTest
 class Termination {
     void Recursive(@Nat int x, @Nat int y) {
         decreases(y, x);
