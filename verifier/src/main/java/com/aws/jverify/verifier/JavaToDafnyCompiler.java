@@ -4,8 +4,12 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
+import com.sun.source.util.TaskEvent;
+import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
+import com.sun.tools.javac.api.MultiTaskListener;
+import com.sun.tools.javac.comp.CompileStates;
 import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.api.JavacTrees;
@@ -80,7 +84,7 @@ public class JavaToDafnyCompiler {
 //                files,
 //                context
 //        );
-//        var parsed = task.parse();
+//        var units = task.parse();
 //        task.analyze();
 
         var fileManager = javac.getStandardFileManager(diagnostics, null, null);
@@ -88,17 +92,19 @@ public class JavaToDafnyCompiler {
         var args = Arguments.instance(context);
         args.init("javac", javacOptions, null, files);
 
+        var taskListener = MultiTaskListener.instance(context);
+        var units = new HashSet<>();
+        taskListener.add(new TaskListener() {
+            @Override
+            public void started(TaskEvent e) {
+                if (e.getKind() == TaskEvent.Kind.ANALYZE) {
+                    units.add(e.getCompilationUnit());
+                }
+            }
+        });
         var compiler = JavaCompiler.instance(context);
-        compiler.keepComments = true;
-        compiler.genEndPos = true;
-        compiler.initProcessAnnotations(null, args.getFileObjects(), args.getClassNames());
-        var parsed = compiler.parseFiles(files);
-        compiler.processAnnotations(
-            compiler.enterTrees(
-                compiler.initModules(parsed)));
-
-        var flowed = compiler.flow(compiler.attribute(compiler.todo));
-        var desugared = compiler.desugar(flowed);
+        compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.UNLAMBDA;
+        compiler.compile(files, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
 
         List<FileStart> filesStarts = new ArrayList<>();
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
@@ -115,10 +121,10 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        for (var compilationUnit : parsed) {
+        for (var compilationUnit : units) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
-        for (var compilationUnit : parsed) {
+        for (var compilationUnit : units) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
             filesStarts.add(fileStart);
         }
@@ -414,7 +420,7 @@ public class JavaToDafnyCompiler {
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
-            return ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
+            return classType.supertype_field != null && ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
         }
         return false;
     }
@@ -1263,7 +1269,8 @@ public class JavaToDafnyCompiler {
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
+        return !(methodSymbol instanceof Symbol.DynamicMethodSymbol)
+                && methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
     }
 
     /**
