@@ -38,3 +38,7 @@ BinarySearch.java(32:23-32:60): Error: this loop invariant could not be proved o
 Related message: loop invariant violation
 Dafny program verifier finished with 2 verified, 2 errors
 ```
+
+### GitHub issues related to the above:
+- Let the number of reported verified things match Java conceptws: https://github.com/aws/jverify/issues/127
+- Support showing diagnostics using snippets: https://github.com/aws/jverify/issues/128
