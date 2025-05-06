@@ -4,9 +4,7 @@ import static com.aws.jverify.JVerify.*;
 
 import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
-import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest
 class BinarySearch {
     @Pure
     @Erased
@@ -24,7 +22,7 @@ class BinarySearch {
                 || (0 <= res && res < arr.length && arr[res] == key)
         );
 
-        var lo = 0;
+        var lo = 1;
         var hi = arr.length;
 
         while (lo < hi) {

@@ -1,87 +1,40 @@
 # Getting Started
 
-To get started with JVerify, use `git clone` to fetch the Verus source code from the [JVerify GitHub page](https://github.com/aws/jverify), and then follow the directions in the [Installation manual](https://github.com/verus-lang/verus/blob/main/INSTALL.md) to build JVerus.
+To get started with JVerify, first follow the directions in the [Installation manual](https://github.com/verus-lang/verus/blob/main/INSTALL.md) to build it.
 
-Let's try running Verus on the following sample Rust program,
-found at [getting_started.rs](https://github.com/verus-lang/verus/tree/main/source/rust_verify/example/guide/getting_started.rs):
+Let's try running JVerify on the following Java program,
+found [here](https://github.com/aws/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/BinarySearch.java):
 
-```rust
-{{#include ../../../rust_verify/example/guide/getting_started.rs}}
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java}}
 ```
 
-To run Verus on this code, change to the `source` directory and type the following in Unix:
+To run JVerify, run the following from the repository root:
 
 ```
-./target-verus/release/verus rust_verify/example/guide/getting_started.rs
+./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny
 ```
 
 or the following in Windows:
 
 ```
-.\target-verus\release\verus.exe rust_verify\example\guide\getting_started.rs
+./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny
 ```
 
 You should see the following output:
 
 ```
-note: verifying root module
-
-verification results:: 1 verified, 0 errors
+Dafny program verifier finished with 3 verified, 0 errors
 ```
 
-This indicates that Verus successfully verified 1 function (the `main` function).
-If you want, you can try editing the `rust_verify/example/guide/getting_started.rs` file
-to see a verification failure.
-For example, if you add the following line to `main`:
+This indicates that JVerify successfully verified 3 parts.
+
+Try editing the `BinarySearch.java` file to see a verification failure. Almost any change you make to the meaning of the program will cause a verification file. For example, if you change `var lo = 0;` into `var lo = 1;`, JVerify returns:
 
 ```
-    assert(forall|i: int, j: int| min(i, j) == min(i, i));
+BinarySearch.java(30:23-30:31): Error: this loop invariant could not be proved on entry
+Related message: loop invariant violation
+BinarySearch.java(32:23-32:60): Error: this loop invariant could not be proved on entry
+Related message: loop invariant violation
+Dafny program verifier finished with 2 verified, 2 errors
 ```
-
-you will see an error message:
-
-```
-note: verifying root module
-
-error: assertion failed
-  --> example/guide/getting_started.rs:19:12
-   |
-19 |     assert(forall|i: int, j: int| min(i, j) == min(i, i));
-   |            ^^^^^^ assertion failed
-
-error: aborting due to previous error
-
-verification results:: 0 verified, 1 errors
-```
-
-## Using Verus in Rust files
-
-Verus uses a macro named `verus!` to extend Rust's syntax with verification-related features
-such as preconditions, postconditions, assertions, `forall`, `exists`, etc.
-Therefore, each file in a crate will typically contain the following declarations:
-
-```rust
-use vstd::prelude::*;
-
-verus! {
-```
-
-In the remainder of this guide, we will omit these declarations from the examples to avoid clutter.
-However, remember that any example code should be placed inside the `verus! { ... }` block,
-and that the file should use `vstd::prelude::*;`.
-
-## Compilation
-
-The instructions above verify a Rust file without compiling it.
-To both verify and compile a Rust file, add the `--compile` command-line option.
-For example:
-
-```
-./target-verus/release/verus --compile rust_verify/example/guide/getting_started.rs
-```
-
-This will generate an executable for `getting_started.rs`.
-(However, in this example, the executable won't do anything interesting,
-because the `main` function contains no executable code ---
-it contains only statically-checked assertions,
-which are erased before compilation.)

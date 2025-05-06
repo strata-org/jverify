@@ -1,10 +1,10 @@
 # JVerify overview
 
-JVerify is a tool allows verifying the correctness of code written in Java.
+JVerify is a tool allows verifying the correctness of Java programs.
 
-Verification is static: JVerify adds no run-time checks, but instead uses computer-aided theorem proving to statically verify that executable Java code will always satisfy some user-provided specifications for all possible executions of the code.
+Verification is static: it adds no run-time checks. Instead it uses computer-aided theorem proving to statically verify that executable Java code will always satisfy some user-provided specifications for all possible executions of the code.
 
-Information that the JVerify tool needs is added to Java programs by making calls to the JVerify library. These calls can be removed during compilation, using a plugin for `javac`, so they will not have an effect at run-time. Java code verified by JVerify is still regular Java code, so it can be analyzed by any Java IDE.
+Program specifications are provided by making calls to the JVerify library. These calls can be removed during compilation, using a plugin for `javac`, so they will not have an effect at run-time. Java code that contains JVerify specifications is still regular Java code, so it can be analyzed by any Java IDE.
 
 # This guide
 
