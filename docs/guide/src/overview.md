@@ -1,10 +1,67 @@
-# JVerify overview
+# JVerify
 
-JVerify is a tool allows verifying the correctness of Java programs.
-
-Verification is static: it adds no run-time checks. Instead it uses computer-aided theorem proving to statically verify that executable Java code will always satisfy some user-provided specifications for all possible executions of the code.
+JVerify is a tool that at compile-time can detect almost every bug in a Java program. It uses computer-aided theorem proving to statically verify that executable Java code will always satisfy some user-provided specifications for all possible executions of the code.
 
 Program specifications are provided by making calls to the JVerify library. These calls can be removed during compilation, using a plugin for `javac`, so they will not have an effect at run-time. Java code that contains JVerify specifications is still regular Java code, so it can be analyzed by any Java IDE.
+
+### Example
+Here’s example of a binary search method with a bug. Because the method lacks the right annotations, JVerify can not directly point us to the bug, although it does emit an error because it was not able to prove the absence of bugs:
+
+```java
+class BinarySearch {
+  int buggyBinarySearch(int[] arr, int target) {
+      var left = 0;
+      var right = arr.length - 1; // Bug: should be just arr.length
+      
+      while (left < right) 
+      {
+        var mid = (left + right) / 2;
+        if (arr[mid] == target) {
+//          ^^^^^^^^ JVerify error: index out of range
+            return mid;
+        }
+        if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+      }
+      return -1;
+  }
+}
+```
+
+We can add something call a loop invariant, which is an important JVerify concept that allows the programmer to tell JVerify how the program works, to enable JVerify to further analyze the program. Using these, JVerify can point us to the bug. Here's the updated program:
+
+```java
+class BinarySearch {
+  int buggyBinarySearch(int[] arr, int target) {
+      var left = 0;
+      var right = arr.length - 1; // Bug: should be arr.Length
+      
+      while (left < right) 
+      {
+        invariant(0 <= left);
+        invariant(left <= right);
+//                ^^^^^^^^^^^^^ error: this invariant could not be proved on entry
+        invariant(right <= arr.length);
+
+        var mid = (left + right) / 2;
+        if (arr[mid] == target) {
+            return mid;
+        }
+        if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+      }
+      return -1;
+  }
+}
+```
+
+With the above error, “this invariant could not be proved on entry”, we know that the problem occurs before the loop and relates to the value of `left` and `right`, so it should be easy for us to see that we need to correct the initial assignment to right. If we would have changed the assignment to left to var `left = -1;`, then the error on the second invariant would be resolved, but the first invariant would show an error, so we must update the assignment to right.
 
 # This guide
 
