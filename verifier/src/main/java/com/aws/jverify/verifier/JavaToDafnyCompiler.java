@@ -6,7 +6,7 @@ import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
-import com.sun.tools.javac.comp.CompileStates;
+import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
@@ -71,28 +71,31 @@ public class JavaToDafnyCompiler {
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
-        JavacTaskImpl task = (JavacTaskImpl) javac.getTask(
-                null,
-                null,
-                diagnostics,
-                javacOptions,
-                null,
-                files,
-                context
-        );
+//        JavacTaskImpl task = (JavacTaskImpl) javac.getTask(
+//                null,
+//                null,
+//                diagnostics,
+//                javacOptions,
+//                null,
+//                files,
+//                context
+//        );
+//        var parsed = task.parse();
+//        task.analyze();
 
-        JavaCompiler compiler = JavaCompiler.instance(context);
+        var fileManager = javac.getStandardFileManager(diagnostics, null, null);
+        context.put(JavaFileManager.class, fileManager);
+        var args = Arguments.instance(context);
+        args.init("javac", javacOptions, null, files);
+        var compiler = JavaCompiler.instance(context);
+        var parsed = compiler.parseFiles(files);
         compiler.processAnnotations(
-                compiler.enterTrees(
-                        compiler.initModules(
-                                compiler.parseFiles(files))));
-        var units = compiler.desugar(compiler.flow(compiler.attribute(compiler.todo)));
+            compiler.enterTrees(
+                compiler.initModules(parsed)));
 
+        var desugared = compiler.desugar(compiler.flow(compiler.attribute(compiler.todo)));
 
         List<FileStart> filesStarts = new ArrayList<>();
-        var parsed = task.parse();
-        task.analyze();
-
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
@@ -107,10 +110,10 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        for (var compilationUnit : units) {
+        for (var compilationUnit : parsed) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
-        for (var compilationUnit : units) {
+        for (var compilationUnit : parsed) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
             filesStarts.add(fileStart);
         }
