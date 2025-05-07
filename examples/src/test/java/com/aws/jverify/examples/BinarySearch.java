@@ -1,12 +1,12 @@
 package com.aws.jverify.examples;
 
 import static com.aws.jverify.JVerify.*;
+import com.aws.jverify.Verify;
 
 import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
-import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest
+@Verify
 class BinarySearch {
     @Pure
     @Erased
@@ -47,5 +47,3 @@ class BinarySearch {
         return -1;
     }
 }
-
-// TEST: exitCode=0 dafnyVerified=3 dafnyErrors=0

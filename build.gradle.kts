@@ -60,6 +60,9 @@ project(":library") {
             languageVersion = JavaLanguageVersion.of(17)
         }
     }
+    dependencies {
+        implementation("org.junit.jupiter:junit-jupiter:5.12.2")
+    }
 }
 
 project(":examples") {
@@ -288,6 +291,7 @@ project(":test-engine") {
 
     dependencies {
         implementation(project(":common"))
+        implementation(project(":library"))
         implementation(project(":verifier"))
 
         implementation("org.junit.jupiter:junit-jupiter")

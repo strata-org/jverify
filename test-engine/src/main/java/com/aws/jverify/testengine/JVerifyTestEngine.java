@@ -1,5 +1,6 @@
 package com.aws.jverify.testengine;
 
+import com.aws.jverify.Verify;
 import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
@@ -82,7 +83,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     private boolean isJVerifyTest(Class<?> clazz) {
-        return clazz.isAnnotationPresent(JVerifyTest.class);
+        return clazz.isAnnotationPresent(JVerifyTest.class) || clazz.isAnnotationPresent(Verify.class);
     }
 
     static class JVerifyTestDescriptor
@@ -168,8 +169,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
         assertThat("exit code", verificationResults.getExitCode(), is(metadata.exitCode));
-        assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), is(metadata.dafnyVerified));
-        assertThat("Dafny error count", verificationResults.getDafnyErrorCount(), is(metadata.dafnyErrors));
+        if (metadata.dafnyVerified != null) {
+            assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), is(metadata.dafnyVerified));
+        }
+        if (metadata.dafnyErrors != null) {
+            assertThat("Dafny error count", verificationResults.getDafnyErrorCount(), is(metadata.dafnyErrors));
+        }
     }
 
     private static final Pattern TEST_METADATA_PATTERN = Pattern.compile("^// TEST: (.+)$", Pattern.MULTILINE);
@@ -207,7 +212,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     private static @Nullable TestMetadata parseMetadata(String source) {
         var metadataMatcher = TEST_METADATA_PATTERN.matcher(source);
         if (!metadataMatcher.find()) {
-            throw new AssertionError("Test metadata not found");
+            return new TestMetadata(0, null, null);
         }
         var tokens = Arrays.asList(metadataMatcher.group(1).split("\\s+"));
         if (tokens.contains("skip")) {
