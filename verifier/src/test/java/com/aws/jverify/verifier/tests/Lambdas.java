@@ -6,11 +6,14 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import java.util.List;
+
 @JVerifyTest
 public class Lambdas {
 
     public void repeatOneself() {
-        doSomethingTwice(x -> System.out.println(x));
+        var p = new Printer();
+        doSomethingTwice(p);
     }
 
     public void doSomethingTwice(SomethingDoer doer) {
@@ -28,5 +31,12 @@ class SomethingDoerContract implements SomethingDoer {
     @Override
     public void doSomething(int x) {
         throw new ContractException();
+    }
+}
+
+class Printer implements SomethingDoer {
+    @Override
+    public void doSomething(int x) {
+//        System.out.println(x);
     }
 }
