@@ -21,6 +21,6 @@ class Constructors {
     public static void foo() {
         Constructors c = new Constructors();
         check(c.f==3);
-        check(c.g==22); // Need the postcondition which currently makes the test fail
+        check(c.g==22);
     }
 }

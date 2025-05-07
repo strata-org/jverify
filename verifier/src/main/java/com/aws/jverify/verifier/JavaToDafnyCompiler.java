@@ -447,7 +447,7 @@ public class JavaToDafnyCompiler {
                 var isStatic = (variableDecl.mods.flags & Flags.STATIC) != 0;
                 return new ConstantField(origin, fieldName, getAttributes(origin), false, type, rhs, isStatic, false);
             } else {
-                // Add an assignment into initializers list
+                // Keep this variable declaration in the initalizers list to be added to constructors laters
 
                 initializers.add(variableDecl);
             }
@@ -475,7 +475,6 @@ public class JavaToDafnyCompiler {
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
 
         var methodCompiler = new MethodCompiler(this);
-        var isConstructor =  TreeInfo.isConstructor(method);
         var name = getName(method, method.name);
         var origin = declToOrigin(method, name);
 
