@@ -1,0 +1,42 @@
+# Code types
+All code in a Java program that uses JVerify can be assigned two properties: whether it is pure, and whether it is erased. The following two sections discuss what these properties are for and how they work.
+
+## Pure code
+
+Code that occurs in a contract, such as the arguments of calls to `precondition`/`postcondition`/`assert`, must follow the rules for pure code, which are:
+- It may only call methods annotated with `@Pure`
+- It must not update the value of an existing variable or field.
+- It must only create objects that are annotated with `@Immutable`, an annotation covered in a later section.
+
+Code in a method annotated with `@Pure` must follow those same rules, and additionally:
+- It must only use these statements:
+  - variable declaration statements,
+  - calls to `precondition`, `postcondition`, `reads` and `assert`
+  - a single `return <expr>` statement at the end, in which other pure methods may be called
+- It must use reads calls if it wants to access any fields.
+
+Summary table:
+
+| | **@Pure method** | **impure method** |
+|---|---|---|
+| **Can be called inside a contract** | yes | no |
+| **Restricted use of statements** | yes | no |
+| **Needs reads calls** | yes | no |
+| **Can update variables** | no | yes |
+
+## Erased code
+
+In an earlier example of a binary search program, we saw that a Java method can be given the annotation `@Erased`. This annotation change the rules that are applied to the code inside that method, and change where the method may be called.
+
+Any code inside a method annotated with `@Erased`, or that is part of a contract, is considered _erased_, meaning it will not be executed at runtime. Erased code is used purely for writing JVerify specifications and proofs. Because it is not executed, it may perform operations that would be costly to execute, such as evaluating `forall` and `exists` expressions, and working with unbounded numbers.
+
+Here are the rules for different code contexts:
+
+| **Effect \ Context**                       | **@Erased method** | **executed method** |
+|--------------------------------------------|--------------------|---------------------|
+| **Can be called from an executed context** | no                 | yes                 |
+| **Can use forall and exists**              | yes                | no                  |
+| **Can use @Unbounded**                     | yes                | no                  |
+
+The rules for code inside contracts are the same for code in methods that are marked both `@Erased` and `@Pure`.
+
