@@ -475,7 +475,6 @@ public class JavaToDafnyCompiler {
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
 
         var methodCompiler = new MethodCompiler(this);
-        var isConstructor =  TreeInfo.isConstructor(method);
         var name = getName(method, method.name);
         var origin = declToOrigin(method, name);
 
