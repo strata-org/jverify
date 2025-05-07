@@ -4,7 +4,6 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
-import com.sun.source.util.Trees;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
 import com.sun.tools.javac.api.JavacTrees;
@@ -14,6 +13,8 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeMaker;
+
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
@@ -31,7 +32,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 public class JavaToDafnyCompiler {
@@ -176,6 +176,7 @@ public class JavaToDafnyCompiler {
     }
 
     List<AttributedExpression> invariants = new ArrayList<>();
+    List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     
     enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
     private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
@@ -353,10 +354,23 @@ public class JavaToDafnyCompiler {
                 isInterface(typeForWhichCurrentClassIsDefiningContract);
         
         ArrayList<MemberDecl> members = new ArrayList<>();
+        initializers.clear();
+        // First translate all fields and store default initializers to add to constructors
         for (var member : classDecl.getMembers()) {
-            var dafnyMember = translateMember(member, nestedTypes);
-            if (dafnyMember != null) {
-                members.add(dafnyMember);
+            if (member instanceof JCTree.JCVariableDecl variableDecl) {
+                var dafnyMember = translateField(variableDecl);
+                if (dafnyMember != null) {
+                    members.add(dafnyMember);
+                }
+            }
+        }
+        // Now translate other members
+        for (var member : classDecl.getMembers()) {
+            if (!(member instanceof JCTree.JCVariableDecl variableDecl)) {
+                var dafnyMember = translateMember(member, nestedTypes);
+                if (dafnyMember != null) {
+                    members.add(dafnyMember);
+                }
             }
         }
         var definingSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
@@ -433,10 +447,12 @@ public class JavaToDafnyCompiler {
                 var isStatic = (variableDecl.mods.flags & Flags.STATIC) != 0;
                 return new ConstantField(origin, fieldName, getAttributes(origin), false, type, rhs, isStatic, false);
             } else {
-                reportError(variableDecl, "notSupported", "Field initializers");
-                return null;
+                // Add an assignment into initializers list
+
+                initializers.add(variableDecl);
             }
         }
+
         return new Field(origin, fieldName,
                 null,
                 false,
@@ -459,7 +475,7 @@ public class JavaToDafnyCompiler {
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
 
         var methodCompiler = new MethodCompiler(this);
-        
+        var isConstructor =  TreeInfo.isConstructor(method);
         var name = getName(method, method.name);
         var origin = declToOrigin(method, name);
 
@@ -566,7 +582,17 @@ public class JavaToDafnyCompiler {
                 }
                 DividedBlockStmt body;
                 if (shouldVerify) {
-                    var bodyStatements = methodCompiler.translateStatements(postHeader);
+                    ArrayList<JCTree.JCVariableDecl> preInitializers = (ArrayList<JCTree.JCVariableDecl>) initializers;
+                    ArrayList<Statement> bodyStatements = new ArrayList<>();
+                    var treeMaker = TreeMaker.instance(context);
+
+                    for (JCTree.JCVariableDecl variableDecl : preInitializers) {
+                      var rhs = variableDecl.getInitializer();
+                      var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
+                      bodyStatements.addAll(methodCompiler.translateStatement(assignStmt));
+                    }
+                    bodyStatements.addAll(methodCompiler.translateStatements(postHeader));
+
                     body = new DividedBlockStmt(toOrigin(method.body), null, List.of(), bodyStatements, null, List.of());
                 } else {
                     body = null;
