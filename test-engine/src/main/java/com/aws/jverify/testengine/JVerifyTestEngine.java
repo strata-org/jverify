@@ -261,6 +261,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 null,
                 null,
                 true,
+                true,
                 new String[] {
                         "--use-basename-for-filename",
 //                        "--wait-for-debugger",
