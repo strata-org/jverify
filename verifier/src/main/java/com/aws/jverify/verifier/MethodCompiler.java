@@ -171,7 +171,9 @@ public class MethodCompiler {
         var result = new ArrayList<Statement>(initializer.size() + 1);
         result.addAll(initializer);
         result.add(loop);
-        return result;
+        // Pack the statements in a block to ensure the loop index variable is
+        // scoped
+        return List.of(new BlockStmt(origin, null, List.of(), result));
     }
 
     private List<Statement> translateDoWhileLoop(JCTree.JCDoWhileLoop doWhileLoop, List<Label> labels) {
