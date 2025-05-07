@@ -47,7 +47,7 @@ public class DafnyDiagnostic implements Diagnostic<String> {
 
     @Override
     public String getSource() {
-        return location == null ? null : location.filename();
+        return location == null ? null : location.filePath();
     }
 
     @Override
@@ -101,7 +101,7 @@ public class DafnyDiagnostic implements Diagnostic<String> {
         return Stream.concat(Stream.of(this), relatedStream.map(RelatedInfo::asDiagnostic));
     }
 
-    public record Location(String filename, String uri, Range range) {}
+    public record Location(String filename, String filePath, String uri, Range range) {}
 
     public record RelatedInfo(Location location, String message) {
         public DafnyDiagnostic asDiagnostic() {
