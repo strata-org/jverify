@@ -4,18 +4,24 @@ Besides detecting exceptions, JVerify allows you to precisely state what a metho
 
 ```java
 class BinarySearch {
-  int binarySearch(int[] arr, int target) {
-
-    // Without the following precondition, we won't be able to prove the
-    // last two loop invariants
-    precondition(sorted(arr));
+  void callBinarySearch() {
+    binarySearch(new int[] {4,1,5}, 1);
+//              ^ error: could not prove precondition
+    binarySearch(new int[] {1,3,5}, 1); // no error
+  }  
     
+  int binarySearch(int[] arr, int target) {
     // This postcondition guarantees that the method behaves as desired
     postcondition((Integer r) -> sequence(arr).contains(target)
       ? 0 <= r && r < arr.length && arr[r] == target
       : r == -1
     );
 
+    // Without the following precondition, we won't be able to prove the
+    // two new loop invariants, which are needed to prove the postcondition
+    precondition(sorted(arr));
+    
+    // implementation
     var left = 0;
     var right = arr.length - 1;
     
@@ -24,8 +30,8 @@ class BinarySearch {
       invariant(0 <= left);
       invariant(left <= right);
       invariant(right <= arr.length);
-      invariant(!drop(arr, left).contains(target));
-      invariant(!take(arr, right).contains(target));
+      invariant(!drop(arr, left).contains(target)); // needed for the postcondition
+      invariant(!take(arr, right).contains(target)); // needed for the postcondition
 
       var mid = (left + right) / 2;
       if (arr[mid] == target) {
@@ -40,7 +46,7 @@ class BinarySearch {
     return -1;
   }
 
-  @Pure // enables calling sorted in a contract
+  @Pure // enables calling sorted in a contract such as precondition
   @Erased // enables the call to forall in the body
   boolean sorted(int[] arr)
   { 

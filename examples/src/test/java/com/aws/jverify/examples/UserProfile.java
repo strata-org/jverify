@@ -3,6 +3,7 @@ package com.aws.jverify.examples;
 import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.Invariant;
 import com.aws.jverify.Nullable;
+import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
 
 class UserProfile {
@@ -18,6 +19,7 @@ class UserProfile {
         }
     }
 
+    @Erased
     @Pure
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
@@ -30,7 +32,7 @@ class UserProfile {
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
-        // this.premiumFeatures = new PremiumFeatures();
+        this.premiumFeatures = new PremiumFeatures();
         return;
 //      ^^^^^^^ Error: a postcondition could not be proved on this return path
     }

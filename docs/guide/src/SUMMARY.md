@@ -13,10 +13,13 @@
 - [Pre- and post-conditions](pre_and_postconditions.md)
 - [Code purposes](code_purposes.md)
 - [Code types](code_types.md)
-- [Unbounded numbers](unbounded.md)
+- [Integers](integers.md)
 - [Termination](termination.md)
-- [Reads and modifies](reads_and_modifies.md)
+- [Modifies and reads](modifies_and_reads.md)
 - [Nullable](nullable.md)
 - [Class Invariants](class_invariants.md)
-- [Immutable types](immutable.md)
-- [Proofs](proofs.md)
+
+<!-- 
+There should be a section about the construction of composite types in pure contexts.
+We also need a section about writing proof. Something about proof_by and calc blocks.
+-->

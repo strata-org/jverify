@@ -1,12 +1,10 @@
 # Specification, proof and implementation
 
-This section does not introduce any feature from JVerify, but it introduces terminology that we commonly use to talk about Java programs using JVerify.
-
-When writing Java code that uses JVerify, each piece of code serves one or several of the following goals:
+This section does not introduce any features, but it defines terminology that we commonly use to talk about Java programs using JVerify. When writing Java code that uses JVerify, each piece of code serves one or several of the following goals:
 
 - Implementation, the Java code that will actually execute, and may be optimized for performance at the cost of readability.
 - Specification, used to specify the behavior of a piece of implementation. Will not be executed.
-- Proof, used to verify that an implementation adheres to a specification, and that it does not throw unchecked exceptions. Should not be executed.
+- Proof, used to verify that an implementation adheres to a specification and that it does not throw unchecked exceptions. Should not be executed.
 
 Code can be used for multiple goals, although often it is used for just one. If we look at the previous `binarySearch` example, shown again below, the method `sorted` and the calls to `precondition`, `postcondition` and `reads`, are part of the specification, while the calls to `invariant` are part of the proof. All the other code is implementation.
 

@@ -1,5 +1,5 @@
 # Class Invariants
-Here follows a program that contains an NRE. The class `UserProfile` can be either free or premium, and for performance reasons, the field `premiumFeatures` should only be set when the account is premium. The program:
+Here follows a program that contains a `NullReferenceException`. The class `UserProfile` can be either `Free` or `Premium`, and for performance reasons, the field `premiumFeatures` should only be set when the account is `Premium`. The program:
 
 ```java
 package com.aws.jverify.examples;
@@ -61,7 +61,7 @@ error: non-nullable field `premiumFeatures` not assigned at end of constructor
   | ^
 ```
 
-So let's make the field `premiumFatures` nullable, using the `@Nullable` annotation:
+To resolve the above error, we need to let JVerify know that the field `premiumFeatures` is allowed to be null, by using the `@Nullable` annotation:
 ```java
 private @Nullable PremiumFeatures premiumFeatures;
 ```
@@ -73,7 +73,7 @@ error: target object might be null
   |  ^^^^^^^^^^^^^^^
 ```
 
-JVerify does not know that if `accountType` is `AccountType.Premium`, `premiumFeatures` will always be set, so let's add something called an `invariant` to let it know:
+We have not specified in our code, that when `accountType` is `AccountType.Premium`, `premiumFeatures` must not be null, so let's do that using a new concept called a class invariant. We'll add the following code:
 
 ```java
 @Invariant
@@ -81,4 +81,14 @@ private boolean valid() {
     reads(this);
     return accountType != AccountType.Premium || premiumFeatures != null;
 }
+```
+
+Running JVerify again, we get:
+```
+error: invariant could not be proven on this return path 
+  | public void upgradeAccount() {
+  |   modifies(this);
+  |   this.accountType = AccountType.Premium;
+  |   return;
+      ^^^^^^
 ```
