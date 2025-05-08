@@ -457,7 +457,6 @@ public class JavaToDafnyCompiler {
                     new UserDefinedType(origin, new NameSegment(origin, type.tsym.name.toString(), null))).
                 collect(Collectors.<Type>toList());
         if (isInterface) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
             return new TraitDecl(origin, name, null, List.of(), members, superTraits, false);
         } else {
             return new ClassDecl(origin, name, null, List.of(), members, superTraits, false);
@@ -841,6 +840,7 @@ public class JavaToDafnyCompiler {
             var types = Types.instance(context);
             var methodType = lambda.getDescriptorType(types);
             var methodSymbol = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.target.tsym);
+            var methodName = methodSymbol.name.toString();
             var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
             var datatypeNameNode = new Name(origin, datatypeName);
             var trait = toType(lambda.target, false, origin);
@@ -872,7 +872,7 @@ public class JavaToDafnyCompiler {
             }
 
             var body = new BlockStmt(origin, null, List.of(), bodyStatements);
-            var methodDecl = new Method(origin, new Name(origin, methodSymbol.toString()), null, false, null, List.of(),
+            var methodDecl = new Method(origin, new Name(origin, methodName), null, false, null, List.of(),
                     ins,
                     // TODO: handle header. Might be better to create a Java Method and translate it
                     List.of(), List.of(), new Specification<>(List.of(), null),

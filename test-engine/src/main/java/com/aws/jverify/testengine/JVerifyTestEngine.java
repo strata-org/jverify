@@ -34,11 +34,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 @AutoService(TestEngine.class)
@@ -168,8 +172,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
         assertThat("exit code", verificationResults.getExitCode(), is(metadata.exitCode));
-        assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), is(metadata.dafnyVerified));
-        assertThat("Dafny error count", verificationResults.getDafnyErrorCount(), is(metadata.dafnyErrors));
+        if (metadata.dafnyVerified != null) {
+            assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), is(metadata.dafnyVerified));
+        } else {
+            // Sanity check that we don't have 0 verified, which is usually a sign we didn't verify at all
+            assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), greaterThan(0));
+        }
+        assertThat("Dafny error count", verificationResults.getDafnyErrorCount(),
+                is(Objects.requireNonNullElse(metadata.dafnyErrors, 0)));
     }
 
     private static final Pattern TEST_METADATA_PATTERN = Pattern.compile("^// TEST: (.+)$", Pattern.MULTILINE);

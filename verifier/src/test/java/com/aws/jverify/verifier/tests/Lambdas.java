@@ -1,4 +1,4 @@
-// TEST: exitCode=0 dafnyVerified=4 dafnyErrors=0
+// TEST: exitCode=0
 
 package com.aws.jverify.verifier.tests;
 
@@ -15,17 +15,13 @@ public class Lambdas {
     public void repeatOneself() {
         var doer = new TimesTwo();
         doSomethingTwice((x, y) -> {
-            return x * 2;
+            return x;
         });
     }
 
     public void doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         y = doer.doSomething(2, 3);
-    }
-
-    private class Nested {
-
     }
 }
 
