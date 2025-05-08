@@ -1,26 +1,90 @@
 package com.aws.jverify.verifier;
 
-import com.aws.jverify.*;
-
+import com.aws.jverify.Contract;
+import com.aws.jverify.Immutable;
+import com.aws.jverify.InheritContract;
+import com.aws.jverify.JVerify;
+import com.aws.jverify.Nat;
+import com.aws.jverify.Proof;
+import com.aws.jverify.Pure;
+import com.aws.jverify.Unbounded;
+import com.aws.jverify.Verify;
 import com.aws.jverify.common.Common;
-import com.sun.source.tree.*;
-import com.sun.source.util.TaskEvent;
-import com.sun.source.util.TaskListener;
+import com.aws.jverify.generated.ActualBinding;
+import com.aws.jverify.generated.ActualBindings;
+import com.aws.jverify.generated.AllocateClass;
+import com.aws.jverify.generated.ApplySuffix;
+import com.aws.jverify.generated.AssignmentRhs;
+import com.aws.jverify.generated.AttributedExpression;
+import com.aws.jverify.generated.Attributes;
+import com.aws.jverify.generated.BinaryExpr;
+import com.aws.jverify.generated.BinaryExprOpcode;
+import com.aws.jverify.generated.BlockStmt;
+import com.aws.jverify.generated.BoolType;
+import com.aws.jverify.generated.BoundVar;
+import com.aws.jverify.generated.CharLiteralExpr;
+import com.aws.jverify.generated.ClassDecl;
+import com.aws.jverify.generated.ClassLikeDecl;
+import com.aws.jverify.generated.ConstantField;
+import com.aws.jverify.generated.Constructor;
+import com.aws.jverify.generated.DatatypeCtor;
+import com.aws.jverify.generated.DatatypeDecl;
+import com.aws.jverify.generated.DisjunctivePattern;
+import com.aws.jverify.generated.DividedBlockStmt;
+import com.aws.jverify.generated.ExistsExpr;
+import com.aws.jverify.generated.ExprDotName;
+import com.aws.jverify.generated.ExprRhs;
+import com.aws.jverify.generated.Expression;
+import com.aws.jverify.generated.ExtendedPattern;
+import com.aws.jverify.generated.Field;
+import com.aws.jverify.generated.FileStart;
+import com.aws.jverify.generated.FilesContainer;
+import com.aws.jverify.generated.ForallExpr;
+import com.aws.jverify.generated.Formal;
+import com.aws.jverify.generated.FreshExpr;
+import com.aws.jverify.generated.Function;
+import com.aws.jverify.generated.IOrigin;
+import com.aws.jverify.generated.ITEExpr;
+import com.aws.jverify.generated.IdPattern;
+import com.aws.jverify.generated.IndDatatypeDecl;
+import com.aws.jverify.generated.IntType;
+import com.aws.jverify.generated.LitPattern;
+import com.aws.jverify.generated.LiteralExpr;
+import com.aws.jverify.generated.MemberDecl;
+import com.aws.jverify.generated.Method;
+import com.aws.jverify.generated.MethodOrFunction;
+import com.aws.jverify.generated.Name;
+import com.aws.jverify.generated.NameSegment;
+import com.aws.jverify.generated.NegationExpression;
+import com.aws.jverify.generated.NestedMatchCaseExpr;
+import com.aws.jverify.generated.NestedMatchExpr;
+import com.aws.jverify.generated.OldExpr;
+import com.aws.jverify.generated.SeqSelectExpr;
+import com.aws.jverify.generated.SourceOrigin;
+import com.aws.jverify.generated.Specification;
+import com.aws.jverify.generated.ThisExpr;
+import com.aws.jverify.generated.Token;
+import com.aws.jverify.generated.TokenRange;
+import com.aws.jverify.generated.TokenRangeOrigin;
+import com.aws.jverify.generated.TopLevelDecl;
+import com.aws.jverify.generated.TraitDecl;
+import com.aws.jverify.generated.Type;
+import com.aws.jverify.generated.TypeTestExpr;
+import com.aws.jverify.generated.UnaryOpExpr;
+import com.aws.jverify.generated.UnaryOpExprOpcode;
+import com.aws.jverify.generated.UserDefinedType;
+import com.sun.source.tree.Tree;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
-import com.sun.tools.javac.api.MultiTaskListener;
-import com.sun.tools.javac.comp.CompileStates;
-import com.sun.tools.javac.main.Arguments;
-import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
+import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
-import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -29,20 +93,30 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
-import javax.tools.*;
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticCollector;
+import javax.tools.JavaFileObject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Stack;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
     JCTree.JCCompilationUnit compilationUnit;
+    List<DatatypeDecl> lambdaDatatypeDecls = new ArrayList<>();
     Stack<IOrigin> contextOrigins = new Stack<>();
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     
@@ -71,40 +145,21 @@ public class JavaToDafnyCompiler {
         var classpath = classpathEntries.stream()
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator));
-        var javacOptions = List.of("-classpath", classpath);
+        var javacOptions = List.of("-classpath", classpath, "-XDfind=all");
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
-//        JavacTaskImpl task = (JavacTaskImpl) javac.getTask(
-//                null,
-//                null,
-//                diagnostics,
-//                javacOptions,
-//                null,
-//                files,
-//                context
-//        );
-//        var units = task.parse();
-//        task.analyze();
-
-        var fileManager = javac.getStandardFileManager(diagnostics, null, null);
-        context.put(JavaFileManager.class, fileManager);
-        var args = Arguments.instance(context);
-        args.init("javac", javacOptions, null, files);
-
-        var taskListener = MultiTaskListener.instance(context);
-        var units = new HashSet<>();
-        taskListener.add(new TaskListener() {
-            @Override
-            public void started(TaskEvent e) {
-                if (e.getKind() == TaskEvent.Kind.ANALYZE) {
-                    units.add(e.getCompilationUnit());
-                }
-            }
-        });
-        var compiler = JavaCompiler.instance(context);
-        compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.UNLAMBDA;
-        compiler.compile(files, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        JavacTaskImpl task = (JavacTaskImpl) javac.getTask(
+                null,
+                null,
+                diagnostics,
+                javacOptions,
+                null,
+                files,
+                context
+        );
+        var units = task.parse();
+        task.analyze();
 
         List<FileStart> filesStarts = new ArrayList<>();
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
@@ -168,6 +223,7 @@ public class JavaToDafnyCompiler {
 
     private FileStart translateFile(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
+        this.lambdaDatatypeDecls.clear();
 
         ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
         Stack<Tree> remainingTypes = new Stack<>();
@@ -179,6 +235,10 @@ public class JavaToDafnyCompiler {
                 topLevelDecls.add(dafnyDecl);
             }
         }
+
+        topLevelDecls.addAll(0, lambdaDatatypeDecls);
+        lambdaDatatypeDecls.clear();
+
         return new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls);
     }
 
@@ -769,11 +829,47 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCAssignOp assignOp) {
             reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
             return getHole(origin);
-        }
-        else if (expr instanceof JCTree.JCInstanceOf instanceOf) {
+        } else if (expr instanceof JCTree.JCInstanceOf instanceOf) {
             var expression = toExpr(instanceOf.getExpression());
             var jcType = toType(instanceOf.getType());
             return new TypeTestExpr(origin, expression, jcType);
+        } else if (expr instanceof JCTree.JCLambda lambda) {
+            var types = Types.instance(context);
+            var methodType = lambda.getDescriptorType(types);
+            var methodSymbol = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.target.tsym);
+            var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
+            var datatypeNameNode = new Name(origin, datatypeName);
+            var ctor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
+//            var trait = translateClass(lambda.target);
+            List<Formal> ins = methodSymbol.getParameters().map(jvd ->
+            {
+                Name formalName = new Name(origin, jvd.name.toString());
+                var syntacticType = toType(origin, jvd.type, jvd.getAnnotation(com.aws.jverify.Nullable.class) != null);
+                return new Formal(origin, formalName, syntacticType, false, true,
+                        null, null, false, false, false, null);
+            });
+            var outs = new ArrayList<Formal>();
+            if (methodType.getReturnType() != null) {
+                var returnType = toType(origin, methodType.getReturnType(), false);
+                if (returnType != null) {
+                    Name returnName = new Name(origin, "r");
+                    var f = new Formal(origin, returnName, returnType,
+                            false, false, null, null, false, false, false, null);
+                    outs.add(f);
+                }
+            }
+            var methodCompiler = new MethodCompiler(this);
+            var bodyStatements = methodCompiler.translateStatements(((JCTree.JCBlock)lambda.getBody()).stats);
+            var body = new BlockStmt(origin, null, List.of(), bodyStatements);
+            var methodDecl = new Method(origin, new Name(origin, methodSymbol.toString()), null, false, null, List.of(),
+                    ins,
+                    // TODO: handle header. Might be better to create a Java Method and translate it
+                    List.of(), List.of(), new Specification<>(List.of(), null),
+                    new Specification<>(List.of(), null), new Specification<>(List.of(), null),
+                    false, outs,
+                    body, false);
+//            var datatypeDecl = new DatatypeDecl(origin, datatypeName, null, typeArgs, members, traits,
+//                    List.of(ctor), false);
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
@@ -1000,12 +1096,16 @@ public class JavaToDafnyCompiler {
         return toType(tree, isNullable, null);
     }
 
-    @Nullable
-    public Type toType(JCTree tree, boolean isNullable, @Nullable IOrigin originOverride) {
+    private @Nullable Type toType(JCTree tree, boolean isNullable, @Nullable IOrigin originOverride) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(tree));
+        return toType(origin, tree.type, isNullable);
+    }
+
+    @Nullable
+    public Type toType(IOrigin origin, com.sun.tools.javac.code.Type type, boolean isNullable) {
         var nullableSuffix = isNullable ? "?" : "";
 
-        var primitiveTypeKind = toPrimitiveTypeModuloBoxing(tree);
+        var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
         if (primitiveTypeKind != null) {
             switch (primitiveTypeKind) {
                 case VOID -> {
@@ -1015,7 +1115,7 @@ public class JavaToDafnyCompiler {
                     return new BoolType(origin);
                 }
                 case INT, SHORT, LONG -> {
-                    var mirrors = tree.type.getAnnotationMirrors();
+                    var mirrors = type.getAnnotationMirrors();
                     var natAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Nat.class.getName())).findFirst();
                     var isNat = natAnnotation.isPresent();
                     var boundedAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Unbounded.class.getName())).findFirst();
@@ -1035,7 +1135,7 @@ public class JavaToDafnyCompiler {
                         }
                     } else {
                         if (primitiveTypeKind != TypeKind.INT) {
-                            reportError(tree, "unboundedNonInt", tree.toString());
+                            reportError(origin, "unboundedNonInt", type.toString());
                         }
                         if (isNat) {
                             return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
@@ -1059,32 +1159,25 @@ public class JavaToDafnyCompiler {
             }
 
 
-            reportError(tree, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
+            reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
-        } else if (tree instanceof JCTree.JCArrayTypeTree arrayTypeTree) {
-            var elemType = toType(arrayTypeTree.getType(), false, originOverride);
+        } else if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayTypeTree) {
+            var elemType = toType(origin, arrayTypeTree.elemtype, false);
             if (elemType == null) {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");
             }
             return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
-        } else if (tree instanceof JCTree.JCExpression expr) {
-            var expression = toExpr(expr);
-            
+        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
             // Remove the name qualification because we do not support that yet
-            Expression nameSegment;
-            if (expression instanceof ExprDotName exprDotName) {
-                nameSegment = new NameSegment(exprDotName.getOrigin(), exprDotName.getSuffixNameNode().getValue(), null);
-            } else {
-                nameSegment = expression;
-            }
+            Expression nameSegment = new NameSegment(origin, classType.asElement().getSimpleName().toString(), null);
             if (isNullable && nameSegment instanceof NameSegment ns) {
                 nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
             }
             return new UserDefinedType(origin, nameSegment);
         }
 
-        reportError(tree, "notSupported", tree.getClass().getSimpleName());
+        reportError(origin, "notSupported", type.getClass().getSimpleName());
         return null;
     }
 
@@ -1093,12 +1186,12 @@ public class JavaToDafnyCompiler {
      * returns the corresponding {@link TypeKind},
      * otherwise returns {@code null}.
      */
-    private @Nullable TypeKind toPrimitiveTypeModuloBoxing(JCTree tree) {
-        if (tree instanceof JCTree.JCPrimitiveTypeTree primitiveTypeTree) {
-            return primitiveTypeTree.getPrimitiveTypeKind();
-        } else if (tree instanceof JCTree.JCIdent ident
-                && ident.sym.packge().getQualifiedName().contentEquals("java.lang")) {
-            var name = ident.sym.getSimpleName().toString();
+    private @Nullable TypeKind toPrimitiveTypeModuloBoxing(com.sun.tools.javac.code.Type type) {
+        if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
+            return primitiveType.getKind();
+        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
+                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
+            var name = classType.tsym.getSimpleName().toString();
             if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
             if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
             if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
