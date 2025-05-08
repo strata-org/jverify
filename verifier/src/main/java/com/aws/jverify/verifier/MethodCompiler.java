@@ -368,12 +368,19 @@ public class MethodCompiler {
      */
     public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, HeaderContainer header) {
         var headerStatements = 0;
+        JCTree.JCStatement callToSuper = null;
         statementLoop: for (var statement : statements) {
             if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                     && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
                 break;
             }
             var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+            var isSuper = (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super"));
+            if (isSuper) {
+                callToSuper = statement;
+                headerStatements++;
+                continue;
+            }
             if (jverifyMethod == null) {
                 break;
             }
@@ -445,7 +452,11 @@ public class MethodCompiler {
             }
             headerStatements++;
         }
-        return statements.subList(headerStatements, statements.size());
+        var postHeaderStatements = new ArrayList<JCTree.JCStatement>(statements.subList(headerStatements, statements.size()));
+        if (callToSuper != null) {
+            postHeaderStatements.addFirst(callToSuper);
+        }
+        return postHeaderStatements;
     }
 
     /**
