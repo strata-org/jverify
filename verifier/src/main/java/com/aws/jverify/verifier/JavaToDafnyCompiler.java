@@ -581,11 +581,10 @@ public class JavaToDafnyCompiler {
                 }
                 DividedBlockStmt body;
                 if (shouldVerify) {
-                    ArrayList<JCTree.JCVariableDecl> preInitializers = (ArrayList<JCTree.JCVariableDecl>) initializers;
                     ArrayList<Statement> bodyStatements = new ArrayList<>();
                     var treeMaker = TreeMaker.instance(context);
 
-                    for (JCTree.JCVariableDecl variableDecl : preInitializers) {
+                    for (JCTree.JCVariableDecl variableDecl : initializers) {
                       var rhs = variableDecl.getInitializer();
                       var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
                       bodyStatements.addAll(methodCompiler.translateStatement(assignStmt));
