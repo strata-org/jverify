@@ -14,12 +14,14 @@ public class Lambdas {
 
     public void repeatOneself() {
         var doer = new TimesTwo();
-//        doSomethingTwice(x -> x * 2);
+        doSomethingTwice((x, y) -> {
+            return x * 2;
+        });
     }
 
     public void doSomethingTwice(SomethingDoer doer) {
-        var y = doer.doSomething(1);
-        y = doer.doSomething(2);
+        var y = doer.doSomething(1, 2);
+        y = doer.doSomething(2, 3);
     }
 
     private class Nested {
@@ -28,20 +30,20 @@ public class Lambdas {
 }
 
 interface SomethingDoer {
-    int doSomething(int x);
+    int doSomething(int x, int y);
 }
 
 @Contract(SomethingDoer.class)
 class SomethingDoerContract implements SomethingDoer {
     @Override
-    public int doSomething(int x) {
+    public int doSomething(int x, int y) {
         throw new ContractException();
     }
 }
 
 class TimesTwo implements SomethingDoer {
     @Override
-    public int doSomething(int x) {
+    public int doSomething(int x, int y) {
         return x;
     }
 }

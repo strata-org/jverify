@@ -29,6 +29,7 @@ import com.aws.jverify.generated.ConstantField;
 import com.aws.jverify.generated.Constructor;
 import com.aws.jverify.generated.DatatypeCtor;
 import com.aws.jverify.generated.DatatypeDecl;
+import com.aws.jverify.generated.DatatypeValue;
 import com.aws.jverify.generated.DisjunctivePattern;
 import com.aws.jverify.generated.DividedBlockStmt;
 import com.aws.jverify.generated.ExistsExpr;
@@ -839,8 +840,7 @@ public class JavaToDafnyCompiler {
             var methodSymbol = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.target.tsym);
             var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
             var datatypeNameNode = new Name(origin, datatypeName);
-            var ctor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
-//            var trait = translateClass(lambda.target);
+            var trait = toType(lambda.target, false, origin);
             List<Formal> ins = methodSymbol.getParameters().map(jvd ->
             {
                 Name formalName = new Name(origin, jvd.name.toString());
@@ -868,8 +868,12 @@ public class JavaToDafnyCompiler {
                     new Specification<>(List.of(), null), new Specification<>(List.of(), null),
                     false, outs,
                     body, false);
-//            var datatypeDecl = new DatatypeDecl(origin, datatypeName, null, typeArgs, members, traits,
-//                    List.of(ctor), false);
+
+            var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
+            var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
+                    List.of(trait), List.of(datatypeCtor), false);
+            lambdaDatatypeDecls.add(datatypeDecl);
+            return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
@@ -1171,7 +1175,7 @@ public class JavaToDafnyCompiler {
             }
             return new UserDefinedType(origin, nameSegment);
         }
-
+        var x = List.of(1, 2);
         reportError(origin, "notSupported", type.getClass().getSimpleName());
         return null;
     }
