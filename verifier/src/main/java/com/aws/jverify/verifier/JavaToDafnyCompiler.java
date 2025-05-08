@@ -60,9 +60,11 @@ import com.aws.jverify.generated.NegationExpression;
 import com.aws.jverify.generated.NestedMatchCaseExpr;
 import com.aws.jverify.generated.NestedMatchExpr;
 import com.aws.jverify.generated.OldExpr;
+import com.aws.jverify.generated.ReturnStmt;
 import com.aws.jverify.generated.SeqSelectExpr;
 import com.aws.jverify.generated.SourceOrigin;
 import com.aws.jverify.generated.Specification;
+import com.aws.jverify.generated.Statement;
 import com.aws.jverify.generated.ThisExpr;
 import com.aws.jverify.generated.Token;
 import com.aws.jverify.generated.TokenRange;
@@ -74,6 +76,7 @@ import com.aws.jverify.generated.TypeTestExpr;
 import com.aws.jverify.generated.UnaryOpExpr;
 import com.aws.jverify.generated.UnaryOpExprOpcode;
 import com.aws.jverify.generated.UserDefinedType;
+import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
@@ -859,7 +862,15 @@ public class JavaToDafnyCompiler {
                 }
             }
             var methodCompiler = new MethodCompiler(this);
-            var bodyStatements = methodCompiler.translateStatements(((JCTree.JCBlock)lambda.getBody()).stats);
+            List<Statement> bodyStatements;
+            if (lambda.getBodyKind() == LambdaExpressionTree.BodyKind.STATEMENT) {
+                bodyStatements = methodCompiler.translateStatements(((JCTree.JCBlock)lambda.getBody()).stats);
+            } else {
+                bodyStatements = List.of(
+                        new ReturnStmt(origin, null, List.of(
+                                new ExprRhs(origin, null, toExpr((JCTree.JCExpression)lambda.getBody())))));
+            }
+
             var body = new BlockStmt(origin, null, List.of(), bodyStatements);
             var methodDecl = new Method(origin, new Name(origin, methodSymbol.toString()), null, false, null, List.of(),
                     ins,
@@ -1186,7 +1197,9 @@ public class JavaToDafnyCompiler {
      * otherwise returns {@code null}.
      */
     private @Nullable TypeKind toPrimitiveTypeModuloBoxing(com.sun.tools.javac.code.Type type) {
-        if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
+        if (type instanceof com.sun.tools.javac.code.Type.JCVoidType) {
+            return TypeKind.VOID;
+        } else if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
             return primitiveType.getKind();
         } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
                 && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
