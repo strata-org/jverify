@@ -844,13 +844,13 @@ public class JavaToDafnyCompiler {
             List<Formal> ins = methodSymbol.getParameters().map(jvd ->
             {
                 Name formalName = new Name(origin, jvd.name.toString());
-                var syntacticType = toType(origin, jvd.type, jvd.getAnnotation(com.aws.jverify.Nullable.class) != null);
+                var syntacticType = toType(jvd.type, jvd.getAnnotation(com.aws.jverify.Nullable.class) != null, origin);
                 return new Formal(origin, formalName, syntacticType, false, true,
                         null, null, false, false, false, null);
             });
             var outs = new ArrayList<Formal>();
             if (methodType.getReturnType() != null) {
-                var returnType = toType(origin, methodType.getReturnType(), false);
+                var returnType = toType(methodType.getReturnType(), false, origin);
                 if (returnType != null) {
                     Name returnName = new Name(origin, "r");
                     var f = new Formal(origin, returnName, returnType,
@@ -942,7 +942,7 @@ public class JavaToDafnyCompiler {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = toType(param.getType(), false, paramOrigin);
+                    var paramType = toType(param.getType().type, false, paramOrigin);
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
@@ -1089,20 +1089,15 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Type toType(JCTree tree) {
-        return toType(tree, false, null);
+        return toType(tree.type, false, toOrigin(tree));
     }
 
     private @Nullable Type toType(JCTree tree, boolean isNullable) {
-        return toType(tree, isNullable, null);
-    }
-
-    private @Nullable Type toType(JCTree tree, boolean isNullable, @Nullable IOrigin originOverride) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(tree));
-        return toType(origin, tree.type, isNullable);
+        return toType(tree.type, isNullable, toOrigin(tree));
     }
 
     @Nullable
-    public Type toType(IOrigin origin, com.sun.tools.javac.code.Type type, boolean isNullable) {
+    public Type toType(com.sun.tools.javac.code.Type type, boolean isNullable, IOrigin origin) {
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
@@ -1162,7 +1157,7 @@ public class JavaToDafnyCompiler {
             reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         } else if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayTypeTree) {
-            var elemType = toType(origin, arrayTypeTree.elemtype, false);
+            var elemType = toType(arrayTypeTree.elemtype, false, origin);
             if (elemType == null) {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");
