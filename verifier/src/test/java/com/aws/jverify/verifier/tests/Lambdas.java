@@ -9,14 +9,22 @@ import com.aws.jverify.testengine.JVerifyTest;
 import java.sql.Time;
 import java.util.List;
 
+import static com.aws.jverify.JVerify.check;
+
 @JVerifyTest
 public class Lambdas {
 
     public void repeatOneself() {
-        var doer = new TimesTwo();
         doSomethingTwice((x, y) -> {
             return x;
         });
+        SomethingDoer doer = (x, y) -> {
+            return x;
+        };
+        SomethingDoer doer2 = (x, y) -> {
+            return x;
+        };
+        check(doer != doer2);
     }
 
     public void doSomethingTwice(SomethingDoer doer) {
