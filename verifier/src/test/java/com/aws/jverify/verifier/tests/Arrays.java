@@ -67,6 +67,6 @@ class Arrays {
         }
         check(a[0]==0);
         check(i==n);
-//            ^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^ Error: assertion might not hold
     }
 }
