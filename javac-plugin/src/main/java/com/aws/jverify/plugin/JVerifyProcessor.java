@@ -1,14 +1,10 @@
 package com.aws.jverify.plugin;
 
-import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.JavaToDafnyCompiler;
 import com.google.auto.service.AutoService;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
-import com.sun.tools.javac.processing.JavacProcessingEnvironment;
-//import com.sun.tools.javac.tree.JCTree;
-//import com.sun.tools.javac.util.Context;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.ProcessingEnvironment;

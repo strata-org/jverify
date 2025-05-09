@@ -11,6 +11,7 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
+import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -54,19 +55,18 @@ public class JavaToDafnyCompiler {
     }
 
     public static void verify(ProcessingEnvironment processingEnv, CompilationUnitTree compilationUnit) throws IOException {
-        Context context = ((JavacProcessingEnvironment)processingEnv).getContext();
+        JavacProcessingEnvironment javacProcessingEnvironment = ((JavacProcessingEnvironment)processingEnv);
+        Context context = javacProcessingEnvironment.getContext();
         JCTree.JCCompilationUnit cu = (JCTree.JCCompilationUnit) compilationUnit;
-        var dafnyPath = Path.of("../dafny").toAbsolutePath()
-                .resolve(false ? "Binaries/Dafny.exe" : "Scripts/dafny");
-        var libraryJar = Path.of("../library/build/libs/library.jar");
-        var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
+        // TODO: Hardcoded paths for now
+        var dafnyPath = Path.of("/Users/salkeldr/Documents/GitHub/dafny/Scripts/dafny");
+        var prelude = Path.of("/Users/salkeldr/Documents/GitHub/jverify/verifier/src/main/resources/additional.dfy");
         var verifierOptions = new VerifierOptions(
                 dafnyPath,
-                libraryJar,
+                null,
                 List.of(),
                 prelude,
-                //Path.of("../temp.dfy"),
-                null,
+                Path.of("/Users/salkeldr/Documents/GitHub/jverify/temp.dfy"),
                 null,
                 true,
                 new String[] {
@@ -74,7 +74,12 @@ public class JavaToDafnyCompiler {
 //                        "--wait-for-debugger",
                 }
         );
-        Driver.verifyJavaCode(context, List.of(compilationUnit), verifierOptions);
+        Driver.VerificationResults result = Driver.verifyJavaCode(context, List.of(compilationUnit), verifierOptions);
+
+        JavaCompiler compiler = JavaCompiler.instance(context);
+        for (Diagnostic<?> diagnostic : result.getDiagnostics()) {
+            compiler.log.report((JCDiagnostic) diagnostic);
+        }
     }
 
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
