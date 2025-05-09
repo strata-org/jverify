@@ -86,9 +86,11 @@ import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.tree.DocTreeMaker;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -545,13 +547,21 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
+        return translateMethod(method, method.getModifiers(), method.sym, method.body);
+    }
+
+    /**
+     * @param sourceBody Either a JCBlock or a JCExpression. The latter is for the benefit of lambda translation.
+     */
+    private @Nullable MethodOrFunction translateMethod(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, JCTree sourceBody) {
 
         var methodCompiler = new MethodCompiler(this);
         
-        var name = getName(method, method.name);
-        var origin = declToOrigin(method, name);
+        var name = getName(source, methodSymbol.name);
+        var origin = declToOrigin(source, name);
+        var methodType = methodSymbol.type;
 
-        var annotations = method.getModifiers().getAnnotations();
+        var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
@@ -565,54 +575,58 @@ public class JavaToDafnyCompiler {
 //            var types = Types.instance(context);
 //            var container = method.sym.enclClass();
 //            var impl = method.sym.implemented(container, types);
-            reportError(method, "notSupported", "@InheritContract");
+            reportError(source, "notSupported", "@InheritContract");
             return null;
         }
 
-        List<Formal> ins = method.getParameters().map(jvd ->
+        List<Formal> ins = methodSymbol.getParameters().map(jvd ->
         {
-            Name formalName = getName(jvd, jvd.getName());
-            var syntacticType = toType(jvd.getType(), isNullable(jvd.getModifiers()));
-            return new Formal(declToOrigin(jvd, formalName), formalName, syntacticType, false, true,
+            Name formalName = new Name(origin, jvd.name.toString());
+            var syntacticType = toType(jvd.type, jvd.getAnnotation(com.aws.jverify.Nullable.class) != null, origin);
+            return new Formal(origin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
-        var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
+        var isStatic = (modifiers.flags & Flags.STATIC) == Flags.STATIC;
 
-        if (method.getBody() == null) {
+        if (sourceBody == null) {
             // TODO: Improve error message - could also be because the method wasn't implemented?
-            reportError(method, "missingContract");
+            reportError(source, "missingContract");
             return null;
         }
 
         if (annotationsByName.containsKey(Pure.class.getName())) {
+            Expression body = null;
             var header = new HeaderContainer();
-            var postHeader = methodCompiler.translateHeader(method.body.stats, header);
-            applyInvariants(method, header);
-            if (postHeader.size() != 1) {
-                reportError(method, "pureMethodMultipleStatements");
-                return null;
-            }
-            var returnType = toType(method.getReturnType());
+            var returnType = toType(methodType.getReturnType(), false, origin);
             if (returnType == null) {
-                reportError(method, "pureMethodsNeedsReturnType");
+                reportError(source, "pureMethodsNeedsReturnType");
                 return null;
             }
-
-            var statement = postHeader.getFirst();
-            Expression body;
             if (shouldVerify) {
-                if (statement instanceof JCTree.JCReturn returnStatement) {
-                    body = toExpr(returnStatement.expr);
-                    return new Function(origin, name, null, false, null, List.of(),
-                            ins, header.preconditions, header.postconditions, header.getReads(),
-                            header.getDecreases(), isStatic, false, null, returnType,
-                            body, null, null);
+                if (sourceBody instanceof JCTree.JCExpression) {
+                    body = toExpr((JCTree.JCExpression) sourceBody);
                 } else {
-                    reportError(method, "pureMethodNeedsReturnStatement");
-                    return null;
+                    var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
+                    applyInvariants(modifiers, methodSymbol, header);
+                    if (postHeader.size() != 1) {
+                        reportError(source, "pureMethodMultipleStatements");
+                        return null;
+                    }
+
+                    var statement = postHeader.getFirst();
+                    if (shouldVerify) {
+                        if (statement instanceof JCTree.JCReturn returnStatement) {
+                            body = toExpr(returnStatement.expr);
+                            return new Function(origin, name, null, false, null, List.of(),
+                                    ins, header.preconditions, header.postconditions, header.getReads(),
+                                    header.getDecreases(), isStatic, false, null, returnType,
+                                    body, null, null);
+                        } else {
+                            reportError(source, "pureMethodNeedsReturnStatement");
+                            return null;
+                        }
+                    }
                 }
-            } else {
-                body = null;
             }
             return new Function(origin, name, null, false, null, List.of(),
                     ins, header.preconditions, header.postconditions, header.getReads(),
@@ -620,17 +634,29 @@ public class JavaToDafnyCompiler {
                     body, null, null);
         } else {
             var header = new HeaderContainer();
-            var postHeader = methodCompiler.translateHeader(method.getBody().stats, header);
-            applyInvariants(method, header);
-            methodCompiler.checkEmptyExpressions(method, header.invariants, "invariants", "method");
+            List<JCTree.JCStatement> postHeader;
+            List<Statement> bodyStatements = null;
+            if (shouldVerify) {
+                if (sourceBody instanceof JCTree.JCExpression) {
+                    postHeader = List.of();
+                    bodyStatements = List.of(
+                            new ReturnStmt(origin, null, List.of(
+                                    new ExprRhs(origin, null, toExpr((JCTree.JCExpression) sourceBody)))));
+                } else {
+                    postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
+                    bodyStatements = methodCompiler.translateStatements(postHeader);
+                }
+                applyInvariants(modifiers, methodSymbol, header);
+                methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
 
-            if (header.returnNames.size() > 1) {
-                reportError(method, "multipleReturnNames");
-                return null;
+                if (header.returnNames.size() > 1) {
+                    reportError(source, "multipleReturnNames");
+                    return null;
+                }
             }
             var outs = new ArrayList<Formal>();
-            if (method.getReturnType() != null) {
-                var returnType = toType(method.getReturnType(), false);
+            if (methodType.getReturnType() != null) {
+                var returnType = toType(methodType.getReturnType(), false, origin);
                 if (returnType != null) {
                     Name returnName;
                     if (header.returnNames.size() == 1) {
@@ -638,30 +664,29 @@ public class JavaToDafnyCompiler {
                     } else {
                         returnName = new Name(origin, "r");
                     }
-                    var f = new Formal(toOrigin(method.getReturnType()), returnName, returnType,
+                    var f = new Formal(origin, returnName, returnType,
                             false, false, null, null, false, false, false, null);
                     outs.add(f);
                 }
             }
 
-            if (method.name.contentEquals("<init>")) {
+            if (methodSymbol.name.contentEquals("<init>")) {
                 var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null && 
                         isInterface(typeForWhichCurrentClassIsDefiningContract);
                 if (containerIsInterface) {
-                    var containerPos = JavacTrees.instance(context).getTree(method.sym.enclClass()).pos;
-                    var synthetic = method.pos == containerPos;
+                    var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
+                    var synthetic = source.pos == containerPos;
                     if (synthetic) {
                         // ignore default constructors in interfaces classes
                         return null;
                     } else {
-                        reportError(method, "constructorInInterfaceContract");
+                        reportError(source, "constructorInInterfaceContract");
                         return null;
                     }
                 }
                 DividedBlockStmt body;
                 if (shouldVerify) {
-                    var bodyStatements = methodCompiler.translateStatements(postHeader);
-                    body = new DividedBlockStmt(toOrigin(method.body), null, List.of(), bodyStatements, null, List.of());
+                    body = new DividedBlockStmt(toOrigin(sourceBody), null, List.of(), bodyStatements, null, List.of());
                 } else {
                     body = null;
                 }
@@ -672,8 +697,7 @@ public class JavaToDafnyCompiler {
             } else {
                 BlockStmt body;
                 if (shouldVerify) {
-                    var bodyStatements = methodCompiler.translateStatements(postHeader);
-                    body = new BlockStmt(toOrigin(method.body), null, List.of(), bodyStatements);
+                    body = new BlockStmt(toOrigin(sourceBody), null, List.of(), bodyStatements);
                 } else {
                     body = null;
                 }
@@ -717,11 +741,11 @@ public class JavaToDafnyCompiler {
         };
     }
 
-    private void applyInvariants(JCTree.JCMethodDecl method, HeaderContainer header) {
-        boolean isPublic = (method.getModifiers().flags & Flags.PUBLIC) != 0;
+    private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, HeaderContainer header) {
+        boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
         if (isPublic) {
             for(var invariant : invariants) {
-                if (!method.name.contentEquals("<init>")) {
+                if (!methodSymbol.name.contentEquals("<init>")) {
                     header.preconditions.add(invariant);
                 }
                 header.postconditions.add(invariant);
@@ -838,52 +862,18 @@ public class JavaToDafnyCompiler {
             return new TypeTestExpr(origin, expression, jcType);
         } else if (expr instanceof JCTree.JCLambda lambda) {
             var types = Types.instance(context);
-            var methodType = lambda.getDescriptorType(types);
             var methodSymbol = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.target.tsym);
-            var methodName = methodSymbol.name.toString();
             var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
             var datatypeNameNode = new Name(origin, datatypeName);
             var trait = toType(lambda.target, false, origin);
-            List<Formal> ins = methodSymbol.getParameters().map(jvd ->
-            {
-                Name formalName = new Name(origin, jvd.name.toString());
-                var syntacticType = toType(jvd.type, jvd.getAnnotation(com.aws.jverify.Nullable.class) != null, origin);
-                return new Formal(origin, formalName, syntacticType, false, true,
-                        null, null, false, false, false, null);
-            });
-            var outs = new ArrayList<Formal>();
-            if (methodType.getReturnType() != null) {
-                var returnType = toType(methodType.getReturnType(), false, origin);
-                if (returnType != null) {
-                    Name returnName = new Name(origin, "r");
-                    var f = new Formal(origin, returnName, returnType,
-                            false, false, null, null, false, false, false, null);
-                    outs.add(f);
-                }
-            }
-            var methodCompiler = new MethodCompiler(this);
-            List<Statement> bodyStatements;
-            if (lambda.getBodyKind() == LambdaExpressionTree.BodyKind.STATEMENT) {
-                bodyStatements = methodCompiler.translateStatements(((JCTree.JCBlock)lambda.getBody()).stats);
-            } else {
-                bodyStatements = List.of(
-                        new ReturnStmt(origin, null, List.of(
-                                new ExprRhs(origin, null, toExpr((JCTree.JCExpression)lambda.getBody())))));
-            }
-
-            var body = new BlockStmt(origin, null, List.of(), bodyStatements);
-            var methodDecl = new Method(origin, new Name(origin, methodName), null, false, null, List.of(),
-                    ins,
-                    // TODO: handle header. Might be better to create a Java Method and translate it
-                    List.of(), List.of(), new Specification<>(List.of(), null),
-                    new Specification<>(List.of(), null), new Specification<>(List.of(), null),
-                    false, outs,
-                    body, false);
+            var maker = TreeMaker.instance(context);
+            var methodDecl = translateMethod(lambda, maker.Modifiers(0), methodSymbol, lambda.getBody());
 
             var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
             var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
                     List.of(trait), List.of(datatypeCtor), false);
             lambdaDatatypeDecls.add(datatypeDecl);
+
             return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
