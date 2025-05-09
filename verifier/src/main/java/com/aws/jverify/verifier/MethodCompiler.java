@@ -486,7 +486,4 @@ public class MethodCompiler {
                 : new BlockStmt(origin, null, List.of(), statements);
     }
 
-  //  private String getName(String prefix) {
-  //      return "$" + prefix + generatedIndex++;
-  //  }
 }
