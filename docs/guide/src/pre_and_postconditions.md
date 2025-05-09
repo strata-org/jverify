@@ -1,15 +1,11 @@
 # Pre- and post-conditions
 
-Besides detecting exceptions, JVerify allows you to precisely state what a method does, and check that it actually does that. While the binary search method from before would be correct after fixing the bug, it only works as intended if the array passed to it is sorted. We can guarantee that it works as intended by giving it a contract, which is done using calls to `precondition` and `postcondition`. Here’s the example from above but with those calls, and a fix for the bug:
+Besides detecting exceptions, JVerify allows you to precisely state what a method does, and check that it actually does that. We can prove that the binary search method shown in the previous section behaves as intended by giving it a contract, which is done using calls to `precondition` and `postcondition`.
+
+Here’s the updated example:
 
 ```java
-class BinarySearch {
-  void callBinarySearch() {
-    binarySearch(new int[] {4,1,5}, 1);
-//              ^ error: could not prove precondition
-    binarySearch(new int[] {1,3,5}, 1); // no error
-  }  
-    
+class BinarySearch {    
   int binarySearch(int[] arr, int target) {
     // This postcondition guarantees that the method behaves as desired
     postcondition((Integer r) -> sequence(arr).contains(target)
@@ -17,7 +13,7 @@ class BinarySearch {
       : r == -1
     );
 
-    // Without the following precondition, we won't be able to prove the
+    // We need to add the following precondition, because otherwise we won't be able to prove the
     // two new loop invariants, which are needed to prove the postcondition
     precondition(sorted(arr));
     
@@ -58,4 +54,14 @@ class BinarySearch {
 }
 ```
 
-If we now change anything in the implementation of the program that changes its meaning, JVerify will detect that the implementation of `binarySearch` no longer matches its specification, and emit an error. 
+If we now change anything in the implementation of `binarySearch` that changes its meaning, JVerify will detect that the implementation no longer matches the specification, and emit an error.
+
+We had to add the call to `precondition` to be able to prove the `postcondition`, but this also has the desired effect of preventing us from incorrectly calling `binarySearch`. The method only behaves as intended if called with a sorted list, and this is now checked by JVerify, as you can see here:
+
+```java
+  void callBinarySearch() {
+    binarySearch(new int[] {4, 1, 5}, 1);
+//              ^ error: could not prove precondition
+    binarySearch(new int[] {1, 3, 5}, 1); // no error
+  }  
+```
