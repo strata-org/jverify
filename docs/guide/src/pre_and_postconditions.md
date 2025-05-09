@@ -65,3 +65,5 @@ We had to add the call to `precondition` to be able to prove the `postcondition`
     binarySearch(new int[] {1, 3, 5}, 1); // no error
   }  
 ```
+
+In the next section, [Code purposes](code_purposes.md), we'll reflect on what we've seen so far by introducing terminology that allows us to talk about the different usages of code when working with JVerify.
