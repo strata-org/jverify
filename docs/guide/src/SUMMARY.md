@@ -15,7 +15,7 @@
 - [Code types](code_types.md)
 - [Integers](integers.md)
 - [Termination](termination.md)
-- [Modifies and reads](modifies_and_reads.md)
+- [Modifying objects](modifies)
 - [Nullable](nullable.md)
 - [Class Invariants](class_invariants.md)
 

@@ -13,7 +13,7 @@ Code in a method annotated with `@Pure` must follow those same rules, and additi
   - variable declaration statements,
   - calls to `precondition`, `postcondition`, `reads` and `assert`
   - a single `return <expr>` statement at the end, in which other pure methods may be called
-- It must use reads calls if it wants to access any fields.
+- It must use `reads` calls if it wants to access any fields. We'll explain these shortly. 
 
 Summary table:
 
@@ -23,6 +23,26 @@ Summary table:
 | **Restricted use of statements** | yes | no |
 | **Needs reads calls** | yes | no |
 | **Can update variables** | no | yes |
+
+### Reads calls
+
+JVerify guarantees that a `@Pure` method is deterministic, meaning that given the same  it returns the same output. To use this property however, we need to know what the input is. In a language with references like Java, it's not enough to know what the method arguments are. 
+
+JVerify requires that a method marked with `@Pure` is explicit about which objects it reads fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple `object` arguments. Example:
+
+```java
+class Engine {
+    int horsePower;
+}
+class Car {
+    Engine engine;
+    
+    public int readHorsePower() {
+        reads(this, engine); // without this line, the next line would emit an error
+        return this.engine.horsePower;
+    }
+}
+``` 
 
 ## Erased code
 
