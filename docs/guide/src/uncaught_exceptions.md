@@ -1,6 +1,6 @@
 # Common exceptions
 
-Without any additional input from the programmer, JVerify will emit an error if it thinks code might throw any of these common exceptions: `NullReferenceException`, `IndexOutOfBoundsException`, `ClassCastException`, `ArithmeticException`.
+Without any additional input beyond the program, JVerify will emit an error if it thinks code might throw any of these common exceptions: `NullReferenceException`, `IndexOutOfBoundsException`, `ClassCastException`, `ArithmeticException`.
 
 For example, JVerify emits an error for this program:
 ```java

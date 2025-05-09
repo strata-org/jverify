@@ -1,10 +1,14 @@
 # Termination
 
-JVerify uses decreases clauses to prove termination in the presence of recursion or loops. Without proper termination proofs, a program might run indefinitely, which is often undesirable behavior.
+Programs that contain loops or recursive calls may run indefinitely. Usually, such behavior is undesired.
 
-## Basic Concept
+By default, JVerify tries to prove that methods terminate, and emits an error if it can't. Even if a program terminates, JVerify might need you input to help prove that it does. In case you do not want to, you can turn off termination checking.
 
-A decreases clause specifies a "termination metric" - a value that must strictly decrease with each recursive call or loop iteration. JVerify verifies that this metric:
+This page further explains how to prove termination using JVerify.
+
+## Decreases clauses
+
+JVerify needs a decreases clause for each method and loop. If none is specified explicitly, JVerify will guess one. A decreases clause contains an expression. JVerify proves termination by verifying that this expression:
 
 1. Gets smaller with each recursive call or loop iteration
 2. Has a lower bound that will eventually be reached
@@ -71,12 +75,12 @@ Here, the lexicographic tuples ensure termination:
 
 ## Non-terminating Code
 
-In some cases, you might intentionally write code that doesn't terminate (like a server loop). JVerify allows you to specify this with `decreases *`:
+In some cases, you might intentionally write code that doesn't terminate (like a server loop). JVerify allows you to specify this with `decreases()`:
 
 ```java
 void serverLoop() {
-    decreases *;
-    
+    decreases();
+
     while (true) {
         // Process requests indefinitely
         processNextRequest();
@@ -84,7 +88,7 @@ void serverLoop() {
 }
 ```
 
-The `decreases *` notation tells JVerify to skip the termination proof for this method.
+The `decreases()` notation tells JVerify to skip the termination proof for this method. This can be used either for programs that do not terminate, or for programs where you do not want to put in the effort of proving termination.
 
 ## Automatic Decreases Clauses
 

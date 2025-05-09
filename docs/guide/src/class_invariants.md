@@ -92,3 +92,9 @@ error: invariant could not be proven on this return path
   |   return;
       ^^^^^^
 ```
+
+JVerify has told us where our bug is. We can now fix it by adding the line
+```java
+this.premiumFeatures = new PremiumFeatures();
+```
+to `upgradeAccount`. When we rerun JVerify, it reports no errors.

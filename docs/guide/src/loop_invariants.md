@@ -1,6 +1,6 @@
 # Loop Invariants
 
-JVerify has trouble understanding loops without help. To help it, the programmer must define _loop invariants_, which might also help the programmer better understand their program. A loop invariant is a condition that must be true every time the loop guard is evaluated, so right before the loop, and at the end of the loop body.
+JVerify has trouble understanding loops without help. To help it, you must define _loop invariants_, which might also help the programmer better understand their program. A loop invariant is a condition that must be true every time the loop guard is evaluated, so right before the loop, and at the end of the loop body.
 
 Here follows the binary search example from before, but with loop invariants. Using the invariants, JVerify emits an error that points us to the bug.
 
