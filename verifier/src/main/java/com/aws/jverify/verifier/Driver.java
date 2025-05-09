@@ -4,6 +4,7 @@ import com.aws.jverify.common.Position;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.source.tree.CompilationUnitTree;
 import com.sun.tools.javac.util.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
@@ -59,6 +60,7 @@ public class Driver {
         }
         if (dafnyEquivalent == null || hasErrors) {
             verificationResults.exitCode = CommandLine.ExitCode.USAGE;
+            return verificationResults;
         } else {
             var programBuilder = new StringBuilder();
             new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
@@ -67,8 +69,8 @@ public class Driver {
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
             runDafnyProcess(program, verifierOptions, verificationResults);
+            return verificationResults;
         }
-        return verificationResults;
     }
 
     public static int verifyJavaFiles(
@@ -92,6 +94,24 @@ public class Driver {
             output.write(verificationResults.dafnyFinishedMessage);
         }
         return verificationResults.exitCode;
+    }
+
+    /**
+     * @param units Fully-analyzed compilation units to verify
+     */
+    public static VerificationResults verifyJavaCode(Context context, Iterable<CompilationUnitTree> units, VerifierOptions verifierOptions) throws IOException {
+        var compiler = new JavaToDafnyCompiler(context);
+        var dafnyEquivalent = compiler.translate(units);
+
+        var verificationResults = new VerificationResults();
+        var programBuilder = new StringBuilder();
+        new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
+        var program = programBuilder.toString();
+        if (verifierOptions.printBinaryDafny() != null) {
+            Files.writeString(verifierOptions.printBinaryDafny(), program);
+        }
+        runDafnyProcess(program, verifierOptions, verificationResults);
+        return verificationResults;
     }
 
     public static final class VerificationResults {

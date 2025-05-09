@@ -17,6 +17,7 @@ import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.TypeElement;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
@@ -40,7 +41,11 @@ public class JVerifyProcessor extends AbstractProcessor {
             public void finished(TaskEvent e) {
                 boolean resolutionInformationBecameAvailable = e.getKind() == TaskEvent.Kind.ANALYZE;
                 if (resolutionInformationBecameAvailable) {
-                    JavaToDafnyCompiler.verify(processingEnv);
+                    try {
+                        JavaToDafnyCompiler.verify(processingEnv, e.getCompilationUnit());
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
                 }
             }
         });

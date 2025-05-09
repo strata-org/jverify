@@ -48,18 +48,38 @@ public class JavaToDafnyCompiler {
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
+        this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
+
         shouldVerifies.push(ShouldVerifyMode.DefaultYes);
     }
 
-    public static void verify(ProcessingEnvironment processingEnv) {
+    public static void verify(ProcessingEnvironment processingEnv, CompilationUnitTree compilationUnit) throws IOException {
         Context context = ((JavacProcessingEnvironment)processingEnv).getContext();
-        JavaToDafnyCompiler jtd = new JavaToDafnyCompiler(context);
-
+        JCTree.JCCompilationUnit cu = (JCTree.JCCompilationUnit) compilationUnit;
+        var dafnyPath = Path.of("../dafny").toAbsolutePath()
+                .resolve(false ? "Binaries/Dafny.exe" : "Scripts/dafny");
+        var libraryJar = Path.of("../library/build/libs/library.jar");
+        var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
+        var verifierOptions = new VerifierOptions(
+                dafnyPath,
+                libraryJar,
+                List.of(),
+                prelude,
+                //Path.of("../temp.dfy"),
+                null,
+                null,
+                true,
+                new String[] {
+                        "--use-basename-for-filename",
+//                        "--wait-for-debugger",
+                }
+        );
+        Driver.verifyJavaCode(context, List.of(compilationUnit), verifierOptions);
     }
 
-    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
+    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
         JavacTool compiler = JavacTool.create();
-        
+
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
         }
@@ -86,11 +106,9 @@ public class JavaToDafnyCompiler {
                 files,
                 context
         );
-                
-        List<FileStart> filesStarts = new ArrayList<>();
+
         var parsed = task.parse();
         task.analyze();
-        this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
@@ -99,15 +117,20 @@ public class JavaToDafnyCompiler {
                 this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                         new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
                         diagnostic.getMessage(Locale.ENGLISH)));
-                
-                return new FilesContainer(filesStarts);
+
+                return new FilesContainer(List.of());
             }
         }
 
-        for (var compilationUnit : parsed) {
+        return translate(parsed);
+    }
+
+    public FilesContainer translate(Iterable<? extends CompilationUnitTree> units) {
+        for (var compilationUnit : units) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
-        for (var compilationUnit : parsed) {
+        List<FileStart> filesStarts = new ArrayList<>();
+        for (var compilationUnit : units) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
             filesStarts.add(fileStart);
         }
@@ -417,7 +440,7 @@ public class JavaToDafnyCompiler {
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
-            return ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
+            return classType.supertype_field != null && ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
         }
         return false;
     }
