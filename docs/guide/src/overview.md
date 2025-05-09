@@ -1,6 +1,6 @@
 # JVerify
 
-JVerify is a tool that at compile-time can detect almost every bug in a Java program. It uses computer-aided theorem proving to statically verify that executable Java code will always satisfy some user-provided specifications for all possible executions of the code.
+JVerify is a tool that at compile-time can detect most bugs in a Java program. It uses computer-aided theorem proving to prove that the program never throws any uncaught exceptions. If provided with program specifications, it can prove that a program will satisfy those for any possible execution.
 
 Program specifications are provided by making calls to the JVerify library. These calls can be removed during compilation, using a plugin for `javac`, so they will not have an effect at run-time. Java code that contains JVerify specifications is still regular Java code, so it can be analyzed by any Java IDE.
 

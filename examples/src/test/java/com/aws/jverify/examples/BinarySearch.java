@@ -15,7 +15,7 @@ class BinarySearch {
     }
 
     public static int binarySearchImpl(int[] arr, int key) {
-        precondition(arr.length <= 0x7fff_ffff /* Integer.MAX_VALUE */);
+        precondition(arr.length <= Integer.MAX_VALUE);
         precondition(sorted(arr));
         postcondition((Integer res) ->
                 (res == -1 && !sequence(arr).contains(key))

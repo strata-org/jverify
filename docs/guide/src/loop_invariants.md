@@ -1,30 +1,29 @@
 # Loop Invariants
 
-JVerify has trouble understanding loops without help. To help it, you must define _loop invariants_, which might also help the programmer better understand their program. A loop invariant is a condition that must be true every time the loop guard is evaluated, so right before the loop, and at the end of the loop body.
+JVerify verifies the behavior of code with loops through the use of a _loop invariant_. Since JVerify does not know how often a loop iterates, it needs to work with information that is true for _any_ iteration. The loop invariant is a condition that must be true every time the loop guard is evaluated, so when the loop is entered, and after each execution of the body.
 
-Here follows the binary search example from before, but with loop invariants. Using the invariants, JVerify emits an error that points us to the bug.
+The loop invariant can be used both to know what is true inside the loop, useful to prove the absence of exceptions inside it, and to learn about the state of the program when the loop exits.
+
+Here follows the binary search example from the last section, but with some loop invariants added. Using the invariants, JVerify no longer emits an error about the array index inside the loop. 
 
 ```java
 class BinarySearch {
     int buggyBinarySearch(int[] arr, int target) {
-        var left = 0;
-        var right = arr.length - 1; // Bug: should be arr.Length
+        var lo = 1;
+        var hi = arr.length;
 
-        while (left < right)
-        {
-            invariant(0 <= left);
-            invariant(left <= right);
-//                ^^^^^^^^^^^^^ error: this invariant could not be proved on entry
-            invariant(right <= arr.length);
+        while (lo < hi) {
+            invariant(0 <= lo);
+            invariant(lo <= hi);
+            invariant(hi <= arr.length);
 
-            var mid = (left + right) / 2;
-            if (arr[mid] == target) {
-                return mid;
-            }
-            if (arr[mid] < target) {
-                left = mid + 1;
+            var mid = lo + (hi - lo) / 2;
+            if (key < arr[mid]) {
+                hi = mid;
+            } else if (arr[mid] < key) {
+                lo = mid + 1;
             } else {
-                right = mid;
+                return mid;
             }
         }
         return -1;
@@ -32,4 +31,20 @@ class BinarySearch {
 }
 ```
 
-With the above error, “this invariant could not be proved on entry”, we know that the problem occurs before the loop and relates to the value of `left` and `right`, so it should be easy for us to see that we need to correct the initial assignment to right. If we had changed the assignment to left to `var left = -1;`, then the error on the second invariant would be resolved, but the first invariant would show an error, so we must update the assignment to `right`.
+If we would now introduce a bug, for example by replacing
+```java
+var hi = arr.length;
+```
+with 
+```java
+var hi = arr.length - 1;
+```
+
+Then JVerify emits the error:
+```
+error: this invariant could not be proved on entry
+ | invariant(lo <= hi);
+             ^^^^^^^^ 
+```
+
+In this section, we've used invariants to prove that no uncaught exceptions occur inside the loop. In the next section, [Pre- and post-conditions](pre_and_postconditions.md), we will use invariants also to prove facts that hold after the loop exists. 
