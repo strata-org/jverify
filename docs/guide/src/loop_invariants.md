@@ -4,7 +4,7 @@ JVerify verifies the behavior of code with loops through the use of a _loop inva
 
 The loop invariant can be used both to know what is true inside the loop, useful to prove the absence of exceptions inside it, and to learn about the state of the program when the loop exits.
 
-Here follows the binary search example from the last section, but with some loop invariants added. Using the invariants, JVerify no longer emits an error about the array index inside the loop. 
+Here follows the binary search example from the last section, but with some loop invariants added. Using the invariants, JVerify no longer emits an error about the array access inside the loop. 
 
 ```java
 class BinarySearch {
