@@ -1,4 +1,4 @@
-// TEST: exitCode=0 dafnyVerified=11 dafnyErrors=0
+// TEST: exitCode=0 dafnyVerified=12 dafnyErrors=0
 
 package com.aws.jverify.verifier.tests;
 
@@ -125,6 +125,20 @@ class VerifyStatements {
             x = x + 1;
         } while(x < 5);
         check(x == 5);
+    }
+
+    void twoForLoops() {
+        int cnt = 0;
+        for (var i = 0; i < 10; i++) {
+            invariant(cnt==i);
+            cnt++;
+        }
+        check(cnt==10);
+        for (var i = 0; i < 10; i++) {
+            invariant(cnt-10==i);
+            cnt++;
+        }
+        check(cnt==20);
     }
     
     void skip() {

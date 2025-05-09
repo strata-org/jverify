@@ -78,6 +78,7 @@ import com.aws.jverify.generated.UnaryOpExprOpcode;
 import com.aws.jverify.generated.UserDefinedType;
 import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
 import com.sun.tools.javac.api.JavacTrees;
@@ -89,6 +90,8 @@ import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.DocTreeMaker;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeMaker;
+
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
@@ -268,6 +271,7 @@ public class JavaToDafnyCompiler {
     }
 
     List<AttributedExpression> invariants = new ArrayList<>();
+    List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     
     enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
     private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
@@ -445,10 +449,23 @@ public class JavaToDafnyCompiler {
                 isInterface(typeForWhichCurrentClassIsDefiningContract);
         
         ArrayList<MemberDecl> members = new ArrayList<>();
+        initializers.clear();
+        // First translate all fields and store default initializers to add to constructors
         for (var member : classDecl.getMembers()) {
-            var dafnyMember = translateMember(member, nestedTypes);
-            if (dafnyMember != null) {
-                members.add(dafnyMember);
+            if (member instanceof JCTree.JCVariableDecl variableDecl) {
+                var dafnyMember = translateField(variableDecl);
+                if (dafnyMember != null) {
+                    members.add(dafnyMember);
+                }
+            }
+        }
+        // Now translate other members
+        for (var member : classDecl.getMembers()) {
+            if (!(member instanceof JCTree.JCVariableDecl variableDecl)) {
+                var dafnyMember = translateMember(member, nestedTypes);
+                if (dafnyMember != null) {
+                    members.add(dafnyMember);
+                }
             }
         }
         var definingSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
@@ -524,10 +541,12 @@ public class JavaToDafnyCompiler {
                 var isStatic = (variableDecl.mods.flags & Flags.STATIC) != 0;
                 return new ConstantField(origin, fieldName, getAttributes(origin), false, type, rhs, isStatic, false);
             } else {
-                reportError(variableDecl, "notSupported", "Field initializers");
-                return null;
+                // Keep this variable declaration in the initalizers list to be added to constructors laters
+
+                initializers.add(variableDecl);
             }
         }
+
         return new Field(origin, fieldName,
                 null,
                 false,
@@ -557,7 +576,7 @@ public class JavaToDafnyCompiler {
     private @Nullable MethodOrFunction translateMethod(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, JCTree sourceBody) {
 
         var methodCompiler = new MethodCompiler(this);
-        
+
         var name = getName(source, methodSymbol.name);
         var origin = declToOrigin(source, name);
         var methodType = methodSymbol.type;
@@ -636,7 +655,7 @@ public class JavaToDafnyCompiler {
             var header = new HeaderContainer();
             List<JCTree.JCStatement> postHeader;
             List<Statement> bodyStatements = null;
-                if (sourceBody instanceof JCTree.JCExpression) {
+            if (sourceBody instanceof JCTree.JCExpression) {
                 postHeader = List.of();
                 if (shouldVerify) {
                     bodyStatements = List.of(
@@ -688,6 +707,15 @@ public class JavaToDafnyCompiler {
                 }
                 DividedBlockStmt body;
                 if (shouldVerify) {
+                    var treeMaker = TreeMaker.instance(context);
+
+                    for (JCTree.JCVariableDecl variableDecl : initializers) {
+                      var rhs = variableDecl.getInitializer();
+                      var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
+                      bodyStatements.addAll(methodCompiler.translateStatement(assignStmt));
+                    }
+                    bodyStatements.addAll(methodCompiler.translateStatements(postHeader));
+
                     body = new DividedBlockStmt(toOrigin(sourceBody), null, List.of(), bodyStatements, null, List.of());
                 } else {
                     body = null;
@@ -773,6 +801,20 @@ public class JavaToDafnyCompiler {
         if (expr instanceof JCTree.JCNewClass newClass) {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
             return new AllocateClass(origin, null, toType(newClass.clazz), new ActualBindings(argBindings));
+        }
+        if (expr instanceof JCTree.JCNewArray newArray) {
+            var arrayDimensions = newArray.getDimensions().stream().map(d -> toExpr(d)).toList();
+            var arrayInitializers = newArray.getInitializers();
+            var arrayJavaType = newArray.getType();
+            if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
+                reportError(expr, "notSupported", "multi-dimensional arrays");
+            }
+            var arrayDafnyType = toType(arrayJavaType, true);
+
+            if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
+                reportError(expr, "notSupported", "new array with initializers");
+            }
+            return new AllocateArray(origin, null, arrayDafnyType, arrayDimensions, null);
         }
         var dafnyExpr = toExpr(expr);
         return new ExprRhs(origin, null, dafnyExpr);
