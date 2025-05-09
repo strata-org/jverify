@@ -1,0 +1,72 @@
+// TEST: exitCode=4 dafnyVerified=1 dafnyErrors=1
+
+package com.aws.jverify.verifier.tests;
+
+//import com.aws.jverify.testengine.JVerifyTest;
+
+import com.aws.jverify.*;
+import static com.aws.jverify.JVerify.*;
+
+class Point {
+    private int a;
+    private int b;
+
+    public Point(int a_, int b_) {
+        postcondition(this.a == a_);
+        postcondition(this.b == b_);
+        this.a = a_;
+        this.b = b_;
+    }
+
+    @Pure
+    public int getA() {
+        reads(this);
+        return a;
+    }
+}
+
+// Class that test the support of array allocation and accesses
+//@JVerifyTest
+class Arrays {
+
+    static void intArrayOfSize10() {
+        int[] a = new int[10];
+        a[0]=0;
+        for (int i = 0; i < a.length; i++) {
+            modifies(a);
+            invariant(a[0]==0);
+            a[i] = i;
+        }
+        check(a[0]==0);
+    }
+    static void pointArrayOfSize10() {
+        Point[] a = new Point[10];
+        a[0]=new Point(1,2);
+        for (int i = 1; i < a.length; i++) {
+            modifies(a);
+            // We want a better invariant like
+            // invariant(Forall((Integeer j) -> Implies(0<=j && j<i,a[i]!=null && a[i].getA()==i)));
+            // This does not work now as we cannot pass a non final variable in a lambda
+            invariant(a[0] != null);
+            invariant(a[0].getA()==1);
+            a[i] = new Point(i,i+1);
+        }
+        check(a[0] != null);
+        check(a[0].getA()==1);
+    }
+
+    static void intArrayOfSizeN(int n) {
+        precondition(n>0);
+        int[] a = new int[n];
+        a[0]=0;
+        int i = 0;
+        for (i = 0; i < a.length; i++) {
+            invariant(a[0]==0);
+            modifies(a);
+            a[i] = i;
+        }
+        check(a[0]==0);
+        check(i==n);
+//            ^^^^ Error: assertion might not hold
+    }
+}
