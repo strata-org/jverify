@@ -8,7 +8,7 @@ Here follows the binary search example from the last section, but with some loop
 
 ```java
 class BinarySearch {
-    int buggyBinarySearch(int[] arr, int target) {
+    int binarySearch(int[] arr, int target) {
         var lo = 1;
         var hi = arr.length;
 
