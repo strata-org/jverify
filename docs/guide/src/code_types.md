@@ -3,17 +3,16 @@ All code in a Java program that uses JVerify can be assigned two properties: whe
 
 ## Pure code
 
-Code that occurs in a contract, such as the arguments of calls to `precondition`/`postcondition`/`assert`, must follow the rules for pure code, which are:
-- It may only call methods annotated with `@Pure`
-- It must not update the value of an existing variable or field.
-- It must only create objects that are annotated with `@Immutable`, an annotation covered in a later section.
+Code that occurs in a contract, such as the arguments of calls to `precondition`, `postcondition` and `check`, must follow the rules for pure code. These are:
+- Only methods annotated with `@Pure` can be called.
+- Local variables or fields can not be updated.
 
-Code in a method annotated with `@Pure` must follow those same rules, and additionally:
-- It must only use these statements:
+Code that occurs in a method annotated with `@Pure` must follow those same rules, and additionally:
+- Only the following statements can be used:
   - variable declaration statements,
   - calls to `precondition`, `postcondition`, `reads` and `assert`
   - a single `return <expr>` statement at the end, in which other pure methods may be called
-- It must use `reads` calls if it wants to access any fields. We'll explain these shortly. 
+- If any fields of a reference are read, that reference must occur in a `reads` call. We'll explain what reads calls are in the next section. 
 
 Summary table:
 
