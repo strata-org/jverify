@@ -12,4 +12,5 @@ module com.aws.jverify.verifier {
     requires com.fasterxml.jackson.databind;
 
     opens com.aws.jverify.verifier to info.picocli;
+    exports com.aws.jverify.verifier;
 }

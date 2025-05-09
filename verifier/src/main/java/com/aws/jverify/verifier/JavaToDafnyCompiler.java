@@ -14,6 +14,7 @@ import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.processing.JavacProcessingEnvironment;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
@@ -23,6 +24,7 @@ import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
@@ -48,7 +50,13 @@ public class JavaToDafnyCompiler {
         this.context = context;
         shouldVerifies.push(ShouldVerifyMode.DefaultYes);
     }
-    
+
+    public static void verify(ProcessingEnvironment processingEnv) {
+        Context context = ((JavacProcessingEnvironment)processingEnv).getContext();
+        JavaToDafnyCompiler jtd = new JavaToDafnyCompiler(context);
+
+    }
+
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
         JavacTool compiler = JavacTool.create();
         

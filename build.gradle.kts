@@ -64,7 +64,12 @@ project(":library") {
 
 project(":examples") {
     dependencies {
-        testImplementation(project(":library"))
+        testImplementation(project(":javac-plugin"))
+
+        annotationProcessor(project(":javac-plugin"))
+
+        implementation(project(":library"))
+        implementation(project(":verifier"))
 
         testImplementation(project(":test-engine"))
         testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
@@ -82,6 +87,12 @@ project(":examples") {
 
     tasks.withType<Test> {
         jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+    }
+
+    tasks.withType<JavaCompile> {
+        options.annotationProcessorPath = files("../javac-plugin/build/classes/java/main", "../verifier/build/classes/java/main", "../library/build/classes/java/main")
+
+        options.compilerArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
 }
 
@@ -153,6 +164,7 @@ project(":javac-plugin") {
     dependencies {
         implementation(project(":common"))
         implementation(project(":library"))
+        implementation(project(":verifier"))
 
         implementation("com.google.auto.service:auto-service-annotations:1.0.1")
         annotationProcessor("com.google.auto.service:auto-service:1.0.1")
