@@ -7,11 +7,11 @@ import com.aws.jverify.testengine.JVerifyTest;
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
-class Point {
+class IntPair {
     private int a;
     private int b;
 
-    public Point(int a_, int b_) {
+    public IntPair(int a_, int b_) {
         postcondition(this.a == a_);
         postcondition(this.b == b_);
         this.a = a_;
@@ -29,13 +29,13 @@ class Point {
 @JVerifyTest
 class Allocate {
 
-    public static Point allocateInReturn(int a, int b) {
-        postcondition((Point p) -> fresh(p) &&  p.getA() == a);
-        return new Point(a, b);
+    public static IntPair allocateInReturn(int a, int b) {
+        postcondition((IntPair p) -> fresh(p) &&  p.getA() == a);
+        return new IntPair(a, b);
     }
 
     public static void test(int a) {
-        Point p = allocateInReturn(a,2);
+        IntPair p = allocateInReturn(a,2);
         check(p.getA() == a);
     }
 

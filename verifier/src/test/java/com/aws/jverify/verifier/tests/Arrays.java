@@ -40,7 +40,7 @@ class Arrays {
         check(a[0]==0);
     }
     static void pointArrayOfSize10() {
-        IntPair[] a = new IntPair[10];
+        Point[] a = new Point[10];
         a[0]=new IntPair(1,2);
         for (int i = 1; i < a.length; i++) {
             modifies(a);
@@ -49,7 +49,7 @@ class Arrays {
             // This does not work now as we cannot pass a non final variable in a lambda
             invariant(a[0] != null);
             invariant(a[0].getA()==1);
-            a[i] = new IntPair(i,i+1);
+            a[i] = new Point(i,i+1);
         }
         check(a[0] != null);
         check(a[0].getA()==1);
