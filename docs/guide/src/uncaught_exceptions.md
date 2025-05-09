@@ -40,4 +40,4 @@ class BinarySearch {
 }
 ```
 
-In the following section, [Loop Invariants](loop_invariants.md), we learn how to let JVerify verify programs with loops. Later on, in the section [Working with null](working_with_null), we'll look at how to verify programs that work with `null`.
+In the following section, [Loop Invariants](loop_invariants.md), we learn how to prove programs with loops do not throw uncaught exceptions. Later on, in the section [Working with null](working_with_null), we'll look at how to verify programs that work with `null`.
