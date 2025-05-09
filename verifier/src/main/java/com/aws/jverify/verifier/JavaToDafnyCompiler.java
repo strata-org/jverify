@@ -12,6 +12,7 @@ import com.aws.jverify.Verify;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.ActualBinding;
 import com.aws.jverify.generated.ActualBindings;
+import com.aws.jverify.generated.AllocateArray;
 import com.aws.jverify.generated.AllocateClass;
 import com.aws.jverify.generated.ApplySuffix;
 import com.aws.jverify.generated.AssignmentRhs;
@@ -109,6 +110,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -709,12 +711,14 @@ public class JavaToDafnyCompiler {
                 if (shouldVerify) {
                     var treeMaker = TreeMaker.instance(context);
 
+                    var newBodyStatements = new ArrayList<Statement>();
                     for (JCTree.JCVariableDecl variableDecl : initializers) {
                       var rhs = variableDecl.getInitializer();
                       var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                      bodyStatements.addAll(methodCompiler.translateStatement(assignStmt));
+                        newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt));
                     }
-                    bodyStatements.addAll(methodCompiler.translateStatements(postHeader));
+                    newBodyStatements.addAll(bodyStatements);
+                    bodyStatements = newBodyStatements;
 
                     body = new DividedBlockStmt(toOrigin(sourceBody), null, List.of(), bodyStatements, null, List.of());
                 } else {
@@ -809,7 +813,7 @@ public class JavaToDafnyCompiler {
             if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
                 reportError(expr, "notSupported", "multi-dimensional arrays");
             }
-            var arrayDafnyType = toType(arrayJavaType, true);
+            var arrayDafnyType = toType(arrayJavaType);
 
             if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                 reportError(expr, "notSupported", "new array with initializers");
