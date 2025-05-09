@@ -2,6 +2,8 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Range;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.sun.tools.javac.util.DiagnosticSource;
+import com.sun.tools.javac.util.JCDiagnostic;
 
 import javax.tools.Diagnostic;
 import java.util.List;
@@ -112,6 +114,18 @@ public class DafnyDiagnostic implements Diagnostic<String> {
             return diagnostic;
         }
     }
+
+    public JCDiagnostic toJCDiagnostic(JCDiagnostic.Factory factory) {
+        // TODO: Figure out the right source and message.
+        // Might be better to use the annotation processor API's Messager instead,
+        // but that seems to be less precise: it may not support
+        // attaching a message to elements inside the bodies of methods for eg.
+        return factory.create(JCDiagnostic.DiagnosticType.ERROR,
+                DiagnosticSource.NO_SOURCE,
+                new JCDiagnostic.SimpleDiagnosticPosition(0),
+                "invalid.yield");
+    }
+
 
     @Override
     public String toString() {

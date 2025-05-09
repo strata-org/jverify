@@ -77,7 +77,11 @@ public class JavaToDafnyCompiler {
         Driver.VerificationResults result = Driver.verifyJavaCode(context, List.of(compilationUnit), verifierOptions);
 
         JavaCompiler compiler = JavaCompiler.instance(context);
+        var factory = JCDiagnostic.Factory.instance(context);
         for (Diagnostic<?> diagnostic : result.getDiagnostics()) {
+            if (diagnostic instanceof DafnyDiagnostic) {
+                diagnostic = ((DafnyDiagnostic) diagnostic).toJCDiagnostic(factory);
+            }
             compiler.log.report((JCDiagnostic) diagnostic);
         }
     }
