@@ -580,8 +580,7 @@ public class JavaToDafnyCompiler {
             return null;
         }
 
-        List<Formal> ins = methodSymbol.getParameters().map(jvd ->
-        {
+        List<Formal> ins = methodSymbol.getParameters().map(jvd -> {
             Name formalName = new Name(origin, jvd.name.toString());
             var syntacticType = toType(jvd.type, origin);
             return new Formal(origin, formalName, syntacticType, false, true,
@@ -637,23 +636,25 @@ public class JavaToDafnyCompiler {
             var header = new HeaderContainer();
             List<JCTree.JCStatement> postHeader;
             List<Statement> bodyStatements = null;
-            if (shouldVerify) {
                 if (sourceBody instanceof JCTree.JCExpression) {
-                    postHeader = List.of();
+                postHeader = List.of();
+                if (shouldVerify) {
                     bodyStatements = List.of(
                             new ReturnStmt(origin, null, List.of(
                                     new ExprRhs(origin, null, toExpr((JCTree.JCExpression) sourceBody)))));
-                } else {
-                    postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
+                }
+            } else {
+                postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
+                if (shouldVerify) {
                     bodyStatements = methodCompiler.translateStatements(postHeader);
                 }
-                applyInvariants(modifiers, methodSymbol, header);
-                methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
+            }
+            applyInvariants(modifiers, methodSymbol, header);
+            methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
 
-                if (header.returnNames.size() > 1) {
-                    reportError(source, "multipleReturnNames");
-                    return null;
-                }
+            if (header.returnNames.size() > 1) {
+                reportError(source, "multipleReturnNames");
+                return null;
             }
             var outs = new ArrayList<Formal>();
             if (methodType.getReturnType() != null) {
