@@ -135,7 +135,7 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        JavacTool javac = JavacTool.create();
+        JavacTool compiler = JavacTool.create();
 
         if (!Files.exists(options.libraryJar().toAbsolutePath())) {
             throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
@@ -155,7 +155,7 @@ public class JavaToDafnyCompiler {
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 
-        JavacTaskImpl task = (JavacTaskImpl) javac.getTask(
+        JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
                 null,
                 null,
                 diagnostics,
@@ -164,10 +164,11 @@ public class JavaToDafnyCompiler {
                 files,
                 context
         );
-        var units = task.parse();
-        task.analyze();
 
         List<FileStart> filesStarts = new ArrayList<>();
+        var parsed = task.parse();
+        task.analyze();
+
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
@@ -182,10 +183,10 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        for (var compilationUnit : units) {
+        for (var compilationUnit : parsed) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
-        for (var compilationUnit : units) {
+        for (var compilationUnit : parsed) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
             filesStarts.add(fileStart);
         }
@@ -515,7 +516,7 @@ public class JavaToDafnyCompiler {
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
         Name fieldName = getName(variableDecl, variableDecl.name);
         IOrigin origin = declToOrigin(variableDecl, fieldName);
-        Type type = toType(variableDecl.vartype, isNullable(variableDecl.getModifiers()));
+        Type type = toType(variableDecl.vartype);
         if (variableDecl.getInitializer() != null) {
             var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
             if (isFinal) {
@@ -582,7 +583,7 @@ public class JavaToDafnyCompiler {
         List<Formal> ins = methodSymbol.getParameters().map(jvd ->
         {
             Name formalName = new Name(origin, jvd.name.toString());
-            var syntacticType = toType(jvd.type, jvd.getAnnotation(com.aws.jverify.Nullable.class) != null, origin);
+            var syntacticType = toType(jvd.type, origin);
             return new Formal(origin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
@@ -597,7 +598,7 @@ public class JavaToDafnyCompiler {
         if (annotationsByName.containsKey(Pure.class.getName())) {
             Expression body = null;
             var header = new HeaderContainer();
-            var returnType = toType(methodType.getReturnType(), false, origin);
+            var returnType = toType(methodType.getReturnType(), origin);
             if (returnType == null) {
                 reportError(source, "pureMethodsNeedsReturnType");
                 return null;
@@ -656,7 +657,7 @@ public class JavaToDafnyCompiler {
             }
             var outs = new ArrayList<Formal>();
             if (methodType.getReturnType() != null) {
-                var returnType = toType(methodType.getReturnType(), false, origin);
+                var returnType = toType(methodType.getReturnType(), origin);
                 if (returnType != null) {
                     Name returnName;
                     if (header.returnNames.size() == 1) {
@@ -865,7 +866,7 @@ public class JavaToDafnyCompiler {
             var methodSymbol = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.target.tsym);
             var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
             var datatypeNameNode = new Name(origin, datatypeName);
-            var trait = toType(lambda.target, false, origin);
+            var trait = toType(lambda.target, origin);
             var maker = TreeMaker.instance(context);
             var methodDecl = translateMethod(lambda, maker.Modifiers(0), methodSymbol, lambda.getBody());
 
@@ -947,7 +948,7 @@ public class JavaToDafnyCompiler {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = toType(param.getType().type, false, paramOrigin);
+                    var paramType = toType(param.getType().type, paramOrigin);
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
@@ -1094,15 +1095,25 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Type toType(JCTree tree) {
-        return toType(tree.type, false, toOrigin(tree));
+        return toType(tree.type, toOrigin(tree));
     }
 
-    private @Nullable Type toType(JCTree tree, boolean isNullable) {
-        return toType(tree.type, isNullable, toOrigin(tree));
+    private boolean isNullable(com.sun.tools.javac.code.Type type) {
+        if (type.getAnnotation(com.aws.jverify.Nullable.class) != null) {
+            return true;
+        }
+
+        if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType && isNullable(arrayType.elemtype)) {
+            return true;
+        }
+
+        return false;
     }
+
 
     @Nullable
-    public Type toType(com.sun.tools.javac.code.Type type, boolean isNullable, IOrigin origin) {
+    public Type toType(com.sun.tools.javac.code.Type type, IOrigin origin) {
+        var isNullable = isNullable(type);
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
@@ -1162,7 +1173,7 @@ public class JavaToDafnyCompiler {
             reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         } else if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayTypeTree) {
-            var elemType = toType(arrayTypeTree.elemtype, false, origin);
+            var elemType = toType(arrayTypeTree.elemtype, origin);
             if (elemType == null) {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");
