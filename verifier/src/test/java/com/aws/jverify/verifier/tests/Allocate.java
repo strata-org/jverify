@@ -1,4 +1,4 @@
-// TEST: exitCode=4 dafnyVerified=5 dafnyErrors=0
+// TEST: exitCode=0 dafnyVerified=5 dafnyErrors=0
 
 package com.aws.jverify.verifier.tests;
 
