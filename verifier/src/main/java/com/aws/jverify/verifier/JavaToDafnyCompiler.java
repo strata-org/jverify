@@ -603,7 +603,7 @@ public class JavaToDafnyCompiler {
 
         List<Formal> ins = methodSymbol.getParameters().map(jvd -> {
             Name formalName = new Name(origin, jvd.name.toString());
-            var syntacticType = toType(jvd.type, origin);
+            var syntacticType = toType(jvd.type, isNullable(jvd.type), origin);
             return new Formal(origin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
@@ -813,7 +813,7 @@ public class JavaToDafnyCompiler {
             if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
                 reportError(expr, "notSupported", "multi-dimensional arrays");
             }
-            var arrayDafnyType = toType(arrayJavaType);
+            var arrayDafnyType = toType(arrayJavaType.type, true, toOrigin(arrayJavaType));
 
             if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                 reportError(expr, "notSupported", "new array with initializers");
@@ -1141,10 +1141,6 @@ public class JavaToDafnyCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
-    private @Nullable Type toType(JCTree tree) {
-        return toType(tree.type, toOrigin(tree));
-    }
-
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
         if (type.getAnnotation(com.aws.jverify.Nullable.class) != null) {
             return true;
@@ -1158,9 +1154,16 @@ public class JavaToDafnyCompiler {
     }
 
 
+    public @Nullable Type toType(JCTree tree) {
+        return toType(tree.type, isNullable(tree.type), toOrigin(tree));
+    }
+
+    public @Nullable Type toType(com.sun.tools.javac.code.Type type, IOrigin origin) {
+        return toType(type, isNullable(type), origin);
+    }
+
     @Nullable
-    public Type toType(com.sun.tools.javac.code.Type type, IOrigin origin) {
-        var isNullable = isNullable(type);
+    public Type toType(com.sun.tools.javac.code.Type type, boolean isNullable, IOrigin origin) {
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
