@@ -1223,7 +1223,8 @@ public class JavaToDafnyCompiler {
             reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         } else if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayTypeTree) {
-            var elemType = toType(arrayTypeTree.elemtype, origin);
+            // TODO: Assume nullable here means it's not possible to have non-nullable array elements?
+            var elemType = toType(arrayTypeTree.elemtype, true, origin);
             if (elemType == null) {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");
