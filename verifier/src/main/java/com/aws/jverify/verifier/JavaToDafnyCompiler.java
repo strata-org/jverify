@@ -563,9 +563,16 @@ public class JavaToDafnyCompiler {
         return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
     }
 
-    private boolean isNullable(JCTree.JCModifiers modifiers) {
-        return modifiers.getAnnotations().stream().anyMatch(
-                a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
+    private boolean isNullable(com.sun.tools.javac.code.Type type) {
+        if (type.getAnnotation(com.aws.jverify.Nullable.class) != null) {
+            return true;
+        }
+
+        if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType && isNullable(arrayType.elemtype)) {
+            return true;
+        }
+
+        return false;
     }
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
@@ -995,7 +1002,7 @@ public class JavaToDafnyCompiler {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = toType(param.getType().type, paramOrigin);
+                    var paramType = toType(param.getType().type, false, paramOrigin);
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
@@ -1140,19 +1147,6 @@ public class JavaToDafnyCompiler {
         var source = toExpr(switchExpr.getExpression());
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
-
-    private boolean isNullable(com.sun.tools.javac.code.Type type) {
-        if (type.getAnnotation(com.aws.jverify.Nullable.class) != null) {
-            return true;
-        }
-
-        if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType && isNullable(arrayType.elemtype)) {
-            return true;
-        }
-
-        return false;
-    }
-
 
     public @Nullable Type toType(JCTree tree) {
         return toType(tree.type, isNullable(tree.type), toOrigin(tree));
