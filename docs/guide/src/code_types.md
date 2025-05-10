@@ -47,7 +47,7 @@ class Car {
 
 In an earlier example of a binary search program, we saw that a Java method can be given the annotation `@Erased`. This annotation change the rules that are applied to the code inside that method, and change where the method may be called.
 
-Any code inside a method annotated with `@Erased`, or that is part of a contract, is considered _erased_, meaning it will not be executed at runtime. Erased code is used purely for writing JVerify specifications and proofs. Because it is not executed, it may perform operations that would be costly to execute, such as evaluating `forall` and `exists` expressions, and working with unbounded numbers.
+Any code inside a method annotated with `@Erased`, or that is part of a contract, is _erased_, meaning it will not be executed at runtime. Erased code is used purely for writing JVerify specifications and proofs. Because it is not executed, it may perform operations that would be costly to execute, such as evaluating `forall` and `exists` expressions, and working with unbounded numbers.
 
 Here are the rules for different code contexts:
 
@@ -57,6 +57,7 @@ Here are the rules for different code contexts:
 | **Can use forall and exists**              | yes                | no                  |
 | **Can use @Unbounded**                     | yes                | no                  |
 
-The rules for code inside contracts are the same for code in methods that are marked both `@Erased` and `@Pure`.
+Code inside a contract is always erased.
 
-In the next section, [Code purposes](code_purposes.md), we'll reflect on what we've seen so far by introducing terminology that allows us to talk about the different usages of code when working with JVerify.
+In the next section, [Quantifiers](quantifiers.md), we'll explain how the `forall` method works, as well an introduce `exists.
+

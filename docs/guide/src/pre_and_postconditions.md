@@ -2,7 +2,11 @@
 
 Besides detecting exceptions, JVerify allows you to precisely state what a method does, and check that it actually does that. We can prove that the binary search method shown in the previous section behaves as intended by giving it a contract, which is done using calls to `precondition` and `postcondition`.
 
-Here’s the updated example. Note that this example contains several features that we have not discussed yet: `@Pure`, `@Erased`, `forall`, `sequence`, `drop` and `take`. The first two can be ignored for now, and are discussed in the next section, while for the others you can guess their behavior from the context. We will later get to what all these features do exactly. 
+Here’s the updated example. Note that this example contains calls to several JVerify utility methods that we have not seen before: `sequence`, `contains`, `drop` and `take`. 
+
+`sequence` converts an array to a JVerify type `Sequence` which is similar to an immutable Java `List`, and is useful for verification. On a `Sequence` we can call `contains` which behaves as you'd expect. `drop` and `take` create a `Sequence` from an array, with elements selected as you'd expect.
+
+Lastly, we're calling the JVerify method `forall`. We'll cover how this works in the section [Quantifiers](quantifiers.md) later on. In the below example, the comments explain what it means there.
 
 ```java
 class BinarySearch {    
@@ -13,9 +17,11 @@ class BinarySearch {
       : r == -1
     );
 
-    // We need to add the following precondition, because otherwise we won't be able to prove the
-    // two new loop invariants, which are needed to prove the postcondition
-    precondition(sorted(arr));
+    // The following precondition states that the input arr must be sorted.
+    // Without this, we won't be able to prove the two new loop invariants, 
+    // which are needed to prove the postcondition.
+    precondition(forall((Integer i, Integer j) ->
+            implies(0 <= i && i < j && j < arr.length, arr[i] < arr[j])));
     
     // implementation
     var left = 0;
@@ -26,35 +32,28 @@ class BinarySearch {
       invariant(0 <= left);
       invariant(left <= right);
       invariant(right <= arr.length);
-      invariant(!drop(arr, left).contains(target)); // needed for the postcondition
-      invariant(!take(arr, right).contains(target)); // needed for the postcondition
+      invariant(!drop(arr, left).contains(target)); // added
+      invariant(!take(arr, right).contains(target)); // added
 
       var mid = (left + right) / 2;
       if (arr[mid] == target) {
+          // we can prove sequence(arr).contains(target)
+          // and 0 <= mid && mid < arr.length && arr[mid] == target
           return mid;
       }
       if (arr[mid] < target) {
-          left = mid + 1;
+          left = mid + 1; // we use the preconditon to prove the 4th invariant
       } else {
-          right = mid;
+          right = mid; // we use the precondition to prove the 5th invariant
       }
     }
+    // we use the 4th and 5th invariant to prove that !sequence(arr).contains(target)
     return -1;
-  }
-
-  @Pure // enables calling sorted in a contract such as precondition
-  @Erased // enables the call to forall in the body
-  boolean sorted(int[] arr)
-  { 
-    reads(arr); // necessary to access arr in a @Pure method
-
-    return forall((Integer i, Integer j) -> 
-            implies(0 <= i && i < j && j < arr.length, arr[i] < arr[j]));
   }
 }
 ```
 
-If we now change anything in the implementation of `binarySearch` that changes its meaning, JVerify will detect that the implementation no longer matches the specification, and emit an error.
+If we now change anything in the implementation of `binarySearch` that would change its meaning, JVerify detects that the implementation no longer matches the specification and emits an error.
 
 We had to add the call to `precondition` to be able to prove the `postcondition`, but this also has the desired effect of preventing us from incorrectly calling `binarySearch`. The method only behaves as intended if called with a sorted list, and this is now checked by JVerify, as you can see here:
 
@@ -66,4 +65,27 @@ We had to add the call to `precondition` to be able to prove the `postcondition`
   }  
 ```
 
-In the next section, [Code types](code_types.md), we'll dive into what the `@Pure` and `@Erased` annotations that we saw in the above example do.
+## Improvements
+Our binary search method has the following precondition:
+
+```java
+// The following precondition states that the input arr must be sorted.
+precondition(forall((Integer i, Integer j) ->
+  implies(0 <= i && i < j && j < arr.length, arr[i] < arr[j])));
+```
+
+Instead of the comment, let's extract this precondition into a method so it's self-documenting:
+
+```java
+@Pure
+@Erased
+boolean sorted(int[] arr)
+{
+  reads(arr);
+  return forall((Integer i, Integer j) -> 
+    implies(0 <= i && i < j && j < arr.length, arr[i] < arr[j]));
+}
+```
+
+Note that this uses three new concepts, `@Pure`, `@Erased` and `reads`. These are needed for JVerify to accept the code. In the next section, [Code types](code_types.md), we'll explain how these work.
+

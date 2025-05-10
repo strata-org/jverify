@@ -12,10 +12,11 @@
 - [Loop Invariants](loop_invariants.md)
 - [Pre- and post-conditions](pre_and_postconditions.md)
 - [Code types](code_types.md)
+- [Quantifiers](quantifiers.md)
 - [Code purposes](code_purposes.md)
 - [Integers](integers.md)
 - [Termination](termination.md)
-- [Modifying objects](modifies.md)
+- [Modifying fields](modifies.md)
 - [Working with null](working_with_null.md)
 - [Class Invariants](class_invariants.md)
 

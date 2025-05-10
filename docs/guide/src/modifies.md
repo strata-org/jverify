@@ -1,4 +1,4 @@
-## Modifying objects
+## Modifying fields
 
 JVerify requires that methods are explicit about which objects they modify, which can be specified using `modifies` calls. The `modifies` method takes one or multiple objects, and allows the remainder of the calling method to modify these.
 
