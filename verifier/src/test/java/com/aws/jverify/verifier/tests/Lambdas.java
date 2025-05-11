@@ -4,6 +4,7 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Immutable;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import java.sql.Time;
@@ -38,6 +39,7 @@ interface SomethingDoer {
 }
 
 @Contract(SomethingDoer.class)
+@Immutable
 class SomethingDoerContract implements SomethingDoer {
     @Override
     public int doSomething(int x, int y) {

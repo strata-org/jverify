@@ -184,7 +184,7 @@ public class MethodCompiler {
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, String string, JCTree type, JCTree.JCExpression initializer) {
         LocalVariable localVariable = new LocalVariable(origin,
-                string, compiler.toType(type), false);
+                string, compiler.toType(type.type, false, origin), false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (initializer != null) {
             var rhs = compiler.toAssignmentRhs(initializer);
