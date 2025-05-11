@@ -31,9 +31,9 @@ class TranslationErrors {
     
     void quantifierNeedsLambdaArgument() {
         java.util.function.Function<Integer, Boolean> f =
-//                                 ^ error: JCTypeApply is not supported        
                 (Integer i) -> i > 0;
-//              ^ error: JCLambda is not supported
+//              ^ error: TypeVar is not supported
+//                             ^ error: TypeVar is not supported
         check(forall(f));
 //                   ^ error: the argument to a forall call must be a lambda
     }

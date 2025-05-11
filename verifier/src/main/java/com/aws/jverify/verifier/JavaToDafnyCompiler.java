@@ -630,7 +630,7 @@ public class JavaToDafnyCompiler {
         if (annotationsByName.containsKey(Pure.class.getName())) {
             Expression body = null;
             var header = new HeaderContainer();
-            var returnType = toType(methodType.getReturnType(), origin);
+            var returnType = toType(methodType.getReturnType(), toOrigin(sourceBody));
             if (returnType == null) {
                 reportError(source, "pureMethodsNeedsReturnType");
                 return null;
@@ -690,7 +690,7 @@ public class JavaToDafnyCompiler {
             }
             var outs = new ArrayList<Formal>();
             if (methodType.getReturnType() != null) {
-                var returnType = toType(methodType.getReturnType(), origin);
+                var returnType = toType(methodType.getReturnType(), toOrigin(sourceBody));
                 if (returnType != null) {
                     Name returnName;
                     if (header.returnNames.size() == 1) {
