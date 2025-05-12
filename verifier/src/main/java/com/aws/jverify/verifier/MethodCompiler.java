@@ -131,8 +131,22 @@ public class MethodCompiler {
         if (expr == null) {
             return List.of(new ReturnStmt(origin, null, null));
         } else {
-            return List.of(new ReturnStmt(origin, null,
-                    List.of(new ExprRhs(compiler.toOrigin(expr), null, compiler.toExpr(expr)))));
+            // Replace
+            //   return e;
+            // by
+            //   var tmp := e;
+            //   return tmp;
+            // so that we can have allocation in e.
+            var exprOrigin = compiler.toOrigin(expr);
+            var returnExpr = compiler.toAssignmentRhs(expr);
+            var newLocalVarName = getTmpVariableName();
+            var newLocalVar = new LocalVariable(exprOrigin,
+                    newLocalVarName, null, false);
+            var newLocalVarExpr = new NameSegment(exprOrigin, newLocalVarName, null);
+            var varDeclStmt = new VarDeclStmt(exprOrigin, null, List.of(newLocalVar), null);
+            var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
+            var returnStmt = new ReturnStmt(origin, null, List.of(new ExprRhs(exprOrigin, null,newLocalVarExpr)));
+            return List.of(varDeclStmt, assignment,returnStmt);
         }
     }
 
@@ -227,6 +241,9 @@ public class MethodCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
+    }
+    private String getTmpVariableName() {
+        return "#_tmpVar_"+(generatedIndex++);
     }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement) {
@@ -469,7 +486,4 @@ public class MethodCompiler {
                 : new BlockStmt(origin, null, List.of(), statements);
     }
 
-    private String getName(String prefix) {
-        return "$" + prefix + generatedIndex++;
-    }
 }
