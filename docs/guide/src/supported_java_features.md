@@ -8,7 +8,8 @@
 - method references
 - import statement
 - package statement
-- Array instantiation: `new []`
+- Multi-dimensional array instantiation: `new [,]`
+- Array instantiation with initializers: `new int[] { 1, 2, 3 }`
 - type casts: `(SomeType)someValue`
 - type parameters for types, including the declaration, declaration of bounds, and application
 - `extends`: but only classes inheriting other classes
@@ -39,6 +40,7 @@ Nothing yet
 - Field access: `a.x`
 - Array access: `a[i]`
 - Array types: `int[]`
+- Array instantiation: `new []`
 - `while` loop
 - `for loop`
 - `do while loop`
