@@ -36,3 +36,5 @@ Node createAndInitialize(int value)
 }
 ```
 
+In the next section, [Time traveling](time_traveling.md), we will learn how to write specifications for code that modifies fields.
+

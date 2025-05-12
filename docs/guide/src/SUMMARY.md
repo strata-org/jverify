@@ -5,10 +5,11 @@
 # Getting started
 
 - [Getting started](./getting_started.md)
+- [Supported Java features](./supported_java_features.md)
 
 # Fundamentals
 
-- [Uncaught exceptions](uncaught_exceptions.md)
+- [Uncaught Exceptions](uncaught_exceptions.md)
 - [Loop Invariants](loop_invariants.md)
 - [Pre- and post-conditions](pre_and_postconditions.md)
 - [Code types](code_types.md)
@@ -17,6 +18,7 @@
 - [Termination](termination.md)
 - [Integers](integers.md)
 - [Modifying fields](modifies.md)
+- [Time traveling](time_traveling.md)
 - [Working with null](working_with_null.md)
 - [Class Invariants](class_invariants.md)
 
