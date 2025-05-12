@@ -41,7 +41,7 @@ class Arrays {
     }
     static void pointArrayOfSize10() {
         Point[] a = new Point[10];
-        a[0]=new IntPair(1,2);
+        a[0]=new Point(1,2);
         for (int i = 1; i < a.length; i++) {
             modifies(a);
             // We want a better invariant like
