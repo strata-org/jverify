@@ -59,5 +59,5 @@ Here are the rules for different code contexts:
 
 Code inside a contract is always erased.
 
-In the next section, [Quantifiers](quantifiers.md), we'll explain how the `forall` method works, as well an introduce `exists.
+In the next section, [Quantifiers](quantifiers.md), we'll explain how the `forall` method works, as well an introduce `exists`.
 

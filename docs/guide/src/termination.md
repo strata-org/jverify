@@ -8,15 +8,16 @@ This page further explains how to prove termination using JVerify.
 
 ## Decreases clauses
 
-JVerify needs a decreases clause for each method and loop. If none is specified explicitly, JVerify will guess one. A decreases clause contains an expression. JVerify proves termination by verifying that this expression:
+JVerify needs a decreases clause for each method and loop. If none is specified explicitly, JVerify will guess one. A decreases clause contains an expression. JVerify proves termination by verifying that this expression satisfied two rules:
 
-1. Gets smaller with each recursive call or loop iteration
-2. Has a lower bound that will eventually be reached
+1. Decreasing: the expression becomes smaller with each recursive call or loop iteration
+2. Lower bound: the expression only recurses/loops if at or above a lower bound. The value of the lower bound depends on the type of the expression. For `int`, the lower bound is 0.
 
 ## Example with Recursion
 
 ```java
-int factorial(@Nat int n) {
+int factorial(int n) {
+    precondition(n >= 0);
     decreases(n);
     
     if (n == 0) {
@@ -27,7 +28,11 @@ int factorial(@Nat int n) {
 }
 ```
 
-In this example, the `decreases(n)` clause tells JVerify that the value of `n` decreases with each recursive call. Since `n` is annotated with `@Nat`, it can't go below 0, ensuring the recursion will terminate.
+In this example, the `decreases(n)` clause tells JVerify that the value of `n` is the termination metric. Since the recursive call uses `n - 1`, `n` decreases with each recursive call, the decreasing rule is satisfied. Since the recursive call is only done when `n` is greater than 0, the lower bound rule is also satisfied. With both rules satisfied, we have proven that the method terminates.
+
+Suppose we had not added the precondition `precondition(n >= 0);`, then calling factorial with a negative number would cause it to run indefinitely. JVerify would report `decreases expression must be bounded below by 0`, because the recursive call could be done with a value lower than 0, violating the lower bound rule.
+
+If we would then change the expression `n == 0` into `n <= 0`, then the lower bound rule would be satisfied again.
 
 ## Lexicographic Ordering
 
@@ -69,9 +74,11 @@ void methodB(int x) {
 }
 ```
 
-Here, the lexicographic tuples ensure termination:
+Here, the lexicographically ordered tuples ensure termination:
 - For the call from `methodA(x)` to `methodB(x)`, the tuple `(x, 0)` is smaller than `(x, 1)`
 - For the call from `methodB(x)` to `methodA(x-1)`, the tuple `(x-1, 1)` is smaller than `(x, 0)`
+
+Note that if comparing tuples of different sizes, Dafny appends an imaginary 'top' value to the smaller tuple until they are of equal size. The top value is larger than any other value, and can not be expressed explicitly. In the above example of `methodA` had specified `decreases(x)` instead of `decreases(x,1)`, then instead of the `1` the top value would have been used when comparing to `0`, so the result would have been the same.
 
 ## Non-terminating Code
 
@@ -106,3 +113,7 @@ int fibonacci(int n) {
 ```
 
 However, for complex recursion patterns or when JVerify cannot determine termination, you'll need to provide explicit decreases clauses.
+
+### Integers
+
+In the next section, [Integers](integers.md), we'll look at verifying code that uses integers, including the `@Nat` annotation which is often useful for termination proofs. 

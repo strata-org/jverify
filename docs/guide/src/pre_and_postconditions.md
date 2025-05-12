@@ -20,6 +20,7 @@ class BinarySearch {
     // The following precondition states that the input arr must be sorted.
     // Without this, we won't be able to prove the two new loop invariants, 
     // which are needed to prove the postcondition.
+    // The method `forall` is one we'll get back to in the section Quantifiers
     precondition(forall((Integer i, Integer j) ->
             implies(0 <= i && i < j && j < arr.length, arr[i] < arr[j])));
     
@@ -42,9 +43,11 @@ class BinarySearch {
           return mid;
       }
       if (arr[mid] < target) {
-          left = mid + 1; // we use the preconditon to prove the 4th invariant
+          left = mid + 1; 
+          // we use the preconditon to prove the 4th invariant
       } else {
-          right = mid; // we use the precondition to prove the 5th invariant
+          right = mid; 
+          // we use the precondition to prove the 5th invariant
       }
     }
     // we use the 4th and 5th invariant to prove that !sequence(arr).contains(target)

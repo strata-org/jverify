@@ -1,7 +1,24 @@
 # Integers
+This section explain how prove properties about integers in Java code.
+
+## Nat
+
+The annotation `@Nat` can be used to tell JVerify that an integer is never negative. Example:
+
+```java
+int factorial(@Nat int n) {
+    if (n == 0) {
+        return 1;
+    } else {
+        return factorial(n - 1); // pass
+    }
+}
+```
+
+Without the `@Nat` annotation, JVerify would not have been able to prove termination, and indeed the program does not terminate if `n` is smaller than zero. Instead of `@Nat`, we could also have used `precondition(n >= 0)`, but that is more verbose.
 
 ## Bounded numbers
-The types `int`, `short` and `long` in Java are bounded. The values of these numbers all have lower and upper bounds, and doing arithmetic operations that cause these numbers to surpass these bounds, called an overflow, generally causes undesired results.
+The types `byte`, `int`, `short` and `long` in Java are bounded. The values of these numbers all have lower and upper bounds, and doing arithmetic operations that cause these numbers to surpass these bounds, called an overflow, generally causes undesired results.
 
 JVerify will check that any arithmetic operations on bounded number will not overflow. Example:
 
@@ -29,35 +46,7 @@ Using the annotation `@Unbounded`, you can annotate integer types so JVerify wil
 }
 ```
 
-The `@Unbounded` annotation can only be used in erased code.
-
-## Nat
-
-The annotation `@Nat` can be used to tell JVerify that an integer is never negative. Example:
-
-```java
-int factorial(int n) {
-    if (n == 0) {
-        return 1;
-    } else {
-        return factorial(n - 1); // error: could not prove termination
-    }
-}
-```
-
-JVerify can not prove that the recursive call terminates, because if you pass in a negative number, then it won't. We can solve this by using `@Nat`:
-
-```java
-int factorial(@Nat int n) {
-    if (n == 0) {
-        return 1;
-    } else {
-        return factorial(n - 1); // pass
-    }
-}
-```
-
-Instead of `@Nat`, we could also have used `precondition(n >= 0)`, but that is more verbose.
+Note that the `@Unbounded` annotation can only be used in erased code. It is often useful in specifications, because working with unbounded numbers is easier, and since specifications are erased, they can use them.
 
 ## Combining the above
 Here follows an example that uses unbounded numbers is its specification, bounded numbers in the implementation, and natural numbers in both. It shows how each of these concepts is useful:
