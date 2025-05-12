@@ -22,6 +22,7 @@ import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.JavacMessages;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -58,6 +59,10 @@ public class JavaToDafnyCompiler {
         JavacProcessingEnvironment javacProcessingEnvironment = ((JavacProcessingEnvironment)processingEnv);
         Context context = javacProcessingEnvironment.getContext();
         JCTree.JCCompilationUnit cu = (JCTree.JCCompilationUnit) compilationUnit;
+        // TODO: Doesn't work from javac for some reason, can't find resource bundle
+//        var messages = JavacMessages.instance(context);
+//        messages.add("com.aws.jverify.messages");
+
         // TODO: Hardcoded paths for now
         var dafnyPath = Path.of("/Users/salkeldr/Documents/GitHub/dafny/Scripts/dafny");
         var prelude = Path.of("/Users/salkeldr/Documents/GitHub/jverify/verifier/src/main/resources/additional.dfy");
@@ -77,10 +82,9 @@ public class JavaToDafnyCompiler {
         Driver.VerificationResults result = Driver.verifyJavaCode(context, List.of(compilationUnit), verifierOptions);
 
         JavaCompiler compiler = JavaCompiler.instance(context);
-        var factory = JCDiagnostic.Factory.instance(context);
         for (Diagnostic<?> diagnostic : result.getDiagnostics()) {
             if (diagnostic instanceof DafnyDiagnostic) {
-                diagnostic = ((DafnyDiagnostic) diagnostic).toJCDiagnostic(factory);
+                diagnostic = ((DafnyDiagnostic) diagnostic).toJCDiagnostic(context, compilationUnit);
             }
             compiler.log.report((JCDiagnostic) diagnostic);
         }

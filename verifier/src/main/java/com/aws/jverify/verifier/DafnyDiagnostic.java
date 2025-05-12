@@ -2,10 +2,15 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Range;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.sun.source.tree.CompilationUnitTree;
+import com.sun.tools.javac.main.JavaCompiler;
+import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 
 import javax.tools.Diagnostic;
+import javax.tools.JavaFileManager;
+import javax.tools.JavaFileObject;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -115,15 +120,18 @@ public class DafnyDiagnostic implements Diagnostic<String> {
         }
     }
 
-    public JCDiagnostic toJCDiagnostic(JCDiagnostic.Factory factory) {
+    public JCDiagnostic toJCDiagnostic(Context context, CompilationUnitTree unit) {
+        var factory = JCDiagnostic.Factory.instance(context);
+        JavaCompiler compiler = JavaCompiler.instance(context);
+        int position = (int)unit.getLineMap().getPosition(getLineNumber(), getColumnNumber());
         // TODO: Figure out the right source and message.
         // Might be better to use the annotation processor API's Messager instead,
         // but that seems to be less precise: it may not support
         // attaching a message to elements inside the bodies of methods for eg.
         return factory.create(JCDiagnostic.DiagnosticType.ERROR,
-                DiagnosticSource.NO_SOURCE,
-                new JCDiagnostic.SimpleDiagnosticPosition(0),
-                "invalid.yield");
+                new DiagnosticSource(unit.getSourceFile(), compiler.log),
+                new JCDiagnostic.SimpleDiagnosticPosition(position),
+                "compiler.err.catchall", message);
     }
 
 
