@@ -59,9 +59,12 @@ public class JavaToDafnyCompiler {
         JavacProcessingEnvironment javacProcessingEnvironment = ((JavacProcessingEnvironment)processingEnv);
         Context context = javacProcessingEnvironment.getContext();
         JCTree.JCCompilationUnit cu = (JCTree.JCCompilationUnit) compilationUnit;
-        // TODO: Doesn't work from javac for some reason, can't find resource bundle
-//        var messages = JavacMessages.instance(context);
+        var messages = JavacMessages.instance(context);
+        // TODO: This doesn't work, likely because then jdk.compiler is the module requesting the resource bundle
+        // and that's not allowed?
 //        messages.add("com.aws.jverify.messages");
+        var bundle = ResourceBundle.getBundle("com.aws.jverify.messages", Locale.getDefault());
+        messages.add(_ -> bundle);
 
         // TODO: Hardcoded paths for now
         var dafnyPath = Path.of("/Users/salkeldr/Documents/GitHub/dafny/Scripts/dafny");

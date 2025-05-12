@@ -131,7 +131,7 @@ public class DafnyDiagnostic implements Diagnostic<String> {
         return factory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(unit.getSourceFile(), compiler.log),
                 new JCDiagnostic.SimpleDiagnosticPosition(position),
-                "compiler.err.catchall", message);
+                "catchall", message);
     }
 
 

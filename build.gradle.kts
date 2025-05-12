@@ -64,8 +64,6 @@ project(":library") {
 
 project(":examples") {
     dependencies {
-        testImplementation(project(":javac-plugin"))
-
         annotationProcessor(project(":javac-plugin"))
 
         implementation(project(":library"))
@@ -90,20 +88,11 @@ project(":examples") {
     }
 
     tasks.withType<JavaCompile> {
-        // TODO: Figure out why this is necessary
-        options.annotationProcessorPath = files(
-            "../javac-plugin/build/classes/java/main",
-            "../common/build/classes/java/main",
-            "../verifier/build/classes/java/main",
-            "../library/build/classes/java/main",
-            "/Users/salkeldr/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-core/2.18.3/78f80c259268200e588aa204dd97ecf09b76916e/jackson-core-2.18.3.jar",
-            "/Users/salkeldr/.gradle/caches/modules-2/files-2.1/org.checkerframework/checker-qual/3.49.0/54be36cb42c9b991c109e467e2bfa82af4cda44e/checker-qual-3.49.0.jar",
-            "/Users/salkeldr/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-databind/2.18.3/537e3886263e3b3464385040453e92567fd509e2/jackson-databind-2.18.3.jar",
-            "/Users/salkeldr/.gradle/caches/modules-2/files-2.1/com.fasterxml.jackson.core/jackson-annotations/2.18.3/7fa21cf7da4598f8240e4ebd9779249622af1acd/jackson-annotations-2.18.3.jar")
-
+        options.annotationProcessorPath = configurations.annotationProcessor.get()
         options.isFork = true
         options.forkOptions {
             jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+//            jvmArgs!!.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005")
         }
     }
 }

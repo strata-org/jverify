@@ -24,7 +24,7 @@ public class JVerifyProcessor extends AbstractProcessor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Collections.EMPTY_SET;
+        return Collections.emptySet();
     }
     
     @Override

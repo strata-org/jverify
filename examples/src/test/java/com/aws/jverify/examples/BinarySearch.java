@@ -38,7 +38,7 @@ class BinarySearch {
             if (key < arr[mid]) {
                 hi = mid;
             } else if (arr[mid] < key) {
-                lo = mid;
+                lo = mid + 1;
             } else {
                 return mid;
             }
