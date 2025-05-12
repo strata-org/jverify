@@ -131,8 +131,22 @@ public class MethodCompiler {
         if (expr == null) {
             return List.of(new ReturnStmt(origin, null, null));
         } else {
-            return List.of(new ReturnStmt(origin, null,
-                    List.of(new ExprRhs(compiler.toOrigin(expr), null, compiler.toExpr(expr)))));
+            // Replace
+            //   return e;
+            // by
+            //   var tmp := e;
+            //   return tmp;
+            // so that we can have allocation in e.
+            var exprOrigin = compiler.toOrigin(expr);
+            var returnExpr = compiler.toAssignmentRhs(expr);
+            var newLocalVarName = getTmpVariableName();
+            var newLocalVar = new LocalVariable(exprOrigin,
+                    newLocalVarName, null, false);
+            var newLocalVarExpr = new NameSegment(exprOrigin, newLocalVarName, null);
+            var varDeclStmt = new VarDeclStmt(exprOrigin, null, List.of(newLocalVar), null);
+            var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
+            var returnStmt = new ReturnStmt(origin, null, List.of(new ExprRhs(exprOrigin, null,newLocalVarExpr)));
+            return List.of(varDeclStmt, assignment,returnStmt);
         }
     }
 
@@ -171,7 +185,9 @@ public class MethodCompiler {
         var result = new ArrayList<Statement>(initializer.size() + 1);
         result.addAll(initializer);
         result.add(loop);
-        return result;
+        // Pack the statements in a block to ensure the loop index variable is
+        // scoped
+        return List.of(new BlockStmt(origin, null, List.of(), result));
     }
 
     private List<Statement> translateDoWhileLoop(JCTree.JCDoWhileLoop doWhileLoop, List<Label> labels) {
@@ -225,6 +241,9 @@ public class MethodCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
+    }
+    private String getTmpVariableName() {
+        return "#_tmpVar_"+(generatedIndex++);
     }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement) {
@@ -366,12 +385,19 @@ public class MethodCompiler {
      */
     public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, HeaderContainer header) {
         var headerStatements = 0;
+        JCTree.JCStatement callToSuper = null;
         statementLoop: for (var statement : statements) {
             if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                     && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
                 break;
             }
             var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+            var isSuper = (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super"));
+            if (isSuper) {
+                callToSuper = statement;
+                headerStatements++;
+                continue;
+            }
             if (jverifyMethod == null) {
                 break;
             }
@@ -443,7 +469,11 @@ public class MethodCompiler {
             }
             headerStatements++;
         }
-        return statements.subList(headerStatements, statements.size());
+        var postHeaderStatements = new ArrayList<JCTree.JCStatement>(statements.subList(headerStatements, statements.size()));
+        if (callToSuper != null) {
+            postHeaderStatements.addFirst(callToSuper);
+        }
+        return postHeaderStatements;
     }
 
     /**
@@ -456,7 +486,4 @@ public class MethodCompiler {
                 : new BlockStmt(origin, null, List.of(), statements);
     }
 
-    private String getName(String prefix) {
-        return "$" + prefix + generatedIndex++;
-    }
 }
