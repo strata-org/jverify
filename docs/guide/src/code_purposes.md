@@ -2,7 +2,7 @@
 
 This section does not introduce any features, but it defines terminology that we commonly use to talk about Java programs using JVerify. When writing Java code that uses JVerify, each piece of code serves one or several of the following goals:
 
-- Implementation, the Java code that will actually execute, and may be optimized for performance at the cost of readability.
+- Implementation, the Java code that will actually execute.
 - Specification, used to specify the behavior of a piece of implementation. Will not be executed.
 - Proof, used to verify that an implementation adheres to a specification and that it does not throw unchecked exceptions. Should not be executed.
 
