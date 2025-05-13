@@ -13,6 +13,13 @@ import java.util.List;
 public class TestExamples {
 
     @Test
+    public void testFibonacci() throws IOException {
+        var markedSourcePath = Path.of("Fibonacci.java");
+        verifyPath(markedSourcePath, 0, 4, 0, List.of());
+    }
+
+    
+    @Test
     public void testUserProfile() throws IOException {
         var markedSourcePath = Path.of("UserProfile.java");
         verifyPath(markedSourcePath, 0, 6, 0, List.of());
