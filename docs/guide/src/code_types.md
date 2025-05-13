@@ -10,7 +10,7 @@ Code that occurs in a contract, such as the arguments of calls to `precondition`
 Code that occurs in a method annotated with `@Pure` must follow those same rules, and additionally:
 - Only the following statements can be used:
   - variable declaration statements,
-  - calls to `precondition`, `postcondition`, `reads` and `assert`
+  - calls to `precondition`, `postcondition`, `reads`, and `check`
   - a single `return <expr>` statement at the end, in which other pure methods may be called
 - If any fields of a reference are read, that reference must occur in a `reads` call. We'll explain what reads calls are in the next section. 
 
