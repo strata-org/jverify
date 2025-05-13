@@ -34,7 +34,6 @@ class UserProfile {
         this.accountType = AccountType.Premium;
         this.premiumFeatures = new PremiumFeatures();
         return;
-//      ^^^^^^^ Error: a postcondition could not be proved on this return path
     }
 
     public boolean applyTheme(Theme theme) {
