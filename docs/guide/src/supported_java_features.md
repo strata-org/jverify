@@ -35,7 +35,7 @@ Nothing yet
 
 # Supported Java Features
 
-- all literals excepts strings
+- all literals except strings
 - all operators
 - Field access: `a.x`
 - Array access: `a[i]`
