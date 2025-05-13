@@ -67,7 +67,6 @@ project(":examples") {
         annotationProcessor(project(":javac-plugin"))
 
         implementation(project(":library"))
-        implementation(project(":verifier"))
 
         testImplementation(project(":test-engine"))
         testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
@@ -92,6 +91,7 @@ project(":examples") {
         options.isFork = true
         options.forkOptions {
             jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+            // Uncomment if you need to debug the verification code
 //            jvmArgs!!.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005")
         }
     }

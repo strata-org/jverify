@@ -32,7 +32,7 @@ class UserProfile {
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
-        // this.premiumFeatures = new PremiumFeatures();
+         this.premiumFeatures = new PremiumFeatures();
         return;
 //      ^^^^^^^ Error: a postcondition could not be proved on this return path
     }

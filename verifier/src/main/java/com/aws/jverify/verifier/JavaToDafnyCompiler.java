@@ -32,8 +32,10 @@ import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -68,12 +70,16 @@ public class JavaToDafnyCompiler {
 
         // TODO: Hardcoded paths for now
         var dafnyPath = Path.of("/Users/salkeldr/Documents/GitHub/dafny/Scripts/dafny");
-        var prelude = Path.of("/Users/salkeldr/Documents/GitHub/jverify/verifier/src/main/resources/additional.dfy");
+
+        File tempFile = File.createTempFile("jverify-prelude-", ".dfy");
+        InputStream stream = JavaToDafnyCompiler.class.getResourceAsStream("/additional.dfy");
+        Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
         var verifierOptions = new VerifierOptions(
                 dafnyPath,
                 null,
                 List.of(),
-                prelude,
+                tempFile.toPath(),
                 Path.of("/Users/salkeldr/Documents/GitHub/jverify/temp.dfy"),
                 null,
                 true,
