@@ -1,42 +1,8 @@
-# Unsupported Java features
-
-- `switch` statement
-- `switch` expression
-- `yield` in switch expressions
-- record pattern in switch expression
-- lambda expressions
-- method references
-- import statement
-- package statement
-- Multi-dimensional array instantiation: `new [,]`
-- Array instantiation with initializers: `new int[] { 1, 2, 3 }`
-- type casts: `(SomeType)someValue`
-- type parameters for types, including the declaration, declaration of bounds, and application
-- `extends`: but only classes inheriting other classes
-- enhanced for loop: `for(var x : xs) { ... }`
-- use of mutating operators such as `=` in a nested expression
-- operators on `float` and `double`
-- `instanceof <pattern>`, only when using a pattern
-- string literal: `"hello"`
-- string template: `STR."My name is \{name}"`
-- `throw`
-- `try`/`catch`/`finally`
-- `checked exceptions` (ignored)
-- `synchronized`
-- module declarations
-- `?` wildcards
-- `permits`
-- verification of annotations
-- Any classes that rely on concurrent analysis currently can not be analyzed by JVerify
-
-# Supported Java standard library packages
-
-Nothing yet
-
 # Supported Java Features
 
-- all literals excepts strings
-- all operators
+- All literals except strings
+- All operators
+- `switch` expression, although without pattern matching and yield statements
 - Field access: `a.x`
 - Array access: `a[i]`
 - Array types: `int[]`
@@ -49,12 +15,46 @@ Nothing yet
 - `break`, including with a label
 - `continue`, including with a label
 - `assert` statement
-- constructors (partially?)
-- `instanceof` without a pattern
-- `class`, partially
-- `interface`
+- Constructors
+- `instanceof`, but only without a pattern
+- `class`, but only without type parameters
+- `interface, but only without type parameters`
 - `implements`, classes implementing interfaces
 - `extends`, interfaces extending interfaces
+
+# Supported Java standard library packages
+
+Nothing yet
+
+# Unsupported Java features
+
+- Pattern matches in switch expressions
+- `switch` statement
+- `yield` in switch expressions
+- Lambda expressions
+- Method references
+- `import` statements
+- `package` statements
+- Multi-dimensional array instantiation: `new [,]`
+- Array instantiation with initializers: `new int[] { 1, 2, 3 }`
+- Type casts: `(SomeType)someValue`
+- Type parameters for types, including the declaration, declaration of bounds, and application
+- `extends`: but only classes inheriting other classes
+- Enhanced for loop: `for(var x : xs) { ... }`
+- Use of mutating operators such as `=` in a nested expression
+- Operators on `float` and `double`
+- `instanceof <pattern>`, only when using a pattern
+- String literal: `"hello"`
+- String template: `STR."My name is \{name}"`
+- `throw`
+- `try`/`catch`/`finally`
+- `checked exceptions` (ignored)
+- `synchronized`
+- Module declarations
+- Wildcards: `?`
+- `permits`
+- Verification of annotations
+- For now, JVerify can only specify contracts that require none of the arguments are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
 
 [//]: # (# Do not need to mention)
 
