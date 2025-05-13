@@ -6,8 +6,8 @@
 - record pattern in switch expression
 - lambda expressions
 - method references
-- import statement
-- package statement
+- import statements
+- package statements
 - Multi-dimensional array instantiation: `new [,]`
 - Array instantiation with initializers: `new int[] { 1, 2, 3 }`
 - type casts: `(SomeType)someValue`
