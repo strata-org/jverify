@@ -151,7 +151,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     public static void testMarkedSource(SourceFile markedSourceFile) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         var source = parsedMarkup.output();
+        List<AnnotatedRange> ranges = parsedMarkup.ranges();
         var metadata = parseMetadata(source);
+        verifyFile(markedSourceFile, metadata, ranges);
+    }
+
+    public static void verifyFile(SourceFile markedSourceFile, TestMetadata metadata, List<AnnotatedRange> ranges) throws IOException {
         Assumptions.assumeFalse(metadata == null, "Skipping test according to metadata");
 
         var options = getVerifierOptions();
@@ -164,7 +169,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .map(JVerifyTestEngine::diagnosticAsAnnotatedRange)
                 .sorted()
                 .toList();
-        var expectedAnnotations = parsedMarkup.ranges().stream().sorted().toList();
+        var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
         assertThat("exit code", verificationResults.getExitCode(), is(metadata.exitCode));
@@ -174,7 +179,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     private static final Pattern TEST_METADATA_PATTERN = Pattern.compile("^// TEST: (.+)$", Pattern.MULTILINE);
 
-    private record TestMetadata(int exitCode, Integer dafnyVerified, Integer dafnyErrors) {}
+    public record TestMetadata(int exitCode, Integer dafnyVerified, Integer dafnyErrors) {}
 
     /**
      * Parses and returns test metadata from the given source content,

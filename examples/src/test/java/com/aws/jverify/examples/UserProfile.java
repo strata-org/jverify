@@ -61,5 +61,3 @@ class UserProfile {
         }
     }
 }
-
-// TEST: exitCode=4 dafnyVerified=5 dafnyErrors=1
