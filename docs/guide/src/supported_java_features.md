@@ -18,7 +18,7 @@
 - operators on `float` and `double`
 - `instanceof <pattern>`, only when using a pattern
 - string literal: `"hello"`
-- string template: `STR."My name is \{name}"`
+- string templats: `STR."My name is \{name}"`
 - `throw`
 - `try`/`catch`/`finally`
 - `checked exceptions` (ignored)
