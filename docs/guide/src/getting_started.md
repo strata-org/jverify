@@ -1,6 +1,6 @@
 # Getting Started
 
-To get started with JVerify, first follow the directions in the [Installation manual](https://github.com/verus-lang/verus/blob/main/INSTALL.md) to build it.
+To get started with JVerify, first follow the directions in the [Installation manual](https://github.com/aws/jverify/blob/main/INSTALL.md) to build it.
 
 Let's try running JVerify on the following Java program,
 found [here](https://github.com/aws/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/BinarySearch.java):

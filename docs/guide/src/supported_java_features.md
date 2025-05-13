@@ -1,5 +1,4 @@
 # Supported Java Features
-
 - All literals except strings
 - All operators
 - `switch` expression, although without pattern matching and yield statements
