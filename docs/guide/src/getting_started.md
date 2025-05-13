@@ -1,6 +1,16 @@
-# Getting Started
+# Installation
+JVerify can currently only be used by building it from source.
 
-To get started with JVerify, first follow the directions in the [Installation manual](https://github.com/aws/jverify/blob/main/INSTALL.md) to build it.
+1. Ensure the dotnet runtime version 8 or higher is installed on your machine. More information can be found [here](https://dotnet.microsoft.com/en-us/).
+1. Check out the JVerify repository and its submodules, for example using `git clone https://github.com/aws/jverify --recurse-submodules`.
+1. Navigate to the JVerify repository directory.
+1. Run `./gradlew installDist` (for Mac OS or Linux systems) or `./gradlew.bat installDist` (for Windows)
+1. Run `make -C dafny exe` to build [Dafny](https://dafny.org/), a tool used by JVerify.
+1. Install Z3 using `make -C dafny z3-<OS>`, where `<OS>` can be `mac`, `mac-arm` or `ubuntu`. Pick the one that matches your OS. For systems that do not fit those categories, such as Windows, you will have to take these steps instead:
+    1. Download the release of [Z3 version 4.12.1](https://github.com/Z3Prover/z3/releases/tag/z3-4.12.1) that matches your system.
+    1. Unzip the content of the Z3 folder into dafny\Binaries\z3 so that dafny\Binaries\z3\bin\z3.exe exists.
+
+# Usage
 
 Let's try running JVerify on the following Java program,
 found [here](https://github.com/aws/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/BinarySearch.java):
