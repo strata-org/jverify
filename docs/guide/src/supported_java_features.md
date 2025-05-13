@@ -6,10 +6,10 @@
 - Field access: `a.x`
 - Array access: `a[i]`
 - Array types: `int[]`
-- Array instantiation: `new []`
-- `while` loop
-- `for loop`
-- `do while loop`
+- Array instantiation: `new []`, although only one-dimensional arrays
+- `while` statement
+- `for` statement
+- The do-while statement
 - `if` statement
 - Labelled statement: `someLabel:`
 - `break`, including with a label
@@ -18,9 +18,9 @@
 - Constructors
 - `instanceof`, but only without a pattern
 - `class`, but only without type parameters
-- `interface, but only without type parameters`
-- `implements`, classes implementing interfaces
-- `extends`, interfaces extending interfaces
+- `interface`, but only without type parameters
+- `implements`, but only classes implementing interfaces
+- `extends`, but only interfaces extending interfaces
 
 # Supported Java standard library packages
 
