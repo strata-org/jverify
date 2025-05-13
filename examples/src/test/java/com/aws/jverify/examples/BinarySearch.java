@@ -22,7 +22,7 @@ class BinarySearch {
                 || (0 <= res && res < arr.length && arr[res] == key)
         );
 
-        var lo = 1;
+        var lo = 0;
         var hi = arr.length;
 
         while (lo < hi) {
