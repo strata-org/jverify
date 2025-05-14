@@ -43,6 +43,8 @@ public class JavaToDafnyCompiler {
     
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
+    private int ctorNum = 0;
+    private HashMap<Symbol.MethodSymbol, Name> ctorNames = new HashMap<>();
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
@@ -356,11 +358,18 @@ public class JavaToDafnyCompiler {
         ArrayList<MemberDecl> members = new ArrayList<>();
         initializers.clear();
         // First translate all fields and store default initializers to add to constructors
+        // Also rename constructors to allow for multiple constructors in each class
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 var dafnyMember = translateField(variableDecl);
                 if (dafnyMember != null) {
                     members.add(dafnyMember);
+                }
+            }
+            if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                if (TreeInfo.isConstructor(methodDecl)) {
+                    var ctorName = new Name(toOrigin(member), "m_ctor"+(ctorNum++));
+                    ctorNames.put(methodDecl.sym, ctorName);
                 }
             }
         }
@@ -565,7 +574,8 @@ public class JavaToDafnyCompiler {
                 }
             }
 
-            if (method.name.contentEquals("<init>")) {
+            if (TreeInfo.isConstructor(method)) {
+
                 var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null && 
                         isInterface(typeForWhichCurrentClassIsDefiningContract);
                 if (containerIsInterface) {
@@ -595,7 +605,9 @@ public class JavaToDafnyCompiler {
                 } else {
                     body = null;
                 }
-                return new Constructor(origin, new Name(origin, "_ctor"), null, false, null, List.of(), ins,
+               // var ctorName = new Name(origin, "m_ctor"+(ctorNum++));
+                var ctorName = ctorNames.get(method.sym);
+                return new Constructor(origin, ctorName , null, false, null, List.of(), ins,
                         header.preconditions, header.postconditions, header.getReads(), 
                         header.getDecreases(), header.getModifies(),
                         body);
@@ -651,7 +663,7 @@ public class JavaToDafnyCompiler {
         boolean isPublic = (method.getModifiers().flags & Flags.PUBLIC) != 0;
         if (isPublic) {
             for(var invariant : invariants) {
-                if (!method.name.contentEquals("<init>")) {
+                if (!TreeInfo.isConstructor(method)) {
                     header.preconditions.add(invariant);
                 }
                 header.postconditions.add(invariant);
@@ -676,7 +688,12 @@ public class JavaToDafnyCompiler {
         var origin = toOrigin(expr);
         if (expr instanceof JCTree.JCNewClass newClass) {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-            return new AllocateClass(origin, null, toType(newClass.clazz), new ActualBindings(argBindings));
+            // Construct the ctor name BaseClass.m_ctor as a Type
+            var ctorName = ctorNames.get(newClass.constructor);
+            var baseType = toExpr(newClass.clazz);
+            var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
+
+            return new AllocateClass(origin, null, ty,  new ActualBindings(argBindings));
         }
         if (expr instanceof JCTree.JCNewArray newArray) {
             var arrayDimensions = newArray.getDimensions().stream().map(d -> toExpr(d)).toList();
@@ -782,7 +799,7 @@ public class JavaToDafnyCompiler {
             var jcType = toType(instanceOf.getType());
             return new TypeTestExpr(origin, expression, jcType);
         }
-        reportError(expr, "notSupported", expr.getClass().getSimpleName());
+        reportError(expr, "notSupported", "toExpr: " + expr.getClass().getSimpleName());
         return getHole(origin);  
     }
 
@@ -1091,7 +1108,7 @@ public class JavaToDafnyCompiler {
             return new UserDefinedType(origin, nameSegment);
         }
 
-        reportError(tree, "notSupported", tree.getClass().getSimpleName());
+        reportError(tree, "notSupported", "for type: " + tree.getClass().getSimpleName());
         return null;
     }
 
