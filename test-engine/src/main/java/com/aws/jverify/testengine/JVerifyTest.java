@@ -11,4 +11,8 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.TYPE })
 public @interface JVerifyTest {
+    boolean verifyByDefault() default true;
+    int exitCode() default 0;
+    int dafnyVerified() default -1;
+    int dafnyErrors() default -1;
 }

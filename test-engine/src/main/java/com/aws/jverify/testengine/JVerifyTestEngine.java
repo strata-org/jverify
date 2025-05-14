@@ -9,9 +9,7 @@ import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.google.auto.service.AutoService;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.platform.commons.support.ReflectionSupport;
 import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.EngineDiscoveryRequest;
@@ -32,13 +30,12 @@ import javax.tools.Diagnostic;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 @AutoService(TestEngine.class)
@@ -125,7 +122,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
             LOGGER.fine(() -> "Found source file: " + sourcePath);
 
-            testMarkedSource(sourcePath);
+            testMarkedSource(sourcePath, testClass.getAnnotation(JVerifyTest.class));
             return context;
         }
     }
@@ -136,25 +133,21 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     /**
-     * @see #testMarkedSource(SourceFile)
+     * @see #testMarkedSource(SourceFile, JVerifyTest)
      */
-    public static void testMarkedSource(Path markedSourcePath) throws IOException {
+    public static void testMarkedSource(Path markedSourcePath, JVerifyTest annotation) throws IOException {
         var markedSource = Files.readString(markedSourcePath);
-        testMarkedSource(new SourceFile(markedSourcePath, markedSource));
+        testMarkedSource(new SourceFile(markedSourcePath, markedSource), annotation);
     }
 
     /**
      * Verifies the given source code and asserts that the exit code, emitted diagnostics,
      * and verified/error counts (from Dafny) match the specified values in the source code's test metadata.
-     * See {@link #parseMetadata(String)} for details on the metadata format.
      */
-    public static void testMarkedSource(SourceFile markedSourceFile) throws IOException {
+    public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
-        var source = parsedMarkup.output();
-        var metadata = parseMetadata(source);
-        Assumptions.assumeFalse(metadata == null, "Skipping test according to metadata");
 
-        var options = getVerifierOptions();
+        var options = getVerifierOptions(annotation);
         var verificationResults = Driver.verifyJavaFile(markedSourceFile, options);
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics().stream()
@@ -167,80 +160,19 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var expectedAnnotations = parsedMarkup.ranges().stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
+        Integer expectedDafnyVerifiedCount = annotation.dafnyVerified() >= 0 ? annotation.dafnyVerified() : null;
+        Integer expectedDafnyErrorCount = annotation.dafnyErrors() >= 0 ? annotation.dafnyErrors() : null;
         Assertions.assertAll(
                 () -> assertThat("exit code",
                         verificationResults.getExitCode(),
-                        is(metadata.exitCode)),
+                        is(annotation.exitCode())),
                 () -> assertThat("Dafny verified count",
                         verificationResults.getDafnyVerifiedCount(),
-                        is(metadata.dafnyVerified)),
+                        is(expectedDafnyVerifiedCount)),
                 () -> assertThat("Dafny error count",
                         verificationResults.getDafnyErrorCount(),
-                        is(metadata.dafnyErrors))
+                        is(expectedDafnyErrorCount))
         );
-    }
-
-    private static final Pattern TEST_METADATA_PATTERN = Pattern.compile("^// TEST: (.+)$", Pattern.MULTILINE);
-
-    private record TestMetadata(int exitCode, Integer dafnyVerified, Integer dafnyErrors) {}
-
-    /**
-     * Parses and returns test metadata from the given source content,
-     * or returns {@code null} if the metadata indicates that the test should be skipped.
-     * Throws if the test metadata is absent or malformed.
-     * <p>
-     * Valid metadata formats:
-     * {@snippet :
-     * (1)
-     * // TEST: skip
-     *
-     * (2)
-     * // TEST: exitCode=X
-     *
-     * (3)
-     * // TEST: exitCode=X dafnyVerified=Y dafnyErrors=Z
-     * }
-     * <ol>
-     *     <li>The test should be skipped.</li>
-     *     <li>
-     *         Verification should finish with exit code {@code X} without Dafny terminating normally
-     *         (i.e. Dafny is never invoked because there are javac errors, or Dafny terminates abnormally).
-     *     </li>
-     *     <li>
-     *         Verification should finish with exit code {@code X}, Dafny terminates normally,
-     *         and Dafny's summary reports {@code Y} verified symbols and {@code Z} errors.
-     *     </li>
-     * </ol>
-     */
-    private static @Nullable TestMetadata parseMetadata(String source) {
-        var metadataMatcher = TEST_METADATA_PATTERN.matcher(source);
-        if (!metadataMatcher.find()) {
-            throw new AssertionError("Test metadata not found");
-        }
-        var tokens = Arrays.asList(metadataMatcher.group(1).split("\\s+"));
-        if (tokens.contains("skip")) {
-            assertThat("'skip' must not appear with other tokens", tokens.size(), is(1));
-            return null;
-        }
-
-        Integer exitCode = null;
-        Integer dafnyVerified = null;
-        Integer dafnyErrors = null;
-        for (var token : tokens) {
-            var parts = token.split("=", 2);
-            assertThat("Metadata token must have key=value format", parts.length, is(2));
-            switch (parts[0]) {
-                case "exitCode" -> exitCode = Integer.parseInt(parts[1]);
-                case "dafnyVerified" -> dafnyVerified = Integer.parseInt(parts[1]);
-                case "dafnyErrors" -> dafnyErrors = Integer.parseInt(parts[1]);
-                default -> Assertions.fail("Invalid token in test metadata: " + token);
-            }
-        }
-        assertThat("Metadata must include expectedExitCode", exitCode, notNullValue());
-        assertThat("Metadata must include both or neither of dafnyVerified and dafnyErrors",
-                (dafnyVerified == null) == (dafnyErrors == null));
-
-        return new TestMetadata(exitCode, dafnyVerified, dafnyErrors);
     }
 
     private static AnnotatedRange diagnosticAsAnnotatedRange(Diagnostic<?> diagnostic) {
@@ -254,7 +186,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
-    private static VerifierOptions getVerifierOptions() {
+    private static VerifierOptions getVerifierOptions(JVerifyTest annotation) {
         var dafnyPath = Path.of("../dafny").toAbsolutePath()
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
@@ -265,14 +197,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 libraryJar,
                 List.of(testEngineClassPath),
                 prelude,
-                //Path.of("../temp.dfy"),
-                null,
-                null,
+                Path.of("../temp.dfy"),
+                Path.of("../temp.dbin"),
                 true,
                 new String[] {
                         "--use-basename-for-filename",
 //                        "--wait-for-debugger",
-                }
+                },
+                annotation.verifyByDefault()
         );
     }
 }
