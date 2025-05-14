@@ -90,15 +90,16 @@ class TranslationErrors {
             case Integer ii when ii < 0 -> ii * 3;
 //          ^ error: case pattern is not supported
             case Integer ii when 0 < ii -> ii * 2;
+//          ^ error: case pattern is not supported
             default -> 0;
         };
     }
 
-    int switchBlockBody(int i) {
+    int switchExprBlockBody(int i) {
         return switch (i) {
             case 0 -> 0;
             case 1, 2, 3 -> {
-//          ^ error: switch rule block is not supported
+//                          ^ error: switch rule block is not supported
                 var acc = 0;
                 for (int j = 0; j < i; j++) {
                     acc += j * j;
@@ -112,7 +113,7 @@ class TranslationErrors {
     int switchThrowBody(int i) {
         return switch (i) {
             case 0 -> throw new RuntimeException("");
-//          ^ error: switch rule throw statement is not supported
+//                    ^ error: switch rule throw statement is not supported
             case 1, 2 -> -i;
             default -> i * i * i;
         };

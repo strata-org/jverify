@@ -7,6 +7,7 @@ import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class MethodCompiler {
 
@@ -68,6 +69,9 @@ public class MethodCompiler {
             }
             case JCTree.JCBreak jcBreak -> {
                 return translateBreak(jcBreak);
+            }
+            case JCTree.JCSwitch jcSwitch -> {
+                return translateSwitchStatement(jcSwitch);
             }
             case JCTree.JCSkip _ -> {
                 return List.of();
@@ -349,6 +353,43 @@ public class MethodCompiler {
                 new ActualBindings(argBindings), null);
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+    }
+
+    public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt) {
+        var origin = compiler.toOrigin(switchStmt);
+        var patternBodies = compiler.translateSwitchLabels(switchStmt);
+        if (patternBodies == null) {
+            return List.of();
+        }
+
+        var translatedCases = patternBodies.stream().map(patternBody -> {
+            var caseOrigin = compiler.toOrigin(patternBody.cas());
+            var body = patternBody.body();
+
+            // A switch rule introduces either an expression, a block, or a throw statement.
+            // Within a switch statement, a switch rule expression must be a statement expression.
+            List<Statement> translatedBody = switch (body) {
+                case JCTree.JCExpressionStatement bodyStatement -> translateStatement(bodyStatement);
+                case JCTree.JCBlock bodyBlock -> translateStatement(bodyBlock);
+                case JCTree.JCThrow ignored -> {
+                    compiler.reportError(body, "notSupported", "switch rule throw");
+                    yield List.of();
+                }
+                default -> throw new JavaViolationException();
+            };
+            return new NestedMatchCaseStmt(caseOrigin, patternBody.pattern(), translatedBody, null);
+        }).collect(Collectors.toCollection(ArrayList::new));
+
+        // The switch statement may not be exhaustive, but a Dafny match statement must be,
+        // so we add a catch-all no-op case to ensure the translated match is exhaustive.
+        // (It would be safe to add this case unconditionally, but Dafny would warn that the case is redundant.)
+        if (!switchStmt.isExhaustive) {
+            translatedCases.add(new NestedMatchCaseStmt(
+                    origin, JavaToDafnyCompiler.makeWildPattern(origin), List.of(), null));
+        }
+
+        var source = compiler.toExpr(switchStmt.getExpression());
+        return List.of(new NestedMatchStmt(origin, null, source, translatedCases, true));
     }
 
     public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements) {
