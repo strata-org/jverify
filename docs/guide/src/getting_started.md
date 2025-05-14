@@ -37,7 +37,7 @@ You should see the following output:
 Dafny program verifier finished with 3 verified, 0 errors
 ```
 
-This indicates that JVerify successfully verified 3 parts.
+This indicates that JVerify successfully verified 3 batches of specifications.
 
 You can remove the need for the `--dafny` option by configuring the environment variable `JVERIFY_DAFNY` instead, or modifying your `PATH` so that `dafny` resolves automatically.
 
