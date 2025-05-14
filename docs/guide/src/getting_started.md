@@ -1,7 +1,7 @@
 # Installation
 JVerify can currently only be used by building it from source.
 
-1. Ensure the dotnet runtime version 8 or higher is installed on your machine. More information can be found [here](https://dotnet.microsoft.com/en-us/).
+1. Ensure the .NET runtime version 8 or higher is installed on your machine. More information can be found [here](https://dotnet.microsoft.com/en-us/).
 1. Check out the JVerify repository and its submodules, for example using `git clone https://github.com/aws/jverify --recurse-submodules`.
 1. Navigate to the JVerify repository directory.
 1. Run `./gradlew installDist` (for Mac OS or Linux systems) or `./gradlew.bat installDist` (for Windows)
