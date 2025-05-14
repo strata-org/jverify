@@ -24,6 +24,7 @@ jobs:
         with:
           mdbook-version: 'latest'
       - name: Build
+        working-directory: docs/guide
         run: mdbook build
       - name: Setup Pages
         uses: actions/configure-pages@v3
@@ -31,7 +32,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         id: deployment
         with:
-          path: './book'
+          path: './docs/guide/book'
   
   deploy:
     environment:
