@@ -39,7 +39,7 @@ Dafny program verifier finished with 3 verified, 0 errors
 
 This indicates that JVerify successfully verified 3 parts.
 
-You can remove the need for the `--dafny` option by configuring the environment variable `JVERIFY_DAFNY` instead.
+You can remove the need for the `--dafny` option by configuring the environment variable `JVERIFY_DAFNY` instead, or modifying your `PATH` so that `dafny` resolves automatically.
 
 Try editing the `BinarySearch.java` file to see a verification failure. Almost any change you make to the meaning of the program will cause a verification file. For example, if you change `var lo = 0;` into `var lo = 1;`, JVerify returns:
 
