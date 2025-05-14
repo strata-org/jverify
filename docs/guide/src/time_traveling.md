@@ -2,7 +2,7 @@
 
 JVerify allows evaluating an expression at a point in time different from where the expression occurs. This is most commonly used in postconditions to compare the program state before and after the method executed. 
 
-If an expression `<expr>` is surrounded with a call to `old`, like `old(<expr>)`, it will be evaluated using the program state when the current method was entered. 
+If an expression `<expr>` is surrounded with a call to `old`, like `old(<expr>)`, it will be evaluated using the program state when the current method was entered. A call to `old` can only be used in erased code, such as a contract or a method annotated with @Erased.
 
 Here's an example:
 
