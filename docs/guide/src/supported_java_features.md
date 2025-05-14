@@ -1,7 +1,9 @@
+JVerify intends to support the full Java language, but is currently being developed and only supports a subset of Java constructs. The supported and not supported features are listed below. If you encounter unsupported features that are not in the unsupported list, please create a GitHub issue.
+
 # Supported Java Features
 - All literals except strings
 - All operators
-- `switch` expression, although without pattern matching and yield statements
+- `switch` expressions and statements, although without pattern matching and yield statements
 - Field access: `a.x`
 - Array access: `a[i]`
 - Array types: `int[]`

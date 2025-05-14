@@ -20,7 +20,7 @@ Without the `@Nat` annotation, JVerify would not have been able to prove termina
 ## Bounded numbers
 The types `byte`, `int`, `short` and `long` in Java are bounded. The values of these numbers all have lower and upper bounds, and doing arithmetic operations that cause these numbers to surpass these bounds, called an overflow, generally causes undesired results.
 
-JVerify will check that any arithmetic operations on bounded number will not overflow. Example:
+JVerify will check that any arithmetic operations on bounded numbers will not overflow. Example:
 
 ```java
 int triple(int x) {

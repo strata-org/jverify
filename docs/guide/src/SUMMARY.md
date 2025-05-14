@@ -1,10 +1,10 @@
 # Summary
 
-[JVerify overview](./overview.md)
+[JVerify Overview](./overview.md)
 
 # Getting started
 
-- [Getting started](./getting_started.md)
+- [Getting Started](./getting_started.md)
 - [Supported Java features](./supported_java_features.md)
 
 # Fundamentals
@@ -12,16 +12,17 @@
 - [Uncaught Exceptions](uncaught_exceptions.md)
 - [Loop Invariants](loop_invariants.md)
 - [Pre- and post-conditions](pre_and_postconditions.md)
-- [Code types](code_types.md)
+- [Code Types](code_types.md)
 - [Quantifiers](quantifiers.md)
-- [Code purposes](code_purposes.md)
+- [Code Purposes](code_purposes.md)
 - [Termination](termination.md)
 - [Integers](integers.md)
 
 # References
-- [Modifying fields](modifies.md)
-- [Time traveling](time_traveling.md)
-- [Working with null](working_with_null.md)
+
+- [Modifying Fields](modifies.md)
+- [Time Traveling](time_traveling.md)
+- [Working with Null](working_with_null.md)
 - [Class Invariants](class_invariants.md)
 
 <!-- 

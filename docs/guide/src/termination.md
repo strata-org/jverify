@@ -8,10 +8,10 @@ This page further explains how to prove termination using JVerify.
 
 ## Decreases clauses
 
-JVerify needs a decreases clause for each method and loop. If none is specified explicitly, JVerify will guess one. A decreases clause contains an expression. JVerify proves termination by verifying that this expression satisfied two rules:
+JVerify needs a decreases call for each method and loop. If none is specified explicitly, JVerify will guess one. A decreases call has one argument, called the termination metric. JVerify proves termination by verifying that the metric satisfies two rules:
 
-1. Decreasing: the expression becomes smaller with each recursive call or loop iteration
-2. Lower bound: the expression only recurses/loops if at or above a lower bound. The value of the lower bound depends on the type of the expression. For `int`, the lower bound is 0.
+1. Decreasing: the metric becomes smaller with each recursive call or loop iteration.
+2. Has a lower bound: the metric only recurses/loops if at or above a lower bound. The value of the lower bound depends on the type of the expression. For `int`, the lower bound is 0.
 
 ## Example with Recursion
 
@@ -78,15 +78,17 @@ Here, the lexicographically ordered tuples ensure termination:
 - For the call from `methodA(x)` to `methodB(x)`, the tuple `(x, 0)` is smaller than `(x, 1)`
 - For the call from `methodB(x)` to `methodA(x-1)`, the tuple `(x-1, 1)` is smaller than `(x, 0)`
 
-Note that if comparing tuples of different sizes, Dafny appends an imaginary 'top' value to the smaller tuple until they are of equal size. The top value is larger than any other value, and can not be expressed explicitly. In the above example of `methodA` had specified `decreases(x)` instead of `decreases(x,1)`, then instead of the `1` the top value would have been used when comparing to `0`, so the result would have been the same.
+Note that if comparing tuples of different sizes, if the larger one starts with the same values as the smaller one, then the larger one is considered greater. A decreases expression of `x` is considered greater than `x, 0`, so in the above example of `methodA` we could have specified `decreases(x)` instead of `decreases(x,1)`.
+
+In cases of mutual recursion, it can occur that a caller and callee use termination metrics with different types. In these cases, JVerify can not prove that one is greater than the other, so proving termination fails.
 
 ## Non-terminating Code
 
-In some cases, you might intentionally write code that doesn't terminate (like a server loop). JVerify allows you to specify this with `decreases()`:
+In some cases, you might intentionally write code that doesn't terminate (like a server loop). JVerify allows you to specify this with `mayNotTerminate()`:
 
 ```java
 void serverLoop() {
-    decreases();
+    mayNotTerminate();
 
     while (true) {
         // Process requests indefinitely
@@ -95,7 +97,7 @@ void serverLoop() {
 }
 ```
 
-The `decreases()` notation tells JVerify to skip the termination proof for this method. This can be used either for programs that do not terminate, or for programs where you do not want to put in the effort of proving termination.
+The `mayNotTerminate()` notation tells JVerify to skip the termination proof for this method. This can be used either for programs that do not terminate, or for programs where you do not want to put in the effort of proving termination.
 
 ## Automatic Decreases Clauses
 
@@ -116,4 +118,4 @@ However, for complex recursion patterns or when JVerify cannot determine termina
 
 ### Integers
 
-In the next section, [Integers](integers.md), we'll look at verifying code that uses integers, including the `@Nat` annotation which is often useful for termination proofs. 
+In the next section, [Integers](integers.md), we'll look at verifying code that uses integers, including the `@Nat` annotation which is often useful for termination proofs.
