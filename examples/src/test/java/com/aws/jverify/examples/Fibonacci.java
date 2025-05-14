@@ -6,7 +6,7 @@ import com.aws.jverify.*;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("ConstantValue")
-@JVerifyTest
+@JVerifyTest(exitCode = 0, dafnyVerified = 4, dafnyErrors = 0)
 class Fibonacci {
     @Pure
     @Erased
@@ -56,5 +56,3 @@ class Fibonacci {
         }
     }
 }
-
-// TEST: exitCode=0 dafnyVerified=4 dafnyErrors=0

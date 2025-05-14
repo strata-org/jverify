@@ -6,7 +6,7 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest
+@JVerifyTest(exitCode = 4, dafnyVerified = 5, dafnyErrors = 1)
 class UserProfile {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
@@ -62,5 +62,3 @@ class UserProfile {
         }
     }
 }
-
-// TEST: exitCode=4 dafnyVerified=5 dafnyErrors=1

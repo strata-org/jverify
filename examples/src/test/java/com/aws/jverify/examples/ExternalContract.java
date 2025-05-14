@@ -17,7 +17,7 @@ class Foo {
 }
 
 @Contract(Foo.class)
-@JVerifyTest
+@JVerifyTest(exitCode = 0, dafnyVerified = 2, dafnyErrors = 0)
 public class ExternalContract {
     public final static int c = 43;
     
@@ -36,5 +36,3 @@ class User {
         check(Foo.c == 43);
     }
 }
-
-// TEST: exitCode=0 dafnyVerified=2 dafnyErrors=0

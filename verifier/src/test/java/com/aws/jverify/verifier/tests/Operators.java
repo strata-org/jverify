@@ -1,5 +1,3 @@
-// TEST: exitCode=4 dafnyVerified=13 dafnyErrors=10
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -16,7 +14,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest
+@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 10)
 class Operators {
     static void Plus() {
         int x = 3;

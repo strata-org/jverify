@@ -1,5 +1,3 @@
-// TEST: exitCode=0 dafnyVerified=12 dafnyErrors=0
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Pure;
@@ -8,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
-@JVerifyTest
+@JVerifyTest(exitCode = 0, dafnyVerified = 12, dafnyErrors = 0)
 class VerifyStatements {
     void whileWithBreak() {
         var x = 0;

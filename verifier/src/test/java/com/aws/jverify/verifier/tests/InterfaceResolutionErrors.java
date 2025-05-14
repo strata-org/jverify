@@ -1,11 +1,9 @@
-// TEST: exitCode=2
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest
+@JVerifyTest(exitCode = 2)
 class InterfaceResolutionErrors {}
 
 interface I2 {

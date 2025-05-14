@@ -1,5 +1,3 @@
-// TEST: exitCode=4 dafnyVerified=4 dafnyErrors=1
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -26,7 +24,7 @@ class Point {
 }
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest
+@JVerifyTest(exitCode = 4, dafnyVerified = 4, dafnyErrors = 1)
 class Arrays {
 
     static void intArrayOfSize10() {
