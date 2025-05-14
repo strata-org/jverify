@@ -55,7 +55,7 @@ Nothing yet
 - Wildcards: `?`
 - `permits`
 - Verification of annotations
-- For now, JVerify can only specify contracts that require none of the arguments are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
+- For now, JVerify can only specify contracts that require none of the arguments or `this` are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
 
 [//]: # (# Do not need to mention)
 
