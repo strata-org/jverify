@@ -167,9 +167,17 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var expectedAnnotations = parsedMarkup.ranges().stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
-        assertThat("exit code", verificationResults.getExitCode(), is(metadata.exitCode));
-        assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), is(metadata.dafnyVerified));
-        assertThat("Dafny error count", verificationResults.getDafnyErrorCount(), is(metadata.dafnyErrors));
+        Assertions.assertAll(
+                () -> assertThat("exit code",
+                        verificationResults.getExitCode(),
+                        is(metadata.exitCode)),
+                () -> assertThat("Dafny verified count",
+                        verificationResults.getDafnyVerifiedCount(),
+                        is(metadata.dafnyVerified)),
+                () -> assertThat("Dafny error count",
+                        verificationResults.getDafnyErrorCount(),
+                        is(metadata.dafnyErrors))
+        );
     }
 
     private static final Pattern TEST_METADATA_PATTERN = Pattern.compile("^// TEST: (.+)$", Pattern.MULTILINE);
