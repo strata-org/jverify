@@ -69,7 +69,7 @@ public class JavaToDafnyCompiler {
         messages.add(_ -> bundle);
 
         // TODO: Hardcoded paths for now
-        var dafnyPath = Path.of("/Users/salkeldr/Documents/GitHub/dafny/Scripts/dafny");
+        var dafnyPath = Path.of("/Users/salkeldr/Documents/GitHub/jverify/dafny/Scripts/dafny");
 
         File tempFile = File.createTempFile("jverify-prelude-", ".dfy");
         InputStream stream = JavaToDafnyCompiler.class.getResourceAsStream("/additional.dfy");
@@ -93,7 +93,7 @@ public class JavaToDafnyCompiler {
         JavaCompiler compiler = JavaCompiler.instance(context);
         for (Diagnostic<?> diagnostic : result.getDiagnostics()) {
             if (diagnostic instanceof DafnyDiagnostic) {
-                diagnostic = ((DafnyDiagnostic) diagnostic).toJCDiagnostic(context, compilationUnit);
+                diagnostic = ((DafnyDiagnostic) diagnostic).toJCDiagnostic(context, compilationUnit, false);
             }
             compiler.log.report((JCDiagnostic) diagnostic);
         }

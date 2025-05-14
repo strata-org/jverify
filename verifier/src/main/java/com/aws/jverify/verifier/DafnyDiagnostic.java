@@ -13,6 +13,7 @@ import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -120,18 +121,27 @@ public class DafnyDiagnostic implements Diagnostic<String> {
         }
     }
 
-    public JCDiagnostic toJCDiagnostic(Context context, CompilationUnitTree unit) {
+    public JCDiagnostic toJCDiagnostic(Context context, CompilationUnitTree unit, boolean prependLocation) {
         var factory = JCDiagnostic.Factory.instance(context);
         JavaCompiler compiler = JavaCompiler.instance(context);
+
         int position = (int)unit.getLineMap().getPosition(getLineNumber(), getColumnNumber());
-        // TODO: Figure out the right source and message.
-        // Might be better to use the annotation processor API's Messager instead,
-        // but that seems to be less precise: it may not support
-        // attaching a message to elements inside the bodies of methods for eg.
-        return factory.create(JCDiagnostic.DiagnosticType.ERROR,
+        var result = factory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(unit.getSourceFile(), compiler.log),
                 new JCDiagnostic.SimpleDiagnosticPosition(position),
-                "catchall", message);
+                "catchall",
+                prependLocation ? unit.getSourceFile().toUri() + ":" + getLineNumber() + ": " + message : message);
+
+        if (relatedInformation == null) {
+            return result;
+        } else {
+            var subDiagnostics = relatedInformation
+                    .stream()
+                    .map(RelatedInfo::asDiagnostic)
+                    .map(d -> d.toJCDiagnostic(context, unit, true))
+                    .toList();
+            return new JCDiagnostic.MultilineDiagnostic(result, com.sun.tools.javac.util.List.from(subDiagnostics));
+        }
     }
 
 
