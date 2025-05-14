@@ -44,7 +44,7 @@ public class JavaToDafnyCompiler {
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private int ctorNum = 0;
-    private HashMap<Symbol.MethodSymbol, Name> ctorNames = new HashMap<>();
+    private HashMap<Symbol.@Nullable MethodSymbol, Name> ctorNames = new HashMap<>();
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
@@ -97,7 +97,11 @@ public class JavaToDafnyCompiler {
                 return new FilesContainer(filesStarts);
             }
         }
-
+        // Here handle all constructors for all classes of all files. Otherwise fail with multiple
+        // classes
+        for (var compilationUnit : parsed) {
+            handleConstructors((JCTree.JCCompilationUnit) compilationUnit);
+        }
         for (var compilationUnit : parsed) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
@@ -141,6 +145,28 @@ public class JavaToDafnyCompiler {
             throw new JavaViolationException();
         }
         return classSymbol;
+    }
+
+    private void handleConstructors(Tree tree) {
+
+        if (tree instanceof JCTree.JCClassDecl classDecl) {
+            for (var member : classDecl.getMembers()) {
+                if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                    if (TreeInfo.isConstructor(methodDecl)) {
+                        var ctorName = new Name(toOrigin(member), "m_ctor" + (ctorNum++));
+                        ctorNames.put(methodDecl.sym, ctorName);
+                    }
+                }
+            }
+        }
+    }
+
+    private void handleConstructors(JCTree.JCCompilationUnit compilationUnit) {
+        this.compilationUnit = compilationUnit;
+
+        for (var typeDecl : compilationUnit.getTypeDecls()) {
+            handleConstructors(typeDecl);
+        }
     }
 
     private FileStart translateFile(JCTree.JCCompilationUnit compilationUnit) {
@@ -366,12 +392,7 @@ public class JavaToDafnyCompiler {
                     members.add(dafnyMember);
                 }
             }
-            if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                if (TreeInfo.isConstructor(methodDecl)) {
-                    var ctorName = new Name(toOrigin(member), "m_ctor"+(ctorNum++));
-                    ctorNames.put(methodDecl.sym, ctorName);
-                }
-            }
+
         }
         // Now translate other members
         for (var member : classDecl.getMembers()) {
@@ -606,9 +627,12 @@ public class JavaToDafnyCompiler {
                     body = null;
                 }
                // var ctorName = new Name(origin, "m_ctor"+(ctorNum++));
-                var ctorName = ctorNames.get(method.sym);
-                return new Constructor(origin, ctorName , null, false, null, List.of(), ins,
-                        header.preconditions, header.postconditions, header.getReads(), 
+                var ctorName = ctorNames.get(method.sym);  // HERE -> MAY BE NULL
+                if (ctorName == null) {
+                    ctorName = new Name(origin, "_ctor");
+                }
+               return new Constructor(origin, ctorName , null, false, null, List.of(), ins,
+                        header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), header.getModifies(),
                         body);
             } else {
@@ -690,10 +714,14 @@ public class JavaToDafnyCompiler {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
             // Construct the ctor name BaseClass.m_ctor as a Type
             var ctorName = ctorNames.get(newClass.constructor);
+            if (ctorName == null) {
+                ctorName = new Name(origin, "_ctor");
+            }
             var baseType = toExpr(newClass.clazz);
             var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
 
             return new AllocateClass(origin, null, ty,  new ActualBindings(argBindings));
+            //return new AllocateClass(origin, null, toType(newClass.clazz), new ActualBindings(argBindings));
         }
         if (expr instanceof JCTree.JCNewArray newArray) {
             var arrayDimensions = newArray.getDimensions().stream().map(d -> toExpr(d)).toList();
