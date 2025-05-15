@@ -18,6 +18,7 @@ JVerify intends to support the full Java language, but is currently being develo
 - `assert` statement
 - Constructors
 - `instanceof`, but only without a pattern
+- Type casts: `(SomeType)someValue`
 - `class`, but only without type parameters
 - `interface`, but only without type parameters
 - `implements`, but only classes implementing interfaces
@@ -38,7 +39,6 @@ Nothing yet
 - `package` statements
 - Multi-dimensional array instantiation: `new [,]`
 - Array instantiation with initializers: `new int[] { 1, 2, 3 }`
-- Type casts: `(SomeType)someValue`
 - Type parameters for types, including the declaration, declaration of bounds, and application
 - `extends`: but only classes inheriting other classes
 - Enhanced for loop: `for(var x : xs) { ... }`
