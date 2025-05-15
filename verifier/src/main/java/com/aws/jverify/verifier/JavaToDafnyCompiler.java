@@ -237,6 +237,15 @@ public class JavaToDafnyCompiler {
             }
         }
     }
+
+    private void addShouldVerifiesForPackage(JCTree.JCPackageDecl packageDecl) {
+
+    }
+
+
+    private void popShouldVerifiesForPackage(JCTree.JCPackageDecl packageDecl) {
+
+    }
     
     @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
