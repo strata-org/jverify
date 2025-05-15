@@ -111,7 +111,7 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
     
-    public final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
+    private final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
     private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
         for (var typeDecl : compilationUnit.getTypeDecls()) {
@@ -244,7 +244,6 @@ public class JavaToDafnyCompiler {
     
     @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
-            System.out.println("translateTypeDeclaration: " + classDecl.name);
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
@@ -254,7 +253,6 @@ public class JavaToDafnyCompiler {
 
             Name name = getName(classDecl, classDecl.name);
             if (classWithExternalContract.contains(classDecl.sym)) {
-                System.out.println("External class found");
                 boolean isInterface = isInterface(classDecl);
                 if (!isInterface && shouldVerify()) {
                     reportError(name.getOrigin(), "verifiedTypeWithExternalContract", classDecl.name);
@@ -326,7 +324,7 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    static Object getLiteralValue(JCTree.JCExpression expression) {
+    private static Object getLiteralValue(JCTree.JCExpression expression) {
         if (expression instanceof JCTree.JCLiteral literal) {
             return literal.getValue();
         } else {
@@ -364,7 +362,6 @@ public class JavaToDafnyCompiler {
         ArrayList<MemberDecl> members = new ArrayList<>();
         initializers.clear();
         // First translate all fields and store default initializers to add to constructors
-        // Also rename constructors to allow for multiple constructors in each class
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 var dafnyMember = translateField(variableDecl);
@@ -606,16 +603,11 @@ public class JavaToDafnyCompiler {
                 } else {
                     body = null;
                 }
-                Name ctorName = name;
-                if (method.sym.name.contentEquals("<init>")) {
-                    ctorName = new Name(origin, "_ctor");
-                }
 
-
-                    return new Constructor(origin, ctorName , null, false, null, List.of(), ins,
-                        header.preconditions, header.postconditions, header.getReads(),
-                        header.getDecreases(), header.getModifies(),
-                        body);
+                return new Constructor(origin, name , null, false, null, List.of(), ins,
+                    header.preconditions, header.postconditions, header.getReads(),
+                    header.getDecreases(), header.getModifies(),
+                    body);
             } else {
                 BlockStmt body;
                 if (shouldVerify) {
@@ -693,11 +685,7 @@ public class JavaToDafnyCompiler {
         var origin = toOrigin(expr);
         if (expr instanceof JCTree.JCNewClass newClass) {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-            // Construct the ctor name BaseClass.m_ctor as a Type
             String ctorNameStr = newClass.constructor.name.toString();
-            if (ctorNameStr.contentEquals("<init>")) {
-                ctorNameStr = "_ctor";
-            }
             Name ctorName = new Name(origin, ctorNameStr);
             var baseType = toExpr(newClass.clazz);
             var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
@@ -808,7 +796,7 @@ public class JavaToDafnyCompiler {
             var jcType = toType(instanceOf.getType());
             return new TypeTestExpr(origin, expression, jcType);
         }
-        reportError(expr, "notSupported", "toExpr: " + expr.getClass().getSimpleName());
+        reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
     }
 
@@ -1117,7 +1105,7 @@ public class JavaToDafnyCompiler {
             return new UserDefinedType(origin, nameSegment);
         }
 
-        reportError(tree, "notSupported", "for type: " + tree.getClass().getSimpleName());
+        reportError(tree, "notSupported", tree.getClass().getSimpleName());
         return null;
     }
 

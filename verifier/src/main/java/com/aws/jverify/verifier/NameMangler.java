@@ -75,7 +75,6 @@ public class NameMangler {
                     var argTypes = methodType.getParameterTypes();
                     baseName = (argTypes.isEmpty()) ? baseName : baseName+"_";
                     for (var param : argTypes) {
-                        System.out.println(param);
                         baseName += typeMangling(param);
                     }
                     methodDecl.sym.name = nameFactory.fromString(baseName);
