@@ -17,8 +17,8 @@ import com.sun.tools.javac.tree.JCTree;
 public class NameMangler {
     private final JavaToDafnyCompiler javaToDafnyCompiler;
     private Names nameFactory;
-    static private final String fieldPrefix = "_F";
-    static private final String methodPrefix = "_Z";
+    static private final String fieldPrefix = "F_";
+    static private final String methodPrefix = "Z_";
 
     private static String typeMangling(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
@@ -60,7 +60,7 @@ public class NameMangler {
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
                     String baseName = methodDecl.sym.name.toString();
                     if (baseName.contentEquals("<init>")) {
-                        baseName = "_ctor";
+                        baseName = "ctor";
                     }
                     else {
                         baseName = methodPrefix + baseName;
