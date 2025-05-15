@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
-import com.aws.jverify.testengine.JVerifyTest;
+import com.aws.jverify.testengine.JVerifyTestEngine;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +9,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
-import java.lang.annotation.Annotation;
 
 import static com.aws.jverify.testengine.JVerifyTestEngine.testMarkedSource;
 import static org.hamcrest.CoreMatchers.*;
@@ -21,32 +20,7 @@ public class TestVerifier {
     @Test
     public void javaError() throws IOException {
         var source = Common.getResourceFile(getClass(), "/JavaError.java");
-        var annotation = new JVerifyTest() {
-            @Override
-            public Class<? extends Annotation> annotationType() {
-                return JVerifyTest.class;
-            }
-
-            @Override
-            public boolean verifyByDefault() {
-                return false;
-            }
-
-            @Override
-            public int exitCode() {
-                return 2;
-            }
-
-            @Override
-            public int dafnyVerified() {
-                return -1;
-            }
-
-            @Override
-            public int dafnyErrors() {
-                return -1;
-            }
-        };
+        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, 2, -1, -1);
         testMarkedSource(new SourceFile("JavaError.java", source), annotation);
     }
 

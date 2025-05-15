@@ -28,6 +28,7 @@ import org.junit.platform.engine.support.hierarchical.Node;
 
 import javax.tools.Diagnostic;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -214,5 +215,38 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 },
                 annotation.verifyByDefault()
         );
+    }
+
+    /**
+     * For creating a JVerifyTest annotation without having it in source code.
+     * Useful for testing things like examples where we don't want the explicit annotation.
+     */
+    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, int dafnyVerified, int dafnyErrors) {
+        return new JVerifyTest() {
+            @Override
+            public Class<? extends Annotation> annotationType() {
+                return JVerifyTest.class;
+            }
+
+            @Override
+            public boolean verifyByDefault() {
+                return verifyByDefault;
+            }
+
+            @Override
+            public int exitCode() {
+                return exitCode;
+            }
+
+            @Override
+            public int dafnyVerified() {
+                return dafnyVerified;
+            }
+
+            @Override
+            public int dafnyErrors() {
+                return dafnyErrors;
+            }
+        };
     }
 }
