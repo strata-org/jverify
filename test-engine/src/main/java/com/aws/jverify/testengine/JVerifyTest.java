@@ -12,6 +12,10 @@ import java.lang.annotation.Target;
  *
  * <ol>
  *      <li>
+ *          {@code @VerifyTest(skip = "...")}
+ *          - The test should be skipped for the given reason.
+ *      </li>
+ *      <li>
  *          {@code @VerifyTest(exitCode = ...)}
  *          - Verification should finish with exit code {@code X} without Dafny terminating normally
  *          (i.e. Dafny is never invoked because there are javac errors, or Dafny terminates abnormally).
@@ -29,6 +33,11 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.TYPE })
 public @interface JVerifyTest {
+    /**
+     * What to pass for the --verify-by-default verifier option.
+     */
+    String skip() default "";
+
     /**
      * What to pass for the --verify-by-default verifier option.
      */

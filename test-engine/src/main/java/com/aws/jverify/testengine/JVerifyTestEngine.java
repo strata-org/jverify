@@ -10,6 +10,7 @@ import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.google.auto.service.AutoService;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.platform.commons.support.ReflectionSupport;
 import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.EngineDiscoveryRequest;
@@ -152,6 +153,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     public static void verifyFile(SourceFile markedSourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
+        Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
+
         assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
                 (annotation.dafnyVerified() >= 0) == (annotation.dafnyErrors() >= 0));
 
@@ -226,6 +229,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             @Override
             public Class<? extends Annotation> annotationType() {
                 return JVerifyTest.class;
+            }
+
+            @Override
+            public String skip() {
+                return "";
             }
 
             @Override
