@@ -98,10 +98,8 @@ public class JavaToDafnyCompiler {
             }
         }
         for (var compilationUnit : parsed) {
-            findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
-        }
-        for (var compilationUnit : parsed) {
             this.nameMangler.mangleNames((JCTree.JCCompilationUnit) compilationUnit);
+            findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
         for (var compilationUnit : parsed) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
@@ -1237,7 +1235,7 @@ public class JavaToDafnyCompiler {
             pos = Math.max(pos, getEndPos(methodDecl.mods));
         }
 
-        String methodName = methodDecl.sym.name.toString();
+        String methodName = methodDecl.name.toString();
         boolean isConstructor = TreeInfo.isConstructor(methodDecl);
 
         if (isConstructor) {
