@@ -337,7 +337,7 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private static Object getLiteralValue(JCTree.JCExpression expression) {
+    static Object getLiteralValue(JCTree.JCExpression expression) {
         if (expression instanceof JCTree.JCLiteral literal) {
             return literal.getValue();
         } else {
@@ -617,14 +617,13 @@ public class JavaToDafnyCompiler {
                 } else {
                     body = null;
                 }
-               // var ctorName = new Name(origin, "m_ctor"+(ctorNum++));
-                Name ctorName = null;//this.constructorDisambiguator.getNameForSymbol(method);  // HERE -> MAY BE NULL
-                if (ctorName == null) {
-                    ctorName = name;
+                Name ctorName = name;
+                if (method.sym.name.contentEquals("<init>")) {
+                    ctorName = new Name(origin, "_ctor");
                 }
-                System.out.println("Received constructor " + method.sym + " ->" + ctorName);
 
-                return new Constructor(origin, ctorName , null, false, null, List.of(), ins,
+
+                    return new Constructor(origin, ctorName , null, false, null, List.of(), ins,
                         header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), header.getModifies(),
                         body);
@@ -706,17 +705,15 @@ public class JavaToDafnyCompiler {
         if (expr instanceof JCTree.JCNewClass newClass) {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
             // Construct the ctor name BaseClass.m_ctor as a Type
-            Name ctorName = null;//this.constructorDisambiguator.getNameForSymbol(newClass);  // HERE -> MAY BE NULL
-            if (ctorName == null) {
-                ctorName = new Name(origin, newClass.constructor.name.toString());
+            String ctorNameStr = newClass.constructor.name.toString();
+            if (ctorNameStr.contentEquals("<init>")) {
+                ctorNameStr = "_ctor";
             }
-            System.out.println("Received constructor at new " + newClass.constructor + " ->" + ctorName);
-
+            Name ctorName = new Name(origin, ctorNameStr);
             var baseType = toExpr(newClass.clazz);
             var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
 
             return new AllocateClass(origin, null, ty,  new ActualBindings(argBindings));
-            //return new AllocateClass(origin, null, toType(newClass.clazz), new ActualBindings(argBindings));
         }
         if (expr instanceof JCTree.JCNewArray newArray) {
             var arrayDimensions = newArray.getDimensions().stream().map(d -> toExpr(d)).toList();

@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.Verify;
 import com.aws.jverify.generated.Name;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.util.Names;
@@ -12,88 +13,52 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 
+/**
+ * Update the name of all methodDecl symbols to ensure uniqueness
+ */
 public class ConstructorDisambiguator {
-    private JavaToDafnyCompiler javaToDafnyCompiler;
-    private HashMap<Symbol.@Nullable MethodSymbol, Name> ctorNames;
+    private final JavaToDafnyCompiler javaToDafnyCompiler;
     private int ctorNum;
-    private HashMap<JCTree.JCExpression, String> classesDefiningContracts;
 
     public ConstructorDisambiguator(JavaToDafnyCompiler javaToDafnyCompiler) {
-        ctorNames = new HashMap<>();
-        ctorNum = 0;
         this.javaToDafnyCompiler = javaToDafnyCompiler;
-        classesDefiningContracts = new HashMap<>();
+        ctorNum = 0;
     }
 
     public void handleCompilationUnit(JCTree.JCCompilationUnit compilationUnit) {
-        //this.compilationUnit = compilationUnit;
-
         for (var typeDecl : compilationUnit.getTypeDecls()) {
             handleTypeDecl(typeDecl);
         }
     }
 
 
-    private static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument) {
-        Symbol.ClassSymbol classSymbol;
-        if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess &&
-                fieldAccess.selected instanceof JCTree.JCIdent ident &&
-                ident.sym instanceof Symbol.ClassSymbol classSymbol2)
-        {
-            classSymbol = classSymbol2;
-        } else {
-            throw new JavaViolationException();
-        }
-        return classSymbol;
-    }
-
     private void handleTypeDecl(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
-            System.out.println("Class " + classDecl.name);
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                    (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                    a -> a));
+                                        (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                                        a -> a));
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
-            Symbol.@Nullable ClassSymbol oldClass = null;
-            if (contractAnnotation != null) {
-                var arguments = this.javaToDafnyCompiler.getArguments(contractAnnotation);
-                oldClass = getClassSymbol(arguments.get("value"));
-                //this.classesDefiningContracts.put(oldClass, classDecl.name);
+            var verifyAnnotation = annotationsByName.get(Verify.class.getName());
+            var should = true;
+            if (verifyAnnotation != null) {
+                var arguments = this.javaToDafnyCompiler.getArguments(verifyAnnotation);
+                var shouldArgument = arguments.get("value");
+                if (shouldArgument != null) {
+                    should = (boolean) JavaToDafnyCompiler.getLiteralValue(shouldArgument);
+                }
             }
-            if (this.javaToDafnyCompiler.classWithExternalContract.contains(classDecl.sym)) {
-                return;
+            if (contractAnnotation != null || !should) {
+                return; // Limitation. To remove with a deterministic mangling algorithm that does not depend on the base class
             }
+
             for (var member : classDecl.getMembers()) {
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                    // Need to find a good mangling algorithm
                     Names names = Names.instance(this.javaToDafnyCompiler.context);
-                    methodDecl.sym.name = false ? methodDecl.sym.name : names.fromString("toto"+(ctorNum++));
-                    /*if (TreeInfo.isConstructor(methodDecl)) {
-                        addCtor(oldClass, methodDecl);
-                        var ctorName = new Name(this.javaToDafnyCompiler.toOrigin(member), "m_ctor" + (ctorNum++));
-                        System.out.println("Constructor " + methodDecl.sym + " ->" + ctorName);
-                        ctorNames.put(methodDecl.sym, ctorName);
-                    }*/
+                    methodDecl.sym.name = names.fromString("toto" + (ctorNum++));
                 }
             }
         }
     }
-/*
-    public Name getNameForSymbol(JCTree.JCMethodDecl methodDecl) {
-        return ctorNames.get(methodDecl.sym);
-    }
-
-    public Name getNameForSymbol(JCTree.JCNewClass newClass) {
-        var tmp = classesDefiningContracts.get(newClass.clazz);
-        if (tmp != null) {
-            var ctorSymbol = findSymbolWithType(newClass.clazz, newClass.constructorType);
-        }
-        else {
-            return ctorNames.get(newClass.constructor);
-        }
-    }
-
- */
-
-
 }
