@@ -42,7 +42,7 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
     private Path dafny;
 
-    @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.")
+    @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
 
     @Override
