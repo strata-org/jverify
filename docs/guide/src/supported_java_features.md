@@ -3,7 +3,7 @@ JVerify intends to support the full Java language, but is currently being develo
 # Supported Java Features
 - All literals except strings
 - All operators
-- `switch` expressions and statements, although without pattern matching and yield statements
+- `switch` expressions and statements using switch rules (`case ... -> ...`), although without pattern matching and yield statements
 - Field access: `a.x`
 - Array access: `a[i]`
 - Array types: `int[]`
@@ -29,8 +29,8 @@ Nothing yet
 
 # Unsupported Java features
 
-- Pattern matches in switch expressions
-- `switch` statement
+- Pattern matches in switch expressions and statements
+- Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
 - `yield` in switch expressions
 - Lambda expressions
 - Method references
