@@ -12,6 +12,8 @@ JVerify can currently only be used by building it from source.
 
 # Usage
 
+## Verify a Java program
+
 Let's try running JVerify on the following Java program,
 found [here](https://github.com/aws/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/BinarySearch.java):
 
@@ -50,6 +52,13 @@ BinarySearch.java(32:23-32:60): Error: this loop invariant could not be proved o
 Related message: loop invariant violation
 Dafny program verifier finished with 2 verified, 2 errors
 ```
+
+## Removing verification code from a Java program
+JVerify allowed removing any code related to verification from your Java programs, to ensure that there is no runtime impact. 
+
+- Set the current working directly to this repository
+- Run `./gradlew compileWithJVerify -PjavacArgs="<pathToYourJavaFile>,-d=<yourDesiredOutputDirectory>`, note that the directory path will be relative to the `javac-plugin` folder.
+- Run the resulting class files using `java`, including the JVerify library on the class path. For example: `java -cp <yourDesiredOutputDirectory>:library/build/libs/library.jar <fullQualifiedNameOfYourMainClass>`
 
 ### GitHub issues related to the above:
 - Let the number of reported verified things match Java concepts: https://github.com/aws/jverify/issues/127
