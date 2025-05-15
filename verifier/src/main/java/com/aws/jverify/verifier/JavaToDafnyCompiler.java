@@ -33,6 +33,14 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/*
+TODO: issue with class with ExternalContract, as their name is changed at the last
+minute during translateClass (code is from the of the external contract class)
+
+Need to check how to handle this. Could be a limitation still (no overloading in
+external contract class)
+
+ */
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -43,11 +51,12 @@ public class JavaToDafnyCompiler {
     
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
-    private int ctorNum = 0;
-    private HashMap<Symbol.@Nullable MethodSymbol, Name> ctorNames = new HashMap<>();
+    private ConstructorDisambiguator constructorDisambiguator;
+
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
+        this.constructorDisambiguator = new ConstructorDisambiguator(this);
         shouldVerifies.push(ShouldVerifyMode.DefaultYes);
     }
     
@@ -100,10 +109,10 @@ public class JavaToDafnyCompiler {
         // Here handle all constructors for all classes of all files. Otherwise fail with multiple
         // classes
         for (var compilationUnit : parsed) {
-            handleConstructors((JCTree.JCCompilationUnit) compilationUnit);
+            findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
         for (var compilationUnit : parsed) {
-            findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
+            this.constructorDisambiguator.handleCompilationUnit((JCTree.JCCompilationUnit) compilationUnit);
         }
         for (var compilationUnit : parsed) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
@@ -113,7 +122,7 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
     
-    private final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
+    public final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
     private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
         for (var typeDecl : compilationUnit.getTypeDecls()) {
@@ -147,27 +156,7 @@ public class JavaToDafnyCompiler {
         return classSymbol;
     }
 
-    private void handleConstructors(Tree tree) {
 
-        if (tree instanceof JCTree.JCClassDecl classDecl) {
-            for (var member : classDecl.getMembers()) {
-                if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                    if (TreeInfo.isConstructor(methodDecl)) {
-                        var ctorName = new Name(toOrigin(member), "m_ctor" + (ctorNum++));
-                        ctorNames.put(methodDecl.sym, ctorName);
-                    }
-                }
-            }
-        }
-    }
-
-    private void handleConstructors(JCTree.JCCompilationUnit compilationUnit) {
-        this.compilationUnit = compilationUnit;
-
-        for (var typeDecl : compilationUnit.getTypeDecls()) {
-            handleConstructors(typeDecl);
-        }
-    }
 
     private FileStart translateFile(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
@@ -266,6 +255,7 @@ public class JavaToDafnyCompiler {
     
     @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
+            System.out.println("translateTypeDeclaration: " + classDecl.name);
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
@@ -275,6 +265,7 @@ public class JavaToDafnyCompiler {
 
             Name name = getName(classDecl, classDecl.name);
             if (classWithExternalContract.contains(classDecl.sym)) {
+                System.out.println("External class found");
                 boolean isInterface = isInterface(classDecl);
                 if (!isInterface && shouldVerify()) {
                     reportError(name.getOrigin(), "verifiedTypeWithExternalContract", classDecl.name);
@@ -364,6 +355,7 @@ public class JavaToDafnyCompiler {
     
     private ClassLikeDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
+        System.out.println("Translating class " + classDecl.sym.name + " for " + name.getValue());
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
                 if (methodDecl.getModifiers().getAnnotations().stream().
@@ -627,11 +619,13 @@ public class JavaToDafnyCompiler {
                     body = null;
                 }
                // var ctorName = new Name(origin, "m_ctor"+(ctorNum++));
-                var ctorName = ctorNames.get(method.sym);  // HERE -> MAY BE NULL
+                Name ctorName = null;//this.constructorDisambiguator.getNameForSymbol(method);  // HERE -> MAY BE NULL
                 if (ctorName == null) {
                     ctorName = new Name(origin, "_ctor");
                 }
-               return new Constructor(origin, ctorName , null, false, null, List.of(), ins,
+                System.out.println("Received constructor " + method.sym + " ->" + ctorName);
+
+                return new Constructor(origin, ctorName , null, false, null, List.of(), ins,
                         header.preconditions, header.postconditions, header.getReads(),
                         header.getDecreases(), header.getModifies(),
                         body);
@@ -713,10 +707,12 @@ public class JavaToDafnyCompiler {
         if (expr instanceof JCTree.JCNewClass newClass) {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
             // Construct the ctor name BaseClass.m_ctor as a Type
-            var ctorName = ctorNames.get(newClass.constructor);
+            Name ctorName = null;//this.constructorDisambiguator.getNameForSymbol(newClass);  // HERE -> MAY BE NULL
             if (ctorName == null) {
                 ctorName = new Name(origin, "_ctor");
             }
+            System.out.println("Received constructor at new " + newClass.constructor + " ->" + ctorName);
+
             var baseType = toExpr(newClass.clazz);
             var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
 
