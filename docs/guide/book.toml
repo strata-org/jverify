@@ -1,0 +1,11 @@
+[book]
+language = "en"
+multilingual = false
+src = "src"
+title = "JVerify User Guide"
+
+[output.html]
+curly-quotes = true
+
+[output.html.playground]
+runnable = false

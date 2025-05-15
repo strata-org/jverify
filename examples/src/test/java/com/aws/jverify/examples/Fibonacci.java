@@ -1,12 +1,9 @@
 package com.aws.jverify.examples;
 
 import static com.aws.jverify.JVerify.*;
-
 import com.aws.jverify.*;
-import com.aws.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("ConstantValue")
-@JVerifyTest
 class Fibonacci {
     @Pure
     @Erased
@@ -16,8 +13,10 @@ class Fibonacci {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        precondition(Spec(n) <= Integer.MAX_VALUE);
         postcondition((Integer r) -> r == Spec(n));
+        
+        // this precondition prevents overflow later in this method
+        precondition(Spec(n) <= Integer.MAX_VALUE);
 
         if (n == 0) {
             return 0;
@@ -33,6 +32,10 @@ class Fibonacci {
             invariant(i <= n);
 
             i = i + 1;
+
+            // Using the precondition that the final result fits in an int32
+            // And the knowledge that the intermediate results are smaller than the result
+            // We can show the addition always fits in an int32
             SpecIsIncreasing(i, n);
             int addition = result + previousResult;
             previousResult = result;
@@ -41,7 +44,10 @@ class Fibonacci {
         return result;
     }
 
-    @Proof
+    /**
+     * Proves that Fibonacci numbers increase in value with increading input value
+     */
+    @Erased
     static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
     {
         precondition(i <= j);
@@ -56,5 +62,3 @@ class Fibonacci {
         }
     }
 }
-
-// TEST: exitCode=0 dafnyVerified=4 dafnyErrors=0

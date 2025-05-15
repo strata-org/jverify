@@ -1,4 +1,4 @@
-// TEST: exitCode=4 dafnyVerified=3 dafnyErrors=3
+// TEST: exitCode=4 dafnyVerified=6 dafnyErrors=4
 
 package com.aws.jverify.verifier.tests;
 
@@ -27,6 +27,29 @@ class Switches {
             case 3 -> 30;
             default -> 40;
         };
+        check(num % 20 == 0);
+//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
+    static void switchStmtInt(int i) {
+        var num = -1;
+        switch (i) {
+            case 0 -> num = 10;
+            case 1, 2 -> num = 20;
+            case 3 -> num = 30;
+            default -> num = 40;
+        }
+        check(num % 10 == 0);
+    }
+
+    static void switchStmtIntBad(int i) {
+        var num = -1;
+        switch (i) {
+            case 0 -> num = 10;
+            case 1, 2 -> num = 20;
+            case 3 -> num = 30;
+            default -> num = 40;
+        }
         check(num % 20 == 0);
 //      ^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
@@ -69,5 +92,34 @@ class Switches {
         };
         check(!isNull);
 //      ^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
+    static void switchStmtBlockBody(int i) {
+        var num = -1;
+        switch (i) {
+            case 0 -> num = 10;
+            case 1, 2, 3, 4 -> {
+                num = 5;
+                switch (i) {
+                    case 1, 2 -> num = num + 25;
+                    case 3, 4 -> {
+                        num = num + 31;
+                        num = num + 14;
+                    }
+                }
+            }
+            default -> num = 60;
+        }
+        check(num % 10 == 0);
+    }
+
+    static void switchStmtNonExhaustive(int i) {
+        var num = -1;
+        switch (i) {
+            case 0 -> num = 10;
+            case 1, 2 -> num = 20;
+            case 3 -> num = 30;
+        }
+        check(num == -1 || num % 10 == 0);
     }
 }

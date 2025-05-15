@@ -3,10 +3,9 @@ package com.aws.jverify.examples;
 import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.Invariant;
 import com.aws.jverify.Nullable;
+import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
-import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest
 class UserProfile {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
@@ -20,6 +19,7 @@ class UserProfile {
         }
     }
 
+    @Erased
     @Pure
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
@@ -32,9 +32,8 @@ class UserProfile {
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
-        // this.premiumFeatures = new PremiumFeatures();
+        this.premiumFeatures = new PremiumFeatures();
         return;
-//      ^^^^^^^ Error: a postcondition could not be proved on this return path
     }
 
     public boolean applyTheme(Theme theme) {
@@ -62,5 +61,3 @@ class UserProfile {
         }
     }
 }
-
-// TEST: exitCode=4 dafnyVerified=5 dafnyErrors=1
