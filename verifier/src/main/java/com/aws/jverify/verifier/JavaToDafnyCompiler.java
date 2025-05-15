@@ -33,15 +33,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/*
-TODO: issue with class with ExternalContract, as their name is changed at the last
-minute during translateClass (code is from the of the external contract class)
-
-Need to check how to handle this. Could be a limitation still (no overloading in
-external contract class)
-
- */
-
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
@@ -51,12 +42,12 @@ public class JavaToDafnyCompiler {
     
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
-    private ConstructorDisambiguator constructorDisambiguator;
+    private NameMangler nameMangler;
 
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
-        this.constructorDisambiguator = new ConstructorDisambiguator(this);
+        this.nameMangler = new NameMangler(this);
         shouldVerifies.push(ShouldVerifyMode.DefaultYes);
     }
     
@@ -106,13 +97,11 @@ public class JavaToDafnyCompiler {
                 return new FilesContainer(filesStarts);
             }
         }
-        // Here handle all constructors for all classes of all files. Otherwise fail with multiple
-        // classes
         for (var compilationUnit : parsed) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
         for (var compilationUnit : parsed) {
-            this.constructorDisambiguator.handleCompilationUnit((JCTree.JCCompilationUnit) compilationUnit);
+            this.nameMangler.mangleNames((JCTree.JCCompilationUnit) compilationUnit);
         }
         for (var compilationUnit : parsed) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
@@ -419,7 +408,7 @@ public class JavaToDafnyCompiler {
         List<DatatypeCtor> constructors = new ArrayList<>();
         for(var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                Name constructorName = getName(variableDecl, variableDecl.name);
+                Name constructorName = getName(variableDecl, variableDecl.sym.name);
                 constructors.add(new DatatypeCtor(declToOrigin(variableDecl, constructorName), constructorName, 
                         null, false, List.of()));
 
@@ -458,7 +447,7 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
-        Name fieldName = getName(variableDecl, variableDecl.name);
+        Name fieldName = getName(variableDecl, variableDecl.sym.name);
         IOrigin origin = declToOrigin(variableDecl, fieldName);
         Type type = toType(variableDecl.vartype, isNullable(variableDecl.getModifiers()));
         if (variableDecl.getInitializer() != null) {
