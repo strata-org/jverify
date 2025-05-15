@@ -67,7 +67,7 @@ public class ConstructorDisambiguator {
             for (var member : classDecl.getMembers()) {
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
                     Names names = Names.instance(this.javaToDafnyCompiler.context);
-                    //methodDecl.sym.name = true ? methodDecl.sym.name : names.fromString("toto"+(ctorNum++));
+                    methodDecl.sym.name = false ? methodDecl.sym.name : names.fromString("toto"+(ctorNum++));
                     /*if (TreeInfo.isConstructor(methodDecl)) {
                         addCtor(oldClass, methodDecl);
                         var ctorName = new Name(this.javaToDafnyCompiler.toOrigin(member), "m_ctor" + (ctorNum++));

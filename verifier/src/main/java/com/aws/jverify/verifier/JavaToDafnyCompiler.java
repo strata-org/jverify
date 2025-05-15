@@ -355,16 +355,15 @@ public class JavaToDafnyCompiler {
     
     private ClassLikeDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
-        System.out.println("Translating class " + classDecl.sym.name + " for " + name.getValue());
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
                 if (methodDecl.getModifiers().getAnnotations().stream().
                         anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && 
                                 ident.name.contentEquals("Invariant"))) {
-                    var invariantName = getName(methodDecl, methodDecl.name);
+                    var invariantName = getName(methodDecl, methodDecl.sym.name);
                     var invariantOrigin = declToOrigin(methodDecl, invariantName);
                     ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
-                            methodDecl.name.toString(), null), null, new ActualBindings(List.of()), null);
+                            methodDecl.sym.name.toString(), null), null, new ActualBindings(List.of()), null);
                     invariants.add(new AttributedExpression(call,null, null)); 
                 }
             }
@@ -497,7 +496,7 @@ public class JavaToDafnyCompiler {
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
 
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(method, method.name);
+        var name = getName(method, method.sym.name);
         var origin = declToOrigin(method, name);
 
         var annotations = method.getModifiers().getAnnotations();
@@ -621,7 +620,7 @@ public class JavaToDafnyCompiler {
                // var ctorName = new Name(origin, "m_ctor"+(ctorNum++));
                 Name ctorName = null;//this.constructorDisambiguator.getNameForSymbol(method);  // HERE -> MAY BE NULL
                 if (ctorName == null) {
-                    ctorName = new Name(origin, "_ctor");
+                    ctorName = name;
                 }
                 System.out.println("Received constructor " + method.sym + " ->" + ctorName);
 
@@ -709,7 +708,7 @@ public class JavaToDafnyCompiler {
             // Construct the ctor name BaseClass.m_ctor as a Type
             Name ctorName = null;//this.constructorDisambiguator.getNameForSymbol(newClass);  // HERE -> MAY BE NULL
             if (ctorName == null) {
-                ctorName = new Name(origin, "_ctor");
+                ctorName = new Name(origin, newClass.constructor.name.toString());
             }
             System.out.println("Received constructor at new " + newClass.constructor + " ->" + ctorName);
 
@@ -773,10 +772,10 @@ public class JavaToDafnyCompiler {
             Symbol.OperatorSymbol operator = binary.getOperator();
             return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
         } else if (expr instanceof JCTree.JCIdent identifier) {
-            if (identifier.name.contentEquals("this")) {
+            if (identifier.sym.name.contentEquals("this")) {
                 return new ThisExpr(origin);
             }
-            return new NameSegment(origin, identifier.getName().toString(), null);
+            return new NameSegment(origin, identifier.sym.name.toString(), null);
         } else if (expr instanceof JCTree.JCLiteral literal) {
             if (literal.typetag == TypeTag.BOOLEAN) {
                 return new LiteralExpr(toOrigin(literal), literal.getValue());
@@ -798,15 +797,15 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCFieldAccess fieldAccess) {
             var selectedExpr = toExpr(fieldAccess.selected);
             // TODO does this work if the selected expression isn't trivially of array type?
-            if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
+            if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.sym.name.contentEquals("length")) {
                 return new ExprDotName(origin, selectedExpr, getName(fieldAccess, "Length"), null);
             }
             
             if (isEnum(fieldAccess.selected)) {
-                return new ApplySuffix(origin, new NameSegment(origin, fieldAccess.name.toString(), null), 
+                return new ApplySuffix(origin, new NameSegment(origin, fieldAccess.sym.name.toString(), null),
                         null, new ActualBindings(List.of()), null);
             } else {
-                return new ExprDotName(origin, toExpr(fieldAccess.selected), getName(fieldAccess, fieldAccess.name), null);
+                return new ExprDotName(origin, toExpr(fieldAccess.selected), getName(fieldAccess, fieldAccess.sym.name), null);
             }
         } else if (expr instanceof JCTree.JCArrayAccess arrayAccess) {
             var arrayExpr = toExpr(arrayAccess.getExpression());
@@ -1221,7 +1220,7 @@ public class JavaToDafnyCompiler {
             pos = Math.max(pos, getEndPos(methodDecl.mods));
         }
 
-        String methodName = methodDecl.name.toString();
+        String methodName = methodDecl.sym.name.toString();
         boolean isConstructor = TreeInfo.isConstructor(methodDecl);
 
         if (isConstructor) {
