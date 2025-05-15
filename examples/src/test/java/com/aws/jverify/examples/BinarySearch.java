@@ -4,9 +4,7 @@ import static com.aws.jverify.JVerify.*;
 
 import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
-import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0)
 class BinarySearch {
     @Pure
     @Erased
@@ -17,7 +15,7 @@ class BinarySearch {
     }
 
     public static int binarySearchImpl(int[] arr, int key) {
-        precondition(arr.length <= 0x7fff_ffff /* Integer.MAX_VALUE */);
+        precondition(arr.length <= Integer.MAX_VALUE);
         precondition(sorted(arr));
         postcondition((Integer res) ->
                 (res == -1 && !sequence(arr).contains(key))

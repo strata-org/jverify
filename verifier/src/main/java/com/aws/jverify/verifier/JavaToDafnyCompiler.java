@@ -33,7 +33,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
@@ -778,11 +777,14 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCAssignOp assignOp) {
             reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
             return getHole(origin);
-        }
-        else if (expr instanceof JCTree.JCInstanceOf instanceOf) {
+        } else if (expr instanceof JCTree.JCInstanceOf instanceOf) {
             var expression = toExpr(instanceOf.getExpression());
             var jcType = toType(instanceOf.getType());
             return new TypeTestExpr(origin, expression, jcType);
+        } else if (expr instanceof JCTree.JCTypeCast cast) {
+            var castExpr = toExpr(cast.getExpression());
+            var type = toType(cast.getType());
+            return new ConversionExpr(origin, castExpr, type, "");
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  

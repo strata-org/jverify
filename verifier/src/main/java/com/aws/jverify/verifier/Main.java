@@ -35,6 +35,9 @@ class AppCommand implements Callable<Integer> {
     
     @Option(names = "--show-ranges", description = "Show source location ranges in diagnostics")
     private boolean showRanges;
+    
+    @Option(names = "--paths", description = "Show file paths instead of names")
+    private boolean paths;
 
     @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
     private Path dafny;
@@ -59,7 +62,7 @@ class AppCommand implements Callable<Integer> {
 
         var dafnyPath = getDafnyPath();
         var verifierOptions = new VerifierOptions(dafnyPath, jverifyLibraryLocation, List.of(testEngineClassPath), tempFile.toPath(),
-                printDafny, printBinaryDafny, showRanges, new String[0], verifyByDefault);
+                printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
         System.exit(exitCode);

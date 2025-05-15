@@ -146,6 +146,13 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      */
     public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
+        List<AnnotatedRange> ranges = parsedMarkup.ranges();
+        verifyFile(markedSourceFile, annotation, ranges);
+    }
+
+    public static void verifyFile(SourceFile markedSourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
+        assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
+                (annotation.dafnyVerified() >= 0) == (annotation.dafnyErrors() >= 0));
 
         var options = getVerifierOptions(annotation);
         var verificationResults = Driver.verifyJavaFile(markedSourceFile, options);
@@ -157,7 +164,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .map(JVerifyTestEngine::diagnosticAsAnnotatedRange)
                 .sorted()
                 .toList();
-        var expectedAnnotations = parsedMarkup.ranges().stream().sorted().toList();
+        var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
         Integer expectedDafnyVerifiedCount = annotation.dafnyVerified() >= 0 ? annotation.dafnyVerified() : null;
@@ -199,6 +206,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 prelude,
                 Path.of("../temp.dfy"),
                 Path.of("../temp.dbin"),
+                true,
                 true,
                 new String[] {
                         "--use-basename-for-filename",
