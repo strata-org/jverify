@@ -43,9 +43,11 @@ public class JavaToDafnyCompiler {
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
 
-    public JavaToDafnyCompiler(Context context) {
+    public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
-        shouldVerifies.push(ShouldVerifyMode.DefaultYes);
+        shouldVerifies.push(verifierOptions.verifyByDefault()
+                ? ShouldVerifyMode.DefaultYes
+                : ShouldVerifyMode.DefaultNo);
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        

@@ -1,5 +1,3 @@
-// TEST: exitCode=2
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
@@ -7,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest
+@JVerifyTest(exitCode = 2)
 public class ContractErrors {}
 
 class Foo {

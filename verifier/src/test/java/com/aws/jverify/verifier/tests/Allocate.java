@@ -1,5 +1,3 @@
-// TEST: exitCode=0 dafnyVerified=5 dafnyErrors=0
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -26,7 +24,7 @@ class IntPair {
 }
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest
+@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
 class Allocate {
 
     public static IntPair allocateInReturn(int a, int b) {

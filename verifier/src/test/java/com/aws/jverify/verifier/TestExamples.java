@@ -3,7 +3,6 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.testengine.JVerifyTestEngine;
 import org.junit.jupiter.api.Test;
-import org.junit.platform.engine.support.hierarchical.OpenTest4JAwareThrowableCollector;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,6 +33,6 @@ public class TestExamples {
     private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors, List<AnnotatedRange> ranges) throws IOException {
         var markedSource = Files.readString(Path.of("../examples/src/test/java/com/aws/jverify/examples/").resolve(path));
         JVerifyTestEngine.verifyFile(new SourceFile(path, markedSource),
-                new JVerifyTestEngine.TestMetadata(exitCode, dafnyVerified, dafnyErrors), List.of());
+                JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, dafnyVerified, dafnyErrors), List.of());
     }
 }

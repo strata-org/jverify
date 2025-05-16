@@ -3,7 +3,6 @@ package com.aws.jverify.examples;
 import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.*;
 
-@SuppressWarnings("ConstantValue")
 class Fibonacci {
     @Pure
     @Erased
