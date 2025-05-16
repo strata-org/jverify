@@ -34,7 +34,7 @@ import java.lang.annotation.Target;
 @Target({ ElementType.TYPE })
 public @interface JVerifyTest {
     /**
-     * What to pass for the --verify-by-default verifier option.
+     * Mark the test as skipped for the given reason (if not null or empty).
      */
     String skip() default "";
 
