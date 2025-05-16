@@ -3,11 +3,10 @@ package com.aws.jverify.examples;
 import com.aws.jverify.CheckPreconditionsAtRuntime;
 import com.aws.jverify.PreconditionFailure;
 import com.aws.jverify.Verify;
-import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Skipping because we don't translate try-catch yet")
+//@JVerifyTest(skip = "Skipping because we don't translate try-catch yet")
 public class RuntimePreconditionExample {
     public static void main(String[] args) {
         division(3, 1);
