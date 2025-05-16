@@ -95,7 +95,7 @@ class CInvalidImplementation implements I {
         precondition(x > 2);
         reads(this);
         return c.x;
-//             ^^^^ Error: insufficient reads clause to read field; Consider adding 'reads F_c' or 'reads F_c`F_x' in the enclosing function specification for resolution
+//             ^^^ Error: insufficient reads clause to read field; Consider adding 'reads F_c' or 'reads F_c`F_x' in the enclosing function specification for resolution
 // TODO: revert the mangled names F_c and F_x to c and x in the error messages
     }
 
