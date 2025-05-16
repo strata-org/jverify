@@ -22,16 +22,41 @@ dependencies {
     // Depend on the library for specification annotations and methods
     implementation("com.aws.jverify:library:1.0-SNAPSHOT")
     // Depend on the annotation processor to erase specification code when building
-    // TODO: Accidentally requires Java 23 at present...
-//    annotationProcessor("com.aws.jverify:javac-plugin:1.0-SNAPSHOT")
+    annotationProcessor("com.aws.jverify:javac-plugin:1.0-SNAPSHOT")
 
     // Use JUnit Jupiter for testing.
     testImplementation(libs.junit.jupiter)
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
 
-    // This dependency is used by the application.
-    implementation(libs.guava)
+// The code below is currently necessary to allow JVerify to use javac APIs.
+tasks.withType<JavaCompile> {
+    options.isFork = true
+    options.forkOptions {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+    }
+}
+
+fun createJavacExports(targets: List<String>): List<String> {
+    val javacPackages = listOf(
+        "jdk.compiler/com.sun.tools.javac.api",
+        "jdk.compiler/com.sun.tools.javac.file",
+        "jdk.compiler/com.sun.tools.javac.util",
+        "jdk.compiler/com.sun.tools.javac.tree",
+        "jdk.compiler/com.sun.tools.javac.code",
+        "jdk.compiler/com.sun.tools.javac.parser",
+        "jdk.compiler/com.sun.tools.javac.jvm",
+        "jdk.compiler/com.sun.tools.javac.comp",
+        "jdk.compiler/com.sun.tools.javac.model",
+        "jdk.compiler/com.sun.tools.javac.processing"
+    )
+
+    return javacPackages.flatMap { pkg ->
+        targets.map { target ->
+            "--add-exports=$pkg=$target"
+        }
+    }
 }
 
 // Apply a specific Java toolchain to ease working on different environments.

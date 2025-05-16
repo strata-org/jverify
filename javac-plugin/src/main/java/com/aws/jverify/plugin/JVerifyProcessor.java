@@ -19,7 +19,7 @@ import java.util.Collections;
 import java.util.Set;
 
 @AutoService(Processor.class)
-@SupportedSourceVersion(SourceVersion.RELEASE_11)
+@SupportedSourceVersion(SourceVersion.RELEASE_17)
 public class JVerifyProcessor extends AbstractProcessor {
 
     @Override
