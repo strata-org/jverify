@@ -72,3 +72,7 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           ./gradlew test --info
+      - name: Sample project
+        working-directory: ./jverify-collection/sample-project
+        run: |
+          ./gradlew test --info
