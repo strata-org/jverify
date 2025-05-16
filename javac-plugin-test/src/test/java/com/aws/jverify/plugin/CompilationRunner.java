@@ -1,22 +1,16 @@
 package com.aws.jverify.plugin;
 
-import com.google.errorprone.annotations.Var;
 import com.google.testing.compile.Compilation;
-import com.sun.source.doctree.ValueTree;
 import org.jetbrains.annotations.NotNull;
 
 import javax.tools.JavaFileObject;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class CompilationRunner {
 

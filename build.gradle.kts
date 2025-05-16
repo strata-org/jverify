@@ -12,14 +12,15 @@ plugins {
     id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.10"
 }
 
-group = "com.aws.jverify"
-version = "1.0-SNAPSHOT"
-
 allprojects {
+    group = "com.aws.jverify"
+    version = "1.0-SNAPSHOT"
+
     apply(plugin = "java")
 
     repositories {
         mavenCentral()
+        mavenLocal()
         maven {
             url = uri("https://www.jetbrains.com/intellij-repository/releases")
         }
@@ -129,6 +130,14 @@ fun createJavacExports(targets: List<String>): List<String> {
 }
 
 project(":common") {
+
+    java {
+        toolchain {
+            // Use Java 17 for this subproject, so Java 17 projects can depend on it at compile-/run-time
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
     dependencies {
         implementation(project(":library"))
 
@@ -150,18 +159,19 @@ project(":common") {
 
 project(":javac-plugin") {
 
+    java {
+        toolchain {
+            // Use Java 17 for this subproject, so Java 17 projects can depend on it at compile-/run-time
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
     dependencies {
         implementation(project(":common"))
         implementation(project(":library"))
 
         implementation("com.google.auto.service:auto-service-annotations:1.0.1")
         annotationProcessor("com.google.auto.service:auto-service:1.0.1")
-
-        // https://mvnrepository.com/artifact/com.google.testing.compile/compile-testing
-        testImplementation("com.google.testing.compile:compile-testing:0.21.0")
-
-        // https://mvnrepository.com/artifact/org.ow2.asm/asm
-        testImplementation("org.ow2.asm:asm:9.7.1")
 
         testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -174,22 +184,15 @@ project(":javac-plugin") {
     }
 
     tasks.withType<JavaExec> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).
-          // Using preview mode, so we can use the package java.lang.classfile
-          plus("--enable-preview")
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
     tasks.withType<Test> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).
-
-          // Using preview mode, so we can use the package java.lang.classfile
-          plus("--enable-preview")
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
 
     tasks.withType<JavaCompile> {
         options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
         //options.compilerArgs.add("-proc:none")
-        // Using preview mode, so we can use the package java.lang.classfile
-        options.compilerArgs.add("--enable-preview")
     }
 
     tasks.register<JavaExec>("compileWithJVerify") {
@@ -213,6 +216,52 @@ project(":javac-plugin") {
         args = taskArgs
 
         dependsOn("jar")
+    }
+}
+
+// A separate project for the plugin tests,
+// because they need Java 23 and preview mode,
+// but we want to support Java 17 user projects.
+project(":javac-plugin-test") {
+
+    dependencies {
+        implementation(project(":javac-plugin"))
+        implementation(project(":library"))
+        implementation(project(":common"))
+
+        // https://mvnrepository.com/artifact/com.google.testing.compile/compile-testing
+        testImplementation("com.google.testing.compile:compile-testing:0.21.0")
+
+        // https://mvnrepository.com/artifact/org.ow2.asm/asm
+        testImplementation("org.ow2.asm:asm:9.7.1")
+
+        testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+        testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    }
+
+    tasks.test {
+        useJUnitPlatform()
+        jvmArgs = listOf(
+        )
+    }
+
+    tasks.withType<JavaExec> {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).
+            // Using preview mode, so we can use the package java.lang.classfile
+        plus("--enable-preview")
+    }
+    tasks.withType<Test> {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED")).
+
+            // Using preview mode, so we can use the package java.lang.classfile
+        plus("--enable-preview")
+    }
+
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
+        //options.compilerArgs.add("-proc:none")
+        // Using preview mode, so we can use the package java.lang.classfile
+        options.compilerArgs.add("--enable-preview")
     }
 }
 
@@ -302,5 +351,17 @@ project(":test-engine") {
         // for test engine registration
         implementation("com.google.auto.service:auto-service-annotations:1.0.1")
         annotationProcessor("com.google.auto.service:auto-service:1.0.1")
+    }
+}
+
+subprojects {
+    apply(plugin = "maven-publish")
+
+    configure<PublishingExtension> {
+        publications {
+            create<MavenPublication>("mavenJava") {
+                from(components["java"])
+            }
+        }
     }
 }
