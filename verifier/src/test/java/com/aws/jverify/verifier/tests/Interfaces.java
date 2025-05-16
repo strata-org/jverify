@@ -1,5 +1,3 @@
-// TEST: exitCode=4 dafnyVerified=10 dafnyErrors=4
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.*;
@@ -7,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 4)
 class Interfaces {}
 
 interface I {

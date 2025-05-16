@@ -45,7 +45,7 @@ public class Driver {
         var verificationResults = new VerificationResults();
 
         var context = new Context();
-        var compiler = new JavaToDafnyCompiler(context);
+        var compiler = new JavaToDafnyCompiler(context, verifierOptions);
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 

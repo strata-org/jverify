@@ -1,5 +1,3 @@
-// TEST: exitCode=4 dafnyVerified=1 dafnyErrors=1
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Nat;
@@ -7,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.decreases;
 
-@JVerifyTest
+@JVerifyTest(exitCode = 4, dafnyVerified = 1, dafnyErrors = 1)
 class Termination {
     void Recursive(@Nat int x, @Nat int y) {
         decreases(y, x);

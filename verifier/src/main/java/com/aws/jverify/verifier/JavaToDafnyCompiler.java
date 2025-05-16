@@ -45,10 +45,12 @@ public class JavaToDafnyCompiler {
     private NameMangler nameMangler;
 
 
-    public JavaToDafnyCompiler(Context context) {
+    public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.nameMangler = new NameMangler(this);
-        shouldVerifies.push(ShouldVerifyMode.DefaultYes);
+        shouldVerifies.push(verifierOptions.verifyByDefault()
+                ? ShouldVerifyMode.DefaultYes
+                : ShouldVerifyMode.DefaultNo);
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        

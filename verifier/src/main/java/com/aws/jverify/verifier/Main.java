@@ -41,7 +41,10 @@ class AppCommand implements Callable<Integer> {
 
     @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
     private Path dafny;
-    
+
+    @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
+    private boolean verifyByDefault;
+
     @Override
     public Integer call() throws IOException {
         Writer writer = new OutputStreamWriter(System.out);
@@ -59,7 +62,7 @@ class AppCommand implements Callable<Integer> {
 
         var dafnyPath = getDafnyPath();
         var verifierOptions = new VerifierOptions(dafnyPath, jverifyLibraryLocation, List.of(testEngineClassPath), tempFile.toPath(),
-                printDafny, printBinaryDafny, showRanges, paths, new String[0]);
+                printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
         System.exit(exitCode);

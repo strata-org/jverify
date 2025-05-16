@@ -1,5 +1,3 @@
-// TEST: exitCode=4 dafnyVerified=6 dafnyErrors=4
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Nullable;
@@ -8,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 
 @SuppressWarnings("ConstantValue")
-@JVerifyTest
+@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 4)
 class Switches {
     static void switchExprInt(int i) {
         var num = switch (i) {

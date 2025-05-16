@@ -9,6 +9,7 @@ import net.jqwik.api.Property;
 
 import static com.aws.jverify.JVerify.*;
 
+// Skipping because jqwik isn't on the classpath when compiling/running tests
 // @JVerifyTest
 class BinarySearchProperty {
     
@@ -45,6 +46,3 @@ class BinarySearchProperty {
     }
 
 }
-
-// Skipping because jqwik isn't on the classpath when compiling/running tests
-// TEST: skip
