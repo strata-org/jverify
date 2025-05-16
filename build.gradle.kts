@@ -12,14 +12,15 @@ plugins {
     id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.10"
 }
 
-group = "com.aws.jverify"
-version = "1.0-SNAPSHOT"
-
 allprojects {
+    group = "com.aws.jverify"
+    version = "1.0-SNAPSHOT"
+
     apply(plugin = "java")
 
     repositories {
         mavenCentral()
+        mavenLocal()
         maven {
             url = uri("https://www.jetbrains.com/intellij-repository/releases")
         }
@@ -129,6 +130,14 @@ fun createJavacExports(targets: List<String>): List<String> {
 }
 
 project(":common") {
+
+    java {
+        toolchain {
+            // Use Java 17 for this subproject, so Java 17 projects can depend on it at compile-/run-time
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
     dependencies {
         implementation(project(":library"))
 
@@ -302,5 +311,17 @@ project(":test-engine") {
         // for test engine registration
         implementation("com.google.auto.service:auto-service-annotations:1.0.1")
         annotationProcessor("com.google.auto.service:auto-service:1.0.1")
+    }
+}
+
+subprojects {
+    apply(plugin = "maven-publish")
+
+    configure<PublishingExtension> {
+        publications {
+            create<MavenPublication>("mavenJava") {
+                from(components["java"])
+            }
+        }
     }
 }

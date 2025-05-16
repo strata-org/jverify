@@ -3,7 +3,6 @@ package com.aws.jverify.testengine;
 import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
-import com.aws.jverify.common.TestMarkup;
 import com.aws.jverify.verifier.DafnyDiagnostic;
 import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.SourceFile;
