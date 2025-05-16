@@ -1,5 +1,3 @@
-// TEST: exitCode=2
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -11,7 +9,7 @@ import static com.aws.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest
+@JVerifyTest(exitCode = 2)
 class ResolutionErrorsNumericOperators {
     public void foo() {
         var l = 3;

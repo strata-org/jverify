@@ -7,6 +7,7 @@ import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class MethodCompiler {
 
@@ -68,6 +69,9 @@ public class MethodCompiler {
             }
             case JCTree.JCBreak jcBreak -> {
                 return translateBreak(jcBreak);
+            }
+            case JCTree.JCSwitch jcSwitch -> {
+                return translateSwitchStatement(jcSwitch);
             }
             case JCTree.JCSkip _ -> {
                 return List.of();
@@ -131,8 +135,22 @@ public class MethodCompiler {
         if (expr == null) {
             return List.of(new ReturnStmt(origin, null, null));
         } else {
-            return List.of(new ReturnStmt(origin, null,
-                    List.of(new ExprRhs(compiler.toOrigin(expr), null, compiler.toExpr(expr)))));
+            // Replace
+            //   return e;
+            // by
+            //   var tmp := e;
+            //   return tmp;
+            // so that we can have allocation in e.
+            var exprOrigin = compiler.toOrigin(expr);
+            var returnExpr = compiler.toAssignmentRhs(expr);
+            var newLocalVarName = getTmpVariableName();
+            var newLocalVar = new LocalVariable(exprOrigin,
+                    newLocalVarName, null, false);
+            var newLocalVarExpr = new NameSegment(exprOrigin, newLocalVarName, null);
+            var varDeclStmt = new VarDeclStmt(exprOrigin, null, List.of(newLocalVar), null);
+            var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
+            var returnStmt = new ReturnStmt(origin, null, List.of(new ExprRhs(exprOrigin, null,newLocalVarExpr)));
+            return List.of(varDeclStmt, assignment,returnStmt);
         }
     }
 
@@ -227,6 +245,9 @@ public class MethodCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
+    }
+    private String getTmpVariableName() {
+        return "#_tmpVar_"+(generatedIndex++);
     }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement) {
@@ -332,6 +353,43 @@ public class MethodCompiler {
                 new ActualBindings(argBindings), null);
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+    }
+
+    public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt) {
+        var origin = compiler.toOrigin(switchStmt);
+        var patternBodies = compiler.translateSwitchLabels(switchStmt);
+        if (patternBodies == null) {
+            return List.of();
+        }
+
+        var translatedCases = patternBodies.stream().map(patternBody -> {
+            var caseOrigin = compiler.toOrigin(patternBody.cas());
+            var body = patternBody.body();
+
+            // A switch rule introduces either an expression, a block, or a throw statement.
+            // Within a switch statement, a switch rule expression must be a statement expression.
+            List<Statement> translatedBody = switch (body) {
+                case JCTree.JCExpressionStatement bodyStatement -> translateStatement(bodyStatement);
+                case JCTree.JCBlock bodyBlock -> translateStatement(bodyBlock);
+                case JCTree.JCThrow ignored -> {
+                    compiler.reportError(body, "notSupported", "switch rule throw");
+                    yield List.of();
+                }
+                default -> throw new JavaViolationException();
+            };
+            return new NestedMatchCaseStmt(caseOrigin, patternBody.pattern(), translatedBody, null);
+        }).collect(Collectors.toCollection(ArrayList::new));
+
+        // The switch statement may not be exhaustive, but a Dafny match statement must be,
+        // so we add a catch-all no-op case to ensure the translated match is exhaustive.
+        // (It would be safe to add this case unconditionally, but Dafny would warn that the case is redundant.)
+        if (!switchStmt.isExhaustive) {
+            translatedCases.add(new NestedMatchCaseStmt(
+                    origin, JavaToDafnyCompiler.makeWildPattern(origin), List.of(), null));
+        }
+
+        var source = compiler.toExpr(switchStmt.getExpression());
+        return List.of(new NestedMatchStmt(origin, null, source, translatedCases, true));
     }
 
     public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements) {
@@ -469,7 +527,4 @@ public class MethodCompiler {
                 : new BlockStmt(origin, null, List.of(), statements);
     }
 
-    private String getName(String prefix) {
-        return "$" + prefix + generatedIndex++;
-    }
 }

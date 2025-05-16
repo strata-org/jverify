@@ -46,7 +46,7 @@ public class Driver {
         var verificationResults = new VerificationResults();
 
         var context = new Context();
-        var compiler = new JavaToDafnyCompiler(context);
+        var compiler = new JavaToDafnyCompiler(context, verifierOptions);
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
@@ -80,12 +80,12 @@ public class Driver {
     ) throws IOException {
         var verificationResults = verifyJavaFiles(readFiles, verifierOptions);
         for (var diagnostic : verificationResults.diagnostics) {
-            output.write(formatDiagnostic(diagnostic));
+            output.write(formatDiagnostic(verifierOptions.filePath(), diagnostic));
             output.write('\n');
             if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                     && dafnyDiagnostic.relatedInformation != null) {
                 for (var relatedInfo : dafnyDiagnostic.relatedInformation) {
-                    output.write(formatDiagnostic(relatedInfo.asDiagnostic()));
+                    output.write(formatDiagnostic(verifierOptions.filePath(), relatedInfo.asDiagnostic()));
                     output.write('\n');
                 }
             }
@@ -100,7 +100,7 @@ public class Driver {
      * @param units Fully-analyzed compilation units to verify
      */
     public static VerificationResults verifyJavaCode(Context context, Iterable<CompilationUnitTree> units, VerifierOptions verifierOptions) throws IOException {
-        var compiler = new JavaToDafnyCompiler(context);
+        var compiler = new JavaToDafnyCompiler(context, verifierOptions);
         var dafnyEquivalent = compiler.translate(units);
 
         var verificationResults = new VerificationResults();
@@ -152,7 +152,7 @@ public class Driver {
         }
     }
 
-    private static String formatDiagnostic(Diagnostic<?> diagnostic) {
+    private static String formatDiagnostic(boolean filePath, Diagnostic<?> diagnostic) {
         var sb = new StringBuilder();
 
         if (diagnostic instanceof JCDiagnostic jcDiagnostic) {
@@ -166,7 +166,8 @@ public class Driver {
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
         } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            sb.append(dafnyDiagnostic.getSource())
+            var filePart = filePath ? dafnyDiagnostic.getSource().toString() : dafnyDiagnostic.getSource().getFileName(); 
+            sb.append(filePart)
                     .append("(")
                     .append(dafnyDiagnostic.getRange())
                     .append("): ");

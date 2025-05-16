@@ -9,17 +9,15 @@ import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 
 import javax.tools.Diagnostic;
-import javax.tools.JavaFileManager;
-import javax.tools.JavaFileObject;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
  * Adapts Dafny's {@code --json-diagnostics} output to the {@link Diagnostic} interface.
  */
-public class DafnyDiagnostic implements Diagnostic<String> {
+public class DafnyDiagnostic implements Diagnostic<Path> {
     private static final int SEVERITY_ERROR = 1;
     private static final int SEVERITY_WARNING = 2;
     private static final int SEVERITY_INFO = 4;
@@ -54,8 +52,8 @@ public class DafnyDiagnostic implements Diagnostic<String> {
     }
 
     @Override
-    public String getSource() {
-        return location == null ? null : location.filename();
+    public Path getSource() {
+        return location == null ? null : Path.of(location.filePath());
     }
 
     @Override
@@ -109,7 +107,7 @@ public class DafnyDiagnostic implements Diagnostic<String> {
         return Stream.concat(Stream.of(this), relatedStream.map(RelatedInfo::asDiagnostic));
     }
 
-    public record Location(String filename, String uri, Range range) {}
+    public record Location(String filename, String filePath, String uri, Range range) {}
 
     public record RelatedInfo(Location location, String message) {
         public DafnyDiagnostic asDiagnostic() {
