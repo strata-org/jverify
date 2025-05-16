@@ -64,7 +64,7 @@ or beneath elements with `@Verify(value = true, overrideChildren = true)`,
 will be verified.
 
 ## Removing verification code from a Java program
-JVerify allowed removing any code related to verification from your Java programs, to ensure that there is no runtime impact. 
+JVerify supports removing any code related to verification from your Java programs, to ensure that there is no runtime impact. 
 
 - Set the current working directly to this repository
 - Run `./gradlew compileWithJVerify -PjavacArgs="<pathToYourJavaFile>,-d=<yourDesiredOutputDirectory>`, note that the directory path will be relative to the `javac-plugin` folder.
