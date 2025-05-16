@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
+import com.aws.jverify.testengine.JVerifyTestEngine;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +20,8 @@ public class TestVerifier {
     @Test
     public void javaError() throws IOException {
         var source = Common.getResourceFile(getClass(), "/JavaError.java");
-        testMarkedSource(new SourceFile("JavaError.java", source));
+        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, 2, -1, -1);
+        testMarkedSource(new SourceFile("JavaError.java", source), annotation);
     }
 
     @Test
