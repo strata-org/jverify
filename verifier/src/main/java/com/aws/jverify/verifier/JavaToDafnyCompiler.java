@@ -98,7 +98,6 @@ public class JavaToDafnyCompiler {
             }
         }
         for (var compilationUnit : parsed) {
-            this.nameMangler.mangleNames((JCTree.JCCompilationUnit) compilationUnit);
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
         for (var compilationUnit : parsed) {
@@ -153,6 +152,7 @@ public class JavaToDafnyCompiler {
         remainingTypes.addAll(compilationUnit.getTypeDecls());
         while(!remainingTypes.isEmpty()) {
             var typeDecl = remainingTypes.pop();
+            this.nameMangler.mangleNames(typeDecl);
             TopLevelDecl dafnyDecl = translateTypeDeclaration(typeDecl, remainingTypes);
             if (dafnyDecl != null) {
                 topLevelDecls.add(dafnyDecl);
@@ -683,7 +683,7 @@ public class JavaToDafnyCompiler {
         var origin = toOrigin(expr);
         if (expr instanceof JCTree.JCNewClass newClass) {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-            String ctorNameStr = newClass.constructor.name.toString();
+            String ctorNameStr = nameMangler.getMethodName(newClass.constructor);
             Name ctorName = new Name(origin, ctorNameStr);
             var baseType = toExpr(newClass.clazz);
             var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
@@ -774,9 +774,11 @@ public class JavaToDafnyCompiler {
             }
             
             if (isEnum(fieldAccess.selected)) {
-                return new ApplySuffix(origin, new NameSegment(origin, fieldAccess.sym.name.toString(), null),
+                var fieldName = nameMangler.getFieldName(fieldAccess.sym);
+                return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                         null, new ActualBindings(List.of()), null);
             } else {
+                var fieldName = nameMangler.getFieldName(fieldAccess.sym);
                 return new ExprDotName(origin, toExpr(fieldAccess.selected), getName(fieldAccess, fieldAccess.sym.name), null);
             }
         } else if (expr instanceof JCTree.JCArrayAccess arrayAccess) {

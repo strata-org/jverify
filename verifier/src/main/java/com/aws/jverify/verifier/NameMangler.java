@@ -1,10 +1,13 @@
 package com.aws.jverify.verifier;
 
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type.*;
 
 import com.sun.tools.javac.util.Names;
 import com.sun.tools.javac.tree.JCTree;
+
+import java.util.HashSet;
 
 /**
  * Update the name of all method and field names of symbols within a compilation unit
@@ -19,6 +22,8 @@ public class NameMangler {
     private Names nameFactory;
     static private final String fieldPrefix = "F_";
     static private final String methodPrefix = "Z_";
+
+    private HashSet<Symbol> symbols;
 
     private static String typeMangling(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
@@ -46,42 +51,56 @@ public class NameMangler {
     public NameMangler(JavaToDafnyCompiler javaToDafnyCompiler) {
         this.javaToDafnyCompiler = javaToDafnyCompiler;
         this.nameFactory = Names.instance(this.javaToDafnyCompiler.context);
+        this.symbols = new HashSet<com.sun.tools.javac.code.Symbol>();
     }
 
-    public void mangleNames(JCTree.JCCompilationUnit compilationUnit) {
-        for (var typeDecl : compilationUnit.getTypeDecls()) {
-            mangleNames(typeDecl);
+
+    public String getFieldName(Symbol s) {
+        if (symbols.contains(s)) {
+            return s.name.toString();
         }
+        symbols.add(s);
+        String newName = fieldPrefix + s.name.toString();
+        s.name = nameFactory.fromString(newName);
+        return s.name.toString();
     }
 
-    private void mangleNames(Tree tree) {
+    public String getMethodName(Symbol s) {
+        if (symbols.contains(s)) {
+            return s.name.toString();
+        }
+        symbols.add(s);
+
+        String baseName = s.name.toString();
+        if (baseName.contentEquals("<init>")) {
+            baseName = "_ctor";
+        }
+        else {
+            baseName = methodPrefix + baseName;
+        }
+        MethodType methodType = null;
+        if (s.type instanceof MethodType m) {
+            methodType = m;
+        } else {
+            return s.name.toString(); // Missing error message
+        }
+        var argTypes = methodType.getParameterTypes();
+        baseName = (argTypes.isEmpty()) ? baseName : baseName+"_";
+        for (var param : argTypes) {
+            baseName += typeMangling(param);
+        }
+        s.name = nameFactory.fromString(baseName);
+        return s.name.toString();
+    }
+
+    public void mangleNames(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             for (var member : classDecl.getMembers()) {
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                    String baseName = methodDecl.sym.name.toString();
-                    if (baseName.contentEquals("<init>")) {
-                        baseName = "ctor";
-                    }
-                    else {
-                        baseName = methodPrefix + baseName;
-                    }
-                    MethodType methodType = null;
-                    if (methodDecl.type instanceof MethodType m) {
-                        methodType = m;
-                    } else {
-                        this.javaToDafnyCompiler.reportError(methodDecl, "notSupported",  "parametrized method: " + methodDecl.name.toString());
-                        return;
-                    }
-                    var argTypes = methodType.getParameterTypes();
-                    baseName = (argTypes.isEmpty()) ? baseName : baseName+"_";
-                    for (var param : argTypes) {
-                        baseName += typeMangling(param);
-                    }
-                    methodDecl.sym.name = nameFactory.fromString(baseName);
+                    getMethodName(methodDecl.sym);
                 }
                 else if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                    String newName = fieldPrefix + variableDecl.sym.name.toString();
-                    variableDecl.sym.name = nameFactory.fromString(newName);
+                    getFieldName(variableDecl.sym);
                 }
             }
         }
