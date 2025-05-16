@@ -54,7 +54,7 @@ class CInvalidContract implements I {
 
     @Override
     public int m() {
-//             ^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
+//             ^^^^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
         return 0;
     }
 }
