@@ -56,6 +56,9 @@ public class NameMangler {
 
 
     public String getFieldName(Symbol s) {
+        if (s.type instanceof MethodType m) {
+            return getMethodName(s);
+        }
         if (symbols.contains(s)) {
             return s.name.toString();
         }
