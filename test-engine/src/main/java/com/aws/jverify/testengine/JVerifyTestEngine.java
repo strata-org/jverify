@@ -9,7 +9,6 @@ import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.google.auto.service.AutoService;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.platform.commons.support.ReflectionSupport;
@@ -30,19 +29,15 @@ import org.junit.platform.engine.support.hierarchical.Node;
 
 import javax.tools.Diagnostic;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 @AutoService(TestEngine.class)
@@ -129,7 +124,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
             LOGGER.fine(() -> "Found source file: " + sourcePath);
 
-            testMarkedSource(sourcePath);
+            testMarkedSource(sourcePath, testClass.getAnnotation(JVerifyTest.class));
             return context;
         }
     }
@@ -140,25 +135,30 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     /**
-     * @see #testMarkedSource(SourceFile)
+     * @see #testMarkedSource(SourceFile, JVerifyTest)
      */
-    public static void testMarkedSource(Path markedSourcePath) throws IOException {
+    public static void testMarkedSource(Path markedSourcePath, JVerifyTest annotation) throws IOException {
         var markedSource = Files.readString(markedSourcePath);
-        testMarkedSource(new SourceFile(markedSourcePath, markedSource));
+        testMarkedSource(new SourceFile(markedSourcePath, markedSource), annotation);
     }
 
     /**
      * Verifies the given source code and asserts that the exit code, emitted diagnostics,
      * and verified/error counts (from Dafny) match the specified values in the source code's test metadata.
-     * See {@link #parseMetadata(String)} for details on the metadata format.
      */
-    public static void testMarkedSource(SourceFile markedSourceFile) throws IOException {
+    public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
-        var source = parsedMarkup.output();
-        var metadata = parseMetadata(source);
-        Assumptions.assumeFalse(metadata == null, "Skipping test according to metadata");
+        List<AnnotatedRange> ranges = parsedMarkup.ranges();
+        verifyFile(markedSourceFile, annotation, ranges);
+    }
 
-        var options = getVerifierOptions();
+    public static void verifyFile(SourceFile markedSourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
+        Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
+
+        assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
+                (annotation.dafnyVerified() >= 0) == (annotation.dafnyErrors() >= 0));
+
+        var options = getVerifierOptions(annotation);
         var verificationResults = Driver.verifyJavaFile(markedSourceFile, options);
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics().stream()
@@ -168,83 +168,22 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .map(JVerifyTestEngine::diagnosticAsAnnotatedRange)
                 .sorted()
                 .toList();
-        var expectedAnnotations = parsedMarkup.ranges().stream().sorted().toList();
+        var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
-        assertThat("exit code", verificationResults.getExitCode(), is(metadata.exitCode));
-        assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), is(metadata.dafnyVerified));
-        assertThat("Dafny error count", verificationResults.getDafnyErrorCount(), is(metadata.dafnyErrors));
-//        assertThat("Dafny error count", verificationResults.getDafnyErrorCount(),
-//                is(Objects.requireNonNullElse(metadata.dafnyErrors, 0)));
-//        if (metadata.dafnyVerified != null) {
-//            assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), is(metadata.dafnyVerified));
-//        } else {
-//            // Sanity check that we don't have 0 verified, which is usually a sign we didn't verify at all
-//            assertThat("Dafny verified count", verificationResults.getDafnyVerifiedCount(), greaterThan(0));
-//        }
-    }
-
-    private static final Pattern TEST_METADATA_PATTERN = Pattern.compile("^// TEST: (.+)$", Pattern.MULTILINE);
-
-    private record TestMetadata(int exitCode, Integer dafnyVerified, Integer dafnyErrors) {}
-
-    /**
-     * Parses and returns test metadata from the given source content,
-     * or returns {@code null} if the metadata indicates that the test should be skipped.
-     * Throws if the test metadata is absent or malformed.
-     * <p>
-     * Valid metadata formats:
-     * {@snippet :
-     * (1)
-     * // TEST: skip
-     *
-     * (2)
-     * // TEST: exitCode=X
-     *
-     * (3)
-     * // TEST: exitCode=X dafnyVerified=Y dafnyErrors=Z
-     * }
-     * <ol>
-     *     <li>The test should be skipped.</li>
-     *     <li>
-     *         Verification should finish with exit code {@code X} without Dafny terminating normally
-     *         (i.e. Dafny is never invoked because there are javac errors, or Dafny terminates abnormally).
-     *     </li>
-     *     <li>
-     *         Verification should finish with exit code {@code X}, Dafny terminates normally,
-     *         and Dafny's summary reports {@code Y} verified symbols and {@code Z} errors.
-     *     </li>
-     * </ol>
-     */
-    private static @Nullable TestMetadata parseMetadata(String source) {
-        var metadataMatcher = TEST_METADATA_PATTERN.matcher(source);
-        if (!metadataMatcher.find()) {
-            throw new AssertionError("Test metadata not found");
-        }
-        var tokens = Arrays.asList(metadataMatcher.group(1).split("\\s+"));
-        if (tokens.contains("skip")) {
-            assertThat("'skip' must not appear with other tokens", tokens.size(), is(1));
-            return null;
-        }
-
-        Integer exitCode = null;
-        Integer dafnyVerified = null;
-        Integer dafnyErrors = null;
-        for (var token : tokens) {
-            var parts = token.split("=", 2);
-            assertThat("Metadata token must have key=value format", parts.length, is(2));
-            switch (parts[0]) {
-                case "exitCode" -> exitCode = Integer.parseInt(parts[1]);
-                case "dafnyVerified" -> dafnyVerified = Integer.parseInt(parts[1]);
-                case "dafnyErrors" -> dafnyErrors = Integer.parseInt(parts[1]);
-                default -> Assertions.fail("Invalid token in test metadata: " + token);
-            }
-        }
-        assertThat("Metadata must include expectedExitCode", exitCode, notNullValue());
-        assertThat("Metadata must include both or neither of dafnyVerified and dafnyErrors",
-                (dafnyVerified == null) == (dafnyErrors == null));
-
-        return new TestMetadata(exitCode, dafnyVerified, dafnyErrors);
+        Integer expectedDafnyVerifiedCount = annotation.dafnyVerified() >= 0 ? annotation.dafnyVerified() : null;
+        Integer expectedDafnyErrorCount = annotation.dafnyErrors() >= 0 ? annotation.dafnyErrors() : null;
+        Assertions.assertAll(
+                () -> assertThat("exit code",
+                        verificationResults.getExitCode(),
+                        is(annotation.exitCode())),
+                () -> assertThat("Dafny verified count",
+                        verificationResults.getDafnyVerifiedCount(),
+                        is(expectedDafnyVerifiedCount)),
+                () -> assertThat("Dafny error count",
+                        verificationResults.getDafnyErrorCount(),
+                        is(expectedDafnyErrorCount))
+        );
     }
 
     private static AnnotatedRange diagnosticAsAnnotatedRange(Diagnostic<?> diagnostic) {
@@ -258,7 +197,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
-    private static VerifierOptions getVerifierOptions() {
+    private static VerifierOptions getVerifierOptions(JVerifyTest annotation) {
         var dafnyPath = Path.of("../dafny").toAbsolutePath()
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
         var libraryJar = Path.of("../library/build/libs/library.jar");
@@ -270,12 +209,52 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 List.of(testEngineClassPath),
                 prelude,
                 Path.of("../temp.dfy"),
-                null,
+                Path.of("../temp.dbin"),
+                true,
                 true,
                 new String[] {
                         "--use-basename-for-filename",
 //                        "--wait-for-debugger",
-                }
+                },
+                annotation.verifyByDefault()
         );
+    }
+
+    /**
+     * For creating a JVerifyTest annotation without having it in source code.
+     * Useful for testing things like examples where we don't want the explicit annotation.
+     */
+    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, int dafnyVerified, int dafnyErrors) {
+        return new JVerifyTest() {
+            @Override
+            public Class<? extends Annotation> annotationType() {
+                return JVerifyTest.class;
+            }
+
+            @Override
+            public String skip() {
+                return "";
+            }
+
+            @Override
+            public boolean verifyByDefault() {
+                return verifyByDefault;
+            }
+
+            @Override
+            public int exitCode() {
+                return exitCode;
+            }
+
+            @Override
+            public int dafnyVerified() {
+                return dafnyVerified;
+            }
+
+            @Override
+            public int dafnyErrors() {
+                return dafnyErrors;
+            }
+        };
     }
 }

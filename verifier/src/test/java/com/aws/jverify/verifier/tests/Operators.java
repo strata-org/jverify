@@ -1,5 +1,3 @@
-// TEST: exitCode=4 dafnyVerified=13 dafnyErrors=10
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -16,7 +14,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest
+@JVerifyTest(exitCode = 4, dafnyVerified = 16, dafnyErrors = 12)
 class Operators {
     static void Plus() {
         int x = 3;
@@ -157,5 +155,38 @@ class Operators {
         check(di instanceof DummyClass2);
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
 
+    }
+
+    @SuppressWarnings({"RedundantCast", "ConstantValue"})
+    void castNumTrivial(int i) {
+        check(i == (int) i);
+        check(i == (long) i);
+        check(i == (int) (long) i);
+    }
+
+    void castNumInvalid(int i) {
+        check(i == (short) i);
+//                 ^^^^^^^^^ Error: result of operation might violate subset type constraint for 'int16'
+    }
+
+    void castRefTrivial() {
+        //noinspection ConstantValue,RedundantCast
+        check(this == (Operators) this);
+    }
+
+    void castDummyClass() {
+        DummyClass dc1 = new DummyClass();
+        DummyInterface dc2 = new DummyClass2();
+        //noinspection ConstantValue,NewObjectEquality,RedundantCast
+        check((DummyInterface) dc1 != dc2);
+    }
+
+    void castRefInvalid() {
+        DummyClass dc1 = new DummyClass();
+        DummyInterface dc2 = new DummyClass2();
+
+        //noinspection RedundantCast,NewObjectEquality,DataFlowIssue
+        check(dc1 == (DummyClass) dc2);
+//                   ^^^^^^^^^^^^^^^^ Error: value of expression (of type 'DummyInterface') is not known to be an instance of type 'DummyClass'
     }
 }

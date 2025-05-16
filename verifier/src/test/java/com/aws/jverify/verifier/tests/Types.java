@@ -1,11 +1,9 @@
-// TEST: exitCode=4 dafnyVerified=0 dafnyErrors=3
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Nat;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest
+@JVerifyTest(exitCode = 4, dafnyVerified = 0, dafnyErrors = 3)
 class Types {
     public void foo(int s) {
         short x = 10;

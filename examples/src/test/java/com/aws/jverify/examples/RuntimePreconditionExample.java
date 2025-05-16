@@ -6,6 +6,7 @@ import com.aws.jverify.Verify;
 
 import static com.aws.jverify.JVerify.*;
 
+// Skipping because we don't translate try-catch yet
 // @JVerifyTest
 public class RuntimePreconditionExample {
     public static void main(String[] args) {
@@ -25,6 +26,3 @@ public class RuntimePreconditionExample {
         return dividend / divisor;
     }
 }
-
-// Skipping because we don't translate try-catch yet
-// TEST: skip
