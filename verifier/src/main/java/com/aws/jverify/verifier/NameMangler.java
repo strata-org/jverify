@@ -23,7 +23,8 @@ public class NameMangler {
     static private final String fieldPrefix = "F_";
     static private final String methodPrefix = "Z_";
 
-    private HashSet<Symbol> symbols;
+    // Cache of all symbols whose names were already mangled.
+    private HashSet<Symbol> mangledSymbols;
 
     private static String typeMangling(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
@@ -51,29 +52,31 @@ public class NameMangler {
     public NameMangler(JavaToDafnyCompiler javaToDafnyCompiler) {
         this.javaToDafnyCompiler = javaToDafnyCompiler;
         this.nameFactory = Names.instance(this.javaToDafnyCompiler.context);
-        this.symbols = new HashSet<com.sun.tools.javac.code.Symbol>();
+        this.mangledSymbols = new HashSet<com.sun.tools.javac.code.Symbol>();
     }
 
 
-    public String getFieldName(Symbol s) {
+    public String getSymbolName(Symbol s) {
+        if (mangledSymbols.contains(s)) {
+            return s.name.toString();
+        }
+        String newName;
         if (s.type instanceof MethodType m) {
-            return getMethodName(s);
+            newName = getMethodName(s);
+        } else { // TODO: ensure this is a field?
+            newName = getFieldName(s);
         }
-        if (symbols.contains(s)) {
-            return s.name.toString();
-        }
-        symbols.add(s);
-        String newName = fieldPrefix + s.name.toString();
         s.name = nameFactory.fromString(newName);
-        return s.name.toString();
+        mangledSymbols.add(s);
+        return newName;
     }
 
-    public String getMethodName(Symbol s) {
-        if (symbols.contains(s)) {
-            return s.name.toString();
-        }
-        symbols.add(s);
+    private String getFieldName(Symbol s) {
+        String newName = fieldPrefix + s.name.toString();
+        return newName;
+    }
 
+    private String getMethodName(Symbol s) {
         String baseName = s.name.toString();
         if (baseName.contentEquals("<init>")) {
             baseName = "_ctor";
@@ -85,25 +88,24 @@ public class NameMangler {
         if (s.type instanceof MethodType m) {
             methodType = m;
         } else {
-            return s.name.toString(); // Missing error message
+            assert(false);
         }
         var argTypes = methodType.getParameterTypes();
         baseName = (argTypes.isEmpty()) ? baseName : baseName+"_";
         for (var param : argTypes) {
             baseName += typeMangling(param);
         }
-        s.name = nameFactory.fromString(baseName);
-        return s.name.toString();
+        return baseName;
     }
 
     public void mangleNames(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             for (var member : classDecl.getMembers()) {
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                    getMethodName(methodDecl.sym);
+                    getSymbolName(methodDecl.sym);
                 }
                 else if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                    getFieldName(variableDecl.sym);
+                    getSymbolName(variableDecl.sym);
                 }
             }
         }
