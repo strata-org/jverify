@@ -1,4 +1,4 @@
-// TEST: exitCode=0 dafnyVerified=4 dafnyErrors=0
+// TEST: exitCode=0 dafnyVerified=4 dafnyErrors=1
 
 package com.aws.jverify.verifier.tests;
 
@@ -86,7 +86,7 @@ class Constructors {
             // Errors
             Constructors c = new Constructors(10, 15, 20);
             check(c.f()==11);
-//          ^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
             check(c.g()==16);
             check(c.h()==21);
         }
