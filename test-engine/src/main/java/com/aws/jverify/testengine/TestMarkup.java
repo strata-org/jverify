@@ -3,7 +3,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-package com.aws.jverify.common;
+package com.aws.jverify.testengine;
+
+import com.aws.jverify.common.AnnotatedRange;
+import com.aws.jverify.common.Position;
+import com.aws.jverify.common.Range;
 
 import java.util.*;
 import java.util.regex.Matcher;
