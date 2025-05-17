@@ -76,16 +76,24 @@ public class Serializer {
             encoder.writeQualifiedName(simpleName);
         }
 
-        switch (value) {
-            case String s -> encoder.writeString(s);
-            case Map<?, ?> map -> serializeMap(map, (AnnotatedParameterizedType) annotatedType);
-            case Integer i -> encoder.writeInt(i);
-            case Long l -> encoder.writeLong(l);
-            case Float f -> encoder.writeDouble((double)f);
-            case Double d -> encoder.writeDouble(d);
-            case Boolean b -> encoder.writeBool(b);
-            case Character c -> encoder.writeString(new String(new char[] {c}));
-            default -> serializeObject(value);
+        if (value instanceof String) {
+            encoder.writeString((String) value);
+        } else if (value instanceof Map) {
+            serializeMap((Map<?, ?>) value, (AnnotatedParameterizedType) annotatedType);
+        } else if (value instanceof Integer) {
+            encoder.writeInt((Integer) value);
+        } else if (value instanceof Long) {
+            encoder.writeLong((Long) value);
+        } else if (value instanceof Float) {
+            encoder.writeDouble((double) ((Float) value));
+        } else if (value instanceof Double) {
+            encoder.writeDouble((Double) value);
+        } else if (value instanceof Boolean) {
+            encoder.writeBool((Boolean) value);
+        } else if (value instanceof Character) {
+            encoder.writeString(new String(new char[] {(Character) value}));
+        } else {
+            serializeObject(value);
         }
     }
 

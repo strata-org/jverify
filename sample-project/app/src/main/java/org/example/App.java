@@ -3,12 +3,10 @@
  */
 package org.example;
 
-public class App {
-    public String getGreeting() {
-        return "Hello World!";
-    }
+import com.aws.jverify.JVerify;
 
-    public static void main(String[] args) {
-        System.out.println(new App().getGreeting());
+public class App {
+    public void DoStuff() {
+        JVerify.check(false);
     }
 }

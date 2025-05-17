@@ -18,18 +18,18 @@ allprojects {
 
     apply(plugin = "java")
 
+    java {
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(17))
+        }
+    }
+
     repositories {
         mavenCentral()
         mavenLocal()
         maven {
             url = uri("https://www.jetbrains.com/intellij-repository/releases")
         }
-    }
-}
-
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(23))
     }
 }
 
@@ -55,18 +55,10 @@ idea {
 }
 
 project(":library") {
-    java {
-        toolchain {
-            // Use Java 17 for this subproject, so Java 17 projects can depend on it at compile-/run-time
-            languageVersion = JavaLanguageVersion.of(17)
-        }
-    }
 }
 
 project(":examples") {
     dependencies {
-        annotationProcessor(project(":javac-plugin"))
-
         implementation(project(":library"))
 
         testImplementation(project(":test-engine"))
@@ -144,13 +136,6 @@ fun createJavacExports(targets: List<String>): List<String> {
 
 project(":common") {
 
-    java {
-        toolchain {
-            // Use Java 17 for this subproject, so Java 17 projects can depend on it at compile-/run-time
-            languageVersion = JavaLanguageVersion.of(17)
-        }
-    }
-
     dependencies {
         implementation(project(":library"))
 
@@ -171,13 +156,6 @@ project(":common") {
 }
 
 project(":javac-plugin") {
-
-    java {
-        toolchain {
-            // Use Java 17 for this subproject, so Java 17 projects can depend on it at compile-/run-time
-            languageVersion = JavaLanguageVersion.of(17)
-        }
-    }
 
     dependencies {
         implementation(project(":common"))
@@ -347,6 +325,7 @@ project(":verifier") {
 }
 
 project(":test-engine") {
+
     apply(plugin = "java-library")
 
     dependencies {

@@ -10,6 +10,7 @@ import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -43,5 +44,9 @@ public class Common {
         } catch (IOException e) {
             throw new RuntimeException("Failed to read " + name + " resource", e);
         }
+    }
+
+    public static <T> T getFirst(List<T> list) {
+        return list.iterator().next();
     }
 }

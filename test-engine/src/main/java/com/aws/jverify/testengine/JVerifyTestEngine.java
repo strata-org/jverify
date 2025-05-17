@@ -52,21 +52,23 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     public TestDescriptor discover(EngineDiscoveryRequest request, UniqueId uniqueId) {
         var descriptor = new EngineDescriptor(uniqueId, "JVerify Tests");
         request.getSelectorsByType(DiscoverySelector.class).stream()
-                .flatMap(selector -> switch (selector) {
-                    case ClassSelector classSelector ->
-                            Stream.of(classSelector.getJavaClass()).filter(this::isJVerifyTest);
-                    case ClasspathRootSelector cpRootSelector ->
-                            ReflectionSupport.findAllClassesInClasspathRoot(
-                                    cpRootSelector.getClasspathRoot(), this::isJVerifyTest, _ -> true)
-                            .stream();
-                    case MethodSelector methodSelector -> {
+                .flatMap(selector -> {
+                    if (selector instanceof ClassSelector) {
+                        ClassSelector classSelector = (ClassSelector) selector;
+                        return Stream.of(classSelector.getJavaClass()).filter(this::isJVerifyTest);
+                    } else if (selector instanceof ClasspathRootSelector) {
+                        ClasspathRootSelector cpRootSelector = (ClasspathRootSelector) selector;
+                        return ReflectionSupport.findAllClassesInClasspathRoot(
+                                        cpRootSelector.getClasspathRoot(), this::isJVerifyTest, ignored -> true)
+                                .stream();
+                    } else if (selector instanceof MethodSelector) {
+                        MethodSelector methodSelector = (MethodSelector) selector;
                         var testClass = methodSelector.getJavaClass();
                         LOGGER.warning(() ->
                                 "Verifying individual methods isn't supported yet; verifying its class %s instead"
                                         .formatted(testClass.getName()));
-                        yield Stream.of(testClass).filter(this::isJVerifyTest);
-                    }
-                    default -> {
+                        return Stream.of(testClass).filter(this::isJVerifyTest);
+                    } else {
                         LOGGER.warning(() -> "Unexpected selector: " + selector);
                         throw new UnsupportedOperationException("Unsupported selector: " + selector);
                     }

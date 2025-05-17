@@ -39,6 +39,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.aws.jverify.common.Common.getFirst;
+
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
@@ -67,7 +69,7 @@ public class JavaToDafnyCompiler {
         // and that's not allowed?
 //        messages.add("com.aws.jverify.messages");
         var bundle = ResourceBundle.getBundle("com.aws.jverify.messages", Locale.getDefault());
-        messages.add(_ -> bundle);
+        messages.add(ignore -> bundle);
 
         // TODO: Hardcoded paths for now
         var dafnyPath = Path.of("/Users/salkeldr/Documents/GitHub/jverify/dafny/Scripts/dafny");
@@ -477,18 +479,18 @@ public class JavaToDafnyCompiler {
     }
 
     MemberDecl translateMember(JCTree member, Stack<Tree> nestedTypes) {
-        switch (member) {
-            case JCTree.JCClassDecl classDecl -> {
-                nestedTypes.add(classDecl);
-                return null;
-            }
-            case JCTree.JCMethodDecl method -> {
-                return translateMethodDecl(method);
-            }
-            case JCTree.JCVariableDecl variableDecl -> {
-                return translateField(variableDecl);
-            }
-            default -> throw new NotImplementedException(member.getClass().getName());
+        if (member instanceof JCTree.JCClassDecl) {
+            JCTree.JCClassDecl classDecl = (JCTree.JCClassDecl) member;
+            nestedTypes.add(classDecl);
+            return null;
+        } else if (member instanceof JCTree.JCMethodDecl) {
+            JCTree.JCMethodDecl method = (JCTree.JCMethodDecl) member;
+            return translateMethodDecl(method);
+        } else if (member instanceof JCTree.JCVariableDecl) {
+            JCTree.JCVariableDecl variableDecl = (JCTree.JCVariableDecl) member;
+            return translateField(variableDecl);
+        } else {
+            throw new NotImplementedException(member.getClass().getName());
         }
     }
 
@@ -575,7 +577,7 @@ public class JavaToDafnyCompiler {
                 return null;
             }
 
-            var statement = postHeader.getFirst();
+            var statement = getFirst(postHeader);
             Expression body;
             if (shouldVerify) {
                 if (statement instanceof JCTree.JCReturn returnStatement) {
@@ -611,7 +613,7 @@ public class JavaToDafnyCompiler {
                 if (returnType != null) {
                     Name returnName;
                     if (header.returnNames.size() == 1) {
-                        returnName = header.returnNames.getFirst();
+                        returnName = getFirst(header.returnNames);
                     } else {
                         returnName = new Name(origin, "r");
                     }
@@ -738,7 +740,7 @@ public class JavaToDafnyCompiler {
             var arrayDimensions = newArray.getDimensions().stream().map(d -> toExpr(d)).toList();
             var arrayInitializers = newArray.getInitializers();
             var arrayJavaType = newArray.getType();
-            if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
+            if (arrayJavaType instanceof JCTree.JCArrayTypeTree) {
                 reportError(expr, "notSupported", "multi-dimensional arrays");
             }
             var arrayDafnyType = toType(arrayJavaType, true);
@@ -764,17 +766,17 @@ public class JavaToDafnyCompiler {
         } else if (expr instanceof JCTree.JCUnary unary) {
             var innerExpr = toExpr(unary.getExpression());
             switch(unary.getTag()) {
-                case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
+                case POSTINC, POSTDEC, PREINC, PREDEC -> {
                     reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
                     return getHole(origin);
                 }
-                case JCTree.Tag.NOT -> {
+                case NOT -> {
                     return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
                 }
-                case JCTree.Tag.NEG -> {
+                case NEG -> {
                     return new NegationExpression(origin, innerExpr);
                 }
-                case JCTree.Tag.POS -> {
+                case POS -> {
                     return innerExpr;
                 }
                 default -> {
@@ -904,8 +906,8 @@ public class JavaToDafnyCompiler {
                 if (args.size() != 1) {
                     throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
                 }
-                if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-                    reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+                if (!(getFirst(args) instanceof JCTree.JCLambda lambda)) {
+                    reportError(getFirst(args), "argumentMustBeLambda", methodName);
                     return null;
                 }
                 var origin = toOrigin(lambda.getBody());
@@ -933,25 +935,25 @@ public class JavaToDafnyCompiler {
                 return toSubsequence(array, fromIndex, toIndex);
             }
             case "drop" -> {
-                return toSubsequence(receiver, args.getFirst(), null);
+                return toSubsequence(receiver, getFirst(args), null);
             }
             case "take" -> {
-                return toSubsequence(receiver, null, args.getFirst());
+                return toSubsequence(receiver, null, getFirst(args));
             }
             case "subsequence" -> {
                 return toSubsequence(receiver, args.get(0), args.get(1));
             }
             case "contains" -> {
-                var element = toExpr(args.getFirst());
+                var element = toExpr(getFirst(args));
                 var seq = toExpr(receiver);
                 return new BinaryExpr(toOrigin(invocation), BinaryExprOpcode.In, element, seq);
             }
             case "old" -> {
-                var element = toExpr(args.getFirst());
+                var element = toExpr(getFirst(args));
                 return new OldExpr(toOrigin(invocation), element, null);
             }
             case "fresh" -> {
-                var element = toExpr(args.getFirst());
+                var element = toExpr(getFirst(args));
                 return new FreshExpr(toOrigin(invocation), element, null);
             }
         }
@@ -1029,19 +1031,24 @@ public class JavaToDafnyCompiler {
     @Nullable List<SwitchLabelPatternAndBody> translateSwitchLabels(JCTree switchTree) {
         // JCTree is the first common superclass of JCSwitch and JCSwitchExpression,
         // so we settle for dynamically checking that the argument is one of them.
-        var cases = switch (switchTree) {
-            case JCTree.JCSwitch switchStmt -> switchStmt.getCases();
-            case JCTree.JCSwitchExpression switchExpr -> switchExpr.getCases();
-            default -> throw new IllegalArgumentException(
+        List<JCTree.JCCase> cases;
+        if (switchTree instanceof JCTree.JCSwitch) {
+            JCTree.JCSwitch switchStmt = (JCTree.JCSwitch) switchTree;
+            cases = switchStmt.getCases();
+        } else if (switchTree instanceof JCTree.JCSwitchExpression) {
+            JCTree.JCSwitchExpression switchExpr = (JCTree.JCSwitchExpression) switchTree;
+            cases = switchExpr.getCases();
+        } else {
+            throw new IllegalArgumentException(
                     "Expected switch statement or expression but got " + switchTree.getClass());
-        };
+        }
 
         // A switch block consists of either *switch rules* (label -> body)
         // or *switch labeled statement groups* (label: {label:} stmts).
         // Unlike switch rules, switch labeled statement groups automatically "fall through" without break statements,
         // but Dafny's match statement/expression can't express that easily.
         // So for now we only support switch blocks using switch rules.
-        if (cases.getFirst().getCaseKind().equals(JCTree.JCCase.STATEMENT)) {
+        if (getFirst(cases).getCaseKind().equals(JCTree.JCCase.STATEMENT)) {
             reportError(switchTree, "notSupported", "switch labeled statement group");
             return null;
         }
@@ -1256,11 +1263,15 @@ public class JavaToDafnyCompiler {
     }
     
     private int getStartPos(JCTree tree) {
-        return switch(tree) {
-            case JCTree.JCClassDecl classDecl -> getClassNamePosition(classDecl);
-            case JCTree.JCMethodDecl methodDecl -> getMethodNamePosition(methodDecl);
-            default -> tree.getStartPosition();
-        };
+        if (tree instanceof JCTree.JCClassDecl) {
+            JCTree.JCClassDecl classDecl = (JCTree.JCClassDecl) tree;
+            return getClassNamePosition(classDecl);
+        } else if (tree instanceof JCTree.JCMethodDecl) {
+            JCTree.JCMethodDecl methodDecl = (JCTree.JCMethodDecl) tree;
+            return getMethodNamePosition(methodDecl);
+        } else {
+            return tree.getStartPosition();
+        }
     }
 
     private int getMethodNamePosition(JCTree.JCMethodDecl methodDecl) {

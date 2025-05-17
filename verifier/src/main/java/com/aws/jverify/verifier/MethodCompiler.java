@@ -9,6 +9,8 @@ import com.sun.tools.javac.tree.JCTree;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.aws.jverify.common.Common.getFirst;
+
 public class MethodCompiler {
 
     private final JavaToDafnyCompiler compiler;
@@ -34,50 +36,46 @@ public class MethodCompiler {
         var labels = this.labels.stream().toList();
         this.labels.clear();
 
-        switch (statement) {
-            case JCTree.JCExpressionStatement expressionStatement -> {
-                return translateExpressionStatement(expressionStatement);
-            }
-            case JCTree.JCAssert assertStmt -> {
-                return List.of(new AssertStmt(origin, null, compiler.toExpr(assertStmt.getCondition()), null));
-            }
-            case JCTree.JCIf ifStatement -> {
-                return translateIfStatement(ifStatement);
-            }
-            case JCTree.JCBlock blockStatement -> {
-                return List.of(new BlockStmt(origin, null, List.of(),
-                        translateStatements(blockStatement.getStatements())));
-            }
-            case JCTree.JCReturn returnStatement -> {
-                return translateReturn(returnStatement);
-            }
-            case JCTree.JCVariableDecl variableDecl -> {
-                return translateVariableDeclaration(origin, variableDecl.getName().toString(), variableDecl.getType(), variableDecl.getInitializer());
-            }
-            case JCTree.JCWhileLoop whileLoop -> {
-                return List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x));
-            }
-            case JCTree.JCDoWhileLoop doWhileLoop -> {
-                return translateDoWhileLoop(doWhileLoop, labels);
-            }
-            case JCTree.JCForLoop forLoop -> {
-                return translateForLoop(forLoop, labels);
-            }
-
-            case JCTree.JCContinue jcContinue -> {
-                return translateContinue(jcContinue);
-            }
-            case JCTree.JCBreak jcBreak -> {
-                return translateBreak(jcBreak);
-            }
-            case JCTree.JCSwitch jcSwitch -> {
-                return translateSwitchStatement(jcSwitch);
-            }
-            case JCTree.JCSkip _ -> {
-                return List.of();
-            }
-            default -> {
-            }
+        if (statement instanceof JCTree.JCExpressionStatement) {
+            JCTree.JCExpressionStatement expressionStatement = (JCTree.JCExpressionStatement) statement;
+            return translateExpressionStatement(expressionStatement);
+        } else if (statement instanceof JCTree.JCAssert) {
+            JCTree.JCAssert assertStmt = (JCTree.JCAssert) statement;
+            return List.of(new AssertStmt(origin, null, compiler.toExpr(assertStmt.getCondition()), null));
+        } else if (statement instanceof JCTree.JCIf) {
+            JCTree.JCIf ifStatement = (JCTree.JCIf) statement;
+            return translateIfStatement(ifStatement);
+        } else if (statement instanceof JCTree.JCBlock) {
+            JCTree.JCBlock blockStatement = (JCTree.JCBlock) statement;
+            return List.of(new BlockStmt(origin, null, List.of(),
+                    translateStatements(blockStatement.getStatements())));
+        } else if (statement instanceof JCTree.JCReturn) {
+            JCTree.JCReturn returnStatement = (JCTree.JCReturn) statement;
+            return translateReturn(returnStatement);
+        } else if (statement instanceof JCTree.JCVariableDecl) {
+            JCTree.JCVariableDecl variableDecl = (JCTree.JCVariableDecl) statement;
+            return translateVariableDeclaration(origin, variableDecl.getName().toString(),
+                    variableDecl.getType(), variableDecl.getInitializer());
+        } else if (statement instanceof JCTree.JCWhileLoop) {
+            JCTree.JCWhileLoop whileLoop = (JCTree.JCWhileLoop) statement;
+            return List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x));
+        } else if (statement instanceof JCTree.JCDoWhileLoop) {
+            JCTree.JCDoWhileLoop doWhileLoop = (JCTree.JCDoWhileLoop) statement;
+            return translateDoWhileLoop(doWhileLoop, labels);
+        } else if (statement instanceof JCTree.JCForLoop) {
+            JCTree.JCForLoop forLoop = (JCTree.JCForLoop) statement;
+            return translateForLoop(forLoop, labels);
+        } else if (statement instanceof JCTree.JCContinue) {
+            JCTree.JCContinue jcContinue = (JCTree.JCContinue) statement;
+            return translateContinue(jcContinue);
+        } else if (statement instanceof JCTree.JCBreak) {
+            JCTree.JCBreak jcBreak = (JCTree.JCBreak) statement;
+            return translateBreak(jcBreak);
+        } else if (statement instanceof JCTree.JCSwitch) {
+            JCTree.JCSwitch jcSwitch = (JCTree.JCSwitch) statement;
+            return translateSwitchStatement(jcSwitch);
+        } else if (statement instanceof JCTree.JCSkip) {
+            return List.of();
         }
         compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
         return List.of();
@@ -244,7 +242,7 @@ public class MethodCompiler {
     }
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
-        return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
+        return forLoopContinueLabels.computeIfAbsent(forLoop, ignore -> "$loop" + generatedIndex++);
     }
     private String getTmpVariableName() {
         return "#_tmpVar_"+(generatedIndex++);
@@ -252,23 +250,21 @@ public class MethodCompiler {
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement) {
         var expr = statement.getExpression();
-        switch (expr) {
-            case JCTree.JCMethodInvocation invocation -> {
-                return translateStatementMethodInvocation(invocation);
-            }
-            case JCTree.JCAssign assign -> {
-                return translateAssign(assign);
-            }
-            case JCTree.JCAssignOp assignOp -> {
-                return translateAssignOp(assignOp);
-            }
-            case JCTree.JCUnary unary -> {
-                return translateUnaryExpressionStatement(unary);
-            }
-            default -> {
-                compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
-                return List.of();
-            }
+        if (expr instanceof JCTree.JCMethodInvocation) {
+            JCTree.JCMethodInvocation invocation = (JCTree.JCMethodInvocation) expr;
+            return translateStatementMethodInvocation(invocation);
+        } else if (expr instanceof JCTree.JCAssign) {
+            JCTree.JCAssign assign = (JCTree.JCAssign) expr;
+            return translateAssign(assign);
+        } else if (expr instanceof JCTree.JCAssignOp) {
+            JCTree.JCAssignOp assignOp = (JCTree.JCAssignOp) expr;
+            return translateAssignOp(assignOp);
+        } else if (expr instanceof JCTree.JCUnary) {
+            JCTree.JCUnary unary = (JCTree.JCUnary) expr;
+            return translateUnaryExpressionStatement(unary);
+        } else {
+            compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
+            return List.of();
         }
     }
 
@@ -276,7 +272,7 @@ public class MethodCompiler {
         var origin = compiler.toOrigin(unary);
         var tag = unary.getTag();
         switch (tag) {
-            case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
+            case POSTINC, POSTDEC, PREINC, PREDEC -> {
                 if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
                     compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
                     return List.of();
@@ -331,7 +327,7 @@ public class MethodCompiler {
                 throw new JavaViolationException("Check should have a single argument");
             }
             return List.of(new AssertStmt(compiler.toOrigin(invocation), null,
-                    compiler.toExpr(invocation.args.getFirst()), null));
+                    compiler.toExpr(getFirst(invocation.args)), null));
         } else {
             compiler.reportError(invocation, "contractAfterBody", jverifyMethod.getQualifiedName());
             return List.of();
@@ -368,25 +364,29 @@ public class MethodCompiler {
 
             // A switch rule introduces either an expression, a block, or a throw statement.
             // Within a switch statement, a switch rule expression must be a statement expression.
-            List<Statement> translatedBody = switch (body) {
-                case JCTree.JCExpressionStatement bodyStatement -> translateStatement(bodyStatement);
-                case JCTree.JCBlock bodyBlock -> translateStatement(bodyBlock);
-                case JCTree.JCThrow ignored -> {
-                    compiler.reportError(body, "notSupported", "switch rule throw");
-                    yield List.of();
-                }
-                default -> throw new JavaViolationException();
-            };
+            List<Statement> translatedBody;
+            if (body instanceof JCTree.JCExpressionStatement) {
+                JCTree.JCExpressionStatement bodyStatement = (JCTree.JCExpressionStatement) body;
+                translatedBody = translateStatement(bodyStatement);
+            } else if (body instanceof JCTree.JCBlock) {
+                JCTree.JCBlock bodyBlock = (JCTree.JCBlock) body;
+                translatedBody = translateStatement(bodyBlock);
+            } else if (body instanceof JCTree.JCThrow) {
+                compiler.reportError(body, "notSupported", "switch rule throw");
+                translatedBody = List.of();
+            } else {
+                throw new JavaViolationException();
+            }
             return new NestedMatchCaseStmt(caseOrigin, patternBody.pattern(), translatedBody, null);
         }).collect(Collectors.toCollection(ArrayList::new));
 
         // The switch statement may not be exhaustive, but a Dafny match statement must be,
         // so we add a catch-all no-op case to ensure the translated match is exhaustive.
         // (It would be safe to add this case unconditionally, but Dafny would warn that the case is redundant.)
-        if (!switchStmt.isExhaustive) {
+//        if (!switchStmt.isExhaustive) {
             translatedCases.add(new NestedMatchCaseStmt(
                     origin, JavaToDafnyCompiler.makeWildPattern(origin), List.of(), null));
-        }
+//        }
 
         var source = compiler.toExpr(switchStmt.getExpression());
         return List.of(new NestedMatchStmt(origin, null, source, translatedCases, true));
@@ -400,7 +400,7 @@ public class MethodCompiler {
                                       List<AttributedExpression> expressions,
                                       String typeName,
                                       String containerName) {
-        for (var _ : expressions) {
+        for (var ignore : expressions) {
             compiler.reportError(tree, "wrongContract", typeName, containerName);
         }
     }
@@ -452,18 +452,18 @@ public class MethodCompiler {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A precondition call may have only one argument");
                     }
-                    header.preconditions.add(new AttributedExpression(compiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                    header.preconditions.add(new AttributedExpression(compiler.toExpr(getFirst(invocation.getArguments())), null, null));
                 }
                 case "postcondition" -> {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("An postcondition call may have only one argument");
                     }
-                    var first = invocation.getArguments().getFirst();
+                    var first = getFirst(invocation.getArguments());
                     if (first instanceof JCTree.JCLambda lambda) {
                         if (lambda.getParameters().size() != 1) {
                             throw new JavaViolationException("An ensures call lambda may take only one argument");
                         }
-                        var parameter = lambda.getParameters().getFirst();
+                        var parameter = getFirst(lambda.getParameters());
                         header.returnNames.add(new Name(compiler.toOrigin(lambda), parameter.getName().toString()));
                         var postconditionPredicate = compiler.toExpr(lambda.getBody());
                         if (postconditionPredicate != null) {
@@ -478,7 +478,7 @@ public class MethodCompiler {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("invariant should have a single argument");
                     }
-                    header.invariants.add(new AttributedExpression(compiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                    header.invariants.add(new AttributedExpression(compiler.toExpr(getFirst(invocation.getArguments())), null, null));
                 }
                 case "decreases" -> {
                     for(var decrease : invocation.getArguments()) {
@@ -489,7 +489,7 @@ public class MethodCompiler {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A reads call must have exactly one argument");
                     }
-                    var origExpr = invocation.getArguments().getFirst();
+                    var origExpr = getFirst(invocation.getArguments());
                     var origin = compiler.toOrigin(origExpr);
                     var expr = compiler.toExpr(origExpr);
                     header.reads.add(new FrameExpression(origin, expr, null));
@@ -498,7 +498,7 @@ public class MethodCompiler {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A modifies call must have exactly one argument");
                     }
-                    var origExpr = invocation.getArguments().getFirst();
+                    var origExpr = getFirst(invocation.getArguments());
                     var origin = compiler.toOrigin(origExpr);
                     var expr = compiler.toExpr(origExpr);
                     header.modifies.add(new FrameExpression(origin, expr, null));
@@ -512,7 +512,7 @@ public class MethodCompiler {
         }
         var postHeaderStatements = new ArrayList<JCTree.JCStatement>(statements.subList(headerStatements, statements.size()));
         if (callToSuper != null) {
-            postHeaderStatements.addFirst(callToSuper);
+            postHeaderStatements.add(0, callToSuper);
         }
         return postHeaderStatements;
     }
@@ -522,7 +522,7 @@ public class MethodCompiler {
      * or wraps it in a singleton block otherwise.
      */
     public static BlockStmt blockifyStatements(IOrigin origin,  List<Statement> statements) {
-        return statements.getFirst() instanceof BlockStmt block
+        return getFirst(statements) instanceof BlockStmt block
                 ? block
                 : new BlockStmt(origin, null, List.of(), statements);
     }

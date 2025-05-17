@@ -13,6 +13,8 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.aws.jverify.common.Common.getFirst;
+
 /**
  * To aid with testing, we define a special type of text file that can encode additional
  * information in it.  This prevents a test writer from having to carry around multiple sources
@@ -171,7 +173,7 @@ public class TestMarkup {
         
         var output = getPositionsAndAnnotatedRanges(input);
         for (AnnotatedRange annotatedRange : output.ranges) {
-            namedRanges.computeIfAbsent(annotatedRange.annotation(), _ -> new ArrayList<>())
+            namedRanges.computeIfAbsent(annotatedRange.annotation(), ignored -> new ArrayList<>())
                     .add(annotatedRange.range());
         }
         
@@ -232,7 +234,7 @@ public class TestMarkup {
         if (positions.size() != 1) {
             throw new IllegalArgumentException("Expected exactly one position in the markup");
         }
-        return new GetPositionAndRangesResult(output, positions.getFirst());
+        return new GetPositionAndRangesResult(output, getFirst(positions));
     }
 }
 
