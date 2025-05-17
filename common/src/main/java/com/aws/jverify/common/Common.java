@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.Enumeration;
@@ -48,5 +49,13 @@ public class Common {
 
     public static <T> T getFirst(List<T> list) {
         return list.iterator().next();
+    }
+
+    public static Path resolve(Path root, String first, String... more) {
+        Path result = root.resolve(first);
+        for (String s : more) {
+            result = result.resolve(s);
+        }
+        return result;
     }
 }

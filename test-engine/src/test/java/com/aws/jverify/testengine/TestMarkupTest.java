@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.*;
 
+import static com.aws.jverify.common.Common.getFirst;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TestMarkupTest {
@@ -42,7 +43,7 @@ public class TestMarkupTest {
         assertEquals(0, positions.size());
         assertEquals(1, ranges.size());
 
-        var span = ranges.getFirst();
+        var span = getFirst(ranges);
         assertEquals(1, span.start().line());
         assertEquals(9, span.start().character());
         assertEquals(1, span.end().line());
@@ -58,7 +59,7 @@ public class TestMarkupTest {
         assertEquals("int x = 10;", result.output());
         assertEquals(1, result.ranges().size());
 
-        var span = result.ranges().getFirst();
+        var span = getFirst(result.ranges());
         assertEquals("Value", span.annotation());
         assertEquals(1, span.range().start().line());
         assertEquals(9, span.range().start().character());
@@ -76,7 +77,7 @@ public class TestMarkupTest {
 
         assertEquals(1, result.ranges().size());
 
-        var span = result.ranges().getFirst();
+        var span = getFirst(result.ranges());
         assertEquals("Variable declaration", span.annotation());
         assertEquals(1, span.range().start().line());
         assertEquals(4, span.range().start().character());

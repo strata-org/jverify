@@ -83,15 +83,15 @@ class TranslationErrors {
         };
     }
 
-    int switchCasePattern(Integer i) {
-        return switch (i) {
-            case Integer ii when ii < 0 -> ii * 3;
-//          ^ error: case pattern is not supported
-            case Integer ii when 0 < ii -> ii * 2;
-//          ^ error: case pattern is not supported
-            default -> 0;
-        };
-    }
+//    int switchCasePattern(Integer i) {
+//        return switch (i) {
+//            case Integer ii when ii < 0 -> ii * 3;
+////          ^ error: case pattern is not supported
+//            case Integer ii when 0 < ii -> ii * 2;
+////          ^ error: case pattern is not supported
+//            default -> 0;
+//        };
+//    }
 
     int switchExprBlockBody(int i) {
         return switch (i) {

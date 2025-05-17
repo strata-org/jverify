@@ -73,24 +73,24 @@ class Switches {
 //                          ^^^^^^^^^^ Error: assertion might not hold
     }
 
-    static void switchExprObj(@Nullable int[] arr) {
-        //noinspection SwitchStatementWithTooFewBranches
-        var isNull = switch (arr) {
-            case null -> true;
-            default -> false;
-        };
-        check(isNull == (arr == null));
-    }
+//    static void switchExprObj(@Nullable int[] arr) {
+//        //noinspection SwitchStatementWithTooFewBranches
+//        var isNull = switch (arr) {
+//            case null -> true;
+//            default -> false;
+//        };
+//        check(isNull == (arr == null));
+//    }
 
-    static void switchExprObjBad(@Nullable int[] arr) {
-        //noinspection SwitchStatementWithTooFewBranches
-        var isNull = switch (arr) {
-            case null -> true;
-            default -> false;
-        };
-        check(!isNull);
-//      ^^^^^^^^^^^^^^ Error: assertion might not hold
-    }
+//    static void switchExprObjBad(@Nullable int[] arr) {
+//        //noinspection SwitchStatementWithTooFewBranches
+//        var isNull = switch (arr) {
+//            case null -> true;
+//            default -> false;
+//        };
+//        check(!isNull);
+////      ^^^^^^^^^^^^^^ Error: assertion might not hold
+//    }
 
     static void switchStmtBlockBody(int i) {
         var num = -1;

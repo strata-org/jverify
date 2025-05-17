@@ -216,6 +216,12 @@ project(":javac-plugin") {
 // but we want to support Java 17 user projects.
 project(":javac-plugin-test") {
 
+    java {
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(23))
+        }
+    }
+
     dependencies {
         implementation(project(":javac-plugin"))
         implementation(project(":library"))

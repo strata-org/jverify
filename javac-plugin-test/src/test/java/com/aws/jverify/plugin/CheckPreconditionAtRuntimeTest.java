@@ -11,13 +11,13 @@ public class CheckPreconditionAtRuntimeTest {
         try {
             happyCase(0);
             System.exit(1);
-        } catch(PreconditionFailure _) {
+        } catch(PreconditionFailure ignore) {
         }
         multiplePreconditions(1);
         try {
             multiplePreconditions(0);
             System.exit(1);
-        } catch(PreconditionFailure _) {
+        } catch(PreconditionFailure ignore) {
         }
         noPreconditions(1);
         noStatements(1);

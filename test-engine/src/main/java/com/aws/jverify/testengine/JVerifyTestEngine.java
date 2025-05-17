@@ -1,6 +1,7 @@
 package com.aws.jverify.testengine;
 
 import com.aws.jverify.common.AnnotatedRange;
+import com.aws.jverify.common.Common;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.aws.jverify.verifier.DafnyDiagnostic;
@@ -117,7 +118,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
             // We assume the class's source file is at the path corresponding to its package and class name,
             // just as Java requires for public classes.
-            var pkgPath = sourceRoot.resolve("", testClass.getPackageName().split("\\."));
+            var pkgPath = Common.resolve(sourceRoot, "", testClass.getPackageName().split("\\."));
             var sourcePath = pkgPath.resolve(testClass.getSimpleName() + ".java");
             if (!Files.exists(sourcePath) || !Files.isRegularFile(sourcePath)) {
                 Assertions.fail(() ->
