@@ -773,12 +773,11 @@ public class JavaToDafnyCompiler {
                     new ActualBindings(argBindings),null);
         } else if (expr instanceof JCTree.JCFieldAccess fieldAccess) {
             var selectedExpr = toExpr(fieldAccess.selected);
-            var fieldName = nameMangler.getName(expr);
             // TODO does this work if the selected expression isn't trivially of array type?
-            if (fieldAccess.selected.type instanceof ArrayType && fieldName.contentEquals("length")) {
+            if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
                 return new ExprDotName(origin, selectedExpr, getName(fieldAccess, "Length"), null);
             }
-            
+            var fieldName = nameMangler.getName(expr);
             if (isEnum(fieldAccess.selected)) {
                 return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                         null, new ActualBindings(List.of()), null);
