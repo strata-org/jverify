@@ -3,12 +3,16 @@ package com.aws.jverify.verifier;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 
+import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
+
+
 
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 /**
  * Update the name of all method and field names of symbols within a compilation unit
@@ -90,13 +94,15 @@ public class NameMangler {
         else {
             baseName = methodPrefix + baseName;
         }
-        MethodType methodType = null;
+        List<Type> argTypes;
         if (s.type instanceof MethodType m) {
-            methodType = m;
+            argTypes = m.getParameterTypes();
+        } else if (s.type instanceof DelegatedType dt){
+            argTypes = dt.getParameterTypes();
         } else {
-            assert(false);
+            // Throw an exception
+            throw new IllegalArgumentException(s.toString());
         }
-        var argTypes = methodType.getParameterTypes();
         baseName = (argTypes.isEmpty()) ? baseName : baseName+"_";
         for (var param : argTypes) {
             baseName += typeMangling(param);
