@@ -27,7 +27,7 @@ public class NameMangler {
     static private final String methodPrefix = "Z_";
 
     // Map from symbols to mangled names
-    private Map<Symbol, String> symbolStringMap;
+    private final Map<Symbol, String> symbolStringMap;
 
     private static String typeMangling(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
