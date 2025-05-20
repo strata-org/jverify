@@ -58,24 +58,21 @@ public class NameMangler {
 
 
     private String mangleSymbolName(Symbol s) {
-        var name = symbolStringMap.get(s);
-        if (name != null) {
-            return name;
-        }
+        return symbolStringMap.computeIfAbsent(s, this::uncachedMangleSymbolName);
+    }
+    private String uncachedMangleSymbolName(Symbol s) {
         if (s instanceof Symbol.MethodSymbol m) {
-            name = mangleMethodName(s);
+            return mangleMethodName(s);
         } else if (s instanceof Symbol.VarSymbol varSymbol){
             if (varSymbol.getKind().isField()) {
-                name = mangleFieldName(s);
+                return mangleFieldName(s);
             }
             else { // Local variable, do not mangle
-                name = s.name.toString();
+                return s.name.toString();
             }
         } else {
-            name = s.name.toString();
+            return s.name.toString();
         }
-        symbolStringMap.put(s,name);
-        return name;
     }
 
     private String mangleFieldName(Symbol s) {
