@@ -154,7 +154,6 @@ public class JavaToDafnyCompiler {
         remainingTypes.addAll(compilationUnit.getTypeDecls());
         while(!remainingTypes.isEmpty()) {
             var typeDecl = remainingTypes.pop();
-            //this.nameMangler.mangleNames(typeDecl);
             TopLevelDecl dafnyDecl = translateTypeDeclaration(typeDecl, remainingTypes);
             if (dafnyDecl != null) {
                 topLevelDecls.add(dafnyDecl);
