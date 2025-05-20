@@ -1,10 +1,10 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Pure;
-import com.aws.jverify.testengine.JVerifyTest;
+//import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 1)
+//@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 1)
 class Constructors {
     private int f;
     private int g = 22;

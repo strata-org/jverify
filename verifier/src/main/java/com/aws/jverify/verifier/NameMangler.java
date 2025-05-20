@@ -2,12 +2,13 @@ package com.aws.jverify.verifier;
 
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
+
 import com.sun.tools.javac.code.Type.*;
 
-import com.sun.tools.javac.util.Names;
 import com.sun.tools.javac.tree.JCTree;
 
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Update the name of all method and field names of symbols within a compilation unit
@@ -18,13 +19,11 @@ import java.util.HashSet;
  *     method
  */
 public class NameMangler {
-    private final JavaToDafnyCompiler javaToDafnyCompiler;
-    private Names nameFactory;
     static private final String fieldPrefix = "F_";
     static private final String methodPrefix = "Z_";
 
-    // Cache of all symbols whose names were already mangled.
-    private HashSet<Symbol> mangledSymbols;
+    // Map from symbols to mangled names
+    private Map<Symbol, String> symbolStringMap;
 
     private static String typeMangling(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
@@ -37,7 +36,7 @@ public class NameMangler {
             case FLOAT :{return "f";}
             case DOUBLE : {return "d";}
             case BOOLEAN: {return "z";}
-            case CLASS: {return "C" + ((ClassType)type).toString();}
+            case CLASS: {return "C" + ((ClassType)type);}
             case ARRAY : {
                 var arrayType = (ArrayType) type;
                 var componentType = arrayType.getComponentType();
@@ -49,34 +48,41 @@ public class NameMangler {
         }
     }
 
-    public NameMangler(JavaToDafnyCompiler javaToDafnyCompiler) {
-        this.javaToDafnyCompiler = javaToDafnyCompiler;
-        this.nameFactory = Names.instance(this.javaToDafnyCompiler.context);
-        this.mangledSymbols = new HashSet<com.sun.tools.javac.code.Symbol>();
+    public NameMangler() {
+        this.symbolStringMap = new HashMap<>();
     }
 
 
-    public String getSymbolName(Symbol s) {
-        if (mangledSymbols.contains(s)) {
+    private String mangleSymbolName(Symbol s) {
+        var name = symbolStringMap.get(s);
+        if (name != null) {
+            return name;
+        }
+        if (s instanceof Symbol.MethodSymbol m) {
+            name = mangleMethodName(s);
+        } else if (s instanceof Symbol.VarSymbol varSymbol){
+            if (varSymbol.getKind().isField()) {
+                name = mangleFieldName(s);
+            }
+            else { // Local variable, do not mangle
+                name = s.name.toString();
+            }
+        } else {
+            name = s.name.toString();
+        }
+        symbolStringMap.put(s,name);
+        return name;
+    }
+
+    private String mangleFieldName(Symbol s) {
+        if (s.name.contentEquals("this")) {
             return s.name.toString();
         }
-        String newName;
-        if (s.type instanceof MethodType m) {
-            newName = getMethodName(s);
-        } else { // TODO: ensure this is a field?
-            newName = getFieldName(s);
-        }
-        s.name = nameFactory.fromString(newName);
-        mangledSymbols.add(s);
-        return newName;
-    }
-
-    private String getFieldName(Symbol s) {
         String newName = fieldPrefix + s.name.toString();
         return newName;
     }
 
-    private String getMethodName(Symbol s) {
+    private String mangleMethodName(Symbol s) {
         String baseName = s.name.toString();
         if (baseName.contentEquals("<init>")) {
             baseName = "_ctor";
@@ -98,16 +104,27 @@ public class NameMangler {
         return baseName;
     }
 
-    public void mangleNames(Tree tree) {
-        if (tree instanceof JCTree.JCClassDecl classDecl) {
-            for (var member : classDecl.getMembers()) {
-                if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                    getSymbolName(methodDecl.sym);
-                }
-                else if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                    getSymbolName(variableDecl.sym);
-                }
-            }
+    public String getName(Tree tree) {
+        if (tree instanceof JCTree.JCMethodDecl methodDecl) {
+            return mangleSymbolName(methodDecl.sym);
+        }
+        else if (tree instanceof JCTree.JCVariableDecl variableDecl) {
+            return mangleSymbolName(variableDecl.sym);
+        }
+        else if (tree instanceof JCTree.JCIdent ident) {
+            return mangleSymbolName(ident.sym);
+        }
+        else if (tree instanceof JCTree.JCNewClass newClass) {
+            return mangleSymbolName(newClass.constructor);
+        }
+        else if (tree instanceof JCTree.JCFieldAccess fieldAccess) {
+            return mangleSymbolName(fieldAccess.sym);
+        }
+        else if (tree instanceof JCTree.JCMethodDecl methodDecl) {
+            return mangleSymbolName(methodDecl.sym);
+        }
+        else {
+            throw new IllegalArgumentException(tree.toString());
         }
     }
 }
