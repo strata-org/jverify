@@ -748,7 +748,7 @@ public class JavaToDafnyCompiler {
             Symbol.OperatorSymbol operator = binary.getOperator();
             return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
         } else if (expr instanceof JCTree.JCIdent identifier) {
-            var identName = true ? nameMangler.getName(expr) : identifier.name.toString();
+            var identName = nameMangler.getName(expr);
             if (identName.contentEquals("this")) {
                 return new ThisExpr(origin);
             }
