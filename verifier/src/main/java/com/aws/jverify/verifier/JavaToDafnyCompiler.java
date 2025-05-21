@@ -13,6 +13,7 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.JCTree.JCStatement;
 import com.sun.tools.javac.tree.TreeMaker;
 
 import com.sun.tools.javac.tree.TreeInfo;
@@ -515,7 +516,8 @@ public class JavaToDafnyCompiler {
 
         if (annotationsByName.containsKey(Pure.class.getName())) {
             var header = new HeaderContainer();
-            var postHeader = methodCompiler.translateHeader(method.body.stats, header);
+            List<JCStatement> statements = method.getBody() == null ? List.of() : method.getBody().stats;
+            var postHeader = methodCompiler.translateHeader(statements, header);
             applyInvariants(method, header);
             if (postHeader.size() != 1) {
                 reportError(method, "pureMethodMultipleStatements");
@@ -549,7 +551,8 @@ public class JavaToDafnyCompiler {
                     body, null, null);
         } else {
             var header = new HeaderContainer();
-            var postHeader = methodCompiler.translateHeader(method.getBody().stats, header);
+            List<JCStatement> statements = method.getBody() == null ? List.of() : method.getBody().stats;
+            var postHeader = methodCompiler.translateHeader(statements, header);
             applyInvariants(method, header);
             methodCompiler.checkEmptyExpressions(method, header.invariants, "invariants", "method");
 
