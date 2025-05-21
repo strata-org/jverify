@@ -42,6 +42,8 @@ public class NameMangler {
             case BOOLEAN: {return "z";}
             case CLASS: {
                 var classTypeStr = ((ClassType) type).toString();
+                // Changing '.' to '_' so that the mangled name is a valid Dafny name
+                // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
             }
             case ARRAY : {
