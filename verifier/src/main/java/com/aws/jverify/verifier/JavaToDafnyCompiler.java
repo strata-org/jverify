@@ -616,7 +616,10 @@ public class JavaToDafnyCompiler {
                 BlockStmt body;
                 if (shouldVerify) {
                     var bodyStatements = methodCompiler.translateStatements(postHeader);
-                    body = new BlockStmt(toOrigin(method.body), null, List.of(), bodyStatements);
+                    // Empty body to a method means we are translating a methodDecl from an interface.
+                    // This should be translated as a Method without body (rather than with an empty body) to have it
+                    // havoc-ed during analysis
+                    body = bodyStatements.isEmpty() ? null : new BlockStmt(toOrigin(method.body), null, List.of(), bodyStatements);
                 } else {
                     body = null;
                 }

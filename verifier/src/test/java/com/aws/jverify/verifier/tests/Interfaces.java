@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 5)
 class Interfaces {}
 
 interface I {
@@ -14,8 +14,16 @@ interface I {
 }
 
 // Empty interface to check robustness (see Issue #161)
-interface Unused {
-    void unused(int x);
+interface Undefined {
+    int undefined(int x);
+}
+
+class UndefinedUser {
+    public void using(Undefined u) {
+        int tmp = u.undefined(1);
+        check(tmp == 13);
+//      ^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
 }
 
 @Contract(I.class)
