@@ -13,6 +13,10 @@ interface I {
     int m();
 }
 
+interface Unused {
+    void unused(int x);
+}
+
 @Contract(I.class)
 class IContract implements I {
 
