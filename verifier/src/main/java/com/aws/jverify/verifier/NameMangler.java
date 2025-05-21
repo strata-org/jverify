@@ -40,7 +40,10 @@ public class NameMangler {
             case FLOAT :{return "f";}
             case DOUBLE : {return "d";}
             case BOOLEAN: {return "z";}
-            case CLASS: {return "C" + ((ClassType)type);}
+            case CLASS: {
+                var classTypeStr = ((ClassType) type).toString();
+                return "C" + classTypeStr.replace('.','_');
+            }
             case ARRAY : {
                 var arrayType = (ArrayType) type;
                 var componentType = arrayType.getComponentType();

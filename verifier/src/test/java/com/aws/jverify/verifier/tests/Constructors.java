@@ -4,7 +4,7 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 1)
 class Constructors {
     private int f;
     private int g = 22;
@@ -16,7 +16,6 @@ class Constructors {
         f = 3;
         h = 4;
     }
-
 
     public Constructors(int f_) {
         postcondition(this.f==f_ && this.g==22 && this.h==33);
@@ -34,6 +33,12 @@ class Constructors {
         f = f_;
         g = g_;
         h = h_;
+    }
+
+    public Constructors(Constructors other) {
+        this.f = other.f;
+        this.g = other.g;
+        this.h = other.h;
     }
 
     @Pure
@@ -87,6 +92,11 @@ class Constructors {
 //          ^^^^^^^^^^^^^^^^ Error: assertion might not hold
             check(c.g()==16);
             check(c.h()==21);
+        }
+        {
+            Constructors c = new Constructors(10, 15, 20);
+            Constructors c2 = new Constructors(c);
+            check(c2.f()==10);
         }
     }
 }
