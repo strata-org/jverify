@@ -3,14 +3,14 @@ package com.aws.jverify.examples;
 import com.aws.jverify.AsProperty;
 import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
+import com.aws.jverify.testengine.JVerifyTest;
 import net.jqwik.api.Assume;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 
 import static com.aws.jverify.JVerify.*;
 
-// Skipping because jqwik isn't on the classpath when compiling/running tests
-// @JVerifyTest
+@JVerifyTest(skip = "Skipping because jqwik isn't on the classpath when compiling/running tests")
 class BinarySearchProperty {
     
     @AsProperty
