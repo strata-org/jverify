@@ -13,6 +13,7 @@ interface I {
     int m();
 }
 
+// Empty interface to check robustness (see Issue #161)
 interface Unused {
     void unused(int x);
 }
