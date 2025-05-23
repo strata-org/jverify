@@ -34,6 +34,11 @@ jobs:
         with:
           path: jverify-collection
           submodules: recursive
+      - name: Set up Dafny
+        uses: dafny-lang/setup-dafny-action@v1.9.0
+        with:
+          dafny-version: 4.10.1
+          build-from-source: aa1bce8c5c1255d9b64286e212b952d66e917f64
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
@@ -46,11 +51,6 @@ jobs:
           distribution: 'corretto'
           java-version: '23'
           cache: gradle
-      - name: Set up Dafny
-        uses: dafny-lang/setup-dafny-action@v1.9.0
-        with:
-          dafny-version: 4.10.1
-          build-from-source: aa1bce8c5c1255d9b64286e212b952d66e917f64
       # - name: Code generation has no diff
       #   working-directory: ./jverify-collection
       #   run: |
