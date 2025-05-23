@@ -204,8 +204,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
         return new VerifierOptions(
                 dafnyPath,
-                libraryJar,
-                List.of(testEngineClassPath),
+                List.of(libraryJar, testEngineClassPath),
                 prelude,
                 Path.of("../temp.dfy"),
                 Path.of("../temp.dbin"),

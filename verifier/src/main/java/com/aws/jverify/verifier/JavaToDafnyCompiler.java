@@ -56,16 +56,18 @@ public class JavaToDafnyCompiler {
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
         JavacTool compiler = JavacTool.create();
         
-        if (!Files.exists(options.libraryJar().toAbsolutePath())) {
-            throw new IllegalArgumentException("Could not find file: " + options.libraryJar());
-        }
 
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
 
         var classpathEntries = new ArrayList<Path>();
-        classpathEntries.add(options.libraryJar().toAbsolutePath());
+        
+        for(var extraPath : options.extraClassPathEntries()) {
+            if (!Files.exists(extraPath.toAbsolutePath())) {
+                throw new IllegalArgumentException("Could not find file: " + extraPath);
+            }
+        }
         classpathEntries.addAll(options.extraClassPathEntries());
         var classpath = classpathEntries.stream()
                 .map(Path::toString)

@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.stream.Stream;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.common.Common;
@@ -29,6 +30,9 @@ class AppCommand implements Callable<Integer> {
     
     @Option(names = "--print-binary-dafny", description = "Given a filepath, prints the binary Dafny code that is generated from Java")
     private Path printBinaryDafny;
+
+    @Option(names = "--jar", description = "Includes this jar file on the classpath", arity = "0..*")
+    private List<Path> additionalJars;
 
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
@@ -61,7 +65,10 @@ class AppCommand implements Callable<Integer> {
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
         var dafnyPath = getDafnyPath();
-        var verifierOptions = new VerifierOptions(dafnyPath, jverifyLibraryLocation, List.of(testEngineClassPath), tempFile.toPath(),
+        List<Path> jars = Stream.concat(additionalJars.stream(), 
+                Stream.of(jverifyLibraryLocation, testEngineClassPath)).toList();
+        
+        var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(),
                 printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
