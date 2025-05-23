@@ -3,11 +3,9 @@ package com.aws.jverify.verifier.tests.multipackage;
 import com.aws.jverify.testengine.JVerifyTest;
 import com.aws.jverify.verifier.tests.multipackage.a.Foo;
 
-import java.nio.file.Path;
-
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(additionalFiles = {"./a/Foo.java", "./b/Foo.java"})
+@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0, additionalFiles = {"./a/Foo.java", "./b/Foo.java"})
 public class MultiPackageTest {
     void foo() {
         var f = new Foo();

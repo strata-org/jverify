@@ -62,21 +62,27 @@ public class NameMangler {
     }
 
 
-    private String mangleSymbolName(Symbol s) {
+    public String mangleSymbolName(Symbol s) {
         return symbolStringMap.computeIfAbsent(s, this::uncachedMangleSymbolName);
     }
     private String uncachedMangleSymbolName(Symbol s) {
-        if (s instanceof Symbol.MethodSymbol m) {
-            return mangleMethodName(s);
-        } else if (s instanceof Symbol.VarSymbol varSymbol){
-            if (varSymbol.getKind().isField()) {
-                return mangleFieldName(s);
+        switch (s) {
+            case Symbol.ClassSymbol classSymbol -> {
+                return classSymbol.getQualifiedName().toString().replace(".", "_");
             }
-            else { // Local variable, do not mangle
+            case Symbol.MethodSymbol m -> {
+                return mangleMethodName(s);
+            }
+            case Symbol.VarSymbol varSymbol -> {
+                if (varSymbol.getKind().isField()) {
+                    return mangleFieldName(s);
+                } else { // Local variable, do not mangle
+                    return s.name.toString();
+                }
+            }
+            case null, default -> {
                 return s.name.toString();
             }
-        } else {
-            return s.name.toString();
         }
     }
 
@@ -84,8 +90,7 @@ public class NameMangler {
         if (s.name.contentEquals("this")) {
             return s.name.toString();
         }
-        String newName = fieldPrefix + s.name.toString();
-        return newName;
+        return fieldPrefix + s.name.toString();
     }
 
     private String mangleMethodName(Symbol s) {
@@ -127,9 +132,6 @@ public class NameMangler {
         }
         else if (tree instanceof JCTree.JCFieldAccess fieldAccess) {
             return mangleSymbolName(fieldAccess.sym);
-        }
-        else if (tree instanceof JCTree.JCMethodDecl methodDecl) {
-            return mangleSymbolName(methodDecl.sym);
         }
         else {
             throw new IllegalArgumentException(tree.toString());
