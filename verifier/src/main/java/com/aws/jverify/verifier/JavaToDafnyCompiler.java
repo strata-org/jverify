@@ -447,7 +447,7 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
-        Name fieldName = getName(variableDecl, nameMangler.getName(variableDecl.getTree()));
+        Name fieldName = getName(variableDecl, nameMangler.getName(variableDecl));
         IOrigin origin = declToOrigin(variableDecl, fieldName);
         Type type = toType(variableDecl.vartype, isNullable(variableDecl.getModifiers()));
         if (variableDecl.getInitializer() != null) {
@@ -485,7 +485,7 @@ public class JavaToDafnyCompiler {
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
 
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(method, nameMangler.getName(method.getTree()));
+        var name = getName(method, nameMangler.getName(method));
         var origin = declToOrigin(method, name);
 
         var annotations = method.getModifiers().getAnnotations();
