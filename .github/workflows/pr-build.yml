@@ -47,7 +47,7 @@ jobs:
           java-version: '23'
           cache: gradle
       - name: Set up Dafny
-        uses: actions/setup-dafny-action@v1.8.0
+        uses: dafny-lang/setup-dafny-action@v1.8.0
         with:
           dafny-version: nightly-2025-05-23-f5ca47b
       - name: Code generation has no diff
