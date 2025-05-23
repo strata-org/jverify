@@ -13,6 +13,7 @@ import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +65,7 @@ public class Driver {
             new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
             var program = programBuilder.toString();
             if (verifierOptions.printBinaryDafny() != null) {
+                Files.createDirectories(verifierOptions.printBinaryDafny().getParent());
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
             runDafnyProcess(program, verifierOptions, verificationResults);
