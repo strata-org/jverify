@@ -34,8 +34,11 @@ public class TestVerifier {
         var writer = new StringWriter();
         int exitCode;
         try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            reader.transferTo(writer);
-            exitCode = process.waitFor();
+            try (var reader2 = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                reader.transferTo(writer);
+                reader2.transferTo(writer);
+                exitCode = process.waitFor();
+            }
         }
         var output = canonicalizeNewlines(writer.toString());
         assertThat(output, containsString("Dafny program verifier finished with 4 verified, 0 errors"));

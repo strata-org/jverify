@@ -388,7 +388,7 @@ public class JavaToDafnyCompiler {
         var superTraits = interfaces.stream().
                 filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
                 map((com.sun.tools.javac.code.Type type) ->
-                    new UserDefinedType(origin, new NameSegment(origin, type.tsym.name.toString(), null))).
+                    new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(type.tsym), null))).
                 collect(Collectors.<Type>toList());
         if (isInterface) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));

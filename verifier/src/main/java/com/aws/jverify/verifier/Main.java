@@ -65,6 +65,7 @@ class AppCommand implements Callable<Integer> {
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
         var dafnyPath = getDafnyPath();
+        additionalJars = additionalJars == null ? List.of() : additionalJars;
         List<Path> jars = Stream.concat(additionalJars.stream(), 
                 Stream.of(jverifyLibraryLocation, testEngineClassPath)).toList();
         
