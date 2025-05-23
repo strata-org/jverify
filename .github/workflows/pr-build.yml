@@ -47,9 +47,10 @@ jobs:
           java-version: '23'
           cache: gradle
       - name: Set up Dafny
-        uses: dafny-lang/setup-dafny-action@v1.8.0
+        uses: dafny-lang/setup-dafny-action@v1.9.0
         with:
-          dafny-version: nightly-2025-05-23-f5ca47b
+          dafny-version: 4.10.1
+          build-from-source: aa1bce8c5c1255d9b64286e212b952d66e917f64
       # - name: Code generation has no diff
       #   working-directory: ./jverify-collection
       #   run: |
