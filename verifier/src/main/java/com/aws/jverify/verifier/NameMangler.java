@@ -116,25 +116,4 @@ public class NameMangler {
         }
         return baseName;
     }
-
-    public String getName(Tree tree) {
-        if (tree instanceof JCTree.JCMethodDecl methodDecl) {
-            return mangleSymbolName(methodDecl.sym);
-        }
-        else if (tree instanceof JCTree.JCVariableDecl variableDecl) {
-            return mangleSymbolName(variableDecl.sym);
-        }
-        else if (tree instanceof JCTree.JCIdent ident) {
-            return mangleSymbolName(ident.sym);
-        }
-        else if (tree instanceof JCTree.JCNewClass newClass) {
-            return mangleSymbolName(newClass.constructor);
-        }
-        else if (tree instanceof JCTree.JCFieldAccess fieldAccess) {
-            return mangleSymbolName(fieldAccess.sym);
-        }
-        else {
-            throw new IllegalArgumentException(tree.toString());
-        }
-    }
 }

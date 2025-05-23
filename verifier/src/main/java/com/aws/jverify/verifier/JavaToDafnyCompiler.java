@@ -348,7 +348,7 @@ public class JavaToDafnyCompiler {
                 if (methodDecl.getModifiers().getAnnotations().stream().
                         anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && 
                                 ident.name.contentEquals("Invariant"))) {
-                    var memberName = nameMangler.getName(member);
+                    var memberName = nameMangler.mangleSymbolName(methodDecl.sym);
                     var invariantName = getName(methodDecl, memberName);
                     var invariantOrigin = declToOrigin(methodDecl, invariantName);
                     ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
@@ -407,7 +407,7 @@ public class JavaToDafnyCompiler {
         List<DatatypeCtor> constructors = new ArrayList<>();
         for(var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                var variableName = nameMangler.getName(member);
+                var variableName = nameMangler.mangleSymbolName(variableDecl.sym);
                 Name constructorName = getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(declToOrigin(variableDecl, constructorName), constructorName, 
                         null, false, List.of()));
@@ -447,7 +447,7 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
-        Name fieldName = getName(variableDecl, nameMangler.getName(variableDecl));
+        Name fieldName = getName(variableDecl, nameMangler.mangleSymbolName(variableDecl.sym));
         IOrigin origin = declToOrigin(variableDecl, fieldName);
         Type type = toType(variableDecl.vartype, isNullable(variableDecl.getModifiers()));
         if (variableDecl.getInitializer() != null) {
@@ -485,7 +485,7 @@ public class JavaToDafnyCompiler {
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
 
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(method, nameMangler.getName(method));
+        var name = getName(method, nameMangler.mangleSymbolName(method.sym));
         var origin = declToOrigin(method, name);
 
         var annotations = method.getModifiers().getAnnotations();
@@ -758,7 +758,7 @@ public class JavaToDafnyCompiler {
                 return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
             }
             case JCTree.JCIdent identifier -> {
-                var identName = nameMangler.getName(expr);
+                var identName = nameMangler.mangleSymbolName(identifier.sym);
                 if (identName.contentEquals("this")) {
                     return new ThisExpr(origin);
                 }
