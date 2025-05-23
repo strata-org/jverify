@@ -270,7 +270,7 @@ public class JavaToDafnyCompiler {
                 }
                 var arguments = getArguments(contractAnnotation);
                 typeForWhichCurrentClassIsDefiningContract = getClassSymbol(arguments.get("value"));
-                name = new Name(name.getOrigin(), typeForWhichCurrentClassIsDefiningContract.name.toString());
+                name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
             }
             if (annotationsByName.containsKey(Immutable.class.getName())) {
                 reportError(classDecl, "notSupported", "@ValueType");
