@@ -42,9 +42,12 @@ public class JavaToDafnyCompiler {
     
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
+    private NameMangler nameMangler;
+
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
+        this.nameMangler = new NameMangler();
         shouldVerifies.push(verifierOptions.verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
@@ -96,7 +99,6 @@ public class JavaToDafnyCompiler {
                 return new FilesContainer(filesStarts);
             }
         }
-
         for (var compilationUnit : parsed) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
@@ -141,6 +143,8 @@ public class JavaToDafnyCompiler {
         }
         return classSymbol;
     }
+
+
 
     private FileStart translateFile(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
@@ -342,10 +346,11 @@ public class JavaToDafnyCompiler {
                 if (methodDecl.getModifiers().getAnnotations().stream().
                         anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && 
                                 ident.name.contentEquals("Invariant"))) {
-                    var invariantName = getName(methodDecl, methodDecl.name);
+                    var memberName = nameMangler.getName(member);
+                    var invariantName = getName(methodDecl, memberName);
                     var invariantOrigin = declToOrigin(methodDecl, invariantName);
                     ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
-                            methodDecl.name.toString(), null), null, new ActualBindings(List.of()), null);
+                            memberName, null), null, new ActualBindings(List.of()), null);
                     invariants.add(new AttributedExpression(call,null, null)); 
                 }
             }
@@ -364,6 +369,7 @@ public class JavaToDafnyCompiler {
                     members.add(dafnyMember);
                 }
             }
+
         }
         // Now translate other members
         for (var member : classDecl.getMembers()) {
@@ -399,7 +405,8 @@ public class JavaToDafnyCompiler {
         List<DatatypeCtor> constructors = new ArrayList<>();
         for(var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                Name constructorName = getName(variableDecl, variableDecl.name);
+                var variableName = nameMangler.getName(member);
+                Name constructorName = getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(declToOrigin(variableDecl, constructorName), constructorName, 
                         null, false, List.of()));
 
@@ -438,7 +445,7 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
-        Name fieldName = getName(variableDecl, variableDecl.name);
+        Name fieldName = getName(variableDecl, nameMangler.getName(variableDecl.getTree()));
         IOrigin origin = declToOrigin(variableDecl, fieldName);
         Type type = toType(variableDecl.vartype, isNullable(variableDecl.getModifiers()));
         if (variableDecl.getInitializer() != null) {
@@ -476,7 +483,7 @@ public class JavaToDafnyCompiler {
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
 
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(method, method.name);
+        var name = getName(method, nameMangler.getName(method.getTree()));
         var origin = declToOrigin(method, name);
 
         var annotations = method.getModifiers().getAnnotations();
@@ -566,7 +573,8 @@ public class JavaToDafnyCompiler {
                 }
             }
 
-            if (method.name.contentEquals("<init>")) {
+            if (TreeInfo.isConstructor(method)) {
+
                 var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null && 
                         isInterface(typeForWhichCurrentClassIsDefiningContract);
                 if (containerIsInterface) {
@@ -596,10 +604,11 @@ public class JavaToDafnyCompiler {
                 } else {
                     body = null;
                 }
-                return new Constructor(origin, new Name(origin, "_ctor"), null, false, null, List.of(), ins,
-                        header.preconditions, header.postconditions, header.getReads(), 
-                        header.getDecreases(), header.getModifies(),
-                        body);
+
+                return new Constructor(origin, name , null, false, null, List.of(), ins,
+                    header.preconditions, header.postconditions, header.getReads(),
+                    header.getDecreases(), header.getModifies(),
+                    body);
             } else {
                 BlockStmt body;
                 if (shouldVerify) {
@@ -652,7 +661,7 @@ public class JavaToDafnyCompiler {
         boolean isPublic = (method.getModifiers().flags & Flags.PUBLIC) != 0;
         if (isPublic) {
             for(var invariant : invariants) {
-                if (!method.name.contentEquals("<init>")) {
+                if (!TreeInfo.isConstructor(method)) {
                     header.preconditions.add(invariant);
                 }
                 header.postconditions.add(invariant);
@@ -677,7 +686,12 @@ public class JavaToDafnyCompiler {
         var origin = toOrigin(expr);
         if (expr instanceof JCTree.JCNewClass newClass) {
             var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-            return new AllocateClass(origin, null, toType(newClass.clazz), new ActualBindings(argBindings));
+            String ctorNameStr = nameMangler.getName(expr);
+            Name ctorName = new Name(origin, ctorNameStr);
+            var baseType = toExpr(newClass.clazz);
+            var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
+
+            return new AllocateClass(origin, null, ty,  new ActualBindings(argBindings));
         }
         if (expr instanceof JCTree.JCNewArray newArray) {
             var arrayDimensions = newArray.getDimensions().stream().map(d -> toExpr(d)).toList();
@@ -733,10 +747,11 @@ public class JavaToDafnyCompiler {
             Symbol.OperatorSymbol operator = binary.getOperator();
             return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
         } else if (expr instanceof JCTree.JCIdent identifier) {
-            if (identifier.name.contentEquals("this")) {
+            var identName = nameMangler.getName(expr);
+            if (identName.contentEquals("this")) {
                 return new ThisExpr(origin);
             }
-            return new NameSegment(origin, identifier.getName().toString(), null);
+            return new NameSegment(origin, identName, null);
         } else if (expr instanceof JCTree.JCLiteral literal) {
             if (literal.typetag == TypeTag.BOOLEAN) {
                 return new LiteralExpr(toOrigin(literal), literal.getValue());
@@ -761,12 +776,12 @@ public class JavaToDafnyCompiler {
             if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
                 return new ExprDotName(origin, selectedExpr, getName(fieldAccess, "Length"), null);
             }
-            
+            var fieldName = nameMangler.getName(expr);
             if (isEnum(fieldAccess.selected)) {
-                return new ApplySuffix(origin, new NameSegment(origin, fieldAccess.name.toString(), null), 
+                return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                         null, new ActualBindings(List.of()), null);
             } else {
-                return new ExprDotName(origin, toExpr(fieldAccess.selected), getName(fieldAccess, fieldAccess.name), null);
+                return new ExprDotName(origin, toExpr(fieldAccess.selected), getName(fieldAccess, fieldName), null);
             }
         } else if (expr instanceof JCTree.JCArrayAccess arrayAccess) {
             var arrayExpr = toExpr(arrayAccess.getExpression());
