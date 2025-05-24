@@ -13,7 +13,11 @@ concurrency:
   
   
 jobs:
+  getVersion:
+    uses: ./.github/workflows/dafny_version.yml
+  
   checks:
+    needs: getVersion
     strategy:
       matrix:
         os: [ ubuntu-22.04, windows-2019 ]
@@ -41,16 +45,16 @@ jobs:
           path: "./verifier/src/main/resources/com/aws/jverify/dafny.properties"
           properties: "dafnyVersion dafnyRef dafnyPrerelease buildDafnyFromSource"
       - name: Set up Dafny (released)
-        if: ${{ !steps.read_property.outputs.buildDafnyFromSource }}
+        if: ${{ !needs.getVersion.outputs.buildDafnyFromSource }}
         uses: dafny-lang/setup-dafny-action@v1.9.0
         with:
-          dafny-version: ${{ steps.read_property.outputs.dafnyPrerelease || steps.read_property.outputs.dafnyVersion }}
+          dafny-version: ${{ needs.getVersion.outputs.dafnyPrerelease || needs.getVersion.outputs.dafnyVersion }}
       - name: Set up Dafny (build from source)
-        if: ${{ steps.read_property.outputs.buildDafnyFromSource }}
+        if: ${{ needs.getVersion.outputs.buildDafnyFromSource }}
         uses: dafny-lang/setup-dafny-action@v1.9.0
         with:
-          dafny-version: ${{ steps.read_property.outputs.dafnyVersion }}
-          build-from-source: ${{ steps.read_property.outputs.dafnyRef }}
+          dafny-version: ${{ needs.getVersion.outputs.dafnyVersion }}
+          build-from-source: ${{ needs.getVersion.outputs.dafnyRef }}
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:

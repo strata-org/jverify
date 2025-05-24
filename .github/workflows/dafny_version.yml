@@ -1,0 +1,36 @@
+# This workflow reads dafny.properties into the environment variables
+# and then creates an output variable for `dafnyVersion`
+name: Dafny Version
+
+on:
+  workflow_call:
+    outputs:
+      dafnyVersion:
+        description: "The Dafny version (e.g. 4.9.1)"
+        value: ${{ jobs.getDafnyVersion.outputs.dafnyVersion }}
+      dafnyRef:
+        description: "The Dafny commit-ish (usually a commit hash)"
+        value: ${{ jobs.getDafnyVersion.outputs.dafnyRef }}
+      dafnyPrerelease:
+        description: "The Dafny pre-release to install"
+        value: ${{ jobs.getDafnyVersion.outputs.dafnyPrerelease }}
+      buildDafnyFromSource:
+        description: "Whether to build Dafny from source (using dafnyRef)"
+        value: ${{ jobs.getDafnyVersion.outputs.buildDafnyFromSource }}
+
+jobs:
+  getDafnyVersion:
+    runs-on: ubuntu-22.04
+    outputs:
+      dafnyVersion: ${{ steps.read_property.outputs.dafnyVersion }}
+      dafnyRef: ${{ steps.read_property.outputs.dafnyRef }}
+      dafnyPrerelease: ${{ steps.read_property.outputs.dafnyPrerelease }}
+      buildDafnyFromSource: ${{ steps.read_property.outputs.buildDafnyFromSource }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read dafny.properties
+        id: read_property
+        uses: christian-draeger/read-properties@1.1.1
+        with:
+          path: "./verifier/src/main/resources/com/aws/jverify/dafny.properties"
+          properties: "dafnyVersion dafnyRef dafnyPrerelease buildDafnyFromSource"
