@@ -34,11 +34,23 @@ jobs:
         with:
           path: jverify-collection
           submodules: recursive
-      - name: Set up Dafny
+      - name: Read dafny.properties
+        id: read_property
+        uses: christian-draeger/read-properties@1.1.1
+        with:
+          path: "./verifier/src/main/resources/com/aws/jverify/dafny.properties"
+          properties: "dafnyVersion dafnyRef dafnyPrerelease buildDafnyFromSource"
+      - name: Set up Dafny (released)
+        if: ${{ !steps.read_property.outputs.buildDafnyFromSource }}
         uses: dafny-lang/setup-dafny-action@v1.9.0
         with:
-          dafny-version: 4.10.1
-          build-from-source: aa1bce8c5c1255d9b64286e212b952d66e917f64
+          dafny-version: ${{ steps.read_property.outputs.dafnyPrerelease || steps.read_property.outputs.dafnyVersion }}
+      - name: Set up Dafny (build from source)
+        if: ${{ steps.read_property.outputs.buildDafnyFromSource }}
+        uses: dafny-lang/setup-dafny-action@v1.9.0
+        with:
+          dafny-version: ${{ steps.read_property.outputs.dafnyVersion }}
+          build-from-source: ${{ steps.read_property.outputs.dafnyRef }}
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
