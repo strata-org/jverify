@@ -39,12 +39,12 @@ jobs:
           path: jverify-collection
           submodules: recursive
       - name: Set up Dafny (released)
-        if: ${{ !needs.getVersion.outputs.buildDafnyFromSource }}
+        if: ${{ needs.getVersion.outputs.buildDafnyFromSource != 'true' }}
         uses: dafny-lang/setup-dafny-action@v1.9.0
         with:
           dafny-version: ${{ needs.getVersion.outputs.dafnyPrerelease || needs.getVersion.outputs.dafnyVersion }}
       - name: Set up Dafny (build from source)
-        if: ${{ needs.getVersion.outputs.buildDafnyFromSource }}
+        if: ${{ needs.getVersion.outputs.buildDafnyFromSource == 'true' }}
         uses: dafny-lang/setup-dafny-action@v1.9.0
         with:
           dafny-version: ${{ needs.getVersion.outputs.dafnyVersion }}
