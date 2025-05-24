@@ -38,12 +38,6 @@ jobs:
         with:
           path: jverify-collection
           submodules: recursive
-      - name: Read dafny.properties
-        id: read_property
-        uses: christian-draeger/read-properties@1.1.1
-        with:
-          path: "./verifier/src/main/resources/com/aws/jverify/dafny.properties"
-          properties: "dafnyVersion dafnyRef dafnyPrerelease buildDafnyFromSource"
       - name: Set up Dafny (released)
         if: ${{ !needs.getVersion.outputs.buildDafnyFromSource }}
         uses: dafny-lang/setup-dafny-action@v1.9.0
