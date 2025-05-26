@@ -27,10 +27,12 @@ public class TestVerifier {
     @Test
     public void testRunThroughGradle() throws IOException, InterruptedException {
         var gradlePath = IS_WINDOWS ? "../gradlew.bat" : "../gradlew";
-        var process = new ProcessBuilder(
+        ProcessBuilder processBuilder = new ProcessBuilder(
                 gradlePath,
                 ":verifier:run",
-                "--args=\"../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java\"").start();
+                "--args=\"../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java\"");
+        processBuilder.redirectErrorStream(true);
+        var process = processBuilder.start();
         var writer = new StringWriter();
         int exitCode;
         try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
