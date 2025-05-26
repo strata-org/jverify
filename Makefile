@@ -1,5 +1,6 @@
 generate-dafny-ast:
-	./gradlew :javaTypesGenerator:run --args="../dafny/Source/Scripts/Syntax.cs-schema ../verifier/src/main/java/com/aws/jverify/generated"
+	dafny resource Syntax.cs-schema verifier/build/Syntax.cs-schema
+	./gradlew :javaTypesGenerator:run --args="../verifier/build/Syntax.cs-schema ../verifier/src/main/java/com/aws/jverify/generated"
 
 test-generation-nodiff: generate-dafny-ast
 	status="$$(git status --porcelain)" && test -z "$$status" \
