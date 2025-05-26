@@ -17,6 +17,7 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collector;
@@ -177,8 +178,47 @@ public class Driver {
         return diagnostic.getMessage(null);
     }
 
+    private static boolean checkedVersion = false;
+
+    private static void checkDafnyVersion(VerifierOptions verifierOptions) {
+        if (!checkedVersion) {
+            Properties properties = new Properties();
+            try (InputStream input = Driver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
+                properties.load(input);
+                var dafnyVersion = properties.getProperty("dafnyVersion");
+                var dafnyRef = properties.getProperty("dafnyRef");
+                var expectedVersion = dafnyVersion + "+" + dafnyRef;
+
+                var processBuilder = new ProcessBuilder(
+                        verifierOptions.dafnyPath().toString(),
+                        "--version"
+                );
+
+                var process = processBuilder.redirectErrorStream(true).start();
+                try (var stdout = process.inputReader()) {
+                    var output = stdout.lines()
+                            .collect(Collectors.joining(""))
+                            .trim();
+                    if (process.waitFor() != 0) {
+                        throw new RuntimeException("dafny --version failed:\n" + output);
+                    }
+                    if (!output.equals(expectedVersion)) {
+                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output);
+                    }
+                }
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            checkedVersion = true;
+        }
+    }
+
     public static void runDafnyProcess(
             String program, VerifierOptions verifierOptions, VerificationResults outResults) {
+        // First check the Dafny version is correct
+        checkDafnyVersion(verifierOptions);
+
         var processBuilder = new ProcessBuilder(
                 verifierOptions.dafnyPath().toString(),
                 "verify",
