@@ -27,18 +27,17 @@ public class TestVerifier {
     @Test
     public void testRunThroughGradle() throws IOException, InterruptedException {
         var gradlePath = IS_WINDOWS ? "../gradlew.bat" : "../gradlew";
-        var process = new ProcessBuilder(
+        ProcessBuilder processBuilder = new ProcessBuilder(
                 gradlePath,
                 ":verifier:run",
-                "--args=\"../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java\"").start();
+                "--args=\"../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java\"");
+        processBuilder.redirectErrorStream(true);
+        var process = processBuilder.start();
         var writer = new StringWriter();
         int exitCode;
         try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            try (var reader2 = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                reader.transferTo(writer);
-                reader2.transferTo(writer);
-                exitCode = process.waitFor();
-            }
+            reader.transferTo(writer);
+            exitCode = process.waitFor();
         }
         var output = canonicalizeNewlines(writer.toString());
         assertThat(output, containsString("Dafny program verifier finished with 4 verified, 0 errors"));
