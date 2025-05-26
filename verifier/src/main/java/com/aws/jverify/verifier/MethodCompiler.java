@@ -246,6 +246,7 @@ public class MethodCompiler {
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
     }
+    
     private String getTmpVariableName() {
         return "#_tmpVar_"+(generatedIndex++);
     }

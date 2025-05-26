@@ -6,8 +6,7 @@ import com.aws.jverify.Verify;
 
 import static com.aws.jverify.JVerify.*;
 
-// Skipping because we don't translate try-catch yet
-// @JVerifyTest
+//@JVerifyTest(skip = "Skipping because we don't translate try-catch yet")
 public class RuntimePreconditionExample {
     public static void main(String[] args) {
         division(3, 1);

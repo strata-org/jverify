@@ -1,5 +1,7 @@
-package com.aws.jverify.common;
+package com.aws.jverify.testengine;
 
+import com.aws.jverify.common.Position;
+import com.aws.jverify.common.Range;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
