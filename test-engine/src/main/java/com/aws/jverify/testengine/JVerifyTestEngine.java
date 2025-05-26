@@ -27,13 +27,18 @@ import org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine;
 import org.junit.platform.engine.support.hierarchical.Node;
 
 import javax.tools.Diagnostic;
+import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.InflaterOutputStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -158,7 +163,17 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 (annotation.dafnyVerified() >= 0) == (annotation.dafnyErrors() >= 0));
 
         var options = getVerifierOptions(annotation);
-        var verificationResults = Driver.verifyJavaFile(markedSourceFile, options);
+        var inputs = Arrays.stream(annotation.additionalFiles()).map(f -> {
+            try {
+                var p = Path.of(markedSourceFile.toUri()).getParent().resolve(f);
+                String markedSource = Files.readString(p);
+                return (JavaFileObject)new SourceFile(p, markedSource);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toList());
+        inputs.add(markedSourceFile);
+        var verificationResults = Driver.verifyJavaFiles(inputs, options);
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics().stream()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
@@ -203,11 +218,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
         return new VerifierOptions(
                 dafnyPath,
-                libraryJar,
-                List.of(testEngineClassPath),
+                List.of(libraryJar, testEngineClassPath),
                 prelude,
-                Path.of("../temp.dfy"),
-                Path.of("../temp.dbin"),
+                Path.of("../build/temp.dfy"),
+                Path.of("../build/temp.dbin"),
                 true,
                 true,
                 new String[] {
@@ -252,6 +266,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             @Override
             public int dafnyErrors() {
                 return dafnyErrors;
+            }
+
+            @Override
+            public String[] additionalFiles() {
+                return new String[0];
             }
         };
     }
