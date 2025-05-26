@@ -4,4 +4,5 @@ module com.aws.jverify.plugin {
     requires com.aws.jverify;
     requires com.aws.jverify.common;
     requires com.aws.jverify.verifier;
+    requires jdk.unsupported;
 }
