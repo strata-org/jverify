@@ -730,7 +730,7 @@ public class JavaToDafnyCompiler {
                 DividedBlockStmt body;
                 if (shouldVerify) {
                     var treeMaker = TreeMaker.instance(context);
-                    var initializerOrigin = toOrigin(source);
+                    var initializerOrigin = toOrigin(sourceBody);
 
                     var newBodyStatements = new ArrayList<Statement>();
                     for (JCTree.JCVariableDecl variableDecl : initializers) {
