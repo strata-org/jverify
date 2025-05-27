@@ -24,9 +24,13 @@ public class MethodCompiler {
     private JCTree.JCStatement outerLoop;
 
     public int generatedIndex = 0;
-    
+
     public List<Statement> translateStatement(JCTree.JCStatement statement) {
-        var origin = compiler.toOrigin(statement);
+        return translateStatement(statement, null);
+    }
+
+    public List<Statement> translateStatement(JCTree.JCStatement statement, IOrigin originOverride) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(statement));
         if (statement instanceof JCTree.JCLabeledStatement labeledStatement) {
             labels.add(new Label(origin, labeledStatement.getLabel().toString()));
             return translateStatement(labeledStatement.getStatement());
@@ -36,7 +40,7 @@ public class MethodCompiler {
 
         switch (statement) {
             case JCTree.JCExpressionStatement expressionStatement -> {
-                return translateExpressionStatement(expressionStatement);
+                return translateExpressionStatement(expressionStatement, originOverride);
             }
             case JCTree.JCAssert assertStmt -> {
                 return List.of(new AssertStmt(origin, null, compiler.toExpr(assertStmt.getCondition()), null));
@@ -208,7 +212,7 @@ public class MethodCompiler {
             var rhs = compiler.toAssignmentRhs(initializer);
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
-            dafnyInitializer = new AssignStatement(rhs.getOrigin(), null, lhss, rhss, false);
+            dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
         }
 
         return List.of(new VarDeclStmt(origin, null, List.of(localVariable), dafnyInitializer));
@@ -251,14 +255,14 @@ public class MethodCompiler {
         return "#_tmpVar_"+(generatedIndex++);
     }
 
-    private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement) {
+    private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride) {
         var expr = statement.getExpression();
         switch (expr) {
             case JCTree.JCMethodInvocation invocation -> {
                 return translateStatementMethodInvocation(invocation);
             }
             case JCTree.JCAssign assign -> {
-                return translateAssign(assign);
+                return translateAssign(assign, originOverride);
             }
             case JCTree.JCAssignOp assignOp -> {
                 return translateAssignOp(assignOp);
@@ -310,10 +314,11 @@ public class MethodCompiler {
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
 
-    private List<Statement> translateAssign(JCTree.JCAssign assign) {
-        List<Expression> lhss = List.of(compiler.toExpr(assign.getVariable()));
-        List<AssignmentRhs> rhss = List.of(compiler.toAssignmentRhs(assign.getExpression()));
-        return List.of(new AssignStatement(compiler.toOrigin(assign), null, lhss, rhss, false));
+    private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(assign));
+        List<Expression> lhss = List.of(compiler.toExpr(assign.getVariable(), originOverride));
+        List<AssignmentRhs> rhss = List.of(compiler.toAssignmentRhs(assign.getExpression(), originOverride));
+        return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
 
     private List<Statement> translateStatementMethodInvocation(JCTree.JCMethodInvocation invocation) {
@@ -394,7 +399,11 @@ public class MethodCompiler {
     }
 
     public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements) {
-        return statements.stream().flatMap(s -> translateStatement(s).stream()).toList();
+        return translateStatements(statements, null);
+    }
+
+    public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements, IOrigin originOverride) {
+        return statements.stream().flatMap(s -> translateStatement(s, originOverride).stream()).toList();
     }
 
     public void checkEmptyExpressions(JCTree tree,

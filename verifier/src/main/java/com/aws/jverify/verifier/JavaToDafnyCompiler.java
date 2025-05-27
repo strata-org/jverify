@@ -279,7 +279,7 @@ public class JavaToDafnyCompiler {
                 args));
     }
 
-    List<AttributedExpression> invariants = new ArrayList<>();
+    List<Symbol.MethodSymbol> invariants = new ArrayList<>();
     List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     
     enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
@@ -445,12 +445,7 @@ public class JavaToDafnyCompiler {
                 if (methodDecl.getModifiers().getAnnotations().stream().
                         anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && 
                                 ident.name.contentEquals("Invariant"))) {
-                    var memberName = nameMangler.mangleSymbolName(methodDecl.sym);
-                    var invariantName = getName(methodDecl, memberName);
-                    var invariantOrigin = declToOrigin(methodDecl, invariantName);
-                    ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
-                            memberName, null), null, new ActualBindings(List.of()), null);
-                    invariants.add(new AttributedExpression(call,null, null)); 
+                    invariants.add(methodDecl.sym);
                 }
             }
         }
@@ -650,7 +645,7 @@ public class JavaToDafnyCompiler {
                 }
             } else {
                 var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
-                applyInvariants(modifiers, methodSymbol, header);
+                applyInvariants(sourceBody, modifiers, methodSymbol, header);
                 if (postHeader.size() != 1) {
                     reportError(source, "pureMethodMultipleStatements");
                     return null;
@@ -690,7 +685,7 @@ public class JavaToDafnyCompiler {
                     bodyStatements = methodCompiler.translateStatements(postHeader);
                 }
             }
-            applyInvariants(modifiers, methodSymbol, header);
+            applyInvariants(sourceBody, modifiers, methodSymbol, header);
             methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
 
             if (header.returnNames.size() > 1) {
@@ -730,12 +725,13 @@ public class JavaToDafnyCompiler {
                 DividedBlockStmt body;
                 if (shouldVerify) {
                     var treeMaker = TreeMaker.instance(context);
+                    var initializerOrigin = toOrigin(source);
 
                     var newBodyStatements = new ArrayList<Statement>();
                     for (JCTree.JCVariableDecl variableDecl : initializers) {
                       var rhs = variableDecl.getInitializer();
                       var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                      newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt));
+                      newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, initializerOrigin));
                     }
                     newBodyStatements.addAll(bodyStatements);
                     bodyStatements = newBodyStatements;
@@ -796,14 +792,20 @@ public class JavaToDafnyCompiler {
         };
     }
 
-    private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, HeaderContainer header) {
+    private void applyInvariants(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, HeaderContainer header) {
         boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
         if (isPublic) {
             for(var invariant : invariants) {
+                var memberName = nameMangler.mangleSymbolName(invariant);
+                var invariantName = getName(source, memberName);
+                var invariantOrigin = declToOrigin(source, invariantName);
+                ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
+                        memberName, null), null, new ActualBindings(List.of()), null);
+                var invariantCall = new AttributedExpression(call,null, null);
                 if (!isConstructor(methodSymbol)) {
-                    header.preconditions.add(invariant);
+                    header.preconditions.add(invariantCall);
                 }
-                header.postconditions.add(invariant);
+                header.postconditions.add(invariantCall);
             }
         }
     }
@@ -822,7 +824,11 @@ public class JavaToDafnyCompiler {
     }
 
     public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr) {
-        var origin = toOrigin(expr);
+        return toAssignmentRhs(expr, null);
+    }
+
+    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, IOrigin originOverride) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
                 var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
@@ -850,12 +856,16 @@ public class JavaToDafnyCompiler {
             case null, default -> {
             }
         }
-        var dafnyExpr = toExpr(expr);
+        var dafnyExpr = toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
     }
-    
-    private Expression toExpr(JCTree.JCExpression expr) {
-        var origin = toOrigin(expr);
+
+    public Expression toExpr(JCTree.JCExpression expr) {
+        return toExpr(expr, null);
+    }
+
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(expr));
         switch (expr) {
             case JCTree.JCConditional conditional -> {
                 var condition = toExpr(conditional.getCondition());
@@ -1033,6 +1043,7 @@ public class JavaToDafnyCompiler {
             return null;
         }
 
+        var origin = toOrigin(invocation);
         var receiver = invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
                 ? fieldAccess.selected
                 : null;
@@ -1047,7 +1058,6 @@ public class JavaToDafnyCompiler {
                     reportError(args.getFirst(), "argumentMustBeLambda", methodName);
                     return null;
                 }
-                var origin = toOrigin(lambda.getBody());
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
@@ -1069,16 +1079,16 @@ public class JavaToDafnyCompiler {
                 var array = args.get(0);
                 var fromIndex = args.length() > 1 ? args.get(1) : null;
                 var toIndex = args.length() > 2 ? args.get(2) : null;
-                return toSubsequence(array, fromIndex, toIndex);
+                return toSubsequence(origin, array, fromIndex, toIndex);
             }
             case "drop" -> {
-                return toSubsequence(receiver, args.getFirst(), null);
+                return toSubsequence(origin, receiver, args.getFirst(), null);
             }
             case "take" -> {
-                return toSubsequence(receiver, null, args.getFirst());
+                return toSubsequence(origin, receiver, null, args.getFirst());
             }
             case "subsequence" -> {
-                return toSubsequence(receiver, args.get(0), args.get(1));
+                return toSubsequence(origin, receiver, args.get(0), args.get(1));
             }
             case "contains" -> {
                 var element = toExpr(args.getFirst());
@@ -1099,8 +1109,7 @@ public class JavaToDafnyCompiler {
         return null;
     }
 
-    private SeqSelectExpr toSubsequence(JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
-        var origin = toOrigin(seqOrArray);
+    private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
         var seqOrArrayExpr = toExpr(seqOrArray);
         var loExpr = lo == null ? null : toExpr(lo);
         var hiExpr = hi == null ? null : toExpr(hi);
