@@ -4,6 +4,10 @@ import org.jetbrains.gradle.ext.delegateActions
 import org.jetbrains.gradle.ext.runConfigurations
 import org.jetbrains.gradle.ext.settings
 
+import java.io.File
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("java")
     application
@@ -52,6 +56,22 @@ idea {
             }
         }
     }
+}
+
+var props = Properties().apply {
+    load(FileInputStream(File(rootProject.rootDir, "verifier/src/main/resources/com/aws/jverify/dafny.properties")))
+}
+var dafnyRef = props.getProperty("dafnyRef")
+
+// TODO: Investigate https://github.com/tudo-aqua/z3-turnkey
+tasks.register<Exec>("installAndBuildDafny") {
+    environment(mapOf(
+        "DAFNY_COMMIT" to dafnyRef,
+        // TODO: correct platform
+        "Z3_PLATFORM" to "mac"
+    ))
+
+    commandLine("make", "install-and-build-dafny")
 }
 
 project(":library") {
