@@ -209,8 +209,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
     }
 
+    private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
+
     private static VerifierOptions getVerifierOptions(JVerifyTest annotation) {
-        var dafnyPath = Path.of("dafny");
+        var dafnyPath = Path.of(IS_WINDOWS ? "Dafny.exe" : "dafny");
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
