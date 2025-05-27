@@ -175,7 +175,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         inputs.add(markedSourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
 
-        var diagnosticsAsAnnotations = verificationResults.getDiagnostics().stream()
+        var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))

@@ -1,7 +1,10 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Range;
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import javax.tools.Diagnostic;
 import java.nio.file.Path;
@@ -12,7 +15,7 @@ import java.util.stream.Stream;
 /**
  * Adapts Dafny's {@code --json-diagnostics} output to the {@link Diagnostic} interface.
  */
-public class DafnyDiagnostic implements Diagnostic<Path> {
+public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
     private static final int SEVERITY_ERROR = 1;
     private static final int SEVERITY_WARNING = 2;
     private static final int SEVERITY_INFO = 4;
