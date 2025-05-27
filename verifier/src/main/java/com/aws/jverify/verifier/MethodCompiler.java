@@ -25,7 +25,6 @@ public class MethodCompiler {
 
     public int generatedIndex = 0;
 
-
     public List<Statement> translateStatement(JCTree.JCStatement statement) {
         return translateStatement(statement, null);
     }
