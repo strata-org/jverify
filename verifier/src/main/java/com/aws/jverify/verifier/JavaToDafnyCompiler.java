@@ -594,11 +594,12 @@ public class JavaToDafnyCompiler {
                 if (shouldVerify) {
                     ArrayList<Statement> bodyStatements = new ArrayList<>();
                     var treeMaker = TreeMaker.instance(context);
+                    var initializerOrigin = toOrigin(method.body);
 
                     for (JCTree.JCVariableDecl variableDecl : initializers) {
                       var rhs = variableDecl.getInitializer();
                       var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                      bodyStatements.addAll(methodCompiler.translateStatement(assignStmt));
+                      bodyStatements.addAll(methodCompiler.translateStatement(assignStmt, initializerOrigin));
                     }
                     bodyStatements.addAll(methodCompiler.translateStatements(postHeader));
 
@@ -685,7 +686,11 @@ public class JavaToDafnyCompiler {
     }
 
     public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr) {
-        var origin = toOrigin(expr);
+        return toAssignmentRhs(expr, null);
+    }
+
+    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, IOrigin originOverride) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
                 var argBindings = newClass.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
@@ -713,15 +718,15 @@ public class JavaToDafnyCompiler {
             case null, default -> {
             }
         }
-        var dafnyExpr = toExpr(expr);
+        var dafnyExpr = toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
     }
 
-    private Expression toExpr(JCTree.JCExpression expr) {
+    public Expression toExpr(JCTree.JCExpression expr) {
         return toExpr(expr, null);
     }
 
-    private Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride) {
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(expr));
         switch (expr) {
             case JCTree.JCConditional conditional -> {
