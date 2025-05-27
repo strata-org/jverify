@@ -21,6 +21,7 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
     private static final int SEVERITY_ERROR = 1;
     private static final int SEVERITY_WARNING = 2;
     private static final int SEVERITY_INFO = 4;
+    private static final int SEVERITY_RELATED_LOCATION = 100;
 
     public Location location;
 
@@ -120,9 +121,10 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
     
     public String getSeverityMessage() {
         return switch(severity) {
-            case 0 -> "Warning";
-            case 1 -> "Error";
-            case 2 -> "Info";
+            case SEVERITY_WARNING -> "Warning";
+            case SEVERITY_ERROR -> "Error";
+            case SEVERITY_INFO -> "Info";
+            case SEVERITY_RELATED_LOCATION -> "Related location";
             default -> throw new RuntimeException(); 
         };
     }
@@ -137,12 +139,14 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
 
     public record Location(String filename, String filePath, String uri, Range range) {}
 
-    public record RelatedInfo(Location location, String message) {
+    public record RelatedInfo(Location location, String errorId, String format, String[] arguments) {
         public DafnyDiagnostic asDiagnostic() {
             var diagnostic = new DafnyDiagnostic();
             diagnostic.location = location;
-            diagnostic.severity = SEVERITY_INFO;
-            diagnostic.formatMessage = "Related location: " + message;
+            diagnostic.severity = SEVERITY_RELATED_LOCATION;
+            diagnostic.errorId = errorId;
+            diagnostic.arguments = arguments;
+            diagnostic.formatMessage = format;
             return diagnostic;
         }
     }
