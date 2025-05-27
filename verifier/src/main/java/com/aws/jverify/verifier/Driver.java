@@ -4,6 +4,7 @@ import com.aws.jverify.common.Position;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.sun.tools.javac.util.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
@@ -287,6 +288,9 @@ public class Driver {
      */
     private static void parseDafnyJsonOutput(BufferedReader dafnyOutput, VerificationResults outResults) {
         var objectMapper = new ObjectMapper();
+        SimpleModule module = new SimpleModule();
+        module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
+        objectMapper.registerModule(module);
         objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
 
         StringBuilder exceptionOutput = new StringBuilder();
@@ -299,14 +303,18 @@ public class Driver {
                 return;  // nothing to do
             } else if (line.startsWith("{")) {
                 try {
-                    outResults.outputs.add(objectMapper.readValue(line, DafnyOutput.class));
+                    DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
+                    if (output instanceof StatusMessage statusMessage) {
+                        if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
+                            outResults.dafnyVerifiedCount = Integer.parseInt(matcher.group("VerifiedCount"));
+                            outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
+                            outResults.dafnyFinishedMessage = statusMessage.getValue();
+                        }
+                    }
+                    outResults.outputs.add(output);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
                 }
-            } else if ((matcher = dafnySummaryPattern.matcher(line)).matches()) {
-                outResults.dafnyVerifiedCount = Integer.parseInt(matcher.group("VerifiedCount"));
-                outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
-                outResults.dafnyFinishedMessage = line;
             } else {
                 exceptionOutput.append(line).append("\n");
             }

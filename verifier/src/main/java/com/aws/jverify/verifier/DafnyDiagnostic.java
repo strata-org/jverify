@@ -5,9 +5,11 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.ser.std.StdKeySerializers;
 
 import javax.tools.Diagnostic;
 import java.nio.file.Path;
+import java.text.MessageFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -24,7 +26,26 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
 
     public int severity;
 
-    public String message;
+    @JsonProperty("errorId")
+    public String errorId;
+    
+    @JsonProperty("format")
+    public String formatMessage;
+
+    @JsonProperty("arguments")
+    public String[] arguments;
+
+    public String getErrorId() {
+        return errorId;
+    }
+
+    public String getFormatMessage() {
+        return formatMessage;
+    }
+
+    public String[] getArguments() {
+        return arguments;
+    }
 
     /**
      * Corresponds to Dafny's {@code MessageSource} enum,
@@ -94,7 +115,16 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
 
     @Override
     public String getMessage(Locale locale) {
-        return message;
+        return getSeverityMessage() + ": "+ MessageFormat.format(formatMessage, arguments);
+    }
+    
+    public String getSeverityMessage() {
+        return switch(severity) {
+            case 0 -> "Warning";
+            case 1 -> "Error";
+            case 2 -> "Info";
+            default -> throw new RuntimeException(); 
+        };
     }
 
     /**
@@ -112,7 +142,7 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
             var diagnostic = new DafnyDiagnostic();
             diagnostic.location = location;
             diagnostic.severity = SEVERITY_INFO;
-            diagnostic.message = "Related location: " + message;
+            diagnostic.formatMessage = "Related location: " + message;
             return diagnostic;
         }
     }
@@ -122,7 +152,7 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
         return "DafnyDiagnostic {" +
                 "\n  location=" + location +
                 "\n  severity=" + severity +
-                "\n  message='" + message + '\'' +
+                "\n  message='" + getMessage(Locale.getDefault()) + '\'' +
                 "\n  messageSource='" + messageSource + '\'' +
                 "\n  relatedInformation=" + relatedInformation +
                 "\n}";
