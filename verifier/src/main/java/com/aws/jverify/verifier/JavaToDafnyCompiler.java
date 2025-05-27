@@ -545,7 +545,7 @@ public class JavaToDafnyCompiler {
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
         Name fieldName = getName(variableDecl, nameMangler.mangleSymbolName(variableDecl.sym));
         IOrigin origin = declToOrigin(variableDecl, fieldName);
-        Type type = toType(variableDecl.vartype);
+        Type type = toType(variableDecl.vartype.type, isNullable(variableDecl.getModifiers()), toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
             var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
             if (isFinal) {
@@ -571,6 +571,11 @@ public class JavaToDafnyCompiler {
 
     private static Attributes getVerifyFalse(IOrigin origin) {
         return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
+    }
+
+    private boolean isNullable(JCTree.JCModifiers modifiers) {
+        return modifiers.getAnnotations().stream().anyMatch(
+                a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
     }
 
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
@@ -1324,7 +1329,8 @@ public class JavaToDafnyCompiler {
             return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
         } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
             // Remove the name qualification because we do not support that yet
-            Expression nameSegment = new NameSegment(origin, classType.asElement().getSimpleName().toString(), null);
+            var mangledName = nameMangler.mangleSymbolName(classType.tsym);
+            Expression nameSegment = new NameSegment(origin, mangledName, null);
             if (isNullable && nameSegment instanceof NameSegment ns) {
                 nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
             }

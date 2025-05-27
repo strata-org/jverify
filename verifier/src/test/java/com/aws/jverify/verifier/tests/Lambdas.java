@@ -1,5 +1,3 @@
-// TEST: exitCode=0 dafnyVerified=10 dafnyErrors=0
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
@@ -12,7 +10,7 @@ import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest
+@JVerifyTest(dafnyVerified = 10, dafnyErrors = 0)
 public class Lambdas {
 
     public void repeatOneself() {
