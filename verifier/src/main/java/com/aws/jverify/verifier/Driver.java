@@ -232,7 +232,8 @@ public class Driver {
                 "--json-diagnostics",
                 "--type-system-refresh",
                 "--general-newtypes",
-                "--general-traits=datatype"
+                "--general-traits=datatype",
+                "--check-source-location-consistency"
         );
         if (verifierOptions.printDafny() != null) {
             processBuilder.command().add("--print=" + verifierOptions.printDafny());

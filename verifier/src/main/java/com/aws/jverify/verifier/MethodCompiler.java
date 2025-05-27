@@ -208,7 +208,7 @@ public class MethodCompiler {
             var rhs = compiler.toAssignmentRhs(initializer);
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
-            dafnyInitializer = new AssignStatement(rhs.getOrigin(), null, lhss, rhss, false);
+            dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
         }
 
         return List.of(new VarDeclStmt(origin, null, List.of(localVariable), dafnyInitializer));

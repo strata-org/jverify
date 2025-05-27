@@ -716,9 +716,13 @@ public class JavaToDafnyCompiler {
         var dafnyExpr = toExpr(expr);
         return new ExprRhs(origin, null, dafnyExpr);
     }
-    
+
     private Expression toExpr(JCTree.JCExpression expr) {
-        var origin = toOrigin(expr);
+        return toExpr(expr, null);
+    }
+
+    private Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(expr));
         switch (expr) {
             case JCTree.JCConditional conditional -> {
                 var condition = toExpr(conditional.getCondition());
@@ -1161,7 +1165,7 @@ public class JavaToDafnyCompiler {
             }
             return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
         } else if (tree instanceof JCTree.JCExpression expr) {
-            var expression = toExpr(expr);
+            var expression = toExpr(expr, origin);
             
             // Remove the name qualification because we do not support that yet
             Expression nameSegment;
