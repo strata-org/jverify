@@ -981,7 +981,10 @@ public class JavaToDafnyCompiler {
                         List.of(trait), List.of(datatypeCtor), false);
                 lambdaDatatypeDecls.add(datatypeDecl);
 
-                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
+                // TODO: Using a DatatypeValue directly ends up crashing when printing temp.dfy,
+                // because the printer tries to read DatatypeValue.Arguments before it's filled in by resolution.
+//                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
+                return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
             }
             case null, default -> {
             }
