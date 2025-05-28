@@ -117,10 +117,11 @@ public class TestMarkup {
         List<AnnotatedSpan> result = new ArrayList<>();
         String[] lines = text.split("\\r?\\n");
 
-        int cumulativePosition = 0;
-        for (int i = 0; i < lines.length - 1; i++) {
-            String currentLine = lines[i];
-            String nextLine = lines[i + 1];
+        int[] cumulativePositions = new int[lines.length];
+        cumulativePositions[0] = 0;
+        int annotatedIndex = 0;
+        for (int i = 1; i < lines.length; i++) {
+            String nextLine = lines[i];
 
             Pattern pattern = Pattern.compile("^//\\s+(\\^+)\\s+(.+)$");
             Matcher matcher = pattern.matcher(nextLine);
@@ -131,18 +132,23 @@ public class TestMarkup {
 
                 int caretStartIndex = nextLine.indexOf(carets);
 
-                if (caretStartIndex >= 0 && caretStartIndex < currentLine.length()) {
-                    int spanStart = cumulativePosition + caretStartIndex;
+                var annotatedLine = lines[annotatedIndex];
+                if (caretStartIndex >= 0 && caretStartIndex < annotatedLine.length()) {
+                    int spanStart = cumulativePositions[annotatedIndex] + caretStartIndex;
                     int spanLength = carets.length();
 
-                    spanLength = Math.min(spanLength, currentLine.length() - caretStartIndex);
+                    spanLength = Math.min(spanLength, annotatedLine.length() - caretStartIndex);
 
                     TextSpan span = new TextSpan(spanStart, spanLength);
                     result.add(new AnnotatedSpan(annotation, span));
                 }
+            } else {
+                // Only update this if this line is NOT an annotation,
+                // so consecutive annotations apply to the same previous line.
+                annotatedIndex = i;
             }
 
-            cumulativePosition += currentLine.length() + 1; // +1 for newline
+            cumulativePositions[i] = cumulativePositions[i - 1] + lines[i - 1].length() + 1; // +1 for newline
         }
 
         return result;
