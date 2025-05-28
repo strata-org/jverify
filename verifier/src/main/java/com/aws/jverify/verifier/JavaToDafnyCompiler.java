@@ -44,7 +44,6 @@ public class JavaToDafnyCompiler {
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private NameMangler nameMangler;
 
-
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.nameMangler = new NameMangler();
@@ -52,10 +51,13 @@ public class JavaToDafnyCompiler {
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
     }
+
+    public NameMangler getNameMangler() {
+        return nameMangler;
+    }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
         JavacTool compiler = JavacTool.create();
-        
 
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);

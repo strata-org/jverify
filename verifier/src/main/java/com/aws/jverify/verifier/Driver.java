@@ -3,6 +3,7 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.common.Position;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.sun.tools.javac.util.*;
@@ -68,7 +69,7 @@ public class Driver {
                 Files.createDirectories(verifierOptions.printBinaryDafny().getParent());
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
-            runDafnyProcess(program, verifierOptions, verificationResults);
+            runDafnyProcess(compiler.getNameMangler(), program, verifierOptions, verificationResults);
         }
         return verificationResults;
     }
@@ -228,7 +229,7 @@ public class Driver {
         }
     }
 
-    public static void runDafnyProcess(
+    public static void runDafnyProcess(NameMangler mangler, 
             String program, VerifierOptions verifierOptions, VerificationResults outResults) {
         // First check the Dafny version is correct
         checkDafnyVersion(verifierOptions);
@@ -269,7 +270,7 @@ public class Driver {
                 stdin.write(program);
             }
             try (var stdout = process.inputReader()) {
-                parseDafnyJsonOutput(stdout, outResults);
+                parseDafnyJsonOutput(mangler, stdout, outResults);
                 outResults.exitCode = process.waitFor();
             }
         } catch (InterruptedException | IOException e) {
@@ -286,8 +287,9 @@ public class Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static void parseDafnyJsonOutput(BufferedReader dafnyOutput, VerificationResults outResults) {
+    private static void parseDafnyJsonOutput(NameMangler mangler,  BufferedReader dafnyOutput, VerificationResults outResults) {
         var objectMapper = new ObjectMapper();
+        
         SimpleModule module = new SimpleModule();
         module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
         objectMapper.registerModule(module);
@@ -304,6 +306,11 @@ public class Driver {
             } else if (line.startsWith("{")) {
                 try {
                     DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
+                    if (output instanceof DafnyDiagnostic dafnyDiagnostic) {
+                        for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
+                            dafnyDiagnostic.arguments[index] = mangler.safeUnmangleName(dafnyDiagnostic.arguments[index]);
+                        }
+                    }
                     if (output instanceof StatusMessage statusMessage) {
                         if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
                             outResults.dafnyVerifiedCount = Integer.parseInt(matcher.group("VerifiedCount"));
@@ -314,6 +321,8 @@ public class Driver {
                     outResults.outputs.add(output);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
             } else {
                 exceptionOutput.append(line).append("\n");

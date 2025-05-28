@@ -5,13 +5,24 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationConfig;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.cfg.HandlerInstantiator;
+import com.fasterxml.jackson.databind.introspect.Annotated;
 import com.fasterxml.jackson.databind.ser.std.StdKeySerializers;
 
 import javax.tools.Diagnostic;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.text.MessageFormat;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -114,9 +125,9 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
         return null;
     }
 
-    @Override
     public String getMessage(Locale locale) {
-        return getSeverityMessage() + ": "+ MessageFormat.format(formatMessage, arguments);
+        String escapedFormatMsg = formatMessage.replace("'", "''");
+        return getSeverityMessage() + ": "+ MessageFormat.format(escapedFormatMsg, arguments);
     }
     
     public String getSeverityMessage() {
