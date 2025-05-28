@@ -23,7 +23,7 @@ JVerify intends to support the full Java language, but is currently being develo
 - `interface`, but only without type parameters
 - `implements`, but only classes implementing interfaces
 - `extends`, but only interfaces extending interfaces
-- Lambda expressions
+- Lambda expressions, but only those that don't read variables from their enclosing scope
 
 # Supported Java standard library packages
 

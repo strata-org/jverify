@@ -897,6 +897,7 @@ public class JavaToDafnyCompiler {
             }
             case JCTree.JCMemberReference memberRef -> {
                 var types = Types.instance(context);
+
                 var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(memberRef.target.tsym);
                 var maker = TreeMaker.instance(context).at(memberRef.pos);
                 var methodName = toExpr(memberRef.expr);
