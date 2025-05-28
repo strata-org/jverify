@@ -628,12 +628,6 @@ public class JavaToDafnyCompiler {
         });
         var isStatic = (modifiers.flags & Flags.STATIC) == Flags.STATIC;
 
-        if (sourceBody == null) {
-            // TODO: Improve error message - could also be because the method wasn't implemented?
-            reportError(source, "missingContract");
-            return null;
-        }
-
         if (annotationsByName.containsKey(Pure.class.getName())) {
             Expression body = null;
             var header = new HeaderContainer();

@@ -2,33 +2,46 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Nat;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
+import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(dafnyVerified = 10, dafnyErrors = 0)
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 1)
 public class Lambdas {
 
-    public void repeatOneself() {
-        doSomethingTwice((x, y) -> {
-            postcondition((Integer r) -> r == x);
-            return x;
+    public void useLambdas() {
+        doSomethingTwice((x, y) -> x);
+        doSomethingwithSpecTwice((x, y) -> {
+            precondition(x >= y);
+            postcondition((Integer r) -> r == x - y);
+            return x - y;
+//                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
         });
+
         SomethingDoer doer = (x, y) -> {
-            postcondition((Integer r) -> r == x);
             return x;
         };
         SomethingDoer doer2 = (x, y) -> {
-            postcondition((Integer r) -> r == x);
             return x;
         };
+        // Important that these values aren't equal,
+        // since they aren't in Java semantics,
+        // but if we map lambdas to datatype values incorrectly
+        // they could be equal Dafny values.
         check(doer != doer2);
     }
 
     public void doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
-        y = doer.doSomething(2, 3);
+        var z = doer.doSomething(2, y);
+    }
+
+    public void doSomethingwithSpecTwice(SomethingDoerWithSpec doer) {
+        var y = doer.doSomething(2, 1);
+        var z = doer.doSomething(2, y);
     }
 }
 
@@ -40,15 +53,23 @@ interface SomethingDoer {
 class SomethingDoerContract implements SomethingDoer {
     @Override
     public int doSomething(int x, int y) {
-        postcondition((Integer r) -> r == x);
         throw new ContractException();
     }
 }
 
-class TimesTwo implements SomethingDoer {
+interface SomethingDoerWithSpec {
+    int doSomething(int x, int y);
+}
+
+@Contract(SomethingDoerWithSpec.class)
+class SomethingDoerWithSpecContract implements SomethingDoerWithSpec {
+    // TODO: Can't currently put @Nat on the return type because there's
+    // currently no way to indicate that on the lambda expression
+    // since it doesn't declare a return type anywhere.
     @Override
     public int doSomething(int x, int y) {
-        postcondition((Integer r) -> r == x);
-        return x;
+        precondition(x >= y);
+        postcondition((Integer r) -> r == x - y);
+        throw new ContractException();
     }
 }
