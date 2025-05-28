@@ -1,9 +1,9 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.Immutable;
 import com.aws.jverify.InheritContract;
 import com.aws.jverify.JVerify;
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nat;
 import com.aws.jverify.Proof;
 import com.aws.jverify.Pure;
@@ -369,10 +369,7 @@ public class JavaToDafnyCompiler {
                 typeForWhichCurrentClassIsDefiningContract = getClassSymbol(arguments.get("value"));
                 name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
             }
-//            if (annotationsByName.containsKey(Immutable.class.getName())) {
-//                reportError(classDecl, "notSupported", "@Immutable");
-//            }
-            
+
             TopLevelDecl result;
             if (isEnum(classDecl.type)) {
                 result = translateEnum(classDecl, origin, name);
@@ -483,9 +480,9 @@ public class JavaToDafnyCompiler {
                     new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(type.tsym), null))).
                 collect(Collectors.<Type>toList());
         if (isInterface) {
-            if (!classDecl.getModifiers().getAnnotations().stream().
+            if (classDecl.getModifiers().getAnnotations().stream().
                     anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
-                            ident.name.contentEquals("Immutable"))) {
+                            ident.name.contentEquals("Modifiable"))) {
                 superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
             }
             return new TraitDecl(origin, name, null, List.of(), members, superTraits, false);
