@@ -56,7 +56,7 @@ public class MethodCompiler {
                 return translateReturn(returnStatement);
             }
             case JCTree.JCVariableDecl variableDecl -> {
-                return translateVariableDeclaration(origin, variableDecl.getName().toString(), variableDecl.getType(), variableDecl.getInitializer());
+                return translateVariableDeclaration(origin, variableDecl);
             }
             case JCTree.JCWhileLoop whileLoop -> {
                 return List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x));
@@ -204,12 +204,12 @@ public class MethodCompiler {
         return List.of(firstBlock, whileLoop);
     }
 
-    private List<Statement> translateVariableDeclaration(IOrigin origin, String string, JCTree type, JCTree.JCExpression initializer) {
-        LocalVariable localVariable = new LocalVariable(origin,
-                string, compiler.toType(type.type, false, origin), false);
+    private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
+        LocalVariable localVariable = new LocalVariable(origin, variableDecl.name.toString(),
+                compiler.toType(variableDecl.getModifiers(), variableDecl.getType().type, origin), false);
         ConcreteAssignStatement dafnyInitializer = null;
-        if (initializer != null) {
-            var rhs = compiler.toAssignmentRhs(initializer);
+        if (variableDecl.getInitializer() != null) {
+            var rhs = compiler.toAssignmentRhs(variableDecl.getInitializer());
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
             dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
