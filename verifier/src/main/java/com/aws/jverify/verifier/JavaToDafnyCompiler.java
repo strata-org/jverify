@@ -600,6 +600,7 @@ public class JavaToDafnyCompiler {
         var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
         var origin = declToOrigin(source, name);
         var methodType = methodSymbol.type;
+        var bodyOrigin = toOrigin(sourceBody);
 
         var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
@@ -636,7 +637,7 @@ public class JavaToDafnyCompiler {
         if (annotationsByName.containsKey(Pure.class.getName())) {
             Expression body = null;
             var header = new HeaderContainer();
-            var returnType = toType(methodType.getReturnType(), toOrigin(sourceBody));
+            var returnType = toType(methodType.getReturnType(), bodyOrigin);
             if (returnType == null) {
                 reportError(source, "pureMethodsNeedsReturnType");
                 return null;
@@ -678,8 +679,8 @@ public class JavaToDafnyCompiler {
             if (sourceBody instanceof JCTree.JCExpression) {
                 if (shouldVerify) {
                     bodyStatements = List.of(
-                            new ReturnStmt(origin, null, List.of(
-                                    new ExprRhs(origin, null, toExpr((JCTree.JCExpression) sourceBody)))));
+                            new ReturnStmt(bodyOrigin, null, List.of(
+                                    new ExprRhs(bodyOrigin, null, toExpr((JCTree.JCExpression) sourceBody)))));
                 }
             } else {
                 postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
@@ -696,7 +697,7 @@ public class JavaToDafnyCompiler {
             }
             var outs = new ArrayList<Formal>();
             if (methodType.getReturnType() != null) {
-                var returnType = toType(methodType.getReturnType(), toOrigin(sourceBody));
+                var returnType = toType(methodType.getReturnType(), bodyOrigin);
                 if (returnType != null) {
                     Name returnName;
                     if (header.returnNames.size() == 1) {
@@ -727,18 +728,17 @@ public class JavaToDafnyCompiler {
                 DividedBlockStmt body;
                 if (shouldVerify) {
                     var treeMaker = TreeMaker.instance(context);
-                    var initializerOrigin = toOrigin(sourceBody);
 
                     var newBodyStatements = new ArrayList<Statement>();
                     for (JCTree.JCVariableDecl variableDecl : initializers) {
                       var rhs = variableDecl.getInitializer();
                       var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                      newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, initializerOrigin));
+                      newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
                     }
                     newBodyStatements.addAll(bodyStatements);
                     bodyStatements = newBodyStatements;
 
-                    body = new DividedBlockStmt(toOrigin(sourceBody), null, List.of(), bodyStatements, null, List.of());
+                    body = new DividedBlockStmt(bodyOrigin, null, List.of(), bodyStatements, null, List.of());
                 } else {
                     body = null;
                 }
@@ -750,7 +750,7 @@ public class JavaToDafnyCompiler {
             } else {
                 BlockStmt body;
                 if (shouldVerify) {
-                    body = new BlockStmt(toOrigin(sourceBody), null, List.of(), bodyStatements);
+                    body = new BlockStmt(bodyOrigin, null, List.of(), bodyStatements);
                 } else {
                     body = null;
                 }
