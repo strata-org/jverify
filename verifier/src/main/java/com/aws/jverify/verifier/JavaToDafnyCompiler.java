@@ -895,6 +895,27 @@ public class JavaToDafnyCompiler {
 //                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
                 return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
             }
+            case JCTree.JCMemberReference memberRef -> {
+                var types = Types.instance(context);
+                var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(memberRef.target.tsym);
+                var maker = TreeMaker.instance(context).at(memberRef.pos);
+                var methodName = toExpr(memberRef.expr);
+                var body = maker.App(maker.Ident(memberRef.sym), methodSymbol.params().map(p -> maker.Ident(p)));
+                var methodDecl = translateMethod(memberRef, maker.Modifiers(0), methodSymbol, body);
+
+                var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
+                var datatypeNameNode = new Name(origin, datatypeName);
+                var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
+                var trait = toType(memberRef.target, origin);
+                var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
+                        List.of(trait), List.of(datatypeCtor), false);
+                lambdaDatatypeDecls.add(datatypeDecl);
+
+                // TODO: Using a DatatypeValue directly ends up crashing when printing temp.dfy,
+                // because the printer tries to read DatatypeValue.Arguments before it's filled in by resolution.
+//                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
+                return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
+            }
             case null, default -> {
             }
         }

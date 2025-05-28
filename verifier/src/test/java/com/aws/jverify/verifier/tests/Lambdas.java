@@ -13,6 +13,12 @@ public class Lambdas {
 
     public void useLambdas() {
         doSomethingTwice((x, y) -> x);
+        doSomethingTwice((x, y) -> staticAdd(x, y));
+        final int z = 42;
+        doSomethingTwice((x, y) -> z);
+
+        doSomethingTwice(this::add);
+        doSomethingTwice(Lambdas::staticAdd);
         doSomethingwithSpecTwice((x, y) -> {
             precondition(x >= y);
             postcondition((Integer r) -> r == x - y);
@@ -41,6 +47,14 @@ public class Lambdas {
     public void doSomethingwithSpecTwice(SomethingDoerWithSpec doer) {
         var y = doer.doSomething(2, 1);
         var z = doer.doSomething(2, y);
+    }
+
+    public int add(int x, int y) {
+        return x + y;
+    }
+
+    public static int staticAdd(int x, int y) {
+        return x + y;
     }
 }
 
