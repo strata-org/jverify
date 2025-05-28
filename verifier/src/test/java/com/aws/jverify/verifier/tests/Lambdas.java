@@ -13,7 +13,7 @@ public class Lambdas {
 
     public void useLambdas() {
         doSomethingTwice((x, y) -> x);
-        doSomethingwithSpecTwice((x, y) -> {
+        doSomethingWithSpecTwice((x, y) -> {
             precondition(x >= y);
             postcondition((Integer r) -> r == x - y);
             return x - y;
@@ -38,7 +38,7 @@ public class Lambdas {
         var z = doer.doSomething(2, y);
     }
 
-    public void doSomethingwithSpecTwice(SomethingDoerWithSpec doer) {
+    public void doSomethingWithSpecTwice(SomethingDoerWithSpec doer) {
         var y = doer.doSomething(2, 1);
         var z = doer.doSomething(2, y);
     }
