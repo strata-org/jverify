@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import com.aws.jverify.Nat;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;

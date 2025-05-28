@@ -1,85 +1,8 @@
 package com.aws.jverify.verifier;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.InheritContract;
-import com.aws.jverify.JVerify;
-import com.aws.jverify.Modifiable;
-import com.aws.jverify.Nat;
-import com.aws.jverify.Proof;
-import com.aws.jverify.Pure;
-import com.aws.jverify.Unbounded;
-import com.aws.jverify.Verify;
+import com.aws.jverify.*;
+
 import com.aws.jverify.common.Common;
-import com.aws.jverify.generated.ActualBinding;
-import com.aws.jverify.generated.ActualBindings;
-import com.aws.jverify.generated.AllocateArray;
-import com.aws.jverify.generated.AllocateClass;
-import com.aws.jverify.generated.ApplySuffix;
-import com.aws.jverify.generated.AssignmentRhs;
-import com.aws.jverify.generated.AttributedExpression;
-import com.aws.jverify.generated.Attributes;
-import com.aws.jverify.generated.BinaryExpr;
-import com.aws.jverify.generated.BinaryExprOpcode;
-import com.aws.jverify.generated.BlockStmt;
-import com.aws.jverify.generated.BoolType;
-import com.aws.jverify.generated.BoundVar;
-import com.aws.jverify.generated.CharLiteralExpr;
-import com.aws.jverify.generated.ClassDecl;
-import com.aws.jverify.generated.ClassLikeDecl;
-import com.aws.jverify.generated.ConstantField;
-import com.aws.jverify.generated.Constructor;
-import com.aws.jverify.generated.ConversionExpr;
-import com.aws.jverify.generated.DatatypeCtor;
-import com.aws.jverify.generated.DatatypeDecl;
-import com.aws.jverify.generated.DatatypeValue;
-import com.aws.jverify.generated.DisjunctivePattern;
-import com.aws.jverify.generated.DividedBlockStmt;
-import com.aws.jverify.generated.ExistsExpr;
-import com.aws.jverify.generated.ExprDotName;
-import com.aws.jverify.generated.ExprRhs;
-import com.aws.jverify.generated.Expression;
-import com.aws.jverify.generated.ExtendedPattern;
-import com.aws.jverify.generated.Field;
-import com.aws.jverify.generated.FileStart;
-import com.aws.jverify.generated.FilesContainer;
-import com.aws.jverify.generated.ForallExpr;
-import com.aws.jverify.generated.Formal;
-import com.aws.jverify.generated.FreshExpr;
-import com.aws.jverify.generated.Function;
-import com.aws.jverify.generated.IOrigin;
-import com.aws.jverify.generated.ITEExpr;
-import com.aws.jverify.generated.IdPattern;
-import com.aws.jverify.generated.IndDatatypeDecl;
-import com.aws.jverify.generated.IntType;
-import com.aws.jverify.generated.LitPattern;
-import com.aws.jverify.generated.LiteralExpr;
-import com.aws.jverify.generated.MemberDecl;
-import com.aws.jverify.generated.Method;
-import com.aws.jverify.generated.MethodOrFunction;
-import com.aws.jverify.generated.Name;
-import com.aws.jverify.generated.NameSegment;
-import com.aws.jverify.generated.NegationExpression;
-import com.aws.jverify.generated.NestedMatchCaseExpr;
-import com.aws.jverify.generated.NestedMatchExpr;
-import com.aws.jverify.generated.OldExpr;
-import com.aws.jverify.generated.ReturnStmt;
-import com.aws.jverify.generated.SeqSelectExpr;
-import com.aws.jverify.generated.SourceOrigin;
-import com.aws.jverify.generated.Specification;
-import com.aws.jverify.generated.Statement;
-import com.aws.jverify.generated.ThisExpr;
-import com.aws.jverify.generated.Token;
-import com.aws.jverify.generated.TokenRange;
-import com.aws.jverify.generated.TokenRangeOrigin;
-import com.aws.jverify.generated.TopLevelDecl;
-import com.aws.jverify.generated.TraitDecl;
-import com.aws.jverify.generated.Type;
-import com.aws.jverify.generated.TypeTestExpr;
-import com.aws.jverify.generated.UnaryOpExpr;
-import com.aws.jverify.generated.UnaryOpExprOpcode;
-import com.aws.jverify.generated.UserDefinedType;
-import com.sun.source.tree.LambdaExpressionTree;
-import com.sun.source.tree.Tree;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
@@ -89,13 +12,12 @@ import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.code.Types;
-import com.sun.tools.javac.tree.DocTreeMaker;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 
 import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.tree.TreeMaker;
+import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -104,23 +26,12 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
-import javax.tools.Diagnostic;
-import javax.tools.DiagnosticCollector;
-import javax.tools.JavaFileObject;
+import javax.tools.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Array;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.Stack;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
@@ -165,7 +76,6 @@ public class JavaToDafnyCompiler {
         var javacOptions = List.of("-classpath", classpath);
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-
         JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
                 null,
                 null,
@@ -179,7 +89,6 @@ public class JavaToDafnyCompiler {
         List<FileStart> filesStarts = new ArrayList<>();
         var parsed = task.parse();
         task.analyze();
-
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
@@ -1314,7 +1223,7 @@ public class JavaToDafnyCompiler {
             reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         } else if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayTypeTree) {
-            // TODO: Assume nullable here means it's not possible to have non-nullable array elements?
+            // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
             var elemType = toType(arrayTypeTree.elemtype, true, origin);
             if (elemType == null) {
                 // should be unreachable
