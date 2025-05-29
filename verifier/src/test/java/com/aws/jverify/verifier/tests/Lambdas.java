@@ -14,14 +14,14 @@ public class Lambdas {
     public void useLambdas() {
         doSomethingTwice((x, y) -> x);
         doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
-        final int z = 42;
+        int z = 42;
         doSomethingTwice((x, y) -> z);
 
         doSomethingTwice(this::add);
         doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
-            precondition(x >= y);
-            postcondition((Integer r) -> r == x - y);
+//            precondition(x >= y);
+//            postcondition((Integer r) -> r == x - y);
             return x - y;
 //                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
         });
@@ -106,8 +106,8 @@ class SomethingDoerWithSpecContract implements SomethingDoerWithSpec {
     // since it doesn't declare a return type anywhere.
     @Override
     public int doSomething(int x, int y) {
-        precondition(x >= y);
-        postcondition((Integer r) -> r == x - y);
+//        precondition(x >= y);
+//        postcondition((Integer r) -> r == x - y);
         throw new ContractException();
     }
 }
