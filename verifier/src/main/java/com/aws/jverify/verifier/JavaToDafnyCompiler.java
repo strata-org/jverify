@@ -451,7 +451,7 @@ public class JavaToDafnyCompiler {
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
         Name fieldName = getName(variableDecl, nameMangler.mangleSymbolName(variableDecl.sym));
         IOrigin origin = declToOrigin(variableDecl, fieldName);
-        Type type = toType(variableDecl.vartype.type, isNullable(variableDecl.getModifiers()), toOrigin(variableDecl.vartype));
+        Type type = toType(variableDecl.getModifiers(), variableDecl.vartype.type, toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
             var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
             if (isFinal) {
@@ -479,31 +479,23 @@ public class JavaToDafnyCompiler {
         return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
     }
 
-    private boolean isNullable(JCTree.JCModifiers modifiers) {
-        return modifiers.getAnnotations().stream().anyMatch(
+    public boolean isNullable(JCTree.JCModifiers modifiers) {
+        return modifiers != null && modifiers.getAnnotations().stream().anyMatch(
                 a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
     }
 
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
-        if (type.getAnnotation(com.aws.jverify.Nullable.class) != null) {
-            return true;
-        }
-
-        if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType && isNullable(arrayType.elemtype)) {
-            return true;
-        }
-
-        return false;
+        return type.getAnnotation(com.aws.jverify.Nullable.class) != null;
     }
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
-        return translateMethod(method, method.getModifiers(), method.sym, method.body);
+        return translateMethodOrLambda(method, method.getModifiers(), method.sym, method.body);
     }
 
     /**
      * @param sourceBody Either a JCBlock or a JCExpression. The latter is for the benefit of lambda translation.
      */
-    private @Nullable MethodOrFunction translateMethod(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, JCTree sourceBody) {
+    private @Nullable MethodOrFunction translateMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, JCTree sourceBody) {
 
         var methodCompiler = new MethodCompiler(this);
         var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
@@ -751,7 +743,7 @@ public class JavaToDafnyCompiler {
                 if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
                     reportError(expr, "notSupported", "multi-dimensional arrays");
                 }
-                var arrayDafnyType = toType(arrayJavaType.type, true, toOrigin(arrayJavaType));
+                var arrayDafnyType = toType(null, arrayJavaType.type, toOrigin(arrayJavaType));
 
                 if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                     reportError(expr, "notSupported", "new array with initializers");
@@ -868,60 +860,67 @@ public class JavaToDafnyCompiler {
             }
             case JCTree.JCInstanceOf instanceOf -> {
                 var expression = toExpr(instanceOf.getExpression());
-                var jcType = toType(instanceOf.getType());
+                var jcType = toType(null, instanceOf.getType());
                 return new TypeTestExpr(origin, expression, jcType);
             }
             case JCTree.JCTypeCast cast -> {
                 var castExpr = toExpr(cast.getExpression());
-                var type = toType(cast.getType());
+                var type = toType(null, cast.getType());
                 return new ConversionExpr(origin, castExpr, type, "");
             }
             case JCTree.JCLambda lambda -> {
-                var types = Types.instance(context);
-                var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(lambda.target.tsym);
-                var maker = TreeMaker.instance(context);
-                var methodDecl = translateMethod(lambda, maker.Modifiers(0), methodSymbol, lambda.getBody());
-
-                var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
-                var datatypeNameNode = new Name(origin, datatypeName);
-                var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
-                var trait = toType(lambda.target, origin);
-                var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
-                        List.of(trait), List.of(datatypeCtor), false);
-                lambdaDatatypeDecls.add(datatypeDecl);
-
-                // TODO: Using a DatatypeValue directly ends up crashing when printing temp.dfy,
-                // because the printer tries to read DatatypeValue.Arguments before it's filled in by resolution.
-//                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
-                return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
+                return translateLambda(lambda, origin);
             }
             case JCTree.JCMemberReference memberRef -> {
-                var types = Types.instance(context);
-
-                var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(memberRef.target.tsym);
-                var maker = TreeMaker.instance(context).at(memberRef.pos);
-                var methodName = toExpr(memberRef.expr);
-                var body = maker.App(maker.Ident(memberRef.sym), methodSymbol.params().map(p -> maker.Ident(p)));
-                var methodDecl = translateMethod(memberRef, maker.Modifiers(0), methodSymbol, body);
-
-                var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
-                var datatypeNameNode = new Name(origin, datatypeName);
-                var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
-                var trait = toType(memberRef.target, origin);
-                var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
-                        List.of(trait), List.of(datatypeCtor), false);
-                lambdaDatatypeDecls.add(datatypeDecl);
-
-                // TODO: Using a DatatypeValue directly ends up crashing when printing temp.dfy,
-                // because the printer tries to read DatatypeValue.Arguments before it's filled in by resolution.
-//                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
-                return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
+                return translateMemberReferenece(memberRef, origin);
             }
             case null, default -> {
             }
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
+    }
+
+    private ExprDotName translateLambda(JCTree.JCLambda lambda, IOrigin origin) {
+        // Translate to a method declaration
+        var types = Types.instance(context);
+        var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(lambda.target.tsym);
+        var maker = TreeMaker.instance(context);
+        var methodDecl = translateMethodOrLambda(lambda, maker.Modifiers(0), methodSymbol, lambda.getBody());
+
+        // Add a wrapper datatype with that method declaration to the outer scope
+        var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
+        var datatypeNameNode = new Name(origin, datatypeName);
+        var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
+        var trait = toType(lambda.target, origin);
+        var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
+                List.of(trait), List.of(datatypeCtor), false);
+        lambdaDatatypeDecls.add(datatypeDecl);
+
+        // Instantiate the datatype in place of the lambda: LambdaX.LambdaX()
+        return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
+    }
+
+    private ExprDotName translateMemberReferenece(JCTree.JCMemberReference memberRef, IOrigin origin) {
+        // Translate to a method declaration
+        var types = Types.instance(context);
+        var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(memberRef.target.tsym);
+        var maker = TreeMaker.instance(context).at(memberRef.pos);
+        var obj = toExpr(memberRef.expr);
+        var body = maker.App(maker.Ident(memberRef.sym), methodSymbol.params().map(p -> maker.Ident(p)));
+        var methodDecl = translateMethodOrLambda(memberRef, maker.Modifiers(0), methodSymbol, body);
+
+        // Add a wrapper datatype with that method declaration to the outer scope
+        var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
+        var datatypeNameNode = new Name(origin, datatypeName);
+        var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
+        var trait = toType(memberRef.target, origin);
+        var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
+                List.of(trait), List.of(datatypeCtor), false);
+        lambdaDatatypeDecls.add(datatypeDecl);
+
+        // Instantiate the datatype in place of the lambda: LambdaX.LambdaX()
+        return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
     }
 
     public Expression translateBinary(JCTree node,
@@ -991,7 +990,7 @@ public class JavaToDafnyCompiler {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = toType(param.getType().type, false, paramOrigin);
+                    var paramType = toType(param.getModifiers(), param.getType().type, paramOrigin);
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
@@ -1176,16 +1175,21 @@ public class JavaToDafnyCompiler {
         return new IdPattern(origin, false, "_", null, null, false);
     }
 
-    public @Nullable Type toType(JCTree tree) {
-        return toType(tree.type, isNullable(tree.type), toOrigin(tree));
+    public @Nullable Type toType(JCTree.JCModifiers modifiers, JCTree tree) {
+        return toType(modifiers, tree.type, toOrigin(tree));
     }
 
     public @Nullable Type toType(com.sun.tools.javac.code.Type type, IOrigin origin) {
-        return toType(type, isNullable(type), origin);
+        return toType(null, type, origin);
     }
 
     @Nullable
-    public Type toType(com.sun.tools.javac.code.Type type, boolean isNullable, IOrigin origin) {
+    public Type toType(JCTree.JCModifiers modifiers, com.sun.tools.javac.code.Type type, IOrigin origin) {
+        // In several cases annotations that come right before types
+        // end up bound to tree nodes such as variable declarations instead of the type.
+        // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
+        // we apply the modifier to the innermost element type of an array type.
+        var isNullable = isNullable(type) || (isNullable(modifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
@@ -1245,8 +1249,7 @@ public class JavaToDafnyCompiler {
             reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         } else if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayTypeTree) {
-            // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
-            var elemType = toType(arrayTypeTree.elemtype, true, origin);
+            var elemType = toType(modifiers, arrayTypeTree.elemtype, origin);
             if (elemType == null) {
                 // should be unreachable
                 throw new IllegalArgumentException("Array type without element type");

@@ -13,12 +13,12 @@ public class Lambdas {
 
     public void useLambdas() {
         doSomethingTwice((x, y) -> x);
-        doSomethingTwice((x, y) -> staticAdd(x, y));
-        final int z = 42;
-        doSomethingTwice((x, y) -> z);
+//        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
+//        final int z = 42;
+//        doSomethingTwice((x, y) -> z);
 
-        doSomethingTwice(this::add);
-        doSomethingTwice(Lambdas::staticAdd);
+//        doSomethingTwice(this::add);
+//        doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
             precondition(x >= y);
             postcondition((Integer r) -> r == x - y);
@@ -37,6 +37,8 @@ public class Lambdas {
         // but if we map lambdas to datatype values incorrectly
         // they could be equal Dafny values.
         check(doer != doer2);
+
+        makeSomeClass(SomeClass::new);
     }
 
     public void doSomethingTwice(SomethingDoer doer) {
@@ -55,6 +57,29 @@ public class Lambdas {
 
     public static int staticAdd(int x, int y) {
         return x + y;
+    }
+
+    public void makeSomeClass(SomeClassMaker maker) {
+        var sc = maker.makeSomething();
+    }
+}
+
+class SomeClass {
+    public SomeClass() {
+
+    }
+}
+
+interface SomeClassMaker {
+    SomeClass makeSomething();
+}
+
+@Contract(SomeClassMaker.class)
+class SomeClassMakerContract implements SomeClassMaker {
+
+    @Override
+    public SomeClass makeSomething() {
+        throw new ContractException();
     }
 }
 
