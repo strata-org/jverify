@@ -880,6 +880,9 @@ public class JavaToDafnyCompiler {
                 if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
                     return new NameSegment(origin, nameMangler.mangleSymbolName(classSymbol), List.of());
                 }
+                if (fieldAccess.sym instanceof Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
+                    return translateDynamicMethod(origin, fieldAccess, dynamicMethodSymbol);
+                }
                 var selectedExpr = toExpr(fieldAccess.selected);
                 // TODO does this work if the selected expression isn't trivially of array type?
                 if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
@@ -927,6 +930,31 @@ public class JavaToDafnyCompiler {
         }
         reportError(expr, "notSupported", expr.getClass().getSimpleName());
         return getHole(origin);  
+    }
+
+    private Expression translateDynamicMethod(IOrigin origin, JCTree source, Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
+        // Translate to a method declaration
+        var types = Types.instance(context);
+        var interfaceType = dynamicMethodSymbol.dynamicType().getReturnType();
+        var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(interfaceType.tsym);
+        var maker = TreeMaker.instance(context);
+        // TODO: More robust access than a magic [1]
+        var methodRef = ((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
+        var body = maker.App(maker.Ident(methodRef), methodSymbol.params().map(p -> maker.Ident(p)));
+        var methodDecl = translateMethodOrLambda(source, maker.Modifiers(0), methodSymbol, body);
+
+        // Add a wrapper datatype with that method declaration to the outer scope
+        var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
+        var datatypeNameNode = new Name(origin, datatypeName);
+        // TODO: Need constructor parameters this time
+        var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
+        var trait = toType(interfaceType, origin);
+        var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
+                List.of(trait), List.of(datatypeCtor), false);
+        lambdaDatatypeDecls.add(datatypeDecl);
+
+        // Produce the datatype constructor reference: LambdaX.LambdaX
+        return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
     }
 
     private ExprDotName translateLambda(JCTree.JCLambda lambda, IOrigin origin) {
@@ -1424,6 +1452,10 @@ public class JavaToDafnyCompiler {
             if (methodDecl.restype != null) {
                 pos = getEndPos(methodDecl.restype);
             }
+        }
+
+        if (pos == Position.NOPOS) {
+            return pos;
         }
 
         while (pos < sourceText.length()) {
