@@ -13,12 +13,12 @@ public class Lambdas {
 
     public void useLambdas() {
         doSomethingTwice((x, y) -> x);
-//        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
-//        final int z = 42;
-//        doSomethingTwice((x, y) -> z);
+        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
+        final int z = 42;
+        doSomethingTwice((x, y) -> z);
 
-//        doSomethingTwice(this::add);
-//        doSomethingTwice(Lambdas::staticAdd);
+        doSomethingTwice(this::add);
+        doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
             precondition(x >= y);
             postcondition((Integer r) -> r == x - y);

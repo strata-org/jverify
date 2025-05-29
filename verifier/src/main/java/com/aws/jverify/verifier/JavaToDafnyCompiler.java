@@ -4,14 +4,23 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
+import com.sun.source.util.TaskEvent;
+import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
 import com.sun.tools.javac.api.JavacTrees;
+import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.comp.AttrContext;
+import com.sun.tools.javac.comp.CompileStates;
+import com.sun.tools.javac.comp.Env;
+import com.sun.tools.javac.comp.LambdaToMethod;
+import com.sun.tools.javac.comp.Todo;
+import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -21,6 +30,7 @@ import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.ListBuffer;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -56,8 +66,6 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        JavacTool compiler = JavacTool.create();
-
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
@@ -75,20 +83,47 @@ public class JavaToDafnyCompiler {
                 .collect(Collectors.joining(File.pathSeparator));
         var javacOptions = List.of("-classpath", classpath);
 
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
-                null,
-                null,
-                diagnostics,
-                javacOptions,
-                null,
-                files,
-                context
-        );
+        JavaCompiler compiler = JavaCompiler.instance(context);
+        compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
 
+        MultiTaskListener mtl = MultiTaskListener.instance(context);
+        Set<CompilationUnitTree> parsed = new HashSet<>();
+        mtl.add(new TaskListener() {
+            @Override
+            public void started(TaskEvent e) {
+                TaskListener.super.started(e);
+            }
+
+            @Override
+            public void finished(TaskEvent e) {
+                TaskListener.super.finished(e);
+
+                if (e.getKind() == TaskEvent.Kind.COMPILATION) {
+                    Todo todo = Todo.instance(context);
+                    compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
+                    Queue<Env<AttrContext>> envs = compiler.flow(compiler.attribute(todo));
+                    envs = unlambda(envs);
+                    envs.stream().forEach(env -> parsed.add(env.toplevel));
+                }
+            }
+        });
+        compiler.compile(com.sun.tools.javac.util.List.from(files), List.of(), null, List.of());
+
+//        JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
+//                null,
+//                null,
+//                diagnostics,
+//                javacOptions,
+//                null,
+//                files,
+//                context
+//        );
+//
+//        var parsed = task.parse();
+//        task.analyze();
+
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         List<FileStart> filesStarts = new ArrayList<>();
-        var parsed = task.parse();
-        task.analyze();
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
@@ -111,6 +146,19 @@ public class JavaToDafnyCompiler {
         }
 
         return new FilesContainer(filesStarts);
+    }
+
+    private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
+        TreeMaker make = TreeMaker.instance(context);
+        make.at(Position.FIRSTPOS);
+
+        // TODO: Scan for classes that have lambdas first.
+        // Will have to copy some code from JavaCompiler.desugar
+        for (Env<AttrContext> env: envs) {
+            TreeMaker localMake = make.forToplevel(env.toplevel);
+            env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
+        }
+        return envs;
     }
     
     private final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
