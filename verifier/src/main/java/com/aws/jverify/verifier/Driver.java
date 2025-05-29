@@ -308,8 +308,8 @@ public class Driver {
                 try {
                     DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
                     if (output instanceof DafnyDiagnostic dafnyDiagnostic) {
-                        for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
-                            dafnyDiagnostic.arguments[index] = mangler.safeUnmangleName(dafnyDiagnostic.arguments[index]);
+                        for (var index = 0; index < dafnyDiagnostic.messageParts.length; index++) {
+                            dafnyDiagnostic.messageParts[index] = mangler.safeUnmangleName(dafnyDiagnostic.messageParts[index]);
                         }
                     }
                     if (output instanceof StatusMessage statusMessage) {
@@ -322,8 +322,6 @@ public class Driver {
                     outResults.outputs.add(output);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
                 }
             } else {
                 exceptionOutput.append(line).append("\n");

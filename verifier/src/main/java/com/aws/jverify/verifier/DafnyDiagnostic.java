@@ -6,8 +6,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.tools.Diagnostic;
 import java.nio.file.Path;
 import java.text.MessageFormat;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -25,23 +26,23 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
 
     @JsonProperty("errorId")
     public String errorId;
-    
-    @JsonProperty("format")
-    public String formatMessage;
 
-    @JsonProperty("arguments")
-    public String[] arguments;
+    @JsonProperty("messageParts")
+    public String[] messageParts;
+    
+    @JsonProperty("messageIdDefaults")
+    public String[] messageIdDefaults;
 
     public String getErrorId() {
         return errorId;
     }
 
-    public String getFormatMessage() {
-        return formatMessage;
+    public String[] getMessageParts() {
+        return messageParts;
     }
 
-    public String[] getArguments() {
-        return arguments;
+    public String[] getMessageIdDefaults() {
+        return messageIdDefaults;
     }
 
     /**
@@ -111,8 +112,55 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
     }
 
     public String getMessage(Locale locale) {
-        String escapedFormatMsg = formatMessage.replace("'", "''");
-        return getSeverityMessage() + ": "+ MessageFormat.format(escapedFormatMsg, arguments);
+        String message = messageFromParts(getMessageParts(), getMessageIdDefaults());
+        return getSeverityMessage() + ": "+ message;
+    }
+
+    public static String messageFromParts(String[] messageParts, String[] defaultMessagesArray) {
+        var queue = new ArrayDeque<>(Arrays.stream(messageParts).toList());
+        var defaultMessages = new ArrayDeque<>(Arrays.stream(defaultMessagesArray).toList());
+        return messageFromQueue(queue, defaultMessages);
+    }
+
+    private static String messageFromQueue(Queue<String> stack, Queue<String> defaultMessages) {
+        String current = stack.poll();
+        String resolved = isMessageId(current) ? defaultMessages.poll() : current;
+
+        // Escape braces that don't contain just numbers
+        String safeResolved = safeFormat(resolved);
+
+        int argumentCount = countArgumentsOfFormatMessage(safeResolved);
+        Object[] arguments = new Object[argumentCount];
+        for (int index = 0; index < argumentCount; index++) {
+            arguments[index] = messageFromQueue(stack, defaultMessages);
+        }
+
+        return MessageFormat.format(safeResolved, arguments);
+    }
+
+    private static boolean isMessageId(String s) {
+        return s.startsWith("$");
+    }
+
+    private static String safeFormat(String format) {
+        // Replace { not followed by digit with {{
+        String escaped = format.replaceAll("\\{(?!\\d)", "{{");
+        // Replace } not preceded by digit with }}
+        escaped = escaped.replaceAll("(?<!\\d)\\}", "}}");
+        
+        return escaped.replace("'", "''");
+    }
+
+    private static int countArgumentsOfFormatMessage(String format) {
+        Pattern pattern = Pattern.compile("\\{(\\d+)\\}");
+        Matcher matcher = pattern.matcher(format);
+        Set<Integer> placeholders = new HashSet<>();
+
+        while (matcher.find()) {
+            placeholders.add(Integer.parseInt(matcher.group(1)));
+        }
+
+        return placeholders.size();
     }
     
     public String getSeverityMessage() {
@@ -135,14 +183,14 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
 
     public record Location(String filename, String filePath, String uri, Range range) {}
 
-    public record RelatedInfo(Location location, String errorId, String format, String[] arguments) {
+    public record RelatedInfo(Location location, String errorId, String[] messageParts, String[] messageIdDefaults) {
         public DafnyDiagnostic asDiagnostic() {
             var diagnostic = new DafnyDiagnostic();
             diagnostic.location = location;
             diagnostic.severity = SEVERITY_RELATED_LOCATION;
             diagnostic.errorId = errorId;
-            diagnostic.arguments = arguments;
-            diagnostic.formatMessage = format;
+            diagnostic.messageParts = messageParts;
+            diagnostic.messageIdDefaults = messageIdDefaults;
             return diagnostic;
         }
     }
