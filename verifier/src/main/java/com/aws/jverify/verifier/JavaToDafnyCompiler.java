@@ -31,6 +31,7 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.ListBuffer;
+import com.sun.tools.javac.util.Names;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -149,13 +150,11 @@ public class JavaToDafnyCompiler {
     }
 
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
-        TreeMaker make = TreeMaker.instance(context);
-        make.at(Position.FIRSTPOS);
+        TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
 
         // TODO: Scan for classes that have lambdas first.
         // Will have to copy some code from JavaCompiler.desugar
         for (Env<AttrContext> env: envs) {
-            TreeMaker localMake = make.forToplevel(env.toplevel);
             env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
         }
         return envs;
@@ -872,9 +871,14 @@ public class JavaToDafnyCompiler {
                 }
 
                 var target = toExpr(invocation.getMethodSelect());
-                var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-                return new ApplySuffix(origin, target, null,
-                        new ActualBindings(argBindings), null);
+                contextOrigins.push(origin);
+                try {
+                    var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
+                    return new ApplySuffix(origin, target, null,
+                            new ActualBindings(argBindings), null);
+                } finally {
+                    contextOrigins.pop();
+                }
             }
             case JCTree.JCFieldAccess fieldAccess -> {
                 if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
@@ -935,12 +939,20 @@ public class JavaToDafnyCompiler {
     private Expression translateDynamicMethod(IOrigin origin, JCTree source, Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
         // Translate to a method declaration
         var types = Types.instance(context);
+        var names = Names.instance(context);
+
         var interfaceType = dynamicMethodSymbol.dynamicType().getReturnType();
         var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(interfaceType.tsym);
-        var maker = TreeMaker.instance(context);
+        var maker = TreeMaker.instance(context).at(source.pos);
         // TODO: More robust access than a magic [1]
         var methodRef = ((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
-        var body = maker.App(maker.Ident(methodRef), methodSymbol.params().map(p -> maker.Ident(p)));
+        // TODO: More robust method for creating new symbols without clashing
+        var methodCall = maker.App(maker.QualIdent(methodRef), methodSymbol.params().map(p -> maker.Ident(p)));
+        var resultSymbol = new Symbol.VarSymbol(0, names.fromString("result"), methodSymbol.getReturnType(), dynamicMethodSymbol);
+        var returnVar = maker.VarDef(maker.Modifiers(0), resultSymbol.name, maker.Type(methodSymbol.getReturnType()), methodCall);
+        JCTree.JCStatement returnStmt = maker.Return(maker.Ident(resultSymbol));
+        com.sun.tools.javac.util.List stmts = com.sun.tools.javac.util.List.of(returnVar, returnStmt);
+        var body = maker.Block(0, stmts);
         var methodDecl = translateMethodOrLambda(source, maker.Modifiers(0), methodSymbol, body);
 
         // Add a wrapper datatype with that method declaration to the outer scope
