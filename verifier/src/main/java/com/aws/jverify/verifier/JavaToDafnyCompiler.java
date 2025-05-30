@@ -45,6 +45,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.sun.tools.javac.code.Flags.SYNTHETIC;
+
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
@@ -940,26 +942,43 @@ public class JavaToDafnyCompiler {
         // Translate to a method declaration
         var types = Types.instance(context);
         var names = Names.instance(context);
+        var maker = TreeMaker.instance(context).at(source.pos);
+
+        // TODO: Check this is a call to java.lang.invoke.LambdaMetafactory.metafactory (which we're assuming)
 
         var interfaceType = dynamicMethodSymbol.dynamicType().getReturnType();
-        var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(interfaceType.tsym);
-        var maker = TreeMaker.instance(context).at(source.pos);
+        var interfaceMethodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(interfaceType.tsym);
+
+        com.sun.tools.javac.util.List<JCTree.JCVariableDecl> params = com.sun.tools.javac.util.List.nil();
+        int index = 0;
+        for (com.sun.tools.javac.code.Type pt : dynamicMethodSymbol.dynamicType().getParameterTypes()) {
+            var name = names.fromString("p" + index);
+            var symbol = new Symbol.VarSymbol(SYNTHETIC, name, pt, dynamicMethodSymbol);
+            params = params.append(maker.VarDef(symbol, null));
+            index++;
+        }
+        params = params.reverse();
+
         // TODO: More robust access than a magic [1]
-        var methodRef = ((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
+        var methodSymbol = (Symbol.MethodSymbol)((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
         // TODO: More robust method for creating new symbols without clashing
-        var methodCall = maker.App(maker.QualIdent(methodRef), methodSymbol.params().map(p -> maker.Ident(p)));
+        var arguments = params.<JCTree.JCExpression>map(p -> maker.Ident(p.sym)).appendList(interfaceMethodSymbol.params().map(p -> maker.Ident(p)));
+        var methodCall = maker.App(maker.QualIdent(methodSymbol), arguments);
         var resultSymbol = new Symbol.VarSymbol(0, names.fromString("result"), methodSymbol.getReturnType(), dynamicMethodSymbol);
         var returnVar = maker.VarDef(maker.Modifiers(0), resultSymbol.name, maker.Type(methodSymbol.getReturnType()), methodCall);
         JCTree.JCStatement returnStmt = maker.Return(maker.Ident(resultSymbol));
         com.sun.tools.javac.util.List stmts = com.sun.tools.javac.util.List.of(returnVar, returnStmt);
         var body = maker.Block(0, stmts);
-        var methodDecl = translateMethodOrLambda(source, maker.Modifiers(0), methodSymbol, body);
+        var methodDecl = translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body);
 
         // Add a wrapper datatype with that method declaration to the outer scope
         var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
         var datatypeNameNode = new Name(origin, datatypeName);
         // TODO: Need constructor parameters this time
-        var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
+        List<Formal> datatypeCtorParams = params.stream().map(p ->
+                new Formal(origin, getName(p, p.name), toType(p.type, origin), false, true,
+                        null, null, false, false, false, null)).toList();
+        var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, datatypeCtorParams);
         var trait = toType(interfaceType, origin);
         var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
                 List.of(trait), List.of(datatypeCtor), false);
