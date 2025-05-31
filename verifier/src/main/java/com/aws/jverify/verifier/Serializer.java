@@ -9,7 +9,7 @@ import java.util.*;
 
 public class Serializer {
     Encoder encoder;
-    private static Map<String, String> simpleTypeNameMapping = 
+    private static Map<String, String> simpleTypeNameMapping =
             Map.of("Integer", "Int32",
                     "Long", "Int64",
                     "Short", "Int16",
@@ -19,6 +19,15 @@ public class Serializer {
 
     public Serializer(Encoder encoder) {
         this.encoder = encoder;
+    }
+
+    private void withIndent(Runnable r) {
+        encoder.indent();
+        try {
+            r.run();
+        } finally {
+            encoder.undent();
+        }
     }
 
     public <T> void serialize(Object obj) {
@@ -36,6 +45,13 @@ public class Serializer {
         if (value == null) {
             throw new RuntimeException("Cannot serialize null value if no nullable type is expected. Type was " + annotatedType);
         }
+
+        Class<?> actualType = value.getClass();
+        String simpleName = actualType.getSimpleName();
+        if (simpleTypeNameMapping.containsKey(simpleName)) {
+            simpleName = simpleTypeNameMapping.get(simpleName);
+        }
+        encoder.writeQualifiedName(simpleName);
 
         var type = annotatedType.getType();
         Class<?> expectedClass;
@@ -59,34 +75,30 @@ public class Serializer {
         }
 
         if (expectedClass.isArray()) {
-            serializeArray(value, (AnnotatedParameterizedType) annotatedType);
+            withIndent(() ->
+                serializeArray(value, (AnnotatedParameterizedType) annotatedType)
+            );
             return;
         } else if (value instanceof List<?> list){
-            serializeList(list, (AnnotatedParameterizedType) annotatedType);
+            withIndent(() ->
+                serializeList(list, (AnnotatedParameterizedType) annotatedType)
+            );
             return;
         }
 
-        boolean isAbstract = Object.class == expectedClass || (Object.class.isAssignableFrom(expectedClass) && Modifier.isAbstract(expectedClass.getModifiers()));
-        if (isAbstract) {
-            Class<?> actualType = value.getClass();
-            String simpleName = actualType.getSimpleName();
-            if (simpleTypeNameMapping.containsKey(simpleName)) {
-                simpleName = simpleTypeNameMapping.get(simpleName);
+        withIndent(() -> {
+            switch (value) {
+                case String s -> encoder.writeString(s);
+                case Map<?, ?> map -> serializeMap(map, (AnnotatedParameterizedType) annotatedType);
+                case Integer i -> encoder.writeInt(i);
+                case Long l -> encoder.writeLong(l);
+                case Float f -> encoder.writeDouble((double) f);
+                case Double d -> encoder.writeDouble(d);
+                case Boolean b -> encoder.writeBool(b);
+                case Character c -> encoder.writeString(new String(new char[]{c}));
+                default -> serializeObject(value);
             }
-            encoder.writeQualifiedName(simpleName);
-        }
-
-        switch (value) {
-            case String s -> encoder.writeString(s);
-            case Map<?, ?> map -> serializeMap(map, (AnnotatedParameterizedType) annotatedType);
-            case Integer i -> encoder.writeInt(i);
-            case Long l -> encoder.writeLong(l);
-            case Float f -> encoder.writeDouble((double)f);
-            case Double d -> encoder.writeDouble(d);
-            case Boolean b -> encoder.writeBool(b);
-            case Character c -> encoder.writeString(new String(new char[] {c}));
-            default -> serializeObject(value);
-        }
+        });
     }
 
     private void serializeList(List<?> list, AnnotatedParameterizedType arrayType) {
