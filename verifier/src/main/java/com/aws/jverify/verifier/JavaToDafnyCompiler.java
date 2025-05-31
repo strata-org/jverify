@@ -35,6 +35,7 @@ import com.sun.tools.javac.util.Names;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
@@ -872,8 +873,8 @@ public class JavaToDafnyCompiler {
                     return jverifyMethodExpr;
                 }
 
-                var target = toExpr(invocation.getMethodSelect());
                 contextOrigins.push(origin);
+                var target = toExpr(invocation.getMethodSelect());
                 try {
                     var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
                     return new ApplySuffix(origin, target, null,
@@ -963,7 +964,16 @@ public class JavaToDafnyCompiler {
         var methodSymbol = (Symbol.MethodSymbol)((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
         // TODO: More robust method for creating new symbols without clashing
         var arguments = params.<JCTree.JCExpression>map(p -> maker.Ident(p.sym)).appendList(interfaceMethodSymbol.params().map(p -> maker.Ident(p)));
-        var methodCall = maker.App(maker.QualIdent(methodSymbol), arguments);
+        JCTree.JCExpression methodCall;
+        if (isConstructor(methodSymbol)) {
+            var newClass = maker.NewClass(null, com.sun.tools.javac.util.List.nil(), maker.Type(methodSymbol.owner.type), arguments, null);
+            newClass.constructor = methodSymbol;
+            methodCall = newClass;
+        } else {
+            methodCall = methodSymbol.getModifiers().contains(Modifier.STATIC)
+                    ? maker.App(maker.QualIdent(methodSymbol), arguments)
+                    : maker.App(maker.Select(arguments.getFirst(), methodSymbol), arguments.tail);
+        }
         var resultSymbol = new Symbol.VarSymbol(0, names.fromString("result"), methodSymbol.getReturnType(), dynamicMethodSymbol);
         var returnVar = maker.VarDef(maker.Modifiers(0), resultSymbol.name, maker.Type(methodSymbol.getReturnType()), methodCall);
         JCTree.JCStatement returnStmt = maker.Return(maker.Ident(resultSymbol));
@@ -1417,7 +1427,7 @@ public class JavaToDafnyCompiler {
         return methodSymbol.name == methodSymbol.name.table.names.init;
     }
 
-    private IOrigin declToOrigin(JCTree node, Name name) {
+    private SourceOrigin declToOrigin(JCTree node, Name name) {
         var entireRange = toOrigin(node);
         return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
     }
@@ -1428,10 +1438,10 @@ public class JavaToDafnyCompiler {
             return contextOrigins.peek();
         }
         int endPos = getEndPos(node);
-        var endToken = endPos == Position.NOPOS ? toToken(TreeInfo.getStartPos(node) + 1) : toToken(endPos);
+        var endToken = endPos == Position.NOPOS ? originToRange(contextOrigins.peek()).getEndToken() : toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
     }
-    
+
     private TokenRange originToRange(IOrigin tokenRangeOrigin) {
         if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
             return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());

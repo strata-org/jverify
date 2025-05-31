@@ -346,19 +346,24 @@ public class MethodCompiler {
 
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
         var origin = compiler.toOrigin(invocation);
-        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
-            if (!invocation.getArguments().isEmpty()) {
-                compiler.reportError(invocation, "notSupported", "super calls with arguments");
+        compiler.contextOrigins.push(origin);
+        try {
+            if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
+                if (!invocation.getArguments().isEmpty()) {
+                    compiler.reportError(invocation, "notSupported", "super calls with arguments");
+                    return List.of();
+                }
                 return List.of();
             }
-            return List.of();
+            var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, compiler.toExpr(a), false)).toList();
+            Expression expr = compiler.toExpr(invocation.getMethodSelect());
+            ApplySuffix applySuffix = new ApplySuffix(origin, expr, null,
+                    new ActualBindings(argBindings), null);
+            return List.of(new AssignStatement(origin, null, List.of(),
+                    List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+        } finally {
+            compiler.contextOrigins.pop();
         }
-        var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, compiler.toExpr(a), false)).toList();
-        Expression expr = compiler.toExpr(invocation.getMethodSelect());
-        ApplySuffix applySuffix = new ApplySuffix(origin, expr, null,
-                new ActualBindings(argBindings), null);
-        return List.of(new AssignStatement(origin, null, List.of(),
-                List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
     }
 
     public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt) {
