@@ -1,16 +1,15 @@
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import java.lang.foreign.SymbolLookup;
 import java.util.Collection;
 import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
 
 @JVerifyTest(dafnyVerified = 0, dafnyErrors = 0)
-
-class PolymorphismTest {
+public class Polymorphism {
     void root() {
         NumberContainer<Integer> intContainer = new NumberContainer<>(42);
         NumberContainer<Double> doubleContainer = new NumberContainer<>(3.14);
@@ -44,8 +43,16 @@ class PolymorphismTest {
     }
 }
 
+@Contract(Drawable.class)
+class DrawableContract implements Drawable {
+    @Override
+    public void draw() {
+    }
+}
+
 interface Drawable {
     void draw();
+    
 }
 
 // T must implement both Drawable and Comparable
