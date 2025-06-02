@@ -33,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -398,13 +399,20 @@ public class JavaToDafnyCompiler {
         }
         var definingSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
         var interfaces = definingSymbol.getInterfaces();
+        
         var trees = JavacTrees.instance(context);
-        var superTraits = interfaces.stream().
+        Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
+// 'extends' not yet supported
+//        if (definingSymbol.getSuperclass() != null)
+//        {
+//            baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
+//        }
+        var superTraits = baseTypes.
                 filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
                 map((com.sun.tools.javac.code.Type type) -> toType(origin, type)).
                 collect(Collectors.<Type>toList());
         
-        var typeParameters = toTypeParameters(classDecl.typarams);
+        var typeParameters = translateTypeParameters(classDecl.typarams);
         if (createTrait) {
             if (classDecl.getModifiers().getAnnotations().stream().
                     anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
@@ -423,7 +431,7 @@ public class JavaToDafnyCompiler {
                 javaType.getTypeArguments().isEmpty() ? null : javaType.getTypeArguments().map(a -> toType(origin, a))));
     }
 
-    private List<TypeParameter> toTypeParameters(List<JCTree.JCTypeParameter> typarams) {
+    private List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
         var typeParameters = typarams.stream().map(p -> {
             var tpName = getName(p, p.getName());
             var bounds = p.bounds.map(this::toType);
@@ -572,7 +580,7 @@ public class JavaToDafnyCompiler {
             return null;
         }
 
-        var dafnyTypeParameters = toTypeParameters(typeParameters);
+        var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
         List<Formal> ins = methodSymbol.getParameters().map(jvd -> {
             Name formalName = new Name(origin, jvd.name.toString());
@@ -606,7 +614,7 @@ public class JavaToDafnyCompiler {
                 if (shouldVerify) {
                     if (statement instanceof JCTree.JCReturn returnStatement) {
                         body = toExpr(returnStatement.expr);
-                        return new Function(origin, name, null, false, null, List.of(),
+                        return new Function(origin, name, null, false, null, dafnyTypeParameters,
                                 ins, header.preconditions, header.postconditions, header.getReads(),
                                 header.getDecreases(), isStatic, false, null, returnType,
                                 body, null, null);
@@ -944,7 +952,7 @@ public class JavaToDafnyCompiler {
                 var type = this.toExpr(typeApply.getType());
                 if (type instanceof NameSegment nameSegment) {
                     var arguments = typeApply.getTypeArguments().stream().map(this::toType).toList();
-                    var name = new NameSegment(nameSegment.getOrigin(), nameSegment.getName(), arguments);
+                    var name = new NameSegment(origin, nameSegment.getName(), arguments);
                     return name;
                 }
                 throw new RuntimeException("");
@@ -1321,18 +1329,19 @@ public class JavaToDafnyCompiler {
             return TypeKind.VOID;
         } else if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
             return primitiveType.getKind();
-        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
-                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
-            var name = classType.tsym.getSimpleName().toString();
-            if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
-            if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
-            if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
-            if (name.equals(Integer.class.getSimpleName())) return TypeKind.INT;
-            if (name.equals(Long.class.getSimpleName())) return TypeKind.LONG;
-            if (name.equals(Character.class.getSimpleName())) return TypeKind.CHAR;
-            if (name.equals(Float.class.getSimpleName())) return TypeKind.FLOAT;
-            if (name.equals(Double.class.getSimpleName())) return TypeKind.DOUBLE;
-        }
+        } 
+//        else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
+//                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
+//            var name = classType.tsym.getSimpleName().toString();
+//            if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
+//            if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
+//            if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
+//            if (name.equals(Integer.class.getSimpleName())) return TypeKind.INT;
+//            if (name.equals(Long.class.getSimpleName())) return TypeKind.LONG;
+//            if (name.equals(Character.class.getSimpleName())) return TypeKind.CHAR;
+//            if (name.equals(Float.class.getSimpleName())) return TypeKind.FLOAT;
+//            if (name.equals(Double.class.getSimpleName())) return TypeKind.DOUBLE;
+//        }
 
         return null;
     }
