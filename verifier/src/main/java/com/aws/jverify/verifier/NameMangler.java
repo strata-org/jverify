@@ -69,10 +69,6 @@ public class NameMangler {
         }
         return name;
     }
-    
-    public Symbol unmangleName(String name) {
-        return reverseSymbolStringMap.get(name);
-    }
 
     public String mangleSymbolName(Symbol s) {
         if (symbolStringMap.containsKey(s)) {

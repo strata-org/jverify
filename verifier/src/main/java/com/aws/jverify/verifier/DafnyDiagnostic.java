@@ -110,7 +110,13 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
     }
 
     public String getMessage(Locale locale) {
-        String message = MessageFormat.format(safeFormat(getDefaultFormatMessage()), getArguments());
+        String formatMessage = getDefaultFormatMessage();
+        String message;
+        if (getArguments().length > 0) {
+            message = MessageFormat.format(safeFormat(formatMessage), getArguments());
+        } else {
+            message = formatMessage;
+        }
         return getSeverityMessage() + ": "+ message;
     }
 
