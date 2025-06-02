@@ -1339,8 +1339,7 @@ public class JavaToDafnyCompiler {
             return TypeKind.VOID;
         } else if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
             return primitiveType.getKind();
-        } 
-        else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
+        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
                 && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
             var name = classType.tsym.getSimpleName().toString();
             if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
