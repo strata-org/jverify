@@ -3,7 +3,6 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.common.Position;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.sun.tools.javac.util.*;
@@ -308,8 +307,8 @@ public class Driver {
                 try {
                     DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
                     if (output instanceof DafnyDiagnostic dafnyDiagnostic) {
-                        for (var index = 0; index < dafnyDiagnostic.messageParts.length; index++) {
-                            dafnyDiagnostic.messageParts[index] = mangler.safeUnmangleName(dafnyDiagnostic.messageParts[index]);
+                        for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
+                            dafnyDiagnostic.arguments[index] = mangler.safeUnmangleName(dafnyDiagnostic.arguments[index]);
                         }
                     }
                     if (output instanceof StatusMessage statusMessage) {

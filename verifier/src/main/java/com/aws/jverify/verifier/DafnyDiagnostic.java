@@ -7,8 +7,6 @@ import javax.tools.Diagnostic;
 import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -27,22 +25,22 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
     @JsonProperty("errorId")
     public String errorId;
 
-    @JsonProperty("messageParts")
-    public String[] messageParts;
+    @JsonProperty("arguments")
+    public String[] arguments;
     
-    @JsonProperty("messageIdDefaults")
-    public String[] messageIdDefaults;
+    @JsonProperty("defaultFormatMessage")
+    public String defaultFormatMessage;
 
     public String getErrorId() {
         return errorId;
     }
 
-    public String[] getMessageParts() {
-        return messageParts;
+    public String[] getArguments() {
+        return arguments;
     }
 
-    public String[] getMessageIdDefaults() {
-        return messageIdDefaults;
+    public String getDefaultFormatMessage() {
+        return defaultFormatMessage;
     }
 
     /**
@@ -112,34 +110,8 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
     }
 
     public String getMessage(Locale locale) {
-        String message = messageFromParts(getMessageParts(), getMessageIdDefaults());
+        String message = MessageFormat.format(safeFormat(getDefaultFormatMessage()), getArguments());
         return getSeverityMessage() + ": "+ message;
-    }
-
-    public static String messageFromParts(String[] messageParts, String[] defaultMessagesArray) {
-        var queue = new ArrayDeque<>(Arrays.stream(messageParts).toList());
-        var defaultMessages = new ArrayDeque<>(Arrays.stream(defaultMessagesArray).toList());
-        return messageFromQueue(queue, defaultMessages);
-    }
-
-    private static String messageFromQueue(Queue<String> stack, Queue<String> defaultMessages) {
-        String current = stack.poll();
-        String resolved = isMessageId(current) ? defaultMessages.poll() : current;
-
-        // Escape braces that don't contain just numbers
-        String safeResolved = safeFormat(resolved);
-
-        int argumentCount = countArgumentsOfFormatMessage(safeResolved);
-        Object[] arguments = new Object[argumentCount];
-        for (int index = 0; index < argumentCount; index++) {
-            arguments[index] = messageFromQueue(stack, defaultMessages);
-        }
-
-        return MessageFormat.format(safeResolved, arguments);
-    }
-
-    private static boolean isMessageId(String s) {
-        return s.startsWith("$");
     }
 
     private static String safeFormat(String format) {
@@ -149,18 +121,6 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
         escaped = escaped.replaceAll("(?<!\\d)\\}", "}}");
         
         return escaped.replace("'", "''");
-    }
-
-    private static int countArgumentsOfFormatMessage(String format) {
-        Pattern pattern = Pattern.compile("\\{(\\d+)\\}");
-        Matcher matcher = pattern.matcher(format);
-        Set<Integer> placeholders = new HashSet<>();
-
-        while (matcher.find()) {
-            placeholders.add(Integer.parseInt(matcher.group(1)));
-        }
-
-        return placeholders.size();
     }
     
     public String getSeverityMessage() {
@@ -183,14 +143,14 @@ public class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
 
     public record Location(String filename, String filePath, String uri, Range range) {}
 
-    public record RelatedInfo(Location location, String errorId, String[] messageParts, String[] messageIdDefaults) {
+    public record RelatedInfo(Location location, String errorId, String[] arguments, String defaultFormatMessage) {
         public DafnyDiagnostic asDiagnostic() {
             var diagnostic = new DafnyDiagnostic();
             diagnostic.location = location;
             diagnostic.severity = SEVERITY_RELATED_LOCATION;
             diagnostic.errorId = errorId;
-            diagnostic.messageParts = messageParts;
-            diagnostic.messageIdDefaults = messageIdDefaults;
+            diagnostic.arguments = arguments;
+            diagnostic.defaultFormatMessage = defaultFormatMessage;
             return diagnostic;
         }
     }
