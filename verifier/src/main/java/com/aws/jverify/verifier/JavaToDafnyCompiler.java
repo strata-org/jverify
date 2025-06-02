@@ -439,7 +439,7 @@ public class JavaToDafnyCompiler {
                     tpName, null, TPVarianceSyntax.NonVariant_Strict,
                     new TypeParameterCharacteristics(
                             TypeParameterEqualitySupportValue.InferredRequired,
-                            TypeAutoInitInfo.CompilableValue,
+                            TypeAutoInitInfo.MaybeEmpty,
                             false
                     ),
                     bounds);
