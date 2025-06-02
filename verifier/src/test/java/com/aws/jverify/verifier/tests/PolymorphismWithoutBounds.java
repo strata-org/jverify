@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
 public class PolymorphismWithoutBounds {
     public static void root() {
         var obj = new Object();
@@ -14,6 +14,9 @@ public class PolymorphismWithoutBounds {
 
         GenericContainer<Object> container2 = new GenericContainer<>(obj);
         check(obj == container2.getValue());
+
+        var container3 = new GenericContainer.NestedGenericContainer<>(obj);
+        check(obj == container3.getValue());
         
         var obj2 = PolymorphismWithoutBounds.<Object>genericIdentity(obj);
         check(obj == obj2);
@@ -40,5 +43,20 @@ class GenericContainer<T> {
     public T getValue() {
         reads(this);
         return value;
+    }
+    
+    public static class NestedGenericContainer<U> {
+        private U value;
+
+        public NestedGenericContainer(U value) {
+            postcondition(this.value == value);
+            this.value = value;
+        }
+
+        @Pure
+        public U getValue() {
+            reads(this);
+            return value;
+        }
     }
 }

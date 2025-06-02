@@ -956,8 +956,7 @@ public class JavaToDafnyCompiler {
                     }
                     return new NameSegment(origin, nameSegment.getName(), arguments);
                 }
-                reportError(expr, "notSupported", "Type application on " + type.getClass().getSimpleName());
-                return getHole(origin);  
+                throw new RuntimeException("All Dafny type references are NameSegments, since we do not use Dafny modules");
             }
             case null, default -> {
             }
