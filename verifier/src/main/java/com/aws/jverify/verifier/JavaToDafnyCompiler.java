@@ -298,15 +298,31 @@ public class JavaToDafnyCompiler {
             throw new NotImplementedException(tree.getClass().getName());
         }
     }
-
+    
     private static boolean isInterface(JCTree.JCClassDecl classDecl) {
         return (classDecl.mods.flags & Flags.INTERFACE) != 0;
+    }
+
+    private static boolean isAbstract(JCTree.JCClassDecl classDecl) {
+        return (classDecl.mods.flags & Flags.ABSTRACT) != 0;
+    }
+
+    private static boolean isInterfaceOrAbstract(JCTree.JCClassDecl classDecl) {
+        return isInterface(classDecl) || isAbstract(classDecl);
     }
 
     private static boolean isInterface(Symbol.ClassSymbol classDecl) {
         return (classDecl.flags() & Flags.INTERFACE) != 0;
     }
 
+    private static boolean isAbstract(Symbol.ClassSymbol classDecl) {
+        return (classDecl.flags() & Flags.ABSTRACT) != 0;
+    }
+
+    private static boolean isInterfaceOrAbstract(Symbol.ClassSymbol classDecl) {
+        return isInterface(classDecl) || isAbstract(classDecl);
+    }
+    
     private void processVerifyAnnotation(Map<String, JCTree.JCAnnotation> annotationsByName) {
         var verifyAnnotation = annotationsByName.get(Verify.class.getName());
         if (verifyAnnotation != null) {
@@ -356,8 +372,8 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        var isInterface = typeForWhichCurrentClassIsDefiningContract == null ? isInterface(classDecl) :
-                isInterface(typeForWhichCurrentClassIsDefiningContract);
+        var createTrait = typeForWhichCurrentClassIsDefiningContract == null ? isInterfaceOrAbstract(classDecl) :
+                isInterfaceOrAbstract(typeForWhichCurrentClassIsDefiningContract);
         
         ArrayList<MemberDecl> members = new ArrayList<>();
         initializers.clear();
@@ -390,7 +406,7 @@ public class JavaToDafnyCompiler {
                 collect(Collectors.<Type>toList());
 
         var typeParameters = toTypeParameters(classDecl.typarams);
-        if (isInterface) {
+        if (createTrait) {
             if (classDecl.getModifiers().getAnnotations().stream().
                     anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
                             ident.name.contentEquals("Modifiable"))) {

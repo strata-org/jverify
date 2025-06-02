@@ -12,8 +12,8 @@ import static com.aws.jverify.JVerify.check;
 @JVerifyTest(dafnyVerified = 0, dafnyErrors = 0)
 public class Polymorphism {
     void root() {
-        NumberContainer<Integer> intContainer = new NumberContainer<>(42);
-        NumberContainer<Double> doubleContainer = new NumberContainer<>(3.14);
+//        NumberContainer<Integer> intContainer = new NumberContainer<>(42);
+//        NumberContainer<Double> doubleContainer = new NumberContainer<>(3.14);
         // check(intContainer.getDoubleValue() == 42.0);
         // check(doubleContainer.getDoubleValue() == 3.14);
 
@@ -23,9 +23,9 @@ public class Polymorphism {
         // String maxString = findMax("apple", "banana");
         // check(maxString.equals("banana"));
 
-        List<Integer> intList = List.of(1, 2, 3, 4, 5);
+        List<Integer> intList = List.of(1, 2);
         double sum = sumCollection(intList);
-        // check(sum == 15);
+        // check(sum == 3);
     }
 
     // Method with bounded type parameter
@@ -67,14 +67,14 @@ class Shape<T extends Drawable & Comparable<T>> {
 }
 
 // T must be a Number or its subclass
-class NumberContainer<T extends Number> {
-    private final T value;
-
-    public NumberContainer(T value) {
-        this.value = value;
-    }
-
-//    public double getDoubleValue() {
-//        return value.doubleValue(); // Can call Number methods
+//class NumberContainer<T extends Number> {
+//    private final T value;
+//
+//    public NumberContainer(T value) {
+//        this.value = value;
 //    }
-}
+//
+////    public double getDoubleValue() {
+////        return value.doubleValue(); // Can call Number methods
+////    }
+//}

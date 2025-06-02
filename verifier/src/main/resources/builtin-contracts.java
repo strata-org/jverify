@@ -1,8 +1,11 @@
 package com.aws.jverify.builtin;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
+
 import java.lang.annotation.Native;
 import java.util.Collection;
+import java.util.List;
 
 @Contract(Object.class)
 class ObjectContract {    
@@ -15,12 +18,12 @@ class ShortContract {
 }
 
 @Contract(Comparable.class)
-class ComparableContract {
+class ComparableContract<T> {
 
 }
 
 @Contract(Number.class)
-class NumberContract {
+interface NumberContract {
     
 }
 
@@ -29,14 +32,21 @@ class CollectionContract {
 
 }
 
+@Contract(List.class)
+class ListContract<T> {
+    public static List<T> of(T first, T second) {
+        throw new ContractException();
+    }
+}
+
 @Contract(Integer.class)
-class IntegerContract extends NumberContract {
+class IntegerContract implements NumberContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
 }
 
 @Contract(Long.class)
-class LongContract extends NumberContract {
+class LongContract implements NumberContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
 }
