@@ -6,16 +6,16 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(dafnyVerified = 3, dafnyErrors = 0)
-public class Polymorphism {
+public class PolymorphismWithoutBounds {
     public static void root() {
         var obj = new Object();
         GenericContainer<Object> container = new GenericContainer<Object>(obj);
         check(obj == container.getValue());
-        
+
         GenericContainer<Object> container2 = new GenericContainer<>(obj);
         check(obj == container2.getValue());
         
-        var obj2 = Polymorphism.<Object>genericIdentity(obj);
+        var obj2 = PolymorphismWithoutBounds.<Object>genericIdentity(obj);
         check(obj == obj2);
 
         var obj3 = genericIdentity(obj);

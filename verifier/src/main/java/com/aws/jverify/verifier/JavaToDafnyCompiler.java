@@ -409,7 +409,7 @@ public class JavaToDafnyCompiler {
 //        }
         var superTraits = baseTypes.
                 filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
-                map((com.sun.tools.javac.code.Type type) -> toType(origin, type)).
+                map((com.sun.tools.javac.code.Type type) -> translateType(origin, type)).
                 collect(Collectors.<Type>toList());
         
         var typeParameters = translateTypeParameters(classDecl.typarams);
@@ -426,17 +426,20 @@ public class JavaToDafnyCompiler {
     }
     
     
-    Type toType(IOrigin origin,  com.sun.tools.javac.code.Type javaType) {
+    Type translateType(IOrigin origin, com.sun.tools.javac.code.Type javaType) {
         return new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(javaType.tsym),
-                javaType.getTypeArguments().isEmpty() ? null : javaType.getTypeArguments().map(a -> toType(origin, a))));
+                javaType.getTypeArguments().isEmpty() ? null : javaType.getTypeArguments().map(a -> translateType(origin, a))));
     }
 
     private List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
-        var typeParameters = typarams.stream().map(p -> {
-            var tpName = getName(p, p.getName());
-            var bounds = p.bounds.map(this::toType);
+        return typarams.stream().map(p -> {
+            var name = getName(p, p.getName());
+            if (!p.bounds.isEmpty()) {
+               reportError(p, "notSupported", "type bounds");
+            }
+            var bounds = p.bounds.map(this::translateType);
             return new TypeParameter(toOrigin(p),
-                    tpName, null, TPVarianceSyntax.NonVariant_Strict,
+                    name, null, TPVarianceSyntax.NonVariant_Strict,
                     new TypeParameterCharacteristics(
                             TypeParameterEqualitySupportValue.InferredRequired,
                             TypeAutoInitInfo.MaybeEmpty,
@@ -444,7 +447,6 @@ public class JavaToDafnyCompiler {
                     ),
                     bounds);
         }).toList();
-        return typeParameters;
     }
 
     static final String builtinFile = "/builtin-contracts.java";
@@ -498,7 +500,7 @@ public class JavaToDafnyCompiler {
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
         Name fieldName = getName(variableDecl, nameMangler.mangleSymbolName(variableDecl.sym));
         IOrigin origin = declToOrigin(variableDecl, fieldName);
-        Type type = toType(variableDecl.vartype.type, isNullable(variableDecl.getModifiers()), toOrigin(variableDecl.vartype));
+        Type type = translateType(variableDecl.vartype.type, isNullable(variableDecl.getModifiers()), toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
             var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
             if (isFinal) {
@@ -584,7 +586,7 @@ public class JavaToDafnyCompiler {
 
         List<Formal> ins = methodSymbol.getParameters().map(jvd -> {
             Name formalName = new Name(origin, jvd.name.toString());
-            var syntacticType = toType(jvd.type, origin);
+            var syntacticType = translateType(jvd.type, origin);
             return new Formal(origin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
@@ -593,7 +595,7 @@ public class JavaToDafnyCompiler {
         if (annotationsByName.containsKey(Pure.class.getName())) {
             Expression body = null;
             var header = new HeaderContainer();
-            var returnType = toType(methodType.getReturnType(), bodyOrigin);
+            var returnType = translateType(methodType.getReturnType(), bodyOrigin);
             if (returnType == null) {
                 reportError(source, "pureMethodsNeedsReturnType");
                 return null;
@@ -653,7 +655,7 @@ public class JavaToDafnyCompiler {
             }
             var outs = new ArrayList<Formal>();
             if (methodType.getReturnType() != null) {
-                var returnType = toType(methodType.getReturnType(), bodyOrigin);
+                var returnType = translateType(methodType.getReturnType(), bodyOrigin);
                 if (returnType != null) {
                     Name returnName;
                     if (header.returnNames.size() == 1) {
@@ -804,7 +806,7 @@ public class JavaToDafnyCompiler {
                 if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
                     reportError(expr, "notSupported", "multi-dimensional arrays");
                 }
-                var arrayDafnyType = toType(arrayJavaType.type, true, toOrigin(arrayJavaType));
+                var arrayDafnyType = translateType(arrayJavaType.type, true, toOrigin(arrayJavaType));
 
                 if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                     reportError(expr, "notSupported", "new array with initializers");
@@ -921,12 +923,12 @@ public class JavaToDafnyCompiler {
             }
             case JCTree.JCInstanceOf instanceOf -> {
                 var expression = toExpr(instanceOf.getExpression());
-                var jcType = toType(instanceOf.getType());
+                var jcType = translateType(instanceOf.getType());
                 return new TypeTestExpr(origin, expression, jcType);
             }
             case JCTree.JCTypeCast cast -> {
                 var castExpr = toExpr(cast.getExpression());
-                var type = toType(cast.getType());
+                var type = translateType(cast.getType());
                 return new ConversionExpr(origin, castExpr, type, "");
             }
             case JCTree.JCLambda lambda -> {
@@ -938,7 +940,7 @@ public class JavaToDafnyCompiler {
                 var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
                 var datatypeNameNode = new Name(origin, datatypeName);
                 var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
-                var trait = toType(lambda.target, origin);
+                var trait = translateType(lambda.target, origin);
                 var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
                         List.of(trait), List.of(datatypeCtor), false);
                 lambdaDatatypeDecls.add(datatypeDecl);
@@ -954,9 +956,9 @@ public class JavaToDafnyCompiler {
                     
                     List<Type> arguments;
                     if (typeApply.getTypeArguments().isEmpty()) {
-                        arguments = typeApply.type.getTypeArguments().stream().map(t -> toType(origin, t)).toList();
+                        arguments = typeApply.type.getTypeArguments().stream().map(t -> translateType(origin, t)).toList();
                     } else {
-                        arguments = typeApply.getTypeArguments().stream().map(this::toType).toList();
+                        arguments = typeApply.getTypeArguments().stream().map(this::translateType).toList();
                     }
                     var name = new NameSegment(origin, nameSegment.getName(), arguments);
                     return name;
@@ -1037,7 +1039,7 @@ public class JavaToDafnyCompiler {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = toType(param.getType().type, false, paramOrigin);
+                    var paramType = translateType(param.getType().type, false, paramOrigin);
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
@@ -1222,16 +1224,16 @@ public class JavaToDafnyCompiler {
         return new IdPattern(origin, false, "_", null, null, false);
     }
 
-    public @Nullable Type toType(JCTree tree) {
-        return toType(tree.type, isNullable(tree.type), toOrigin(tree));
+    public @Nullable Type translateType(JCTree tree) {
+        return translateType(tree.type, isNullable(tree.type), toOrigin(tree));
     }
 
-    public @Nullable Type toType(com.sun.tools.javac.code.Type type, IOrigin origin) {
-        return toType(type, isNullable(type), origin);
+    public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
+        return translateType(type, isNullable(type), origin);
     }
 
     @Nullable
-    public Type toType(com.sun.tools.javac.code.Type type, boolean isNullable, IOrigin origin) {
+    public Type translateType(com.sun.tools.javac.code.Type type, boolean isNullable, IOrigin origin) {
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
@@ -1295,7 +1297,7 @@ public class JavaToDafnyCompiler {
         switch (type) {
             case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
                 // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
-                var elemType = toType(arrayTypeTree.elemtype, true, origin);
+                var elemType = translateType(arrayTypeTree.elemtype, true, origin);
                 if (elemType == null) {
                     // should be unreachable
                     throw new IllegalArgumentException("Array type without element type");
@@ -1305,7 +1307,7 @@ public class JavaToDafnyCompiler {
             case com.sun.tools.javac.code.Type.ClassType classType -> {
                 // Remove the name qualification because we do not support that yet
                 var mangledName = nameMangler.mangleSymbolName(classType.tsym);
-                var arguments = classType.getTypeArguments().map(a -> toType(origin, a));
+                var arguments = classType.getTypeArguments().map(a -> translateType(origin, a));
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }
