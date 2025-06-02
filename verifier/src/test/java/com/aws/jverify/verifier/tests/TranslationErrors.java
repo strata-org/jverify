@@ -30,8 +30,6 @@ class TranslationErrors {
     void quantifierNeedsLambdaArgument() {
         java.util.function.Function<Integer, Boolean> f =
                 (Integer i) -> i > 0;
-//              ^ error: TypeVar is not supported
-//                             ^ error: TypeVar is not supported
         check(forall(f));
 //                   ^ error: the argument to a forall call must be a lambda
     }
