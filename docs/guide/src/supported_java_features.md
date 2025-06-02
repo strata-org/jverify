@@ -24,6 +24,7 @@ JVerify intends to support the full Java language, but is currently being develo
 - `implements`, but only classes implementing interfaces
 - `extends`, but only interfaces extending interfaces
 - Lambda expressions, but only those that don't read variables from their enclosing scope
+- Type parameters, but only those without bounds and no wildcards
 
 # Supported Java standard library packages
 
@@ -39,7 +40,6 @@ Nothing yet
 - `package` statements
 - Multi-dimensional array instantiation: `new [,]`
 - Array instantiation with initializers: `new int[] { 1, 2, 3 }`
-- Type parameters for types, including the declaration, declaration of bounds, and application
 - `extends`: but only classes inheriting other classes
 - Enhanced for loop: `for(var x : xs) { ... }`
 - Use of mutating operators such as `=` in a nested expression
