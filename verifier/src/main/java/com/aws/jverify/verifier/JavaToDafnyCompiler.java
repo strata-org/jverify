@@ -964,7 +964,8 @@ public class JavaToDafnyCompiler {
                     var name = new NameSegment(origin, nameSegment.getName(), arguments);
                     return name;
                 }
-                throw new RuntimeException("");
+                reportError(expr, "notSupported", "Type application on " + type.getClass().getSimpleName());
+                return getHole(origin);  
             }
             case null, default -> {
             }
