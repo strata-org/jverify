@@ -402,7 +402,7 @@ public class JavaToDafnyCompiler {
         
         var trees = JavacTrees.instance(context);
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
-// 'extends' not yet supported
+// 'extends' not yet supported when extending a class
 //        if (definingSymbol.getSuperclass() != null)
 //        {
 //            baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
@@ -956,6 +956,7 @@ public class JavaToDafnyCompiler {
                     
                     List<Type> arguments;
                     if (typeApply.getTypeArguments().isEmpty()) {
+                        // Occurs when the type arguments were inferred
                         arguments = typeApply.type.getTypeArguments().stream().map(t -> translateType(origin, t)).toList();
                     } else {
                         arguments = typeApply.getTypeArguments().stream().map(this::translateType).toList();
@@ -1338,18 +1339,18 @@ public class JavaToDafnyCompiler {
         } else if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
             return primitiveType.getKind();
         } 
-//        else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
-//                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
-//            var name = classType.tsym.getSimpleName().toString();
-//            if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
-//            if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
-//            if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
-//            if (name.equals(Integer.class.getSimpleName())) return TypeKind.INT;
-//            if (name.equals(Long.class.getSimpleName())) return TypeKind.LONG;
-//            if (name.equals(Character.class.getSimpleName())) return TypeKind.CHAR;
-//            if (name.equals(Float.class.getSimpleName())) return TypeKind.FLOAT;
-//            if (name.equals(Double.class.getSimpleName())) return TypeKind.DOUBLE;
-//        }
+        else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
+                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
+            var name = classType.tsym.getSimpleName().toString();
+            if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
+            if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
+            if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
+            if (name.equals(Integer.class.getSimpleName())) return TypeKind.INT;
+            if (name.equals(Long.class.getSimpleName())) return TypeKind.LONG;
+            if (name.equals(Character.class.getSimpleName())) return TypeKind.CHAR;
+            if (name.equals(Float.class.getSimpleName())) return TypeKind.FLOAT;
+            if (name.equals(Double.class.getSimpleName())) return TypeKind.DOUBLE;
+        }
 
         return null;
     }
