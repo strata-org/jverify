@@ -951,7 +951,13 @@ public class JavaToDafnyCompiler {
             case JCTree.JCTypeApply typeApply -> {
                 var type = this.toExpr(typeApply.getType());
                 if (type instanceof NameSegment nameSegment) {
-                    var arguments = typeApply.getTypeArguments().stream().map(this::toType).toList();
+                    
+                    List<Type> arguments;
+                    if (typeApply.getTypeArguments().isEmpty()) {
+                        arguments = typeApply.type.getTypeArguments().stream().map(t -> toType(origin, t)).toList();
+                    } else {
+                        arguments = typeApply.getTypeArguments().stream().map(this::toType).toList();
+                    }
                     var name = new NameSegment(origin, nameSegment.getName(), arguments);
                     return name;
                 }

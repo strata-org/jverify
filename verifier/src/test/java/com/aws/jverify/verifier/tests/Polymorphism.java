@@ -5,18 +5,21 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-// TODO: Support type bounds
-// TODO: Support wildcards
 @JVerifyTest(dafnyVerified = 3, dafnyErrors = 0)
 public class Polymorphism {
     public static void root() {
         var obj = new Object();
-        // TODO: support inferred type argument
-        // GenericContainer<Object> container = new GenericContainer<>(obj);
         GenericContainer<Object> container = new GenericContainer<Object>(obj);
         check(obj == container.getValue());
-        var obj2 = genericIdentity(obj);
+        
+        GenericContainer<Object> container2 = new GenericContainer<>(obj);
+        check(obj == container2.getValue());
+        
+        var obj2 = Polymorphism.<Object>genericIdentity(obj);
         check(obj == obj2);
+
+        var obj3 = genericIdentity(obj);
+        check(obj == obj3);
     }
     
     @Pure
