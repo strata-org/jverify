@@ -401,10 +401,9 @@ public class JavaToDafnyCompiler {
         var trees = JavacTrees.instance(context);
         var superTraits = interfaces.stream().
                 filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
-                map((com.sun.tools.javac.code.Type type) ->
-                    new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(type.tsym), null))).
+                map((com.sun.tools.javac.code.Type type) -> toType(origin, type)).
                 collect(Collectors.<Type>toList());
-
+        
         var typeParameters = toTypeParameters(classDecl.typarams);
         if (createTrait) {
             if (classDecl.getModifiers().getAnnotations().stream().
@@ -416,6 +415,12 @@ public class JavaToDafnyCompiler {
         } else {
             return new ClassDecl(origin, name, null, typeParameters, members, superTraits, false);
         }
+    }
+    
+    
+    Type toType(IOrigin origin,  com.sun.tools.javac.code.Type javaType) {
+        return new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(javaType.tsym),
+                javaType.getTypeArguments().isEmpty() ? null : javaType.getTypeArguments().map(a -> toType(origin, a))));
     }
 
     private List<TypeParameter> toTypeParameters(List<JCTree.JCTypeParameter> typarams) {
@@ -1286,14 +1291,18 @@ public class JavaToDafnyCompiler {
             case com.sun.tools.javac.code.Type.ClassType classType -> {
                 // Remove the name qualification because we do not support that yet
                 var mangledName = nameMangler.mangleSymbolName(classType.tsym);
-                Expression nameSegment = new NameSegment(origin, mangledName, null);
+                var arguments = classType.getTypeArguments().map(a -> toType(origin, a));
+                if (arguments.isEmpty()) {
+                    arguments = null;
+                }
+                Expression nameSegment = new NameSegment(origin, mangledName, arguments);
                 if (isNullable && nameSegment instanceof NameSegment ns) {
                     nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
                 }
                 return new UserDefinedType(origin, nameSegment);
             }
-            case com.sun.tools.javac.code.Type.TypeVar typeVar -> {                
-                return new UserDefinedType(origin, new NameSegment(origin, typeVar.tsym.name.toString(), null));
+            case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
+                return new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(typeVar.tsym), null));
             }
             case null, default -> {
             }

@@ -33,10 +33,9 @@ public class Polymorphism {
         return a.compareTo(b) > 0 ? a : b;
     }
 
-    // Multiple type parameters with different constraints
-    public static <T extends Collection<E>, E extends Number>
     @Verify(false)
-    double sumCollection(T collection) {
+    // Multiple type parameters with different constraints
+    public static <T extends Collection<E>, E extends Number> double sumCollection(T collection) {
         double sum = 0;
         for (E element : collection) {
             sum += element.doubleValue();

@@ -227,7 +227,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 true,
                 new String[] {
                         "--use-basename-for-filename",
-//                        "--wait-for-debugger",
+//                       "--wait-for-debugger",
                 },
                 annotation.verifyByDefault()
         );

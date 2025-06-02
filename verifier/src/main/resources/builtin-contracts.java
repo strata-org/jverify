@@ -3,9 +3,9 @@ package com.aws.jverify.builtin;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 
-import java.lang.annotation.Native;
 import java.util.Collection;
 import java.util.List;
+import java.util.SequencedCollection;
 
 @Contract(Object.class)
 class ObjectContract {    
@@ -28,25 +28,30 @@ interface NumberContract {
 }
 
 @Contract(Collection.class)
-class CollectionContract {
+interface CollectionContract<E> {
 
 }
 
 @Contract(List.class)
-class ListContract<T> {
-    public static List<T> of(T first, T second) {
+abstract class ListContract<E> implements SequencedCollection<E> {
+    public static <E> List<E> of(E first, E second) {
         throw new ContractException();
     }
 }
 
+@Contract(SequencedCollection.class)
+interface SequencedCollectionContract<E> extends Collection<E> {
+    
+}
+
 @Contract(Integer.class)
-class IntegerContract implements NumberContract {
+class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
 }
 
 @Contract(Long.class)
-class LongContract implements NumberContract {
+class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
 }
