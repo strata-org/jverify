@@ -409,7 +409,7 @@ public class JavaToDafnyCompiler {
 //        }
         var superTraits = baseTypes.
                 filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
-                map((com.sun.tools.javac.code.Type type) -> translateType(origin, type)).
+                map((com.sun.tools.javac.code.Type type) -> translateType(type, false, origin)).
                 collect(Collectors.<Type>toList());
         
         var typeParameters = translateTypeParameters(classDecl.typarams);
@@ -423,12 +423,6 @@ public class JavaToDafnyCompiler {
         } else {
             return new ClassDecl(origin, name, null, typeParameters, members, superTraits, false);
         }
-    }
-    
-    
-    Type translateType(IOrigin origin, com.sun.tools.javac.code.Type javaType) {
-        return new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(javaType.tsym),
-                javaType.getTypeArguments().isEmpty() ? null : javaType.getTypeArguments().map(a -> translateType(origin, a))));
     }
 
     private List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
@@ -953,16 +947,14 @@ public class JavaToDafnyCompiler {
             case JCTree.JCTypeApply typeApply -> {
                 var type = this.toExpr(typeApply.getType());
                 if (type instanceof NameSegment nameSegment) {
-                    
                     List<Type> arguments;
                     if (typeApply.getTypeArguments().isEmpty()) {
                         // Occurs when the type arguments were inferred
-                        arguments = typeApply.type.getTypeArguments().stream().map(t -> translateType(origin, t)).toList();
+                        arguments = typeApply.type.getTypeArguments().stream().map(t -> translateType(t, false, origin)).toList();
                     } else {
                         arguments = typeApply.getTypeArguments().stream().map(this::translateType).toList();
                     }
-                    var name = new NameSegment(origin, nameSegment.getName(), arguments);
-                    return name;
+                    return new NameSegment(origin, nameSegment.getName(), arguments);
                 }
                 throw new RuntimeException("");
             }
@@ -1308,7 +1300,7 @@ public class JavaToDafnyCompiler {
             case com.sun.tools.javac.code.Type.ClassType classType -> {
                 // Remove the name qualification because we do not support that yet
                 var mangledName = nameMangler.mangleSymbolName(classType.tsym);
-                var arguments = classType.getTypeArguments().map(a -> translateType(origin, a));
+                var arguments = classType.getTypeArguments().map(a -> translateType(a, false, origin));
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }
