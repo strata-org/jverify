@@ -122,38 +122,40 @@ public class JavaToDafnyCompiler {
     private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
         for (var typeDecl : compilationUnit.getTypeDecls()) {
-            if (typeDecl instanceof JCTree.JCClassDecl classDecl) {
-                var annotations = classDecl.getModifiers().getAnnotations();
-                var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                        (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                        a -> a));
-                var contractAnnotation = annotationsByName.get(Contract.class.getName());
-                if (contractAnnotation != null) {
-                    var arguments = getArguments(contractAnnotation);
-                    Symbol.ClassSymbol contracteeSymbol = getClassSymbol(arguments.get("value"));
-                    if (externalContracts.containsKey(contracteeSymbol)) {
-                        reportError(contractAnnotation, "duplicateContract", classDecl.name);
-                    } else {
-                        Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
-                        for(var member : classDecl.getMembers()) {
-                            if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                                var methodSymbol = methodDecl.sym;
-                                var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
-                                if (baseMethod != null) {
-                                    var methodCompiler = new MethodCompiler(this);
-                                    var header = new MethodOrLoopContract(methodDecl);
-                                    methodCompiler.translateHeader(methodDecl.getBody(), header);
-                                    externalContracts.put(baseMethod, header);
-                                } else {
-                                    // TODO better handling of static
-                                    if (!isStatic(methodDecl.mods) && !isSynthetic(methodDecl, methodSymbol)) {
-                                        reportError(methodDecl, "unusedContractMethod", methodDecl.name);
-                                    }
+            if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
+                continue;
+            }
+            
+            var annotations = classDecl.getModifiers().getAnnotations();
+            var annotationsByName = annotations.stream().collect(Collectors.toMap(
+                    (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                    a -> a));
+            var contractAnnotation = annotationsByName.get(Contract.class.getName());
+            if (contractAnnotation != null) {
+                var arguments = getArguments(contractAnnotation);
+                Symbol.ClassSymbol contracteeSymbol = getClassSymbol(arguments.get("value"));
+                if (externalContracts.containsKey(contracteeSymbol)) {
+                    reportError(contractAnnotation, "duplicateContract", classDecl.name);
+                } else {
+                    Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
+                    for(var member : classDecl.getMembers()) {
+                        if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                            var methodSymbol = methodDecl.sym;
+                            var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
+                            if (baseMethod != null) {
+                                var methodCompiler = new MethodCompiler(this);
+                                var header = new MethodOrLoopContract(methodDecl);
+                                methodCompiler.translateHeader(methodDecl.getBody(), header);
+                                externalContracts.put(baseMethod, header);
+                            } else {
+                                // TODO better handling of static
+                                if (!isStatic(methodDecl.mods) && !isSynthetic(methodDecl, methodSymbol)) {
+                                    reportError(methodDecl, "unusedContractMethod", methodDecl.name);
                                 }
                             }
                         }
-                        this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
                     }
+                    this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
                 }
             }
         }
@@ -302,13 +304,6 @@ public class JavaToDafnyCompiler {
                 var arguments = getArguments(contractAnnotation);
                 
                 Symbol.ClassSymbol contractee = getClassSymbol(arguments.get("value"));
-                if (typeHasSource(contractee)) {
-                    // If the contractee has source, then we have a merged contract
-                    // And we do not need to traverse the contracter.
-                    // The contractee will lookup contracts in the contractor
-                    // for bodyless members
-                    return null;
-                }
                 typeForWhichCurrentClassIsDefiningContract = contractee;
                 name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
             }
@@ -418,6 +413,13 @@ public class JavaToDafnyCompiler {
             }
         }
         var definingSymbol = getCurrentTypeSymbol(classDecl);
+        if (typeForWhichCurrentClassIsDefiningContract != null && typeHasSource(typeForWhichCurrentClassIsDefiningContract)) {
+            // If the contractee has source, then we have a merged contract
+            // And we do not need to traverse the contracter.
+            // The contractee will lookup contracts in the contractor
+            // for bodyless members
+            return null;
+        }
         
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
 // 'extends' not yet supported when extending a class
