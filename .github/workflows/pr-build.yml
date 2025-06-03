@@ -68,6 +68,11 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           make test-generation-nodiff
+      - name: Getting started command
+        working-directory: ./jverify-collection
+        run: |
+          ./gradlew installDist
+          ./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny
       - name: Gradle test
         working-directory: ./jverify-collection
         run: |
