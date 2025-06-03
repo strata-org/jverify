@@ -224,7 +224,7 @@ public class MethodCompiler {
                                     List<Label> labels,
                                     java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
-        var header = new MethodOrLoopContract(loop);
+        var header = new MethodOrLoopContract(loop, false);
         var postHeader = translateHeader(body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);

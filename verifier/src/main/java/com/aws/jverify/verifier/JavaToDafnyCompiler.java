@@ -126,11 +126,11 @@ public class JavaToDafnyCompiler {
                 continue;
             }
             
-            var annotations = classDecl.getModifiers().getAnnotations();
-            var annotationsByName = annotations.stream().collect(Collectors.toMap(
+            var classAnnotations = classDecl.getModifiers().getAnnotations();
+            var classAnnotationsByName = classAnnotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                     a -> a));
-            var contractAnnotation = annotationsByName.get(Contract.class.getName());
+            var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
             if (contractAnnotation == null) {
                 continue;
             }
@@ -147,12 +147,18 @@ public class JavaToDafnyCompiler {
                 if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
                     continue;
                 }
+
+                var methodAnnotations = methodDecl.getModifiers().getAnnotations();
+                var methodAnnotationsByName = methodAnnotations.stream().collect(Collectors.toMap(
+                        (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                        a -> a));
                 
                 var methodSymbol = methodDecl.sym;
                 var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
                 if (baseMethod != null) {
                     var methodCompiler = new MethodCompiler(this);
-                    var header = new MethodOrLoopContract(methodDecl);
+                    var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
+                    var header = new MethodOrLoopContract(methodDecl, isPure);
                     methodCompiler.translateHeader(methodDecl.getBody(), header);
                     externalContracts.put(baseMethod, header);
                 } else {
@@ -605,7 +611,14 @@ public class JavaToDafnyCompiler {
             return null;
         }
 
-        if (annotationsByName.containsKey(Pure.class.getName())) {
+        @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
+        boolean isPure;
+        if (externalContract == null) {
+            isPure = annotationsByName.containsKey(Pure.class.getName());
+        } else {
+            isPure = externalContract.isPure;
+        }
+        if (isPure) {
             return translatePureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
         } else {
             return translateImpureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
@@ -637,7 +650,7 @@ public class JavaToDafnyCompiler {
             }
             header = externalContract;
             if (header == null) {
-                header = new MethodOrLoopContract(source);
+                header = new MethodOrLoopContract(source, false);
             }
         } else {
             if (sourceBody == null) {
@@ -649,7 +662,7 @@ public class JavaToDafnyCompiler {
                 if (!(source instanceof JCTree.JCLambda) && externalContract != null) {
                     reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
-                header = new MethodOrLoopContract(source);
+                header = new MethodOrLoopContract(source, false);
                 List<JCTree.JCStatement> postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
                 if (shouldVerify) {
                     bodyStatements = methodCompiler.translateStatements(postHeader);
@@ -768,7 +781,7 @@ public class JavaToDafnyCompiler {
 
             header = externalContract;
             if (header == null) {
-                header = new MethodOrLoopContract(source);
+                header = new MethodOrLoopContract(source, true);
             }
         } else {
             if (sourceBody == null) {
@@ -777,7 +790,7 @@ public class JavaToDafnyCompiler {
                 if (!(source instanceof JCTree.JCLambda) && externalContract != null) {
                     reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
-                header = new MethodOrLoopContract(source);
+                header = new MethodOrLoopContract(source, true);
                 var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
                 if (postHeader.size() != 1) {
                     reportError(source, "pureMethodMultipleStatements");

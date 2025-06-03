@@ -8,6 +8,7 @@ import java.util.List;
 
 public class MethodOrLoopContract {
     JCTree treeOrigin;
+    boolean isPure;
     List<AttributedExpression> preconditions;
     List<AttributedExpression> postconditions;
     List<Name> returnNames;
@@ -16,8 +17,9 @@ public class MethodOrLoopContract {
     List<FrameExpression> reads;
     List<FrameExpression> modifies;
 
-    MethodOrLoopContract(JCTree treeOrigin) {
+    MethodOrLoopContract(JCTree treeOrigin, boolean isPure) {
         this.treeOrigin = treeOrigin;
+        this.isPure = isPure;
         
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();

@@ -8,13 +8,13 @@ import static com.aws.jverify.JVerify.*;
 @JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 4)
 class Interfaces {}
 
+@Modifiable
 interface I {
     int f(int x);
     int m();
 }
 
 @Contract(I.class)
-@Modifiable
 class IContract implements I {
 
     @Pure
