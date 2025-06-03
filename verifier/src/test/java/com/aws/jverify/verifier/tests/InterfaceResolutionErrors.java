@@ -12,6 +12,6 @@ interface I2 {
 @Contract(I2.class)
 class I2Contract {
     public I2Contract(int x) {
-//         ^ error: Method '<init>' is part of a @Contract class, but it does not override any methods for which to provide a contract
+//         ^ error: method '<init>' is part of a @Contract class, but it does not override any methods for which to provide a contract
     }
 }

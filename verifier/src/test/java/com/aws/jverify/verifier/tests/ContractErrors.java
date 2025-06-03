@@ -20,7 +20,7 @@ class FooContract1 extends Foo {
     }
 
     void unusedExternalContract() {
-//       ^ error: Method 'unusedExternalContract' is part of a @Contract class, but it does not override any methods for which to provide a contract
+//       ^ error: method 'unusedExternalContract' is part of a @Contract class, but it does not override any methods for which to provide a contract
         postcondition(false);
     }
 }
