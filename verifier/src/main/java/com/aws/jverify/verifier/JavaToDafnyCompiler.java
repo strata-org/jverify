@@ -557,21 +557,13 @@ public class JavaToDafnyCompiler {
                                                                List<JCTree.JCTypeParameter> typeParameters
     ) {
 
-        var methodCompiler = new MethodCompiler(this);
-        var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
-        var origin = declToOrigin(source, name);
-        var methodType = methodSymbol.type;
-        var bodyOrigin = toOrigin(sourceBody);
-
         var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
-        
-        processVerifyAnnotation(annotationsByName);
-        boolean shouldVerify = shouldVerify();
-        shouldVerifies.pop();
-        
+
+        boolean shouldVerify = processVerifyAnnotationAndPop(annotationsByName);
+
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
 // Hints for whenever this is implemented.
 //            var types = Types.instance(context);
@@ -581,139 +573,171 @@ public class JavaToDafnyCompiler {
             return null;
         }
 
+        if (annotationsByName.containsKey(Pure.class.getName())) {
+            return translatePureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
+        } else {
+            return translateImpureMethod(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
+        }
+    }
+
+    private MethodOrConstructor translateImpureMethod(JCTree source, JCTree.JCModifiers modifiers, 
+                                                      Symbol.MethodSymbol methodSymbol, JCTree sourceBody, 
+                                                      List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
+        var bodyOrigin = toOrigin(sourceBody);
+
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
-        List<Formal> ins = methodSymbol.getParameters().map(jvd -> {
+        var methodCompiler = new MethodCompiler(this);
+        var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
+        var origin = declToOrigin(source, name);
+        var isStatic = isStatic(modifiers);
+        List<Formal> ins = getIns(methodSymbol, origin);
+
+        var header = new HeaderContainer();
+        List<JCTree.JCStatement> postHeader;
+        List<Statement> bodyStatements = null;
+        if (sourceBody instanceof JCTree.JCExpression) {
+            if (shouldVerify) {
+                bodyStatements = List.of(
+                        new ReturnStmt(bodyOrigin, null, List.of(
+                                new ExprRhs(bodyOrigin, null, toExpr((JCTree.JCExpression) sourceBody)))));
+            }
+        } else {
+            postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
+            if (shouldVerify) {
+                bodyStatements = methodCompiler.translateStatements(postHeader);
+            }
+        }
+        applyInvariants(sourceBody, modifiers, methodSymbol, header);
+        methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
+
+        if (header.returnNames.size() > 1) {
+            reportError(source, "multipleReturnNames");
+            return null;
+        }
+        var outs = new ArrayList<Formal>();
+        if (methodSymbol.type.getReturnType() != null) {
+            var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
+            if (returnType != null) {
+                Name returnName;
+                if (header.returnNames.size() == 1) {
+                    returnName = header.returnNames.getFirst();
+                } else {
+                    returnName = new Name(origin, "r");
+                }
+                var f = new Formal(origin, returnName, returnType,
+                        false, false, null, null, false, false, false, null);
+                outs.add(f);
+            }
+        }
+
+        if (isConstructor(methodSymbol)) {
+            DividedBlockStmt body;
+            if (shouldVerify) {
+                var treeMaker = TreeMaker.instance(context);
+
+                var newBodyStatements = new ArrayList<Statement>();
+                for (JCTree.JCVariableDecl variableDecl : initializers) {
+                  var rhs = variableDecl.getInitializer();
+                  var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
+                  newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
+                }
+                newBodyStatements.addAll(bodyStatements);
+                bodyStatements = newBodyStatements;
+
+                body = new DividedBlockStmt(bodyOrigin, null, List.of(), bodyStatements, null, List.of());
+            } else {
+                body = null;
+            }
+
+            return new Constructor(origin, name, null, false, null, dafnyTypeParameters, ins,
+                    header.preconditions, header.postconditions, header.getReads(),
+                    header.getDecreases(), header.getModifies(),
+                    body);
+        } else {
+            BlockStmt body;
+            if (shouldVerify) {
+                body = new BlockStmt(bodyOrigin, null, List.of(), bodyStatements);
+            } else {
+                body = null;
+            }
+            return new Method(origin, name, null, false, null, dafnyTypeParameters,
+                    ins, header.preconditions, header.postconditions, header.getReads(),
+                    header.getDecreases(), header.getModifies(),
+                    isStatic, outs,
+                    body, false);
+        }
+    }
+
+    private Function translatePureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, JCTree sourceBody, List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
+        var bodyOrigin = toOrigin(sourceBody);
+
+        var dafnyTypeParameters = translateTypeParameters(typeParameters);
+
+        var methodCompiler = new MethodCompiler(this);
+        var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
+        var origin = declToOrigin(source, name);
+        var isStatic = isStatic(modifiers);
+        List<Formal> ins = getIns(methodSymbol, origin);
+        Expression body = null;
+        var header = new HeaderContainer();
+        var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
+        if (returnType == null) {
+            reportError(source, "pureMethodsNeedsReturnType");
+            return null;
+        }
+        if (sourceBody instanceof JCTree.JCExpression) {
+            if (shouldVerify) {
+                body = toExpr((JCTree.JCExpression) sourceBody);
+            }
+        } else {
+            var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
+            applyInvariants(sourceBody, modifiers, methodSymbol, header);
+            if (postHeader.size() != 1) {
+                reportError(source, "pureMethodMultipleStatements");
+                return null;
+            }
+
+            var statement = postHeader.getFirst();
+            if (shouldVerify) {
+                if (statement instanceof JCTree.JCReturn returnStatement) {
+                    body = toExpr(returnStatement.expr);
+                    return new Function(origin, name, null, false, null, dafnyTypeParameters,
+                            ins, header.preconditions, header.postconditions, header.getReads(),
+                            header.getDecreases(), isStatic, false, null, returnType,
+                            body, null, null);
+                } else {
+                    reportError(source, "pureMethodNeedsReturnStatement");
+                    return null;
+                }
+            }
+        }
+        return new Function(origin, name, null, false, null, dafnyTypeParameters,
+                ins, header.preconditions, header.postconditions, header.getReads(),
+                header.getDecreases(), isStatic, false, null, returnType,
+                body, null, null);
+    }
+
+    private boolean processVerifyAnnotationAndPop(Map<String, JCTree.JCAnnotation> annotationsByName) {
+        processVerifyAnnotation(annotationsByName);
+        boolean shouldVerify = shouldVerify();
+        shouldVerifies.pop();
+        return shouldVerify;
+    }
+
+    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, IOrigin origin) {
+        return methodSymbol.getParameters().map(jvd -> {
             Name formalName = new Name(origin, jvd.name.toString());
             var syntacticType = translateType(jvd.type, origin);
             return new Formal(origin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
-        var isStatic = (modifiers.flags & Flags.STATIC) == Flags.STATIC;
-
-        if (annotationsByName.containsKey(Pure.class.getName())) {
-            Expression body = null;
-            var header = new HeaderContainer();
-            var returnType = translateType(methodType.getReturnType(), bodyOrigin);
-            if (returnType == null) {
-                reportError(source, "pureMethodsNeedsReturnType");
-                return null;
-            }
-            if (sourceBody instanceof JCTree.JCExpression) {
-                if (shouldVerify) {
-                    body = toExpr((JCTree.JCExpression) sourceBody);
-                }
-            } else {
-                var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
-                applyInvariants(sourceBody, modifiers, methodSymbol, header);
-                if (postHeader.size() != 1) {
-                    reportError(source, "pureMethodMultipleStatements");
-                    return null;
-                }
-
-                var statement = postHeader.getFirst();
-                if (shouldVerify) {
-                    if (statement instanceof JCTree.JCReturn returnStatement) {
-                        body = toExpr(returnStatement.expr);
-                        return new Function(origin, name, null, false, null, dafnyTypeParameters,
-                                ins, header.preconditions, header.postconditions, header.getReads(),
-                                header.getDecreases(), isStatic, false, null, returnType,
-                                body, null, null);
-                    } else {
-                        reportError(source, "pureMethodNeedsReturnStatement");
-                        return null;
-                    }
-                }
-            }
-            return new Function(origin, name, null, false, null, dafnyTypeParameters,
-                    ins, header.preconditions, header.postconditions, header.getReads(),
-                    header.getDecreases(), isStatic, false, null, returnType,
-                    body, null, null);
-        } else {
-            var header = new HeaderContainer();
-            List<JCTree.JCStatement> postHeader;
-            List<Statement> bodyStatements = null;
-            if (sourceBody instanceof JCTree.JCExpression) {
-                if (shouldVerify) {
-                    bodyStatements = List.of(
-                            new ReturnStmt(bodyOrigin, null, List.of(
-                                    new ExprRhs(bodyOrigin, null, toExpr((JCTree.JCExpression) sourceBody)))));
-                }
-            } else {
-                postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
-                if (shouldVerify) {
-                    bodyStatements = methodCompiler.translateStatements(postHeader);
-                }
-            }
-            applyInvariants(sourceBody, modifiers, methodSymbol, header);
-            methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
-
-            if (header.returnNames.size() > 1) {
-                reportError(source, "multipleReturnNames");
-                return null;
-            }
-            var outs = new ArrayList<Formal>();
-            if (methodType.getReturnType() != null) {
-                var returnType = translateType(methodType.getReturnType(), bodyOrigin);
-                if (returnType != null) {
-                    Name returnName;
-                    if (header.returnNames.size() == 1) {
-                        returnName = header.returnNames.getFirst();
-                    } else {
-                        returnName = new Name(origin, "r");
-                    }
-                    var f = new Formal(origin, returnName, returnType,
-                            false, false, null, null, false, false, false, null);
-                    outs.add(f);
-                }
-            }
-
-            if (isConstructor(methodSymbol)) {
-                DividedBlockStmt body;
-                if (shouldVerify) {
-                    var treeMaker = TreeMaker.instance(context);
-
-                    var newBodyStatements = new ArrayList<Statement>();
-                    for (JCTree.JCVariableDecl variableDecl : initializers) {
-                      var rhs = variableDecl.getInitializer();
-                      var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                      newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
-                    }
-                    newBodyStatements.addAll(bodyStatements);
-                    bodyStatements = newBodyStatements;
-
-                    body = new DividedBlockStmt(bodyOrigin, null, List.of(), bodyStatements, null, List.of());
-                } else {
-                    body = null;
-                }
-
-                return new Constructor(origin, name , null, false, null, dafnyTypeParameters, ins,
-                    header.preconditions, header.postconditions, header.getReads(),
-                    header.getDecreases(), header.getModifies(),
-                    body);
-            } else {
-                BlockStmt body;
-                if (shouldVerify) {
-                    body = new BlockStmt(bodyOrigin, null, List.of(), bodyStatements);
-                } else {
-                    body = null;
-                }
-                if (annotationsByName.containsKey(Proof.class.getName())) {
-                    return new Method(origin, name, null, false, null, dafnyTypeParameters,
-                            ins, header.preconditions, header.postconditions, header.getReads(),
-                            header.getDecreases(), header.getModifies(), 
-                            isStatic, outs,
-                            body, false);
-                } else {
-                    return new Method(origin, name, null, false, null, dafnyTypeParameters,
-                            ins, header.preconditions, header.postconditions, header.getReads(),
-                            header.getDecreases(), header.getModifies(), isStatic, outs,
-                            body, false);
-                }
-            }
-        }
     }
-    
+
+    private static boolean isStatic(JCTree.JCModifiers modifiers) {
+        return (modifiers.flags & Flags.STATIC) == Flags.STATIC;
+    }
+
     private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node, JCTree.JCCompilationUnit compilationUnit) {
         return new JCDiagnostic.DiagnosticPosition() {
             @Override
