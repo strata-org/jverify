@@ -14,6 +14,7 @@ interface I {
 }
 
 @Contract(I.class)
+@Modifiable
 class IContract implements I {
 
     @Pure

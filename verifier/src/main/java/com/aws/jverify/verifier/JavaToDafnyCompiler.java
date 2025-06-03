@@ -11,6 +11,7 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
+import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -32,11 +33,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
     JCTree.JCCompilationUnit compilationUnit;
+    List<DatatypeDecl> lambdaDatatypeDecls = new ArrayList<>();
     Stack<IOrigin> contextOrigins = new Stack<>();
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     
@@ -56,7 +59,7 @@ public class JavaToDafnyCompiler {
         return nameMangler;
     }
     
-    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {        
+    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
         JavacTool compiler = JavacTool.create();
 
         // don't assume the argument is modifiable
@@ -86,7 +89,7 @@ public class JavaToDafnyCompiler {
                 files,
                 context
         );
-                
+
         List<FileStart> filesStarts = new ArrayList<>();
         var parsed = task.parse();
         task.analyze();
@@ -152,6 +155,7 @@ public class JavaToDafnyCompiler {
 
     private FileStart translateFile(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
+        this.lambdaDatatypeDecls.clear();
 
         ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
         Stack<Tree> remainingTypes = new Stack<>();
@@ -163,6 +167,10 @@ public class JavaToDafnyCompiler {
                 topLevelDecls.add(dafnyDecl);
             }
         }
+
+        topLevelDecls.addAll(0, lambdaDatatypeDecls);
+        lambdaDatatypeDecls.clear();
+
         return new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls);
     }
 
@@ -274,10 +282,7 @@ public class JavaToDafnyCompiler {
                 typeForWhichCurrentClassIsDefiningContract = getClassSymbol(arguments.get("value"));
                 name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
             }
-            if (annotationsByName.containsKey(Immutable.class.getName())) {
-                reportError(classDecl, "notSupported", "@ValueType");
-            }
-            
+
             TopLevelDecl result;
             if (isEnum(classDecl.type)) {
                 result = translateEnum(classDecl, origin, name);
@@ -297,15 +302,31 @@ public class JavaToDafnyCompiler {
             throw new NotImplementedException(tree.getClass().getName());
         }
     }
-
+    
     private static boolean isInterface(JCTree.JCClassDecl classDecl) {
         return (classDecl.mods.flags & Flags.INTERFACE) != 0;
+    }
+
+    private static boolean isAbstract(JCTree.JCClassDecl classDecl) {
+        return (classDecl.mods.flags & Flags.ABSTRACT) != 0;
+    }
+
+    private static boolean isInterfaceOrAbstract(JCTree.JCClassDecl classDecl) {
+        return isInterface(classDecl) || isAbstract(classDecl);
     }
 
     private static boolean isInterface(Symbol.ClassSymbol classDecl) {
         return (classDecl.flags() & Flags.INTERFACE) != 0;
     }
 
+    private static boolean isAbstract(Symbol.ClassSymbol classDecl) {
+        return (classDecl.flags() & Flags.ABSTRACT) != 0;
+    }
+
+    private static boolean isInterfaceOrAbstract(Symbol.ClassSymbol classDecl) {
+        return isInterface(classDecl) || isAbstract(classDecl);
+    }
+    
     private void processVerifyAnnotation(Map<String, JCTree.JCAnnotation> annotationsByName) {
         var verifyAnnotation = annotationsByName.get(Verify.class.getName());
         if (verifyAnnotation != null) {
@@ -355,8 +376,8 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        var isInterface = typeForWhichCurrentClassIsDefiningContract == null ? isInterface(classDecl) :
-                isInterface(typeForWhichCurrentClassIsDefiningContract);
+        var createTrait = typeForWhichCurrentClassIsDefiningContract == null ? isInterfaceOrAbstract(classDecl) :
+                isInterfaceOrAbstract(typeForWhichCurrentClassIsDefiningContract);
         
         ArrayList<MemberDecl> members = new ArrayList<>();
         initializers.clear();
@@ -381,20 +402,50 @@ public class JavaToDafnyCompiler {
         }
         var definingSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
         var interfaces = definingSymbol.getInterfaces();
+        
         var trees = JavacTrees.instance(context);
-        var superTraits = interfaces.stream().
+        Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
+// 'extends' not yet supported when extending a class
+//        if (definingSymbol.getSuperclass() != null)
+//        {
+//            baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
+//        }
+        var superTraits = baseTypes.
                 filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
-                map((com.sun.tools.javac.code.Type type) ->
-                    new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(type.tsym), null))).
+                map((com.sun.tools.javac.code.Type type) -> translateType(type, false, origin)).
                 collect(Collectors.<Type>toList());
-        if (isInterface) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
-            return new TraitDecl(origin, name, null, List.of(), members, superTraits, false);
+        
+        var typeParameters = translateTypeParameters(classDecl.typarams);
+        if (createTrait) {
+            if (classDecl.getModifiers().getAnnotations().stream().
+                    anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
+                            ident.name.contentEquals("Modifiable"))) {
+                superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
+            }
+            return new TraitDecl(origin, name, null, typeParameters, members, superTraits, false);
         } else {
-            return new ClassDecl(origin, name, null, List.of(), members, superTraits, false);
+            return new ClassDecl(origin, name, null, typeParameters, members, superTraits, false);
         }
     }
-    
+
+    private List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
+        return typarams.stream().map(p -> {
+            var name = getName(p, p.getName());
+            if (!p.bounds.isEmpty()) {
+               reportError(p, "notSupported", "type bounds");
+            }
+            var bounds = p.bounds.map(this::translateType);
+            return new TypeParameter(toOrigin(p),
+                    name, null, TPVarianceSyntax.NonVariant_Strict,
+                    new TypeParameterCharacteristics(
+                            TypeParameterEqualitySupportValue.InferredRequired,
+                            TypeAutoInitInfo.MaybeEmpty,
+                            false
+                    ),
+                    bounds);
+        }).toList();
+    }
+
     static final String builtinFile = "/builtin-contracts.java";
     private boolean isAlreadyVerified() {
         return compilationUnit.getSourceFile().getName().equals(builtinFile);
@@ -416,7 +467,7 @@ public class JavaToDafnyCompiler {
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
-            return ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
+            return classType.supertype_field != null && ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
         }
         return false;
     }
@@ -446,7 +497,7 @@ public class JavaToDafnyCompiler {
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
         Name fieldName = getName(variableDecl, nameMangler.mangleSymbolName(variableDecl.sym));
         IOrigin origin = declToOrigin(variableDecl, fieldName);
-        Type type = toType(variableDecl.vartype, isNullable(variableDecl.getModifiers()));
+        Type type = translateType(variableDecl.vartype.type, isNullable(variableDecl.getModifiers()), toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
             var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
             if (isFinal) {
@@ -479,13 +530,38 @@ public class JavaToDafnyCompiler {
                 a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
     }
 
+    private boolean isNullable(com.sun.tools.javac.code.Type type) {
+        if (type.getAnnotation(com.aws.jverify.Nullable.class) != null) {
+            return true;
+        }
+
+        if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType && isNullable(arrayType.elemtype)) {
+            return true;
+        }
+
+        return false;
+    }
+
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
+        return translateMethodOrLambda(method, method.getModifiers(), method.sym, method.body, method.typarams);
+    }
+
+    /**
+     * @param sourceBody Either a JCBlock or a JCExpression. The latter is for the benefit of lambda translation.
+     */
+    private @Nullable MethodOrFunction translateMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers, 
+                                                               Symbol.MethodSymbol methodSymbol, 
+                                                               JCTree sourceBody,
+                                                               List<JCTree.JCTypeParameter> typeParameters
+    ) {
 
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(method, nameMangler.mangleSymbolName(method.sym));
-        var origin = declToOrigin(method, name);
+        var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
+        var origin = declToOrigin(source, name);
+        var methodType = methodSymbol.type;
+        var bodyOrigin = toOrigin(sourceBody);
 
-        var annotations = method.getModifiers().getAnnotations();
+        var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
@@ -499,66 +575,84 @@ public class JavaToDafnyCompiler {
 //            var types = Types.instance(context);
 //            var container = method.sym.enclClass();
 //            var impl = method.sym.implemented(container, types);
-            reportError(method, "notSupported", "@InheritContract");
+            reportError(source, "notSupported", "@InheritContract");
             return null;
         }
 
-        List<Formal> ins = method.getParameters().map(jvd ->
-        {
-            Name formalName = getName(jvd, jvd.getName());
-            var syntacticType = toType(jvd.getType(), isNullable(jvd.getModifiers()));
-            return new Formal(declToOrigin(jvd, formalName), formalName, syntacticType, false, true,
+        var dafnyTypeParameters = translateTypeParameters(typeParameters);
+
+        List<Formal> ins = methodSymbol.getParameters().map(jvd -> {
+            Name formalName = new Name(origin, jvd.name.toString());
+            var syntacticType = translateType(jvd.type, origin);
+            return new Formal(origin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
-        var isStatic = (method.getModifiers().flags & Flags.STATIC) == Flags.STATIC;
+        var isStatic = (modifiers.flags & Flags.STATIC) == Flags.STATIC;
 
         if (annotationsByName.containsKey(Pure.class.getName())) {
+            Expression body = null;
             var header = new HeaderContainer();
-            var postHeader = methodCompiler.translateHeader(method.body.stats, header);
-            applyInvariants(method, header);
-            if (postHeader.size() != 1) {
-                reportError(method, "pureMethodMultipleStatements");
-                return null;
-            }
-            var returnType = toType(method.getReturnType());
+            var returnType = translateType(methodType.getReturnType(), bodyOrigin);
             if (returnType == null) {
-                reportError(method, "pureMethodsNeedsReturnType");
+                reportError(source, "pureMethodsNeedsReturnType");
                 return null;
             }
-
-            var statement = postHeader.getFirst();
-            Expression body;
-            if (shouldVerify) {
-                if (statement instanceof JCTree.JCReturn returnStatement) {
-                    body = toExpr(returnStatement.expr);
-                    return new Function(origin, name, null, false, null, List.of(),
-                            ins, header.preconditions, header.postconditions, header.getReads(),
-                            header.getDecreases(), isStatic, false, null, returnType,
-                            body, null, null);
-                } else {
-                    reportError(method, "pureMethodNeedsReturnStatement");
-                    return null;
+            if (sourceBody instanceof JCTree.JCExpression) {
+                if (shouldVerify) {
+                    body = toExpr((JCTree.JCExpression) sourceBody);
                 }
             } else {
-                body = null;
+                var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
+                applyInvariants(sourceBody, modifiers, methodSymbol, header);
+                if (postHeader.size() != 1) {
+                    reportError(source, "pureMethodMultipleStatements");
+                    return null;
+                }
+
+                var statement = postHeader.getFirst();
+                if (shouldVerify) {
+                    if (statement instanceof JCTree.JCReturn returnStatement) {
+                        body = toExpr(returnStatement.expr);
+                        return new Function(origin, name, null, false, null, dafnyTypeParameters,
+                                ins, header.preconditions, header.postconditions, header.getReads(),
+                                header.getDecreases(), isStatic, false, null, returnType,
+                                body, null, null);
+                    } else {
+                        reportError(source, "pureMethodNeedsReturnStatement");
+                        return null;
+                    }
+                }
             }
-            return new Function(origin, name, null, false, null, List.of(),
+            return new Function(origin, name, null, false, null, dafnyTypeParameters,
                     ins, header.preconditions, header.postconditions, header.getReads(),
                     header.getDecreases(), isStatic, false, null, returnType,
                     body, null, null);
         } else {
             var header = new HeaderContainer();
-            var postHeader = methodCompiler.translateHeader(method.getBody().stats, header);
-            applyInvariants(method, header);
-            methodCompiler.checkEmptyExpressions(method, header.invariants, "invariants", "method");
+            List<JCTree.JCStatement> postHeader;
+            List<Statement> bodyStatements = null;
+            if (sourceBody instanceof JCTree.JCExpression) {
+                if (shouldVerify) {
+                    bodyStatements = List.of(
+                            new ReturnStmt(bodyOrigin, null, List.of(
+                                    new ExprRhs(bodyOrigin, null, toExpr((JCTree.JCExpression) sourceBody)))));
+                }
+            } else {
+                postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
+                if (shouldVerify) {
+                    bodyStatements = methodCompiler.translateStatements(postHeader);
+                }
+            }
+            applyInvariants(sourceBody, modifiers, methodSymbol, header);
+            methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
 
             if (header.returnNames.size() > 1) {
-                reportError(method, "multipleReturnNames");
+                reportError(source, "multipleReturnNames");
                 return null;
             }
             var outs = new ArrayList<Formal>();
-            if (method.getReturnType() != null) {
-                var returnType = toType(method.getReturnType(), false);
+            if (methodType.getReturnType() != null) {
+                var returnType = translateType(methodType.getReturnType(), bodyOrigin);
                 if (returnType != null) {
                     Name returnName;
                     if (header.returnNames.size() == 1) {
@@ -566,65 +660,63 @@ public class JavaToDafnyCompiler {
                     } else {
                         returnName = new Name(origin, "r");
                     }
-                    var f = new Formal(toOrigin(method.getReturnType()), returnName, returnType,
+                    var f = new Formal(origin, returnName, returnType,
                             false, false, null, null, false, false, false, null);
                     outs.add(f);
                 }
             }
 
-            if (TreeInfo.isConstructor(method)) {
-
-                var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null && 
+            if (isConstructor(methodSymbol)) {
+                var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null &&
                         isInterface(typeForWhichCurrentClassIsDefiningContract);
                 if (containerIsInterface) {
-                    var containerPos = JavacTrees.instance(context).getTree(method.sym.enclClass()).pos;
-                    var synthetic = method.pos == containerPos;
+                    var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
+                    var synthetic = source.pos == containerPos;
                     if (synthetic) {
                         // ignore default constructors in interfaces classes
                         return null;
                     } else {
-                        reportError(method, "constructorInInterfaceContract");
+                        reportError(source, "constructorInInterfaceContract");
                         return null;
                     }
                 }
                 DividedBlockStmt body;
                 if (shouldVerify) {
-                    ArrayList<Statement> bodyStatements = new ArrayList<>();
                     var treeMaker = TreeMaker.instance(context);
-                    var initializerOrigin = toOrigin(method.body);
 
+                    var newBodyStatements = new ArrayList<Statement>();
                     for (JCTree.JCVariableDecl variableDecl : initializers) {
                       var rhs = variableDecl.getInitializer();
                       var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                      bodyStatements.addAll(methodCompiler.translateStatement(assignStmt, initializerOrigin));
+                      newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
                     }
-                    bodyStatements.addAll(methodCompiler.translateStatements(postHeader));
+                    newBodyStatements.addAll(bodyStatements);
+                    bodyStatements = newBodyStatements;
 
-                    body = new DividedBlockStmt(toOrigin(method.body), null, List.of(), bodyStatements, null, List.of());
+                    body = new DividedBlockStmt(bodyOrigin, null, List.of(), bodyStatements, null, List.of());
                 } else {
                     body = null;
                 }
 
-                return new Constructor(origin, name , null, false, null, List.of(), ins,
+                return new Constructor(origin, name , null, false, null, dafnyTypeParameters, ins,
                     header.preconditions, header.postconditions, header.getReads(),
                     header.getDecreases(), header.getModifies(),
                     body);
             } else {
                 BlockStmt body;
                 if (shouldVerify) {
-                    var bodyStatements = methodCompiler.translateStatements(postHeader);
-                    body = new BlockStmt(toOrigin(method.body), null, List.of(), bodyStatements);
+                    body = new BlockStmt(bodyOrigin, null, List.of(), bodyStatements);
                 } else {
                     body = null;
                 }
                 if (annotationsByName.containsKey(Proof.class.getName())) {
-                    return new Method(origin, name, null, false, null, List.of(),
+                    return new Method(origin, name, null, false, null, dafnyTypeParameters,
                             ins, header.preconditions, header.postconditions, header.getReads(),
                             header.getDecreases(), header.getModifies(), 
                             isStatic, outs,
                             body, false);
                 } else {
-                    return new Method(origin, name, null, false, null, List.of(),
+                    return new Method(origin, name, null, false, null, dafnyTypeParameters,
                             ins, header.preconditions, header.postconditions, header.getReads(),
                             header.getDecreases(), header.getModifies(), isStatic, outs,
                             body, false);
@@ -657,17 +749,17 @@ public class JavaToDafnyCompiler {
         };
     }
 
-    private void applyInvariants(JCTree.JCMethodDecl method, HeaderContainer header) {
-        boolean isPublic = (method.getModifiers().flags & Flags.PUBLIC) != 0;
+    private void applyInvariants(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, HeaderContainer header) {
+        boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
         if (isPublic) {
             for(var invariant : invariants) {
                 var memberName = nameMangler.mangleSymbolName(invariant);
-                var invariantName = getName(method, memberName);
-                var invariantOrigin = declToOrigin(method, invariantName);
+                var invariantName = getName(source, memberName);
+                var invariantOrigin = declToOrigin(source, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                         memberName, null), null, new ActualBindings(List.of()), null);
                 var invariantCall = new AttributedExpression(call,null, null);
-                if (!TreeInfo.isConstructor(method)) {
+                if (!isConstructor(methodSymbol)) {
                     header.preconditions.add(invariantCall);
                 }
                 header.postconditions.add(invariantCall);
@@ -711,7 +803,7 @@ public class JavaToDafnyCompiler {
                 if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
                     reportError(expr, "notSupported", "multi-dimensional arrays");
                 }
-                var arrayDafnyType = toType(arrayJavaType, true);
+                var arrayDafnyType = translateType(arrayJavaType.type, true, toOrigin(arrayJavaType));
 
                 if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                     reportError(expr, "notSupported", "new array with initializers");
@@ -828,13 +920,46 @@ public class JavaToDafnyCompiler {
             }
             case JCTree.JCInstanceOf instanceOf -> {
                 var expression = toExpr(instanceOf.getExpression());
-                var jcType = toType(instanceOf.getType());
+                var jcType = translateType(instanceOf.getType());
                 return new TypeTestExpr(origin, expression, jcType);
             }
             case JCTree.JCTypeCast cast -> {
                 var castExpr = toExpr(cast.getExpression());
-                var type = toType(cast.getType());
+                var type = translateType(cast.getType());
                 return new ConversionExpr(origin, castExpr, type, "");
+            }
+            case JCTree.JCLambda lambda -> {
+                var types = Types.instance(context);
+                var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(lambda.target.tsym);
+                var maker = TreeMaker.instance(context);
+                var methodDecl = translateMethodOrLambda(lambda, maker.Modifiers(0), methodSymbol, lambda.getBody(), List.of());
+
+                var datatypeName = "Lambda" + lambdaDatatypeDecls.size();
+                var datatypeNameNode = new Name(origin, datatypeName);
+                var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
+                var trait = translateType(lambda.target, origin);
+                var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
+                        List.of(trait), List.of(datatypeCtor), false);
+                lambdaDatatypeDecls.add(datatypeDecl);
+
+                // TODO: Using a DatatypeValue directly ends up crashing when printing temp.dfy,
+                // because the printer tries to read DatatypeValue.Arguments before it's filled in by resolution.
+//                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
+                return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
+            }
+            case JCTree.JCTypeApply typeApply -> {
+                var type = this.toExpr(typeApply.getType());
+                if (type instanceof NameSegment nameSegment) {
+                    List<Type> arguments;
+                    if (typeApply.getTypeArguments().isEmpty()) {
+                        // Occurs when the type arguments were inferred
+                        arguments = typeApply.type.getTypeArguments().stream().map(t -> translateType(t, false, origin)).toList();
+                    } else {
+                        arguments = typeApply.getTypeArguments().stream().map(this::translateType).toList();
+                    }
+                    return new NameSegment(origin, nameSegment.getName(), arguments);
+                }
+                throw new RuntimeException("All Dafny type references are NameSegments, since we do not use Dafny modules");
             }
             case null, default -> {
             }
@@ -910,7 +1035,7 @@ public class JavaToDafnyCompiler {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = toType(param.getType(), false, paramOrigin);
+                    var paramType = translateType(param.getType().type, false, paramOrigin);
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
@@ -1095,20 +1220,19 @@ public class JavaToDafnyCompiler {
         return new IdPattern(origin, false, "_", null, null, false);
     }
 
-    private @Nullable Type toType(JCTree tree) {
-        return toType(tree, false, null);
+    public @Nullable Type translateType(JCTree tree) {
+        return translateType(tree.type, isNullable(tree.type), toOrigin(tree));
     }
 
-    private @Nullable Type toType(JCTree tree, boolean isNullable) {
-        return toType(tree, isNullable, null);
+    public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
+        return translateType(type, isNullable(type), origin);
     }
 
     @Nullable
-    public Type toType(JCTree tree, boolean isNullable, @Nullable IOrigin originOverride) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> toOrigin(tree));
+    public Type translateType(com.sun.tools.javac.code.Type type, boolean isNullable, IOrigin origin) {
         var nullableSuffix = isNullable ? "?" : "";
 
-        var primitiveTypeKind = toPrimitiveTypeModuloBoxing(tree);
+        var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
         if (primitiveTypeKind != null) {
             switch (primitiveTypeKind) {
                 case VOID -> {
@@ -1118,7 +1242,7 @@ public class JavaToDafnyCompiler {
                     return new BoolType(origin);
                 }
                 case INT, SHORT, LONG -> {
-                    var mirrors = tree.type.getAnnotationMirrors();
+                    var mirrors = type.getAnnotationMirrors();
                     var natAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Nat.class.getName())).findFirst();
                     var isNat = natAnnotation.isPresent();
                     var boundedAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Unbounded.class.getName())).findFirst();
@@ -1138,7 +1262,7 @@ public class JavaToDafnyCompiler {
                         }
                     } else {
                         if (primitiveTypeKind != TypeKind.INT) {
-                            reportError(tree, "unboundedNonInt", tree.toString());
+                            reportError(origin, "unboundedNonInt", type.toString());
                         }
                         if (isNat) {
                             return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
@@ -1162,32 +1286,40 @@ public class JavaToDafnyCompiler {
             }
 
 
-            reportError(tree, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
+            reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
-        } else if (tree instanceof JCTree.JCArrayTypeTree arrayTypeTree) {
-            var elemType = toType(arrayTypeTree.getType(), true, originOverride);
-            if (elemType == null) {
-                // should be unreachable
-                throw new IllegalArgumentException("Array type without element type");
-            }
-            return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
-        } else if (tree instanceof JCTree.JCExpression expr) {
-            var expression = toExpr(expr, origin);
-            
-            // Remove the name qualification because we do not support that yet
-            Expression nameSegment;
-            if (expression instanceof ExprDotName exprDotName) {
-                nameSegment = new NameSegment(exprDotName.getOrigin(), exprDotName.getSuffixNameNode().getValue(), null);
-            } else {
-                nameSegment = expression;
-            }
-            if (isNullable && nameSegment instanceof NameSegment ns) {
-                nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
-            }
-            return new UserDefinedType(origin, nameSegment);
         }
 
-        reportError(tree, "notSupported", tree.getClass().getSimpleName());
+        switch (type) {
+            case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
+                // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
+                var elemType = translateType(arrayTypeTree.elemtype, true, origin);
+                if (elemType == null) {
+                    // should be unreachable
+                    throw new IllegalArgumentException("Array type without element type");
+                }
+                return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
+            }
+            case com.sun.tools.javac.code.Type.ClassType classType -> {
+                // Remove the name qualification because we do not support that yet
+                var mangledName = nameMangler.mangleSymbolName(classType.tsym);
+                var arguments = classType.getTypeArguments().map(a -> translateType(a, false, origin));
+                if (arguments.isEmpty()) {
+                    arguments = null;
+                }
+                Expression nameSegment = new NameSegment(origin, mangledName, arguments);
+                if (isNullable && nameSegment instanceof NameSegment ns) {
+                    nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
+                }
+                return new UserDefinedType(origin, nameSegment);
+            }
+            case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
+                return new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(typeVar.tsym), null));
+            }
+            case null, default -> {
+            }
+        }
+        reportError(origin, "notSupported", type.getClass().getSimpleName());
         return null;
     }
 
@@ -1196,12 +1328,14 @@ public class JavaToDafnyCompiler {
      * returns the corresponding {@link TypeKind},
      * otherwise returns {@code null}.
      */
-    private @Nullable TypeKind toPrimitiveTypeModuloBoxing(JCTree tree) {
-        if (tree instanceof JCTree.JCPrimitiveTypeTree primitiveTypeTree) {
-            return primitiveTypeTree.getPrimitiveTypeKind();
-        } else if (tree instanceof JCTree.JCIdent ident
-                && ident.sym.packge().getQualifiedName().contentEquals("java.lang")) {
-            var name = ident.sym.getSimpleName().toString();
+    private @Nullable TypeKind toPrimitiveTypeModuloBoxing(com.sun.tools.javac.code.Type type) {
+        if (type instanceof com.sun.tools.javac.code.Type.JCVoidType) {
+            return TypeKind.VOID;
+        } else if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
+            return primitiveType.getKind();
+        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
+                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
+            var name = classType.tsym.getSimpleName().toString();
             if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
             if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
             if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
@@ -1225,6 +1359,10 @@ public class JavaToDafnyCompiler {
         var endToken = toToken(startPos + name.length());
         var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
         return new Name(origin, name);
+    }
+
+    private static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
+        return methodSymbol.name == methodSymbol.name.table.names.init;
     }
 
     private IOrigin declToOrigin(JCTree node, Name name) {
@@ -1372,7 +1510,8 @@ public class JavaToDafnyCompiler {
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
+        return !(methodSymbol instanceof Symbol.DynamicMethodSymbol)
+                && methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
     }
 
     /**
