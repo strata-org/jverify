@@ -159,10 +159,8 @@ public class JavaToDafnyCompiler {
         remainingTypes.addAll(compilationUnit.getTypeDecls());
         while(!remainingTypes.isEmpty()) {
             var typeDecl = remainingTypes.pop();
-            TopLevelDecl dafnyDecl = translateTypeDeclaration(typeDecl, remainingTypes);
-            if (dafnyDecl != null) {
-                topLevelDecls.add(dafnyDecl);
-            }
+            var dafnyDecls = translateTypeDeclaration(typeDecl, remainingTypes);
+            topLevelDecls.addAll(dafnyDecls);
         }
 
         topLevelDecls.addAll(0, lambdaDatatypeDecls);
@@ -250,7 +248,7 @@ public class JavaToDafnyCompiler {
         }
     }
     
-    @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
+    @Nullable List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
@@ -265,7 +263,7 @@ public class JavaToDafnyCompiler {
                 if (!isInterface && shouldVerify()) {
                     reportError(name.getOrigin(), "verifiedTypeWithExternalContract", classDecl.name);
                 }
-                return null;
+                return List.of();
             }
             var origin = declToOrigin(classDecl, name);
             contextOrigins.push(origin);
@@ -280,9 +278,9 @@ public class JavaToDafnyCompiler {
                 name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
             }
 
-            TopLevelDecl result;
+            List<? extends TopLevelDecl> result;
             if (isEnum(classDecl.type)) {
-                result = translateEnum(classDecl, origin, name);
+                result = List.of(translateEnum(classDecl, origin, name));
             } 
             else {
                 result = translateClass(nestedTypes, classDecl, origin, name);
@@ -294,7 +292,7 @@ public class JavaToDafnyCompiler {
         }
         if (tree instanceof JCTree jcTree) {
             reportError(jcTree, "notSupported", tree.getClass().getSimpleName());
-            return null;
+            return List.of();
         } else {
             throw new NotImplementedException(tree.getClass().getName());
         }
@@ -361,7 +359,7 @@ public class JavaToDafnyCompiler {
         return false;
     }
     
-    private ClassLikeDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    private List<ClassLikeDecl> translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
@@ -402,11 +400,10 @@ public class JavaToDafnyCompiler {
         
         var trees = JavacTrees.instance(context);
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
-// 'extends' not yet supported when extending a class
-//        if (definingSymbol.getSuperclass() != null)
-//        {
-//            baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
-//        }
+        if (definingSymbol.getSuperclass() != null)
+        {
+            baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
+        }
         var superTraits = baseTypes.
                 filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
                 map((com.sun.tools.javac.code.Type type) -> translateType(type, false, origin)).
@@ -419,9 +416,14 @@ public class JavaToDafnyCompiler {
                             ident.name.contentEquals("Modifiable"))) {
                 superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
             }
-            return new TraitDecl(origin, name, null, typeParameters, members, superTraits, false);
+            return List.of(new TraitDecl(origin, name, null, typeParameters, members, superTraits, false));
         } else {
-            return new ClassDecl(origin, name, null, typeParameters, members, superTraits, false);
+            var trait = new TraitDecl(origin, name, null, typeParameters, members, superTraits, false);
+            List<MemberDecl> constructors = List.of();
+            List<Type> typeArgs = List.of();
+            var clazz = new ClassDecl(origin, new Name(name.getOrigin(), "_Class_" + name.getValue()), null,
+                    typeParameters, constructors, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
+            return List.of(trait, clazz);
         }
     }
 
@@ -677,7 +679,7 @@ public class JavaToDafnyCompiler {
                         return null;
                     }
                 }
-                DividedBlockStmt body;
+                BlockStmt body;
                 if (shouldVerify) {
                     var treeMaker = TreeMaker.instance(context);
 
@@ -690,15 +692,15 @@ public class JavaToDafnyCompiler {
                     newBodyStatements.addAll(bodyStatements);
                     bodyStatements = newBodyStatements;
 
-                    body = new DividedBlockStmt(bodyOrigin, null, List.of(), bodyStatements, null, List.of());
+                    body = new BlockStmt(bodyOrigin, null, List.of(), bodyStatements);
                 } else {
                     body = null;
                 }
 
-                return new Constructor(origin, name , null, false, null, dafnyTypeParameters, ins,
+                return new Method(origin, name , null, false, null, dafnyTypeParameters, ins,
                     header.preconditions, header.postconditions, header.getReads(),
                     header.getDecreases(), header.getModifies(),
-                    body);
+                    false, List.of(), body, false);
             } else {
                 BlockStmt body;
                 if (shouldVerify) {
