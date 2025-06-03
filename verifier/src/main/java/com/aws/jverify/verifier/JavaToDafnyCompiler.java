@@ -131,33 +131,38 @@ public class JavaToDafnyCompiler {
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                     a -> a));
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
-            if (contractAnnotation != null) {
-                var arguments = getArguments(contractAnnotation);
-                Symbol.ClassSymbol contracteeSymbol = getClassSymbol(arguments.get("value"));
-                if (externalContracts.containsKey(contracteeSymbol)) {
-                    reportError(contractAnnotation, "duplicateContract", classDecl.name);
+            if (contractAnnotation == null) {
+                continue;
+            }
+            
+            var arguments = getArguments(contractAnnotation);
+            Symbol.ClassSymbol contracteeSymbol = getClassSymbol(arguments.get("value"));
+            if (externalContracts.containsKey(contracteeSymbol)) {
+                reportError(contractAnnotation, "duplicateContract", classDecl.name);
+                continue;
+            } 
+            
+            Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
+            for(var member : classDecl.getMembers()) {
+                if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
+                    continue;
+                }
+                
+                var methodSymbol = methodDecl.sym;
+                var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
+                if (baseMethod != null) {
+                    var methodCompiler = new MethodCompiler(this);
+                    var header = new MethodOrLoopContract(methodDecl);
+                    methodCompiler.translateHeader(methodDecl.getBody(), header);
+                    externalContracts.put(baseMethod, header);
                 } else {
-                    Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
-                    for(var member : classDecl.getMembers()) {
-                        if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                            var methodSymbol = methodDecl.sym;
-                            var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
-                            if (baseMethod != null) {
-                                var methodCompiler = new MethodCompiler(this);
-                                var header = new MethodOrLoopContract(methodDecl);
-                                methodCompiler.translateHeader(methodDecl.getBody(), header);
-                                externalContracts.put(baseMethod, header);
-                            } else {
-                                // TODO better handling of static
-                                if (!isStatic(methodDecl.mods) && !isSynthetic(methodDecl, methodSymbol)) {
-                                    reportError(methodDecl, "unusedContractMethod", methodDecl.name);
-                                }
-                            }
-                        }
+                    if (typeHasSource(contracteeSymbol) && !isSynthetic(methodDecl, methodSymbol)) {
+                        // For static members, we currently do not check whether they occur in the contractee
+                        reportError(methodDecl, "unusedContractMethod", methodDecl.name);
                     }
-                    this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
                 }
             }
+            this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
         }
     }
     
