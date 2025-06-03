@@ -280,7 +280,7 @@ public class JavaToDafnyCompiler {
 
             Name name = getName(classDecl, this.nameMangler.mangleSymbolName(classDecl.sym));
             if (externalContracts.containsKey(classDecl.sym)) {
-                boolean isConcrete = !isInterfaceOrAbstract(classDecl);
+                boolean isConcrete = !isInterfaceOrAbstract(classDecl.sym);
                 if (isConcrete) {
                     reportError(name.getOrigin(), "concreteTypeWithExternalContract", classDecl.name);
                 }
@@ -325,18 +325,6 @@ public class JavaToDafnyCompiler {
         } else {
             throw new NotImplementedException(tree.getClass().getName());
         }
-    }
-    
-    private static boolean isInterface(JCTree.JCClassDecl classDecl) {
-        return (classDecl.mods.flags & Flags.INTERFACE) != 0;
-    }
-
-    private static boolean isAbstract(JCTree.JCClassDecl classDecl) {
-        return (classDecl.mods.flags & Flags.ABSTRACT) != 0;
-    }
-
-    private static boolean isInterfaceOrAbstract(JCTree.JCClassDecl classDecl) {
-        return isInterface(classDecl) || isAbstract(classDecl);
     }
 
     private static boolean isInterface(Symbol.ClassSymbol classDecl) {
@@ -641,6 +629,9 @@ public class JavaToDafnyCompiler {
         } else {
             if (sourceBody == null) {
                 header = externalHeader;
+                if (header == null) {
+                    return null;
+                }
             } else {
                 if (externalHeader != null) {
                     reportError(source, "internalAndExternalContractForMethod", methodSymbol.name.toString());
