@@ -1,11 +1,13 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.generated.*;
+import com.sun.tools.javac.tree.JCTree;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MethodContract {
+public class MethodLikeContract {
+    JCTree tree;
     List<AttributedExpression> preconditions;
     List<AttributedExpression> postconditions;
     List<Name> returnNames;
@@ -14,7 +16,9 @@ public class MethodContract {
     List<FrameExpression> reads;
     List<FrameExpression> modifies;
 
-    MethodContract() {
+    MethodLikeContract(JCTree tree) {
+        this.tree = tree;
+        
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
         returnNames = new ArrayList<>();
