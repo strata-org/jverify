@@ -20,7 +20,7 @@ jobs:
         include:
           - os: ubuntu-22.04
             chmod: true
-          - os: windows-2019
+          - os: windows-2025
             chmod: false
       fail-fast: false
         
