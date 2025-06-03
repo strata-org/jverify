@@ -6,8 +6,8 @@ import com.sun.tools.javac.tree.JCTree;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MethodLikeContract {
-    JCTree tree;
+public class MethodOrLoopContract {
+    JCTree treeOrigin;
     List<AttributedExpression> preconditions;
     List<AttributedExpression> postconditions;
     List<Name> returnNames;
@@ -16,8 +16,8 @@ public class MethodLikeContract {
     List<FrameExpression> reads;
     List<FrameExpression> modifies;
 
-    MethodLikeContract(JCTree tree) {
-        this.tree = tree;
+    MethodOrLoopContract(JCTree treeOrigin) {
+        this.treeOrigin = treeOrigin;
         
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
