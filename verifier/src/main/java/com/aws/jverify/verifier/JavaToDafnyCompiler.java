@@ -576,13 +576,15 @@ public class JavaToDafnyCompiler {
         if (annotationsByName.containsKey(Pure.class.getName())) {
             return translatePureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
         } else {
-            return translateImpureMethod(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
+            return translateImpureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
         }
     }
 
-    private MethodOrConstructor translateImpureMethod(JCTree source, JCTree.JCModifiers modifiers, 
-                                                      Symbol.MethodSymbol methodSymbol, JCTree sourceBody, 
-                                                      List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
+    private MethodOrConstructor translateImpureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers,
+                                                              Symbol.MethodSymbol methodSymbol, JCTree sourceBody,
+                                                              List<JCTree.JCTypeParameter> typeParameters,
+                                                              @Nullable HeaderContainer externalHeader,
+                                                              boolean shouldVerify) {
         var bodyOrigin = toOrigin(sourceBody);
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
@@ -593,19 +595,31 @@ public class JavaToDafnyCompiler {
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
 
-        var header = new HeaderContainer();
+        HeaderContainer header;
         List<JCTree.JCStatement> postHeader;
         List<Statement> bodyStatements = null;
-        if (sourceBody instanceof JCTree.JCExpression) {
+        if (sourceBody instanceof JCTree.JCExpression expressionBody) {
             if (shouldVerify) {
                 bodyStatements = List.of(
                         new ReturnStmt(bodyOrigin, null, List.of(
-                                new ExprRhs(bodyOrigin, null, toExpr((JCTree.JCExpression) sourceBody)))));
+                                new ExprRhs(bodyOrigin, null, toExpr(expressionBody)))));
+            }
+            header = externalHeader;
+            if (header == null) {
+                header = new HeaderContainer();
             }
         } else {
-            postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
-            if (shouldVerify) {
-                bodyStatements = methodCompiler.translateStatements(postHeader);
+            if (sourceBody == null) {
+                header = externalHeader;
+            } else {
+                if (externalHeader != null) {
+                    reportError(source, "internalAndExternalContractForMethod", methodSymbol.name.toString());
+                }
+                header = new HeaderContainer();
+                postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
+                if (shouldVerify) {
+                    bodyStatements = methodCompiler.translateStatements(postHeader);
+                }
             }
         }
         applyInvariants(sourceBody, modifiers, methodSymbol, header);
@@ -669,7 +683,9 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private Function translatePureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, JCTree sourceBody, List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
+    private Function translatePureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers, 
+                                                 Symbol.MethodSymbol methodSymbol, JCTree sourceBody, 
+                                                 List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
         var bodyOrigin = toOrigin(sourceBody);
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
