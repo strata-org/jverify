@@ -24,14 +24,8 @@ import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Elements;
 import javax.tools.*;
 import java.io.File;
 import java.io.IOException;
@@ -615,7 +609,7 @@ public class JavaToDafnyCompiler {
                                                               Symbol.MethodSymbol methodSymbol, JCTree sourceBody,
                                                               List<JCTree.JCTypeParameter> typeParameters,
                                                               boolean shouldVerify) {
-        @Nullable MethodContract externalHeader = determineExternalHeader(methodSymbol);
+        @Nullable MethodContract externalContract = findExternalContract(methodSymbol);
         var bodyOrigin = toOrigin(sourceBody);
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
@@ -634,18 +628,18 @@ public class JavaToDafnyCompiler {
                         new ReturnStmt(bodyOrigin, null, List.of(
                                 new ExprRhs(bodyOrigin, null, toExpr(expressionBody)))));
             }
-            header = externalHeader;
+            header = externalContract;
             if (header == null) {
                 header = new MethodContract();
             }
         } else {
             if (sourceBody == null) {
-                header = externalHeader;
+                header = externalContract;
                 if (header == null) {
                     return null;
                 }
             } else {
-                if (externalHeader != null) {
+                if (externalContract != null) {
                     reportError(source, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 header = new MethodContract();
@@ -672,9 +666,8 @@ public class JavaToDafnyCompiler {
                 } else {
                     returnName = new Name(origin, "r");
                 }
-                var f = new Formal(origin, returnName, returnType,
-                        false, false, null, null, false, false, false, null);
-                outs.add(f);
+                outs.add(new Formal(origin, returnName, returnType,
+                        false, false, null, null, false, false, false, null));
             }
         }
 
@@ -735,7 +728,7 @@ public class JavaToDafnyCompiler {
         return synthetic;
     }
 
-    private @Nullable MethodContract determineExternalHeader(Symbol.MethodSymbol methodSymbol) {
+    private @Nullable MethodContract findExternalContract(Symbol.MethodSymbol methodSymbol) {
         var enclosingClass = methodSymbol.enclClass();
         var contractor = this.externalContracts.get(enclosingClass);
         if (contractor != null) {
@@ -749,7 +742,7 @@ public class JavaToDafnyCompiler {
                                                  List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
         var bodyOrigin = toOrigin(sourceBody);
 
-        @Nullable MethodContract externalHeader = determineExternalHeader(methodSymbol);
+        @Nullable MethodContract externalHeader = findExternalContract(methodSymbol);
         var methodCompiler = new MethodCompiler(this);
         var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
         var origin = declToOrigin(source, name);
