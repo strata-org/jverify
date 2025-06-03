@@ -224,7 +224,7 @@ public class MethodCompiler {
                                     List<Label> labels,
                                     java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
-        var header = new HeaderContainer();
+        var header = new MethodContract();
         var postHeader = translateHeader(body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
@@ -237,7 +237,7 @@ public class MethodCompiler {
                 dafnyCondition);
     }
 
-    private void checkLoopHeaderAndSetupLabels(JCTree.JCStatement loop, List<Label> labels, HeaderContainer header) {
+    private void checkLoopHeaderAndSetupLabels(JCTree.JCStatement loop, List<Label> labels, MethodContract header) {
         checkEmptyExpressions(loop, header.preconditions, "preconditions", "loop");
         checkEmptyExpressions(loop, header.postconditions, "postconditions", "loop");
 
@@ -416,9 +416,9 @@ public class MethodCompiler {
     }
 
     /**
-     * @see #translateHeader(List, HeaderContainer)
+     * @see #translateHeader(List, MethodContract)
      */
-    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, HeaderContainer header) {
+    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodContract header) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
@@ -428,13 +428,13 @@ public class MethodCompiler {
     /**
      * Translates header statements from the start of {@code statements}
      * until the first non-header statement or the end of the list,
-     * appending the translations to the given {@link HeaderContainer},
+     * appending the translations to the given {@link MethodContract},
      * and returning a list view of the remaining statements.
      *
      * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
      * namely, that it is backed by the original list.
      */
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, HeaderContainer header) {
+    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, MethodContract header) {
         var headerStatements = 0;
         JCTree.JCStatement callToSuper = null;
         statementLoop: for (var statement : statements) {

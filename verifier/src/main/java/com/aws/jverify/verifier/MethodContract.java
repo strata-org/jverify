@@ -5,7 +5,7 @@ import com.aws.jverify.generated.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class HeaderContainer {
+public class MethodContract {
     List<AttributedExpression> preconditions;
     List<AttributedExpression> postconditions;
     List<Name> returnNames;
@@ -14,7 +14,7 @@ public class HeaderContainer {
     List<FrameExpression> reads;
     List<FrameExpression> modifies;
 
-    HeaderContainer() {
+    MethodContract() {
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
         returnNames = new ArrayList<>();

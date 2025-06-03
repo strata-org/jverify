@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -114,7 +115,10 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
     
-    private final Map<Symbol.ClassSymbol, JCTree.JCClassDecl> externalContracts = new HashMap<>();
+    private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
+    record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodContract> methodContracts) {
+        
+    }
     private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
         for (var typeDecl : compilationUnit.getTypeDecls()) {
@@ -130,7 +134,19 @@ public class JavaToDafnyCompiler {
                     if (externalContracts.containsKey(contracteeSymbol)) {
                         reportError(contractAnnotation, "duplicateContract", classDecl.name);
                     } else {
-                        externalContracts.put(contracteeSymbol, classDecl);
+                        Map<Symbol.MethodSymbol, MethodContract> externalContracts = new HashMap<>();
+                        for(var member : classDecl.getMembers()) {
+                            if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                                var methodSymbol = methodDecl.sym;
+                                if (methodSymbol.baseSymbol() instanceof Symbol.MethodSymbol baseMethod) {
+                                    var methodCompiler = new MethodCompiler(this);
+                                    var header = new MethodContract();
+                                    methodCompiler.translateHeader(methodDecl.getBody(), header);
+                                    externalContracts.put(baseMethod, header);
+                                }
+                            }
+                        }
+                        this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
                     }
                 }
             }
@@ -198,7 +214,7 @@ public class JavaToDafnyCompiler {
     private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
     private boolean shouldVerify() {
         if (typeForWhichCurrentClassIsDefiningContract != null) {
-            // Do not verify methods in the contracter.
+            // Do not verify methodContracts in the contracter.
             return false;
         }
         for (int i = shouldVerifies.size() - 1; i >= 0; i--) {
@@ -599,7 +615,7 @@ public class JavaToDafnyCompiler {
                                                               Symbol.MethodSymbol methodSymbol, JCTree sourceBody,
                                                               List<JCTree.JCTypeParameter> typeParameters,
                                                               boolean shouldVerify) {
-        @Nullable HeaderContainer externalHeader = determineExternalHeader(methodSymbol);
+        @Nullable MethodContract externalHeader = determineExternalHeader(methodSymbol);
         var bodyOrigin = toOrigin(sourceBody);
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
@@ -610,7 +626,7 @@ public class JavaToDafnyCompiler {
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
 
-        HeaderContainer header;
+        MethodContract header;
         List<Statement> bodyStatements = null;
         if (sourceBody instanceof JCTree.JCExpression expressionBody) {
             if (shouldVerify) {
@@ -620,7 +636,7 @@ public class JavaToDafnyCompiler {
             }
             header = externalHeader;
             if (header == null) {
-                header = new HeaderContainer();
+                header = new MethodContract();
             }
         } else {
             if (sourceBody == null) {
@@ -629,7 +645,7 @@ public class JavaToDafnyCompiler {
                 if (externalHeader != null) {
                     reportError(source, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
-                header = new HeaderContainer();
+                header = new MethodContract();
                 List<JCTree.JCStatement> postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
                 if (shouldVerify) {
                     bodyStatements = methodCompiler.translateStatements(postHeader);
@@ -697,11 +713,11 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private @Nullable HeaderContainer determineExternalHeader(Symbol.MethodSymbol methodSymbol) {
+    private @Nullable MethodContract determineExternalHeader(Symbol.MethodSymbol methodSymbol) {
         var enclosingClass = methodSymbol.enclClass();
         var contractor = this.externalContracts.get(enclosingClass);
         if (contractor != null) {
-            throw new NotImplementedException("bla");
+            return contractor.methodContracts().get(methodSymbol);
         }
         return null;
     }
@@ -711,14 +727,14 @@ public class JavaToDafnyCompiler {
                                                  List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
         var bodyOrigin = toOrigin(sourceBody);
 
-        @Nullable HeaderContainer externalHeader = determineExternalHeader(methodSymbol);
+        @Nullable MethodContract externalHeader = determineExternalHeader(methodSymbol);
         var methodCompiler = new MethodCompiler(this);
         var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
         Expression body = null;
-        HeaderContainer header;
+        MethodContract header;
         var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
         if (returnType == null) {
             reportError(source, "pureMethodsNeedsReturnType");
@@ -731,7 +747,7 @@ public class JavaToDafnyCompiler {
 
             header = externalHeader;
             if (header == null) {
-                header = new HeaderContainer();
+                header = new MethodContract();
             }
         } else {
             if (sourceBody == null) {
@@ -740,7 +756,7 @@ public class JavaToDafnyCompiler {
                 if (externalHeader != null) {
                     reportError(source, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
-                header = new HeaderContainer();
+                header = new MethodContract();
                 var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
                 if (postHeader.size() != 1) {
                     reportError(source, "pureMethodMultipleStatements");
@@ -811,7 +827,7 @@ public class JavaToDafnyCompiler {
         };
     }
 
-    private void applyInvariants(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, HeaderContainer header) {
+    private void applyInvariants(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodContract header) {
         boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
         if (isPublic) {
             for(var invariant : invariants) {
@@ -1068,7 +1084,7 @@ public class JavaToDafnyCompiler {
      * Translates the specified library method invocation to a Dafny expression,
      * or returns {@code null} if the invocation is not a JVerify library method.
      *
-     * <p>Note: header methods like {@link JVerify#precondition(boolean)}
+     * <p>Note: header methodContracts like {@link JVerify#precondition(boolean)}
      * and {@link JVerify#postcondition(boolean)}
      * must be translated by {@link MethodCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
