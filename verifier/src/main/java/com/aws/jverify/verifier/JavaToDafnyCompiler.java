@@ -641,7 +641,7 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
             } else {
-                if (externalContract != null) {
+                if (!(source instanceof JCTree.JCLambda) && externalContract != null) {
                     reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 header = new MethodOrLoopContract(source);
@@ -682,7 +682,6 @@ public class JavaToDafnyCompiler {
                     // ignore default constructors in interfaces classes
                     return null;
                 } else {
-                    reportError(source, "constructorInInterfaceContract");
                     return null;
                 }
             }
@@ -744,7 +743,7 @@ public class JavaToDafnyCompiler {
                                                  List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
         var bodyOrigin = toOrigin(sourceBody);
 
-        @Nullable MethodOrLoopContract externalHeader = findExternalContract(methodSymbol);
+        @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
         var methodCompiler = new MethodCompiler(this);
         var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
         var origin = declToOrigin(source, name);
@@ -762,16 +761,16 @@ public class JavaToDafnyCompiler {
                 body = toExpr((JCTree.JCExpression) sourceBody);
             }
 
-            header = externalHeader;
+            header = externalContract;
             if (header == null) {
                 header = new MethodOrLoopContract(source);
             }
         } else {
             if (sourceBody == null) {
-                header = externalHeader;
+                header = externalContract;
             } else {
-                if (externalHeader != null) {
-                    reportError(externalHeader.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
+                if (!(source instanceof JCTree.JCLambda) && externalContract != null) {
+                    reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 header = new MethodOrLoopContract(source);
                 var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
