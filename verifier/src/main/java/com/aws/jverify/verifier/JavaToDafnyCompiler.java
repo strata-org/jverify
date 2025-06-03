@@ -44,7 +44,6 @@ public class JavaToDafnyCompiler {
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     
     private JCDiagnostic.Factory diagnosticFactory;
-    private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private NameMangler nameMangler;
 
 
@@ -114,7 +113,7 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
     
-    private final Set<Symbol.ClassSymbol> classWithExternalContract = new HashSet<>();
+    private final Map<Symbol.ClassSymbol, JCTree.JCClassDecl> externalContracts = new HashMap<>();
     private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
         for (var typeDecl : compilationUnit.getTypeDecls()) {
@@ -126,9 +125,11 @@ public class JavaToDafnyCompiler {
                 var contractAnnotation = annotationsByName.get(Contract.class.getName());
                 if (contractAnnotation != null) {
                     var arguments = getArguments(contractAnnotation);
-                    Symbol.ClassSymbol classSymbol = getClassSymbol(arguments.get("value"));
-                    if (!classWithExternalContract.add(classSymbol)) {
+                    Symbol.ClassSymbol targetClassSymbol = getClassSymbol(arguments.get("value"));
+                    if (externalContracts.containsKey(targetClassSymbol)) {
                         reportError(contractAnnotation, "duplicateContract", classDecl.name);
+                    } else {
+                        externalContracts.put(targetClassSymbol, classDecl);
                     }
                 }
             }
@@ -195,9 +196,6 @@ public class JavaToDafnyCompiler {
     enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
     private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
     private boolean shouldVerify() {
-        if (typeForWhichCurrentClassIsDefiningContract != null) {
-            return false;
-        }
         for (int i = shouldVerifies.size() - 1; i >= 0; i--) {
             var mode = shouldVerifies.get(i);
             if (mode == ShouldVerifyMode.AlwaysYes || mode == ShouldVerifyMode.DefaultYes) {
@@ -260,13 +258,6 @@ public class JavaToDafnyCompiler {
             processVerifyAnnotation(annotationsByName);
 
             Name name = getName(classDecl, this.nameMangler.mangleSymbolName(classDecl.sym));
-            if (classWithExternalContract.contains(classDecl.sym)) {
-                boolean isInterface = isInterface(classDecl);
-                if (!isInterface && shouldVerify()) {
-                    reportError(name.getOrigin(), "verifiedTypeWithExternalContract", classDecl.name);
-                }
-                return null;
-            }
             var origin = declToOrigin(classDecl, name);
             contextOrigins.push(origin);
 
@@ -275,9 +266,23 @@ public class JavaToDafnyCompiler {
                 if (isNestedClass(classDecl)) {
                     reportError(contractAnnotation, "nestedContractClass", classDecl.name);
                 }
-                var arguments = getArguments(contractAnnotation);
-                typeForWhichCurrentClassIsDefiningContract = getClassSymbol(arguments.get("value"));
-                name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
+                return null;
+                // TODO: add checks that apply to external contract types
+                // Use constructorInInterfaceContract
+
+//                var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null &&
+//                        isInterface(typeForWhichCurrentClassIsDefiningContract);
+//                if (containerIsInterface) {
+//                    var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
+//                    var synthetic = source.pos == containerPos;
+//                    if (synthetic) {
+//                        // ignore default constructors in interfaces classes
+//                        return null;
+//                    } else {
+//                        reportError(source, "constructorInInterfaceContract");
+//                        return null;
+//                    }
+//                }
             }
 
             TopLevelDecl result;
@@ -287,7 +292,6 @@ public class JavaToDafnyCompiler {
             else {
                 result = translateClass(nestedTypes, classDecl, origin, name);
             }
-            typeForWhichCurrentClassIsDefiningContract = null;
             contextOrigins.pop();
             shouldVerifies.pop();
             return result;
@@ -373,8 +377,7 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        var createTrait = typeForWhichCurrentClassIsDefiningContract == null ? isInterfaceOrAbstract(classDecl) :
-                isInterfaceOrAbstract(typeForWhichCurrentClassIsDefiningContract);
+        var createTrait = isInterfaceOrAbstract(classDecl);
         
         ArrayList<MemberDecl> members = new ArrayList<>();
         initializers.clear();
@@ -397,18 +400,16 @@ public class JavaToDafnyCompiler {
                 }
             }
         }
-        var definingSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
-        var interfaces = definingSymbol.getInterfaces();
-        
+
         var trees = JavacTrees.instance(context);
-        Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
+        Stream<com.sun.tools.javac.code.Type> baseTypes = classDecl.sym.getInterfaces().stream();
 // 'extends' not yet supported when extending a class
 //        if (definingSymbol.getSuperclass() != null)
 //        {
 //            baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
 //        }
         var superTraits = baseTypes.
-                filter(type -> this.classWithExternalContract.contains(type.tsym) || trees.getTree(type.tsym) != null).
+                filter(type -> typeHasAContract(type, trees)).
                 map((com.sun.tools.javac.code.Type type) -> translateType(type, false, origin)).
                 collect(Collectors.<Type>toList());
         
@@ -423,6 +424,10 @@ public class JavaToDafnyCompiler {
         } else {
             return new ClassDecl(origin, name, null, typeParameters, members, superTraits, false);
         }
+    }
+
+    private boolean typeHasAContract(com.sun.tools.javac.code.Type type, JavacTrees trees) {
+        return this.externalContracts.containsKey(type.tsym) || trees.getTree(type.tsym) != null;
     }
 
     private List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
@@ -664,19 +669,6 @@ public class JavaToDafnyCompiler {
             }
 
             if (isConstructor(methodSymbol)) {
-                var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null &&
-                        isInterface(typeForWhichCurrentClassIsDefiningContract);
-                if (containerIsInterface) {
-                    var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
-                    var synthetic = source.pos == containerPos;
-                    if (synthetic) {
-                        // ignore default constructors in interfaces classes
-                        return null;
-                    } else {
-                        reportError(source, "constructorInInterfaceContract");
-                        return null;
-                    }
-                }
                 DividedBlockStmt body;
                 if (shouldVerify) {
                     var treeMaker = TreeMaker.instance(context);
