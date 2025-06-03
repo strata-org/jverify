@@ -24,8 +24,14 @@ import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
 import javax.tools.*;
 import java.io.File;
 import java.io.IOException;
@@ -138,11 +144,17 @@ public class JavaToDafnyCompiler {
                         for(var member : classDecl.getMembers()) {
                             if (member instanceof JCTree.JCMethodDecl methodDecl) {
                                 var methodSymbol = methodDecl.sym;
-                                if (methodSymbol.baseSymbol() instanceof Symbol.MethodSymbol baseMethod) {
+                                var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
+                                if (baseMethod != null) {
                                     var methodCompiler = new MethodCompiler(this);
                                     var header = new MethodContract();
                                     methodCompiler.translateHeader(methodDecl.getBody(), header);
                                     externalContracts.put(baseMethod, header);
+                                } else {
+                                    // TODO better handling of static
+                                    if (!isStatic(methodDecl.mods) && !isSynthetic(methodDecl, methodSymbol)) {
+                                        reportError(methodDecl, "unusedContractMethod", methodDecl.name);
+                                    }
                                 }
                             }
                         }
@@ -152,7 +164,7 @@ public class JavaToDafnyCompiler {
             }
         }
     }
-
+    
     private static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument) {
         Symbol.ClassSymbol classSymbol;
         if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess &&
@@ -667,6 +679,19 @@ public class JavaToDafnyCompiler {
         }
 
         if (isConstructor(methodSymbol)) {
+            var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null &&
+                    isInterface(typeForWhichCurrentClassIsDefiningContract);
+            if (containerIsInterface) {
+                var synthetic = isSynthetic(source, methodSymbol);
+                if (synthetic) {
+                    // ignore default constructors in interfaces classes
+                    return null;
+                } else {
+                    reportError(source, "constructorInInterfaceContract");
+                    return null;
+                }
+            }
+            
             DividedBlockStmt body;
             if (shouldVerify) {
                 var treeMaker = TreeMaker.instance(context);
@@ -691,7 +716,7 @@ public class JavaToDafnyCompiler {
                     body);
         } else {
             BlockStmt body;
-            if (shouldVerify) {
+            if (bodyStatements != null) {
                 body = new BlockStmt(bodyOrigin, null, List.of(), bodyStatements);
             } else {
                 body = null;
@@ -702,6 +727,12 @@ public class JavaToDafnyCompiler {
                     isStatic, outs,
                     body, false);
         }
+    }
+
+    private boolean isSynthetic(JCTree source, Symbol.MethodSymbol methodSymbol) {
+        var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
+        var synthetic = source.pos == containerPos;
+        return synthetic;
     }
 
     private @Nullable MethodContract determineExternalHeader(Symbol.MethodSymbol methodSymbol) {

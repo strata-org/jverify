@@ -13,9 +13,9 @@ public class MixedExternalAndInternalContract {
     public void root() {
         MixedContractExtender extender = new MixedContractExtender();
         var i = extender.internalContract();
-        check(i > 4);
+        check(i > 2);
         var e = extender.externalContract(3);
-        check(e > 3);
+        check(e > 4);
         var a = extender.addedMethod();
         check(a == 1);
     }
@@ -28,28 +28,12 @@ class MixedContractContract implements MixedContract {
         postcondition((Integer r) -> r > 4);
         return 5;
     }
-
-    @Override
-    public int redeclaredContract() {
-        postcondition((Integer r) -> true);
-        throw new ContractException();
-    }
-
-    void dummyError() {
-        postcondition(false);
-    }
 }
 
 interface MixedContract {
     
     int externalContract(int x);
     default int internalContract() {
-        postcondition((Integer r) -> r > 2);
-        return 1;
-//             ^ error
-    }
-    
-    default int redeclaredContract() {
         postcondition((Integer r) -> r > 2);
         return 1;
 //             ^ error

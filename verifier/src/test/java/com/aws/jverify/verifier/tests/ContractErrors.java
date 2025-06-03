@@ -4,6 +4,7 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
+import static com.aws.jverify.JVerify.postcondition;
 
 @JVerifyTest(exitCode = 2)
 public class ContractErrors {}
@@ -17,6 +18,11 @@ class Foo {
 class FooContract1 {    
     void bar(int x) {
         check(x > 0);
+    }
+
+    void unusedExternalContract() {
+//       ^ error
+        postcondition(false);
     }
 }
 
