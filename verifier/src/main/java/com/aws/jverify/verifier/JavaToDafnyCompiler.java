@@ -120,7 +120,9 @@ public class JavaToDafnyCompiler {
     }
     private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
-        for (var typeDecl : compilationUnit.getTypeDecls()) {
+        var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
+        while(!typesToVisit.isEmpty()) {
+            var typeDecl = typesToVisit.poll();
             if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
                 continue;
             }
@@ -131,18 +133,31 @@ public class JavaToDafnyCompiler {
                     a -> a));
             var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
 
+            for(var member : classDecl.getMembers()) {
+                if (member instanceof JCTree.JCClassDecl nestedClass) {
+                    typesToVisit.push(nestedClass);
+                }
+            }
+            if (contractAnnotation == null) {
+                continue;
+            }
+            
             var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
-
             if (contracteeSymbol == null) {
+                reportError(classDecl, "noContractTarget", classDecl.name.toString());
                 continue;
             }
             if (externalContracts.containsKey(contracteeSymbol)) {
-                reportError(contractAnnotation, "duplicateContract", classDecl.name);
+                reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                 continue;
             } 
             
             Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
             for(var member : classDecl.getMembers()) {
+                if (member instanceof JCTree.JCClassDecl nestedClass) {
+                    typesToVisit.push(nestedClass);
+                }
+                
                 if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
                     continue;
                 }
@@ -179,7 +194,15 @@ public class JavaToDafnyCompiler {
         var arguments = getArguments(contractAnnotation);
         var symbol = getClassSymbol(arguments.get("value"));
         if (symbol == null || symbol.getQualifiedName().contentEquals("com.aws.jverify.Contract")) {
-            return (Symbol.ClassSymbol) classDecl.sym.getInterfaces().getFirst().tsym;
+            var superClass = classDecl.sym.getSuperclass();
+            if (classDecl.extending != null && superClass != null) {
+                return (Symbol.ClassSymbol) superClass.tsym;
+            }
+            var interfaces = classDecl.sym.getInterfaces();
+            if (interfaces.isEmpty()) {
+                return null;
+            } 
+            return (Symbol.ClassSymbol) interfaces.getFirst().tsym;
         }
         return symbol;
     }
@@ -323,12 +346,11 @@ public class JavaToDafnyCompiler {
 
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
-                if (isNestedClass(classDecl)) {
-                    reportError(contractAnnotation, "nestedContractClass", classDecl.name);
+                var contractee = getContractTarget(classDecl, contractAnnotation);
+                if (contractee != null) {
+                    typeForWhichCurrentClassIsDefiningContract = contractee;
+                    name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
                 }
-                Symbol.ClassSymbol contractee = getContractTarget(classDecl, contractAnnotation);
-                typeForWhichCurrentClassIsDefiningContract = contractee;
-                name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
             }
 
             TopLevelDecl result;

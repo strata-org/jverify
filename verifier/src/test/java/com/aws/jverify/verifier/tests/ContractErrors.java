@@ -13,7 +13,11 @@ abstract class Foo {
     abstract void bar(int x);
 }
 
-@Contract(Foo.class)
+@Contract
+   class HasNoTarget {}
+// ^ error: could not find a target for @Contract class 'HasNoTarget'
+
+@Contract
 class FooContract1 extends Foo {    
     void bar(int x) {
         check(x > 0);
@@ -26,14 +30,9 @@ class FooContract1 extends Foo {
 }
 
    @Contract(Foo.class)
-// ^ error: a class may not be referenced by more than one @Contract annotation
+// ^ error: class 'Foo' must not be referenced by more than one @Contract annotation
 class FooContract2 extends Foo {
     void bar(int x) {
         check(x < 0);
-    }
-    
-    @Contract(Foo.class)
-//  ^ error: a class with @Contract may not be nested inside another type
-    class NestedContractClass {
     }
 }

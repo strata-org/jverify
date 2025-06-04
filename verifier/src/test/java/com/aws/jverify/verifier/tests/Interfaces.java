@@ -5,8 +5,15 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 4)
-class Interfaces {}
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 5)
+class Interfaces {
+    public void root(I i) {
+        var a = i.f(1);
+//              ^^^^^^ Error: function precondition could not be proved
+        var b = i.m();
+        check(b > 2);
+    }
+}
 
 @Modifiable
 interface I {
@@ -19,6 +26,7 @@ interface I {
         @Pure
         public int f(int x) {
             precondition(x > 2);
+//                       ^^^^^ Related location: this proposition could not be proved
             reads(this);
             throw new ContractException();
         }
