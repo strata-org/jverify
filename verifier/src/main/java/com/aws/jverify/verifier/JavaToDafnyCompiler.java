@@ -39,19 +39,19 @@ import java.util.stream.Stream;
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
-    JCTree.JCCompilationUnit compilationUnit;
     List<DatatypeDecl> lambdaDatatypeDecls = new ArrayList<>();
     Stack<IOrigin> contextOrigins = new Stack<>();
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-    
+    private NameMangler nameMangler = new NameMangler();
+
+    JCTree.JCCompilationUnit compilationUnit;
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
-    private NameMangler nameMangler;
+    private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
 
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
-        this.nameMangler = new NameMangler();
         shouldVerifies.push(verifierOptions.verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
@@ -115,7 +115,6 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
     
-    private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
     record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) {
         
     }
