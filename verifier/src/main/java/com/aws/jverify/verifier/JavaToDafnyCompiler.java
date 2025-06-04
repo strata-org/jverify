@@ -461,7 +461,7 @@ public class JavaToDafnyCompiler {
             // And we do not need to traverse the contracter.
             // The contractee will lookup contracts in the contractor
             // for bodyless members
-            return null;
+            return List.of();
         }
         
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
@@ -470,7 +470,7 @@ public class JavaToDafnyCompiler {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
         }
         var superTraits = baseTypes.
-                filter(type -> typeHasAContract(type)).
+                filter(this::typeHasAContract).
                 map((com.sun.tools.javac.code.Type type) -> translateType(type, false, origin)).
                 collect(Collectors.<Type>toList());
         
@@ -740,7 +740,7 @@ public class JavaToDafnyCompiler {
                 }
             }
             
-            DividedBlockStmt body;
+            BlockStmt body;
             if (shouldVerify) {
                 var treeMaker = TreeMaker.instance(context);
 
@@ -753,15 +753,15 @@ public class JavaToDafnyCompiler {
                 newBodyStatements.addAll(bodyStatements);
                 bodyStatements = newBodyStatements;
 
-                body = new DividedBlockStmt(bodyOrigin, null, List.of(), bodyStatements, null, List.of());
+                body = new BlockStmt(bodyOrigin, null, List.of(), bodyStatements);
             } else {
                 body = null;
             }
 
-            return new Constructor(origin, name, null, false, null, dafnyTypeParameters, ins,
+            return new Method(origin, name, null, false, null, dafnyTypeParameters, ins,
                     header.preconditions, header.postconditions, header.getReads(),
-                    header.getDecreases(), header.getModifies(),
-                    body);
+                    header.getDecreases(), header.getModifies(), false, List.of(),
+                    body, false);
         } else {
             BlockStmt body;
             if (bodyStatements != null) {
