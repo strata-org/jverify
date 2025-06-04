@@ -1,11 +1,14 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.generated.*;
+import com.sun.tools.javac.tree.JCTree;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class HeaderContainer {
+public class MethodOrLoopContract {
+    JCTree treeOrigin;
+    boolean isPure;
     List<AttributedExpression> preconditions;
     List<AttributedExpression> postconditions;
     List<Name> returnNames;
@@ -14,7 +17,10 @@ public class HeaderContainer {
     List<FrameExpression> reads;
     List<FrameExpression> modifies;
 
-    HeaderContainer() {
+    MethodOrLoopContract(JCTree treeOrigin, boolean isPure) {
+        this.treeOrigin = treeOrigin;
+        this.isPure = isPure;
+        
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
         returnNames = new ArrayList<>();

@@ -9,7 +9,6 @@ import java.util.SequencedCollection;
 
 @Contract(Object.class)
 class ObjectContract {    
-    public ObjectContract() {}
 }
 
 @Contract(Short.class)
