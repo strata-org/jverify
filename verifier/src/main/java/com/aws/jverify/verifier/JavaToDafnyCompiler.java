@@ -47,13 +47,16 @@ public class JavaToDafnyCompiler {
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private NameMangler nameMangler;
 
-
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.nameMangler = new NameMangler();
         shouldVerifies.push(verifierOptions.verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
+    }
+
+    public NameMangler getNameMangler() {
+        return nameMangler;
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
