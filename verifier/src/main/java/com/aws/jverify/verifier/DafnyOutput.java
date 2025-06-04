@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 
-public abstract class DafnyOutput {
+public sealed abstract class DafnyOutput permits DafnyDiagnostic, StatusMessage {
 }
 
 class DafnyOutputDeserializer extends JsonDeserializer<DafnyOutput> {

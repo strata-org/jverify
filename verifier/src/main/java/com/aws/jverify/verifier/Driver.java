@@ -306,16 +306,21 @@ public class Driver {
             } else if (line.startsWith("{")) {
                 try {
                     DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
-                    if (output instanceof DafnyDiagnostic dafnyDiagnostic) {
-                        for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
-                            dafnyDiagnostic.arguments[index] = mangler.safeUnmangleName(dafnyDiagnostic.arguments[index]);
+                    switch (output) {
+                        case DafnyDiagnostic dafnyDiagnostic -> {
+                            for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
+                                dafnyDiagnostic.arguments[index] = mangler.safeUnmangleName(dafnyDiagnostic.arguments[index]);
+                            }
                         }
-                    }
-                    if (output instanceof StatusMessage statusMessage) {
-                        if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
-                            outResults.dafnyVerifiedCount = Integer.parseInt(matcher.group("VerifiedCount"));
-                            outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
-                            outResults.dafnyFinishedMessage = statusMessage.getValue();
+                        case StatusMessage statusMessage -> {
+                            if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
+                                if (outResults.dafnyVerifiedCount != null) {
+                                    throw new RuntimeException("Dafny output contains multiple summary lines");
+                                }
+                                outResults.dafnyVerifiedCount = Integer.parseInt(matcher.group("VerifiedCount"));
+                                outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
+                                outResults.dafnyFinishedMessage = statusMessage.getValue();
+                            }
                         }
                     }
                     outResults.outputs.add(output);

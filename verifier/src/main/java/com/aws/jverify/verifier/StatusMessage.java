@@ -2,7 +2,7 @@ package com.aws.jverify.verifier;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class StatusMessage extends DafnyOutput {
+public final class StatusMessage extends DafnyOutput {
     @JsonProperty("value")
     String value;
 
