@@ -28,6 +28,7 @@ public class NameMangler {
 
     // Map from symbols to mangled names
     private final Map<Symbol, String> symbolStringMap;
+    private final Map<String, Symbol> reverseSymbolStringMap;
 
     private static String typeMangling(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
@@ -59,12 +60,25 @@ public class NameMangler {
 
     public NameMangler() {
         this.symbolStringMap = new HashMap<>();
+        this.reverseSymbolStringMap = new HashMap<>();
     }
 
+    public String safeUnmangleName(String name) {
+        if (reverseSymbolStringMap.containsKey(name)) {
+            return reverseSymbolStringMap.get(name).name.toString();
+        }
+        return name;
+    }
 
     public String mangleSymbolName(Symbol s) {
-        return symbolStringMap.computeIfAbsent(s, this::uncachedMangleSymbolName);
+        if (symbolStringMap.containsKey(s)) {
+            return symbolStringMap.get(s);
+        }
+        var mangled = uncachedMangleSymbolName(s);
+        reverseSymbolStringMap.put(mangled, s);
+        return mangled;
     }
+    
     private String uncachedMangleSymbolName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
