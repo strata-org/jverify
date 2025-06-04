@@ -130,12 +130,12 @@ public class JavaToDafnyCompiler {
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                     a -> a));
             var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
-            if (contractAnnotation == null) {
+
+            var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
+
+            if (contracteeSymbol == null) {
                 continue;
             }
-            
-            var arguments = getArguments(contractAnnotation);
-            Symbol.ClassSymbol contracteeSymbol = getClassSymbol(arguments.get("value"));
             if (externalContracts.containsKey(contracteeSymbol)) {
                 reportError(contractAnnotation, "duplicateContract", classDecl.name);
                 continue;
@@ -170,18 +170,33 @@ public class JavaToDafnyCompiler {
             this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
         }
     }
-    
+
+    private Symbol.ClassSymbol getContractTarget(JCTree.JCClassDecl classDecl, JCTree.JCAnnotation contractAnnotation) {
+        if (contractAnnotation == null) {
+            return null;
+        }
+        
+        var arguments = getArguments(contractAnnotation);
+        var symbol = getClassSymbol(arguments.get("value"));
+        if (symbol == null || symbol.getQualifiedName().contentEquals("com.aws.jverify.Contract")) {
+            return (Symbol.ClassSymbol) classDecl.sym.getInterfaces().getFirst().tsym;
+        }
+        return symbol;
+    }
+
     private static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument) {
-        Symbol.ClassSymbol classSymbol;
+        if (valueArgument == null) {
+            return null;
+        }
+        
         if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess &&
             fieldAccess.selected instanceof JCTree.JCIdent ident &&
-            ident.sym instanceof Symbol.ClassSymbol classSymbol2)
+            ident.sym instanceof Symbol.ClassSymbol classSymbol)
         {
-            classSymbol = classSymbol2;
+            return classSymbol;
         } else {
             throw new JavaViolationException();
         }
-        return classSymbol;
     }
 
 
@@ -311,9 +326,7 @@ public class JavaToDafnyCompiler {
                 if (isNestedClass(classDecl)) {
                     reportError(contractAnnotation, "nestedContractClass", classDecl.name);
                 }
-                var arguments = getArguments(contractAnnotation);
-                
-                Symbol.ClassSymbol contractee = getClassSymbol(arguments.get("value"));
+                Symbol.ClassSymbol contractee = getContractTarget(classDecl, contractAnnotation);
                 typeForWhichCurrentClassIsDefiningContract = contractee;
                 name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
             }

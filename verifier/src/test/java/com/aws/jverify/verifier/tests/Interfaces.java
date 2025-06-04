@@ -12,22 +12,22 @@ class Interfaces {}
 interface I {
     int f(int x);
     int m();
-}
 
-@Contract(I.class)
-class IContract implements I {
+    @Contract
+    class IContract implements I {
 
-    @Pure
-    public int f(int x) {
-        precondition(x > 2);
-        reads(this);
-        throw new ContractException();
-    }
+        @Pure
+        public int f(int x) {
+            precondition(x > 2);
+            reads(this);
+            throw new ContractException();
+        }
 
-    public int m() {
-        modifies(this);
-        postcondition((Integer r) -> r > 2);
-        throw new ContractException();
+        public int m() {
+            modifies(this);
+            postcondition((Integer r) -> r > 2);
+            throw new ContractException();
+        }
     }
 }
 
