@@ -352,11 +352,10 @@ public class MethodCompiler {
 
             var methodDecl = JavacTrees.instance(compiler.context).getTree(baseConstructor);
             // TODO incorrect. How do I track which 
-//            boolean superConstructorHasNoContract = methodDecl == null || compiler.isSynthetic(methodDecl, baseConstructor);
-//            baseConstructor.
-//            if (superConstructorHasNoContract) {
-//                return List.of();
-//            }
+            boolean superConstructorHasNoContract = methodDecl == null || compiler.isSynthetic(methodDecl, baseConstructor);
+            if (superConstructorHasNoContract) {
+                return List.of();
+            }
             
             var baseName = compiler.nameMangler.mangleSymbolName(baseConstructor);
             var initName = JavaToDafnyCompiler.getInitMethodName(baseName);
