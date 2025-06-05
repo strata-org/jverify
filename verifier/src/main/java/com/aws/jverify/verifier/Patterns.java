@@ -83,10 +83,10 @@ public class Patterns {
         var origin = compiler.toOrigin(expr);
         final LiteralExpr litExpr;
         if (expr instanceof JCTree.JCLiteral) {
-            litExpr = (LiteralExpr)compiler.toExpr(expr);
+            litExpr = (LiteralExpr)compiler.expressionCompiler.toExpr(expr);
         } else {
             compiler.reportError(expr, "notSupported", "non-literal case constant");
-            litExpr = compiler.getHole(origin);
+            litExpr = JavaToDafnyCompiler.getHole(origin);
         }
         return new LitPattern(origin, false, litExpr);
     }
