@@ -363,7 +363,7 @@ public class MethodCompiler {
 
     public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt) {
         var origin = compiler.toOrigin(switchStmt);
-        var patternBodies = compiler.translateSwitchLabels(switchStmt);
+        var patternBodies = new Patterns(compiler).translateSwitchLabels(switchStmt);
         if (patternBodies == null) {
             return List.of();
         }
@@ -391,7 +391,7 @@ public class MethodCompiler {
         // (It would be safe to add this case unconditionally, but Dafny would warn that the case is redundant.)
         if (!switchStmt.isExhaustive) {
             translatedCases.add(new NestedMatchCaseStmt(
-                    origin, JavaToDafnyCompiler.makeWildPattern(origin), List.of(), null));
+                    origin, Patterns.makeWildPattern(origin), List.of(), null));
         }
 
         var source = compiler.toExpr(switchStmt.getExpression());
