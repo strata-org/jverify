@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Array;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -484,7 +485,7 @@ public class JavaToDafnyCompiler {
         var traitMembers = new ArrayList<MemberDecl>();
         for(var member : members) {
             if (member instanceof Method method && !method.getHasStaticKeyword()) {
-                var traitMethod = new Method(origin, new Name(origin, method.getNameNode().getValue()), method.getAttributes(),
+                var traitMethod = new Method(method.getOrigin(), method.getNameNode(), method.getAttributes(),
                         method.getIsGhost(), method.getSignatureEllipsis(), method.getTypeArgs(), method.getIns(),
                         method.getReq(), method.getEns(), method.getReads(), method.getDecreases(), method.getMod(),
                         method.getHasStaticKeyword(), method.getOuts(), null, method.getIsByMethod());
@@ -492,7 +493,7 @@ public class JavaToDafnyCompiler {
             } else if (member instanceof Function function) {
                 traitMembers.add(function);
             } else if (member instanceof Constructor constructor) {
-                traitMembers.add(constructorToInitMethod(origin, constructor));
+                traitMembers.add(constructorToInitMethod(constructor));
             } else {
                 traitMembers.add(member);
             }
@@ -545,14 +546,17 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private static Method constructorToInitMethod(IOrigin type, Constructor constructor) {
+    private static Method constructorToInitMethod(Constructor constructor) {
         BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
                 constructor.getBody().getBodyInit());
-        Name nameNode = new Name(type, "_init_" + constructor.getNameNode().getValue());
-        var initMethod = new Method(type, nameNode, constructor.getAttributes(),
+        Name nameNode = new Name(constructor.getNameNode().getOrigin(), "_init_" + constructor.getNameNode().getValue());
+        var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
+        var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
+        frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));
+        var initMethod = new Method(constructor.getOrigin(), nameNode, constructor.getAttributes(),
                 constructor.getIsGhost(), constructor.getSignatureEllipsis(), constructor.getTypeArgs(), constructor.getIns(),
-                constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(), 
-                constructor.getMod(),
+                constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
+                modClause,
                 false, List.of(), body, false);
         return initMethod;
     }
