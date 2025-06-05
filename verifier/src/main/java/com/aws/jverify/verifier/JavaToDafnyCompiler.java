@@ -177,7 +177,7 @@ public class JavaToDafnyCompiler {
                     methodCompiler.translateHeader(methodDecl.getBody(), header);
                     externalContracts.put(baseMethod, header);
                 } else {
-                    if (typeHasSource(contracteeSymbol) && !isSynthetic(methodDecl, methodSymbol)) {
+                    if (typeHasSource(contracteeSymbol) && !isSynthetic(methodDecl, methodSymbol) && !isConstructor(methodSymbol)) {
                         // For static members, we currently do not check whether they occur in the contractee
                         reportError(methodDecl, "unusedContractMethod", methodDecl.name);
                     }
@@ -523,7 +523,13 @@ public class JavaToDafnyCompiler {
                     classMembers.add(member);
                 }
             } else if (member instanceof Constructor constructor) {
-                List<Statement> bodyProper = List.of(); // TODO call trait init method.
+                var initName = getInitMethodName(constructor.getNameNode().getValue());
+                var arguments = constructor.getIns().stream().map(
+                        i -> new ActualBinding(null, new NameSegment(i.getOrigin(), i.getNameNode().getValue(), null), false)).toList();
+                var applySuffix = new ApplySuffix(constructor.getOrigin(),
+                        new NameSegment(constructor.getOrigin(), initName, null), null, new ActualBindings(arguments), null);
+                var bodyProper = List.<Statement>of(new AssignStatement(origin, null, List.of(),
+                        List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
                 List<Statement> bodyInit = List.of(); // TODO auto-init fields?
                 DividedBlockStmt body = new DividedBlockStmt(constructor.getOrigin(), null, List.of(), bodyInit, constructor.getOrigin(),
                         bodyProper);
@@ -532,6 +538,7 @@ public class JavaToDafnyCompiler {
                         constructor.getReq(), constructor.getEns(), constructor.getReads(),
                         constructor.getDecreases(), constructor.getMod(),
                         body);
+                // TODO add verify false to this constructor
                 classMembers.add(classConstructor);
                 classNeeded = true;
             }
@@ -549,7 +556,7 @@ public class JavaToDafnyCompiler {
     private static Method constructorToInitMethod(Constructor constructor) {
         BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
                 constructor.getBody().getBodyInit());
-        Name nameNode = new Name(constructor.getNameNode().getOrigin(), "_init_" + constructor.getNameNode().getValue());
+        Name nameNode = new Name(constructor.getNameNode().getOrigin(), getInitMethodName(constructor.getNameNode().getValue()));
         var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
         var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
         frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));
@@ -559,6 +566,10 @@ public class JavaToDafnyCompiler {
                 modClause,
                 false, List.of(), body, false);
         return initMethod;
+    }
+
+    public static String getInitMethodName(String constructorName) {
+        return "_init" + constructorName;
     }
 
     private Symbol.ClassSymbol getCurrentTypeSymbol(JCTree.JCClassDecl classDecl) {
@@ -839,10 +850,9 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private boolean isSynthetic(JCTree source, Symbol.MethodSymbol methodSymbol) {
+    public boolean isSynthetic(JCTree methodNode, Symbol.MethodSymbol methodSymbol) {
         var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
-        var synthetic = source.pos == containerPos;
-        return synthetic;
+        return methodNode.pos == containerPos;
     }
 
     private @Nullable MethodOrLoopContract findExternalContract(Symbol.MethodSymbol methodSymbol) {

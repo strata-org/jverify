@@ -8,16 +8,37 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0)
+@JVerifyTest(exitCode = 0, dafnyVerified = 11, dafnyErrors = 0)
 public class ClassesExtendingClasses {
     public void root() {
         Extendee extender = new Extender(4);
-        // check(extender.getX() == 3);
+        check(extender.getX() == 3);
+    }
+}
+
+class Extender extends Extendee {
+    int y;
+
+    public Extender(int input) {
+        super(input + 2);
+        precondition(input < 10);
+        postcondition(this.x == 3);
+        y = 2;
+    }
+
+    @Pure
+    @Override
+    public int computeX(int input) {
+        return 3;
     }
 }
 
 @Contract(Extendee.class)
 class ExtendeeContract extends Extendee {
+
+    public ExtendeeContract(int input) {
+        super(input);
+    }
 
     @Pure
     @Override
@@ -29,10 +50,10 @@ class ExtendeeContract extends Extendee {
 abstract class Extendee {
     int x;
     
-//    public Extendee(int input) {
-//        postcondition(this.x == computeX(input));
-//        this.x = computeX(input);
-//    }
+    public Extendee(int input) {
+        postcondition(this.x == computeX(input));
+        this.x = computeX(input);
+    }
 
     @Pure
     public int getX() {
@@ -42,25 +63,9 @@ abstract class Extendee {
 
     public abstract int computeX(int input);
     
-    // TODO support: overriding existing members
+    // TODO forbid overriding @Pure members
 //    @Pure
 //    public int computeX(int input) {
 //        return input * 2;
 //    }
-}
-
-class Extender extends Extendee {
-    int y;
-
-    public Extender(int input) {
-        //super(input + 2);
-        //postcondition(this.x == 3);
-        y = 2;
-    }
-
-    @Pure
-    @Override
-    public int computeX(int input) {
-        return 3;
-    }
 }

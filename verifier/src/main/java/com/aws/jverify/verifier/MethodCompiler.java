@@ -2,6 +2,7 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
+import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -347,11 +348,26 @@ public class MethodCompiler {
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
         var origin = compiler.toOrigin(invocation);
         if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
-            if (!invocation.getArguments().isEmpty()) {
-                compiler.reportError(invocation, "notSupported", "super calls with arguments");
-                return List.of();
-            }
-            return List.of();
+            Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) ident.sym;
+
+            var methodDecl = JavacTrees.instance(compiler.context).getTree(baseConstructor);
+            // TODO incorrect. How do I track which 
+//            boolean superConstructorHasNoContract = methodDecl == null || compiler.isSynthetic(methodDecl, baseConstructor);
+//            baseConstructor.
+//            if (superConstructorHasNoContract) {
+//                return List.of();
+//            }
+            
+            var baseName = compiler.nameMangler.mangleSymbolName(baseConstructor);
+            var initName = JavaToDafnyCompiler.getInitMethodName(baseName);
+            var arguments = invocation.getArguments().stream().map(
+                    e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
+            var applySuffix = new ApplySuffix(origin,
+                    new NameSegment(origin, initName, null), null, new ActualBindings(arguments), null);
+            var initCall = new AssignStatement(origin, null, List.of(),
+                    List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
+            
+            return List.of(initCall);
         }
         var argBindings = invocation.getArguments().stream().map(
                 a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();

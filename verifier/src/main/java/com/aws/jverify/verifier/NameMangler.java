@@ -96,7 +96,7 @@ public class NameMangler {
     private String mangleMethodName(Symbol s) {
         String baseName = s.name.toString();
         if (baseName.contentEquals("<init>")) {
-            baseName = "_ctor";
+            baseName = "_ctor" + s.enclClass().name.toString();
         }
         else {
             baseName = methodPrefix + baseName;
