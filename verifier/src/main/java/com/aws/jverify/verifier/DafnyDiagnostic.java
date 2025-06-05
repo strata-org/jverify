@@ -5,23 +5,43 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.tools.Diagnostic;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Locale;
+import java.text.MessageFormat;
+import java.util.*;
 import java.util.stream.Stream;
 
 /**
  * Adapts Dafny's {@code --json-diagnostics} output to the {@link Diagnostic} interface.
  */
-public class DafnyDiagnostic implements Diagnostic<Path> {
+public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
     private static final int SEVERITY_ERROR = 1;
     private static final int SEVERITY_WARNING = 2;
     private static final int SEVERITY_INFO = 4;
+    private static final int SEVERITY_RELATED_LOCATION = 100;
 
     public Location location;
 
     public int severity;
 
-    public String message;
+    @JsonProperty("errorId")
+    public String errorId;
+
+    @JsonProperty("arguments")
+    public String[] arguments;
+    
+    @JsonProperty("defaultFormatMessage")
+    public String defaultFormatMessage;
+
+    public String getErrorId() {
+        return errorId;
+    }
+
+    public String[] getArguments() {
+        return arguments;
+    }
+
+    public String getDefaultFormatMessage() {
+        return defaultFormatMessage;
+    }
 
     /**
      * Corresponds to Dafny's {@code MessageSource} enum,
@@ -89,9 +109,34 @@ public class DafnyDiagnostic implements Diagnostic<Path> {
         return null;
     }
 
-    @Override
     public String getMessage(Locale locale) {
-        return message;
+        String formatMessage = getDefaultFormatMessage();
+        String message;
+        if (getArguments().length > 0) {
+            message = MessageFormat.format(safeFormat(formatMessage), getArguments());
+        } else {
+            message = formatMessage;
+        }
+        return getSeverityMessage() + ": "+ message;
+    }
+
+    private static String safeFormat(String format) {
+        // Replace { not followed by digit with {{
+        String escaped = format.replaceAll("\\{(?!\\d)", "{{");
+        // Replace } not preceded by digit with }}
+        escaped = escaped.replaceAll("(?<!\\d)\\}", "}}");
+        
+        return escaped.replace("'", "''");
+    }
+    
+    public String getSeverityMessage() {
+        return switch(severity) {
+            case SEVERITY_WARNING -> "Warning";
+            case SEVERITY_ERROR -> "Error";
+            case SEVERITY_INFO -> "Info";
+            case SEVERITY_RELATED_LOCATION -> "Related location";
+            default -> throw new RuntimeException(); 
+        };
     }
 
     /**
@@ -104,12 +149,14 @@ public class DafnyDiagnostic implements Diagnostic<Path> {
 
     public record Location(String filename, String filePath, String uri, Range range) {}
 
-    public record RelatedInfo(Location location, String message) {
+    public record RelatedInfo(Location location, String errorId, String[] arguments, String defaultFormatMessage) {
         public DafnyDiagnostic asDiagnostic() {
             var diagnostic = new DafnyDiagnostic();
             diagnostic.location = location;
-            diagnostic.severity = SEVERITY_INFO;
-            diagnostic.message = "Related location: " + message;
+            diagnostic.severity = SEVERITY_RELATED_LOCATION;
+            diagnostic.errorId = errorId;
+            diagnostic.arguments = arguments;
+            diagnostic.defaultFormatMessage = defaultFormatMessage;
             return diagnostic;
         }
     }
@@ -119,7 +166,7 @@ public class DafnyDiagnostic implements Diagnostic<Path> {
         return "DafnyDiagnostic {" +
                 "\n  location=" + location +
                 "\n  severity=" + severity +
-                "\n  message='" + message + '\'' +
+                "\n  message='" + getMessage(Locale.getDefault()) + '\'' +
                 "\n  messageSource='" + messageSource + '\'' +
                 "\n  relatedInformation=" + relatedInformation +
                 "\n}";
