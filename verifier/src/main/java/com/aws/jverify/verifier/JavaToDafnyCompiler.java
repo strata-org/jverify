@@ -49,6 +49,7 @@ public class JavaToDafnyCompiler {
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
+    boolean buildingSignatureType;
 
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
@@ -632,7 +633,11 @@ public class JavaToDafnyCompiler {
                                                     Symbol.MethodSymbol methodSymbol,
                                                     JCTree sourceBody,
                                                     List<JCTree.JCTypeParameter> typeParameters
-    ) { 
+    ) {
+        if (typeForWhichCurrentClassIsDefiningContract != null && isSynthetic(source, methodSymbol)) {
+            return null;
+        }
+        
         var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
@@ -730,17 +735,6 @@ public class JavaToDafnyCompiler {
         }
 
         if (isConstructor(methodSymbol)) {
-            var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null &&
-                    isInterface(typeForWhichCurrentClassIsDefiningContract);
-            if (containerIsInterface) {
-                var synthetic = isSynthetic(source, methodSymbol);
-                if (synthetic) {
-                    // ignore default constructors in interfaces classes
-                    return null;
-                } else {
-                    return null;
-                }
-            }
             
             BlockStmt body;
             if (shouldVerify) {

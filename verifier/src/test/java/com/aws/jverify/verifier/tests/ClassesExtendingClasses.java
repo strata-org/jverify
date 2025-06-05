@@ -35,6 +35,7 @@ abstract class Extendee {
 //        this.x = computeX(input);
 //    }
 
+    @Pure
     public int getX() {
         return x;
     }
