@@ -9,18 +9,15 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
-import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public class Driver {

@@ -484,20 +484,15 @@ public class JavaToDafnyCompiler {
         var traitMembers = new ArrayList<MemberDecl>();
         for(var member : members) {
             if (member instanceof Method method && !method.getHasStaticKeyword()) {
-                var traitMethod = new Method(method.getOrigin(), method.getNameNode(), method.getAttributes(),
+                var traitMethod = new Method(origin, new Name(origin, method.getNameNode().getValue()), method.getAttributes(),
                         method.getIsGhost(), method.getSignatureEllipsis(), method.getTypeArgs(), method.getIns(),
                         method.getReq(), method.getEns(), method.getReads(), method.getDecreases(), method.getMod(),
                         method.getHasStaticKeyword(), method.getOuts(), null, method.getIsByMethod());
                 traitMembers.add(traitMethod);
             } else if (member instanceof Function function) {
-//                var traitMethod = new Function(function.getOrigin(), function.getNameNode(), function.getAttributes(),
-//                        function.getIsGhost(), function.getSignatureEllipsis(), function.getTypeArgs(), function.getIns(),
-//                        function.getReq(), function.getEns(), function.getReads(), function.getDecreases(), 
-//                        function.getHasStaticKeyword(), function.getIsOpaque(), function.getResult(), function.getResultType(), null,
-//                        function.getByMethodTok(), null);
                 traitMembers.add(function);
             } else if (member instanceof Constructor constructor) {
-                traitMembers.add(constructorToInitMethod(constructor));
+                traitMembers.add(constructorToInitMethod(origin, constructor));
             } else {
                 traitMembers.add(member);
             }
@@ -514,11 +509,13 @@ public class JavaToDafnyCompiler {
                 p -> (Type)new UserDefinedType(p.getOrigin(), 
                         new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
 
+        var classNeeded = false;
         var classMembers = new ArrayList<MemberDecl>();
         for(var member : members) {
             if (member instanceof Method method) {
                 if (!method.getHasStaticKeyword()) {
                     classMembers.add(member);
+                    classNeeded = true;
                 }
             } if (member instanceof Function function) {
                 if (function.getBody() == null) {
@@ -529,25 +526,30 @@ public class JavaToDafnyCompiler {
                 List<Statement> bodyInit = List.of(); // TODO auto-init fields?
                 DividedBlockStmt body = new DividedBlockStmt(constructor.getOrigin(), null, List.of(), bodyInit, constructor.getOrigin(),
                         bodyProper);
-                var classConstructor =  new Constructor(origin, constructor.getNameNode(), null, false, null, 
+                var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null, 
                         constructor.getTypeArgs(), constructor.getIns(),
                         constructor.getReq(), constructor.getEns(), constructor.getReads(),
                         constructor.getDecreases(), constructor.getMod(),
                         body);
                 classMembers.add(classConstructor);
+                classNeeded = true;
             }
         }
 
-        var clazz = new ClassDecl(origin, new Name(name.getOrigin(), "_Class_" + name.getValue()), null,
-                typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
-        return List.of(trait, clazz);
+        if (classNeeded) {
+            var clazz = new ClassDecl(origin, new Name(name.getOrigin(), "_Class_" + name.getValue()), null,
+                    typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
+            return List.of(trait, clazz);
+        } else {
+            return List.of(trait);
+        }
     }
 
-    private static Method constructorToInitMethod(Constructor constructor) {
+    private static Method constructorToInitMethod(IOrigin type, Constructor constructor) {
         BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
                 constructor.getBody().getBodyInit());
-        Name nameNode = new Name(constructor.getNameNode().getOrigin(), "_init_" + constructor.getNameNode().getValue());
-        var initMethod = new Method(constructor.getOrigin(), nameNode, constructor.getAttributes(),
+        Name nameNode = new Name(type, "_init_" + constructor.getNameNode().getValue());
+        var initMethod = new Method(type, nameNode, constructor.getAttributes(),
                 constructor.getIsGhost(), constructor.getSignatureEllipsis(), constructor.getTypeArgs(), constructor.getIns(),
                 constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(), 
                 constructor.getMod(),
