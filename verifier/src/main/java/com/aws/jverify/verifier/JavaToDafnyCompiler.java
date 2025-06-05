@@ -1438,7 +1438,7 @@ public class JavaToDafnyCompiler {
             return contextOrigins.peek();
         }
         int endPos = getEndPos(node);
-        var endToken = endPos == Position.NOPOS ? originToRange(contextOrigins.peek()).getEndToken() : toToken(endPos);
+        var endToken = endPos == Position.NOPOS ? toToken(TreeInfo.getStartPos(node) + 1) : toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
     }
 
