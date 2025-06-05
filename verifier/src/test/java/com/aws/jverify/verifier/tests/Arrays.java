@@ -56,7 +56,7 @@ class Arrays {
 
     static void pointArrayOfSize10() {
         Point[] a = new Point[10];
-//                   ^^^^^^^^^^^^^ Error: unless an initializer is provided for the array elements, a new array of 'com_aws_jverify_verifier_tests_Point' must have empty size
+//                  ^^^^^^^^^^^^^ Error: unless an initializer is provided for the array elements, a new array of 'com_aws_jverify_verifier_tests_Point' must have empty size
         a[0]=new Point(1,2);
         for (int i = 1; i < a.length; i++) {
             modifies(a);
@@ -64,12 +64,12 @@ class Arrays {
             // invariant(Forall((Integeer j) -> Implies(0<=j && j<i,a[i]!=null && a[i].getA()==i)));
             // This does not work now as we cannot pass a non final variable in a lambda
             invariant(a[0] != null);
-//                    ^^^^^^^^^^^^ the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
+//                    ^^^^^^^^^^^^ Warning: the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
             invariant(a[0].getA()==1);
             a[i] = new Point(i,i+1);
         }
         check(a[0] != null);
-//            ^^^^^^^^^^^^ the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
+//            ^^^^^^^^^^^^ Warning: the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
         check(a[0].getA()==1);
     }
 
