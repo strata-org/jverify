@@ -10,7 +10,6 @@ import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
@@ -24,7 +23,6 @@ import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.File;
@@ -49,7 +47,7 @@ public class JavaToDafnyCompiler {
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
-    boolean buildingSignatureType;
+    boolean buildingTrait;
 
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
@@ -433,8 +431,6 @@ public class JavaToDafnyCompiler {
                 }
             }
         }
-
-        var createTrait = isInterfaceOrAbstract(getCurrentTypeSymbol(classDecl));
         
         ArrayList<MemberDecl> members = new ArrayList<>();
         initializers.clear();
@@ -450,7 +446,7 @@ public class JavaToDafnyCompiler {
         }
         // Now translate other members
         for (var member : classDecl.getMembers()) {
-            if (!(member instanceof JCTree.JCVariableDecl variableDecl)) {
+            if (!(member instanceof JCTree.JCVariableDecl)) {
                 var dafnyMember = translateMember(member, nestedTypes);
                 if (dafnyMember != null) {
                     members.add(dafnyMember);
@@ -477,21 +473,86 @@ public class JavaToDafnyCompiler {
                 collect(Collectors.<Type>toList());
         
         var typeParameters = translateTypeParameters(classDecl.typarams);
-        if (createTrait) {
-            if (classDecl.getModifiers().getAnnotations().stream().
-                    anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
-                            ident.name.contentEquals("Modifiable"))) {
-                superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
+        return buildTraitAndClassTwin(classDecl, origin, name, members, typeParameters, superTraits);
+    }
+
+    private static List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
+                                                              IOrigin origin, Name name,
+                                                              ArrayList<MemberDecl> members,
+                                                              List<TypeParameter> typeParameters,
+                                                              List<Type> superTraits) {
+        var traitMembers = new ArrayList<MemberDecl>();
+        for(var member : members) {
+            if (member instanceof Method method && !method.getHasStaticKeyword()) {
+                var traitMethod = new Method(method.getOrigin(), method.getNameNode(), method.getAttributes(),
+                        method.getIsGhost(), method.getSignatureEllipsis(), method.getTypeArgs(), method.getIns(),
+                        method.getReq(), method.getEns(), method.getReads(), method.getDecreases(), method.getMod(),
+                        method.getHasStaticKeyword(), method.getOuts(), null, method.getIsByMethod());
+                traitMembers.add(traitMethod);
+            } else if (member instanceof Function function) {
+//                var traitMethod = new Function(function.getOrigin(), function.getNameNode(), function.getAttributes(),
+//                        function.getIsGhost(), function.getSignatureEllipsis(), function.getTypeArgs(), function.getIns(),
+//                        function.getReq(), function.getEns(), function.getReads(), function.getDecreases(), 
+//                        function.getHasStaticKeyword(), function.getIsOpaque(), function.getResult(), function.getResultType(), null,
+//                        function.getByMethodTok(), null);
+                traitMembers.add(function);
+            } else if (member instanceof Constructor constructor) {
+                traitMembers.add(constructorToInitMethod(constructor));
+            } else {
+                traitMembers.add(member);
             }
-            return List.of(new TraitDecl(origin, name, null, typeParameters, members, superTraits, false));
-        } else {
-            var trait = new TraitDecl(origin, name, null, typeParameters, members, superTraits, false);
-            List<MemberDecl> constructors = List.of();
-            List<Type> typeArgs = List.of();
-            var clazz = new ClassDecl(origin, new Name(name.getOrigin(), "_Class_" + name.getValue()), null,
-                    typeParameters, constructors, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
-            return List.of(trait, clazz);
         }
+
+        if (!isInterface(classDecl.sym) || classDecl.getModifiers().getAnnotations().stream().
+                anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
+                        ident.name.contentEquals("Modifiable"))) {
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
+        }
+        
+        var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);
+        List<Type> typeArgs = typeParameters.stream().map(
+                p -> (Type)new UserDefinedType(p.getOrigin(), 
+                        new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
+
+        var classMembers = new ArrayList<MemberDecl>();
+        for(var member : members) {
+            if (member instanceof Method method) {
+                if (!method.getHasStaticKeyword()) {
+                    classMembers.add(member);
+                }
+            } if (member instanceof Function function) {
+                if (function.getBody() == null) {
+                    classMembers.add(member);
+                }
+            } else if (member instanceof Constructor constructor) {
+                List<Statement> bodyProper = List.of(); // TODO call trait init method.
+                List<Statement> bodyInit = List.of(); // TODO auto-init fields?
+                DividedBlockStmt body = new DividedBlockStmt(constructor.getOrigin(), null, List.of(), bodyInit, constructor.getOrigin(),
+                        bodyProper);
+                var classConstructor =  new Constructor(origin, constructor.getNameNode(), null, false, null, 
+                        constructor.getTypeArgs(), constructor.getIns(),
+                        constructor.getReq(), constructor.getEns(), constructor.getReads(),
+                        constructor.getDecreases(), constructor.getMod(),
+                        body);
+                classMembers.add(classConstructor);
+            }
+        }
+
+        var clazz = new ClassDecl(origin, new Name(name.getOrigin(), "_Class_" + name.getValue()), null,
+                typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
+        return List.of(trait, clazz);
+    }
+
+    private static Method constructorToInitMethod(Constructor constructor) {
+        BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
+                constructor.getBody().getBodyInit());
+        Name nameNode = new Name(constructor.getNameNode().getOrigin(), "_init_" + constructor.getNameNode().getValue());
+        var initMethod = new Method(constructor.getOrigin(), nameNode, constructor.getAttributes(),
+                constructor.getIsGhost(), constructor.getSignatureEllipsis(), constructor.getTypeArgs(), constructor.getIns(),
+                constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(), 
+                constructor.getMod(),
+                false, List.of(), body, false);
+        return initMethod;
     }
 
     private Symbol.ClassSymbol getCurrentTypeSymbol(JCTree.JCClassDecl classDecl) {
@@ -735,29 +796,28 @@ public class JavaToDafnyCompiler {
         }
 
         if (isConstructor(methodSymbol)) {
-            
-            BlockStmt body;
+            DividedBlockStmt body;
             if (shouldVerify) {
                 var treeMaker = TreeMaker.instance(context);
 
                 var newBodyStatements = new ArrayList<Statement>();
                 for (JCTree.JCVariableDecl variableDecl : initializers) {
-                  var rhs = variableDecl.getInitializer();
-                  var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                  newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
+                    var rhs = variableDecl.getInitializer();
+                    var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
+                    newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
                 }
                 newBodyStatements.addAll(bodyStatements);
                 bodyStatements = newBodyStatements;
 
-                body = new BlockStmt(bodyOrigin, null, List.of(), bodyStatements);
+                body = new DividedBlockStmt(bodyOrigin, null, List.of(), bodyStatements, null, List.of());
             } else {
                 body = null;
             }
 
-            return new Method(origin, name, null, false, null, dafnyTypeParameters, ins,
+            return new Constructor(origin, name , null, false, null, dafnyTypeParameters, ins,
                     header.preconditions, header.postconditions, header.getReads(),
-                    header.getDecreases(), header.getModifies(), false, List.of(),
-                    body, false);
+                    header.getDecreases(), header.getModifies(),
+                    body);
         } else {
             BlockStmt body;
             if (bodyStatements != null) {

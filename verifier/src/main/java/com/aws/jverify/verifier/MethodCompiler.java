@@ -552,8 +552,9 @@ public class MethodCompiler {
                         a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
                 String ctorNameStr = compiler.nameMangler.mangleSymbolName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
-                var baseType = compiler.expressionCompiler.toExpr(newClass.clazz);
-                var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
+                var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
+                var classBaseType = new NameSegment(baseType.getOrigin(), "_Class_" + baseType.getName(), baseType.getOptTypeArguments());
+                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
                 return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));
             }
