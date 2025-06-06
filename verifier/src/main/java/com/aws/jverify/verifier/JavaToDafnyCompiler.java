@@ -771,7 +771,12 @@ public class JavaToDafnyCompiler {
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(source, methodSymbol);
+        Name name;
+        if (typeForWhichCurrentClassIsDefiningContract != null && isConstructor(methodSymbol)) {
+            name = getName(source, NameMangler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
+        } else {
+            name = getName(source, methodSymbol);
+        }
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
