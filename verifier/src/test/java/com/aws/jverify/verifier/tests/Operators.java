@@ -186,7 +186,8 @@ class Operators {
         DummyInterface dc2 = new DummyClass2();
 
         //noinspection RedundantCast,NewObjectEquality,DataFlowIssue
-        check(dc1 == (DummyClass) dc2);
-//                   ^^^^^^^^^^^^^^^^ Error: value of expression (of type 'DummyInterface') is not known to be an instance of type 'DummyClass'
+        var casted = (DummyClass) dc2;
+        check(dc1 == casted);
+//                   ^^^^^^ Error: value of expression (of type 'DummyInterface') is not known to be an instance of type 'DummyClass'
     }
 }
