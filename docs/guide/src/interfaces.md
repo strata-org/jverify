@@ -38,7 +38,7 @@ You will often come across already libraries for which no contracts were defined
 import javax.sound.midi.Sequence;
 import java.util.List;
 
-// JVerify provides a contract for `List` out of the box,
+// JVerify provides a partial contract for `List` out of the box,
 // but if it didn't, this is how we could add one.
 @Contract
 @Modifiable
