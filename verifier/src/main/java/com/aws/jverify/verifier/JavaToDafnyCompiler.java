@@ -373,7 +373,7 @@ public class JavaToDafnyCompiler {
                         if (modifiableAnnotation != null) {
                             reportError(modifiableAnnotation, "annotationOnSourceContractClass", Modifiable.class.getSimpleName(), classDecl.name.toString());
                         }
-                        return null;
+                        return List.of();
                     }
                     
                     
@@ -532,16 +532,6 @@ public class JavaToDafnyCompiler {
                     traitMembers.add(initMethod);
                 }
 
-                var initName = getInitMethodName(constructor.getNameNode().getValue());
-                var arguments = constructor.getIns().stream().map(
-                        i -> new ActualBinding(null, new NameSegment(i.getOrigin(), i.getNameNode().getValue(), null), false)).toList();
-                var applySuffix = new ApplySuffix(constructor.getOrigin(),
-                        new NameSegment(constructor.getOrigin(), initName, null), null, new ActualBindings(arguments), null);
-                var bodyProper = List.<Statement>of(new AssignStatement(origin, null, List.of(),
-                        List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
-                List<Statement> bodyInit = List.of(); // TODO auto-init fields?
-                DividedBlockStmt body = new DividedBlockStmt(constructor.getOrigin(), null, List.of(), bodyInit, constructor.getOrigin(),
-                        bodyProper);
                 var attr = new Attributes(constructor.getOrigin(), "axiom", List.of(), null);
                 var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), attr, false, null,
                         constructor.getTypeArgs(), constructor.getIns(),
