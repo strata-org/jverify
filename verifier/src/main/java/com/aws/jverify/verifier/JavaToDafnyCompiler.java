@@ -1602,32 +1602,8 @@ public class JavaToDafnyCompiler {
         }
 
         var stringExpr = new StringLiteralExpr(origin, translatedChars.toString(), false);
-        var lengthExpr = new LiteralExpr(origin, stringValue.length());
-
-        var indexExpr = new IdentifierExpr(origin, "i");
-        var indexRange = new BinaryExpr(
-                origin,
-                BinaryExprOpcode.And,
-                new BinaryExpr(origin, BinaryExprOpcode.Le, new LiteralExpr(origin, 0), indexExpr),
-                new BinaryExpr(origin, BinaryExprOpcode.Lt, indexExpr, lengthExpr)
-        );
-        // "foobar"[i] as char16
-        var initBody = new ConversionExpr(
-                origin,
-                new SeqSelectExpr(origin, true, stringExpr, indexExpr, null, null),
-                new UserDefinedType(origin, new NameSegment(origin, "char16", null)),
-                ""
-        );
-        var initLambda = new LambdaExpr(
-                origin,
-                List.of(new BoundVar(origin, new Name(origin, "i"), null, false)),
-                indexRange,
-                initBody,
-                null,
-                new Specification<>(List.of(), null)
-        );
-        return new SeqConstructionExpr(origin, null, lengthExpr, initLambda);
-
+        return new ApplySuffix(origin, new NameSegment(origin, "JString", null), null,
+                new ActualBindings(List.of(new ActualBinding(null, stringExpr, false))), null);
     }
 }
 

@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(dafnyVerified = 9, dafnyErrors = 0)
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 3)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
@@ -20,12 +20,28 @@ class Strings {
         check(str.isEmpty() || str.charAt(0) >= '\0');
     }
 
+    static void stringCharAtIncorrect() {
+        check("🐱".charAt(0) == '\uD83D');
+        check("🐱".charAt(0) == '\uDC31');
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
     static void stringEquals() {
         check("hello world".equals("hello" + " " + "world"));
     }
 
+    static void stringNotEqual() {
+        check("hello world".equals("helloworld"));
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
     static void stringIsEmpty(String str) {
         check(str.length() > 0 || str.isEmpty());
+    }
+
+    static void stringNotEmpty() {
+        check("full".isEmpty());
+//      ^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static boolean stringLengthEven(String str) {
@@ -59,5 +75,15 @@ class Strings {
         check("\uDC00\uDFFF".charAt(1) - 1
                 // low followed by high
                 == "\uDFFE\uD800".charAt(0));
+    }
+
+    static void catdog() {
+        var cat = "🐱";
+        var dog = "🐶";
+        check(cat.length() == 2);
+        check(dog.length() == 2);
+        check(cat.charAt(0) == dog.charAt(0));
+        check(cat.charAt(1) + 5 == dog.charAt(1));
+        check((cat + dog).length() == 4);
     }
 }
