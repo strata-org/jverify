@@ -155,7 +155,11 @@ public class JavaToDafnyCompiler {
             if (externalContracts.containsKey(contracteeSymbol)) {
                 reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                 continue;
-            } 
+            }
+            if (typeHasSource(contracteeSymbol) && !isInterfaceOrAbstract(contracteeSymbol)) {
+                reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
+                continue;
+            }
             
             Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
             for(var member : classDecl.getMembers()) {
@@ -180,14 +184,28 @@ public class JavaToDafnyCompiler {
                     var header = new MethodOrLoopContract(methodDecl, isPure);
                     methodCompiler.translateHeader(methodDecl.getBody(), header);
                     externalContracts.put(baseMethod, header);
-                } else {
-                    if (typeHasSource(contracteeSymbol) && !isSynthetic(methodDecl, methodSymbol) && !isConstructor(methodSymbol)) {
-                        // For static members, we currently do not check whether they occur in the contractee
-                        reportError(methodDecl, "unusedContractMethod", methodDecl.name);
+                } else if (!isSynthetic(methodDecl, methodSymbol)) {
+                    // Check currently does not take into account overloading
+                    // But this only makes it not detect some unused methods.
+                    var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();
+                    if (contractee.isEmpty()) {
+                        reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                     }
                 }
             }
             this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
+        }
+    }
+    
+    private String methodToString(JCTree tree) {
+        if (tree instanceof JCTree.JCMethodDecl methodDecl){
+            if (isConstructor(methodDecl.sym)) {
+                return "constructor";
+            } else {
+                return "method '" + methodDecl.name + "'";
+            }
+        } else {
+            return "lambda";
         }
     }
 
@@ -338,12 +356,6 @@ public class JavaToDafnyCompiler {
             processVerifyAnnotation(annotationsByName);
 
             Name name = getName(classDecl, classDecl.sym);
-            if (externalContracts.containsKey(classDecl.sym)) {
-                boolean isConcrete = !isInterfaceOrAbstract(classDecl.sym);
-                if (isConcrete) {
-                    reportError(name.getOrigin(), "concreteTypeWithExternalContract", classDecl.name);
-                }
-            }
             var origin = declToOrigin(classDecl, name);
             contextOrigins.push(origin);
 
@@ -351,6 +363,20 @@ public class JavaToDafnyCompiler {
             if (contractAnnotation != null) {
                 var contractee = getContractTarget(classDecl, contractAnnotation);
                 if (contractee != null) {
+                    
+                    if (typeHasSource(contractee)) {
+                        // If the contractee has source, then we have a merged contract
+                        // And we do not need to traverse the contracter.
+                        // The contractee will lookup contracts in the contractor
+                        // for bodyless members
+                        var modifiableAnnotation = annotationsByName.get(Modifiable.class.getName());
+                        if (modifiableAnnotation != null) {
+                            reportError(modifiableAnnotation, "annotationOnSourceContractClass", Modifiable.class.getSimpleName(), classDecl.name.toString());
+                        }
+                        return null;
+                    }
+                    
+                    
                     typeForWhichCurrentClassIsDefiningContract = contractee;
                     name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
                 }
@@ -459,13 +485,6 @@ public class JavaToDafnyCompiler {
             }
         }
         var definingSymbol = getCurrentTypeSymbol(classDecl);
-        if (typeForWhichCurrentClassIsDefiningContract != null && typeHasSource(typeForWhichCurrentClassIsDefiningContract)) {
-            // If the contractee has source, then we have a merged contract
-            // And we do not need to traverse the contracter.
-            // The contractee will lookup contracts in the contractor
-            // for bodyless members
-            return List.of();
-        }
         
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
         if (definingSymbol.getSuperclass() != null)
