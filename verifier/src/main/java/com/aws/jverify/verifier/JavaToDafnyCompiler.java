@@ -183,9 +183,11 @@ public class JavaToDafnyCompiler {
                     var header = new MethodOrLoopContract(methodDecl, isPure);
                     methodCompiler.translateHeader(methodDecl.getBody(), header);
                     externalContracts.put(baseMethod, header);
-                } else {
-                    if (typeHasSource(contracteeSymbol) && !isSynthetic(methodDecl, methodSymbol)) {
-                        // For static members, we currently do not check whether they occur in the contractee
+                } else if (!isSynthetic(methodDecl, methodSymbol)) {
+                    // Check currently does not take into account overloading
+                    // But this only makes it not detect some unused methods.
+                    var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();
+                    if (contractee.isEmpty()) {
                         reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                     }
                 }
@@ -194,11 +196,15 @@ public class JavaToDafnyCompiler {
         }
     }
     
-    private String methodToString(JCTree.JCMethodDecl methodDecl) {
-        if (isConstructor(methodDecl.sym)) {
-            return "constructor";
+    private String methodToString(JCTree tree) {
+        if (tree instanceof JCTree.JCMethodDecl methodDecl){
+            if (isConstructor(methodDecl.sym)) {
+                return "constructor";
+            } else {
+                return "method '" + methodDecl.name + "'";
+            }
         } else {
-            return "method '" + methodDecl.name + "'";
+            return "lambda";
         }
     }
 
@@ -370,6 +376,7 @@ public class JavaToDafnyCompiler {
                         }
                         return null;
                     }
+                    
                     
                     typeForWhichCurrentClassIsDefiningContract = contractee;
                     name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));

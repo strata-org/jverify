@@ -28,6 +28,11 @@ class FooContract1 extends Foo {
 //       ^ error: method 'unusedExternalContract' is part of a @Contract class, but its signature does not match any method from the contractee
         postcondition(false);
     }
+    
+    static void unusedStaticExternalContract() {
+//              ^ error: method 'unusedStaticExternalContract' is part of a @Contract class, but its signature does not match any method from the contractee
+        postcondition(false);
+    }
 }
 
    @Contract(Foo.class)
