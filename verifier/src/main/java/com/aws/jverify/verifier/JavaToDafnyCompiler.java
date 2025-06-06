@@ -337,7 +337,7 @@ public class JavaToDafnyCompiler {
 
             processVerifyAnnotation(annotationsByName);
 
-            Name name = getName(classDecl, this.nameMangler.mangleSymbolName(classDecl.sym));
+            Name name = getName(classDecl, classDecl.sym);
             if (externalContracts.containsKey(classDecl.sym)) {
                 boolean isConcrete = !isInterfaceOrAbstract(classDecl.sym);
                 if (isConcrete) {
@@ -651,7 +651,7 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
-        Name fieldName = getName(variableDecl, nameMangler.mangleSymbolName(variableDecl.sym));
+        Name fieldName = getName(variableDecl, variableDecl.sym);
         IOrigin origin = declToOrigin(variableDecl, fieldName);
         Type type = translateType(variableDecl.vartype.type, isNullable(variableDecl.getModifiers()), toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
@@ -755,7 +755,7 @@ public class JavaToDafnyCompiler {
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
+        var name = getName(source, methodSymbol);
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
@@ -870,7 +870,7 @@ public class JavaToDafnyCompiler {
 
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
+        var name = getName(source, methodSymbol);
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
@@ -1133,10 +1133,18 @@ public class JavaToDafnyCompiler {
         return getName(tree, name.toString());
     }
     
+    Name getName(JCTree tree, Symbol symbol) {
+        return getName(tree, nameMangler.mangleSymbolName(symbol), symbol.name.length());
+    }
+
     Name getName(JCTree tree, String name) {
+        return getName(tree, name, name.length());
+    }
+    
+    Name getName(JCTree tree, String name, int length) {
         int startPos = getStartPos(tree);
         var startToken = toToken(startPos);
-        var endToken = toToken(startPos + name.length());
+        var endToken = toToken(startPos + length);
         var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
         return new Name(origin, name);
     }
