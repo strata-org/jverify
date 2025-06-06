@@ -34,6 +34,7 @@ import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -483,17 +484,46 @@ public class JavaToDafnyCompiler {
                                                               List<TypeParameter> typeParameters,
                                                               List<Type> superTraits) {
         var traitMembers = new ArrayList<MemberDecl>();
+        var classMembers = new ArrayList<MemberDecl>();
+        var classNeeded = false;
         for(var member : members) {
             if (member instanceof Method method && !method.getHasStaticKeyword()) {
-                var traitMethod = new Method(method.getOrigin(), method.getNameNode(), method.getAttributes(),
-                        method.getIsGhost(), method.getSignatureEllipsis(), method.getTypeArgs(), method.getIns(),
-                        method.getReq(), method.getEns(), method.getReads(), method.getDecreases(), method.getMod(),
-                        method.getHasStaticKeyword(), method.getOuts(), null, method.getIsByMethod());
-                traitMembers.add(traitMethod);
+                if (method.getBody() == null) {
+                    classMembers.add(member);
+                }
+                traitMembers.add(member);
+// For supporting overriding virtuals:
+//                var traitMethod = new Method(method.getOrigin(), method.getNameNode(), method.getAttributes(),
+//                        method.getIsGhost(), method.getSignatureEllipsis(), method.getTypeArgs(), method.getIns(),
+//                        method.getReq(), method.getEns(), method.getReads(), method.getDecreases(), method.getMod(),
+//                        method.getHasStaticKeyword(), method.getOuts(), null, method.getIsByMethod());
+//                traitMembers.add(traitMethod);
             } else if (member instanceof Function function) {
                 traitMembers.add(function);
+                if (function.getBody() == null) {
+                    classMembers.add(member);
+                }
             } else if (member instanceof Constructor constructor) {
+                classNeeded = true;
                 traitMembers.add(constructorToInitMethod(constructor));
+
+                var initName = getInitMethodName(constructor.getNameNode().getValue());
+                var arguments = constructor.getIns().stream().map(
+                        i -> new ActualBinding(null, new NameSegment(i.getOrigin(), i.getNameNode().getValue(), null), false)).toList();
+                var applySuffix = new ApplySuffix(constructor.getOrigin(),
+                        new NameSegment(constructor.getOrigin(), initName, null), null, new ActualBindings(arguments), null);
+                var bodyProper = List.<Statement>of(new AssignStatement(origin, null, List.of(),
+                        List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+                List<Statement> bodyInit = List.of(); // TODO auto-init fields?
+                DividedBlockStmt body = new DividedBlockStmt(constructor.getOrigin(), null, List.of(), bodyInit, constructor.getOrigin(),
+                        bodyProper);
+                var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null,
+                        constructor.getTypeArgs(), constructor.getIns(),
+                        constructor.getReq(), constructor.getEns(), constructor.getReads(),
+                        constructor.getDecreases(), constructor.getMod(),
+                        body);
+                // TODO add verify false to this constructor
+                classMembers.add(classConstructor);
             } else {
                 traitMembers.add(member);
             }
@@ -509,40 +539,6 @@ public class JavaToDafnyCompiler {
         List<Type> typeArgs = typeParameters.stream().map(
                 p -> (Type)new UserDefinedType(p.getOrigin(), 
                         new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
-
-        var classNeeded = false;
-        var classMembers = new ArrayList<MemberDecl>();
-        for(var member : members) {
-            if (member instanceof Method method) {
-                if (!method.getHasStaticKeyword()) {
-                    classMembers.add(member);
-                    classNeeded = true;
-                }
-            } if (member instanceof Function function) {
-                if (function.getBody() == null) {
-                    classMembers.add(member);
-                }
-            } else if (member instanceof Constructor constructor) {
-                var initName = getInitMethodName(constructor.getNameNode().getValue());
-                var arguments = constructor.getIns().stream().map(
-                        i -> new ActualBinding(null, new NameSegment(i.getOrigin(), i.getNameNode().getValue(), null), false)).toList();
-                var applySuffix = new ApplySuffix(constructor.getOrigin(),
-                        new NameSegment(constructor.getOrigin(), initName, null), null, new ActualBindings(arguments), null);
-                var bodyProper = List.<Statement>of(new AssignStatement(origin, null, List.of(),
-                        List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
-                List<Statement> bodyInit = List.of(); // TODO auto-init fields?
-                DividedBlockStmt body = new DividedBlockStmt(constructor.getOrigin(), null, List.of(), bodyInit, constructor.getOrigin(),
-                        bodyProper);
-                var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null, 
-                        constructor.getTypeArgs(), constructor.getIns(),
-                        constructor.getReq(), constructor.getEns(), constructor.getReads(),
-                        constructor.getDecreases(), constructor.getMod(),
-                        body);
-                // TODO add verify false to this constructor
-                classMembers.add(classConstructor);
-                classNeeded = true;
-            }
-        }
 
         if (classNeeded) {
             var clazz = new ClassDecl(origin, new Name(name.getOrigin(), "_Class_" + name.getValue()), null,
