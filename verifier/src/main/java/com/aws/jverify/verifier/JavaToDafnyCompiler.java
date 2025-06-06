@@ -1042,7 +1042,11 @@ public class JavaToDafnyCompiler {
                     return new LiteralExpr(toOrigin(literal), literal.getValue());
                 }
                 if (literal.typetag == TypeTag.CHAR) {
-                    return new CharLiteralExpr(toOrigin(literal), literal.getValue());
+                    var intValue = Integer.valueOf((char) literal.getValue());
+                    return new LiteralExpr(toOrigin(literal), intValue);
+                }
+                if (expr.getKind().equals(Tree.Kind.STRING_LITERAL)) {
+                    return translateStringLiteral(toOrigin(literal), literal);
                 }
                 return new LiteralExpr(origin, literal.getValue());
             }
@@ -1052,8 +1056,43 @@ public class JavaToDafnyCompiler {
                     return jverifyMethodExpr;
                 }
 
-                var target = toExpr(invocation.getMethodSelect());
+                var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
                 var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
+
+                if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
+                        && ownerClass.fullname.contentEquals(String.class.getName())) {
+                    final Expression receiver;
+                    if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                        receiver = toExpr(fieldAccess.selected);
+                    } else {
+                        reportError(invocation, "notSupported", "method reference call");
+                        receiver = getHole(origin);
+                    }
+
+                    return switch (methodSymbol.name.toString()) {
+                        case "charAt" -> new SeqSelectExpr(origin, true, receiver,
+                                argBindings.getFirst().getActual(), null, null);
+                        case "equals" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
+                                argBindings.getFirst().getActual());
+                        case "isEmpty" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
+                                new SeqDisplayExpr(origin, List.of()));
+                        case "length" -> new UnaryOpExpr(
+                                origin, receiver, UnaryOpExprOpcode.Cardinality);
+                        case "substring" -> {
+                            var endIndex = argBindings.size() == 2
+                                    ? argBindings.get(1).getActual()
+                                    : new UnaryOpExpr(origin, receiver, UnaryOpExprOpcode.Cardinality);
+                            yield new SeqSelectExpr(origin, false, receiver,
+                                    argBindings.getFirst().getActual(), endIndex, null);
+                        }
+                        default -> {
+                            reportError(invocation, "notSupported", "String method " + methodSymbol);
+                            yield getHole(origin);
+                        }
+                    };
+                }
+
+                var target = toExpr(invocation.getMethodSelect());
                 return new ApplySuffix(origin, target, null,
                         new ActualBindings(argBindings), null);
             }
@@ -1454,7 +1493,6 @@ public class JavaToDafnyCompiler {
                 }
             }
 
-
             reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         }
@@ -1470,6 +1508,11 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
+                var className = classType.tsym.getQualifiedName();
+                if (className.toString().equals(String.class.getName())) {
+                    return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
+                }
+
                 // Remove the name qualification because we do not support that yet
                 var mangledName = nameMangler.mangleSymbolName(classType.tsym);
                 var arguments = classType.getTypeArguments().map(a -> translateType(a, false, origin));
@@ -1693,6 +1736,44 @@ public class JavaToDafnyCompiler {
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
 
+    private static final Map<Character, String> ESCAPED_CHARS = Map.of(
+            '\'', "\\'",
+            '\"', "\\\"",
+            '\\', "\\\\",
+            '\0', "\\0",
+            '\n', "\\n",
+            '\r', "\\r",
+            '\t', "\\t"
+    );
+
+    /**
+     * Translates the given string literal to a Dafny expression (of type {@code jstring}).
+     * For ease of debugging, the translation is the equivalent Dafny string literal
+     * if all characters in the string are printable ASCII or have (non-Unicode) escape sequences.
+     * Otherwise, the translation is a sequence display of the characters' numeric values.
+     */
+    private static Expression translateStringLiteral(IOrigin origin, JCTree.JCLiteral literal) {
+        assert literal.getKind().equals(Tree.Kind.STRING_LITERAL);
+        var stringValue = (String) literal.getValue();
+
+        var translatedChars = new StringBuilder();
+        for (var charValue : stringValue.toCharArray()) {
+            if (ESCAPED_CHARS.containsKey(charValue)) {
+                translatedChars.append(ESCAPED_CHARS.get(charValue));
+            } else if (charValue >= 0x20 && charValue <= 0x7e) {
+                translatedChars.append(charValue);
+            } else {
+                // Fallback to sequence of numeric values
+                var charExprs = stringValue.chars().boxed()
+                        .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
+                return new SeqDisplayExpr(origin, charExprs);
+            }
+        }
+
+        var stringExpr = new StringLiteralExpr(origin, translatedChars.toString(), false);
+        return new ApplySuffix(origin, new NameSegment(origin, "JString", null), null,
+                new ActualBindings(List.of(new ActualBinding(null, stringExpr, false))), null);
+    }
 }
 
 /**
