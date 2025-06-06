@@ -187,6 +187,6 @@ class Operators {
 
         //noinspection RedundantCast,NewObjectEquality,DataFlowIssue
         check(dc1 == (DummyClass) dc2);
-//                   ^^^^^^^^^^^^^^^^ Error: value of expression (of type 'com_aws_jverify_verifier_tests_DummyInterface') is not known to be an instance of type 'com_aws_jverify_verifier_tests_DummyClass'
+//                   ^^^^^^^^^^^^^^^^ Error: value of expression (of type 'DummyInterface') is not known to be an instance of type 'DummyClass'
     }
 }
