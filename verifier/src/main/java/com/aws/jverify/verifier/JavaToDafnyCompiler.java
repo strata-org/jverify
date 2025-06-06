@@ -488,7 +488,7 @@ public class JavaToDafnyCompiler {
                                                               List<Type> superTraits) {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
-        var classNeeded = false;
+        var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
         for(var member : members) {
             if (member instanceof Method method && !method.getHasStaticKeyword()) {
                 if (method.getBody() == null) {
@@ -508,7 +508,10 @@ public class JavaToDafnyCompiler {
                 }
             } else if (member instanceof Constructor constructor) {
                 classNeeded = true;
-                traitMembers.add(constructorToInitMethod(constructor));
+                Method initMethod = constructorToInitMethod(constructor);
+                if (initMethod != null) {
+                    traitMembers.add(initMethod);
+                }
 
                 var initName = getInitMethodName(constructor.getNameNode().getValue());
                 var arguments = constructor.getIns().stream().map(
@@ -520,11 +523,12 @@ public class JavaToDafnyCompiler {
                 List<Statement> bodyInit = List.of(); // TODO auto-init fields?
                 DividedBlockStmt body = new DividedBlockStmt(constructor.getOrigin(), null, List.of(), bodyInit, constructor.getOrigin(),
                         bodyProper);
-                var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null,
+                var attr = new Attributes(constructor.getOrigin(), "axiom", List.of(), null);
+                var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), attr, false, null,
                         constructor.getTypeArgs(), constructor.getIns(),
                         constructor.getReq(), constructor.getEns(), constructor.getReads(),
                         constructor.getDecreases(), constructor.getMod(),
-                        body);
+                        null);
                 // TODO add verify false to this constructor
                 classMembers.add(classConstructor);
             } else {
@@ -553,6 +557,9 @@ public class JavaToDafnyCompiler {
     }
 
     private static Method constructorToInitMethod(Constructor constructor) {
+        if (constructor.getBody() == null) {
+            return null;
+        }
         BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
                 constructor.getBody().getBodyInit());
         Name nameNode = new Name(constructor.getNameNode().getOrigin(), getInitMethodName(constructor.getNameNode().getValue()));

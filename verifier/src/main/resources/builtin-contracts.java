@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.SequencedCollection;
 
 @Contract(Object.class)
-class ObjectContract {    
+class ObjectContract {
+    public ObjectContract() {} 
 }
 
 @Contract(Short.class)
