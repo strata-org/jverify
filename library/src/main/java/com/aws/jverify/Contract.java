@@ -17,5 +17,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.SOURCE)
 @Target({ElementType.TYPE})
 public @interface Contract {
-    Class<?> value();
+    Class<?> value() default Contract.class;
 }
