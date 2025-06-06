@@ -186,11 +186,19 @@ public class JavaToDafnyCompiler {
                 } else {
                     if (typeHasSource(contracteeSymbol) && !isSynthetic(methodDecl, methodSymbol)) {
                         // For static members, we currently do not check whether they occur in the contractee
-                        reportError(methodDecl, "unusedContractMethod", methodDecl.name);
+                        reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                     }
                 }
             }
             this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
+        }
+    }
+    
+    private String methodToString(JCTree.JCMethodDecl methodDecl) {
+        if (isConstructor(methodDecl.sym)) {
+            return "constructor";
+        } else {
+            return "method '" + methodDecl.name + "'";
         }
     }
 
