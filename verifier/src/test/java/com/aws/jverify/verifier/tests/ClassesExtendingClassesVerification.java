@@ -30,12 +30,6 @@ class Extender extends Extendee {
     public int computeX(int input) {
         return 3;
     }
-
-//    @Override
-//    public int virtualMethodO() {
-//        postcondition((Integer r) -> r >= 20);
-//        return 20;
-//    }
 }
 
 @Contract(Extendee.class)
@@ -71,10 +65,4 @@ abstract class Extendee {
         postcondition((Integer r) -> r >= 10);
         return 10;
     }
-    
-    // TODO forbid overriding @Pure members
-//    @Pure
-//    public int computeX(int input) {
-//        return input * 2;
-//    }
 }

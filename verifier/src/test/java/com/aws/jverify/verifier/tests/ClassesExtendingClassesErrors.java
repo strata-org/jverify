@@ -14,12 +14,14 @@ class ExtenderErrors extends ExtendeeErrors {
     @Override
     public int pureVirtual(int input) {
 //             ^^^^^^^^^^^ Error: fully defined function 'Z_pureVirtual_i' is inherited from trait 'com_aws_jverify_verifier_tests_ExtendeeErrors' and is not allowed to be re-declared
+ 
         return 3;
     }
     
     @Override
     public int impureVirtual() {
 //             ^^^^^^^^^^^^^ Error: fully defined method 'Z_impureVirtual' is inherited from trait 'com_aws_jverify_verifier_tests_ExtendeeErrors' and is not allowed to be re-declared
+// Will be allowed in the future, and then we should move this to the Verification test
         postcondition((Integer r) -> r >= 20);
         return 20;
     }
