@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
@@ -24,7 +25,7 @@ class FooContract1 extends Foo {
     }
 
     void unusedExternalContract() {
-//       ^ error: method 'unusedExternalContract' is part of a @Contract class, but it does not override any methods for which to provide a contract
+//       ^ error: method 'unusedExternalContract' is part of a @Contract class, but its signature does not match any method from the contractee
         postcondition(false);
     }
 }
@@ -36,3 +37,17 @@ class FooContract2 extends Foo {
         check(x < 0);
     }
 }
+
+interface IErrors {}
+
+@Contract
+   @Modifiable
+// ^ error: annotation 'Modifiable' on @Contract class 'IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
+class IllegalAnnotationContract implements IErrors {
+}
+
+class ConcreteClass {}
+
+   @Contract(ConcreteClass.class)
+// ^ error: class 'ConcreteClass' must not have an externally defined contract because all its contracts can be defined internally
+class ConcreteClassContract {}

@@ -35,6 +35,7 @@ import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -153,7 +154,11 @@ public class JavaToDafnyCompiler {
             if (externalContracts.containsKey(contracteeSymbol)) {
                 reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                 continue;
-            } 
+            }
+            if (typeHasSource(contracteeSymbol) && !isInterfaceOrAbstract(contracteeSymbol)) {
+                reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
+                continue;
+            }
             
             Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
             for(var member : classDecl.getMembers()) {
@@ -338,12 +343,6 @@ public class JavaToDafnyCompiler {
             processVerifyAnnotation(annotationsByName);
 
             Name name = getName(classDecl, this.nameMangler.mangleSymbolName(classDecl.sym));
-            if (externalContracts.containsKey(classDecl.sym)) {
-                boolean isConcrete = !isInterfaceOrAbstract(classDecl.sym);
-                if (isConcrete) {
-                    reportError(name.getOrigin(), "concreteTypeWithExternalContract", classDecl.name);
-                }
-            }
             var origin = declToOrigin(classDecl, name);
             contextOrigins.push(origin);
 
@@ -351,6 +350,19 @@ public class JavaToDafnyCompiler {
             if (contractAnnotation != null) {
                 var contractee = getContractTarget(classDecl, contractAnnotation);
                 if (contractee != null) {
+                    
+                    if (typeHasSource(contractee)) {
+                        // If the contractee has source, then we have a merged contract
+                        // And we do not need to traverse the contracter.
+                        // The contractee will lookup contracts in the contractor
+                        // for bodyless members
+                        var modifiableAnnotation = annotationsByName.get(Modifiable.class.getName());
+                        if (modifiableAnnotation != null) {
+                            reportError(modifiableAnnotation, "annotationOnSourceContractClass", Modifiable.class.getSimpleName(), classDecl.name.toString());
+                        }
+                        return null;
+                    }
+                    
                     typeForWhichCurrentClassIsDefiningContract = contractee;
                     name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
                 }
@@ -461,13 +473,6 @@ public class JavaToDafnyCompiler {
             }
         }
         var definingSymbol = getCurrentTypeSymbol(classDecl);
-        if (typeForWhichCurrentClassIsDefiningContract != null && typeHasSource(typeForWhichCurrentClassIsDefiningContract)) {
-            // If the contractee has source, then we have a merged contract
-            // And we do not need to traverse the contracter.
-            // The contractee will lookup contracts in the contractor
-            // for bodyless members
-            return null;
-        }
         
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
 // 'extends' not yet supported when extending a class
