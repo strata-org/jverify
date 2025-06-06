@@ -28,6 +28,7 @@ class TranslationErrors {
     }
     
     void quantifierNeedsLambdaArgument() {
+        check(forall((Integer i) -> i > 0));
         java.util.function.Function<Integer, Boolean> f =
                 (Integer i) -> i > 0;
         check(forall(f));

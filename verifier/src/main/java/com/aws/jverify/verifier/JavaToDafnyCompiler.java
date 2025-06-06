@@ -91,46 +91,9 @@ public class JavaToDafnyCompiler {
                 .collect(Collectors.joining(File.pathSeparator));
         var javacOptions = List.of("-classpath", classpath);
 
-        JavaCompiler compiler = JavaCompiler.instance(context);
-        compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
-
-        MultiTaskListener mtl = MultiTaskListener.instance(context);
-        Set<CompilationUnitTree> parsed = new HashSet<>();
-        mtl.add(new TaskListener() {
-            @Override
-            public void started(TaskEvent e) {
-                TaskListener.super.started(e);
-            }
-
-            @Override
-            public void finished(TaskEvent e) {
-                TaskListener.super.finished(e);
-
-                if (e.getKind() == TaskEvent.Kind.COMPILATION) {
-                    Todo todo = Todo.instance(context);
-                    compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
-                    Queue<Env<AttrContext>> envs = compiler.flow(compiler.attribute(todo));
-                    envs = unlambda(envs);
-                    envs.stream().forEach(env -> parsed.add(env.toplevel));
-                }
-            }
-        });
-        compiler.compile(com.sun.tools.javac.util.List.from(files), List.of(), null, List.of());
-
-//        JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
-//                null,
-//                null,
-//                diagnostics,
-//                javacOptions,
-//                null,
-//                files,
-//                context
-//        );
-//
-//        var parsed = task.parse();
-//        task.analyze();
-
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        var units = process(javacOptions, files);
+
         List<FileStart> filesStarts = new ArrayList<>();
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
@@ -145,15 +108,63 @@ public class JavaToDafnyCompiler {
                 return new FilesContainer(filesStarts);
             }
         }
-        for (var compilationUnit : parsed) {
+        for (var compilationUnit : units) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
-        for (var compilationUnit : parsed) {
+        for (var compilationUnit : units) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
+
             filesStarts.add(fileStart);
         }
 
         return new FilesContainer(filesStarts);
+    }
+
+    /**
+     * Applies a subset of the javac compilation pipeline.
+     *
+     * TODO
+     */
+    private Set<CompilationUnitTree> process(Iterable<String> options, List<JavaFileObject> files) {
+        JavaCompiler compiler = JavaCompiler.instance(context);
+        compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
+        // TODO: options
+
+        MultiTaskListener mtl = MultiTaskListener.instance(context);
+        Set<CompilationUnitTree> parsed = new HashSet<>();
+        ErasedCodeSubstituter substituter = new ErasedCodeSubstituter(context);
+        mtl.add(new TaskListener() {
+            @Override
+            public void finished(TaskEvent e) {
+                TaskListener.super.finished(e);
+
+                if (e.getKind() == TaskEvent.Kind.COMPILATION) {
+                    Todo todo = Todo.instance(context);
+                    compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
+                    var envs = unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo)))));
+                    envs.stream().forEach(env -> parsed.add(env.toplevel));
+                }
+            }
+        });
+        compiler.compile(com.sun.tools.javac.util.List.from(files), List.of(), null, List.of());
+
+        return parsed;
+    }
+
+    private Queue<Env<AttrContext>> substitute(Queue<Env<AttrContext>> envs) {
+        var substituter = ErasedCodeSubstituter.instance(context);
+        for (Env<AttrContext> env: envs) {
+            env.tree = substituter.substitute(env.tree);
+        }
+        return envs;
+    }
+
+    private Queue<Env<AttrContext>> unsubstitute(Queue<Env<AttrContext>> envs) {
+        var substituter = ErasedCodeSubstituter.instance(context);
+        for (Env<AttrContext> env: envs) {
+            env.tree = substituter.unsubstitute(env.tree);
+        }
+        return envs;
     }
 
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
