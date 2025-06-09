@@ -7,21 +7,18 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@Verify(value = false)
-class Foo {
+interface Foo {
     public final static int c = 42;
 
-    int foo(int x) {
-        return x + 2;
-    }
+    abstract int foo(int x);
 }
 
 @Contract(Foo.class)
 @JVerifyTest(exitCode = 0, dafnyVerified = 2, dafnyErrors = 0)
-public class ExternalContract {
+public class ExternalContract implements Foo {
     public final static int c = 43;
     
-    int foo(int x) {
+    public int foo(int x) {
         precondition(x > 0);
         postcondition((Integer i) -> i >= i + 1);
         throw new ContractException();
@@ -29,8 +26,7 @@ public class ExternalContract {
 }
 
 class User {
-    void test() {
-        var foo = new Foo();
+    void test(Foo foo) {
         var result = foo.foo(2);
         check(result > 2 + 1);
         check(Foo.c == 43);
