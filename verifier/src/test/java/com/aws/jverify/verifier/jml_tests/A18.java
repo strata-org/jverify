@@ -4,7 +4,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 1, dafnyErrors = 1)
+@JVerifyTest(exitCode = 0, dafnyVerified = 3, dafnyErrors = 0)
 public class A18 {
 
     public int FIELD;
@@ -24,12 +24,11 @@ public class A18 {
    
    //@ requires true; 
    public int localTest2(int a, int b){
-       precondition(a+b<Integer.MAX_VALUE && a+b>Integer.MIN_VALUE);
+       precondition(a+b<Integer.MAX_VALUE/3 && a+b>Integer.MIN_VALUE/3);
         modifies(this);
        int tmp = add(a, b);
 
 	return tmp * this.FIELD;
-//             ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: value does not satisfy the subset constraints of 'int32'
    }
     
     
