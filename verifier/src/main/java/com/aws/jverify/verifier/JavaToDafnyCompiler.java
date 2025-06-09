@@ -35,6 +35,7 @@ import javax.tools.*;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Array;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -120,8 +121,11 @@ public class JavaToDafnyCompiler {
             fileDecls.put(compilationUnit, new ArrayList<>());
         }
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
+        var items = new ArrayList<>();
         while (iterator.hasNext()) {
-            var current = iterator.next();
+            items.add(iterator.next());
+        }
+        for(var current : items.reversed()) {
             var decl = symbolToDecl.get(current);
             if (decl == null) {
                 continue;
@@ -1178,7 +1182,7 @@ public class JavaToDafnyCompiler {
         var positionCalculator = new PositionCalculator(compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);
         var startToken = positionCalculator.toToken(startPos);
-        var endToken = positionCalculator.toToken(startPos + name.length());
+        var endToken = positionCalculator.toToken(startPos + length);
         var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
         return new Name(origin, name);
     }
