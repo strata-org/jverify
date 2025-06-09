@@ -113,7 +113,7 @@ public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Pat
         String formatMessage = getDefaultFormatMessage();
         String message;
         if (getArguments().length > 0) {
-            message = MessageFormat.format(safeFormat(formatMessage), getArguments());
+            message = MessageFormat.format(safeFormat(formatMessage), (Object[]) getArguments());
         } else {
             message = formatMessage;
         }
