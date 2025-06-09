@@ -20,8 +20,8 @@ public class Lambdas {
         doSomethingTwice(this::add);
         doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
-//            precondition(x >= y);
-//            postcondition((Integer r) -> r == x - y);
+            precondition(x >= y);
+            postcondition((Integer r) -> r == x - y);
             return x - y;
 //                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
         });
@@ -84,21 +84,30 @@ interface SomeClassMaker {
 
 interface SomethingDoer {
     int doSomething(int x, int y);
+
+    @Contract
+    class SomethingDoerContract implements SomethingDoer {
+
+        @Override
+        public int doSomething(int x, int y) {
+            throw new ContractException();
+        }
+    }
 }
 
 interface SomethingDoerWithSpec {
     int doSomething(int x, int y);
-}
 
-@Contract
-class SomethingDoerWithSpecContract implements SomethingDoerWithSpec {
-    // TODO: Can't currently put @Nat on the return type because there's
-    // currently no way to indicate that on the lambda expression
-    // since it doesn't declare a return type anywhere.
-    @Override
-    public int doSomething(int x, int y) {
-        precondition(x >= y);
-        postcondition((Integer r) -> r == x - y);
-        throw new ContractException();
+    @Contract
+    class SomethingDoerWithSpecContract implements SomethingDoerWithSpec {
+        // TODO: Can't currently put @Nat on the return type because there's
+        // currently no way to indicate that on the lambda expression
+        // since it doesn't declare a return type anywhere.
+        @Override
+        public int doSomething(int x, int y) {
+            precondition(x >= y);
+            postcondition((Integer r) -> r == x - y);
+            throw new ContractException();
+        }
     }
 }

@@ -769,7 +769,7 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
             } else {
-                if (!(source instanceof JCTree.JCLambda) && externalContract != null) {
+                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
                     reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 header = new MethodOrLoopContract(source, false);
@@ -897,7 +897,7 @@ public class JavaToDafnyCompiler {
             if (sourceBody == null) {
                 header = externalContract;
             } else {
-                if (!(source instanceof JCTree.JCLambda) && externalContract != null) {
+                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
                     reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 header = new MethodOrLoopContract(source, true);
