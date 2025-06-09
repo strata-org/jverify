@@ -350,10 +350,7 @@ public class MethodCompiler {
         if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
             Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) ident.sym;
 
-            var methodDecl = JavacTrees.instance(compiler.context).getTree(baseConstructor);
-            // TODO incorrect. How do I track which 
-            boolean superConstructorHasNoContract = methodDecl == null || compiler.isSynthetic(methodDecl, baseConstructor);
-            if (superConstructorHasNoContract) {
+            if (!compiler.contractSymbols.contains(baseConstructor)) {
                 return List.of();
             }
             

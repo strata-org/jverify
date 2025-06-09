@@ -11,9 +11,12 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.comp.AttrContext;
+import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.comp.Enter;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
@@ -22,13 +25,16 @@ import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.jgrapht.Graph;
+import org.jgrapht.graph.DefaultDirectedGraph;
+import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Array;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,17 +44,20 @@ import java.util.stream.StreamSupport;
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
-    List<DatatypeDecl> lambdaDatatypeDecls = new ArrayList<>();
+    public Set<Symbol.MethodSymbol> contractSymbols = new HashSet<>();
+    //List<DatatypeDecl> lambdaDatatypeDecls = new ArrayList<>();
     Stack<IOrigin> contextOrigins = new Stack<>();
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public final NameMangler nameMangler = new NameMangler();
+    private Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
+    private Map<Symbol.ClassSymbol, JCTree.JCClassDecl> symbolToDecl = new HashMap<>();
+    public Map<CompilationUnitTree, List<TopLevelDecl>> fileDecls = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
 
     JCTree.JCCompilationUnit compilationUnit;
     private JCDiagnostic.Factory diagnosticFactory;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
-    boolean buildingTrait;
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -68,14 +77,12 @@ public class JavaToDafnyCompiler {
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
 
-        var classpathEntries = new ArrayList<Path>();
-        
         for(var extraPath : options.extraClassPathEntries()) {
             if (!Files.exists(extraPath.toAbsolutePath())) {
                 throw new IllegalArgumentException("Could not find file: " + extraPath);
             }
         }
-        classpathEntries.addAll(options.extraClassPathEntries());
+        var classpathEntries = new ArrayList<Path>(options.extraClassPathEntries());
         var classpath = classpathEntries.stream()
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator));
@@ -109,11 +116,28 @@ public class JavaToDafnyCompiler {
             }
         }
         for (var compilationUnit : parsed) {
-            findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
+            traverseTypes((JCTree.JCCompilationUnit) compilationUnit);
+            fileDecls.put(compilationUnit, new ArrayList<>());
         }
+        var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
+        while (iterator.hasNext()) {
+            var current = iterator.next();
+            var decl = symbolToDecl.get(current);
+            if (decl == null) {
+                continue;
+            }
+            Enter enter = Enter.instance(context);
+            Env<AttrContext> env = enter.getEnv(decl.sym);
+            if (env != null) {
+                compilationUnit = env.toplevel;
+            }
+            var decls = translateTypeDeclaration(decl);
+            fileDecls.get(compilationUnit).addAll(decls);
+        }
+        
         for (var compilationUnit : parsed) {
-            var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
-            filesStarts.add(fileStart);
+            List<TopLevelDecl> decls = fileDecls.get(compilationUnit);
+            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), decls));
         }
 
         return new FilesContainer(filesStarts);
@@ -122,13 +146,24 @@ public class JavaToDafnyCompiler {
     record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) {
         
     }
-    private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
+    private void traverseTypes(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
         var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
         while(!typesToVisit.isEmpty()) {
             var typeDecl = typesToVisit.poll();
             if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
                 continue;
+            }
+            typeHierarchy.addVertex(classDecl.sym);
+            for(var base : classDecl.sym.getInterfaces()) {
+                if (base.tsym instanceof Symbol.ClassSymbol classBase) {
+                    typeHierarchy.addVertex(classBase);
+                    typeHierarchy.addEdge(classDecl.sym, classBase);
+                }
+            }
+            if (classDecl.sym.getSuperclass().tsym instanceof Symbol.ClassSymbol baseClass) {
+                typeHierarchy.addVertex(baseClass);
+                typeHierarchy.addEdge(classDecl.sym, baseClass);
             }
             
             var classAnnotations = classDecl.getModifiers().getAnnotations();
@@ -143,6 +178,7 @@ public class JavaToDafnyCompiler {
                 }
             }
             if (contractAnnotation == null) {
+                symbolToDecl.put(classDecl.sym, classDecl);
                 continue;
             }
             
@@ -151,6 +187,7 @@ public class JavaToDafnyCompiler {
                 reportError(classDecl, "noContractTarget", classDecl.name.toString());
                 continue;
             }
+            symbolToDecl.put(contracteeSymbol, classDecl);
             if (externalContracts.containsKey(contracteeSymbol)) {
                 reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                 continue;
@@ -244,27 +281,6 @@ public class JavaToDafnyCompiler {
         }
     }
 
-
-
-    private FileStart translateFile(JCTree.JCCompilationUnit compilationUnit) {
-        this.compilationUnit = compilationUnit;
-        this.lambdaDatatypeDecls.clear();
-
-        ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
-        Stack<Tree> remainingTypes = new Stack<>();
-        remainingTypes.addAll(compilationUnit.getTypeDecls());
-        while(!remainingTypes.isEmpty()) {
-            var typeDecl = remainingTypes.pop();
-            var dafnyDecls = translateTypeDeclaration(typeDecl, remainingTypes);
-            topLevelDecls.addAll(dafnyDecls);
-        }
-
-        topLevelDecls.addAll(0, lambdaDatatypeDecls);
-        lambdaDatatypeDecls.clear();
-
-        return new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls);
-    }
-
     private void reportError(IOrigin origin, String key, Object... args) {
         reportError(positionFromOrigin(origin), key, args);
     }
@@ -345,7 +361,7 @@ public class JavaToDafnyCompiler {
         }
     }
     
-    @Nullable List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
+    @Nullable List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
@@ -386,7 +402,7 @@ public class JavaToDafnyCompiler {
                 result = List.of(translateEnum(classDecl, origin, name));
             } 
             else {
-                result = translateClass(nestedTypes, classDecl, origin, name);
+                result = translateClass(classDecl, origin, name);
             }
             typeForWhichCurrentClassIsDefiningContract = null;
             contextOrigins.pop();
@@ -450,7 +466,7 @@ public class JavaToDafnyCompiler {
         return false;
     }
     
-    private List<ClassLikeDecl> translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    private List<ClassLikeDecl> translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
@@ -477,7 +493,7 @@ public class JavaToDafnyCompiler {
         // Now translate other members
         for (var member : classDecl.getMembers()) {
             if (!(member instanceof JCTree.JCVariableDecl)) {
-                var dafnyMember = translateMember(member, nestedTypes);
+                var dafnyMember = translateMember(member);
                 if (dafnyMember != null) {
                     members.add(dafnyMember);
                 }
@@ -513,12 +529,6 @@ public class JavaToDafnyCompiler {
                     classMembers.add(member);
                 }
                 traitMembers.add(member);
-// For supporting overriding virtuals:
-//                var traitMethod = new Method(method.getOrigin(), method.getNameNode(), method.getAttributes(),
-//                        method.getIsGhost(), method.getSignatureEllipsis(), method.getTypeArgs(), method.getIns(),
-//                        method.getReq(), method.getEns(), method.getReads(), method.getDecreases(), method.getMod(),
-//                        method.getHasStaticKeyword(), method.getOuts(), null, method.getIsByMethod());
-//                traitMembers.add(traitMethod);
             } else if (member instanceof Function function) {
                 traitMembers.add(function);
                 if (function.getBody() == null) {
@@ -537,7 +547,6 @@ public class JavaToDafnyCompiler {
                         constructor.getReq(), constructor.getEns(), constructor.getReads(),
                         constructor.getDecreases(), constructor.getMod(),
                         null);
-                // TODO add verify false to this constructor
                 classMembers.add(classConstructor);
             } else {
                 traitMembers.add(member);
@@ -649,10 +658,9 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    MemberDecl translateMember(JCTree member, Stack<Tree> nestedTypes) {
+    MemberDecl translateMember(JCTree member) {
         switch (member) {
             case JCTree.JCClassDecl classDecl -> {
-                nestedTypes.add(classDecl);
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
@@ -729,6 +737,7 @@ public class JavaToDafnyCompiler {
         if (typeForWhichCurrentClassIsDefiningContract != null && isSynthetic(source, methodSymbol)) {
             return null;
         }
+        this.contractSymbols.add(methodSymbol);
         
         var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
@@ -850,7 +859,7 @@ public class JavaToDafnyCompiler {
                 body = null;
             }
 
-            return new Constructor(origin, name , null, false, null, dafnyTypeParameters, ins,
+            return new Constructor(origin, name, null, false, null, dafnyTypeParameters, ins,
                     header.preconditions, header.postconditions, header.getReads(),
                     header.getDecreases(), header.getModifies(),
                     body);
@@ -1219,45 +1228,6 @@ public class JavaToDafnyCompiler {
     public static Symbol.MethodSymbol getJVerifyMethod(JCTree.JCMethodInvocation invocation) {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         return fromJVerify(methodSymbol) ? methodSymbol : null;
-    }
-
-    private static final Map<Character, String> ESCAPED_CHARS = Map.of(
-            '\'', "\\'",
-            '\"', "\\\"",
-            '\\', "\\\\",
-            '\0', "\\0",
-            '\n', "\\n",
-            '\r', "\\r",
-            '\t', "\\t"
-    );
-
-    /**
-     * Translates the given string literal to a Dafny expression (of type {@code jstring}).
-     * For ease of debugging, the translation is the equivalent Dafny string literal
-     * if all characters in the string are printable ASCII or have (non-Unicode) escape sequences.
-     * Otherwise, the translation is a sequence display of the characters' numeric values.
-     */
-    private static Expression translateStringLiteral(IOrigin origin, JCTree.JCLiteral literal) {
-        assert literal.getKind().equals(Tree.Kind.STRING_LITERAL);
-        var stringValue = (String) literal.getValue();
-
-        var translatedChars = new StringBuilder();
-        for (var charValue : stringValue.toCharArray()) {
-            if (ESCAPED_CHARS.containsKey(charValue)) {
-                translatedChars.append(ESCAPED_CHARS.get(charValue));
-            } else if (charValue >= 0x20 && charValue <= 0x7e) {
-                translatedChars.append(charValue);
-            } else {
-                // Fallback to sequence of numeric values
-                var charExprs = stringValue.chars().boxed()
-                        .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
-                return new SeqDisplayExpr(origin, charExprs);
-            }
-        }
-
-        var stringExpr = new StringLiteralExpr(origin, translatedChars.toString(), false);
-        return new ApplySuffix(origin, new NameSegment(origin, "JString", null), null,
-                new ActualBindings(List.of(new ActualBinding(null, stringExpr, false))), null);
     }
 }
 
