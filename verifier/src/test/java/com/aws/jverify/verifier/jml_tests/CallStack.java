@@ -3,7 +3,7 @@ import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.*;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 2, dafnyErrors = 0)
+@JVerifyTest(exitCode = 4, dafnyVerified = 0, dafnyErrors = 2)
 public class CallStack {
     
     public void mm() {
@@ -15,7 +15,7 @@ public class CallStack {
     public void m(int i) {
         precondition(x(i));
 //                   ^^^^ Error: function precondition could not be proved
-        
+//                   ^^^^ Related location: this is the precondition that could not be proved
     }
     
     //@ requires pos(i);
@@ -24,7 +24,10 @@ public class CallStack {
     @Pure public boolean x(int i) {
         // TODO: postcondition for Pure method
         precondition(pos(i));
+//                   ^^^^^^ Related location: this proposition could not be proved
         return i > 10;
+//             ^^^^^^ Related location: this proposition could not be proved
+
     }
     
     //@ ensures \result == i > 0;
@@ -32,5 +35,7 @@ public class CallStack {
     @Pure public boolean pos(int i) {
         // TODO: postcondition for Pure method
         return i > 0;
+//             ^^^^^ Related location: this proposition could not be proved
+
     }
 }
