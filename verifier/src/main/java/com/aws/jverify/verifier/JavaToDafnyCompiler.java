@@ -26,7 +26,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Array;
@@ -1167,9 +1166,10 @@ public class JavaToDafnyCompiler {
     }
     
     Name getName(JCTree tree, String name, int length) {
-        int startPos = getStartPos(tree);
-        var startToken = toToken(startPos);
-        var endToken = toToken(startPos + length);
+        var positionCalculator = new PositionCalculator(compilationUnit);
+        int startPos = positionCalculator.getStartPos(tree);
+        var startToken = positionCalculator.toToken(startPos);
+        var endToken = positionCalculator.toToken(startPos + name.length());
         var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
         return new Name(origin, name);
     }
@@ -1184,12 +1184,15 @@ public class JavaToDafnyCompiler {
     }
     
     public IOrigin toOrigin(JCTree node) {
-        var startToken = toToken(TreeInfo.getStartPos(node));
+        var positionCalculator = new PositionCalculator(compilationUnit);
+        var startToken = positionCalculator.toToken(TreeInfo.getStartPos(node));
         if (startToken == null) {
             return contextOrigins.peek();
         }
-        int endPos = getEndPos(node);
-        var endToken = endPos == Position.NOPOS ? toToken(TreeInfo.getStartPos(node) + 1) : toToken(endPos);
+        int endPos = positionCalculator.getEndPos(node);
+        var endToken = endPos == Position.NOPOS 
+                ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1) 
+                : positionCalculator.toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
     }
     
@@ -1201,125 +1204,6 @@ public class JavaToDafnyCompiler {
         } else {
             throw new NotImplementedException(tokenRangeOrigin.getClass().getName());
         }
-    }
-    
-    private int getStartPos(JCTree tree) {
-        return switch(tree) {
-            case JCTree.JCClassDecl classDecl -> getClassNamePosition(classDecl);
-            case JCTree.JCMethodDecl methodDecl -> getMethodNamePosition(methodDecl);
-            default -> tree.getStartPosition();
-        };
-    }
-
-    private int getMethodNamePosition(JCTree.JCMethodDecl methodDecl) {
-        CharSequence source;
-        try {
-            source = compilationUnit.getSourceFile().getCharContent(true);
-        } catch (IOException e) {
-            return Position.NOPOS;
-        }
-        String sourceText = source.toString();
-
-        int pos = methodDecl.pos;
-
-        if (methodDecl.mods != null && methodDecl.mods.pos != Position.NOPOS) {
-            // not sure if this statement is ever useful
-            pos = Math.max(pos, getEndPos(methodDecl.mods));
-        }
-
-        String methodName = methodDecl.name.toString();
-        boolean isConstructor = TreeInfo.isConstructor(methodDecl);
-
-        if (isConstructor) {
-            if (methodDecl.typarams != null && !methodDecl.typarams.isEmpty()) {
-                JCTree.JCTypeParameter last = methodDecl.typarams.last();
-                pos = getEndPos(last);
-            }
-            return pos;
-        } else {
-            if (methodDecl.typarams != null && !methodDecl.typarams.isEmpty()) {
-                pos = getEndPos(methodDecl.typarams.last());
-            }
-
-            if (methodDecl.restype != null) {
-                pos = getEndPos(methodDecl.restype);
-            }
-        }
-
-        while (pos < sourceText.length()) {
-            while (pos < sourceText.length() && Character.isWhitespace(sourceText.charAt(pos))) {
-                pos++;
-            }
-
-            if (pos + methodName.length() <= sourceText.length() &&
-                    sourceText.regionMatches(pos, methodName, 0, methodName.length())) {
-                // Verify this is the actual method name by checking if it's followed by a '('
-                int nextCharPos = pos + methodName.length();
-                while (nextCharPos < sourceText.length() && Character.isWhitespace(sourceText.charAt(nextCharPos))) {
-                    nextCharPos++;
-                }
-                if (nextCharPos < sourceText.length() && sourceText.charAt(nextCharPos) == '(') {
-                    return pos;
-                }
-            }
-
-            pos++;
-        }
-
-        return Position.NOPOS;
-    }
-
-    private int getEndPos(JCTree node) {
-        return TreeInfo.getEndPos(node, compilationUnit.endPositions);
-    }
-
-    private int getClassNamePosition(JCTree.JCClassDecl classDecl) {
-        CharSequence source;
-        try {
-            source = this.compilationUnit.getSourceFile().getCharContent(true);
-        } catch (IOException e) {
-            return Position.NOPOS;
-        }
-
-        int pos = classDecl.pos;
-
-        if (classDecl.mods != null && classDecl.mods.pos != Position.NOPOS) {
-            // Not sure if this statement is useful
-            pos = Math.max(pos, getEndPos(classDecl.mods));
-        }
-
-        // Find the class/interface/enum/record keyword and skip it
-        String sourceText = source.toString();
-        String[] keywords = {"class", "interface", "enum", "record"};
-
-        for (String keyword : keywords) {
-            int keywordPos = sourceText.indexOf(keyword + " ", pos);
-            if (keywordPos >= pos) {
-                // Found the keyword, the class name starts after it and any whitespace
-                int nameStart = keywordPos + keyword.length();
-                while (nameStart < sourceText.length() && Character.isWhitespace(sourceText.charAt(nameStart))) {
-                    nameStart++;
-                }
-
-                // Verify we've found the correct position by checking if the text matches the class name
-                String className = classDecl.name.toString();
-                if (sourceText.regionMatches(nameStart, className, 0, className.length())) {
-                    return nameStart;
-                }
-            }
-        }
-
-        return Position.NOPOS;
-    }
-        
-    
-    private Token toToken(int pos) {
-        if (pos == Position.NOPOS) {
-            return null;
-        }
-        return new Token(
-                compilationUnit.getLineMap().getLineNumber(pos),
-                compilationUnit.getLineMap().getColumnNumber(pos) + 1);
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
