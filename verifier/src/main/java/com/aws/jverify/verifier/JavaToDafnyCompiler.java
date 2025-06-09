@@ -35,7 +35,6 @@ import javax.tools.*;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Array;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,7 +50,7 @@ public class JavaToDafnyCompiler {
     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public final NameMangler nameMangler = new NameMangler();
     private Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
-    private Map<Symbol.ClassSymbol, JCTree.JCClassDecl> symbolToDecl = new HashMap<>();
+    private Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> symbolToDecls = new HashMap<>();
     public Map<CompilationUnitTree, List<TopLevelDecl>> fileDecls = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
 
@@ -121,26 +120,29 @@ public class JavaToDafnyCompiler {
             fileDecls.put(compilationUnit, new ArrayList<>());
         }
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
-        var items = new ArrayList<>();
+        var items = new ArrayList<Symbol.ClassSymbol>();
         while (iterator.hasNext()) {
             items.add(iterator.next());
         }
-        for(var current : items.reversed()) {
-            var decl = symbolToDecl.get(current);
-            if (decl == null) {
+        for(var currentTypeSymbol : items.reversed()) {
+            var relatedDecls = symbolToDecls.get(currentTypeSymbol);
+            if (relatedDecls == null) {
                 continue;
             }
-            Enter enter = Enter.instance(context);
-            Env<AttrContext> env = enter.getEnv(decl.sym);
-            if (env != null) {
-                compilationUnit = env.toplevel;
+            for(var relatedDecl : relatedDecls) {
+                Enter enter = Enter.instance(context);
+                Env<AttrContext> env = enter.getEnv(relatedDecl.sym);
+                if (env != null) {
+                    compilationUnit = env.toplevel;
+                }
+                var dafnyDecls = translateTypeDeclaration(relatedDecl);
+                fileDecls.get(compilationUnit).addAll(dafnyDecls);
             }
-            var decls = translateTypeDeclaration(decl);
-            fileDecls.get(compilationUnit).addAll(decls);
         }
         
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> decls = fileDecls.get(compilationUnit);
+            //decls.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
             filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), decls));
         }
 
@@ -158,17 +160,6 @@ public class JavaToDafnyCompiler {
             if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
                 continue;
             }
-            typeHierarchy.addVertex(classDecl.sym);
-            for(var base : classDecl.sym.getInterfaces()) {
-                if (base.tsym instanceof Symbol.ClassSymbol classBase) {
-                    typeHierarchy.addVertex(classBase);
-                    typeHierarchy.addEdge(classDecl.sym, classBase);
-                }
-            }
-            if (classDecl.sym.getSuperclass().tsym instanceof Symbol.ClassSymbol baseClass) {
-                typeHierarchy.addVertex(baseClass);
-                typeHierarchy.addEdge(classDecl.sym, baseClass);
-            }
             
             var classAnnotations = classDecl.getModifiers().getAnnotations();
             var classAnnotationsByName = classAnnotations.stream().collect(Collectors.toMap(
@@ -182,7 +173,9 @@ public class JavaToDafnyCompiler {
                 }
             }
             if (contractAnnotation == null) {
-                symbolToDecl.put(classDecl.sym, classDecl);
+                var declsForSymbol = symbolToDecls.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
+                declsForSymbol.add(classDecl);
+                addHierarchyForSymbol(classDecl.sym);
                 continue;
             }
             
@@ -191,7 +184,11 @@ public class JavaToDafnyCompiler {
                 reportError(classDecl, "noContractTarget", classDecl.name.toString());
                 continue;
             }
-            symbolToDecl.put(contracteeSymbol, classDecl);
+
+            var declsForSymbol = symbolToDecls.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
+            declsForSymbol.add(classDecl);
+            
+            addHierarchyForSymbol(contracteeSymbol);
             if (externalContracts.containsKey(contracteeSymbol)) {
                 reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                 continue;
@@ -236,7 +233,21 @@ public class JavaToDafnyCompiler {
             this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
         }
     }
-    
+
+    private void addHierarchyForSymbol(Symbol.ClassSymbol sym) {
+        typeHierarchy.addVertex(sym);
+        for(var base : sym.getInterfaces()) {
+            if (base.tsym instanceof Symbol.ClassSymbol classBase) {
+                typeHierarchy.addVertex(classBase);
+                typeHierarchy.addEdge(sym, classBase);
+            }
+        }
+        if (sym.getSuperclass().tsym instanceof Symbol.ClassSymbol baseClass) {
+            typeHierarchy.addVertex(baseClass);
+            typeHierarchy.addEdge(sym, baseClass);
+        }
+    }
+
     private String methodToString(JCTree tree) {
         if (tree instanceof JCTree.JCMethodDecl methodDecl){
             if (isConstructor(methodDecl.sym)) {
@@ -365,7 +376,7 @@ public class JavaToDafnyCompiler {
         }
     }
     
-    @Nullable List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
+    List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
