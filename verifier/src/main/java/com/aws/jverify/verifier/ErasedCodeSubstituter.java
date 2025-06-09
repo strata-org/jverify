@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.sun.tools.javac.code.Flags.SYNTHETIC;
+import static com.sun.tools.javac.code.Flags.NATIVE;
 
 public class ErasedCodeSubstituter extends TreeTranslator {
 
@@ -48,7 +49,7 @@ public class ErasedCodeSubstituter extends TreeTranslator {
             var symtab = Symtab.instance(context);
             var methodType = new Type.MethodType(List.of(symtab.intType), symtab.voidType, List.nil(), symtab.noSymbol);
             var owner = ((JCTree.JCIdent)invocation.getMethodSelect()).sym.owner;
-            var symbol = new Symbol.MethodSymbol(SYNTHETIC, placeholderName, methodType, owner);
+            var symbol = new Symbol.MethodSymbol(SYNTHETIC | NATIVE, placeholderName, methodType, owner);
             this.placeholderMethod = maker.Ident(symbol);
         }
         return placeholderMethod;
