@@ -138,7 +138,11 @@ public class ExpressionCompiler {
                     return new LiteralExpr(compiler.toOrigin(literal), literal.getValue());
                 }
                 if (literal.typetag == TypeTag.CHAR) {
-                    return new CharLiteralExpr(compiler.toOrigin(literal), literal.getValue());
+                    var intValue = Integer.valueOf((char) literal.getValue());
+                    return new LiteralExpr(compiler.toOrigin(literal), intValue);
+                }
+                if (expr.getKind().equals(Tree.Kind.STRING_LITERAL)) {
+                    return translateStringLiteral(compiler.toOrigin(literal), literal);
                 }
                 return new LiteralExpr(origin, literal.getValue());
             }
