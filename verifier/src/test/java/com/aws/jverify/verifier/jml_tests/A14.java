@@ -1,0 +1,36 @@
+package com.aws.jverify.verifier.jml_tests;
+
+
+import com.aws.jverify.*;
+import static com.aws.jverify.JVerify.*;
+import com.aws.jverify.testengine.JVerifyTest;
+
+@JVerifyTest(exitCode = 0, dafnyVerified = 1, dafnyErrors = 0)
+public class A14 {
+
+    int THE_FIELD;
+    
+    //@ requires true;
+    public int localTest(int a, int b){
+        modifies(this);
+        
+        THE_FIELD = 999;
+
+        if(a > -1){
+            THE_FIELD = 867;
+            
+            if(a == 1){
+        	THE_FIELD = 111;
+        	return 1;
+            }
+            
+            return 0;
+        }
+        
+        THE_FIELD = 777;
+        return -1;
+    }
+    
+
+    
+}
