@@ -72,6 +72,14 @@ class SomeClass {
 
 interface SomeClassMaker {
     SomeClass makeSomething();
+
+    @Contract
+    class SomeClassMakerContract implements SomeClassMaker {
+        @Override
+        public SomeClass makeSomething() {
+            throw new ContractException();
+        }
+    }
 }
 
 interface SomethingDoer {
@@ -82,15 +90,15 @@ interface SomethingDoerWithSpec {
     int doSomething(int x, int y);
 }
 
-//@Contract
-//class SomethingDoerWithSpecContract implements SomethingDoerWithSpec {
-//    // TODO: Can't currently put @Nat on the return type because there's
-//    // currently no way to indicate that on the lambda expression
-//    // since it doesn't declare a return type anywhere.
-//    @Override
-//    public int doSomething(int x, int y) {
-////        precondition(x >= y);
-////        postcondition((Integer r) -> r == x - y);
-//        throw new ContractException();
-//    }
-//}
+@Contract
+class SomethingDoerWithSpecContract implements SomethingDoerWithSpec {
+    // TODO: Can't currently put @Nat on the return type because there's
+    // currently no way to indicate that on the lambda expression
+    // since it doesn't declare a return type anywhere.
+    @Override
+    public int doSomething(int x, int y) {
+        precondition(x >= y);
+        postcondition((Integer r) -> r == x - y);
+        throw new ContractException();
+    }
+}
