@@ -1086,7 +1086,6 @@ public class JavaToDafnyCompiler {
                 }
             }
 
-
             reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
             return null;
         }
@@ -1102,6 +1101,11 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
+                var className = classType.tsym.getQualifiedName();
+                if (className.toString().equals(String.class.getName())) {
+                    return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
+                }
+
                 // Remove the name qualification because we do not support that yet
                 var mangledName = nameMangler.mangleSymbolName(classType.tsym);
                 var arguments = classType.getTypeArguments().map(a -> translateType(a, false, origin));
@@ -1333,6 +1337,44 @@ public class JavaToDafnyCompiler {
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
 
+    private static final Map<Character, String> ESCAPED_CHARS = Map.of(
+            '\'', "\\'",
+            '\"', "\\\"",
+            '\\', "\\\\",
+            '\0', "\\0",
+            '\n', "\\n",
+            '\r', "\\r",
+            '\t', "\\t"
+    );
+
+    /**
+     * Translates the given string literal to a Dafny expression (of type {@code jstring}).
+     * For ease of debugging, the translation is the equivalent Dafny string literal
+     * if all characters in the string are printable ASCII or have (non-Unicode) escape sequences.
+     * Otherwise, the translation is a sequence display of the characters' numeric values.
+     */
+    private static Expression translateStringLiteral(IOrigin origin, JCTree.JCLiteral literal) {
+        assert literal.getKind().equals(Tree.Kind.STRING_LITERAL);
+        var stringValue = (String) literal.getValue();
+
+        var translatedChars = new StringBuilder();
+        for (var charValue : stringValue.toCharArray()) {
+            if (ESCAPED_CHARS.containsKey(charValue)) {
+                translatedChars.append(ESCAPED_CHARS.get(charValue));
+            } else if (charValue >= 0x20 && charValue <= 0x7e) {
+                translatedChars.append(charValue);
+            } else {
+                // Fallback to sequence of numeric values
+                var charExprs = stringValue.chars().boxed()
+                        .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
+                return new SeqDisplayExpr(origin, charExprs);
+            }
+        }
+
+        var stringExpr = new StringLiteralExpr(origin, translatedChars.toString(), false);
+        return new ApplySuffix(origin, new NameSegment(origin, "JString", null), null,
+                new ActualBindings(List.of(new ActualBinding(null, stringExpr, false))), null);
+    }
 }
 
 /**
