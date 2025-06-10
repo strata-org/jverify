@@ -728,20 +728,12 @@ public class JavaToDafnyCompiler {
         applyInvariants(sourceBody, modifiers, methodSymbol, header);
         methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
 
-        if (header.returnNames.size() > 1) {
-            reportError(source, "multipleReturnNames");
-            return null;
-        }
         var outs = new ArrayList<Formal>();
         if (methodSymbol.type.getReturnType() != null) {
             var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
             if (returnType != null) {
                 Name returnName;
-                if (header.returnNames.size() == 1) {
-                    returnName = header.returnNames.getFirst();
-                } else {
-                    returnName = new Name(origin, "r");
-                }
+                returnName = Objects.requireNonNullElseGet(header.returnName, () -> new Name(origin, "r"));
                 outs.add(new Formal(origin, returnName, returnType,
                         false, false, null, null, false, false, false, null));
             }
