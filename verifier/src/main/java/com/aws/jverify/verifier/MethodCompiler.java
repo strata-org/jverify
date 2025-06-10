@@ -474,15 +474,27 @@ public class MethodCompiler {
                 }
                 case "postcondition" -> {
                     if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("An postcondition call may have only one argument");
+                        throw new JavaViolationException("A postcondition call may have only one argument");
                     }
                     var first = invocation.getArguments().getFirst();
                     if (first instanceof JCTree.JCLambda lambda) {
                         if (lambda.getParameters().size() != 1) {
-                            throw new JavaViolationException("An ensures call lambda may take only one argument");
+                            throw new JavaViolationException("A postcondition ccall lambda may take only one argument");
                         }
                         var parameter = lambda.getParameters().getFirst();
-                        header.returnNames.add(new Name(compiler.toOrigin(lambda), parameter.getName().toString()));
+                        var paramName = parameter.getName().toString();
+                        var origin = compiler.toOrigin(lambda);
+                        
+                        // Only add the first return name or verify subsequent ones match
+                        if (header.returnName == null) {
+                            header.returnName = new Name(origin, paramName);
+                        } else {
+                            var firstName = header.returnName.getValue();
+                            if (!firstName.equals(paramName)) {
+                                compiler.reportError((JCTree) parameter, "multipleReturnNames", firstName, paramName);
+                            }
+                        }
+                        
                         var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
                         if (postconditionPredicate != null) {
                             header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
