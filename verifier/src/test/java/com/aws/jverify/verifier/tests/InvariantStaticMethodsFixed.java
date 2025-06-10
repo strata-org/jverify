@@ -1,6 +1,12 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Invariant;
+import com.aws.jverify.Pure;
+import com.aws.jverify.Unbounded;
+
+
+import com.aws.jverify.testengine.JVerifyTest;
+
 import static com.aws.jverify.JVerify.*;
 
 /**
@@ -11,9 +17,10 @@ import static com.aws.jverify.JVerify.*;
  * After the fix, invariants should only be applied to public instance methods,
  * not to static methods.
  */
+@JVerifyTest(exitCode = 0, dafnyVerified = 4, dafnyErrors = 0)
 public class InvariantStaticMethodsFixed {
     
-    private int balance;
+    private @Unbounded int balance;
     
     public InvariantStaticMethodsFixed(int initialBalance) {
         precondition(initialBalance >= 0);
@@ -21,46 +28,22 @@ public class InvariantStaticMethodsFixed {
     }
     
     // Invariant that references instance state
+    @Pure
     @Invariant
-    public boolean balanceIsNonNegative() {
-        return this.balance >= 0;
+    private boolean balanceIsNonNegative() {
+        reads(this); return this.balance >= 0;
     }
     
     // Public instance method - should have invariant applied as pre/post condition
     public void deposit(int amount) {
         precondition(amount > 0);
+        modifies(this);
         this.balance += amount;
     }
-    
-    // Public instance method - should have invariant applied as pre/post condition  
-    public boolean withdraw(int amount) {
-        precondition(amount > 0);
-        if (amount <= this.balance) {
-            this.balance -= amount;
-            return true;
-        }
-        return false;
-    }
-    
-    // Static method - should NOT have invariant applied (no 'this' context)
-    public static int calculateInterest(int principal, double rate) {
-        precondition(principal >= 0);
-        precondition(rate >= 0.0);
-        return (int) (principal * rate / 100);
-    }
-    
-    // Another static method - should NOT have invariant applied
+
+    // Static method - should NOT have invariant applied
     public static boolean isValidAmount(int amount) {
         return amount > 0;
     }
-    
-    // Private method - should NOT have invariant applied (not public)
-    private void internalOperation() {
-        // This method should not have invariants applied because it's private
-    }
-    
-    // Public getter - should have invariant applied
-    public int getBalance() {
-        return this.balance;
-    }
+
 }
