@@ -21,7 +21,7 @@ import static com.aws.jverify.JVerify.*;
 public class InvariantStaticMethodsFixed {
     
     private @Unbounded int balance;
-    
+
     public InvariantStaticMethodsFixed(int initialBalance) {
         precondition(initialBalance >= 0);
         this.balance = initialBalance;
