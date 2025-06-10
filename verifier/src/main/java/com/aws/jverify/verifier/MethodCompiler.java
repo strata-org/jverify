@@ -483,7 +483,6 @@ public class MethodCompiler {
                         }
                         var parameter = lambda.getParameters().getFirst();
                         var paramName = parameter.getName().toString();
-                        var origin = compiler.toOrigin(lambda);
                         
                         // Only add the first return name or verify subsequent ones match
                         if (header.returnName == null) {
