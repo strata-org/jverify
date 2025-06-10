@@ -20,10 +20,11 @@ public class Lambdas {
         doSomethingTwice(this::add);
         doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
+//                               ^ Error: a precondition for this call could not be proved
             precondition(x >= y);
             postcondition((Integer r) -> r == x - y);
             return x - y;
-//                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
+//                 ^ Error: value does not satisfy the subset constraints of 'int32'
         });
 
         SomethingDoer doer = (x, y) -> {
@@ -53,10 +54,12 @@ public class Lambdas {
 
     public int add(int x, int y) {
         return x + y;
+//             ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
     }
 
     public static int staticAdd(int x, int y) {
         return x + y;
+//             ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
     }
 
     public void makeSomeClass(SomeClassMaker maker) {
