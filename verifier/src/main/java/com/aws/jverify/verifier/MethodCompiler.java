@@ -482,6 +482,7 @@ public class MethodCompiler {
                             throw new JavaViolationException("A postcondition call lambda may take only one argument");
                         }
                         var parameter = lambda.getParameters().getFirst();
+                        var origin = compiler.toOrigin(lambda);
                         var paramName = parameter.getName().toString();
                         
                         // Only add the first return name or verify subsequent ones match
