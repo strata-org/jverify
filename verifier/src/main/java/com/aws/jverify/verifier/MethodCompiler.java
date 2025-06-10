@@ -479,7 +479,7 @@ public class MethodCompiler {
                     var first = invocation.getArguments().getFirst();
                     if (first instanceof JCTree.JCLambda lambda) {
                         if (lambda.getParameters().size() != 1) {
-                            throw new JavaViolationException("A postcondition ccall lambda may take only one argument");
+                            throw new JavaViolationException("A postcondition call lambda may take only one argument");
                         }
                         var parameter = lambda.getParameters().getFirst();
                         var paramName = parameter.getName().toString();
