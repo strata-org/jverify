@@ -237,13 +237,13 @@ public class ExpressionCompiler {
                 var maker = TreeMaker.instance(compiler.context);
                 var methodDecl = compiler.translateMethodOrLambda(lambda, maker.Modifiers(0), methodSymbol, lambda.getBody(), List.of());
 
-                var datatypeName = "Lambda" + compiler.fileDecls.get(compiler.compilationUnit).size();
+                var datatypeName = "Lambda" + compiler.declarationsForFile.get(compiler.compilationUnit).size();
                 var datatypeNameNode = new Name(origin, datatypeName);
                 var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
                 var trait = compiler.translateType(lambda.target, origin);
                 var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
                         List.of(trait), List.of(datatypeCtor), false);
-                compiler.fileDecls.get(compiler.compilationUnit).add(datatypeDecl);
+                compiler.declarationsForFile.get(compiler.compilationUnit).add(datatypeDecl);
 
                 // TODO: Using a DatatypeValue directly ends up crashing when printing temp.dfy,
                 // because the printer tries to read DatatypeValue.Arguments before it's filled in by resolution.
@@ -295,7 +295,6 @@ public class ExpressionCompiler {
         }
         return new BinaryExpr(origin, dafnyOperator, left, right);
     }
-
 
     /**
      * Translates the specified library method invocation to a Dafny expression,

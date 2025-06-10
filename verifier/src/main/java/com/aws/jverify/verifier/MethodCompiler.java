@@ -2,7 +2,6 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -350,7 +349,7 @@ public class MethodCompiler {
         if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
             Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) ident.sym;
 
-            if (!compiler.contractSymbols.contains(baseConstructor)) {
+            if (!compiler.symbolsWithAContract.contains(baseConstructor)) {
                 return List.of();
             }
             

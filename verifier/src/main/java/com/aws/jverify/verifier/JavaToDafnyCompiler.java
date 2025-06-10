@@ -44,20 +44,24 @@ import java.util.stream.StreamSupport;
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
-    public Set<Symbol.MethodSymbol> contractSymbols = new HashSet<>();
-    //List<DatatypeDecl> lambdaDatatypeDecls = new ArrayList<>();
-    Stack<IOrigin> contextOrigins = new Stack<>();
-    DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+
+    public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
+    private final Stack<IOrigin> contextOrigins = new Stack<>();
+    public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public final NameMangler nameMangler = new NameMangler();
-    private Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
-    private Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> symbolToDecls = new HashMap<>();
-    public Map<CompilationUnitTree, List<TopLevelDecl>> fileDecls = new HashMap<>();
+    private JCDiagnostic.Factory diagnosticFactory;
+    
+    private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
+    private final Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> declarationsForSymbolContract = new HashMap<>();
+    public Map<CompilationUnitTree, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
 
-    JCTree.JCCompilationUnit compilationUnit;
-    private JCDiagnostic.Factory diagnosticFactory;
-    private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
+    JCTree.JCCompilationUnit compilationUnit;
+    private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
+
+    private final List<Symbol.MethodSymbol> invariants = new ArrayList<>();
+    private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -71,6 +75,28 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
+        var parsed = parseAndResolveJava(options, files);
+        if (parsed == null) {
+            return new FilesContainer(List.of());
+        }
+        
+        for (var compilationUnit : parsed) {
+            discoverContractsAndTypeHierarchy((JCTree.JCCompilationUnit) compilationUnit);
+            declarationsForFile.put(compilationUnit, new ArrayList<>());
+        }
+        compileSymbolsTopologically();
+
+        List<FileStart> filesStarts = new ArrayList<>();
+        for (var compilationUnit : parsed) {
+            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
+            // fileDeclarations.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
+            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
+        }
+
+        return new FilesContainer(filesStarts);
+    }
+
+    private Iterable<? extends CompilationUnitTree> parseAndResolveJava(VerifierOptions options, List<JavaFileObject> files) {
         JavacTool compiler = JavacTool.create();
 
         // don't assume the argument is modifiable
@@ -99,7 +125,6 @@ public class JavaToDafnyCompiler {
                 context
         );
 
-        List<FileStart> filesStarts = new ArrayList<>();
         var parsed = task.parse();
         task.analyze();
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
@@ -111,48 +136,38 @@ public class JavaToDafnyCompiler {
                 this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                         new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
                         diagnostic.getMessage(Locale.ENGLISH)));
-                
-                return new FilesContainer(filesStarts);
+
+                parsed = null;
             }
         }
-        for (var compilationUnit : parsed) {
-            traverseTypes((JCTree.JCCompilationUnit) compilationUnit);
-            fileDecls.put(compilationUnit, new ArrayList<>());
-        }
+        return parsed;
+    }
+
+    private void compileSymbolsTopologically() {
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
         var items = new ArrayList<Symbol.ClassSymbol>();
         while (iterator.hasNext()) {
             items.add(iterator.next());
         }
         for(var currentTypeSymbol : items.reversed()) {
-            var relatedDecls = symbolToDecls.get(currentTypeSymbol);
-            if (relatedDecls == null) {
+            var relatedDeclarations = declarationsForSymbolContract.get(currentTypeSymbol);
+            if (relatedDeclarations == null) {
                 continue;
             }
-            for(var relatedDecl : relatedDecls) {
+            for(var relatedDeclaration : relatedDeclarations) {
                 Enter enter = Enter.instance(context);
-                Env<AttrContext> env = enter.getEnv(relatedDecl.sym);
+                Env<AttrContext> env = enter.getEnv(relatedDeclaration.sym);
                 if (env != null) {
                     compilationUnit = env.toplevel;
                 }
-                var dafnyDecls = translateTypeDeclaration(relatedDecl);
-                fileDecls.get(compilationUnit).addAll(dafnyDecls);
+                var dafnyDecls = translateTypeDeclaration(relatedDeclaration);
+                declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
         }
-        
-        for (var compilationUnit : parsed) {
-            List<TopLevelDecl> decls = fileDecls.get(compilationUnit);
-            //decls.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
-            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), decls));
-        }
+    }
 
-        return new FilesContainer(filesStarts);
-    }
-    
-    record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) {
-        
-    }
-    private void traverseTypes(JCTree.JCCompilationUnit compilationUnit) {
+    record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) { }
+    private void discoverContractsAndTypeHierarchy(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
         var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
         while(!typesToVisit.isEmpty()) {
@@ -173,7 +188,7 @@ public class JavaToDafnyCompiler {
                 }
             }
             if (contractAnnotation == null) {
-                var declsForSymbol = symbolToDecls.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
+                var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
                 declsForSymbol.add(classDecl);
                 addHierarchyForSymbol(classDecl.sym);
                 continue;
@@ -185,7 +200,7 @@ public class JavaToDafnyCompiler {
                 continue;
             }
 
-            var declsForSymbol = symbolToDecls.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
+            var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
             declsForSymbol.add(classDecl);
             
             addHierarchyForSymbol(contracteeSymbol);
@@ -313,9 +328,6 @@ public class JavaToDafnyCompiler {
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
     }
-
-    List<Symbol.MethodSymbol> invariants = new ArrayList<>();
-    List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     
     enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
     private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
@@ -530,6 +542,9 @@ public class JavaToDafnyCompiler {
         return buildTraitAndClassTwin(classDecl, origin, name, members, typeParameters, superTraits);
     }
 
+    /**
+     * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
+     */
     private static List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
                                                               IOrigin origin, Name name,
                                                               ArrayList<MemberDecl> members,
@@ -539,32 +554,35 @@ public class JavaToDafnyCompiler {
         var classMembers = new ArrayList<MemberDecl>();
         var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
         for(var member : members) {
-            if (member instanceof Method method && !method.getHasStaticKeyword()) {
-                if (method.getBody() == null) {
-                    classMembers.add(member);
+            switch (member) {
+                case Method method when !method.getHasStaticKeyword() -> {
+                    if (method.getBody() == null) {
+                        classMembers.add(member);
+                    }
+                    traitMembers.add(member);
                 }
-                traitMembers.add(member);
-            } else if (member instanceof Function function) {
-                traitMembers.add(function);
-                if (function.getBody() == null) {
-                    classMembers.add(member);
+                case Function function -> {
+                    traitMembers.add(function);
+                    if (function.getBody() == null) {
+                        classMembers.add(member);
+                    }
                 }
-            } else if (member instanceof Constructor constructor) {
-                classNeeded = true;
-                Method initMethod = constructorToInitMethod(constructor);
-                if (initMethod != null) {
-                    traitMembers.add(initMethod);
-                }
+                case Constructor constructor -> {
+                    classNeeded = true;
+                    Method initMethod = constructorToInitMethod(constructor);
+                    if (initMethod != null) {
+                        traitMembers.add(initMethod);
+                    }
 
-                var attr = new Attributes(constructor.getOrigin(), "axiom", List.of(), null);
-                var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), attr, false, null,
-                        constructor.getTypeArgs(), constructor.getIns(),
-                        constructor.getReq(), constructor.getEns(), constructor.getReads(),
-                        constructor.getDecreases(), constructor.getMod(),
-                        null);
-                classMembers.add(classConstructor);
-            } else {
-                traitMembers.add(member);
+                    var attr = new Attributes(constructor.getOrigin(), "axiom", List.of(), null);
+                    var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), attr, false, null,
+                            constructor.getTypeArgs(), constructor.getIns(),
+                            constructor.getReq(), constructor.getEns(), constructor.getReads(),
+                            constructor.getDecreases(), constructor.getMod(),
+                            null);
+                    classMembers.add(classConstructor);
+                }
+                case null, default -> traitMembers.add(member);
             }
         }
 
@@ -588,6 +606,10 @@ public class JavaToDafnyCompiler {
         }
     }
 
+    /**
+     * To support 'super(...)' calls, we translate each Java constructor to an 'init' method in the Dafny trait
+     * The Dafny class constructor then calls the init method of the related trait, and of the trait of its parent type. 
+     */
     private static Method constructorToInitMethod(Constructor constructor) {
         if (constructor.getBody() == null) {
             return null;
@@ -598,12 +620,11 @@ public class JavaToDafnyCompiler {
         var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
         var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
         frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));
-        var initMethod = new Method(constructor.getOrigin(), nameNode, constructor.getAttributes(),
+        return new Method(constructor.getOrigin(), nameNode, constructor.getAttributes(),
                 constructor.getIsGhost(), constructor.getSignatureEllipsis(), constructor.getTypeArgs(), constructor.getIns(),
                 constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
                 modClause,
                 false, List.of(), body, false);
-        return initMethod;
     }
 
     public static String getInitMethodName(String constructorName) {
@@ -752,7 +773,7 @@ public class JavaToDafnyCompiler {
         if (typeForWhichCurrentClassIsDefiningContract != null && isSynthetic(source, methodSymbol)) {
             return null;
         }
-        this.contractSymbols.add(methodSymbol);
+        this.symbolsWithAContract.add(methodSymbol);
         
         var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
