@@ -8,7 +8,7 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 3)
 public class Lambdas {
 
     public void useLambdas() {
@@ -20,10 +20,7 @@ public class Lambdas {
         doSomethingTwice(this::add);
         doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
-//                               ^ Error: a precondition for this call could not be proved
-//                               ^^^^^^^^^^^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
             precondition(x >= y);
-//                       ^^^^^^ Related location: this is the precondition that could not be proved
             postcondition((Integer r) -> r == x - y);
             return x - y;
 //                 ^ Error: value does not satisfy the subset constraints of 'int32'

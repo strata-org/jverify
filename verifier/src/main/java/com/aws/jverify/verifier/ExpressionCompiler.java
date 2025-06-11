@@ -480,10 +480,10 @@ public class ExpressionCompiler {
         var resultSymbol = new Symbol.VarSymbol(0, names.fromString("result"), methodSymbol.getReturnType(), dynamicMethodSymbol);
         var returnVar = maker.VarDef(maker.Modifiers(0), resultSymbol.name, maker.Type(methodSymbol.getReturnType()), methodCall);
         JCTree.JCStatement returnStmt = maker.Return(maker.Ident(resultSymbol));
-        // TODO: Need to copy the header from the referenced method.
         com.sun.tools.javac.util.List stmts = com.sun.tools.javac.util.List.of(returnVar, returnStmt);
         var body = maker.Block(0, stmts);
-        var methodDecl = compiler.translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of());
+        var contract = compiler.methodContracts.get(methodSymbol);
+        var methodDecl = compiler.translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
 
         // Add a wrapper datatype with that method declaration to the outer scope
         var datatypeName = "Lambda" + compiler.lambdaDatatypeDecls.size();
