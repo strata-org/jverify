@@ -120,10 +120,55 @@ public class JavaToDafnyCompiler {
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         context.put(DiagnosticListener.class, ccw.wrap(diagnostics));
         JavaCompiler compiler = JavaCompiler.instance(context);
-        compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
         Arguments args = Arguments.instance(context);
         args.init("javac", javacOptions, List.of(), files);
 
+        /**
+         * The javac phases are as follows (copied from CompileStates.CompileState):
+         *
+         * INIT(0),
+         * PARSE(1),
+         * ENTER(2),
+         * PROCESS(3),
+         * ATTR(4),
+         * FLOW(5),
+         * TRANSTYPES(6),
+         * TRANSPATTERNS(7),
+         * UNLAMBDA(8),
+         * LOWER(9),
+         * GENERATE(10);
+         *
+         * The first half mostly adds information to the tree, like resolution,
+         * whereas the second half starts to be more destructive,
+         * lowering higher-level features to lower-level ones.
+         * Some of the latter are helpful, but in some cases the target language (Dafny)
+         * supports features that JVM bytecode doesn't, so the phases don't help.
+         *
+         * Currently, we apply 0 through 5,
+         * skip 6 and 7 as they remove features Dafny supports directly (generics and patterns),
+         * but then apply 8 in order to rewrite lambda expressions and method references.
+         * We may partially apply 9 in the future to rewrite features such as nested classes.
+         * 10 actually generates JVM bytecode so we will likely never apply it.
+         *
+         * Because we have specification and proof code that use features like lambdas
+         * for different purposes, we also apply our own phases before and after UNLAMBDA
+         * in order to temporarily remove code we don't want rewritten and then restore it.
+         * Therefore our current pipeline looks like this:
+         *
+         * INIT(0),
+         * PARSE(1),
+         * ENTER(2),
+         * PROCESS(3),
+         * ATTR(4),
+         * FLOW(5),
+         * SUBSTITUTE,
+         * UNLAMBDA(8),
+         * UNSUBSTITUTE
+         *
+         * For practical reasons we also have to stop the normal flow of the JavaCompiler
+         * after 3 in order to get a reference to the set of compilation targets
+         */
+        compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
         MultiTaskListener mtl = MultiTaskListener.instance(context);
         final Queue<Env<AttrContext>> envs = new LinkedList<>();
         mtl.add(new TaskListener() {
@@ -135,6 +180,7 @@ public class JavaToDafnyCompiler {
                     Todo todo = Todo.instance(context);
                     compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
 
+                    // Apply the second half of our pipeline as above (4 and onwards)
                     envs.addAll(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo))))));
                 }
             }
@@ -176,7 +222,7 @@ public class JavaToDafnyCompiler {
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
         TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
 
-        // TODO: Scan for classes that have lambdas first.
+        // TODO: Scan for classes that have lambdas first to save time
         // Will have to copy some code from JavaCompiler.desugar
         for (Env<AttrContext> env : envs) {
             env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
