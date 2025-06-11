@@ -21,7 +21,9 @@ public class Lambdas {
         doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
 //                               ^ Error: a precondition for this call could not be proved
+//                               ^^^^^^^^^^^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
             precondition(x >= y);
+//                       ^^^^^^ Related location: this is the precondition that could not be proved
             postcondition((Integer r) -> r == x - y);
             return x - y;
 //                 ^ Error: value does not satisfy the subset constraints of 'int32'

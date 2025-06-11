@@ -241,25 +241,10 @@ public class ExpressionCompiler {
                 var type = compiler.translateType(cast.getType());
                 return new ConversionExpr(origin, castExpr, type, "");
             }
-            case JCTree.JCLambda lambda -> {
-                var types = Types.instance(compiler.context);
-                var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(lambda.target.tsym);
-                var maker = TreeMaker.instance(compiler.context);
-                var methodDecl = compiler.translateMethodOrLambda(lambda, maker.Modifiers(0), methodSymbol, lambda.getBody(), List.of());
-
-                var datatypeName = "Lambda" + compiler.lambdaDatatypeDecls.size();
-                var datatypeNameNode = new Name(origin, datatypeName);
-                var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
-                var trait = compiler.translateType(lambda.target, origin);
-                var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
-                        List.of(trait), List.of(datatypeCtor), false);
-                compiler.lambdaDatatypeDecls.add(datatypeDecl);
-
-                // TODO: Using a DatatypeValue directly ends up crashing when printing temp.dfy,
-                // because the printer tries to read DatatypeValue.Arguments before it's filled in by resolution.
-//                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
-                return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
-            }
+            case JCTree.JCLambda _ ->
+                throw new RuntimeException("Lambdas should have been rewritten, but found one at " + origin);
+            case JCTree.JCMemberReference _ ->
+                throw new RuntimeException("Member references should have been rewritten, but found one at " + origin);
             case JCTree.JCTypeApply typeApply -> {
                 var type = this.toExpr(typeApply.getType());
                 if (type instanceof NameSegment nameSegment) {
@@ -442,7 +427,7 @@ public class ExpressionCompiler {
         // to invokedynamic calls to java.lang.invoke.LambdaMetafactory.metafactory,
         // which is a method that creates factories of objects that implement single-method interfaces.
         // The static arguments in this case identify the target interface and
-        // the synthetic static method that hols the lambda implementation.
+        // the synthetic static method that holds the lambda implementation.
         // We can implement the same semantics
         // via a Dafny datatype that extends the equivalent trait
         // and a single data constructor that holds on to the static arguments
@@ -468,7 +453,6 @@ public class ExpressionCompiler {
         // Translate to a method declaration
         var interfaceType = dynamicMethodSymbol.dynamicType().getReturnType();
         var interfaceMethodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(interfaceType.tsym);
-
         com.sun.tools.javac.util.List<JCTree.JCVariableDecl> params = com.sun.tools.javac.util.List.nil();
         int index = 0;
         for (com.sun.tools.javac.code.Type pt : dynamicMethodSymbol.dynamicType().getParameterTypes()) {
@@ -496,6 +480,7 @@ public class ExpressionCompiler {
         var resultSymbol = new Symbol.VarSymbol(0, names.fromString("result"), methodSymbol.getReturnType(), dynamicMethodSymbol);
         var returnVar = maker.VarDef(maker.Modifiers(0), resultSymbol.name, maker.Type(methodSymbol.getReturnType()), methodCall);
         JCTree.JCStatement returnStmt = maker.Return(maker.Ident(resultSymbol));
+        // TODO: Need to copy the header from the referenced method.
         com.sun.tools.javac.util.List stmts = com.sun.tools.javac.util.List.of(returnVar, returnStmt);
         var body = maker.Block(0, stmts);
         var methodDecl = compiler.translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of());
