@@ -5,6 +5,7 @@ import com.aws.jverify.generated.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -352,7 +353,7 @@ public class MethodCompiler {
             if (!compiler.symbolsWithAContract.contains(baseConstructor)) {
                 return List.of();
             }
-            
+
             var baseConstructorName = compiler.nameMangler.mangleSymbolName(baseConstructor);
             var initName = JavaToDafnyCompiler.getInitMethodName(baseConstructorName);
             var arguments = invocation.getArguments().stream().map(
@@ -361,7 +362,7 @@ public class MethodCompiler {
                     new NameSegment(origin, initName, null), null, new ActualBindings(arguments), null);
             var initCall = new AssignStatement(origin, null, List.of(),
                     List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
-            
+
             return List.of(initCall);
         }
         var argBindings = invocation.getArguments().stream().map(
@@ -428,7 +429,7 @@ public class MethodCompiler {
     }
 
     /**
-     * @see #translateHeader(List, MethodOrLoopContract)
+     * @see #translateHeader(List, MethodOrLoopContract, boolean)
      */
     public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodOrLoopContract header, boolean reportErrors) {
         var statements = statement instanceof JCTree.JCBlock block
@@ -500,9 +501,24 @@ public class MethodCompiler {
                                 }
                             }
                         }
-                        
+
                         var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
                         if (postconditionPredicate != null) {
+                            // Enable a ctor postcondition to mention the constructed instance:
+                            //     "let returnName = this; origPredicate"
+                            if (TreeInfo.isConstructor(header.treeOrigin)) {
+                                var returnVar = new BoundVar(origin, header.returnName, null, true);
+                                var lhs = new CasePattern<>(
+                                        origin, header.returnName.getValue(), returnVar, null);
+                                postconditionPredicate = new LetExpr(
+                                        origin,
+                                        List.of(lhs),
+                                        List.of(new ThisExpr(origin)),
+                                        postconditionPredicate,
+                                        true,
+                                        null
+                                );
+                            }
                             header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
                         }
                     } else {
@@ -575,14 +591,20 @@ public class MethodCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                var argBindings = newClass.getArguments().stream().map(
-                        a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
+                if (((Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz)).isRecord()) {
+                    var datatypeValue = compiler.expressionCompiler.translateNewRecord(origin, newClass);
+                    return new ExprRhs(origin, null, datatypeValue);
+                }
                 String ctorNameStr = compiler.nameMangler.mangleSymbolName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
                 var classBaseType = new NameSegment(baseType.getOrigin(), "_Class_" + baseType.getName(), baseType.getOptTypeArguments());
                 var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
+                var argBindings = newClass.getArguments().stream()
+                        .map(a -> new ActualBinding(
+                                null, compiler.expressionCompiler.toExpr(a), false))
+                        .toList();
                 return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));
             }
             case JCTree.JCNewArray newArray -> {

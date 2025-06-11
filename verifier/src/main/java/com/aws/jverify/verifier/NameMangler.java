@@ -5,6 +5,8 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
 
+
+import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -84,7 +86,9 @@ public class NameMangler {
                 return mangleMethodName(s);
             }
             case Symbol.VarSymbol varSymbol -> {
-                if (varSymbol.getKind().isField()) {
+                if (varSymbol.getKind().isField()
+                        || varSymbol.getKind() == ElementKind.RECORD_COMPONENT
+                ) {
                     return mangleFieldName(s);
                 } else { // Local variable, do not mangle
                     return s.name.toString();

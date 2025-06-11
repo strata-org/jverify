@@ -37,6 +37,7 @@ import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.traverse.TopologicalOrderIterator;
 
+import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.File;
@@ -331,7 +332,7 @@ public class JavaToDafnyCompiler {
 
             var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
             declsForSymbol.add(classDecl);
-            
+
             addHierarchyForSymbol(contracteeSymbol);
             if (externalContracts.containsKey(contracteeSymbol)) {
                 reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
@@ -386,7 +387,7 @@ public class JavaToDafnyCompiler {
 
         return header;
     }
-    
+
     private void addHierarchyForSymbol(Symbol.ClassSymbol sym) {
         typeHierarchy.addVertex(sym);
         for(var base : sym.getInterfaces()) {
@@ -562,13 +563,20 @@ public class JavaToDafnyCompiler {
                 }
             }
 
-            List<? extends TopLevelDecl> result;
-            if (isEnum(classDecl.type)) {
-                result = List.of(translateEnum(classDecl, origin, name));
-            } 
-            else {
-                result = translateClass(classDecl, origin, name);
-            }
+            List<TopLevelDecl> result = switch (classDecl.getKind()) {
+                case ENUM -> List.of(translateEnum(classDecl, origin, name));
+                case INTERFACE, CLASS -> translateClass(classDecl, origin, name)
+                        .stream()
+                        .map(decl -> (TopLevelDecl) decl)
+                        .toList();
+                case RECORD -> List.of(translateRecord(classDecl, origin, name));
+                case ANNOTATION_TYPE -> {
+                    reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
+                    yield List.of();
+                }
+                // JCClassDecl#getKind returns one of the above five values
+                default -> throw new JavaViolationException("unexpected kind: " + classDecl.getKind());
+            };
             typeForWhichCurrentClassIsDefiningContract = null;
             contextOrigins.pop();
             shouldVerifies.pop();
@@ -727,10 +735,10 @@ public class JavaToDafnyCompiler {
                         ident.name.contentEquals("Modifiable"))) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
-        
+
         var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);
         List<Type> typeArgs = typeParameters.stream().map(
-                p -> (Type)new UserDefinedType(p.getOrigin(), 
+                p -> (Type)new UserDefinedType(p.getOrigin(),
                         new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
 
         if (classNeeded) {
@@ -744,13 +752,13 @@ public class JavaToDafnyCompiler {
 
     /**
      * To support 'super(...)' calls, we translate each Java constructor to an 'init' method in the Dafny trait
-     * The Dafny class constructor then calls the init method of the related trait, and of the trait of its parent type. 
+     * The Dafny class constructor then calls the init method of the related trait, and of the trait of its parent type.
      */
     private static Method constructorToInitMethod(Constructor constructor) {
         if (constructor.getBody() == null) {
             return null;
         }
-        BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
+        BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(),
                 constructor.getBody().getBodyInit());
         Name nameNode = new Name(constructor.getNameNode().getOrigin(), getInitMethodName(constructor.getNameNode().getValue()));
         var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
@@ -824,6 +832,96 @@ public class JavaToDafnyCompiler {
         return false;
     }
 
+    private IndDatatypeDecl translateRecord(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+        assert classDecl.getKind() == Tree.Kind.RECORD;
+
+        var typeParams = translateTypeParameters(classDecl.typarams);
+
+        var traits = getCurrentTypeSymbol(classDecl)
+                .getInterfaces().stream()
+                .filter(this::typeHasAContract)
+                .map(baseType -> translateType(null, baseType, origin))
+                .toList();
+
+        var comps = TreeInfo.recordFields(classDecl);
+        var ctorParams = comps.stream()
+                .map(this::translateField)
+                .filter(Objects::nonNull)
+                .map(field -> new Formal(
+                        field.getOrigin(), field.getNameNode(),
+                        field.getExplicitType(),
+                        false, true,
+                        null, null,
+                        false, false, false,
+                        null
+                ))
+                .toList();
+        var ctors = List.of(new DatatypeCtor(
+                origin,
+                name,
+                null,
+                false,
+                ctorParams
+        ));
+
+        var compNames = comps.stream()
+                .map(JCTree.JCVariableDecl::getName)
+                .map(com.sun.tools.javac.util.Name::toString)
+                .collect(Collectors.toSet());
+        var members = new ArrayList<MemberDecl>();
+        for (var member : classDecl.getMembers()) {
+            if (member instanceof JCTree.JCVariableDecl varDecl
+                    && compNames.contains(varDecl.getName().toString()) ) {
+                // Don't translate fields that arise from record components
+                continue;
+            } else if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                // No constructors should be translated:
+                // explicit constructors are not allowed/supported,
+                // and the implicit canonical constructor is unneeded to construct datatype values.
+                if (TreeInfo.isConstructor(methodDecl)) {
+                    if (!isSyntheticCanonicalConstructor(methodDecl)) {
+                        reportError(member, "notSupported", "explicit record constructor");
+                    }
+                    continue;
+                }
+                var methodName = methodDecl.getName().toString();
+                var params = methodDecl.getParameters();
+                if (compNames.contains(methodName) && params.isEmpty()) {
+                    reportError(member, "notSupported", "explicit record component accessor method");
+                    continue;
+                } else if ("equals".equals(methodName)
+                        && params.length() == 1
+                        && params.getFirst().type.toString().equals(Object.class.getName())) {
+                    reportError(member, "notSupported", "overridden equals method in record");
+                    continue;
+                } else if ("hashCode".equals(methodName) && params.isEmpty()) {
+                    reportError(member, "notSupported", "overridden hashCode method in record");
+                    continue;
+                }
+            }
+            var dafnyMember = translateMember(member);
+            if (dafnyMember != null) {
+                members.add(dafnyMember);
+            }
+        }
+
+        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, ctors, false);
+    }
+
+    /**
+     * Returns whether the declaration is a record's synthetic (implicit) canonical constructor.
+     */
+    private static boolean isSyntheticCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
+        // Ideally we'd check for the SYNTHETIC flag, but it's not set.
+        // So instead we check for its body: just a lone "super()" call.
+        var body = methodDecl.getBody().getStatements();
+        return TreeInfo.isCanonicalConstructor(methodDecl)
+                && body.length() == 1
+                && body.getFirst() instanceof JCTree.JCExpressionStatement stmt
+                && TreeInfo.isSuperCall(stmt)
+                && TreeInfo.args(stmt.getExpression()).isEmpty();
+    }
+
     static class NotImplementedException extends RuntimeException {
         public NotImplementedException(String message) {
             super(message);
@@ -846,26 +944,21 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
+        var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = getName(variableDecl, variableDecl.sym);
         IOrigin origin = declToOrigin(variableDecl, fieldName);
         Type type = translateType(variableDecl.getModifiers(), variableDecl.vartype.type, toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
-            var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
-            if (isFinal) {
+            if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = expressionCompiler.toExpr(variableDecl.getInitializer());
-                var isStatic = (variableDecl.mods.flags & Flags.STATIC) != 0;
+                var isStatic = varFlags.contains(Modifier.STATIC);
                 return new ConstantField(origin, fieldName, getAttributes(origin), false, type, rhs, isStatic, false);
-            } else {
-                // Keep this variable declaration in the initalizers list to be added to constructors laters
-
-                initializers.add(variableDecl);
             }
-        }
 
-        return new Field(origin, fieldName,
-                null,
-                false,
-                type);
+            // Keep this variable declaration in the initializers list to be added to constructors laters
+            initializers.add(variableDecl);
+        }
+        return new Field(origin, fieldName, null, false, type);
     }
 
     private Attributes getAttributes(IOrigin origin) {
@@ -903,7 +996,7 @@ public class JavaToDafnyCompiler {
             return null;
         }
         this.symbolsWithAContract.add(methodSymbol);
-        
+
         var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
@@ -947,7 +1040,7 @@ public class JavaToDafnyCompiler {
         var methodCompiler = new MethodCompiler(this);
         Name name;
         if (typeForWhichCurrentClassIsDefiningContract != null && isConstructor(methodSymbol)) {
-            name = getName(source, NameMangler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
+            name = getName(source, NameMangler.getConstructorName(typeForWhichCurrentClassIsDefiningContract));
         } else {
             name = getName(source, methodSymbol);
         }
@@ -1001,10 +1094,10 @@ public class JavaToDafnyCompiler {
         if (methodSymbol.type.getReturnType() != null) {
             var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
             if (returnType != null) {
-                Name returnName;
-                returnName = Objects.requireNonNullElseGet(header.returnName, () -> new Name(origin, "r"));
-                outs.add(new Formal(origin, returnName, returnType,
-                        false, false, null, null, false, false, false, null));
+                if (header.returnName == null) {
+                    header.returnName = new Name(origin, "_r");
+                }
+                outs.add(header.makeReturnFormal(returnType));
             }
         }
 
@@ -1128,7 +1221,7 @@ public class JavaToDafnyCompiler {
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
         return new Function(origin, name, null, false, null, dafnyTypeParameters,
                 ins, header.preconditions, header.postconditions, header.getReads(),
-                header.getDecreases(), isStatic, false, null, returnType,
+                header.getDecreases(), isStatic, false, header.makeReturnFormal(returnType), returnType,
                 body, null, null);
     }
 
@@ -1364,7 +1457,7 @@ public class JavaToDafnyCompiler {
     Name getName(JCTree tree, String name) {
         return getName(tree, name, name.length());
     }
-    
+
     Name getName(JCTree tree, String name, int length) {
         var positionCalculator = new PositionCalculator(compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);

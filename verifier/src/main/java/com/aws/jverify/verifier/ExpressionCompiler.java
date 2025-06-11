@@ -159,16 +159,32 @@ public class ExpressionCompiler {
                 var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
                 var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
 
+                final Expression receiver;
+                if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                    receiver = toExpr(fieldAccess.selected);
+                } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
+                    receiver = null;
+                } else {
+                    compiler.reportError(invocation, "notSupported", "call via method reference");
+                    receiver = JavaToDafnyCompiler.getHole(origin);
+                }
+
+                if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
+                        && ownerClass.isRecord()
+                        && invocation.getArguments().isEmpty()
+                ) {
+                    var component = ownerClass.getRecordComponents().stream()
+                            .filter(comp -> comp.name.equals(methodSymbol.name))
+                            .findAny();
+                    if (component.isPresent()) {
+                        var fieldNameStr = compiler.nameMangler.mangleSymbolName(component.get());
+                        var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
+                        return new ExprDotName(origin, receiver, fieldName, null);
+                    }
+                }
+
                 if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                         && ownerClass.fullname.contentEquals(String.class.getName())) {
-                    final Expression receiver;
-                    if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-                        receiver = toExpr(fieldAccess.selected);
-                    } else {
-                        compiler.reportError(invocation, "notSupported", "method reference call");
-                        receiver = compiler.getHole(origin);
-                    }
-
                     return switch (methodSymbol.name.toString()) {
                         case "charAt" -> new SeqSelectExpr(origin, true, receiver,
                                 argBindings.getFirst().getActual(), null, null);
@@ -256,6 +272,9 @@ public class ExpressionCompiler {
                     return new NameSegment(origin, nameSegment.getName(), arguments);
                 }
                 throw new RuntimeException("All Dafny type references are NameSegments, since we do not use Dafny modules");
+            }
+            case JCTree.JCNewClass newClass -> {
+                return translateNewRecord(origin, newClass);
             }
             case null, default -> {
             }
@@ -500,5 +519,18 @@ public class ExpressionCompiler {
 
         // Produce the datatype constructor reference: LambdaX.LambdaX
         return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
+    }
+
+    /**
+     * Translates the given {@code new RecordType(...)} invocation into a {@link DatatypeValue}
+     * that can be used in pure contexts.
+     */
+    DatatypeValue translateNewRecord(IOrigin origin, JCTree.JCNewClass newClass) {
+        var argBindings = newClass.getArguments().stream()
+                .map(a -> new ActualBinding(null, toExpr(a), false)).toList();
+        var datatypeName = compiler.getNameMangler().mangleSymbolName(newClass.type.asElement());
+        return new DatatypeValue(
+                origin, datatypeName, datatypeName,
+                new ActualBindings(argBindings));
     }
 }

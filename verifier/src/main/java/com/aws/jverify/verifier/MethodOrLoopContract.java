@@ -2,6 +2,7 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.tree.JCTree;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,5 +44,21 @@ public class MethodOrLoopContract {
 
     public Specification<Expression> getDecreases() {
         return new Specification<>(decreases, null);
+    }
+
+    /**
+     * Returns a {@link Formal} representing the {@link #returnName} if present,
+     * or {@code null} if absent.
+     * Mainly used for the named result of a constructed {@link Function}
+     * or one of the out-parameters of a constructed {@link Method}.
+     */
+    public @Nullable Formal makeReturnFormal(Type syntacticType) {
+        return returnName == null ? null : new Formal(
+                returnName.getOrigin(), returnName, syntacticType,
+                false, false,
+                null, null,
+                false, false, false,
+                null
+        );
     }
 }

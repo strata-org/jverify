@@ -1,0 +1,133 @@
+package com.aws.jverify.verifier.tests;
+
+import com.aws.jverify.Nullable;
+import com.aws.jverify.Pure;
+import com.aws.jverify.testengine.JVerifyTest;
+
+import static com.aws.jverify.JVerify.*;
+
+@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 3)
+class Records {
+    static void unitRecord() {
+        var _ = new UnitRecord();
+    }
+
+    static void primitiveRecords() {
+        var neg = new IntRecord(-1);
+        var pos = new IntRecord(2);
+        var big = new IntRecord(999);
+
+        check(neg.value() == -1);
+        check(pos.value() == 2);
+
+        check(big.value() == 777);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
+    static void referenceRecords() {
+        var foo1 = new Foobar(1);
+        var foo2 = new Foobar(2);
+
+        var rec1 = new FoobarRecord(foo1);
+        var rec2 = new FoobarRecord(foo2);
+
+        check(rec1.foobar().id == 1);
+
+        check(rec2.foobar().id == 3);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
+    static void genericRecords() {
+        var intBool = new Pair<Integer, Boolean>(1, true);
+        var longString = new Pair<Long, String>(2L, "foo");
+        check(intBool.a() * 2 == longString.a());
+        check(intBool.b());
+        check(longString.b().equals("foo"));
+
+        var foobar = new Foobar(3);
+        var foobarRecord = new FoobarRecord(foobar);
+        var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
+        check(foobarFoobarRecord.a() == foobarFoobarRecord.b().foobar());
+    }
+
+    static void recursiveRecords() {
+        var nodeC = new BasicConsList("C", null);
+        var contC = new Wrapper<>(nodeC);
+        var nodeB = new BasicConsList("B", contC);
+        var contB = new Wrapper<>(nodeB);
+        var nodeA = new BasicConsList("A", contB);
+
+        check(nodeA.head().equals("A"));
+        check(nodeB.head().equals("B"));
+        check(nodeC.head().equals("C"));
+
+        check(nodeA.tail() == null);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
+    static void memberFunctions() {
+        var vec = new Vec3(5, 0, 2);
+        check(vec.max() == 5);
+
+        var maxed = vec.allMax();
+        check(maxed.x() == 5);
+        check(maxed.y() == 5);
+        check(maxed.z() == 5);
+    }
+}
+
+/** No components */
+record UnitRecord() {}
+
+/** Primitive-type component */
+record IntRecord(int value) {}
+
+/** Reference-type component */
+record FoobarRecord(Foobar foobar) {}
+
+/** Generic-type record and components */
+record Pair<A, B>(A a, B b) {}
+
+/** Recursion */
+record BasicConsList(String head, @Nullable Wrapper<BasicConsList> tail) {}
+
+/** Members */
+@SuppressWarnings("ManualMinMaxCalculation")
+record Vec3(int x, int y, int z) {
+    @Pure
+    public int max() {
+        postcondition((Integer m) -> m >= x && m >= y && m >= z);
+        postcondition((Integer m) -> m == x || m == y || m == z);
+        return (x >= y && x >= z) ? x
+                : (y >= z ? y : z);
+    }
+
+    @Pure
+    public Vec3 allMax() {
+        return new Vec3(this.max(), this.max(), this.max());
+    }
+}
+
+/**
+ * Records are translated to Dafny datatypes,
+ * which don't automatically yield both nullable and non-nullable types (as Dafny classes do).
+ * This wrapper class works around JVerify's current lack of automatic handling
+ * for values that are of reference types in Java but of value types in Dafny.
+ */
+class Wrapper<T> {
+    T val;
+
+    Wrapper(T val) {
+        this.val = val;
+    }
+}
+
+/** Arbitrary class to use within records */
+class Foobar {
+    int id;
+
+    Foobar(int id) {
+        postcondition((Foobar instance) -> instance.id == id);
+        this.id = id;
+    }
+}
