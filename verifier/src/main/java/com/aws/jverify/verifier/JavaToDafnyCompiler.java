@@ -6,6 +6,7 @@ import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
+import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.api.JavacTaskImpl;
 import com.sun.tools.javac.api.JavacTool;
 import com.sun.tools.javac.api.JavacTrees;
@@ -19,6 +20,7 @@ import com.sun.tools.javac.comp.CompileStates;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.comp.LambdaToMethod;
 import com.sun.tools.javac.comp.Todo;
+import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
@@ -75,44 +77,17 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        // don't assume the argument is modifiable
-        files = new ArrayList<>(files);
-        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
-
-        var classpathEntries = new ArrayList<Path>();
-        
-        for(var extraPath : options.extraClassPathEntries()) {
-            if (!Files.exists(extraPath.toAbsolutePath())) {
-                throw new IllegalArgumentException("Could not find file: " + extraPath);
-            }
+        var parsed = parseAndResolveJava(options, files);
+        if (parsed == null) {
+            return new FilesContainer(List.of());
         }
-        classpathEntries.addAll(options.extraClassPathEntries());
-        var classpath = classpathEntries.stream()
-                .map(Path::toString)
-                .collect(Collectors.joining(File.pathSeparator));
-        var javacOptions = List.of("-classpath", classpath);
-
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        var units = process(javacOptions, files);
 
         List<FileStart> filesStarts = new ArrayList<>();
-        this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
 
-        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
-                JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
-
-                this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
-                        new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
-                        diagnostic.getMessage(Locale.ENGLISH)));
-                
-                return new FilesContainer(filesStarts);
-            }
-        }
-        for (var compilationUnit : units) {
+        for (var compilationUnit : parsed) {
             findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
         }
-        for (var compilationUnit : units) {
+        for (var compilationUnit : parsed) {
             var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
 
             filesStarts.add(fileStart);
@@ -122,18 +97,35 @@ public class JavaToDafnyCompiler {
     }
 
     /**
-     * Applies a subset of the javac compilation pipeline.
-     *
-     * TODO
+     * Applies a subset of the javac compilation pipeline, to parse,
+     * resolve, and partially rewrite some features away.
      */
-    private Set<CompilationUnitTree> process(Iterable<String> options, List<JavaFileObject> files) {
+    private Iterable<? extends CompilationUnitTree> parseAndResolveJava(VerifierOptions options, List<JavaFileObject> files) {
+        // don't assume the argument is modifiable
+        files = new ArrayList<>(files);
+        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
+
+        for(var extraPath : options.extraClassPathEntries()) {
+            if (!Files.exists(extraPath.toAbsolutePath())) {
+                throw new IllegalArgumentException("Could not find file: " + extraPath);
+            }
+        }
+        var classpathEntries = new ArrayList<Path>(options.extraClassPathEntries());
+        var classpath = classpathEntries.stream()
+                .map(Path::toString)
+                .collect(Collectors.joining(File.pathSeparator));
+        var javacOptions = List.of("-classpath", classpath);
+
+        ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        context.put(DiagnosticListener.class, ccw.wrap(diagnostics));
         JavaCompiler compiler = JavaCompiler.instance(context);
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
-        // TODO: options
+        Arguments args = Arguments.instance(context);
+        args.init("javac", javacOptions, List.of(), files);
 
         MultiTaskListener mtl = MultiTaskListener.instance(context);
-        Set<CompilationUnitTree> parsed = new HashSet<>();
-        ErasedCodeSubstituter substituter = new ErasedCodeSubstituter(context);
+        final Queue<Env<AttrContext>> envs = new LinkedList<>();
         mtl.add(new TaskListener() {
             @Override
             public void finished(TaskEvent e) {
@@ -142,14 +134,27 @@ public class JavaToDafnyCompiler {
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
                     Todo todo = Todo.instance(context);
                     compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
-                    var envs = unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo)))));
-                    envs.stream().forEach(env -> parsed.add(env.toplevel));
+
+                    envs.addAll(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo))))));
                 }
             }
         });
         compiler.compile(com.sun.tools.javac.util.List.from(files), List.of(), null, List.of());
 
-        return parsed;
+        this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
+        var hasErrors = false;
+        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+            if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
+                JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
+                this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+                        new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
+                        diagnostic.getMessage(Locale.ENGLISH)));
+
+                hasErrors = true;
+            }
+        }
+
+        return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
     }
 
     private Queue<Env<AttrContext>> substitute(Queue<Env<AttrContext>> envs) {
@@ -162,7 +167,7 @@ public class JavaToDafnyCompiler {
 
     private Queue<Env<AttrContext>> unsubstitute(Queue<Env<AttrContext>> envs) {
         var substituter = ErasedCodeSubstituter.instance(context);
-        for (Env<AttrContext> env: envs) {
+        for (Env<AttrContext> env : envs) {
             env.tree = substituter.unsubstitute(env.tree);
         }
         return envs;
@@ -173,7 +178,7 @@ public class JavaToDafnyCompiler {
 
         // TODO: Scan for classes that have lambdas first.
         // Will have to copy some code from JavaCompiler.desugar
-        for (Env<AttrContext> env: envs) {
+        for (Env<AttrContext> env : envs) {
             env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
         }
         return envs;
@@ -1017,11 +1022,11 @@ public class JavaToDafnyCompiler {
 
     @Nullable
     public Type translateType(JCTree.JCModifiers modifiers, com.sun.tools.javac.code.Type type, IOrigin origin) {
-                // In several cases annotations that come right before types
-                // end up bound to tree nodes such as variable declarations instead of the type.
-                // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
-                // we apply the modifier to the innermost element type of an array type.
-                var isNullable = isNullable(type) || (isNullable(modifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
+        // In several cases annotations that come right before types
+        // end up bound to tree nodes such as variable declarations instead of the type.
+        // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
+        // we apply the modifier to the innermost element type of an array type.
+        var isNullable = isNullable(type) || (isNullable(modifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
