@@ -911,7 +911,10 @@ public class JavaToDafnyCompiler {
 
     private void applyInvariants(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopContract header) {
         boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
-        if (isPublic) {
+        boolean isStaticMethod = isStatic(modifiers);
+        
+        // Only apply invariants to public instance methods (not static methods)
+        if (isPublic && !isStaticMethod) {
             for(var invariant : invariants) {
                 var memberName = nameMangler.mangleSymbolName(invariant);
                 var invariantName = getName(source, memberName);
