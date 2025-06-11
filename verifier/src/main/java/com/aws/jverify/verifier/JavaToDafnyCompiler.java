@@ -167,10 +167,11 @@ public class JavaToDafnyCompiler {
          *
          * For practical reasons we also have to stop the normal flow of the JavaCompiler
          * after 3 in order to get a reference to the set of compilation targets
+         * (via a TaskListener and a configuration to stop the pipeline early).
          */
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
-        MultiTaskListener mtl = MultiTaskListener.instance(context);
         final Queue<Env<AttrContext>> envs = new LinkedList<>();
+        MultiTaskListener mtl = MultiTaskListener.instance(context);
         mtl.add(new TaskListener() {
             @Override
             public void finished(TaskEvent e) {
@@ -178,13 +179,18 @@ public class JavaToDafnyCompiler {
 
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
                     Todo todo = Todo.instance(context);
+                    // The stop policy has to be moved back further
+                    // or else the later phases become no-ops.
                     compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
 
-                    // Apply the second half of our pipeline as above (4 and onwards)
+                    // Apply the second half of our pipeline as above (4 and onwards).
+                    // See the implementation of JavaCompiler.compile() for similar lines,
+                    // including the comment "these method calls must be chained to avoid memory leaks"
                     envs.addAll(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo))))));
                 }
             }
         });
+        // Applies the first half of our pipeline.
         compiler.compile(com.sun.tools.javac.util.List.from(files), List.of(), null, List.of());
 
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
@@ -203,6 +209,8 @@ public class JavaToDafnyCompiler {
         return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
     }
 
+    // Phase to replace erased code such as specifications with placeholders
+    // so future phases don't rewrite them.
     private Queue<Env<AttrContext>> substitute(Queue<Env<AttrContext>> envs) {
         var substituter = ErasedCodeSubstituter.instance(context);
         for (Env<AttrContext> env: envs) {
@@ -211,6 +219,8 @@ public class JavaToDafnyCompiler {
         return envs;
     }
 
+    // Phase to replace placeholders substituted by the earlier SUBSTITUTE phase
+    // with their original AST nodes.
     private Queue<Env<AttrContext>> unsubstitute(Queue<Env<AttrContext>> envs) {
         var substituter = ErasedCodeSubstituter.instance(context);
         for (Env<AttrContext> env : envs) {
@@ -223,7 +233,7 @@ public class JavaToDafnyCompiler {
         TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
 
         // TODO: Scan for classes that have lambdas first to save time
-        // Will have to copy some code from JavaCompiler.desugar
+        // as JavaCompiler.desugar does.
         for (Env<AttrContext> env : envs) {
             env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
         }
