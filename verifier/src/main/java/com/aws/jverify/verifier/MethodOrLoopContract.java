@@ -14,7 +14,7 @@ public class MethodOrLoopContract {
     boolean isPure;
     List<AttributedExpression> preconditions;
     List<AttributedExpression> postconditions;
-    List<Name> returnNames;
+    Name returnName;
     List<AttributedExpression> invariants;
     List<Expression> decreases;
     List<FrameExpression> reads;
@@ -26,7 +26,7 @@ public class MethodOrLoopContract {
         
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
-        returnNames = new ArrayList<>();
+        returnName = null;
         invariants = new ArrayList<>();
         decreases = new ArrayList<>();
         reads = new ArrayList<>();
