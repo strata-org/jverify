@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
-@JVerifyTest(exitCode = 0, dafnyVerified = 12, dafnyErrors = 0)
+@JVerifyTest(exitCode = 0, dafnyVerified = 14, dafnyErrors = 0)
 class VerifyStatements {
     void whileWithBreak() {
         var x = 0;
@@ -147,9 +147,21 @@ class VerifyStatements {
     void nativeAssert() {
         assert true;
     }
-    
+
+
+    @Pure
+    boolean P3(int x, int y, int z) {
+        return x > (y+z);
+    }
+
+    @Pure
+    boolean P2(int x, int y) {
+        return P3(x,y,0);
+    }
+
     @Pure
     boolean P(int x) {
-        return x > 10;
+        return P2(x,10);
     }
+
 }
