@@ -8,10 +8,13 @@ import com.aws.jverify.testengine.JVerifyTest;
 public class SC {
 	//@ ensures a < 0 ==> \result == 1;
 	//@ ensures b < 0 ==> \result == 1;
-	//@ ensures a + b < 0 ==> \result == 1;
+	//@ ensures a + b < 10 ==> \result == 1;
 	//@ ensures a >= 0 && b >= 0 && a+b >= 10 ==> \result == 2;
 	public int m(int a, int b) {
-		postcondition((Integer r) -> a < 0 || b < 0 || a + b < 10 ? r == 1 : r == 2);
+		postcondition((Integer r) ->  a >= 0 || r == 1);
+		postcondition((Integer r) ->  b >= 0 || r == 1);
+		postcondition((Integer r) ->  a+b >= 10 || r == 1);
+		postcondition((Integer r) ->  a < 0 || b < 0 || a + b < 10  || r == 2);
 		if(a < 0 || b < 0 || a + b < 10){
 		    return 1;
 		}
