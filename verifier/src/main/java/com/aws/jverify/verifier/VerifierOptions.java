@@ -8,6 +8,7 @@ import java.util.Collection;
 public record VerifierOptions(Path dafnyPath,
                               Collection<Path> extraClassPathEntries,
                               Path additionalDafnyFile,
+                              boolean testDafnyVersion,
                               @Nullable Path printDafny, 
                               Path printBinaryDafny, 
                               boolean showRanges,

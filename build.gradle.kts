@@ -278,6 +278,8 @@ project(":verifier") {
         implementation(project(":common"))
         implementation(project(":library"))
 
+        implementation("org.jgrapht:jgrapht-core:1.5.2")
+
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
 
