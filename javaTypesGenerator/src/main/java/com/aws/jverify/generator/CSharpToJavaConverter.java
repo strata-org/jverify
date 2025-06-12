@@ -88,7 +88,7 @@ public class CSharpToJavaConverter {
         while (classWithBodyMatcher.find()) {
             String abstractKeyword = classWithBodyMatcher.group("abstract");
             String className = classWithBodyMatcher.group("name");
-            String typeParams = classWithBodyMatcher.group("typeParams");  // Type parameters (e.g., "T")
+            String classTypeParams = classWithBodyMatcher.group("typeParams");  // Type parameters (e.g., "T")
             String parentClass = classWithBodyMatcher.group("parentClass"); // Parent class
             String constraints = classWithBodyMatcher.group("constraints"); // Type constraints
             String classBody = classWithBodyMatcher.group("body");
@@ -96,8 +96,8 @@ public class CSharpToJavaConverter {
             CSharpClass csharpClass = new CSharpClass(abstractKeyword != null, className, parentClass);
 
             // Parse type parameters and constraints
-            if (typeParams != null) {
-                String[] params = typeParams.split(",");
+            if (classTypeParams != null) {
+                String[] params = classTypeParams.split(",");
                 for (String param : params) {
                     String paramName = param.trim();
                     String constraint = null;
@@ -118,27 +118,32 @@ public class CSharpToJavaConverter {
             }
 
             // Parse fields
-            Pattern fieldPattern = Pattern.compile(
-                    "\\s+(\\w+)(?:<([\\w,\\s]+)>)?(\\?)?\\s+(\\w+)\\s*;"
+            var fieldPatternNew = Pattern.compile("\\s+" +
+                    "(?<baseType>\\w+)" +
+                    // type params may themselves be generic, so be liberal in what we accept
+                    "(?:<(?<typeParams>[^;]+)>)?" +
+                    "(?<questionMark>\\?)?" +
+                    "\\s+" +
+                    "(?<fieldName>\\w+)" +
+                    "\\s*;"
             );
-            Matcher fieldMatcher = fieldPattern.matcher(classBody);
+            var fieldMatcher = fieldPatternNew.matcher(classBody);
 
             while (fieldMatcher.find()) {
-                String baseType = fieldMatcher.group(1);
-                String genericTypesStr = fieldMatcher.group(2);
-                String questionMark = fieldMatcher.group(3);
-                String fieldName = fieldMatcher.group(4);
+                var baseType = fieldMatcher.group("baseType");
+                var fieldTypeParams = fieldMatcher.group("typeParams");
+                var questionMark = fieldMatcher.group("questionMark");
+                var fieldName = fieldMatcher.group("fieldName");
 
-                boolean isGeneric = genericTypesStr != null;
-                List<String> genericTypes = new ArrayList<>();
-                if (isGeneric) {
-                    genericTypes = Arrays.stream(genericTypesStr.split(","))
+                List<String> typeParams = List.of();
+                if (fieldTypeParams != null) {
+                    typeParams = Arrays.stream(fieldTypeParams.split(","))
                             .map(String::trim)
                             .collect(Collectors.toList());
                 }
                 var isNullable = questionMark != null;
 
-                csharpClass.fields.add(new CSharpField(baseType, fieldName, isNullable, isGeneric, genericTypes));
+                csharpClass.fields.add(new CSharpField(baseType, fieldName, isNullable, typeParams));
             }
 
             classes.add(csharpClass);
@@ -173,7 +178,7 @@ public class CSharpToJavaConverter {
 
         String baseType = convertCSharpTypeToJava(field.type);
 
-        if (!field.isGeneric) {
+        if (!field.isGeneric()) {
             return ClassName.get("", baseType);
         }
 
@@ -400,15 +405,17 @@ class CSharpField {
     boolean isNullable;
     String type;
     String name;
-    boolean isGeneric;
     List<String> genericTypes;
 
-    public CSharpField(String type, String name, boolean isNullable, boolean isGeneric, List<String> genericTypes) {
-        this.type = type;
+    public CSharpField(String baseType, String name, boolean isNullable, List<String> typeParams) {
+        this.type = baseType;
         this.name = name;
         this.isNullable = isNullable;
-        this.isGeneric = isGeneric;
-        this.genericTypes = genericTypes;
+        this.genericTypes = typeParams;
+    }
+
+    boolean isGeneric() {
+        return !genericTypes.isEmpty();
     }
 }
 
