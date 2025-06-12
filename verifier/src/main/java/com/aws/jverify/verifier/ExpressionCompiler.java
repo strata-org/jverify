@@ -416,8 +416,8 @@ public class ExpressionCompiler {
             '\t', "\\t"
     );
 
-
     private Expression translateDynamicMethod(IOrigin origin, JCTree source, Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
+        //
         // invokedynamic in general is an invocation of a given "bootstrap method handle",
         // with a subset of the arguments provided statically.
         // javac translates lambda expressions and method references
@@ -425,14 +425,17 @@ public class ExpressionCompiler {
         // which is a method that creates factories of objects that implement single-method interfaces.
         // The static arguments in this case identify the target interface and
         // the synthetic static method that holds the lambda implementation.
+        //
         // We can implement the same semantics
         // via a Dafny datatype that extends the equivalent trait
         // and a single data constructor that holds on to the static arguments
         // and prepends them to the arguments to the static method.
+        //
         // E.g.:
         //
         // datatype Lambda42 extends SomethingDoer = Lambda42(p0: int, p1: int) {
         //   method doSomething(x: int, y: int) returns (r: int) {
+        //     // doSomething$3 is a synthetic static method the UNLAMBDA phase extracted
         //     r := doSomething$3(p0, p1, x, y);
         //   }
         // }
@@ -477,7 +480,7 @@ public class ExpressionCompiler {
         var resultSymbol = new Symbol.VarSymbol(0, names.fromString("result"), methodSymbol.getReturnType(), dynamicMethodSymbol);
         var returnVar = maker.VarDef(maker.Modifiers(0), resultSymbol.name, maker.Type(methodSymbol.getReturnType()), methodCall);
         JCTree.JCStatement returnStmt = maker.Return(maker.Ident(resultSymbol));
-        com.sun.tools.javac.util.List stmts = com.sun.tools.javac.util.List.of(returnVar, returnStmt);
+        var stmts = com.sun.tools.javac.util.List.of(returnVar, returnStmt);
         var body = maker.Block(0, stmts);
         var contract = compiler.methodContracts.get(methodSymbol);
         var methodDecl = compiler.translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
@@ -497,5 +500,4 @@ public class ExpressionCompiler {
         // Produce the datatype constructor reference: LambdaX.LambdaX
         return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
     }
-
 }

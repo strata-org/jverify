@@ -20,7 +20,6 @@ import com.sun.tools.javac.comp.LambdaToMethod;
 import com.sun.tools.javac.comp.Todo;
 import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
-import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -187,7 +186,7 @@ public class JavaToDafnyCompiler {
          * Because we have specification and proof code that use features like lambdas
          * for different purposes, we also apply our own phases before and after UNLAMBDA
          * in order to temporarily remove code we don't want rewritten and then restore it.
-         * Therefore our current pipeline looks like this:
+         * Therefore, our current pipeline looks like this:
          *
          * INIT(0),
          * PARSE(1),
@@ -225,7 +224,7 @@ public class JavaToDafnyCompiler {
             }
         });
         // Applies the first half of our pipeline.
-        compiler.compile(com.sun.tools.javac.util.List.from(files), List.of(), null, List.of());
+        compiler.compile(files, List.of(), null, List.of());
 
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
         var hasErrors = false;
@@ -300,7 +299,9 @@ public class JavaToDafnyCompiler {
                     if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
                         continue;
                     }
-                    var header = extractContract(methodDecl);
+                    // Don't report errors when extracting this contract here,
+                    // since the actual translation of the method will report them.
+                    var header = extractContract(methodDecl, false);
                     methodContracts.put(methodDecl.sym, header);
                 }
                 var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
@@ -341,7 +342,7 @@ public class JavaToDafnyCompiler {
                 var methodSymbol = methodDecl.sym;
                 var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
                 if (baseMethod != null) {
-                    var header = extractContract(methodDecl);
+                    var header = extractContract(methodDecl, true);
                     externalContracts.put(baseMethod, header);
                     methodContracts.put(baseMethod, header);
                 } else if (!isSynthetic(methodDecl, methodSymbol)) {
@@ -357,7 +358,7 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl) {
+    private MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl, boolean reportErrors) {
         var methodAnnotations = methodDecl.getModifiers().getAnnotations();
         var methodAnnotationsByName = methodAnnotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
@@ -367,7 +368,7 @@ public class JavaToDafnyCompiler {
         var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
         var header = new MethodOrLoopContract(methodDecl, isPure);
         if (methodDecl.getBody() != null) {
-            methodCompiler.translateHeader(methodDecl.getBody(), header);
+            methodCompiler.translateHeader(methodDecl.getBody(), header, reportErrors);
         }
 
         return header;
@@ -974,7 +975,7 @@ public class JavaToDafnyCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, false);
                 }
-                List<JCTree.JCStatement> postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
+                List<JCTree.JCStatement> postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header, true);
                 if (shouldVerify) {
                     bodyStatements = methodCompiler.translateStatements(postHeader);
                 }
@@ -1092,7 +1093,7 @@ public class JavaToDafnyCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, true);
                 }
-                var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
+                var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header, true);
                 if (postHeader.size() != 1) {
                     reportError(source, "pureMethodMultipleStatements");
                     return null;

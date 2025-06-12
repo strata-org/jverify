@@ -225,7 +225,7 @@ public class MethodCompiler {
                                     java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = translateHeader(body, header);
+        var postHeader = translateHeader(body, header, true);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -430,11 +430,11 @@ public class MethodCompiler {
     /**
      * @see #translateHeader(List, MethodOrLoopContract)
      */
-    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodOrLoopContract header) {
+    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodOrLoopContract header, boolean reportErrors) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return translateHeader(statements, header);
+        return translateHeader(statements, header, reportErrors);
     }
 
     /**
@@ -446,7 +446,7 @@ public class MethodCompiler {
      * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
      * namely, that it is backed by the original list.
      */
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, MethodOrLoopContract header) {
+    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, MethodOrLoopContract header, boolean reportErrors) {
         var headerStatements = 0;
         JCTree.JCStatement callToSuper = null;
         statementLoop: for (var statement : statements) {
@@ -495,7 +495,9 @@ public class MethodCompiler {
                         } else {
                             var firstName = header.returnName.getValue();
                             if (!firstName.equals(paramName)) {
-                                compiler.reportError((JCTree) parameter, "multipleReturnNames", firstName, paramName);
+                                if (reportErrors) {
+                                    compiler.reportError((JCTree) parameter, "multipleReturnNames", firstName, paramName);
+                                }
                             }
                         }
                         
@@ -538,7 +540,9 @@ public class MethodCompiler {
                     header.modifies.add(new FrameExpression(origin, expr, null));
                 }
                 default -> {
-                    compiler.reportError(invocation, "notSupported", methodName);
+                    if (reportErrors) {
+                        compiler.reportError(invocation, "notSupported", methodName);
+                    }
                     return null;
                 }
             }
