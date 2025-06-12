@@ -17,6 +17,19 @@ import java.util.Map;
 import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 import static com.sun.tools.javac.code.Flags.NATIVE;
 
+/**
+ * A translator that substitutes calls to JVerify library methods
+ * with placeholders of the form $jverifyPlaceholder(n), or the reverse substitution
+ * to put the library calls back in the same places.
+ *
+ * Used to temporarily remove these calls so that the JVerify library methods
+ * are not rewritten by translators like LambdaToMethod.
+ * These library methods often use lambda expressions, e.g. in
+ * postcondition((Integer result) -> ...) or forall((Integer x) -> ...).
+ * Having them rewritten would make them harder to translate into Dafny,
+ * so instead we exclude them from the rewriting.
+ * For simplicity, we just hide any JVerify method and not just those that use lambdas.
+ */
 public class ErasedCodeSubstituter extends TreeTranslator {
 
     protected static final Context.Key<ErasedCodeSubstituter> substituterKey = new Context.Key<>();

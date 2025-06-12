@@ -200,7 +200,8 @@ public class JavaToDafnyCompiler {
          *
          * For practical reasons we also have to stop the normal flow of the JavaCompiler
          * after 3 in order to get a reference to the set of compilation targets
-         * (via a TaskListener and a configuration to stop the pipeline early).
+         * (via a TaskListener and a configuration to stop the pipeline early,
+         * and the Todo instance in the context).
          */
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
         final Queue<Env<AttrContext>> envs = new LinkedList<>();
@@ -210,8 +211,16 @@ public class JavaToDafnyCompiler {
             public void finished(TaskEvent e) {
                 TaskListener.super.finished(e);
 
+                // Wait for the last event sent, after all compilation is complete
+                // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
+                    // The earlier phases leave the queue of classes to process
+                    // in this instance.
+                    // JavaCompile.compile() would normally make a call equivalent to
+                    // generate(desugar(flow(attribute(todo)))),
+                    // where desugar() applied phases 6 through 9.
                     Todo todo = Todo.instance(context);
+
                     // The stop policy has to be moved back further
                     // or else the later phases become no-ops.
                     compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
