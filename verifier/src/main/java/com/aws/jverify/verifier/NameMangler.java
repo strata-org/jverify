@@ -130,8 +130,4 @@ public class NameMangler {
     public static String getConstructorName(Symbol.ClassSymbol enclosingClass) {
         return "_ctor_" + enclosingClass.name.toString();
     }
-
-    public String getInitMethodName(Symbol.MethodSymbol constructor) {
-        return "_init_" + constructor.enclClass().name.toString();
-    }
 }
