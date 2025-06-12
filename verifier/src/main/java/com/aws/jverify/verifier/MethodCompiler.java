@@ -353,8 +353,7 @@ public class MethodCompiler {
                 return List.of();
             }
             
-            var baseName = compiler.nameMangler.mangleSymbolName(baseConstructor);
-            var initName = JavaToDafnyCompiler.getInitMethodName(baseName);
+            var initName = compiler.nameMangler.getInitMethodName(baseConstructor);
             var arguments = invocation.getArguments().stream().map(
                     e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
             var applySuffix = new ApplySuffix(origin,
@@ -570,7 +569,7 @@ public class MethodCompiler {
                 return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));
             }
             case JCTree.JCNewArray newArray -> {
-                var arrayDimensions = newArray.getDimensions().stream().map(d -> compiler.expressionCompiler.toExpr(d)).toList();
+                var arrayDimensions = newArray.getDimensions().stream().map(compiler.expressionCompiler::toExpr).toList();
                 var arrayInitializers = newArray.getInitializers();
                 var arrayJavaType = newArray.getType();
                 if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {

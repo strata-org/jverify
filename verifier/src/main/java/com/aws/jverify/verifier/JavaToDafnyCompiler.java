@@ -50,7 +50,10 @@ public class JavaToDafnyCompiler {
     public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public final NameMangler nameMangler = new NameMangler();
     private JCDiagnostic.Factory diagnosticFactory;
-    
+
+    /**
+     * Edges are from child to parent types, similar to the references in the code
+     */
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
     private final Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> declarationsForSymbolContract = new HashMap<>();
     public Map<CompilationUnitTree, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
@@ -145,11 +148,9 @@ public class JavaToDafnyCompiler {
 
     private void compileSymbolsTopologically() {
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
-        var items = new ArrayList<Symbol.ClassSymbol>();
-        while (iterator.hasNext()) {
-            items.add(iterator.next());
-        }
-        for(var currentTypeSymbol : items.reversed()) {
+        var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
+        iterator.forEachRemaining(itemsFromChildrenToParents::add);
+        for(var currentTypeSymbol : itemsFromChildrenToParents.reversed()) {
             var relatedDeclarations = declarationsForSymbolContract.get(currentTypeSymbol);
             if (relatedDeclarations == null) {
                 continue;
@@ -574,8 +575,7 @@ public class JavaToDafnyCompiler {
                         traitMembers.add(initMethod);
                     }
 
-                    var attr = new Attributes(constructor.getOrigin(), "axiom", List.of(), null);
-                    var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), attr, false, null,
+                    var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null,
                             constructor.getTypeArgs(), constructor.getIns(),
                             constructor.getReq(), constructor.getEns(), constructor.getReads(),
                             constructor.getDecreases(), constructor.getMod(),
@@ -627,7 +627,7 @@ public class JavaToDafnyCompiler {
                 false, List.of(), body, false);
     }
 
-    public static String getInitMethodName(String constructorName) {
+    public static String getInitMethodName(Symbol.MethodSymbol constructor) {
         return "_init" + constructorName;
     }
 

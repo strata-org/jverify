@@ -32,18 +32,6 @@ class Extender extends Extendee {
     }
 }
 
-@Contract(Extendee.class)
-class ExtendeeContract extends Extendee {
-
-    public ExtendeeContract(int input) {
-        super(input);
-    }
-
-    @Pure
-    public int computeX(int input) {
-        throw new ContractException();
-    }
-}
 
 abstract class Extendee {
     int x;
@@ -64,5 +52,18 @@ abstract class Extendee {
     public int virtualMethodO() {
         postcondition((Integer r) -> r >= 10);
         return 10;
+    }
+
+    @Contract
+    class ExtendeeContract extends Extendee {
+
+        public ExtendeeContract(int input) {
+            super(input);
+        }
+
+        @Pure
+        public int computeX(int input) {
+            throw new ContractException();
+        }
     }
 }
