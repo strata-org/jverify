@@ -195,6 +195,10 @@ public class Driver {
     private static boolean checkedVersion = false;
 
     private static void checkDafnyVersion(VerifierOptions verifierOptions) {
+        if (!verifierOptions.testDafnyVersion()) {
+            return;
+        }
+        
         if (!checkedVersion) {
             Properties properties = new Properties();
             try (InputStream input = Driver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
@@ -218,9 +222,9 @@ public class Driver {
                     }
                     // Turned off while we're using a Dafny submodule
                     // Alternatively, we can check whether the submodule version matches the output
-//                    if (!output.equals(expectedVersion)) {
-//                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output);
-//                    }
+                    if (!output.equals(expectedVersion)) {
+                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output);
+                    }
                 }
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
