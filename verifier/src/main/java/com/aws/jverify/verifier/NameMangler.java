@@ -128,7 +128,7 @@ public class NameMangler {
     }
 
     public static String getConstructorName(Symbol.ClassSymbol enclosingClass) {
-        return "_ctor" + enclosingClass.name.toString();
+        return "_ctor_" + enclosingClass.name.toString();
     }
 
     public String getInitMethodName(Symbol.MethodSymbol constructor) {

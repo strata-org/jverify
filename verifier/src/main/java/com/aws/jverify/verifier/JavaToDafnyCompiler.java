@@ -530,8 +530,7 @@ public class JavaToDafnyCompiler {
         var definingSymbol = getCurrentTypeSymbol(classDecl);
         
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
-        if (definingSymbol.getSuperclass() != null)
-        {
+        if (definingSymbol.getSuperclass() != null) {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
         }
         var superTraits = baseTypes.

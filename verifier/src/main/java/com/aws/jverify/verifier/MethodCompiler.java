@@ -346,7 +346,7 @@ public class MethodCompiler {
 
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
         var origin = compiler.toOrigin(invocation);
-        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
+        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name == ident.name.table.names._super) {
             Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) ident.sym;
 
             if (!compiler.symbolsWithAContract.contains(baseConstructor)) {
