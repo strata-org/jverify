@@ -20,9 +20,11 @@ import com.sun.tools.javac.comp.LambdaToMethod;
 import com.sun.tools.javac.comp.Todo;
 import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
+import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.comp.Enter;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
@@ -31,6 +33,10 @@ import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.jgrapht.Graph;
+import org.jgrapht.graph.DefaultDirectedGraph;
+import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
@@ -46,18 +52,29 @@ import java.util.stream.StreamSupport;
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
-    List<DatatypeDecl> lambdaDatatypeDecls = new ArrayList<>();
-    Stack<IOrigin> contextOrigins = new Stack<>();
-    DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+
+    public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
+    private final Stack<IOrigin> contextOrigins = new Stack<>();
+    public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public final NameMangler nameMangler = new NameMangler();
+    private JCDiagnostic.Factory diagnosticFactory;
+
+    /**
+     * Edges are from child to parent types, similar to the references in the code
+     */
+    private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
+    private final Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> declarationsForSymbolContract = new HashMap<>();
+    public Map<CompilationUnitTree, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
 
-    JCTree.JCCompilationUnit compilationUnit;
-    private JCDiagnostic.Factory diagnosticFactory;
-    private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
     // All contracts, internal or external
     final Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts = new HashMap<>();
+    JCTree.JCCompilationUnit compilationUnit;
+    private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
+
+    private final List<Symbol.MethodSymbol> invariants = new ArrayList<>();
+    private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -76,18 +93,41 @@ public class JavaToDafnyCompiler {
             return new FilesContainer(List.of());
         }
 
-        List<FileStart> filesStarts = new ArrayList<>();
-
         for (var compilationUnit : parsed) {
-            findExternalContracts((JCTree.JCCompilationUnit) compilationUnit);
+            discoverContractsAndTypeHierarchy((JCTree.JCCompilationUnit) compilationUnit);
+            declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
-        for (var compilationUnit : parsed) {
-            var fileStart = translateFile((JCTree.JCCompilationUnit) compilationUnit);
+        compileSymbolsTopologically();
 
-            filesStarts.add(fileStart);
+        List<FileStart> filesStarts = new ArrayList<>();
+        for (var compilationUnit : parsed) {
+            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
+            // fileDeclarations.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
+            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
+    }
+
+    private void compileSymbolsTopologically() {
+        var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
+        var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
+        iterator.forEachRemaining(itemsFromChildrenToParents::add);
+        for(var currentTypeSymbol : itemsFromChildrenToParents.reversed()) {
+            var relatedDeclarations = declarationsForSymbolContract.get(currentTypeSymbol);
+            if (relatedDeclarations == null) {
+                continue;
+            }
+            for(var relatedDeclaration : relatedDeclarations) {
+                Enter enter = Enter.instance(context);
+                Env<AttrContext> env = enter.getEnv(relatedDeclaration.sym);
+                if (env != null) {
+                    compilationUnit = env.toplevel;
+                }
+                var dafnyDecls = translateTypeDeclaration(relatedDeclaration);
+                declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
+            }
+        }
     }
 
     /**
@@ -234,10 +274,8 @@ public class JavaToDafnyCompiler {
         return envs;
     }
     
-    record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) {
-        
-    }
-    private void findExternalContracts(JCTree.JCCompilationUnit compilationUnit) {
+    record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) { }
+    private void discoverContractsAndTypeHierarchy(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
         var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
         while(!typesToVisit.isEmpty()) {
@@ -265,6 +303,9 @@ public class JavaToDafnyCompiler {
                     var header = extractContract(methodDecl);
                     methodContracts.put(methodDecl.sym, header);
                 }
+                var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
+                declsForSymbol.add(classDecl);
+                addHierarchyForSymbol(classDecl.sym);
                 continue;
             }
             
@@ -273,6 +314,11 @@ public class JavaToDafnyCompiler {
                 reportError(classDecl, "noContractTarget", classDecl.name.toString());
                 continue;
             }
+
+            var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
+            declsForSymbol.add(classDecl);
+            
+            addHierarchyForSymbol(contracteeSymbol);
             if (externalContracts.containsKey(contracteeSymbol)) {
                 reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                 continue;
@@ -327,6 +373,20 @@ public class JavaToDafnyCompiler {
         return header;
     }
     
+    private void addHierarchyForSymbol(Symbol.ClassSymbol sym) {
+        typeHierarchy.addVertex(sym);
+        for(var base : sym.getInterfaces()) {
+            if (base.tsym instanceof Symbol.ClassSymbol classBase) {
+                typeHierarchy.addVertex(classBase);
+                typeHierarchy.addEdge(sym, classBase);
+            }
+        }
+        if (sym.getSuperclass().tsym instanceof Symbol.ClassSymbol baseClass) {
+            typeHierarchy.addVertex(baseClass);
+            typeHierarchy.addEdge(sym, baseClass);
+        }
+    }
+
     private String methodToString(JCTree tree) {
         if (tree instanceof JCTree.JCMethodDecl methodDecl){
             if (isConstructor(methodDecl.sym)) {
@@ -375,29 +435,6 @@ public class JavaToDafnyCompiler {
         }
     }
 
-
-
-    private FileStart translateFile(JCTree.JCCompilationUnit compilationUnit) {
-        this.compilationUnit = compilationUnit;
-        this.lambdaDatatypeDecls.clear();
-
-        ArrayList<TopLevelDecl> topLevelDecls = new ArrayList<>();
-        Stack<Tree> remainingTypes = new Stack<>();
-        remainingTypes.addAll(compilationUnit.getTypeDecls());
-        while(!remainingTypes.isEmpty()) {
-            var typeDecl = remainingTypes.pop();
-            TopLevelDecl dafnyDecl = translateTypeDeclaration(typeDecl, remainingTypes);
-            if (dafnyDecl != null) {
-                topLevelDecls.add(dafnyDecl);
-            }
-        }
-
-        topLevelDecls.addAll(0, lambdaDatatypeDecls);
-        lambdaDatatypeDecls.clear();
-
-        return new FileStart(this.compilationUnit.sourcefile.toUri().toString(), topLevelDecls);
-    }
-
     private void reportError(IOrigin origin, String key, Object... args) {
         reportError(positionFromOrigin(origin), key, args);
     }
@@ -415,9 +452,6 @@ public class JavaToDafnyCompiler {
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
     }
-
-    List<Symbol.MethodSymbol> invariants = new ArrayList<>();
-    List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     
     enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
     private final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
@@ -478,7 +512,7 @@ public class JavaToDafnyCompiler {
         }
     }
     
-    @Nullable TopLevelDecl translateTypeDeclaration(Tree tree, Stack<Tree> nestedTypes) {
+    List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
@@ -487,7 +521,7 @@ public class JavaToDafnyCompiler {
 
             processVerifyAnnotation(annotationsByName);
 
-            Name name = getName(classDecl, this.nameMangler.mangleSymbolName(classDecl.sym));
+            Name name = getName(classDecl, classDecl.sym);
             var origin = declToOrigin(classDecl, name);
             contextOrigins.push(origin);
 
@@ -505,7 +539,7 @@ public class JavaToDafnyCompiler {
                         if (modifiableAnnotation != null) {
                             reportError(modifiableAnnotation, "annotationOnSourceContractClass", Modifiable.class.getSimpleName(), classDecl.name.toString());
                         }
-                        return null;
+                        return List.of();
                     }
                     
                     
@@ -514,12 +548,12 @@ public class JavaToDafnyCompiler {
                 }
             }
 
-            TopLevelDecl result;
+            List<? extends TopLevelDecl> result;
             if (isEnum(classDecl.type)) {
-                result = translateEnum(classDecl, origin, name);
+                result = List.of(translateEnum(classDecl, origin, name));
             } 
             else {
-                result = translateClass(nestedTypes, classDecl, origin, name);
+                result = translateClass(classDecl, origin, name);
             }
             typeForWhichCurrentClassIsDefiningContract = null;
             contextOrigins.pop();
@@ -528,7 +562,7 @@ public class JavaToDafnyCompiler {
         }
         if (tree instanceof JCTree jcTree) {
             reportError(jcTree, "notSupported", tree.getClass().getSimpleName());
-            return null;
+            return List.of();
         } else {
             throw new NotImplementedException(tree.getClass().getName());
         }
@@ -583,7 +617,7 @@ public class JavaToDafnyCompiler {
         return false;
     }
     
-    private ClassLikeDecl translateClass(Stack<Tree> nestedTypes, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    private List<ClassLikeDecl> translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
@@ -594,8 +628,6 @@ public class JavaToDafnyCompiler {
                 }
             }
         }
-
-        var createTrait = isInterfaceOrAbstract(getCurrentTypeSymbol(classDecl));
         
         ArrayList<MemberDecl> members = new ArrayList<>();
         initializers.clear();
@@ -611,8 +643,8 @@ public class JavaToDafnyCompiler {
         }
         // Now translate other members
         for (var member : classDecl.getMembers()) {
-            if (!(member instanceof JCTree.JCVariableDecl variableDecl)) {
-                var dafnyMember = translateMember(member, nestedTypes);
+            if (!(member instanceof JCTree.JCVariableDecl)) {
+                var dafnyMember = translateMember(member);
                 if (dafnyMember != null) {
                     members.add(dafnyMember);
                 }
@@ -621,27 +653,104 @@ public class JavaToDafnyCompiler {
         var definingSymbol = getCurrentTypeSymbol(classDecl);
         
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
-// 'extends' not yet supported when extending a class
-//        if (definingSymbol.getSuperclass() != null)
-//        {
-//            baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
-//        }
+        if (definingSymbol.getSuperclass() != null) {
+            baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
+        }
         var superTraits = baseTypes.
-                filter(type -> typeHasAContract(type)).
+                filter(this::typeHasAContract).
                 map((com.sun.tools.javac.code.Type type) -> translateType(null, type, origin)).
                 collect(Collectors.<Type>toList());
         
         var typeParameters = translateTypeParameters(classDecl.typarams);
-        if (createTrait) {
-            if (classDecl.getModifiers().getAnnotations().stream().
-                    anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
-                            ident.name.contentEquals("Modifiable"))) {
-                superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
+        return buildTraitAndClassTwin(classDecl, origin, name, members, typeParameters, superTraits);
+    }
+
+    /**
+     * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
+     */
+    private static List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
+                                                              IOrigin origin, Name name,
+                                                              ArrayList<MemberDecl> members,
+                                                              List<TypeParameter> typeParameters,
+                                                              List<Type> superTraits) {
+        var traitMembers = new ArrayList<MemberDecl>();
+        var classMembers = new ArrayList<MemberDecl>();
+        var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
+        for(var member : members) {
+            switch (member) {
+                case Method method when !method.getHasStaticKeyword() -> {
+                    if (method.getBody() == null) {
+                        classMembers.add(member);
+                    }
+                    traitMembers.add(member);
+                }
+                case Function function -> {
+                    traitMembers.add(function);
+                    if (function.getBody() == null) {
+                        classMembers.add(member);
+                    }
+                }
+                case Constructor constructor -> {
+                    classNeeded = true;
+                    Method initMethod = constructorToInitMethod(constructor);
+                    if (initMethod != null) {
+                        traitMembers.add(initMethod);
+                    }
+
+                    var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null,
+                            constructor.getTypeArgs(), constructor.getIns(),
+                            constructor.getReq(), constructor.getEns(), constructor.getReads(),
+                            constructor.getDecreases(), constructor.getMod(),
+                            null);
+                    classMembers.add(classConstructor);
+                }
+                case null, default -> traitMembers.add(member);
             }
-            return new TraitDecl(origin, name, null, typeParameters, members, superTraits, false);
-        } else {
-            return new ClassDecl(origin, name, null, typeParameters, members, superTraits, false);
         }
+
+        if (!isInterface(classDecl.sym) || classDecl.getModifiers().getAnnotations().stream().
+                anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
+                        ident.name.contentEquals("Modifiable"))) {
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
+        }
+        
+        var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);
+        List<Type> typeArgs = typeParameters.stream().map(
+                p -> (Type)new UserDefinedType(p.getOrigin(), 
+                        new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
+
+        if (classNeeded) {
+            var clazz = new ClassDecl(origin, new Name(name.getOrigin(), "_Class_" + name.getValue()), null,
+                    typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
+            return List.of(trait, clazz);
+        } else {
+            return List.of(trait);
+        }
+    }
+
+    /**
+     * To support 'super(...)' calls, we translate each Java constructor to an 'init' method in the Dafny trait
+     * The Dafny class constructor then calls the init method of the related trait, and of the trait of its parent type. 
+     */
+    private static Method constructorToInitMethod(Constructor constructor) {
+        if (constructor.getBody() == null) {
+            return null;
+        }
+        BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
+                constructor.getBody().getBodyInit());
+        Name nameNode = new Name(constructor.getNameNode().getOrigin(), getInitMethodName(constructor.getNameNode().getValue()));
+        var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
+        var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
+        frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));
+        return new Method(constructor.getOrigin(), nameNode, constructor.getAttributes(),
+                constructor.getIsGhost(), constructor.getSignatureEllipsis(), constructor.getTypeArgs(), constructor.getIns(),
+                constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
+                modClause,
+                false, List.of(), body, false);
+    }
+
+    public static String getInitMethodName(String constructorName) {
+        return "_init" + constructorName.substring("_const_".length());
     }
 
     private Symbol.ClassSymbol getCurrentTypeSymbol(JCTree.JCClassDecl classDecl) {
@@ -707,10 +816,9 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    MemberDecl translateMember(JCTree member, Stack<Tree> nestedTypes) {
+    MemberDecl translateMember(JCTree member) {
         switch (member) {
             case JCTree.JCClassDecl classDecl -> {
-                nestedTypes.add(classDecl);
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
@@ -724,7 +832,7 @@ public class JavaToDafnyCompiler {
     }
 
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
-        Name fieldName = getName(variableDecl, nameMangler.mangleSymbolName(variableDecl.sym));
+        Name fieldName = getName(variableDecl, variableDecl.sym);
         IOrigin origin = declToOrigin(variableDecl, fieldName);
         Type type = translateType(variableDecl.getModifiers(), variableDecl.vartype.type, toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
@@ -776,7 +884,12 @@ public class JavaToDafnyCompiler {
                                                     JCTree sourceBody,
                                                     List<JCTree.JCTypeParameter> typeParameters,
                                                     @Nullable MethodOrLoopContract contract
-    ) { 
+    ) {
+        if (typeForWhichCurrentClassIsDefiningContract != null && isSynthetic(source, methodSymbol)) {
+            return null;
+        }
+        this.symbolsWithAContract.add(methodSymbol);
+        
         var annotations = modifiers.getAnnotations();
         var annotationsByName = annotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
@@ -818,7 +931,12 @@ public class JavaToDafnyCompiler {
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
+        Name name;
+        if (typeForWhichCurrentClassIsDefiningContract != null && isConstructor(methodSymbol)) {
+            name = getName(source, NameMangler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
+        } else {
+            name = getName(source, methodSymbol);
+        }
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
@@ -877,27 +995,15 @@ public class JavaToDafnyCompiler {
         }
 
         if (isConstructor(methodSymbol)) {
-            var containerIsInterface = typeForWhichCurrentClassIsDefiningContract != null &&
-                    isInterface(typeForWhichCurrentClassIsDefiningContract);
-            if (containerIsInterface) {
-                var synthetic = isSynthetic(source, methodSymbol);
-                if (synthetic) {
-                    // ignore default constructors in interfaces classes
-                    return null;
-                } else {
-                    return null;
-                }
-            }
-            
             DividedBlockStmt body;
             if (shouldVerify) {
                 var treeMaker = TreeMaker.instance(context);
 
                 var newBodyStatements = new ArrayList<Statement>();
                 for (JCTree.JCVariableDecl variableDecl : initializers) {
-                  var rhs = variableDecl.getInitializer();
-                  var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                  newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
+                    var rhs = variableDecl.getInitializer();
+                    var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
+                    newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
                 }
                 newBodyStatements.addAll(bodyStatements);
                 bodyStatements = newBodyStatements;
@@ -926,10 +1032,9 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private boolean isSynthetic(JCTree source, Symbol.MethodSymbol methodSymbol) {
+    public boolean isSynthetic(JCTree methodNode, Symbol.MethodSymbol methodSymbol) {
         var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
-        var synthetic = source.pos == containerPos;
-        return synthetic;
+        return methodNode.pos == containerPos;
     }
 
     private @Nullable MethodOrLoopContract findExternalContract(Symbol.MethodSymbol methodSymbol) {
@@ -949,7 +1054,7 @@ public class JavaToDafnyCompiler {
 
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
         var methodCompiler = new MethodCompiler(this);
-        var name = getName(source, nameMangler.mangleSymbolName(methodSymbol));
+        var name = getName(source, methodSymbol);
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
@@ -1238,11 +1343,19 @@ public class JavaToDafnyCompiler {
         return getName(tree, name.toString());
     }
     
+    Name getName(JCTree tree, Symbol symbol) {
+        return getName(tree, nameMangler.mangleSymbolName(symbol), symbol.name.length());
+    }
+
     Name getName(JCTree tree, String name) {
+        return getName(tree, name, name.length());
+    }
+    
+    Name getName(JCTree tree, String name, int length) {
         var positionCalculator = new PositionCalculator(compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);
         var startToken = positionCalculator.toToken(startPos);
-        var endToken = positionCalculator.toToken(startPos + name.length());
+        var endToken = positionCalculator.toToken(startPos + length);
         var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
         return new Name(origin, name);
     }

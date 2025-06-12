@@ -57,13 +57,13 @@ class CInvalidContract implements I {
     @Pure
     @Override
     public int f(int x) {
-//             ^^^^^ Error: function's (possibly automatically generated) decreases clause must be below or equal to that in the trait
+//             ^ Error: function's (possibly automatically generated) decreases clause must be below or equal to that in the trait
         return 0;
     }
 
     @Override
     public int m() {
-//             ^^^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
+//             ^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
         return 0;
     }
 }
@@ -114,6 +114,6 @@ class CInvalidImplementation implements I {
         postcondition((Integer r) -> r > 2);
         c.x = 3;
 //      ^^^ Error: assignment might update an object not in the enclosing context's modifies clause
-        return 0;
+        return 3;
     }
 }

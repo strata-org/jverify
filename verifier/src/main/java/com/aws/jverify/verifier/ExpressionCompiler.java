@@ -86,8 +86,6 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
-
-
     public Expression toExpr(JCTree.JCExpression expr) {
         return toExpr(expr, null);
     }
@@ -109,7 +107,7 @@ public class ExpressionCompiler {
                 switch (unary.getTag()) {
                     case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
                         compiler.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
-                        return compiler.getHole(origin);
+                        return JavaToDafnyCompiler.getHole(origin);
                     }
                     case JCTree.Tag.NOT -> {
                         return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
@@ -122,7 +120,7 @@ public class ExpressionCompiler {
                     }
                     default -> {
                         compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                        return compiler.getHole(origin);
+                        return JavaToDafnyCompiler.getHole(origin);
                     }
                 }
             }
@@ -229,7 +227,7 @@ public class ExpressionCompiler {
             }
             case JCTree.JCAssignOp assignOp -> {
                 compiler.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
-                return compiler.getHole(origin);
+                return JavaToDafnyCompiler.getHole(origin);
             }
             case JCTree.JCInstanceOf instanceOf -> {
                 var expression = toExpr(instanceOf.getExpression());
@@ -246,7 +244,7 @@ public class ExpressionCompiler {
             case JCTree.JCMemberReference _ ->
                 throw new RuntimeException("Member references should have been rewritten, but found one at " + origin);
             case JCTree.JCTypeApply typeApply -> {
-                var type = this.toExpr(typeApply.getType());
+                var type = toExpr(typeApply.getType());
                 if (type instanceof NameSegment nameSegment) {
                     List<Type> arguments;
                     if (typeApply.getTypeArguments().isEmpty()) {
@@ -263,7 +261,7 @@ public class ExpressionCompiler {
             }
         }
         compiler.reportError(expr, "notSupported", expr.getClass().getSimpleName());
-        return compiler.getHole(origin);
+        return JavaToDafnyCompiler.getHole(origin);
     }
 
     public Expression translateBinary(JCTree node,
@@ -281,12 +279,12 @@ public class ExpressionCompiler {
 
         if (isBitwise) {
             compiler.reportError(node, "notSupported", "operator " + operator);
-            return compiler.getHole(origin);
+            return JavaToDafnyCompiler.getHole(origin);
         }
         BinaryExprOpcode dafnyOperator = toDafny(operator);
         if (dafnyOperator == null) {
             compiler.reportError(node, "notSupported", "operator " + operator);
-            return compiler.getHole(origin);
+            return JavaToDafnyCompiler.getHole(origin);
         }
         return new BinaryExpr(origin, dafnyOperator, left, right);
     }
@@ -378,7 +376,6 @@ public class ExpressionCompiler {
         var hiExpr = hi == null ? null : toExpr(hi);
         return new SeqSelectExpr(origin, false, seqOrArrayExpr, loExpr, hiExpr, null);
     }
-
 
     /**
      * Translates the given string literal to a Dafny expression (of type {@code jstring}).
@@ -486,7 +483,7 @@ public class ExpressionCompiler {
         var methodDecl = compiler.translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
 
         // Add a wrapper datatype with that method declaration to the outer scope
-        var datatypeName = "Lambda" + compiler.lambdaDatatypeDecls.size();
+        var datatypeName = "Lambda" + compiler.declarationsForFile.get(compiler.compilationUnit).size();
         var datatypeNameNode = new Name(origin, datatypeName);
         List<Formal> datatypeCtorParams = params.stream().map(p ->
                 new Formal(origin, compiler.getName(p, p.name), compiler.translateType(p.type, origin), false, true,
@@ -495,7 +492,7 @@ public class ExpressionCompiler {
         var trait = compiler.translateType(interfaceType, origin);
         var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
                 List.of(trait), List.of(datatypeCtor), false);
-        compiler.lambdaDatatypeDecls.add(datatypeDecl);
+        compiler.declarationsForFile.get(compiler.compilationUnit).add(datatypeDecl);
 
         // Produce the datatype constructor reference: LambdaX.LambdaX
         return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);

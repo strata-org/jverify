@@ -2,26 +2,19 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
-import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.tree.TreeMaker;
 
-import javax.lang.model.type.ArrayType;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class MethodCompiler {
 
     private final JavaToDafnyCompiler compiler;
-    private final ExpressionCompiler expressionCompiler;
 
     public MethodCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
-        expressionCompiler = compiler.expressionCompiler;
     }
 
     private final Queue<Label> labels = new LinkedList<>();
@@ -353,24 +346,31 @@ public class MethodCompiler {
 
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
         var origin = compiler.toOrigin(invocation);
-        compiler.contextOrigins.push(origin);
-        try {
-            if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
-                if (!invocation.getArguments().isEmpty()) {
-                    compiler.reportError(invocation, "notSupported", "super calls with arguments");
-                    return List.of();
-                }
+        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name == ident.name.table.names._super) {
+            Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) ident.sym;
+
+            if (!compiler.symbolsWithAContract.contains(baseConstructor)) {
                 return List.of();
             }
-            var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
-            Expression expr = compiler.expressionCompiler.toExpr(invocation.getMethodSelect());
-            ApplySuffix applySuffix = new ApplySuffix(origin, expr, null,
-                    new ActualBindings(argBindings), null);
-            return List.of(new AssignStatement(origin, null, List.of(),
-                    List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
-        } finally {
-            compiler.contextOrigins.pop();
+            
+            var baseConstructorName = compiler.nameMangler.mangleSymbolName(baseConstructor);
+            var initName = JavaToDafnyCompiler.getInitMethodName(baseConstructorName);
+            var arguments = invocation.getArguments().stream().map(
+                    e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
+            var applySuffix = new ApplySuffix(origin,
+                    new NameSegment(origin, initName, null), null, new ActualBindings(arguments), null);
+            var initCall = new AssignStatement(origin, null, List.of(),
+                    List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
+            
+            return List.of(initCall);
         }
+        var argBindings = invocation.getArguments().stream().map(
+                a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
+        Expression expr = compiler.expressionCompiler.toExpr(invocation.getMethodSelect());
+        ApplySuffix applySuffix = new ApplySuffix(origin, expr, null,
+                new ActualBindings(argBindings), null);
+        return List.of(new AssignStatement(origin, null, List.of(),
+                List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
     }
 
     public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt) {
@@ -572,16 +572,17 @@ public class MethodCompiler {
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
                 var argBindings = newClass.getArguments().stream().map(
-                        a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
+                        a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
                 String ctorNameStr = compiler.nameMangler.mangleSymbolName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
-                var baseType = expressionCompiler.toExpr(newClass.clazz);
-                var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
+                var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
+                var classBaseType = new NameSegment(baseType.getOrigin(), "_Class_" + baseType.getName(), baseType.getOptTypeArguments());
+                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
                 return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));
             }
             case JCTree.JCNewArray newArray -> {
-                var arrayDimensions = newArray.getDimensions().stream().map(expressionCompiler::toExpr).toList();
+                var arrayDimensions = newArray.getDimensions().stream().map(compiler.expressionCompiler::toExpr).toList();
                 var arrayInitializers = newArray.getInitializers();
                 var arrayJavaType = newArray.getType();
                 if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
@@ -597,7 +598,7 @@ public class MethodCompiler {
             case null, default -> {
             }
         }
-        var dafnyExpr = expressionCompiler.toExpr(expr, originOverride);
+        var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
     }
 }

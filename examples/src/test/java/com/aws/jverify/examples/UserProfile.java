@@ -16,6 +16,8 @@ class UserProfile {
         this.accountType = accountType;
         if (AccountType.Premium == accountType) {
             this.premiumFeatures = new PremiumFeatures();
+        } else {
+            this.premiumFeatures = null;
         }
     }
 
@@ -25,8 +27,9 @@ class UserProfile {
     private boolean valid() {
 //                  ^^^^^ Related location: this is the postcondition that could not be proved
         reads(this);
-        return accountType != AccountType.Premium || premiumFeatures != null;
-//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
+        return (Object)this != premiumFeatures && 
+                (accountType != AccountType.Premium || premiumFeatures != null);
+//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
     }
 
     public void upgradeAccount() {

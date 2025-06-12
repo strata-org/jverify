@@ -1,14 +1,9 @@
 package com.aws.jverify.verifier;
 
-import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
-
-
-
-import com.sun.tools.javac.tree.JCTree;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -110,7 +105,8 @@ public class NameMangler {
     private String mangleMethodName(Symbol s) {
         String baseName = s.name.toString();
         if (baseName.contentEquals("<init>")) {
-            baseName = "_ctor";
+            Symbol.ClassSymbol enclosingClass = s.enclClass();
+            baseName = getConstructorName(enclosingClass);
         }
         else {
             baseName = methodPrefix + baseName;
@@ -129,5 +125,9 @@ public class NameMangler {
             baseName += typeMangling(param);
         }
         return baseName;
+    }
+
+    public static String getConstructorName(Symbol.ClassSymbol enclosingClass) {
+        return "_ctor_" + enclosingClass.name.toString();
     }
 }

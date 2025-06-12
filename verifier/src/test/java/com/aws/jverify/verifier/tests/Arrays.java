@@ -5,24 +5,6 @@ import com.aws.jverify.testengine.JVerifyTest;
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
-class Point {
-    private int a;
-    private int b;
-
-    public Point(int a_, int b_) {
-        postcondition(this.a == a_);
-        postcondition(this.b == b_);
-        this.a = a_;
-        this.b = b_;
-    }
-
-    @Pure
-    public int getA() {
-        reads(this);
-        return a;
-    }
-}
-
 // Class that test the support of array allocation and accesses
 @JVerifyTest(exitCode = 4, dafnyVerified = 5, dafnyErrors = 2)
 class Arrays {
@@ -90,5 +72,23 @@ class Arrays {
         check(a[0]==0);
         check(i==n);
 //      ^^^^^^^^^^^ Error: assertion might not hold
+    }
+}
+
+class Point {
+    private int a;
+    private int b;
+
+    public Point(int a_, int b_) {
+        postcondition(this.a == a_);
+        postcondition(this.b == b_);
+        this.a = a_;
+        this.b = b_;
+    }
+
+    @Pure
+    public int getA() {
+        reads(this);
+        return a;
     }
 }
