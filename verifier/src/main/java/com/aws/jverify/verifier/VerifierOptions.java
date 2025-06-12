@@ -13,4 +13,5 @@ public record VerifierOptions(Path dafnyPath,
                               boolean showRanges,
                               boolean filePath,
                               String[] additionalDafnyArguments,
-                              boolean verifyByDefault) {}
+                              boolean verifyByDefault,
+                              boolean annotateSource) {}

@@ -217,6 +217,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
+        var annotateSource = Boolean.valueOf(System.getenv("JVERIFY_ANNOTATE_SOURCE"));
         return new VerifierOptions(
                 dafnyPath,
                 List.of(libraryJar, testEngineClassPath),
@@ -229,7 +230,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         "--use-basename-for-filename",
                        //"--wait-for-debugger",
                 },
-                annotation.verifyByDefault()
+                annotation.verifyByDefault(),
+                annotateSource
         );
     }
 

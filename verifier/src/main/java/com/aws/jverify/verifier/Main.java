@@ -49,6 +49,9 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
 
+    @Option(names = "--annotate-source", description = "Whether to add diagnostics as comments to source files. Defaults to false.", defaultValue = "false")
+    private boolean annotateSource;
+
     @Override
     public Integer call() throws IOException {
         Writer writer = new OutputStreamWriter(System.out);
@@ -68,7 +71,7 @@ class AppCommand implements Callable<Integer> {
                 Stream.of(jverifyLibraryLocation)).toList();
         
         var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(),
-                printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault);
+                printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault, annotateSource);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
         System.exit(exitCode);
