@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static com.aws.jverify.verifier.NameMangler.CTOR_PREFIX;
+
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
@@ -627,7 +629,7 @@ public class JavaToDafnyCompiler {
     }
 
     public static String getInitMethodName(String constructorName) {
-        return "_init" + constructorName.substring("_const_".length());
+        return "_init_" + constructorName.substring(CTOR_PREFIX.length());
     }
 
     private Symbol.ClassSymbol getCurrentTypeSymbol(JCTree.JCClassDecl classDecl) {

@@ -20,6 +20,7 @@ import java.util.List;
 public class NameMangler {
     static private final String fieldPrefix = "F_";
     static private final String methodPrefix = "Z_";
+    public static final String CTOR_PREFIX = "_ctor_";
 
     // Map from symbols to mangled names
     private final Map<Symbol, String> symbolStringMap;
@@ -128,6 +129,6 @@ public class NameMangler {
     }
 
     public static String getConstructorName(Symbol.ClassSymbol enclosingClass) {
-        return "_ctor_" + enclosingClass.name.toString();
+        return CTOR_PREFIX + enclosingClass.name.toString();
     }
 }
