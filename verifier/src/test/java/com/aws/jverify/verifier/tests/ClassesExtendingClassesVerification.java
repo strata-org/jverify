@@ -16,13 +16,13 @@ public class ClassesExtendingClassesVerification {
 }
 
 class Extender extends Extendee {
-    int y;
+    int z;
 
     public Extender(int input) {
         super(input + 2);
         precondition(input < 10);
         postcondition(this.x == 3);
-        y = 2;
+        z = 2;
     }
 
     @Pure
@@ -35,10 +35,12 @@ class Extender extends Extendee {
 
 abstract class Extendee {
     int x;
+    final int y;
     
     public Extendee(int input) {
         postcondition(this.x == computeX(input));
         this.x = computeX(input);
+        this.y = 3;
     }
 
     @Pure
