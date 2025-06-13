@@ -6,7 +6,7 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(exitCode = 4, dafnyVerified = 4, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 5, dafnyErrors = 2)
 class Arrays {
 
     static void intArrayOfSize10() {
@@ -19,8 +19,8 @@ class Arrays {
         }
         check(a[0]==0);
     }
-    static void pointArrayOfSize10() {
-        Point[] a = new Point[10];
+    static void nullablePointArrayOfSize10() {
+        @Nullable Point [] a = new @Nullable Point[10];
         a[0]=new Point(1,2);
         for (int i = 1; i < a.length; i++) {
             modifies(a);
@@ -32,7 +32,31 @@ class Arrays {
             a[i] = new Point(i,i+1);
         }
         check(a[0] != null);
+
         check(a[0].getA()==1);
+    }
+
+    static void pointArrayOfSize10() {
+        Point[] a = new Point[10];
+//                  ^^^^^^^^^^^^^ Error: unless an initializer is provided for the array elements, a new array of 'com_aws_jverify_verifier_tests_Point' must have empty size
+        a[0]=new Point(1,2);
+        for (int i = 1; i < a.length; i++) {
+            modifies(a);
+            // We want a better invariant like
+            // invariant(Forall((Integeer j) -> Implies(0<=j && j<i,a[i]!=null && a[i].getA()==i)));
+            // This does not work now as we cannot pass a non final variable in a lambda
+            invariant(a[0] != null);
+//                    ^^^^^^^^^^^^ Warning: the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
+            invariant(a[0].getA()==1);
+            a[i] = new Point(i,i+1);
+        }
+        check(a[0] != null);
+//            ^^^^^^^^^^^^ Warning: the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
+        check(a[0].getA()==1);
+    }
+
+    static void pointArrayOfSize0() {
+        Point[] a = new Point[0];
     }
 
     static void intArrayOfSizeN(int n) {

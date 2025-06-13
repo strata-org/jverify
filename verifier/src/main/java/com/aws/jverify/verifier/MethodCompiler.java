@@ -56,7 +56,7 @@ public class MethodCompiler {
                 return translateReturn(returnStatement);
             }
             case JCTree.JCVariableDecl variableDecl -> {
-                return translateVariableDeclaration(origin, variableDecl.getName().toString(), variableDecl.getType(), variableDecl.getInitializer());
+                return translateVariableDeclaration(origin, variableDecl);
             }
             case JCTree.JCWhileLoop whileLoop -> {
                 return List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x));
@@ -204,12 +204,12 @@ public class MethodCompiler {
         return List.of(firstBlock, whileLoop);
     }
 
-    private List<Statement> translateVariableDeclaration(IOrigin origin, String string, JCTree type, JCTree.JCExpression initializer) {
-        LocalVariable localVariable = new LocalVariable(origin,
-                string, compiler.translateType(type.type, false, origin), false);
+    private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
+        LocalVariable localVariable = new LocalVariable(origin, variableDecl.name.toString(),
+                compiler.translateType(variableDecl.getModifiers(), variableDecl.getType().type, origin), false);
         ConcreteAssignStatement dafnyInitializer = null;
-        if (initializer != null) {
-            var rhs = toAssignmentRhs(initializer);
+        if (variableDecl.getInitializer() != null) {
+            var rhs = toAssignmentRhs(variableDecl.getInitializer());
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
             dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
@@ -225,7 +225,7 @@ public class MethodCompiler {
                                     java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = translateHeader(body, header);
+        var postHeader = translateHeader(body, header, true);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -430,11 +430,11 @@ public class MethodCompiler {
     /**
      * @see #translateHeader(List, MethodOrLoopContract)
      */
-    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodOrLoopContract header) {
+    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodOrLoopContract header, boolean reportErrors) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return translateHeader(statements, header);
+        return translateHeader(statements, header, reportErrors);
     }
 
     /**
@@ -446,7 +446,7 @@ public class MethodCompiler {
      * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
      * namely, that it is backed by the original list.
      */
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, MethodOrLoopContract header) {
+    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, MethodOrLoopContract header, boolean reportErrors) {
         var headerStatements = 0;
         JCTree.JCStatement callToSuper = null;
         statementLoop: for (var statement : statements) {
@@ -495,7 +495,9 @@ public class MethodCompiler {
                         } else {
                             var firstName = header.returnName.getValue();
                             if (!firstName.equals(paramName)) {
-                                compiler.reportError((JCTree) parameter, "multipleReturnNames", firstName, paramName);
+                                if (reportErrors) {
+                                    compiler.reportError((JCTree) parameter, "multipleReturnNames", firstName, paramName);
+                                }
                             }
                         }
                         
@@ -538,7 +540,9 @@ public class MethodCompiler {
                     header.modifies.add(new FrameExpression(origin, expr, null));
                 }
                 default -> {
-                    compiler.reportError(invocation, "notSupported", methodName);
+                    if (reportErrors) {
+                        compiler.reportError(invocation, "notSupported", methodName);
+                    }
                     return null;
                 }
             }
@@ -588,7 +592,7 @@ public class MethodCompiler {
                 if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
                     compiler.reportError(expr, "notSupported", "multi-dimensional arrays");
                 }
-                var arrayDafnyType = compiler.translateType(arrayJavaType.type, true, compiler.toOrigin(arrayJavaType));
+                var arrayDafnyType = compiler.translateType(null, arrayJavaType.type, compiler.toOrigin(arrayJavaType));
 
                 if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                     compiler.reportError(expr, "notSupported", "new array with initializers");

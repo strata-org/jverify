@@ -79,6 +79,11 @@ public class Driver {
             Writer outputWriter
     ) throws IOException {
         var verificationResults = verifyJavaFiles(readFiles, verifierOptions);
+        outputVerificationResults(verificationResults, verifierOptions, outputWriter);
+        return verificationResults.exitCode;
+    }
+
+    private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
         for (var diagnostic : verificationResults.getJverifyDiagnostics()) {
             outputWriter.write(formatDiagnostic(verifierOptions.filePath(), diagnostic));
             outputWriter.write('\n');
@@ -98,7 +103,6 @@ public class Driver {
         if (verificationResults.dafnyFinishedMessage != null) {
             outputWriter.write(verificationResults.dafnyFinishedMessage);
         }
-        return verificationResults.exitCode;
     }
 
     public static final class VerificationResults {
