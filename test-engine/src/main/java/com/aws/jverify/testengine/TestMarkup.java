@@ -44,6 +44,13 @@ public class TestMarkup {
     private static final String SPAN_START_STRING = "[>";
     private static final String SPAN_END_STRING = "<]";
 
+    public static final Pattern ANNOTATION_PATTERN = Pattern.compile(
+            "(?<Position>>\\<)|" +
+                    "(?<SpanStart>\\[>)|(?<SpanEnd>\\<\\])" +
+                    "|(?<NameSpanStart>\\{>(?<Name>[-_.\'=(){}\"A-Za-z0-9\\*\\+]+)\\:)|(?<NameSpanEnd>\\<\\})" +
+                    "|(?<AnnotatedSpanStart>\\(>(?<Annotation>(.|\\n)+)\\:\\:\\:)|(?<AnnotatedSpanEnd>\\<\\))" +
+                    "|(\\(>(?<StandaloneAnnotation>([.|\\n])+)\\<\\))");
+
     private static String parse(String input, List<Integer> positions, List<AnnotatedSpan> spans) {
         StringBuilder outputBuilder = new StringBuilder();
         
@@ -56,15 +63,9 @@ public class TestMarkup {
         Stack<Span> namedSpanStartStack = new Stack<>();
         Stack<Span> annotatedSpanStartStack = new Stack<>();
 
-        Pattern r = Pattern.compile("(?<Position>><)|" +
-                "(?<SpanStart>\\[>)|(?<SpanEnd><\\])" +
-                "|(?<NameSpanStart>\\{>(?<Name>[-_.'=(){}\"A-Za-z0-9\\*\\+]+)\\:)|(?<NameSpanEnd><\\})" +
-                "|(?<AnnotatedSpanStart>\\(>(?<Annotation>(.|\\n)+)\\:\\:\\:)|(?<AnnotatedSpanEnd><\\))" +
-                "|(\\(>(?<StandaloneAnnotation>([.|\\n])+)<\\))");
-
         int outputPosition = 0;
         int inputPosition = 0;
-        Matcher matcher = r.matcher(input);
+        Matcher matcher = ANNOTATION_PATTERN.matcher(input);
 
         while (matcher.find()) {
             int diff = inputPosition - outputPosition;

@@ -69,6 +69,9 @@ public class Driver {
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
             runDafnyProcess(compiler.getNameMangler(), program, verifierOptions, verificationResults);
+            if (verifierOptions.annotateSource()) {
+                annotateSource(readFiles, verificationResults);
+            }
         }
         return verificationResults;
     }
@@ -344,4 +347,32 @@ public class Driver {
      */
     @JsonIgnoreProperties({"pos"})
     private static abstract class DafnyJsonPosition {}
+
+    public static final Pattern ANNOTATION_PATTERN = Pattern.compile(
+            "(?<Position>>\\<)|" +
+                    "(?<SpanStart>\\[>)|(?<SpanEnd>\\<\\])" +
+                    "|(?<NameSpanStart>\\{>(?<Name>[-_.\'=(){}\"A-Za-z0-9\\*\\+]+)\\:)|(?<NameSpanEnd>\\<\\})" +
+                    "|(?<AnnotatedSpanStart>\\(>(?<Annotation>(.|\\n)+)\\:\\:\\:)|(?<AnnotatedSpanEnd>\\<\\))" +
+                    "|(\\(>(?<StandaloneAnnotation>([.|\\n])+)\\<\\))");
+
+    public static void annotateSource(List<JavaFileObject> readFiles, VerificationResults verificationResults) {
+        for (var file : readFiles) {
+            try (BufferedReader reader = new BufferedReader(file.openReader(false))) {
+                List<String> allLines = reader.lines()
+                        // Drop all existing annotations
+                        .filter(line -> !ANNOTATION_PATTERN.matcher(line).matches())
+                        .collect(Collectors.toList());
+                try (BufferedWriter writer = new BufferedWriter(file.openWriter())) {
+                    for (String line : allLines) {
+                        writer.write(line);
+                        writer.newLine();
+                    }
+                    writer.flush();
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
 }
