@@ -83,7 +83,7 @@ public class Driver {
         return verificationResults.exitCode;
     }
 
-    public static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
+    private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
         for (var diagnostic : verificationResults.getJverifyDiagnostics()) {
             outputWriter.write(formatDiagnostic(verifierOptions.filePath(), diagnostic));
             outputWriter.write('\n');

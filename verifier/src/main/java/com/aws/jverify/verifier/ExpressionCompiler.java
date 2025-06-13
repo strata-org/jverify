@@ -463,9 +463,10 @@ public class ExpressionCompiler {
         }
         params = params.reverse();
 
-        // TODO: More robust access than a magic [1]
+        // See the signature and documentation of java.lang.invoke.LambdaMetafactory.metafactory.
+        // We want the `MethodHandle implementation` parameter, which is in position 4 (with zero indexing)
+        // but the first three parameters are filled in by the JVM, so it ends up being at index 1.
         var methodSymbol = (Symbol.MethodSymbol)((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
-        // TODO: More robust method for creating new symbols without clashing
         var arguments = params.<JCTree.JCExpression>map(p -> maker.Ident(p.sym)).appendList(interfaceMethodSymbol.params().map(p -> maker.Ident(p)));
         JCTree.JCExpression methodCall;
         if (compiler.isConstructor(methodSymbol)) {

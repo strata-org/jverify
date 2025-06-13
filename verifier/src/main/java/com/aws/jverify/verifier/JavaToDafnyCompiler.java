@@ -87,7 +87,7 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        var parsed = parseAndResolveJava(options, files);
+        var parsed = parseResolveAndDesugarJava(options, files);
         if (parsed == null) {
             return new FilesContainer(List.of());
         }
@@ -108,32 +108,11 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
 
-    private void compileSymbolsTopologically() {
-        var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
-        var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
-        iterator.forEachRemaining(itemsFromChildrenToParents::add);
-        for(var currentTypeSymbol : itemsFromChildrenToParents.reversed()) {
-            var relatedDeclarations = declarationsForSymbolContract.get(currentTypeSymbol);
-            if (relatedDeclarations == null) {
-                continue;
-            }
-            for(var relatedDeclaration : relatedDeclarations) {
-                Enter enter = Enter.instance(context);
-                Env<AttrContext> env = enter.getEnv(relatedDeclaration.sym);
-                if (env != null) {
-                    compilationUnit = env.toplevel;
-                }
-                var dafnyDecls = translateTypeDeclaration(relatedDeclaration);
-                declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
-            }
-        }
-    }
-
     /**
      * Applies a subset of the javac compilation pipeline, to parse,
      * resolve, and partially rewrite some features away.
      */
-    private Iterable<? extends CompilationUnitTree> parseAndResolveJava(VerifierOptions options, List<JavaFileObject> files) {
+    private Iterable<? extends CompilationUnitTree> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
@@ -274,14 +253,37 @@ public class JavaToDafnyCompiler {
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
         TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
 
-        // TODO: Scan for classes that have lambdas first to save time
-        // as JavaCompiler.desugar does.
+        // Note JavaCompiler.desugar has some additional logic to
+        // scan for classes that have lambdas first,
+        // to not waste time with these traversals.
+        // We could do the same here to save time in the future.
         for (Env<AttrContext> env : envs) {
             env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
         }
         return envs;
     }
-    
+
+    private void compileSymbolsTopologically() {
+        var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
+        var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
+        iterator.forEachRemaining(itemsFromChildrenToParents::add);
+        for(var currentTypeSymbol : itemsFromChildrenToParents.reversed()) {
+            var relatedDeclarations = declarationsForSymbolContract.get(currentTypeSymbol);
+            if (relatedDeclarations == null) {
+                continue;
+            }
+            for(var relatedDeclaration : relatedDeclarations) {
+                Enter enter = Enter.instance(context);
+                Env<AttrContext> env = enter.getEnv(relatedDeclaration.sym);
+                if (env != null) {
+                    compilationUnit = env.toplevel;
+                }
+                var dafnyDecls = translateTypeDeclaration(relatedDeclaration);
+                declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
+            }
+        }
+    }
+
     record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) { }
     private void discoverContractsAndTypeHierarchy(JCTree.JCCompilationUnit compilationUnit) {
         this.compilationUnit = compilationUnit;
