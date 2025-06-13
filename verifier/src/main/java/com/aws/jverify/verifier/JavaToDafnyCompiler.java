@@ -4,15 +4,22 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
-import com.sun.tools.javac.api.JavacTaskImpl;
-import com.sun.tools.javac.api.JavacTool;
+import com.sun.source.util.TaskEvent;
+import com.sun.source.util.TaskListener;
+import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.api.JavacTrees;
+import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
+import com.sun.tools.javac.comp.CompileStates;
 import com.sun.tools.javac.comp.Env;
+import com.sun.tools.javac.comp.LambdaToMethod;
+import com.sun.tools.javac.comp.Todo;
+import com.sun.tools.javac.main.Arguments;
+import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -62,6 +69,8 @@ public class JavaToDafnyCompiler {
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
 
     private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
+    // All contracts, internal or external
+    final Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts = new HashMap<>();
     JCTree.JCCompilationUnit compilationUnit;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
 
@@ -80,11 +89,11 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        var parsed = parseAndResolveJava(options, files);
+        var parsed = parseResolveAndDesugarJava(options, files);
         if (parsed == null) {
             return new FilesContainer(List.of());
         }
-        
+
         for (var compilationUnit : parsed) {
             discoverContractsAndTypeHierarchy((JCTree.JCCompilationUnit) compilationUnit);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
@@ -101,9 +110,11 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
 
-    private Iterable<? extends CompilationUnitTree> parseAndResolveJava(VerifierOptions options, List<JavaFileObject> files) {
-        JavacTool compiler = JavacTool.create();
-
+    /**
+     * Applies a subset of the javac compilation pipeline, to parse,
+     * resolve, and partially rewrite some features away.
+     */
+    private Iterable<? extends CompilationUnitTree> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
@@ -119,33 +130,139 @@ public class JavaToDafnyCompiler {
                 .collect(Collectors.joining(File.pathSeparator));
         var javacOptions = List.of("-classpath", classpath);
 
+        ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        JavacTaskImpl task = (JavacTaskImpl) compiler.getTask(
-                null,
-                null,
-                diagnostics,
-                javacOptions,
-                null,
-                files,
-                context
-        );
+        context.put(DiagnosticListener.class, ccw.wrap(diagnostics));
+        JavaCompiler compiler = JavaCompiler.instance(context);
+        Arguments args = Arguments.instance(context);
+        args.init("javac", javacOptions, List.of(), files);
 
-        var parsed = task.parse();
-        task.analyze();
+        /**
+         * The javac phases are as follows (copied from CompileStates.CompileState):
+         *
+         * INIT(0),
+         * PARSE(1),
+         * ENTER(2),
+         * PROCESS(3),
+         * ATTR(4),
+         * FLOW(5),
+         * TRANSTYPES(6),
+         * TRANSPATTERNS(7),
+         * UNLAMBDA(8),
+         * LOWER(9),
+         * GENERATE(10);
+         *
+         * The first half mostly adds information to the tree, like resolution,
+         * whereas the second half starts to be more destructive,
+         * lowering higher-level features to lower-level ones.
+         * Some of the latter are helpful, but in some cases the target language (Dafny)
+         * supports features that JVM bytecode doesn't, so the phases don't help.
+         *
+         * Currently, we apply 0 through 5,
+         * skip 6 and 7 as they remove features Dafny supports directly (generics and patterns),
+         * but then apply 8 in order to rewrite lambda expressions and method references.
+         * We may partially apply 9 in the future to rewrite features such as nested classes.
+         * 10 actually generates JVM bytecode so we will likely never apply it.
+         *
+         * Because we have specification and proof code that use features like lambdas
+         * for different purposes, we also apply our own phases before and after UNLAMBDA
+         * in order to temporarily remove code we don't want rewritten and then restore it.
+         * Therefore, our current pipeline looks like this:
+         *
+         * INIT(0),
+         * PARSE(1),
+         * ENTER(2),
+         * PROCESS(3),
+         * ATTR(4),
+         * FLOW(5),
+         * SUBSTITUTE,
+         * UNLAMBDA(8),
+         * UNSUBSTITUTE
+         *
+         * For practical reasons we also have to stop the normal flow of the JavaCompiler
+         * after 3 in order to get a reference to the set of compilation targets
+         * (via a TaskListener and a configuration to stop the pipeline early,
+         * and the Todo instance in the context).
+         */
+        compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
+        final Queue<Env<AttrContext>> envs = new LinkedList<>();
+        MultiTaskListener mtl = MultiTaskListener.instance(context);
+        mtl.add(new TaskListener() {
+            @Override
+            public void finished(TaskEvent e) {
+                TaskListener.super.finished(e);
+
+                // Wait for the last event sent, after all compilation is complete
+                // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
+                if (e.getKind() == TaskEvent.Kind.COMPILATION) {
+                    // The earlier phases leave the queue of classes to process
+                    // in this instance.
+                    // JavaCompile.compile() would normally make a call equivalent to
+                    // generate(desugar(flow(attribute(todo)))),
+                    // where desugar() applied phases 6 through 9.
+                    Todo todo = Todo.instance(context);
+
+                    // The stop policy has to be moved back further
+                    // or else the later phases become no-ops.
+                    compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
+
+                    // Apply the second half of our pipeline as above (4 and onwards).
+                    // See the implementation of JavaCompiler.compile() for similar lines,
+                    // including the comment "these method calls must be chained to avoid memory leaks"
+                    envs.addAll(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo))))));
+                }
+            }
+        });
+        // Applies the first half of our pipeline.
+        compiler.compile(files, List.of(), null, List.of());
+
         this.diagnosticFactory = JCDiagnostic.Factory.instance(context);
-
+        var hasErrors = false;
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
-
                 this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                         new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
                         diagnostic.getMessage(Locale.ENGLISH)));
 
-                parsed = null;
+                hasErrors = true;
             }
         }
-        return parsed;
+
+        return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
+    }
+
+    // Phase to replace erased code such as specifications with placeholders
+    // so future phases don't rewrite them.
+    private Queue<Env<AttrContext>> substitute(Queue<Env<AttrContext>> envs) {
+        var substituter = ErasedCodeSubstituter.instance(context);
+        for (Env<AttrContext> env: envs) {
+            env.tree = substituter.substitute(env.tree);
+        }
+        return envs;
+    }
+
+    // Phase to replace placeholders substituted by the earlier SUBSTITUTE phase
+    // with their original AST nodes.
+    private Queue<Env<AttrContext>> unsubstitute(Queue<Env<AttrContext>> envs) {
+        var substituter = ErasedCodeSubstituter.instance(context);
+        for (Env<AttrContext> env : envs) {
+            env.tree = substituter.unsubstitute(env.tree);
+        }
+        return envs;
+    }
+
+    private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
+        TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
+
+        // Note JavaCompiler.desugar has some additional logic to
+        // scan for classes that have lambdas first,
+        // to not waste time with these traversals.
+        // We could do the same here to save time in the future.
+        for (Env<AttrContext> env : envs) {
+            env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
+        }
+        return envs;
     }
 
     private void compileSymbolsTopologically() {
@@ -191,6 +308,15 @@ public class JavaToDafnyCompiler {
                 }
             }
             if (contractAnnotation == null) {
+                for(var member : classDecl.getMembers()) {
+                    if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
+                        continue;
+                    }
+                    // Don't report errors when extracting this contract here,
+                    // since the actual translation of the method will report them.
+                    var header = extractContract(methodDecl, false);
+                    methodContracts.put(methodDecl.sym, header);
+                }
                 var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
                 declsForSymbol.add(classDecl);
                 addHierarchyForSymbol(classDecl.sym);
@@ -226,19 +352,12 @@ public class JavaToDafnyCompiler {
                     continue;
                 }
 
-                var methodAnnotations = methodDecl.getModifiers().getAnnotations();
-                var methodAnnotationsByName = methodAnnotations.stream().collect(Collectors.toMap(
-                        (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                        a -> a));
-                
                 var methodSymbol = methodDecl.sym;
                 var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
                 if (baseMethod != null) {
-                    var methodCompiler = new MethodCompiler(this);
-                    var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
-                    var header = new MethodOrLoopContract(methodDecl, isPure);
-                    methodCompiler.translateHeader(methodDecl.getBody(), header);
+                    var header = extractContract(methodDecl, true);
                     externalContracts.put(baseMethod, header);
+                    methodContracts.put(baseMethod, header);
                 } else if (!isSynthetic(methodDecl, methodSymbol)) {
                     // Check currently does not take into account overloading
                     // But this only makes it not detect some unused methods.
@@ -252,6 +371,22 @@ public class JavaToDafnyCompiler {
         }
     }
 
+    private MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl, boolean reportErrors) {
+        var methodAnnotations = methodDecl.getModifiers().getAnnotations();
+        var methodAnnotationsByName = methodAnnotations.stream().collect(Collectors.toMap(
+                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                a -> a));
+
+        var methodCompiler = new MethodCompiler(this);
+        var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
+        var header = new MethodOrLoopContract(methodDecl, isPure);
+        if (methodDecl.getBody() != null) {
+            methodCompiler.translateHeader(methodDecl.getBody(), header, reportErrors);
+        }
+
+        return header;
+    }
+    
     private void addHierarchyForSymbol(Symbol.ClassSymbol sym) {
         typeHierarchy.addVertex(sym);
         for(var base : sym.getInterfaces()) {
@@ -537,7 +672,7 @@ public class JavaToDafnyCompiler {
         }
         var superTraits = baseTypes.
                 filter(this::typeHasAContract).
-                map((com.sun.tools.javac.code.Type type) -> translateType(type, false, origin)).
+                map((com.sun.tools.javac.code.Type type) -> translateType(null, type, origin)).
                 collect(Collectors.<Type>toList());
         
         var typeParameters = translateTypeParameters(classDecl.typarams);
@@ -713,7 +848,7 @@ public class JavaToDafnyCompiler {
     private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
         Name fieldName = getName(variableDecl, variableDecl.sym);
         IOrigin origin = declToOrigin(variableDecl, fieldName);
-        Type type = translateType(variableDecl.vartype.type, isNullable(variableDecl.getModifiers()), toOrigin(variableDecl.vartype));
+        Type type = translateType(variableDecl.getModifiers(), variableDecl.vartype.type, toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
             var isFinal = (variableDecl.mods.flags & Flags.FINAL) != 0;
             if (isFinal) {
@@ -741,25 +876,17 @@ public class JavaToDafnyCompiler {
         return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
     }
 
-    private boolean isNullable(JCTree.JCModifiers modifiers) {
-        return modifiers.getAnnotations().stream().anyMatch(
+    public boolean isNullable(JCTree.JCModifiers modifiers) {
+        return modifiers != null && modifiers.getAnnotations().stream().anyMatch(
                 a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
     }
 
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
-        if (type.getAnnotation(com.aws.jverify.Nullable.class) != null) {
-            return true;
-        }
-
-        if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType && isNullable(arrayType.elemtype)) {
-            return true;
-        }
-
-        return false;
+        return type.getAnnotation(com.aws.jverify.Nullable.class) != null;
     }
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
-        return translateMethodOrLambda(method, method.getModifiers(), method.sym, method.body, method.typarams);
+        return translateMethodOrLambda(method, method.getModifiers(), method.sym, method.body, method.typarams, null);
     }
 
     /**
@@ -769,7 +896,8 @@ public class JavaToDafnyCompiler {
     public MethodOrFunction translateMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers,
                                                     Symbol.MethodSymbol methodSymbol,
                                                     JCTree sourceBody,
-                                                    List<JCTree.JCTypeParameter> typeParameters
+                                                    List<JCTree.JCTypeParameter> typeParameters,
+                                                    @Nullable MethodOrLoopContract contract
     ) {
         if (typeForWhichCurrentClassIsDefiningContract != null && isSynthetic(source, methodSymbol)) {
             return null;
@@ -800,16 +928,17 @@ public class JavaToDafnyCompiler {
             isPure = externalContract.isPure;
         }
         if (isPure) {
-            return translatePureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
+            return translatePureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify, contract);
         } else {
-            return translateImpureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify);
+            return translateImpureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify, contract);
         }
     }
 
     private MethodOrConstructor translateImpureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers,
                                                               Symbol.MethodSymbol methodSymbol, JCTree sourceBody,
                                                               List<JCTree.JCTypeParameter> typeParameters,
-                                                              boolean shouldVerify) {
+                                                              boolean shouldVerify,
+                                                              @Nullable MethodOrLoopContract contractOverride) {
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
         var bodyOrigin = toOrigin(sourceBody);
 
@@ -838,18 +967,28 @@ public class JavaToDafnyCompiler {
             if (header == null) {
                 header = new MethodOrLoopContract(source, false);
             }
+            if (contractOverride != null) {
+                header = contractOverride;
+            }
         } else {
             if (sourceBody == null) {
                 header = externalContract;
+                if (contractOverride != null) {
+                    header = contractOverride;
+                }
                 if (header == null) {
                     return null;
                 }
             } else {
-                if (!(source instanceof JCTree.JCLambda) && externalContract != null) {
+                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
                     reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
-                header = new MethodOrLoopContract(source, false);
-                List<JCTree.JCStatement> postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header);
+                if (contractOverride != null) {
+                    header = contractOverride;
+                } else {
+                    header = new MethodOrLoopContract(source, false);
+                }
+                List<JCTree.JCStatement> postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header, true);
                 if (shouldVerify) {
                     bodyStatements = methodCompiler.translateStatements(postHeader);
                 }
@@ -923,7 +1062,8 @@ public class JavaToDafnyCompiler {
 
     private Function translatePureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers, 
                                                  Symbol.MethodSymbol methodSymbol, JCTree sourceBody, 
-                                                 List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify) {
+                                                 List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify,
+                                                 @Nullable MethodOrLoopContract contractOverride) {
         var bodyOrigin = toOrigin(sourceBody);
 
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
@@ -945,18 +1085,28 @@ public class JavaToDafnyCompiler {
             }
 
             header = externalContract;
+            if (contractOverride != null) {
+                header = contractOverride;
+            }
             if (header == null) {
                 header = new MethodOrLoopContract(source, true);
             }
         } else {
             if (sourceBody == null) {
                 header = externalContract;
+                if (contractOverride != null) {
+                    header = contractOverride;
+                }
             } else {
-                if (!(source instanceof JCTree.JCLambda) && externalContract != null) {
+                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
                     reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
-                header = new MethodOrLoopContract(source, true);
-                var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header);
+                if (contractOverride != null) {
+                    header = contractOverride;
+                } else {
+                    header = new MethodOrLoopContract(source, true);
+                }
+                var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header, true);
                 if (postHeader.size() != 1) {
                     reportError(source, "pureMethodMultipleStatements");
                     return null;
@@ -1062,15 +1212,24 @@ public class JavaToDafnyCompiler {
     }
 
     public @Nullable Type translateType(JCTree tree) {
-        return translateType(tree.type, isNullable(tree.type), toOrigin(tree));
+        return translateType(null, tree);
+    }
+
+    public @Nullable Type translateType(JCTree.JCModifiers modifiers, JCTree tree) {
+        return translateType(modifiers, tree.type, toOrigin(tree));
     }
 
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
-        return translateType(type, isNullable(type), origin);
+        return translateType(null, type, origin);
     }
 
     @Nullable
-    public Type translateType(com.sun.tools.javac.code.Type type, boolean isNullable, IOrigin origin) {
+    public Type translateType(JCTree.JCModifiers modifiers, com.sun.tools.javac.code.Type type, IOrigin origin) {
+        // In several cases annotations that come right before types
+        // end up bound to tree nodes such as variable declarations instead of the type.
+        // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
+        // we apply the modifier to the innermost element type of an array type.
+        var isNullable = isNullable(type) || (isNullable(modifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
@@ -1133,7 +1292,7 @@ public class JavaToDafnyCompiler {
         switch (type) {
             case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
                 // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
-                var elemType = translateType(arrayTypeTree.elemtype, true, origin);
+                var elemType = translateType(modifiers, arrayTypeTree.elemtype, origin);
                 if (elemType == null) {
                     // should be unreachable
                     throw new IllegalArgumentException("Array type without element type");
@@ -1148,7 +1307,7 @@ public class JavaToDafnyCompiler {
 
                 // Remove the name qualification because we do not support that yet
                 var mangledName = nameMangler.mangleSymbolName(classType.tsym);
-                var arguments = classType.getTypeArguments().map(a -> translateType(a, false, origin));
+                var arguments = classType.getTypeArguments().map(a -> translateType(null, a, origin));
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }
@@ -1215,11 +1374,11 @@ public class JavaToDafnyCompiler {
         return new Name(origin, name);
     }
 
-    private static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
+    public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
         return methodSymbol.name == methodSymbol.name.table.names.init;
     }
 
-    private IOrigin declToOrigin(JCTree node, Name name) {
+    private SourceOrigin declToOrigin(JCTree node, Name name) {
         var entireRange = toOrigin(node);
         return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
     }
@@ -1236,7 +1395,7 @@ public class JavaToDafnyCompiler {
                 : positionCalculator.toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
     }
-    
+
     private TokenRange originToRange(IOrigin tokenRangeOrigin) {
         if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
             return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
