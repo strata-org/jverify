@@ -57,7 +57,7 @@ public class JavaToDafnyCompiler {
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
     private final Stack<IOrigin> contextOrigins = new Stack<>();
     public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-    public final NameCompiler nameMangler = new NameCompiler();
+    public final NameCompiler nameCompiler = new NameCompiler();
     private JCDiagnostic.Factory diagnosticFactory;
 
     /**
@@ -85,7 +85,7 @@ public class JavaToDafnyCompiler {
     }
 
     public NameCompiler getNameMangler() {
-        return nameMangler;
+        return nameCompiler;
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
@@ -558,7 +558,7 @@ public class JavaToDafnyCompiler {
                     
                     
                     typeForWhichCurrentClassIsDefiningContract = contractee;
-                    name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
+                    name = new Name(name.getOrigin(), nameCompiler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
                 }
             }
 
@@ -807,7 +807,7 @@ public class JavaToDafnyCompiler {
         List<DatatypeCtor> constructors = new ArrayList<>();
         for(var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                var variableName = nameMangler.mangleSymbolName(variableDecl.sym);
+                var variableName = nameCompiler.mangleSymbolName(variableDecl.sym);
                 Name constructorName = getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(declToOrigin(variableDecl, constructorName), constructorName, 
                         null, false, List.of()));
@@ -1183,7 +1183,7 @@ public class JavaToDafnyCompiler {
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {
             for(var invariant : invariants) {
-                var memberName = nameMangler.mangleSymbolName(invariant);
+                var memberName = nameCompiler.mangleSymbolName(invariant);
                 var invariantName = getName(source, memberName);
                 var invariantOrigin = declToOrigin(source, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
@@ -1306,7 +1306,7 @@ public class JavaToDafnyCompiler {
                 }
 
                 // Remove the name qualification because we do not support that yet
-                var mangledName = nameMangler.mangleSymbolName(classType.tsym);
+                var mangledName = nameCompiler.mangleSymbolName(classType.tsym);
                 var arguments = classType.getTypeArguments().map(a -> translateType(null, a, origin));
                 if (arguments.isEmpty()) {
                     arguments = null;
@@ -1318,7 +1318,7 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, nameSegment);
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
-                return new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(typeVar.tsym), null));
+                return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.mangleSymbolName(typeVar.tsym), null));
             }
             case null, default -> {
             }
@@ -1358,7 +1358,7 @@ public class JavaToDafnyCompiler {
     }
     
     Name getName(JCTree tree, Symbol symbol) {
-        return getName(tree, nameMangler.mangleSymbolName(symbol), symbol.name.length());
+        return getName(tree, nameCompiler.mangleSymbolName(symbol), symbol.name.length());
     }
 
     Name getName(JCTree tree, String name) {
