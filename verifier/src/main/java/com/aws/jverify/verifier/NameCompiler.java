@@ -59,24 +59,24 @@ public class NameCompiler {
         this.reverseSymbolStringMap = new HashMap<>();
     }
 
-    public String safeUnmangleName(String name) {
+    public String safeGetOriginalName(String name) {
         if (reverseSymbolStringMap.containsKey(name)) {
             return reverseSymbolStringMap.get(name).name.toString();
         }
         return name;
     }
 
-    public String mangleSymbolName(Symbol s) {
+    public String getCompiledName(Symbol s) {
         if (symbolStringMap.containsKey(s)) {
             return symbolStringMap.get(s);
         }
-        var compiledName = uncachedGetSymbolName(s);
+        var compiledName = uncachedGetCompiledName(s);
         symbolStringMap.put(s, compiledName);
         reverseSymbolStringMap.put(compiledName, s);
         return compiledName;
     }
     
-    private String uncachedGetSymbolName(Symbol s) {
+    private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
                 return classSymbol.getQualifiedName().toString().replace(".", "_");
@@ -91,7 +91,7 @@ public class NameCompiler {
                     return s.name.toString();
                 }
             }
-            case null, default -> {
+            default -> {
                 return s.name.toString();
             }
         }
@@ -109,20 +109,22 @@ public class NameCompiler {
     }
 
     private String getMethodName(Symbol.MethodSymbol s) {
-        String baseName = s.name.toString();
-
+        StringBuilder baseName = new StringBuilder();
+        
+                
         ClassNameStats result = getGetClassNameStats(s.enclClass(), s.name);
-        if (baseName.contentEquals("<init>")) {
+        if (s.name.equals(s.name.table.names.init)) {
             Symbol.ClassSymbol enclosingClass = s.enclClass();
-            baseName = getConstructorName(enclosingClass);
+            baseName.append(getConstructorName(enclosingClass));
         }
         else {
+            baseName.append(s.name);
             if (result.sameNameFields()) {
-                baseName = methodPrefix + baseName;
+                baseName.insert(0, methodPrefix);
             }
         }
         if (result.methodsWithThisName() == 1) {
-            return baseName;
+            return baseName.toString();
         }
         List<Type> argTypes;
         if (s.type instanceof MethodType m) {
@@ -130,14 +132,13 @@ public class NameCompiler {
         } else if (s.type instanceof DelegatedType dt){
             argTypes = dt.getParameterTypes();
         } else {
-            // Throw an exception
             throw new IllegalArgumentException(s.toString());
         }
-        baseName = (argTypes.isEmpty()) ? baseName : baseName+"_";
+        baseName = new StringBuilder(argTypes.isEmpty() ? baseName.toString() : baseName + "_");
         for (var param : argTypes) {
-            baseName += typeMangling(param);
+            baseName.append(typeMangling(param));
         }
-        return baseName;
+        return baseName.toString();
     }
 
     private static ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {

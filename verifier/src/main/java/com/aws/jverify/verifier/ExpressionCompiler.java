@@ -131,7 +131,7 @@ public class ExpressionCompiler {
                 return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
             }
             case JCTree.JCIdent identifier -> {
-                var identName = compiler.nameCompiler.mangleSymbolName(identifier.sym);
+                var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
                 if (identName.contentEquals("this")) {
                     return new ThisExpr(origin);
                 }
@@ -198,7 +198,7 @@ public class ExpressionCompiler {
             }
             case JCTree.JCFieldAccess fieldAccess -> {
                 if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
-                    return new NameSegment(origin, compiler.nameCompiler.mangleSymbolName(classSymbol), List.of());
+                    return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
                 }
                 if (fieldAccess.sym instanceof Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
                     return translateDynamicMethod(origin, fieldAccess, dynamicMethodSymbol);
@@ -209,7 +209,7 @@ public class ExpressionCompiler {
                     return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
                 }
 
-                var fieldName = compiler.nameCompiler.mangleSymbolName(fieldAccess.sym);
+                var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym);
                 if (compiler.isEnum(fieldAccess.selected)) {
                     return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                             null, new ActualBindings(List.of()), null);

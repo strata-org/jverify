@@ -353,7 +353,7 @@ public class BlockCompiler {
                 return List.of();
             }
             
-            var baseConstructorName = compiler.nameCompiler.mangleSymbolName(baseConstructor);
+            var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor);
             var initName = JavaToDafnyCompiler.getInitMethodName(baseConstructorName);
             var arguments = invocation.getArguments().stream().map(
                     e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
@@ -577,7 +577,7 @@ public class BlockCompiler {
             case JCTree.JCNewClass newClass -> {
                 var argBindings = newClass.getArguments().stream().map(
                         a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
-                String ctorNameStr = compiler.nameCompiler.mangleSymbolName(newClass.constructor);
+                String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
                 var classBaseType = new NameSegment(baseType.getOrigin(), "_Class_" + baseType.getName(), baseType.getOptTypeArguments());

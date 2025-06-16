@@ -320,7 +320,7 @@ public class Driver {
                     switch (output) {
                         case DafnyDiagnostic dafnyDiagnostic -> {
                             for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
-                                dafnyDiagnostic.arguments[index] = mangler.safeUnmangleName(dafnyDiagnostic.arguments[index]);
+                                dafnyDiagnostic.arguments[index] = mangler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
                             }
                         }
                         case StatusMessage statusMessage -> {
