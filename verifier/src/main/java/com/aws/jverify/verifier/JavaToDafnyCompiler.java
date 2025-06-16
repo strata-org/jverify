@@ -12,6 +12,7 @@ import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.CompileStates;
@@ -891,8 +892,18 @@ public class JavaToDafnyCompiler {
     }
 
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
+        TypeMetadata.Annotations metadata = type.getMetadata(TypeMetadata.Annotations.class);
+        if (metadata != null) {
+            // In some JDK distributions, this conditional is necessary to detect the nullable annotation.
+            if (metadata.annotationBuffer().stream().
+                    anyMatch(s -> s.type.tsym.getQualifiedName().contentEquals(
+                            com.aws.jverify.Nullable.class.getName()))) {
+                return true; 
+            }
+        }
         return type.getAnnotation(com.aws.jverify.Nullable.class) != null;
     }
+    
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         return translateMethodOrLambda(method, method.getModifiers(), method.sym, method.body, method.typarams, null);
