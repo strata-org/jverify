@@ -56,7 +56,7 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
-                if (classNameOccurrences.get(classSymbol.name) > 1) {
+                if (classNameOccurrences.computeIfAbsent(classSymbol.name, _ -> 2) > 1) {
                     return classSymbol.getQualifiedName().toString().replace(".", "_");
                 }
                 return classSymbol.name.toString();

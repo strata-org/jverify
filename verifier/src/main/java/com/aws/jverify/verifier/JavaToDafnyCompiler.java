@@ -1298,10 +1298,10 @@ public class JavaToDafnyCompiler {
                     return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
                 }
                 case FLOAT -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "Float", null));
+                    return new UserDefinedType(origin, new NameSegment(origin, "float", null));
                 }
                 case DOUBLE -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "Double", null));
+                    return new UserDefinedType(origin, new NameSegment(origin, "double", null));
                 }
             }
 
