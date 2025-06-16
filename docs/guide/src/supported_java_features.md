@@ -23,7 +23,8 @@ JVerify intends to support the full Java language, but is currently being develo
 - `interface`, but only without type parameters
 - `implements`, but only classes implementing interfaces
 - `extends`, but only interfaces extending interfaces
-- Lambda expressions, but only those that don't read variables from their enclosing scope
+- Lambda expressions
+- Method references
 - Type parameters, but only those without bounds and no wildcards
 
 # Supported Java standard library packages
@@ -35,7 +36,6 @@ Nothing yet
 - Pattern matches in switch expressions and statements
 - Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
 - `yield` in switch expressions
-- Method references
 - `import` statements
 - `package` statements
 - Multi-dimensional array instantiation: `new [,]`

@@ -79,6 +79,11 @@ public class Driver {
             Writer outputWriter
     ) throws IOException {
         var verificationResults = verifyJavaFiles(readFiles, verifierOptions);
+        outputVerificationResults(verificationResults, verifierOptions, outputWriter);
+        return verificationResults.exitCode;
+    }
+
+    private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
         for (var diagnostic : verificationResults.getJverifyDiagnostics()) {
             outputWriter.write(formatDiagnostic(verifierOptions.filePath(), diagnostic));
             outputWriter.write('\n');
@@ -98,7 +103,6 @@ public class Driver {
         if (verificationResults.dafnyFinishedMessage != null) {
             outputWriter.write(verificationResults.dafnyFinishedMessage);
         }
-        return verificationResults.exitCode;
     }
 
     public static final class VerificationResults {
@@ -195,6 +199,10 @@ public class Driver {
     private static boolean checkedVersion = false;
 
     private static void checkDafnyVersion(VerifierOptions verifierOptions) {
+        if (!verifierOptions.testDafnyVersion()) {
+            return;
+        }
+        
         if (!checkedVersion) {
             Properties properties = new Properties();
             try (InputStream input = Driver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
@@ -216,6 +224,8 @@ public class Driver {
                     if (process.waitFor() != 0) {
                         throw new RuntimeException("dafny --version failed:\n" + output);
                     }
+                    // Turned off while we're using a Dafny submodule
+                    // Alternatively, we can check whether the submodule version matches the output
                     if (!output.equals(expectedVersion)) {
                         throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output);
                     }
@@ -246,9 +256,9 @@ public class Driver {
                 "--json-output",
                 "--type-system-refresh",
                 "--general-newtypes",
+                // "--progress", "Batch",
+                //"--check-source-location-consistency",
                 "--general-traits=datatype"
-                //,
-                //"--check-source-location-consistency"
         );
         if (verifierOptions.printDafny() != null) {
             processBuilder.command().add("--print=" + verifierOptions.printDafny());
