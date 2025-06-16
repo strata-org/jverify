@@ -119,7 +119,8 @@ fun createJavacExports(targets: List<String>): List<String> {
         "jdk.compiler/com.sun.tools.javac.jvm",
         "jdk.compiler/com.sun.tools.javac.comp",
         "jdk.compiler/com.sun.tools.javac.model",
-        "jdk.compiler/com.sun.tools.javac.processing"
+        "jdk.compiler/com.sun.tools.javac.processing",
+        "jdk.compiler/com.sun.tools.javac.main"
     )
 
     return javacPackages.flatMap { pkg ->
@@ -277,6 +278,8 @@ project(":verifier") {
     dependencies {
         implementation(project(":common"))
         implementation(project(":library"))
+
+        implementation("org.jgrapht:jgrapht-core:1.5.2")
 
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")

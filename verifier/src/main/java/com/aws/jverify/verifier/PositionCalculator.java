@@ -57,6 +57,10 @@ public class PositionCalculator {
             }
         }
 
+        if (pos == Position.NOPOS) {
+            return pos;
+        }
+
         while (pos < sourceText.length()) {
             while (pos < sourceText.length() && Character.isWhitespace(sourceText.charAt(pos))) {
                 pos++;

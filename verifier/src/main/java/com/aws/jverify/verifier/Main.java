@@ -44,7 +44,7 @@ class AppCommand implements Callable<Integer> {
     private boolean paths;
 
     @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
-    private Path dafny;
+    private Path customDafny;
 
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
@@ -70,7 +70,8 @@ class AppCommand implements Callable<Integer> {
         List<Path> jars = Stream.concat(additionalJars.stream(), 
                 Stream.of(jverifyLibraryLocation)).toList();
         
-        var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(),
+        var testDafnyVersion = customDafny != null;
+        var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(), testDafnyVersion,
                 printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault, annotateSource);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
@@ -79,7 +80,7 @@ class AppCommand implements Callable<Integer> {
     }
 
     private Path getDafnyPath() {
-        var dafnyPath = dafny;
+        var dafnyPath = customDafny;
         if (dafnyPath == null || !Files.exists(dafnyPath)) {
             if (System.getenv("JVERIFY_DAFNY") != null) {
                 dafnyPath = Path.of(System.getenv("JVERIFY_DAFNY"));

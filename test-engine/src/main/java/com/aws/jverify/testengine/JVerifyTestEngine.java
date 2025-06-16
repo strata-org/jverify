@@ -222,6 +222,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 dafnyPath,
                 List.of(libraryJar, testEngineClassPath),
                 prelude,
+                false,
                 Path.of("../build/temp.dfy"),
                 Path.of("../build/temp.dbin"),
                 true,
