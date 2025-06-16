@@ -1,13 +1,10 @@
 package com.aws.jverify.verifier;
 
-import com.aws.jverify.generated.Name;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
-import jdk.jshell.execution.Util;
 
-import javax.xml.transform.OutputKeys;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -20,7 +17,7 @@ import java.util.List;
  *   - a suffix is added to all method names. This suffix encodes the parameter types, as given by the typeMangling
  *     method
  */
-public class NameMangler {
+public class NameCompiler {
     static private final String fieldPrefix = "F_";
     static private final String methodPrefix = "Z_";
     public static final String CTOR_PREFIX = "_ctor_";
@@ -57,7 +54,7 @@ public class NameMangler {
         }
     }
 
-    public NameMangler() {
+    public NameCompiler() {
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
     }

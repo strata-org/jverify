@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static com.aws.jverify.verifier.NameMangler.CTOR_PREFIX;
+import static com.aws.jverify.verifier.NameCompiler.CTOR_PREFIX;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -57,7 +57,7 @@ public class JavaToDafnyCompiler {
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
     private final Stack<IOrigin> contextOrigins = new Stack<>();
     public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-    public final NameMangler nameMangler = new NameMangler();
+    public final NameCompiler nameMangler = new NameCompiler();
     private JCDiagnostic.Factory diagnosticFactory;
 
     /**
@@ -84,7 +84,7 @@ public class JavaToDafnyCompiler {
                 : ShouldVerifyMode.DefaultNo);
     }
 
-    public NameMangler getNameMangler() {
+    public NameCompiler getNameMangler() {
         return nameMangler;
     }
     
@@ -947,7 +947,7 @@ public class JavaToDafnyCompiler {
         var methodCompiler = new BlockCompiler(this);
         Name name;
         if (typeForWhichCurrentClassIsDefiningContract != null && isConstructor(methodSymbol)) {
-            name = getName(source, NameMangler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
+            name = getName(source, NameCompiler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
         } else {
             name = getName(source, methodSymbol);
         }
