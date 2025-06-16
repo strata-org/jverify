@@ -469,7 +469,7 @@ public class ExpressionCompiler {
         var methodSymbol = (Symbol.MethodSymbol)((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
         var arguments = params.<JCTree.JCExpression>map(p -> maker.Ident(p.sym)).appendList(interfaceMethodSymbol.params().map(p -> maker.Ident(p)));
         JCTree.JCExpression methodCall;
-        if (compiler.isConstructor(methodSymbol)) {
+        if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
             var newClass = maker.NewClass(null, com.sun.tools.javac.util.List.nil(), maker.Type(methodSymbol.owner.type), arguments, null);
             newClass.constructor = methodSymbol;
             methodCall = newClass;

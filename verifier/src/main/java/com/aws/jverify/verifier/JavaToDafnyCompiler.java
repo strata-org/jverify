@@ -311,15 +311,6 @@ public class JavaToDafnyCompiler {
                 }
             }
             if (contractAnnotation == null) {
-                for(var member : classDecl.getMembers()) {
-                    if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
-                        continue;
-                    }
-                    // Don't report errors when extracting this contract here,
-                    // since the actual translation of the method will report them.
-                    var header = extractContract(methodDecl, false);
-                    methodContracts.put(methodDecl.sym, header);
-                }
                 var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
                 declsForSymbol.add(classDecl);
                 addHierarchyForSymbol(classDecl.sym);
@@ -531,6 +522,7 @@ public class JavaToDafnyCompiler {
     
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
+            
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
@@ -560,6 +552,16 @@ public class JavaToDafnyCompiler {
                     
                     typeForWhichCurrentClassIsDefiningContract = contractee;
                     name = getName(classDecl, typeForWhichCurrentClassIsDefiningContract);
+                }
+            } else {
+                for(var member : classDecl.getMembers()) {
+                    if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
+                        continue;
+                    }
+                    // Don't report errors when extracting this contract here,
+                    // since the actual translation of the method will report them.
+                    var header = extractContract(methodDecl, false);
+                    methodContracts.put(methodDecl.sym, header);
                 }
             }
 
