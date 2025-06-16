@@ -23,40 +23,17 @@ public class NameCompiler {
     public static final String CTOR_PREFIX = "_ctor_";
 
     // Map from symbols to mangled names
+    private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrences = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
-
-    private static String typeMangling(com.sun.tools.javac.code.Type type) {
-        switch (type.getTag()) {
-            case VOID : {return "v";}
-            case BYTE : {return "b";}
-            case CHAR : {return "c";}
-            case SHORT: {return "s";}
-            case INT : {return "i";}
-            case LONG : {return "l";}
-            case FLOAT :{return "f";}
-            case DOUBLE : {return "d";}
-            case BOOLEAN: {return "z";}
-            case CLASS: {
-                var classTypeStr = ((ClassType) type).toString();
-                // Changing '.' to '_' so that the mangled name is a valid Dafny name
-                // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
-                return "C" + classTypeStr.replace('.','_');
-            }
-            case ARRAY : {
-                var arrayType = (ArrayType) type;
-                var componentType = arrayType.getComponentType();
-                return "A" + typeMangling(componentType);
-            }
-            default : {
-                return type.toString();
-            }
-        }
-    }
 
     public NameCompiler() {
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
+    }
+    
+    public void registerClass(Symbol.ClassSymbol classSymbol) {
+        classNameOccurrences.merge(classSymbol.name, 1, (a, b) -> a + 1);
     }
 
     public String safeGetOriginalName(String name) {
@@ -79,7 +56,10 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
-                return classSymbol.getQualifiedName().toString().replace(".", "_");
+                if (classNameOccurrences.get(classSymbol.name) > 1) {
+                    return classSymbol.getQualifiedName().toString().replace(".", "_");
+                }
+                return classSymbol.name.toString();
             }
             case Symbol.MethodSymbol m -> {
                 return getMethodName(m);
@@ -141,7 +121,35 @@ public class NameCompiler {
         if (!argTypes.isEmpty()) {
             result.append("_");
             for (var param : argTypes) {
-                result.append(typeMangling(param));
+                result.append(getShortTypeName(param));
+            }
+        }
+    }
+
+    private static String getShortTypeName(com.sun.tools.javac.code.Type type) {
+        switch (type.getTag()) {
+            case VOID : {return "v";}
+            case BYTE : {return "b";}
+            case CHAR : {return "c";}
+            case SHORT: {return "s";}
+            case INT : {return "i";}
+            case LONG : {return "l";}
+            case FLOAT :{return "f";}
+            case DOUBLE : {return "d";}
+            case BOOLEAN: {return "z";}
+            case CLASS: {
+                var classTypeStr = type.toString();
+                // Changing '.' to '_' so that the mangled name is a valid Dafny name
+                // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
+                return "C" + classTypeStr.replace('.','_');
+            }
+            case ARRAY : {
+                var arrayType = (ArrayType) type;
+                var componentType = arrayType.getComponentType();
+                return "A" + getShortTypeName(componentType);
+            }
+            default : {
+                return type.toString();
             }
         }
     }

@@ -98,6 +98,9 @@ public class JavaToDafnyCompiler {
             discoverContractsAndTypeHierarchy((JCTree.JCCompilationUnit) compilationUnit);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
+        for(var compiledClass : declarationsForSymbolContract.keySet()) {
+            nameCompiler.registerClass(compiledClass);
+        }
         compileSymbolsTopologically();
 
         List<FileStart> filesStarts = new ArrayList<>();
@@ -535,10 +538,8 @@ public class JavaToDafnyCompiler {
 
             processVerifyAnnotation(annotationsByName);
 
-            Name name = getName(classDecl, classDecl.sym);
-            var origin = declToOrigin(classDecl, name);
-            contextOrigins.push(origin);
 
+            Name name = null;
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
                 var contractee = getContractTarget(classDecl, contractAnnotation);
@@ -558,9 +559,15 @@ public class JavaToDafnyCompiler {
                     
                     
                     typeForWhichCurrentClassIsDefiningContract = contractee;
-                    name = new Name(name.getOrigin(), nameCompiler.getCompiledName(typeForWhichCurrentClassIsDefiningContract));
+                    name = getName(classDecl, typeForWhichCurrentClassIsDefiningContract);
                 }
             }
+
+            if (name == null) {
+                name = getName(classDecl, classDecl.sym);
+            }
+            var origin = declToOrigin(classDecl, name);
+            contextOrigins.push(origin);
 
             List<? extends TopLevelDecl> result;
             if (isEnum(classDecl.type)) {
