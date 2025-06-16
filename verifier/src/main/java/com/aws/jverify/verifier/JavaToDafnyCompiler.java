@@ -377,7 +377,7 @@ public class JavaToDafnyCompiler {
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
 
-        var methodCompiler = new MethodCompiler(this);
+        var methodCompiler = new BlockCompiler(this);
         var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
         var header = new MethodOrLoopContract(methodDecl, isPure);
         if (methodDecl.getBody() != null) {
@@ -944,7 +944,7 @@ public class JavaToDafnyCompiler {
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
-        var methodCompiler = new MethodCompiler(this);
+        var methodCompiler = new BlockCompiler(this);
         Name name;
         if (typeForWhichCurrentClassIsDefiningContract != null && isConstructor(methodSymbol)) {
             name = getName(source, NameMangler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
@@ -1067,7 +1067,7 @@ public class JavaToDafnyCompiler {
         var bodyOrigin = toOrigin(sourceBody);
 
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
-        var methodCompiler = new MethodCompiler(this);
+        var methodCompiler = new BlockCompiler(this);
         var name = getName(source, methodSymbol);
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);

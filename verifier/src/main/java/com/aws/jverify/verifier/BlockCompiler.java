@@ -9,11 +9,11 @@ import com.sun.tools.javac.tree.JCTree;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class MethodCompiler {
+public class BlockCompiler {
 
     private final JavaToDafnyCompiler compiler;
 
-    public MethodCompiler(JavaToDafnyCompiler compiler) {
+    public BlockCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
     }
 
