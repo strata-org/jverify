@@ -109,36 +109,41 @@ public class NameCompiler {
     }
 
     private String getMethodName(Symbol.MethodSymbol s) {
-        StringBuilder baseName = new StringBuilder();
-        
+        StringBuilder result = new StringBuilder();
                 
-        ClassNameStats result = getGetClassNameStats(s.enclClass(), s.name);
+        ClassNameStats classStats = getGetClassNameStats(s.enclClass(), s.name);
         if (s.name.equals(s.name.table.names.init)) {
             Symbol.ClassSymbol enclosingClass = s.enclClass();
-            baseName.append(getConstructorName(enclosingClass));
+            result.append(getConstructorName(enclosingClass));
         }
         else {
-            baseName.append(s.name);
-            if (result.sameNameFields()) {
-                baseName.insert(0, methodPrefix);
+            if (classStats.sameNameFields()) {
+                result.append(methodPrefix);
             }
+            result.append(s.name);
         }
-        if (result.methodsWithThisName() == 1) {
-            return baseName.toString();
+        if (classStats.methodsWithThisName() == 1) {
+            return result.toString();
         }
+        addArgumentTypes(s, result);
+        return result.toString();
+    }
+
+    private static void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
         List<Type> argTypes;
-        if (s.type instanceof MethodType m) {
+        if (method.type instanceof MethodType m) {
             argTypes = m.getParameterTypes();
-        } else if (s.type instanceof DelegatedType dt){
+        } else if (method.type instanceof DelegatedType dt) {
             argTypes = dt.getParameterTypes();
         } else {
-            throw new IllegalArgumentException(s.toString());
+            throw new IllegalArgumentException(method.toString());
         }
-        baseName = new StringBuilder(argTypes.isEmpty() ? baseName.toString() : baseName + "_");
-        for (var param : argTypes) {
-            baseName.append(typeMangling(param));
+        if (!argTypes.isEmpty()) {
+            result.append("_");
+            for (var param : argTypes) {
+                result.append(typeMangling(param));
+            }
         }
-        return baseName.toString();
     }
 
     private static ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
