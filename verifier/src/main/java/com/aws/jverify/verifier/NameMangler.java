@@ -1,10 +1,13 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.generated.Name;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
+import jdk.jshell.execution.Util;
 
+import javax.xml.transform.OutputKeys;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -81,11 +84,11 @@ public class NameMangler {
                 return classSymbol.getQualifiedName().toString().replace(".", "_");
             }
             case Symbol.MethodSymbol m -> {
-                return mangleMethodName(s);
+                return getMethodName(m);
             }
             case Symbol.VarSymbol varSymbol -> {
                 if (varSymbol.getKind().isField()) {
-                    return mangleFieldName(s);
+                    return mangleFieldName(varSymbol);
                 } else { // Local variable, do not mangle
                     return s.name.toString();
                 }
@@ -96,21 +99,32 @@ public class NameMangler {
         }
     }
 
-    private String mangleFieldName(Symbol s) {
+    private String mangleFieldName(Symbol.VarSymbol s) {
         if (s.name.contentEquals("this")) {
             return s.name.toString();
         }
-        return fieldPrefix + s.name.toString();
+        var classStats = getGetClassNameStats(s.enclClass(), s.name);
+        if (classStats.methodsWithThisName > 0) {
+            return fieldPrefix + s.name.toString();
+        }
+        return s.name.toString();
     }
 
-    private String mangleMethodName(Symbol s) {
+    private String getMethodName(Symbol.MethodSymbol s) {
         String baseName = s.name.toString();
+
+        ClassNameStats result = getGetClassNameStats(s.enclClass(), s.name);
         if (baseName.contentEquals("<init>")) {
             Symbol.ClassSymbol enclosingClass = s.enclClass();
             baseName = getConstructorName(enclosingClass);
         }
         else {
-            baseName = methodPrefix + baseName;
+            if (result.sameNameFields()) {
+                baseName = methodPrefix + baseName;
+            }
+        }
+        if (result.methodsWithThisName() == 1) {
+            return baseName;
         }
         List<Type> argTypes;
         if (s.type instanceof MethodType m) {
@@ -127,6 +141,22 @@ public class NameMangler {
         }
         return baseName;
     }
+
+    private static ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
+        boolean sameNameFields = false;
+        int methodsWithThisName = 0;
+        for(var member : clazz.members().getSymbolsByName(name)) {
+            if (member instanceof Symbol.VarSymbol) {
+                sameNameFields = true;
+            }
+            if (member instanceof Symbol.MethodSymbol) {
+                methodsWithThisName += 1;
+            }
+        }
+        return new ClassNameStats(sameNameFields, methodsWithThisName);
+    }
+
+    private record ClassNameStats(boolean sameNameFields, int methodsWithThisName) {}
 
     public static String getConstructorName(Symbol.ClassSymbol enclosingClass) {
         return CTOR_PREFIX + enclosingClass.name.toString();
