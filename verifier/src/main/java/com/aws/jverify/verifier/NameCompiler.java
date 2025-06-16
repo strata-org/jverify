@@ -70,12 +70,13 @@ public class NameCompiler {
         if (symbolStringMap.containsKey(s)) {
             return symbolStringMap.get(s);
         }
-        var mangled = uncachedMangleSymbolName(s);
-        reverseSymbolStringMap.put(mangled, s);
-        return mangled;
+        var compiledName = uncachedGetSymbolName(s);
+        symbolStringMap.put(s, compiledName);
+        reverseSymbolStringMap.put(compiledName, s);
+        return compiledName;
     }
     
-    private String uncachedMangleSymbolName(Symbol s) {
+    private String uncachedGetSymbolName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
                 return classSymbol.getQualifiedName().toString().replace(".", "_");
@@ -85,7 +86,7 @@ public class NameCompiler {
             }
             case Symbol.VarSymbol varSymbol -> {
                 if (varSymbol.getKind().isField()) {
-                    return mangleFieldName(varSymbol);
+                    return getFieldName(varSymbol);
                 } else { // Local variable, do not mangle
                     return s.name.toString();
                 }
@@ -96,7 +97,7 @@ public class NameCompiler {
         }
     }
 
-    private String mangleFieldName(Symbol.VarSymbol s) {
+    private String getFieldName(Symbol.VarSymbol s) {
         if (s.name.contentEquals("this")) {
             return s.name.toString();
         }
