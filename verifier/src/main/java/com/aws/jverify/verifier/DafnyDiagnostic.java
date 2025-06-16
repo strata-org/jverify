@@ -1,5 +1,7 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.common.AnnotatedRange;
+import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -170,5 +172,14 @@ public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Pat
                 "\n  messageSource='" + messageSource + '\'' +
                 "\n  relatedInformation=" + relatedInformation +
                 "\n}";
+    }
+
+    public static AnnotatedRange diagnosticAsAnnotatedRange(Diagnostic<?> diagnostic) {
+        var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
+        var endPos = diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
+                : new Position(startPos.line(), startPos.character() + 1);
+        var range = new Range(startPos, endPos);
+        return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
     }
 }

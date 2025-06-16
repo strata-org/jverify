@@ -143,6 +143,12 @@ public class Driver {
                     jverifyDiagnostics.stream(), 
                     outputs.stream().filter(DafnyDiagnostic.class::isInstance).map(DafnyDiagnostic.class::cast));
         }
+        public Stream<Diagnostic<?>> getFlattenedDiagnostics() {
+            return getDiagnostics()
+                    .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                            ? dafnyDiagnostic.flattenRelated()
+                            : Stream.of(diagnostic));
+        }
         public List<Diagnostic<?>> getJverifyDiagnostics() {
             return jverifyDiagnostics;
         }
@@ -358,21 +364,18 @@ public class Driver {
     @JsonIgnoreProperties({"pos"})
     private static abstract class DafnyJsonPosition {}
 
-    public static final Pattern ANNOTATION_PATTERN = Pattern.compile(
-            "(?<Position>>\\<)|" +
-                    "(?<SpanStart>\\[>)|(?<SpanEnd>\\<\\])" +
-                    "|(?<NameSpanStart>\\{>(?<Name>[-_.\'=(){}\"A-Za-z0-9\\*\\+]+)\\:)|(?<NameSpanEnd>\\<\\})" +
-                    "|(?<AnnotatedSpanStart>\\(>(?<Annotation>(.|\\n)+)\\:\\:\\:)|(?<AnnotatedSpanEnd>\\<\\))" +
-                    "|(\\(>(?<StandaloneAnnotation>([.|\\n])+)\\<\\))");
+    public static final Pattern HAT_ANNOTATIONS_PATTERN = Pattern.compile("^//\\s+(\\^+)\\s+(.+)$");
 
     public static void annotateSource(List<JavaFileObject> readFiles, VerificationResults verificationResults) {
         for (var file : readFiles) {
             try (BufferedReader reader = new BufferedReader(file.openReader(false))) {
                 List<String> allLines = reader.lines()
                         // Drop all existing annotations
-                        .filter(line -> !ANNOTATION_PATTERN.matcher(line).matches())
+                        .filter(line -> !HAT_ANNOTATIONS_PATTERN.matcher(line).matches())
                         .collect(Collectors.toList());
-                try (BufferedWriter writer = new BufferedWriter(file.openWriter())) {
+                verificationResults.getFlattenedDiagnostics()
+                        .map(DafnyDiagnostic::diagnosticAsAnnotatedRange);
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(file.toUri().getPath()))) {
                     for (String line : allLines) {
                         writer.write(line);
                         writer.newLine();

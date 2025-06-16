@@ -175,11 +175,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         inputs.add(markedSourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
 
-        var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
-                .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
-                        ? dafnyDiagnostic.flattenRelated()
-                        : Stream.of(diagnostic))
-                .map(JVerifyTestEngine::diagnosticAsAnnotatedRange)
+        var diagnosticsAsAnnotations = verificationResults.getFlattenedDiagnostics()
+                .map(DafnyDiagnostic::diagnosticAsAnnotatedRange)
                 .sorted()
                 .toList();
         var expectedAnnotations = ranges.stream().sorted().toList();
@@ -198,15 +195,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         verificationResults.getDafnyErrorCount(),
                         is(expectedDafnyErrorCount))
         );
-    }
-
-    private static AnnotatedRange diagnosticAsAnnotatedRange(Diagnostic<?> diagnostic) {
-        var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
-        var endPos = diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
-                ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
-                : new Position(startPos.line(), startPos.character() + 1);
-        var range = new Range(startPos, endPos);
-        return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
     }
 
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
