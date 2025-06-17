@@ -238,8 +238,8 @@ public class Driver {
         }
     }
 
-    public static void runDafnyProcess(NameMangler mangler, 
-            String program, VerifierOptions verifierOptions, VerificationResults outResults) {
+    public static void runDafnyProcess(NameCompiler mangler,
+                                       String program, VerifierOptions verifierOptions, VerificationResults outResults) {
         // First check the Dafny version is correct
         checkDafnyVersion(verifierOptions);
 
@@ -298,7 +298,7 @@ public class Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static void parseDafnyJsonOutput(NameMangler mangler,  BufferedReader dafnyOutput, VerificationResults outResults) {
+    private static void parseDafnyJsonOutput(NameCompiler mangler, BufferedReader dafnyOutput, VerificationResults outResults) {
         var objectMapper = new ObjectMapper();
         
         SimpleModule module = new SimpleModule();
@@ -320,7 +320,7 @@ public class Driver {
                     switch (output) {
                         case DafnyDiagnostic dafnyDiagnostic -> {
                             for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
-                                dafnyDiagnostic.arguments[index] = mangler.safeUnmangleName(dafnyDiagnostic.arguments[index]);
+                                dafnyDiagnostic.arguments[index] = mangler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
                             }
                         }
                         case StatusMessage statusMessage -> {

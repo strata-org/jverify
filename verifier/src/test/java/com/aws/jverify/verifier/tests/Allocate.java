@@ -8,7 +8,6 @@ import static com.aws.jverify.JVerify.*;
 // Class that test the support of array allocation and accesses
 @JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
 class Allocate {
-
     public static IntPair allocateInReturn(int a, int b) {
         postcondition((IntPair p) -> fresh(p) &&  p.getA() == a);
         return new IntPair(a, b);
@@ -18,7 +17,6 @@ class Allocate {
         IntPair p = allocateInReturn(a,2);
         check(p.getA() == a);
     }
-
 }
 
 class IntPair {
