@@ -132,7 +132,7 @@ public class JavaToDafnyCompiler {
         var classpath = classpathEntries.stream()
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator));
-        var javacOptions = List.of("-classpath", classpath);
+        var javacOptions = List.of("-cp", classpath);
 
         ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
