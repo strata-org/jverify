@@ -1117,6 +1117,10 @@ public class JavaToDafnyCompiler {
                 if (contractOverride != null) {
                     header = contractOverride;
                 }
+                if (header == null) {
+                    header = new MethodOrLoopContract(source, false);
+                    reportError(source, "bodylessMethodWithoutContract", methodSymbol.name.toString());
+                }
             } else {
                 if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
                     reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
@@ -1327,13 +1331,13 @@ public class JavaToDafnyCompiler {
 
                 // Remove the name qualification because we do not support that yet
                 var mangledName = nameCompiler.getCompiledName(classType.tsym);
-                var arguments = classType.getTypeArguments().map(a -> translateType(null, a, origin));
+                var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }
-                Expression nameSegment = new NameSegment(origin, mangledName, arguments);
-                if (isNullable && nameSegment instanceof NameSegment ns) {
-                    nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
+                NameSegment nameSegment = new NameSegment(origin, mangledName, arguments);
+                if (isNullable) {
+                    nameSegment = new NameSegment(nameSegment.getOrigin(), nameSegment.getName() + nullableSuffix, nameSegment.getOptTypeArguments());
                 }
                 return new UserDefinedType(origin, nameSegment);
             }
