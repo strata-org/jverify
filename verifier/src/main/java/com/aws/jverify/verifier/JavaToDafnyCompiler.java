@@ -12,6 +12,7 @@ import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.CompileStates;
@@ -48,7 +49,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static com.aws.jverify.verifier.NameMangler.CTOR_PREFIX;
+import static com.aws.jverify.verifier.NameCompiler.CTOR_PREFIX;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -57,7 +58,7 @@ public class JavaToDafnyCompiler {
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
     private final Stack<IOrigin> contextOrigins = new Stack<>();
     public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-    public final NameMangler nameMangler = new NameMangler();
+    public final NameCompiler nameCompiler = new NameCompiler();
     private JCDiagnostic.Factory diagnosticFactory;
 
     /**
@@ -84,8 +85,8 @@ public class JavaToDafnyCompiler {
                 : ShouldVerifyMode.DefaultNo);
     }
 
-    public NameMangler getNameMangler() {
-        return nameMangler;
+    public NameCompiler getNameMangler() {
+        return nameCompiler;
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
@@ -97,6 +98,9 @@ public class JavaToDafnyCompiler {
         for (var compilationUnit : parsed) {
             discoverContractsAndTypeHierarchy((JCTree.JCCompilationUnit) compilationUnit);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
+        }
+        for(var compiledClass : declarationsForSymbolContract.keySet()) {
+            nameCompiler.registerClass(compiledClass);
         }
         compileSymbolsTopologically();
 
@@ -308,15 +312,6 @@ public class JavaToDafnyCompiler {
                 }
             }
             if (contractAnnotation == null) {
-                for(var member : classDecl.getMembers()) {
-                    if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
-                        continue;
-                    }
-                    // Don't report errors when extracting this contract here,
-                    // since the actual translation of the method will report them.
-                    var header = extractContract(methodDecl, false);
-                    methodContracts.put(methodDecl.sym, header);
-                }
                 var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
                 declsForSymbol.add(classDecl);
                 addHierarchyForSymbol(classDecl.sym);
@@ -377,7 +372,7 @@ public class JavaToDafnyCompiler {
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
 
-        var methodCompiler = new MethodCompiler(this);
+        var methodCompiler = new BlockCompiler(this);
         var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
         var header = new MethodOrLoopContract(methodDecl, isPure);
         if (methodDecl.getBody() != null) {
@@ -528,6 +523,7 @@ public class JavaToDafnyCompiler {
     
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
+            
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = annotations.stream().collect(Collectors.toMap(
                     (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
@@ -535,10 +531,8 @@ public class JavaToDafnyCompiler {
 
             processVerifyAnnotation(annotationsByName);
 
-            Name name = getName(classDecl, classDecl.sym);
-            var origin = declToOrigin(classDecl, name);
-            contextOrigins.push(origin);
 
+            Name name = null;
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
                 var contractee = getContractTarget(classDecl, contractAnnotation);
@@ -558,9 +552,25 @@ public class JavaToDafnyCompiler {
                     
                     
                     typeForWhichCurrentClassIsDefiningContract = contractee;
-                    name = new Name(name.getOrigin(), nameMangler.mangleSymbolName(typeForWhichCurrentClassIsDefiningContract));
+                    name = getName(classDecl, typeForWhichCurrentClassIsDefiningContract);
+                }
+            } else {
+                for(var member : classDecl.getMembers()) {
+                    if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
+                        continue;
+                    }
+                    // Don't report errors when extracting this contract here,
+                    // since the actual translation of the method will report them.
+                    var header = extractContract(methodDecl, false);
+                    methodContracts.put(methodDecl.sym, header);
                 }
             }
+
+            if (name == null) {
+                name = getName(classDecl, classDecl.sym);
+            }
+            var origin = declToOrigin(classDecl, name);
+            contextOrigins.push(origin);
 
             List<? extends TopLevelDecl> result;
             if (isEnum(classDecl.type)) {
@@ -807,7 +817,7 @@ public class JavaToDafnyCompiler {
         List<DatatypeCtor> constructors = new ArrayList<>();
         for(var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                var variableName = nameMangler.mangleSymbolName(variableDecl.sym);
+                var variableName = nameCompiler.getCompiledName(variableDecl.sym);
                 Name constructorName = getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(declToOrigin(variableDecl, constructorName), constructorName, 
                         null, false, List.of()));
@@ -882,8 +892,18 @@ public class JavaToDafnyCompiler {
     }
 
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
+        TypeMetadata.Annotations metadata = type.getMetadata(TypeMetadata.Annotations.class);
+        if (metadata != null) {
+            // In some JDK distributions, this conditional is necessary to detect the nullable annotation.
+            if (metadata.annotationBuffer().stream().
+                    anyMatch(s -> s.type.tsym.getQualifiedName().contentEquals(
+                            com.aws.jverify.Nullable.class.getName()))) {
+                return true; 
+            }
+        }
         return type.getAnnotation(com.aws.jverify.Nullable.class) != null;
     }
+    
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         return translateMethodOrLambda(method, method.getModifiers(), method.sym, method.body, method.typarams, null);
@@ -944,10 +964,10 @@ public class JavaToDafnyCompiler {
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
-        var methodCompiler = new MethodCompiler(this);
+        var methodCompiler = new BlockCompiler(this);
         Name name;
         if (typeForWhichCurrentClassIsDefiningContract != null && isConstructor(methodSymbol)) {
-            name = getName(source, NameMangler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
+            name = getName(source, NameCompiler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
         } else {
             name = getName(source, methodSymbol);
         }
@@ -1067,7 +1087,7 @@ public class JavaToDafnyCompiler {
         var bodyOrigin = toOrigin(sourceBody);
 
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
-        var methodCompiler = new MethodCompiler(this);
+        var methodCompiler = new BlockCompiler(this);
         var name = getName(source, methodSymbol);
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
@@ -1183,7 +1203,7 @@ public class JavaToDafnyCompiler {
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {
             for(var invariant : invariants) {
-                var memberName = nameMangler.mangleSymbolName(invariant);
+                var memberName = nameCompiler.getCompiledName(invariant);
                 var invariantName = getName(source, memberName);
                 var invariantOrigin = declToOrigin(source, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
@@ -1278,10 +1298,10 @@ public class JavaToDafnyCompiler {
                     return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
                 }
                 case FLOAT -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "Float", null));
+                    return new UserDefinedType(origin, new NameSegment(origin, "float", null));
                 }
                 case DOUBLE -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "Double", null));
+                    return new UserDefinedType(origin, new NameSegment(origin, "double", null));
                 }
             }
 
@@ -1306,7 +1326,7 @@ public class JavaToDafnyCompiler {
                 }
 
                 // Remove the name qualification because we do not support that yet
-                var mangledName = nameMangler.mangleSymbolName(classType.tsym);
+                var mangledName = nameCompiler.getCompiledName(classType.tsym);
                 var arguments = classType.getTypeArguments().map(a -> translateType(null, a, origin));
                 if (arguments.isEmpty()) {
                     arguments = null;
@@ -1318,7 +1338,7 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, nameSegment);
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
-                return new UserDefinedType(origin, new NameSegment(origin, nameMangler.mangleSymbolName(typeVar.tsym), null));
+                return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym), null));
             }
             case null, default -> {
             }
@@ -1358,7 +1378,7 @@ public class JavaToDafnyCompiler {
     }
     
     Name getName(JCTree tree, Symbol symbol) {
-        return getName(tree, nameMangler.mangleSymbolName(symbol), symbol.name.length());
+        return getName(tree, nameCompiler.getCompiledName(symbol), symbol.name.length());
     }
 
     Name getName(JCTree tree, String name) {

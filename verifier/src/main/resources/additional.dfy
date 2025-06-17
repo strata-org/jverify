@@ -19,5 +19,5 @@ function JString(s: string): jstring
 
 type byte = x | 0 <= x < 256
 
-type Float = real
-type Double = real
+type float = real
+type double = real
