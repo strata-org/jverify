@@ -505,6 +505,17 @@ public class BlockCompiler {
                         if (postconditionPredicate != null) {
                             header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
                         }
+                    } else if (first instanceof JCTree.JCMemberReference memberReference) {
+                        var returnName = header.returnName;
+                        if (header.returnName == null) {
+                        }
+                        memberReference.sym
+                        IOrigin origin = compiler.toOrigin(memberReference);
+                        var argBindings = List.of(new ActualBinding(null, new NameSegment(origin, returnName.getValue(), null), false));
+                        Expression expr = new ExprDotName(origin, compiler.expressionCompiler.toExpr(memberReference.expr), memberReference.name);
+                        ApplySuffix applySuffix = new ApplySuffix(origin, expr, null,
+                                new ActualBindings(argBindings), null);
+                        header.postconditions.add(new AttributedExpression(applySuffix, null, null));
                     } else {
                         var dafnyExpr = compiler.expressionCompiler.toExpr(first);
                         header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
