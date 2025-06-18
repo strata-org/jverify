@@ -10,11 +10,11 @@ import com.sun.tools.javac.tree.TreeInfo;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class MethodCompiler {
+public class BlockCompiler {
 
     private final JavaToDafnyCompiler compiler;
 
-    public MethodCompiler(JavaToDafnyCompiler compiler) {
+    public BlockCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
     }
 
@@ -354,7 +354,7 @@ public class MethodCompiler {
                 return List.of();
             }
 
-            var baseConstructorName = compiler.nameMangler.mangleSymbolName(baseConstructor);
+            var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor);
             var initName = JavaToDafnyCompiler.getInitMethodName(baseConstructorName);
             var arguments = invocation.getArguments().stream().map(
                     e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
@@ -595,7 +595,7 @@ public class MethodCompiler {
                     var datatypeValue = compiler.expressionCompiler.translateNewRecord(origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }
-                String ctorNameStr = compiler.nameMangler.mangleSymbolName(newClass.constructor);
+                String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
                 var classBaseType = new NameSegment(baseType.getOrigin(), "_Class_" + baseType.getName(), baseType.getOptTypeArguments());

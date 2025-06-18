@@ -131,7 +131,7 @@ public class ExpressionCompiler {
                 return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
             }
             case JCTree.JCIdent identifier -> {
-                var identName = compiler.nameMangler.mangleSymbolName(identifier.sym);
+                var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
                 if (identName.contentEquals("this")) {
                     return new ThisExpr(origin);
                 }
@@ -177,7 +177,7 @@ public class ExpressionCompiler {
                             .filter(comp -> comp.name.equals(methodSymbol.name))
                             .findAny();
                     if (component.isPresent()) {
-                        var fieldNameStr = compiler.nameMangler.mangleSymbolName(component.get());
+                        var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get());
                         var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
                         return new ExprDotName(origin, receiver, fieldName, null);
                     }
@@ -214,7 +214,7 @@ public class ExpressionCompiler {
             }
             case JCTree.JCFieldAccess fieldAccess -> {
                 if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
-                    return new NameSegment(origin, compiler.nameMangler.mangleSymbolName(classSymbol), List.of());
+                    return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
                 }
                 if (fieldAccess.sym instanceof Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
                     return translateDynamicMethod(origin, fieldAccess, dynamicMethodSymbol);
@@ -225,7 +225,7 @@ public class ExpressionCompiler {
                     return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
                 }
 
-                var fieldName = compiler.nameMangler.mangleSymbolName(fieldAccess.sym);
+                var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym);
                 if (compiler.isEnum(fieldAccess.selected)) {
                     return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                             null, new ActualBindings(List.of()), null);
@@ -314,7 +314,7 @@ public class ExpressionCompiler {
      *
      * <p>Note: header methodContracts like {@link JVerify#precondition(boolean)}
      * and {@link JVerify#postcondition(boolean)}
-     * must be translated by {@link MethodCompiler#translateStatement(JCTree.JCStatement)},
+     * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
      */
     private @Nullable Expression jverifyLibMethodToExpr(JCTree.JCMethodInvocation invocation) {
@@ -488,7 +488,7 @@ public class ExpressionCompiler {
         var methodSymbol = (Symbol.MethodSymbol)((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
         var arguments = params.<JCTree.JCExpression>map(p -> maker.Ident(p.sym)).appendList(interfaceMethodSymbol.params().map(p -> maker.Ident(p)));
         JCTree.JCExpression methodCall;
-        if (compiler.isConstructor(methodSymbol)) {
+        if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
             var newClass = maker.NewClass(null, com.sun.tools.javac.util.List.nil(), maker.Type(methodSymbol.owner.type), arguments, null);
             newClass.constructor = methodSymbol;
             methodCall = newClass;
@@ -528,7 +528,7 @@ public class ExpressionCompiler {
     DatatypeValue translateNewRecord(IOrigin origin, JCTree.JCNewClass newClass) {
         var argBindings = newClass.getArguments().stream()
                 .map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-        var datatypeName = compiler.getNameMangler().mangleSymbolName(newClass.type.asElement());
+        var datatypeName = compiler.getNameCompiler().getCompiledName(newClass.type.asElement());
         return new DatatypeValue(
                 origin, datatypeName, datatypeName,
                 new ActualBindings(argBindings));

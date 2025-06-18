@@ -38,7 +38,7 @@ class Arrays {
 
     static void pointArrayOfSize10() {
         Point[] a = new Point[10];
-//                  ^^^^^^^^^^^^^ Error: unless an initializer is provided for the array elements, a new array of 'com_aws_jverify_verifier_tests_Point' must have empty size
+//                  ^^^^^^^^^^^^^ Error: unless an initializer is provided for the array elements, a new array of 'Point' must have empty size
         a[0]=new Point(1,2);
         for (int i = 1; i < a.length; i++) {
             modifies(a);
