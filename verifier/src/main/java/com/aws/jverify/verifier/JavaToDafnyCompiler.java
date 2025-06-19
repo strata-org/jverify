@@ -54,6 +54,7 @@ import static com.aws.jverify.verifier.NameCompiler.CTOR_PREFIX;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String METHOD_RETURN_VARIABLE_NAME = "#_r";
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -1022,7 +1023,7 @@ public class JavaToDafnyCompiler {
         if (methodSymbol.type.getReturnType() != null) {
             var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
             if (returnType != null) {
-                outs.add(new Formal(origin, new Name(origin, "#_r"), returnType,
+                outs.add(new Formal(origin, new Name(origin, METHOD_RETURN_VARIABLE_NAME), returnType,
                         false, false, null, null, false, false, false, null));
             }
         }

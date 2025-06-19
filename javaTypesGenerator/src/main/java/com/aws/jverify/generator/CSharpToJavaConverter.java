@@ -66,68 +66,6 @@ public class CSharpToJavaConverter {
                 .addFileComment("Generated from C# enum")
                 .build();
     }
-    
-    /**
-     * Parses a C# type string into a CSharpType object, handling nested generic types.
-     * For example: "List<Dictionary<string, int>>" will be parsed into a proper type hierarchy.
-     */
-    private CSharpType parseType(String typeStr) {
-        // Check for nullable type
-        boolean isNullable = typeStr.endsWith("?");
-        if (isNullable) {
-            typeStr = typeStr.substring(0, typeStr.length() - 1);
-        }
-        
-        // Find the base type and any generic arguments
-        int genericStart = typeStr.indexOf('<');
-        if (genericStart == -1) {
-            // Simple type with no generic arguments
-            return new CSharpType(typeStr.trim(), isNullable);
-        }
-        
-        // Extract the base type name
-        String baseTypeName = typeStr.substring(0, genericStart).trim();
-        CSharpType type = new CSharpType(baseTypeName, isNullable);
-        
-        // Extract and parse the generic arguments
-        String genericArgsStr = typeStr.substring(genericStart + 1, typeStr.lastIndexOf('>'));
-        List<String> genericArgs = splitGenericArgs(genericArgsStr);
-        
-        for (String arg : genericArgs) {
-            type.genericArguments.add(parseType(arg));
-        }
-        
-        return type;
-    }
-    
-    /**
-     * Splits generic arguments, respecting nested generic types.
-     * For example: "string, List<int>, Dictionary<string, int>" will be split into three arguments.
-     */
-    private List<String> splitGenericArgs(String argsStr) {
-        List<String> args = new ArrayList<>();
-        int depth = 0;
-        int start = 0;
-        
-        for (int i = 0; i < argsStr.length(); i++) {
-            char c = argsStr.charAt(i);
-            if (c == '<') {
-                depth++;
-            } else if (c == '>') {
-                depth--;
-            } else if (c == ',' && depth == 0) {
-                args.add(argsStr.substring(start, i).trim());
-                start = i + 1;
-            }
-        }
-        
-        // Add the last argument
-        if (start < argsStr.length()) {
-            args.add(argsStr.substring(start).trim());
-        }
-        
-        return args;
-    }
 
     private List<CSharpClass> parseCSharpClasses(String csharpCode) {
         List<CSharpClass> classes = new ArrayList<>();
@@ -189,7 +127,7 @@ public class CSharpToJavaConverter {
                 String typeString = fieldMatcher.group(1);
                 String fieldName = fieldMatcher.group(2);
 
-                CSharpType fieldType = parseType(typeString);
+                CSharpType fieldType = CSharpType.parse(typeString);
                 csharpClass.fields.add(new CSharpField(fieldType, fieldName));
             }
 
@@ -445,32 +383,6 @@ class TypeParameter {
     public TypeParameter(String name, String constraint) {
         this.name = name;
         this.constraint = constraint;
-    }
-}
-
-class CSharpType {
-    String typeName;
-    boolean isNullable;
-    List<CSharpType> genericArguments;
-
-    public CSharpType(String typeName, boolean isNullable) {
-        this.typeName = typeName;
-        this.isNullable = isNullable;
-        this.genericArguments = new ArrayList<>();
-    }
-
-    public boolean hasGenericArguments() {
-        return !genericArguments.isEmpty();
-    }
-}
-
-class CSharpField {
-    CSharpType type;
-    String name;
-
-    public CSharpField(CSharpType type, String name) {
-        this.type = type;
-        this.name = name;
     }
 }
 

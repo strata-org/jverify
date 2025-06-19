@@ -497,14 +497,14 @@ public class BlockCompiler {
                         var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
                         var condition = new LetExpr(origin, List.of(new CasePattern(origin, paramName, 
                                 new BoundVar(origin, new Name(origin, paramName), type, false), null)), 
-                                List.of(new NameSegment(origin, "#_r", null)), postconditionPredicate, true, null);
+                                List.of(new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null)), postconditionPredicate, true, null);
                         
                         if (postconditionPredicate != null) {
                             header.postconditions.add(new AttributedExpression(condition, null, null));
                         }
                     } else if (first instanceof JCTree.JCMemberReference memberReference) {
                         var origin = compiler.toOrigin(memberReference);
-                        var argBindings = List.of(new ActualBinding(null, new NameSegment(origin, "#_r", null), false));
+                        var argBindings = List.of(new ActualBinding(null, new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
                         var callee = new ExprDotName(origin, 
                                 compiler.expressionCompiler.toExpr(memberReference.expr), 
                                 compiler.getName(memberReference, memberReference.name), null);
