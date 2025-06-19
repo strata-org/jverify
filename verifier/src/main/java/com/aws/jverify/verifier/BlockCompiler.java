@@ -83,7 +83,7 @@ public class BlockCompiler {
             default -> {
             }
         }
-        compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
+        compiler.reportError(statement, "notSupported", "statement " + statement.getClass().getSimpleName());
         return List.of();
     }
 
@@ -271,7 +271,7 @@ public class BlockCompiler {
                 return translateUnaryExpressionStatement(unary);
             }
             default -> {
-                compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
+                compiler.reportError(statement, "notSupported", "expression statement with expr " + expr.getClass().getSimpleName());
                 return List.of();
             }
         }
@@ -507,15 +507,17 @@ public class BlockCompiler {
                         }
                     } else if (first instanceof JCTree.JCMemberReference memberReference) {
                         var returnName = header.returnName;
+                        var origin = compiler.toOrigin(memberReference);
                         if (header.returnName == null) {
+                            returnName = new Name(origin, "$r");
                         }
-                        memberReference.sym
-                        IOrigin origin = compiler.toOrigin(memberReference);
                         var argBindings = List.of(new ActualBinding(null, new NameSegment(origin, returnName.getValue(), null), false));
-                        Expression expr = new ExprDotName(origin, compiler.expressionCompiler.toExpr(memberReference.expr), memberReference.name);
-                        ApplySuffix applySuffix = new ApplySuffix(origin, expr, null,
+                        var callee = new ExprDotName(origin, 
+                                compiler.expressionCompiler.toExpr(memberReference.expr), 
+                                compiler.getName(memberReference, memberReference.name), null);
+                        var call = new ApplySuffix(origin, callee, null,
                                 new ActualBindings(argBindings), null);
-                        header.postconditions.add(new AttributedExpression(applySuffix, null, null));
+                        header.postconditions.add(new AttributedExpression(call, null, null));
                     } else {
                         var dafnyExpr = compiler.expressionCompiler.toExpr(first);
                         header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
@@ -610,7 +612,7 @@ public class BlockCompiler {
                 }
                 return new AllocateArray(origin, null, arrayDafnyType, arrayDimensions, null);
             }
-            case null, default -> {
+            default -> {
             }
         }
         var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);

@@ -585,7 +585,7 @@ public class JavaToDafnyCompiler {
             return result;
         }
         if (tree instanceof JCTree jcTree) {
-            reportError(jcTree, "notSupported", tree.getClass().getSimpleName());
+            reportError(jcTree, "notSupported", "type declaration " + tree.getClass().getSimpleName());
             return List.of();
         } else {
             throw new NotImplementedException(tree.getClass().getName());
@@ -1344,10 +1344,10 @@ public class JavaToDafnyCompiler {
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym), null));
             }
-            case null, default -> {
+            default -> {
             }
         }
-        reportError(origin, "notSupported", type.getClass().getSimpleName());
+        reportError(origin, "notSupported", "type " + type.getClass().getName());
         return null;
     }
 
