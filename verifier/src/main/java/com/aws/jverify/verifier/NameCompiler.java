@@ -10,20 +10,23 @@ import java.util.Map;
 import java.util.List;
 
 /**
- * Update the name of all method and field names of symbols within a compilation unit
- * to ensure uniqueness. The mangling algorithm is deterministic and works as follows:
- *   - a prefix ("_F") is added to a field name
- *   - a prefix ("_Z") is added to method names (except constructors)
- *   - a suffix is added to all method names. This suffix encodes the parameter types, as given by the typeMangling
- *     method
+ * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness at the Dafny level.
+ * The name mapping works as follows:
+ *   - For fields that conflict with method names: prefix "F_" is added
+ *   - For methods that conflict with field names: prefix "Z_" is added
+ *   - For constructors: prefix "_ctor_" followed by the class name is used
+ *   - For overloaded methods: a suffix encoding parameter types is added (e.g. "_iCjava_lang_String")
+ *   - For classes with name collisions: fully qualified name with dots replaced by underscores
+ * 
+ * This class maintains bidirectional mappings between original and compiled names,
+ * allowing for name resolution in both directions.
  */
 public class NameCompiler {
     static private final String fieldPrefix = "F_";
     static private final String methodPrefix = "Z_";
     public static final String CTOR_PREFIX = "_ctor_";
 
-    // Map from symbols to mangled names
-    private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrences = new HashMap<>();
+    private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
 
@@ -33,7 +36,7 @@ public class NameCompiler {
     }
     
     public void registerClass(Symbol.ClassSymbol classSymbol) {
-        classNameOccurrences.merge(classSymbol.name, 1, (a, b) -> a + 1);
+        classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
     }
 
     public String safeGetOriginalName(String name) {
@@ -56,7 +59,7 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
-                if (classNameOccurrences.computeIfAbsent(classSymbol.name, _ -> 2) > 1) {
+                if (classNameOccurrenceCounts.computeIfAbsent(classSymbol.name, _ -> 2) > 1) {
                     return classSymbol.getQualifiedName().toString().replace(".", "_");
                 }
                 return classSymbol.name.toString();
@@ -67,7 +70,7 @@ public class NameCompiler {
             case Symbol.VarSymbol varSymbol -> {
                 if (varSymbol.getKind().isField()) {
                     return getFieldName(varSymbol);
-                } else { // Local variable, do not mangle
+                } else { // Local variable, do not change
                     return s.name.toString();
                 }
             }
@@ -139,7 +142,7 @@ public class NameCompiler {
             case BOOLEAN: {return "z";}
             case CLASS: {
                 var classTypeStr = type.toString();
-                // Changing '.' to '_' so that the mangled name is a valid Dafny name
+                // Changing '.' to '_' so that the new name is a valid Dafny name
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
             }
