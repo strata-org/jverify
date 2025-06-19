@@ -238,7 +238,7 @@ public class Driver {
         }
     }
 
-    public static void runDafnyProcess(NameCompiler mangler,
+    public static void runDafnyProcess(NameCompiler nameCompiler,
                                        String program, VerifierOptions verifierOptions, VerificationResults outResults) {
         // First check the Dafny version is correct
         checkDafnyVersion(verifierOptions);
@@ -281,7 +281,7 @@ public class Driver {
                 stdin.write(program);
             }
             try (var stdout = process.inputReader()) {
-                parseDafnyJsonOutput(mangler, stdout, outResults);
+                parseDafnyJsonOutput(nameCompiler, stdout, outResults);
                 outResults.exitCode = process.waitFor();
             }
         } catch (InterruptedException | IOException e) {
@@ -298,7 +298,7 @@ public class Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static void parseDafnyJsonOutput(NameCompiler mangler, BufferedReader dafnyOutput, VerificationResults outResults) {
+    private static void parseDafnyJsonOutput(NameCompiler nameCompiler, BufferedReader dafnyOutput, VerificationResults outResults) {
         var objectMapper = new ObjectMapper();
         
         SimpleModule module = new SimpleModule();
@@ -320,7 +320,7 @@ public class Driver {
                     switch (output) {
                         case DafnyDiagnostic dafnyDiagnostic -> {
                             for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
-                                dafnyDiagnostic.arguments[index] = mangler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
+                                dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
                             }
                         }
                         case StatusMessage statusMessage -> {

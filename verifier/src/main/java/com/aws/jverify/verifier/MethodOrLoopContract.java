@@ -15,7 +15,6 @@ public class MethodOrLoopContract {
     boolean isPure;
     List<AttributedExpression> preconditions;
     List<AttributedExpression> postconditions;
-    Name returnName;
     List<AttributedExpression> invariants;
     List<Expression> decreases;
     List<FrameExpression> reads;
@@ -27,7 +26,6 @@ public class MethodOrLoopContract {
         
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
-        returnName = null;
         invariants = new ArrayList<>();
         decreases = new ArrayList<>();
         reads = new ArrayList<>();
@@ -44,21 +42,5 @@ public class MethodOrLoopContract {
 
     public Specification<Expression> getDecreases() {
         return new Specification<>(decreases, null);
-    }
-
-    /**
-     * Returns a {@link Formal} representing the {@link #returnName} if present,
-     * or {@code null} if absent.
-     * Mainly used for the named result of a constructed {@link Function}
-     * or one of the out-parameters of a constructed {@link Method}.
-     */
-    public @Nullable Formal makeReturnFormal(Type syntacticType) {
-        return returnName == null ? null : new Formal(
-                returnName.getOrigin(), returnName, syntacticType,
-                false, false,
-                null, null,
-                false, false, false,
-                null
-        );
     }
 }

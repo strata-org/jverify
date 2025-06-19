@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.*;
-import java.util.stream.Collectors;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class CSharpToJavaConverter {
@@ -118,32 +118,13 @@ public class CSharpToJavaConverter {
             }
 
             // Parse fields
-            var fieldPatternNew = Pattern.compile("\\s+" +
-                    "(?<baseType>\\w+)" +
-                    // type params may themselves be generic, so be liberal in what we accept
-                    "(?:<(?<typeParams>[^;]+)>)?" +
-                    "(?<questionMark>\\?)?" +
-                    "\\s+" +
-                    "(?<fieldName>\\w+)" +
-                    "\\s*;"
-            );
-            var fieldMatcher = fieldPatternNew.matcher(classBody);
-
+            var fieldPattern = Pattern.compile("\\s+(?<fieldType>.*)\\s+(?<fieldName>\\w+)\\s*;");
+            var fieldMatcher = fieldPattern.matcher(classBody);
             while (fieldMatcher.find()) {
-                var baseType = fieldMatcher.group("baseType");
-                var fieldTypeParams = fieldMatcher.group("typeParams");
-                var questionMark = fieldMatcher.group("questionMark");
+                var typeString = fieldMatcher.group("fieldType");
                 var fieldName = fieldMatcher.group("fieldName");
-
-                List<String> typeParams = List.of();
-                if (fieldTypeParams != null) {
-                    typeParams = Arrays.stream(fieldTypeParams.split(","))
-                            .map(String::trim)
-                            .collect(Collectors.toList());
-                }
-                var isNullable = questionMark != null;
-
-                csharpClass.fields.add(new CSharpField(baseType, fieldName, isNullable, typeParams));
+                var fieldType = CSharpType.parse(typeString);
+                csharpClass.fields.add(new CSharpField(fieldType, fieldName));
             }
 
             classes.add(csharpClass);
@@ -161,10 +142,10 @@ public class CSharpToJavaConverter {
         return classes;
     }
 
-    private TypeName convertCSharpFieldToJavaFieldType(CSharpField field, List<TypeParameter> classTypeParameters) {
+    private TypeName convertCSharpTypeToJavaFieldType(CSharpType type, List<TypeParameter> classTypeParameters) {
         // Check if the type is a type parameter
         Optional<TypeParameter> typeParam = classTypeParameters.stream()
-                .filter(tp -> tp.name.equals(field.type))
+                .filter(tp -> tp.name.equals(type.typeName))
                 .findFirst();
 
         if (typeParam.isPresent()) {
@@ -173,12 +154,12 @@ public class CSharpToJavaConverter {
                 return WildcardTypeName.subtypeOf(ClassName.get("", typeParam.get().constraint));
             }
             // If it's an unbounded type parameter, return it as is
-            return TypeVariableName.get(field.type);
+            return TypeVariableName.get(type.typeName);
         }
 
-        String baseType = convertCSharpTypeToJava(field.type);
+        String baseType = convertCSharpBaseTypeToJava(type.typeName);
 
-        if (!field.isGeneric()) {
+        if (!type.hasGenericArguments()) {
             return ClassName.get("", baseType);
         }
 
@@ -187,17 +168,17 @@ public class CSharpToJavaConverter {
                 ? ClassName.get(packageName, baseType)
                 : ClassName.get("java.util", baseType);
 
-        return ParameterizedTypeName.get(rawType, field.genericTypes.stream()
-                .map(type -> {
+        return ParameterizedTypeName.get(rawType, type.genericArguments.stream()
+                .map(typeArgument -> {
                     // Check if the generic argument is a type parameter
                     Optional<TypeParameter> genericTypeParam = classTypeParameters.stream()
-                            .filter(tp -> tp.name.equals(type))
+                            .filter(tp -> tp.name.equals(typeArgument.typeName))
                             .findFirst();
 
                     if (genericTypeParam.isPresent()) {
-                        return TypeVariableName.get(type);
+                        return TypeVariableName.get(typeArgument.typeName);
                     }
-                    return ClassName.get("", convertCSharpTypeToJava(type));
+                    return convertCSharpTypeToJavaFieldType(typeArgument, classTypeParameters);
                 }).toArray(TypeName[]::new));
     }
 
@@ -240,7 +221,7 @@ public class CSharpToJavaConverter {
             for(;iteration < 5;iteration++) {
                 var newName = field.name + (iteration == 0 ? "" : iteration);
                 try {
-                    TypeName fieldType = convertCSharpFieldToJavaFieldType(field, csharpClass.typeParameters);
+                    TypeName fieldType = convertCSharpTypeToJavaFieldType(field.type, csharpClass.typeParameters);
 
                     // Only add field if it's from this class (not inherited)
                     if (csharpClass.fields.contains(field)) {
@@ -248,7 +229,7 @@ public class CSharpToJavaConverter {
                                 fieldType,
                                 newName,
                                 Modifier.PRIVATE, Modifier.FINAL);
-                        if (field.isNullable) {
+                        if (field.type.isNullable) {
                             builder.addAnnotation(Nullable.class);
                         }
                         FieldSpec fieldSpec = builder.build();
@@ -313,8 +294,9 @@ public class CSharpToJavaConverter {
         }
     }
 
-    private static String convertCSharpTypeToJava(String csharpType) {
-        Map<String, String> typeMap = new HashMap<>();
+    private static final Map<String, String> CSHARP_TYPES_TO_JAVA_TYPES;
+    static {
+        var typeMap = new HashMap<String, String>();
         typeMap.put("string", "String");
         typeMap.put("int", "int");
         typeMap.put("bool", "boolean");
@@ -326,8 +308,12 @@ public class CSharpToJavaConverter {
         typeMap.put("Node", "Node");
         typeMap.put("NodeWithComputedRange", "NodeWithComputedRange");
         typeMap.put("Attributes", "Attributes");
+        //noinspection Java9CollectionFactory
+        CSHARP_TYPES_TO_JAVA_TYPES = Collections.unmodifiableMap(typeMap);
+    }
 
-        return typeMap.getOrDefault(csharpType, csharpType);
+    private static String convertCSharpBaseTypeToJava(String csharpType) {
+        return CSHARP_TYPES_TO_JAVA_TYPES.getOrDefault(csharpType, csharpType);
     }
 
     private static String capitalize(String str) {
@@ -398,24 +384,6 @@ class TypeParameter {
     public TypeParameter(String name, String constraint) {
         this.name = name;
         this.constraint = constraint;
-    }
-}
-
-class CSharpField {
-    boolean isNullable;
-    String type;
-    String name;
-    List<String> genericTypes;
-
-    public CSharpField(String baseType, String name, boolean isNullable, List<String> typeParams) {
-        this.type = baseType;
-        this.name = name;
-        this.isNullable = isNullable;
-        this.genericTypes = typeParams;
-    }
-
-    boolean isGeneric() {
-        return !genericTypes.isEmpty();
     }
 }
 

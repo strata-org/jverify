@@ -8,7 +8,7 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 
 @JVerifyTest(exitCode = 2)
-public class ContractErrors {}
+public class ExternalContractErrors {}
 
 abstract class Foo {
     abstract void bar(int x);

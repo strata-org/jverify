@@ -283,7 +283,7 @@ public class ExpressionCompiler {
             case null, default -> {
             }
         }
-        compiler.reportError(expr, "notSupported", expr.getClass().getSimpleName());
+        compiler.reportError(expr, "notSupported", expr.getClass().getSimpleName() + " in an expression");
         return JavaToDafnyCompiler.getHole(origin);
     }
 

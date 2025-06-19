@@ -54,6 +54,7 @@ import static com.aws.jverify.verifier.NameCompiler.CTOR_PREFIX;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String METHOD_RETURN_VARIABLE_NAME = "#_r";
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -133,7 +134,7 @@ public class JavaToDafnyCompiler {
         var classpath = classpathEntries.stream()
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator));
-        var javacOptions = List.of("-classpath", classpath);
+        var javacOptions = List.of("-cp", classpath);
 
         ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
@@ -593,7 +594,7 @@ public class JavaToDafnyCompiler {
             return result;
         }
         if (tree instanceof JCTree jcTree) {
-            reportError(jcTree, "notSupported", tree.getClass().getSimpleName());
+            reportError(jcTree, "notSupported", "type declaration " + tree.getClass().getSimpleName());
             return List.of();
         } else {
             throw new NotImplementedException(tree.getClass().getName());
@@ -1071,7 +1072,7 @@ public class JavaToDafnyCompiler {
         }
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
-        List<Formal> ins = getIns(methodSymbol, origin, source);
+        List<Formal> ins = getIns(methodSymbol);
 
         MethodOrLoopContract header;
         List<Statement> bodyStatements = null;
@@ -1119,10 +1120,7 @@ public class JavaToDafnyCompiler {
         if (methodSymbol.type.getReturnType() != null) {
             var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
             if (returnType != null) {
-                if (header.returnName == null) {
-                    header.returnName = new Name(origin, "#_r");
-                }
-                outs.add(header.makeReturnFormal(returnType));
+                outs.add(makeReturnFormal(origin, returnType));
             }
         }
 
@@ -1189,7 +1187,7 @@ public class JavaToDafnyCompiler {
         var name = getName(source, methodSymbol);
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
-        List<Formal> ins = getIns(methodSymbol, origin, source);
+        List<Formal> ins = getIns(methodSymbol);
         Expression body = null;
         MethodOrLoopContract header;
         var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
@@ -1214,6 +1212,10 @@ public class JavaToDafnyCompiler {
                 header = externalContract;
                 if (contractOverride != null) {
                     header = contractOverride;
+                }
+                if (header == null) {
+                    header = new MethodOrLoopContract(source, false);
+                    reportError(source, "bodylessMethodWithoutContract", methodSymbol.name.toString());
                 }
             } else {
                 if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
@@ -1246,8 +1248,8 @@ public class JavaToDafnyCompiler {
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
         return new Function(origin, name, null, false, null, dafnyTypeParameters,
                 ins, header.preconditions, header.postconditions, header.getReads(),
-                header.getDecreases(), isStatic, false, header.makeReturnFormal(returnType), returnType,
-                body, null, null);
+                header.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
+                returnType, body, null, null);
     }
 
     private boolean processVerifyAnnotationAndPop(Map<String, JCTree.JCAnnotation> annotationsByName) {
@@ -1257,15 +1259,21 @@ public class JavaToDafnyCompiler {
         return shouldVerify;
     }
 
-    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, IOrigin origin, JCTree source) {
+    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol) {
         return methodSymbol.getParameters().map(jvd -> {
-            Name formalName = new Name(origin, jvd.name.toString());
-            var paramDecl = TreeInfo.declarationFor(jvd, source);
-            var paramOrigin = paramDecl == null ? origin : toOrigin(paramDecl);
-            var syntacticType = translateType(jvd.type, paramOrigin);
-            return new Formal(origin, formalName, syntacticType, false, true,
+            var trees = JavacTrees.instance(this.context);
+            var parameter = trees.getTree(jvd);
+            var parameterOrigin  = this.toOrigin(parameter);
+            Name formalName = new Name(parameterOrigin, jvd.name.toString());
+            var syntacticType = translateType(jvd.type, parameterOrigin);
+            return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
+    }
+
+    private Formal makeReturnFormal(IOrigin origin, Type syntacticType) {
+        var name = new Name(origin, METHOD_RETURN_VARIABLE_NAME);
+        return new Formal(origin, name, syntacticType, false, false, null, null, false, false, false, null);
     }
 
     private static boolean isStatic(JCTree.JCModifiers modifiers) {
@@ -1438,24 +1446,24 @@ public class JavaToDafnyCompiler {
                 }
 
                 // Remove the name qualification because we do not support that yet
-                var mangledName = nameCompiler.getCompiledName(classType.tsym);
-                var arguments = classType.getTypeArguments().map(a -> translateType(null, a, origin));
+                var compiledName = nameCompiler.getCompiledName(classType.tsym);
+                var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }
-                Expression nameSegment = new NameSegment(origin, mangledName, arguments);
-                if (isNullable && nameSegment instanceof NameSegment ns) {
-                    nameSegment = new NameSegment(ns.getOrigin(), ns.getName() + nullableSuffix, ns.getOptTypeArguments());
+                NameSegment nameSegment = new NameSegment(origin, compiledName, arguments);
+                if (isNullable) {
+                    nameSegment = new NameSegment(nameSegment.getOrigin(), nameSegment.getName() + nullableSuffix, nameSegment.getOptTypeArguments());
                 }
                 return new UserDefinedType(origin, nameSegment);
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym), null));
             }
-            case null, default -> {
+            default -> {
             }
         }
-        reportError(origin, "notSupported", type.getClass().getSimpleName());
+        reportError(origin, "notSupported", "type " + type.getClass().getName());
         return null;
     }
 

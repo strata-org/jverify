@@ -23,13 +23,6 @@ class TranslationErrors {
         var x = 3;
     }
     
-    int multipleReturnNames() {
-       postcondition((Integer i) -> i > 0);
-       postcondition((Integer j) -> j < 2);
-//                            ^ error: all postcondition lambda parameters must use the same name. Got j instead of i
-       return 1;
-    }
-    
     void quantifierNeedsLambdaArgument() {
         check(forall((Integer i) -> i > 0));
         java.util.function.Function<Integer, Boolean> f =

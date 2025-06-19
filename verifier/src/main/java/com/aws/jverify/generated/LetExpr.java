@@ -2,6 +2,7 @@ package com.aws.jverify.generated;
 
 // Generated LetExpr.java:
 // Generated from C# class
+import com.aws.jverify.generated.CasePattern;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
