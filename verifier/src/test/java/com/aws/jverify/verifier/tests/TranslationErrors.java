@@ -21,17 +21,16 @@ class TranslationErrors {
     }
     
     int multipleReturnNames() {
-//      ^ error: ensures clauses may introduce only one return variable name
        postcondition((Integer i) -> i > 0);
        postcondition((Integer j) -> j < 2);
+//                            ^ error: all postcondition lambda parameters must use the same name. Got j instead of i
        return 1;
     }
     
     void quantifierNeedsLambdaArgument() {
+        check(forall((Integer i) -> i > 0));
         java.util.function.Function<Integer, Boolean> f =
-//                                 ^ error: JCTypeApply is not supported        
                 (Integer i) -> i > 0;
-//              ^ error: JCLambda is not supported
         check(forall(f));
 //                   ^ error: the argument to a forall call must be a lambda
     }

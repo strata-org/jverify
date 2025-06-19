@@ -10,6 +10,7 @@ module com.aws.jverify.verifier {
     requires java.sql;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.databind;
+    requires org.jgrapht.core;
 
     opens com.aws.jverify.verifier to info.picocli;
 }

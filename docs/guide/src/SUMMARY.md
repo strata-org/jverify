@@ -18,12 +18,13 @@
 - [Termination](termination.md)
 - [Integers](integers.md)
 
-# References
+# Working with objects
 
 - [Modifying Fields](modifies.md)
 - [Time Traveling](time_traveling.md)
 - [Working with Null](working_with_null.md)
 - [Class Invariants](class_invariants.md)
+- [Interfaces & Abstract Classes](interfaces.md)
 
 <!-- 
 There should be a section about the construction of composite types in pure contexts.

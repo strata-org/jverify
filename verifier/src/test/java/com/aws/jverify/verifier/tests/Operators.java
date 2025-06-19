@@ -14,7 +14,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 16, dafnyErrors = 12)
+@JVerifyTest(exitCode = 4, dafnyVerified = 16, dafnyErrors = 13)
 class Operators {
     static void Plus() {
         int x = 3;
@@ -186,7 +186,9 @@ class Operators {
         DummyInterface dc2 = new DummyClass2();
 
         //noinspection RedundantCast,NewObjectEquality,DataFlowIssue
-        check(dc1 == (DummyClass) dc2);
-//                   ^^^^^^^^^^^^^^^^ Error: value of expression (of type 'com_aws_jverify_verifier_tests_DummyInterface') is not known to be an instance of type 'com_aws_jverify_verifier_tests_DummyClass'
+        var casted = (DummyClass) dc2;
+//                   ^^^^^^^^^^^^^^^^ Error: value of expression (of type 'DummyInterface') is not known to be an instance of type 'DummyClass'
+        check(dc1 == casted);
+//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 }

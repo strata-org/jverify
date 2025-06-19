@@ -16,11 +16,11 @@ jobs:
   checks:
     strategy:
       matrix:
-        os: [ ubuntu-22.04, windows-2019 ]
+        os: [ ubuntu-22.04, windows-2022 ]
         include:
           - os: ubuntu-22.04
             chmod: true
-          - os: windows-2019
+          - os: windows-2022
             chmod: false
       fail-fast: false
         
@@ -68,6 +68,20 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           make test-generation-nodiff
+      - name: Install verifier CLI locally
+        working-directory: ./jverify-collection
+        run: |
+          ./gradlew installDist
+      - name: Getting started command (non-Windows)
+        if: runner.os != 'Windows'
+        working-directory: ./jverify-collection
+        run: |
+          ./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny
+      - name: Getting started command (Windows)
+        if: runner.os == 'Windows'
+        working-directory: ./jverify-collection
+        run: |
+          ./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Binaries/Dafny.exe
       - name: Gradle test
         working-directory: ./jverify-collection
         run: |

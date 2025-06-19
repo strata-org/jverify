@@ -175,7 +175,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         inputs.add(markedSourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
 
-        var diagnosticsAsAnnotations = verificationResults.getDiagnostics().stream()
+        var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))
@@ -221,13 +221,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 dafnyPath,
                 List.of(libraryJar, testEngineClassPath),
                 prelude,
+                false,
                 Path.of("../build/temp.dfy"),
                 Path.of("../build/temp.dbin"),
                 true,
                 true,
                 new String[] {
                         "--use-basename-for-filename",
-//                        "--wait-for-debugger",
+                       //"--wait-for-debugger",
                 },
                 annotation.verifyByDefault()
         );

@@ -5,28 +5,37 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 4)
-class Interfaces {}
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 5)
+class Interfaces {
+    public void root(I i) {
+        var a = i.f(1);
+//              ^^^^^^ Error: function precondition could not be proved
+        var b = i.m();
+        check(b > 2);
+    }
+}
 
+@Modifiable
 interface I {
     int f(int x);
     int m();
-}
 
-@Contract(I.class)
-class IContract implements I {
+    @Contract
+    class IContract implements I {
 
-    @Pure
-    public int f(int x) {
-        precondition(x > 2);
-        reads(this);
-        throw new ContractException();
-    }
+        @Pure
+        public int f(int x) {
+            precondition(x > 2);
+//                       ^^^^^ Related location: this proposition could not be proved
+            reads(this);
+            throw new ContractException();
+        }
 
-    public int m() {
-        modifies(this);
-        postcondition((Integer r) -> r > 2);
-        throw new ContractException();
+        public int m() {
+            modifies(this);
+            postcondition((Integer r) -> r > 2);
+            throw new ContractException();
+        }
     }
 }
 
@@ -48,13 +57,13 @@ class CInvalidContract implements I {
     @Pure
     @Override
     public int f(int x) {
-//             ^^^^^ Error: function's (possibly automatically generated) decreases clause must be below or equal to that in the trait
+//             ^ Error: function's (possibly automatically generated) decreases clause must be below or equal to that in the trait
         return 0;
     }
 
     @Override
     public int m() {
-//             ^^^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
+//             ^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
         return 0;
     }
 }
@@ -95,8 +104,7 @@ class CInvalidImplementation implements I {
         precondition(x > 2);
         reads(this);
         return c.x;
-//             ^^^ Error: insufficient reads clause to read field; Consider adding 'reads F_c' or 'reads F_c`F_x' in the enclosing function specification for resolution
-// TODO: revert the mangled names F_c and F_x to c and x in the error messages
+//             ^^^ Error: insufficient reads clause to read field; Consider adding 'reads c' or 'reads c`x' in the enclosing function specification for resolution
     }
 
     //@InheritContract
@@ -106,6 +114,6 @@ class CInvalidImplementation implements I {
         postcondition((Integer r) -> r > 2);
         c.x = 3;
 //      ^^^ Error: assignment might update an object not in the enclosing context's modifies clause
-        return 0;
+        return 3;
     }
 }

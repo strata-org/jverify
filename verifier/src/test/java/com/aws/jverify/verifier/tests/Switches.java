@@ -73,7 +73,7 @@ class Switches {
 //                          ^^^^^^^^^^ Error: assertion might not hold
     }
 
-    static void switchExprObj(@Nullable int[] arr) {
+    static void switchExprObj(int @Nullable [] arr) {
         //noinspection SwitchStatementWithTooFewBranches
         var isNull = switch (arr) {
             case null -> true;
@@ -82,7 +82,7 @@ class Switches {
         check(isNull == (arr == null));
     }
 
-    static void switchExprObjBad(@Nullable int[] arr) {
+    static void switchExprObjBad(int @Nullable [] arr) {
         //noinspection SwitchStatementWithTooFewBranches
         var isNull = switch (arr) {
             case null -> true;

@@ -12,6 +12,6 @@ interface I2 {
 @Contract(I2.class)
 class I2Contract {
     public I2Contract(int x) {
-//         ^ error: a class that defines the contract for an interface may not have explicit constructors
+//         ^ error: constructor is part of a @Contract class, but its signature does not match any method from the contractee
     }
 }

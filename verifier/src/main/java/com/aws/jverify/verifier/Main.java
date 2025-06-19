@@ -44,7 +44,7 @@ class AppCommand implements Callable<Integer> {
     private boolean paths;
 
     @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
-    private Path dafny;
+    private Path customDafny;
 
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
@@ -57,8 +57,6 @@ class AppCommand implements Callable<Integer> {
         // And those will include the JVerify library jar.
         // But right now we manually find the JVerify library jar and include it in the compilation.
         var jverifyLibraryLocation = Path.of(URI.create(Common.getJarLocationForClass(JVerify.class)));
-        // Likewise, we manually add the test engine jar so that our examples will work as-is
-        var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
 
         File tempFile = File.createTempFile("jverify-prelude-", ".dfy");
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
@@ -67,9 +65,10 @@ class AppCommand implements Callable<Integer> {
         var dafnyPath = getDafnyPath();
         additionalJars = additionalJars == null ? List.of() : additionalJars;
         List<Path> jars = Stream.concat(additionalJars.stream(), 
-                Stream.of(jverifyLibraryLocation, testEngineClassPath)).toList();
+                Stream.of(jverifyLibraryLocation)).toList();
         
-        var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(),
+        var testDafnyVersion = customDafny != null;
+        var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(), testDafnyVersion,
                 printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
@@ -78,7 +77,7 @@ class AppCommand implements Callable<Integer> {
     }
 
     private Path getDafnyPath() {
-        var dafnyPath = dafny;
+        var dafnyPath = customDafny;
         if (dafnyPath == null || !Files.exists(dafnyPath)) {
             if (System.getenv("JVERIFY_DAFNY") != null) {
                 dafnyPath = Path.of(System.getenv("JVERIFY_DAFNY"));

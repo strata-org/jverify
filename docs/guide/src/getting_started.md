@@ -30,7 +30,7 @@ To run JVerify, run the following from the repository root:
 or the following in Windows:
 
 ```
-./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny
+./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Binaries/Dafny.exe
 ```
 
 You should see the following output:
