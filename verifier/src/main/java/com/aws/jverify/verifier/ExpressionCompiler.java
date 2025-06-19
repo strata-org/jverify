@@ -15,6 +15,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.TypeKind;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -318,7 +319,7 @@ public class ExpressionCompiler {
             // If either operand is definitely null,
             // then comparison to a value of JRDV type will be rejected during Dafny resolution,
             // because the translation of a JRDV type is a Dafny value type by definition.
-            isSafe |= isNullLiteral(left) || isNullLiteral(right);
+            isSafe |= leftType.getKind() == TypeKind.NULL || rightType.getKind() == TypeKind.NULL;
 
             // If one operand is of primitive type,
             // then the other operand must either also be of primitive type,
@@ -351,10 +352,6 @@ public class ExpressionCompiler {
             return JavaToDafnyCompiler.getHole(origin);
         }
         return new BinaryExpr(origin, dafnyOperator, left, right);
-    }
-
-    private static boolean isNullLiteral(Expression expr) {
-        return expr instanceof LiteralExpr literalExpr && literalExpr.getValue() == null;
     }
 
     /**
