@@ -842,6 +842,11 @@ public class JavaToDafnyCompiler {
         return false;
     }
 
+    private boolean isRecord(com.sun.tools.javac.code.Type type) {
+        return type instanceof com.sun.tools.javac.code.Type.ClassType classType
+                && (classType.asElement().flags() & Flags.RECORD) != 0;
+    }
+
     private IndDatatypeDecl translateRecord(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         assert classDecl.getKind() == Tree.Kind.RECORD;
 
@@ -1066,7 +1071,7 @@ public class JavaToDafnyCompiler {
         }
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
-        List<Formal> ins = getIns(methodSymbol, origin);
+        List<Formal> ins = getIns(methodSymbol, origin, source);
 
         MethodOrLoopContract header;
         List<Statement> bodyStatements = null;
@@ -1184,7 +1189,7 @@ public class JavaToDafnyCompiler {
         var name = getName(source, methodSymbol);
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
-        List<Formal> ins = getIns(methodSymbol, origin);
+        List<Formal> ins = getIns(methodSymbol, origin, source);
         Expression body = null;
         MethodOrLoopContract header;
         var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
@@ -1252,10 +1257,12 @@ public class JavaToDafnyCompiler {
         return shouldVerify;
     }
 
-    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, IOrigin origin) {
+    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, IOrigin origin, JCTree source) {
         return methodSymbol.getParameters().map(jvd -> {
             Name formalName = new Name(origin, jvd.name.toString());
-            var syntacticType = translateType(jvd.type, origin);
+            var paramDecl = TreeInfo.declarationFor(jvd, source);
+            var paramOrigin = paramDecl == null ? origin : toOrigin(paramDecl);
+            var syntacticType = translateType(jvd.type, paramOrigin);
             return new Formal(origin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
@@ -1347,6 +1354,9 @@ public class JavaToDafnyCompiler {
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
         if (primitiveTypeKind != null) {
+            if (isNullable) {
+                reportError(origin, "notSupported", "nullable primitive type");
+            }
             switch (primitiveTypeKind) {
                 case VOID -> {
                     return null;
@@ -1413,9 +1423,18 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
-                var className = classType.tsym.getQualifiedName();
+                var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
-                    return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
+                    if (!isNullable) {
+                        return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
+                    }
+                    reportError(origin, "notSupported", "nullable String type");
+                    return null;
+                }
+
+                if (isRecord(classType) && isNullable) {
+                    reportError(origin, "notSupported", "nullable record type");
+                    return null;
                 }
 
                 // Remove the name qualification because we do not support that yet

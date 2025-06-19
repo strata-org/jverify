@@ -309,8 +309,9 @@ public class BlockCompiler {
         var origin = compiler.toOrigin(assignOp);
         Expression target = compiler.expressionCompiler.toExpr(assignOp.getVariable());
         List<Expression> lhss = List.of(target);
-        var operated = compiler.expressionCompiler.translateBinary(assignOp, assignOp.type, assignOp.getVariable().type, assignOp.getOperator(),
-                target, compiler.expressionCompiler.toExpr(assignOp.getExpression()));
+        var operated = compiler.expressionCompiler.translateBinary(
+                assignOp, assignOp.getVariable().type, null,
+                assignOp.getOperator(), target, compiler.expressionCompiler.toExpr(assignOp.getExpression()));
         List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }

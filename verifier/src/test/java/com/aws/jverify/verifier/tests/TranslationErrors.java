@@ -1,7 +1,10 @@
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
+
+import java.util.Objects;
 
 import static com.aws.jverify.JVerify.*;
 
@@ -115,6 +118,57 @@ class TranslationErrors {
             default -> i * i * i;
         };
     }
-    
+
+    static boolean nullablePrimitive(@Nullable int i) {
+//                                   ^ error: nullable primitive type is not supported
+        return i == 0;
+    }
+
+    static boolean nullableBoxed(@Nullable Integer i) {
+//                               ^ error: nullable primitive type is not supported
+        return i == 0;
+    }
+
+    static boolean nullableString(@Nullable String s) {
+//                                ^ error: nullable String type is not supported
+        return s == null;
+    }
+
+    record IntWrapper(int value) {}
+
+    @SuppressWarnings("unused")
+    record IntWrapperWrapper(@Nullable IntWrapper inner) {}
+//                                     ^ error: nullable record type is not supported
+
+    static boolean nullableRecord(@Nullable IntWrapper w) {
+//                                ^ error: nullable record type is not supported
+        return w == null;
+    }
+
+    static int referenceEquality(
+            Object o1, Object o2,
+            Integer i,
+            IntWrapper w1, IntWrapper w2
+    ) {
+        if (o1 == o2) {
+//             ^ error: '==' is not allowed when either operand's type could be String, a record, or a boxed primitive, and neither operand is a null literal or of primitive type
+            return 0;
+        } else if (o1 == null) {
+            return 1;
+        } else if (null == o2) {
+            return 2;
+        } else if (i == o1) {
+//                   ^ error: '==' is not allowed when either operand's type could be String, a record, or a boxed primitive, and neither operand is a null literal or of primitive type
+            return 3;
+        } else if (w1 == null) {
+            return 4;
+        } else if (w1 == w2) {
+//                    ^ error: '==' is not allowed when either operand's type could be String, a record, or a boxed primitive, and neither operand is a null literal or of primitive type
+            return 5;
+        }
+
+        return -1;
+    }
+
     void foo() {}
 }

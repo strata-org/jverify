@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 4)
 class Records {
     static void unitRecord() {
         var _ = new UnitRecord();
@@ -46,8 +46,11 @@ class Records {
 
         var foobar = new Foobar(3);
         var foobarRecord = new FoobarRecord(foobar);
+        check(foobarRecord.foobar() == null);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+
         var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
-        check(foobarFoobarRecord.a() == foobarFoobarRecord.b().foobar());
+        check(foobarFoobarRecord.b().foobar() == null);
     }
 
     static void recursiveRecords() {
@@ -83,7 +86,7 @@ record UnitRecord() {}
 record IntRecord(int value) {}
 
 /** Reference-type component */
-record FoobarRecord(Foobar foobar) {}
+record FoobarRecord(@Nullable Foobar foobar) {}
 
 /** Generic-type record and components */
 record Pair<A, B>(A a, B b) {}

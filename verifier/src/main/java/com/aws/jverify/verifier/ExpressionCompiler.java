@@ -18,6 +18,7 @@ import javax.lang.model.type.ArrayType;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 
@@ -128,7 +129,9 @@ public class ExpressionCompiler {
                 var left = toExpr(binary.getLeftOperand());
                 var right = toExpr(binary.getRightOperand());
                 Symbol.OperatorSymbol operator = binary.getOperator();
-                return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
+                return translateBinary(
+                        binary, binary.getLeftOperand().type, binary.getRightOperand().type,
+                        operator, left, right);
             }
             case JCTree.JCIdent identifier -> {
                 var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
@@ -283,15 +286,57 @@ public class ExpressionCompiler {
         return JavaToDafnyCompiler.getHole(origin);
     }
 
-    public Expression translateBinary(JCTree node,
-                                      com.sun.tools.javac.code.Type resultType,
-                                      com.sun.tools.javac.code.Type leftType,
-                                      Symbol.OperatorSymbol operator, Expression left, Expression right) {
+    /**
+     * Translates a binary operator expression to Dafny.
+     *
+     * @param rightType may be null only if the operator is an assignment
+     */
+    public Expression translateBinary(
+            JCTree node,
+            com.sun.tools.javac.code.Type leftType,
+            com.sun.tools.javac.code.@Nullable Type rightType,
+            Symbol.OperatorSymbol operator,
+            Expression left,
+            Expression right) {
         var origin = compiler.toOrigin(node);
+        var opName = operator.name.toString();
+        assert rightType != null || opName.equals("=");
+
         if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
             compiler.reportError(node, "notSupported", "operator " + operator);
         }
-        var isBitwise = switch (operator.name.toString()) {
+
+        if (opName.equals("==") || opName.equals("!=")) {
+            // Some Java reference types are translated to Dafny value types
+            // (e.g. String translates to seq<char16>, record classes translate to datatypes);
+            // let's call these "Java-Reference-as-Dafny-Value types", or "JRDV types" for short.
+            // Distinct heap objects of JRDV type are certainly not equal according to Java's "==",
+            // but their translated values could be (structurally) equal according to Dafny's "==",
+            // and this difference in semantics could lead to unsoundness.
+            var isSafe = false;
+
+            // If either operand is definitely null,
+            // then comparison to a value of JRDV type will be rejected during Dafny resolution,
+            // because the translation of a JRDV type is a Dafny value type by definition.
+            isSafe |= isNullLiteral(left) || isNullLiteral(right);
+
+            // If one operand is of primitive type,
+            // then the other operand must either also be of primitive type,
+            // or of a boxed type (in which case the operand undergoes unboxing promotion).
+            // In both cases the Java semantics are preserved in translation.
+            isSafe |= leftType.isPrimitive() || rightType.isPrimitive();
+
+            // If both operands are definitely not of JRDV types,
+            // then the Java semantics are preserved in translation.
+            isSafe |= !(isPossiblyJrdvType(leftType) || isPossiblyJrdvType(rightType));
+
+            if (!isSafe) {
+                compiler.reportError(node, "equalityOperatorRestricted", opName);
+                return null;
+            }
+        }
+
+        var isBitwise = switch (opName) {
             case "&", "|", "^", "<<", ">>", ">>>" -> true;
             default -> false;
         };
@@ -306,6 +351,41 @@ public class ExpressionCompiler {
             return JavaToDafnyCompiler.getHole(origin);
         }
         return new BinaryExpr(origin, dafnyOperator, left, right);
+    }
+
+    private static boolean isNullLiteral(Expression expr) {
+        return expr instanceof LiteralExpr literalExpr && literalExpr.getValue() == null;
+    }
+
+    /**
+     * Returns whether a value of the given type is possibly a "Java-Reference-as-Dafny-Value" type ("JRDV type").
+     */
+    private boolean isPossiblyJrdvType(com.sun.tools.javac.code.Type type) {
+        var types = Types.instance(this.compiler.context);
+        return Stream.concat(primitiveTypes().stream(), jrdvTypes().stream())
+                .anyMatch(t -> types.isAssignable(type, t) || types.isAssignable(t, type));
+    }
+
+    private List<com.sun.tools.javac.code.Type> primitiveTypes() {
+        var symtab = Symtab.instance(this.compiler.context);
+        return List.of(
+                symtab.booleanType,
+                symtab.byteType,
+                symtab.shortType,
+                symtab.charType,
+                symtab.intType,
+                symtab.longType,
+                symtab.floatType,
+                symtab.doubleType
+        );
+    }
+
+    /**
+     * Returns a list of the "Java-Reference-as-Dafny-Value" types ("JRDV types").
+     */
+    private List<com.sun.tools.javac.code.Type> jrdvTypes() {
+        var symtab = Symtab.instance(this.compiler.context);
+        return List.of(symtab.stringType, symtab.recordType);
     }
 
     /**
