@@ -289,7 +289,7 @@ public class ExpressionCompiler {
     /**
      * Translates a binary operator expression to Dafny.
      *
-     * @param rightType may be null only if the operator is an assignment
+     * @param rightType must be non-null if the operator is a comparison
      */
     public Expression translateBinary(
             JCTree node,
@@ -300,13 +300,13 @@ public class ExpressionCompiler {
             Expression right) {
         var origin = compiler.toOrigin(node);
         var opName = operator.name.toString();
-        assert rightType != null || opName.equals("=");
-
         if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
             compiler.reportError(node, "notSupported", "operator " + operator);
         }
 
         if (opName.equals("==") || opName.equals("!=")) {
+            assert rightType != null;
+
             // Some Java reference types are translated to Dafny value types
             // (e.g. String translates to seq<char16>, record classes translate to datatypes);
             // let's call these "Java-Reference-as-Dafny-Value types", or "JRDV types" for short.
