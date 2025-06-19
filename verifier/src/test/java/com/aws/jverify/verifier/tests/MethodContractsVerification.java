@@ -28,4 +28,11 @@ public class MethodContractsVerification {
     public static boolean isEven(int x) {
         return x % 2 == 0;
     }
+
+    int postconditionNameClash(int x) {
+        postcondition((Integer res) -> res == x);
+        int res;
+        res = x;
+        return res;
+    }
 }
