@@ -11,6 +11,9 @@ public class MethodContractsVerification {
     public int methodReferencePostCondition() {
         postcondition(MethodContractsVerification::isEven);
         
+        // Include lambda based post-condition because it introduces a return value name
+        postcondition((Integer r) -> r == 2);
+        
         return 2;
     } 
     
