@@ -1022,8 +1022,7 @@ public class JavaToDafnyCompiler {
         if (methodSymbol.type.getReturnType() != null) {
             var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
             if (returnType != null) {
-                Name returnName = header.returnName;
-                outs.add(new Formal(origin, returnName, returnType,
+                outs.add(new Formal(origin, new Name(origin, "#_r"), returnType,
                         false, false, null, null, false, false, false, null));
             }
         }
