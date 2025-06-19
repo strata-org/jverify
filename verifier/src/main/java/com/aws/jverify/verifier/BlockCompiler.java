@@ -446,7 +446,9 @@ public class BlockCompiler {
      * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
      * namely, that it is backed by the original list.
      */
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, MethodOrLoopContract header, boolean reportErrors) {
+    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, 
+                                                    MethodOrLoopContract header, 
+                                                    boolean reportErrors) {
         var headerStatements = 0;
         JCTree.JCStatement callToSuper = null;
         statementLoop: for (var statement : statements) {
@@ -492,25 +494,19 @@ public class BlockCompiler {
                         // Only add the first return name or verify subsequent ones match
                         if (header.returnName == null) {
                             header.returnName = new Name(origin, paramName);
-                        } else {
-                            var firstName = header.returnName.getValue();
-                            if (!firstName.equals(paramName)) {
-                                if (reportErrors) {
-                                    compiler.reportError((JCTree) parameter, "multipleReturnNames", firstName, paramName);
-                                }
-                            }
                         }
                         
+                        new LetExpr(origin, )
                         var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
                         if (postconditionPredicate != null) {
                             header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
                         }
                     } else if (first instanceof JCTree.JCMemberReference memberReference) {
-                        var returnName = header.returnName;
                         var origin = compiler.toOrigin(memberReference);
                         if (header.returnName == null) {
-                            returnName = new Name(origin, "$r");
+                            header.returnName = new Name(origin, "#_r");
                         }
+                        var returnName = header.returnName;
                         var argBindings = List.of(new ActualBinding(null, new NameSegment(origin, returnName.getValue(), null), false));
                         var callee = new ExprDotName(origin, 
                                 compiler.expressionCompiler.toExpr(memberReference.expr), 
@@ -561,7 +557,10 @@ public class BlockCompiler {
             }
             headerStatements++;
         }
-        var postHeaderStatements = new ArrayList<JCTree.JCStatement>(statements.subList(headerStatements, statements.size()));
+        if (header.returnName == null) {
+            header.returnName = new Name(compiler.toOrigin(header.treeOrigin), "#_r");
+        }
+        var postHeaderStatements = new ArrayList<>(statements.subList(headerStatements, statements.size()));
         if (callToSuper != null) {
             postHeaderStatements.addFirst(callToSuper);
         }

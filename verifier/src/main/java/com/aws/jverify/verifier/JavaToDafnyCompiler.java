@@ -6,6 +6,7 @@ import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
+import com.sun.source.util.Trees;
 import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.api.MultiTaskListener;
@@ -1021,8 +1022,7 @@ public class JavaToDafnyCompiler {
         if (methodSymbol.type.getReturnType() != null) {
             var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
             if (returnType != null) {
-                Name returnName;
-                returnName = Objects.requireNonNullElseGet(header.returnName, () -> new Name(origin, "#_r"));
+                Name returnName = header.returnName;
                 outs.add(new Formal(origin, returnName, returnType,
                         false, false, null, null, false, false, false, null));
             }
@@ -1165,9 +1165,12 @@ public class JavaToDafnyCompiler {
 
     private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, IOrigin origin) {
         return methodSymbol.getParameters().map(jvd -> {
-            Name formalName = new Name(origin, jvd.name.toString());
-            var syntacticType = translateType(jvd.type, origin);
-            return new Formal(origin, formalName, syntacticType, false, true,
+            var trees = JavacTrees.instance(this.context);
+            var parameter = trees.getTree(jvd);
+            var parameterOrigin  = this.toOrigin(parameter);
+            Name formalName = new Name(parameterOrigin, jvd.name.toString());
+            var syntacticType = translateType(jvd.type, parameterOrigin);
+            return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
     }
@@ -1330,12 +1333,12 @@ public class JavaToDafnyCompiler {
                 }
 
                 // Remove the name qualification because we do not support that yet
-                var mangledName = nameCompiler.getCompiledName(classType.tsym);
+                var compiledName = nameCompiler.getCompiledName(classType.tsym);
                 var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }
-                NameSegment nameSegment = new NameSegment(origin, mangledName, arguments);
+                NameSegment nameSegment = new NameSegment(origin, compiledName, arguments);
                 if (isNullable) {
                     nameSegment = new NameSegment(nameSegment.getOrigin(), nameSegment.getName() + nullableSuffix, nameSegment.getOptTypeArguments());
                 }

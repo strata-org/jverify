@@ -117,3 +117,8 @@ class CInvalidImplementation implements I {
         return 3;
     }
 }
+
+interface HasNoContractMethod {
+    @Pure
+    int hasNoContract();
+}
