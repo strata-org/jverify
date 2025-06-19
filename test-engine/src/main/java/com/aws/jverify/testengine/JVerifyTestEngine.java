@@ -32,13 +32,11 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.InflaterOutputStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -174,6 +172,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }).collect(Collectors.toList());
         inputs.add(markedSourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
+        
+        if (annotation.resolvePrintedDafny()) {
+            resolvePrintedDafny(options);
+        }
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
@@ -198,6 +200,40 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         verificationResults.getDafnyErrorCount(),
                         is(expectedDafnyErrorCount))
         );
+    }
+
+    private static void resolvePrintedDafny(VerifierOptions verifierOptions) 
+            throws IOException {
+        if (verifierOptions.printDafny() == null) {
+            throw new RuntimeException("");
+        }
+        
+        var processBuilder = new ProcessBuilder(
+                verifierOptions.dafnyPath().toString(),
+                "resolve",
+                verifierOptions.printDafny().toString(),
+                "--library",
+                verifierOptions.additionalDafnyFile().toAbsolutePath().normalize().toString(),
+                "--allow-axioms",
+                "--type-system-refresh",
+                "--general-newtypes",
+                "--general-traits=datatype"
+        );
+        var process = processBuilder.redirectErrorStream(true).start();
+        int resolveExitCode = 0;
+        try(var stdout = process.inputReader()) {
+            resolveExitCode = process.waitFor();
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = stdout.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            stdout.close();
+            String content = sb.toString();
+            Assertions.assertEquals(0, resolveExitCode, content);
+        } catch (InterruptedException e) {
+            Assertions.fail();
+        }
     }
 
     private static AnnotatedRange diagnosticAsAnnotatedRange(Diagnostic<?> diagnostic) {
@@ -238,7 +274,9 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      * For creating a JVerifyTest annotation without having it in source code.
      * Useful for testing things like examples where we don't want the explicit annotation.
      */
-    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, int dafnyVerified, int dafnyErrors) {
+    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, 
+                                                        int dafnyVerified, int dafnyErrors,
+                                                        boolean resolvePrintedDafny) {
         return new JVerifyTest() {
             @Override
             public Class<? extends Annotation> annotationType() {
@@ -273,6 +311,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             @Override
             public String[] additionalFiles() {
                 return new String[0];
+            }
+
+            @Override
+            public boolean resolvePrintedDafny() {
+                return resolvePrintedDafny;
             }
         };
     }

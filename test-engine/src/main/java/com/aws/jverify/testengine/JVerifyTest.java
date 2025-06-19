@@ -52,4 +52,6 @@ public @interface JVerifyTest {
     int dafnyErrors() default -1;
 
     String[] additionalFiles() default {};
+    
+    boolean resolvePrintedDafny() default false;
 }

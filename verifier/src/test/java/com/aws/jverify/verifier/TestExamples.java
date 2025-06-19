@@ -33,6 +33,6 @@ public class TestExamples {
     private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors, List<AnnotatedRange> ranges) throws IOException {
         var markedSource = Files.readString(Path.of("../examples/src/test/java/com/aws/jverify/examples/").resolve(path));
         JVerifyTestEngine.verifyFile(new SourceFile(path, markedSource),
-                JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, dafnyVerified, dafnyErrors), List.of());
+                JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, dafnyVerified, dafnyErrors, false), List.of());
     }
 }
