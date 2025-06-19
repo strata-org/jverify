@@ -2,6 +2,7 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
+import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -83,7 +84,7 @@ public class BlockCompiler {
             default -> {
             }
         }
-        compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
+        compiler.reportError(statement, "notSupported", "statement " + statement.getClass().getSimpleName());
         return List.of();
     }
 
@@ -271,7 +272,7 @@ public class BlockCompiler {
                 return translateUnaryExpressionStatement(unary);
             }
             default -> {
-                compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
+                compiler.reportError(statement, "notSupported", "expression statement with expr " + expr.getClass().getSimpleName());
                 return List.of();
             }
         }
@@ -446,7 +447,9 @@ public class BlockCompiler {
      * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
      * namely, that it is backed by the original list.
      */
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, MethodOrLoopContract header, boolean reportErrors) {
+    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, 
+                                                    MethodOrLoopContract header, 
+                                                    boolean reportErrors) {
         var headerStatements = 0;
         JCTree.JCStatement callToSuper = null;
         statementLoop: for (var statement : statements) {
@@ -485,26 +488,29 @@ public class BlockCompiler {
                         if (lambda.getParameters().size() != 1) {
                             throw new JavaViolationException("A postcondition call lambda may take only one argument");
                         }
-                        var parameter = lambda.getParameters().getFirst();
+                        
+                        var parameter = lambda.params.getFirst();
                         var origin = compiler.toOrigin(lambda);
                         var paramName = parameter.getName().toString();
                         
-                        // Only add the first return name or verify subsequent ones match
-                        if (header.returnName == null) {
-                            header.returnName = new Name(origin, paramName);
-                        } else {
-                            var firstName = header.returnName.getValue();
-                            if (!firstName.equals(paramName)) {
-                                if (reportErrors) {
-                                    compiler.reportError((JCTree) parameter, "multipleReturnNames", firstName, paramName);
-                                }
-                            }
-                        }
-                        
+                        var type = compiler.translateType(null, parameter.type, compiler.toOrigin(parameter));
                         var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
+                        var condition = new LetExpr(origin, List.of(new CasePattern(origin, paramName, 
+                                new BoundVar(origin, new Name(origin, paramName), type, false), null)), 
+                                List.of(new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null)), postconditionPredicate, true, null);
+                        
                         if (postconditionPredicate != null) {
-                            header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
+                            header.postconditions.add(new AttributedExpression(condition, null, null));
                         }
+                    } else if (first instanceof JCTree.JCMemberReference memberReference) {
+                        var origin = compiler.toOrigin(memberReference);
+                        var argBindings = List.of(new ActualBinding(null, new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
+                        var callee = new ExprDotName(origin, 
+                                compiler.expressionCompiler.toExpr(memberReference.expr), 
+                                compiler.getName(memberReference, memberReference.name), null);
+                        var call = new ApplySuffix(origin, callee, null,
+                                new ActualBindings(argBindings), null);
+                        header.postconditions.add(new AttributedExpression(call, null, null));
                     } else {
                         var dafnyExpr = compiler.expressionCompiler.toExpr(first);
                         header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
@@ -548,7 +554,7 @@ public class BlockCompiler {
             }
             headerStatements++;
         }
-        var postHeaderStatements = new ArrayList<JCTree.JCStatement>(statements.subList(headerStatements, statements.size()));
+        var postHeaderStatements = new ArrayList<>(statements.subList(headerStatements, statements.size()));
         if (callToSuper != null) {
             postHeaderStatements.addFirst(callToSuper);
         }
@@ -599,7 +605,7 @@ public class BlockCompiler {
                 }
                 return new AllocateArray(origin, null, arrayDafnyType, arrayDimensions, null);
             }
-            case null, default -> {
+            default -> {
             }
         }
         var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);
