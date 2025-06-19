@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.*;
-import java.util.stream.Collectors;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class CSharpToJavaConverter {
@@ -66,6 +66,68 @@ public class CSharpToJavaConverter {
                 .addFileComment("Generated from C# enum")
                 .build();
     }
+    
+    /**
+     * Parses a C# type string into a CSharpType object, handling nested generic types.
+     * For example: "List<Dictionary<string, int>>" will be parsed into a proper type hierarchy.
+     */
+    private CSharpType parseType(String typeStr) {
+        // Check for nullable type
+        boolean isNullable = typeStr.endsWith("?");
+        if (isNullable) {
+            typeStr = typeStr.substring(0, typeStr.length() - 1);
+        }
+        
+        // Find the base type and any generic arguments
+        int genericStart = typeStr.indexOf('<');
+        if (genericStart == -1) {
+            // Simple type with no generic arguments
+            return new CSharpType(typeStr.trim(), isNullable);
+        }
+        
+        // Extract the base type name
+        String baseTypeName = typeStr.substring(0, genericStart).trim();
+        CSharpType type = new CSharpType(baseTypeName, isNullable);
+        
+        // Extract and parse the generic arguments
+        String genericArgsStr = typeStr.substring(genericStart + 1, typeStr.lastIndexOf('>'));
+        List<String> genericArgs = splitGenericArgs(genericArgsStr);
+        
+        for (String arg : genericArgs) {
+            type.genericArguments.add(parseType(arg));
+        }
+        
+        return type;
+    }
+    
+    /**
+     * Splits generic arguments, respecting nested generic types.
+     * For example: "string, List<int>, Dictionary<string, int>" will be split into three arguments.
+     */
+    private List<String> splitGenericArgs(String argsStr) {
+        List<String> args = new ArrayList<>();
+        int depth = 0;
+        int start = 0;
+        
+        for (int i = 0; i < argsStr.length(); i++) {
+            char c = argsStr.charAt(i);
+            if (c == '<') {
+                depth++;
+            } else if (c == '>') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                args.add(argsStr.substring(start, i).trim());
+                start = i + 1;
+            }
+        }
+        
+        // Add the last argument
+        if (start < argsStr.length()) {
+            args.add(argsStr.substring(start).trim());
+        }
+        
+        return args;
+    }
 
     private List<CSharpClass> parseCSharpClasses(String csharpCode) {
         List<CSharpClass> classes = new ArrayList<>();
@@ -119,26 +181,16 @@ public class CSharpToJavaConverter {
 
             // Parse fields
             Pattern fieldPattern = Pattern.compile(
-                    "\\s+(\\w+)(?:<([\\w,\\s]+)>)?(\\?)?\\s+(\\w+)\\s*;"
+                    "(.*)\\s+(\\w+)\\s*;"
             );
             Matcher fieldMatcher = fieldPattern.matcher(classBody);
 
             while (fieldMatcher.find()) {
-                String baseType = fieldMatcher.group(1);
-                String genericTypesStr = fieldMatcher.group(2);
-                String questionMark = fieldMatcher.group(3);
-                String fieldName = fieldMatcher.group(4);
+                String typeString = fieldMatcher.group(1);
+                String fieldName = fieldMatcher.group(2);
 
-                boolean isGeneric = genericTypesStr != null;
-                List<String> genericTypes = new ArrayList<>();
-                if (isGeneric) {
-                    genericTypes = Arrays.stream(genericTypesStr.split(","))
-                            .map(String::trim)
-                            .collect(Collectors.toList());
-                }
-                var isNullable = questionMark != null;
-
-                csharpClass.fields.add(new CSharpField(baseType, fieldName, isNullable, isGeneric, genericTypes));
+                CSharpType fieldType = parseType(typeString);
+                csharpClass.fields.add(new CSharpField(fieldType, fieldName));
             }
 
             classes.add(csharpClass);
@@ -156,10 +208,10 @@ public class CSharpToJavaConverter {
         return classes;
     }
 
-    private TypeName convertCSharpFieldToJavaFieldType(CSharpField field, List<TypeParameter> classTypeParameters) {
+    private TypeName convertCSharpTypeToJavaFieldType(CSharpType type, List<TypeParameter> classTypeParameters) {
         // Check if the type is a type parameter
         Optional<TypeParameter> typeParam = classTypeParameters.stream()
-                .filter(tp -> tp.name.equals(field.type))
+                .filter(tp -> tp.name.equals(type))
                 .findFirst();
 
         if (typeParam.isPresent()) {
@@ -168,12 +220,12 @@ public class CSharpToJavaConverter {
                 return WildcardTypeName.subtypeOf(ClassName.get("", typeParam.get().constraint));
             }
             // If it's an unbounded type parameter, return it as is
-            return TypeVariableName.get(field.type);
+            return TypeVariableName.get(type.typeName);
         }
 
-        String baseType = convertCSharpTypeToJava(field.type);
+        String baseType = convertCSharpTypeToJava(type.typeName);
 
-        if (!field.isGeneric) {
+        if (!type.hasGenericArguments()) {
             return ClassName.get("", baseType);
         }
 
@@ -182,17 +234,17 @@ public class CSharpToJavaConverter {
                 ? ClassName.get(packageName, baseType)
                 : ClassName.get("java.util", baseType);
 
-        return ParameterizedTypeName.get(rawType, field.genericTypes.stream()
-                .map(type -> {
+        return ParameterizedTypeName.get(rawType, type.genericArguments.stream()
+                .map(typeArgument -> {
                     // Check if the generic argument is a type parameter
                     Optional<TypeParameter> genericTypeParam = classTypeParameters.stream()
-                            .filter(tp -> tp.name.equals(type))
+                            .filter(tp -> tp.name.equals(typeArgument.typeName))
                             .findFirst();
 
                     if (genericTypeParam.isPresent()) {
-                        return TypeVariableName.get(type);
+                        return TypeVariableName.get(typeArgument.typeName);
                     }
-                    return ClassName.get("", convertCSharpTypeToJava(type));
+                    return ClassName.get("", convertCSharpTypeToJava(typeArgument.typeName));
                 }).toArray(TypeName[]::new));
     }
 
@@ -235,7 +287,7 @@ public class CSharpToJavaConverter {
             for(;iteration < 5;iteration++) {
                 var newName = field.name + (iteration == 0 ? "" : iteration);
                 try {
-                    TypeName fieldType = convertCSharpFieldToJavaFieldType(field, csharpClass.typeParameters);
+                    TypeName fieldType = convertCSharpTypeToJavaFieldType(field.type, csharpClass.typeParameters);
 
                     // Only add field if it's from this class (not inherited)
                     if (csharpClass.fields.contains(field)) {
@@ -243,7 +295,7 @@ public class CSharpToJavaConverter {
                                 fieldType,
                                 newName,
                                 Modifier.PRIVATE, Modifier.FINAL);
-                        if (field.isNullable) {
+                        if (field.type.isNullable) {
                             builder.addAnnotation(Nullable.class);
                         }
                         FieldSpec fieldSpec = builder.build();
@@ -396,19 +448,140 @@ class TypeParameter {
     }
 }
 
-class CSharpField {
+class CSharpType {
+    String typeName;
     boolean isNullable;
-    String type;
-    String name;
-    boolean isGeneric;
-    List<String> genericTypes;
+    List<CSharpType> genericArguments;
 
-    public CSharpField(String type, String name, boolean isNullable, boolean isGeneric, List<String> genericTypes) {
+    public CSharpType(String typeName, boolean isNullable) {
+        this.typeName = typeName;
+        this.isNullable = isNullable;
+        this.genericArguments = new ArrayList<>();
+    }
+
+    public boolean hasGenericArguments() {
+        return !genericArguments.isEmpty();
+    }
+
+//    public static CSharpType parseType(String typeString) {
+//        if (typeString == null || typeString.trim().isEmpty()) {
+//            throw new IllegalArgumentException("Type string cannot be null or empty");
+//        }
+//
+//        return parseTypeInternal(typeString.trim(), 0).type;
+//    }
+//    
+//    private static class ParseResult {
+//        CSharpType type;
+//        int nextIndex;
+//
+//        ParseResult(CSharpType type, int nextIndex) {
+//            this.type = type;
+//            this.nextIndex = nextIndex;
+//        }
+//    }
+//    
+//    private static ParseResult parseTypeInternal(String typeString, int startIndex) {
+//        int i = startIndex;
+//
+//        // Skip whitespace
+//        while (i < typeString.length() && Character.isWhitespace(typeString.charAt(i))) {
+//            i++;
+//        }
+//
+//        if (i >= typeString.length()) {
+//            throw new IllegalArgumentException("Unexpected end of type string");
+//        }
+//
+//        // Parse type name
+//        StringBuilder typeName = new StringBuilder();
+//        while (i < typeString.length() &&
+//                (Character.isLetterOrDigit(typeString.charAt(i)) || typeString.charAt(i) == '_')) {
+//            typeName.append(typeString.charAt(i));
+//            i++;
+//        }
+//
+//        if (typeName.isEmpty()) {
+//            throw new IllegalArgumentException("Expected type name at position " + i);
+//        }
+//
+//        // Skip whitespace
+//        while (i < typeString.length() && Character.isWhitespace(typeString.charAt(i))) {
+//            i++;
+//        }
+//
+//        CSharpType type = new CSharpType(typeName.toString(), false);
+//
+//        // Check for generic arguments
+//        if (i < typeString.length() && typeString.charAt(i) == '<') {
+//            i++; // Skip '<'
+//
+//            // Parse generic arguments
+//            while (true) {
+//                // Skip whitespace
+//                while (i < typeString.length() && Character.isWhitespace(typeString.charAt(i))) {
+//                    i++;
+//                }
+//
+//                if (i >= typeString.length()) {
+//                    throw new IllegalArgumentException("Unexpected end of type string, expected '>'");
+//                }
+//
+//                if (typeString.charAt(i) == '>') {
+//                    break; // End of generic arguments
+//                }
+//
+//                // Parse nested type
+//                ParseResult result = parseTypeInternal(typeString, i);
+//                type.genericArguments.add(result.type);
+//                i = result.nextIndex;
+//
+//                // Skip whitespace
+//                while (i < typeString.length() && Character.isWhitespace(typeString.charAt(i))) {
+//                    i++;
+//                }
+//
+//                if (i >= typeString.length()) {
+//                    throw new IllegalArgumentException("Unexpected end of type string, expected '>' or ','");
+//                }
+//
+//                if (typeString.charAt(i) == ',') {
+//                    i++; // Skip comma and continue
+//                } else if (typeString.charAt(i) == '>') {
+//                    break; // End of generic arguments
+//                } else {
+//                    throw new IllegalArgumentException("Expected ',' or '>' at position " + i);
+//                }
+//            }
+//
+//            if (typeString.charAt(i) != '>') {
+//                throw new IllegalArgumentException("Expected '>' at position " + i);
+//            }
+//            i++; // Skip '>'
+//        }
+//
+//        // Skip whitespace
+//        while (i < typeString.length() && Character.isWhitespace(typeString.charAt(i))) {
+//            i++;
+//        }
+//
+//        // Check for nullable
+//        if (i < typeString.length() && typeString.charAt(i) == '?') {
+//            type.isNullable = true;
+//            i++;
+//        }
+//
+//        return new ParseResult(type, i);
+//    }
+}
+
+class CSharpField {
+    CSharpType type;
+    String name;
+
+    public CSharpField(CSharpType type, String name) {
         this.type = type;
         this.name = name;
-        this.isNullable = isNullable;
-        this.isGeneric = isGeneric;
-        this.genericTypes = genericTypes;
     }
 }
 

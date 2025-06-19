@@ -496,7 +496,6 @@ public class BlockCompiler {
                             header.returnName = new Name(origin, paramName);
                         }
                         
-                        new LetExpr(origin, )
                         var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
                         if (postconditionPredicate != null) {
                             header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
