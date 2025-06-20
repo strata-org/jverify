@@ -26,7 +26,7 @@ public class NameCompiler {
     static private final String methodPrefix = "Z_";
     public String DEFAULT_CTOR_NAME = "ctor";
     public static final String NON_DEFAULT_CTOR_NAME = "ctor";
-    public String METHOD_RETURN_VARIABLE_NAME = "result";
+    public String METHOD_RETURN_VARIABLE_NAME = "g_result";
     public String CLASS_PREFIX = "Constructable_";
     public String INIT_METHOD_PREFIX = "init_";
 
