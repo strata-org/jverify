@@ -116,6 +116,7 @@ record Vec3(int x, int y, int z) {
  * which don't automatically yield both nullable and non-nullable types (as Dafny classes do).
  * This wrapper class works around JVerify's current lack of automatic handling
  * for values that are of reference types in Java but of value types in Dafny.
+ * (See <a href="https://github.com/aws/jverify/issues/179">#179</a>.)
  */
 class Wrapper<T> {
     T val;
