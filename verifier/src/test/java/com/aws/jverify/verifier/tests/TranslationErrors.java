@@ -110,16 +110,19 @@ class TranslationErrors {
         };
     }
 
+    // This is intentional: primitives aren't nullable in Java.
     static boolean nullablePrimitive(@Nullable int i) {
 //                                   ^ error: nullable primitive type is not supported
         return i == 0;
     }
 
+    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
     static boolean nullableBoxed(@Nullable Integer i) {
 //                               ^ error: nullable primitive type is not supported
         return i == 0;
     }
 
+    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
     static boolean nullableString(@Nullable String s) {
 //                                ^ error: nullable String type is not supported
         return s == null;
