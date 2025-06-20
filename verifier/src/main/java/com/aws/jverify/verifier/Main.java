@@ -5,6 +5,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
@@ -32,7 +33,7 @@ class AppCommand implements Callable<Integer> {
     private Path printBinaryDafny;
 
     @Option(names = "--jar", description = "Includes this jar file on the classpath", arity = "0..*")
-    private List<Path> additionalJars;
+    private List<String> additionalJars;
 
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
@@ -64,7 +65,7 @@ class AppCommand implements Callable<Integer> {
 
         var dafnyPath = getDafnyPath();
         additionalJars = additionalJars == null ? List.of() : additionalJars;
-        List<Path> jars = Stream.concat(additionalJars.stream(), 
+        List<Path> jars = Stream.concat(additionalJars.stream().flatMap(p -> Arrays.stream(p.split(":")).map(Path::of)), 
                 Stream.of(jverifyLibraryLocation)).toList();
         
         var testDafnyVersion = customDafny != null;

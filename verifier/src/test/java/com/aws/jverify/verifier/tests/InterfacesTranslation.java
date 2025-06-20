@@ -1,0 +1,13 @@
+package com.aws.jverify.verifier.tests;
+
+import com.aws.jverify.Pure;
+import com.aws.jverify.testengine.JVerifyTest;
+
+@JVerifyTest(exitCode = 2)
+public class InterfacesTranslation { }
+
+interface HasNoContractMethod {
+    @Pure
+    int hasNoContract();
+//      ^ error: method 'hasNoContract' without a body still needs a contract. Using @Contract to specify a contract class.
+}
