@@ -347,7 +347,8 @@ public class BlockCompiler {
             }
             
             var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor);
-            var initName = JavaToDafnyCompiler.getInitMethodName(baseConstructorName);
+            var baseConstructorClassName = compiler.nameCompiler.getCompiledName(baseConstructor.enclClass());
+            var initName = compiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
             var arguments = invocation.getArguments().stream().map(
                     e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
             var applySuffix = new ApplySuffix(origin,

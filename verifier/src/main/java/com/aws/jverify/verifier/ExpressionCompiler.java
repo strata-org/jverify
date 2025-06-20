@@ -478,7 +478,7 @@ public class ExpressionCompiler {
                     ? maker.App(maker.QualIdent(methodSymbol), arguments)
                     : maker.App(maker.Select(arguments.getFirst(), methodSymbol), arguments.tail);
         }
-        var resultSymbol = new Symbol.VarSymbol(0, names.fromString("result"), methodSymbol.getReturnType(), dynamicMethodSymbol);
+        var resultSymbol = new Symbol.VarSymbol(0, names.fromString(compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME), methodSymbol.getReturnType(), dynamicMethodSymbol);
         var returnVar = maker.VarDef(maker.Modifiers(0), resultSymbol.name, maker.Type(methodSymbol.getReturnType()), methodCall);
         JCTree.JCStatement returnStmt = maker.Return(maker.Ident(resultSymbol));
         var stmts = com.sun.tools.javac.util.List.of(returnVar, returnStmt);

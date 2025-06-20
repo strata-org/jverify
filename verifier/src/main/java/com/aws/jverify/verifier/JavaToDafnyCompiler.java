@@ -86,8 +86,8 @@ public class JavaToDafnyCompiler {
         nameCompiler = new NameCompiler(verifierOptions.avoidCollisionsUsingUnderscores());
     }
 
-    public static String getInitMethodName(String constructorName) {
-        return constructorName.replace("ctor", "init");
+    public String getInitMethodName(String className, String constructorName) {
+        return constructorName.replace("ctor", nameCompiler.INIT_METHOD_PREFIX) + "_" + className;
     }
 
     public NameCompiler getNameMangler() {
@@ -721,7 +721,7 @@ public class JavaToDafnyCompiler {
                 }
                 case Constructor constructor -> {
                     classNeeded = true;
-                    Method initMethod = constructorToInitMethod(constructor);
+                    Method initMethod = constructorToInitMethod(name.getValue(), constructor);
                     if (initMethod != null) {
                         traitMembers.add(initMethod);
                     }
@@ -761,13 +761,13 @@ public class JavaToDafnyCompiler {
      * To support 'super(...)' calls, we translate each Java constructor to an 'init' method in the Dafny trait
      * The Dafny class constructor then calls the init method of the related trait, and of the trait of its parent type. 
      */
-    private static Method constructorToInitMethod(Constructor constructor) {
+    private Method constructorToInitMethod(String className, Constructor constructor) {
         if (constructor.getBody() == null) {
             return null;
         }
         BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
                 constructor.getBody().getBodyInit());
-        Name nameNode = new Name(constructor.getNameNode().getOrigin(), getInitMethodName(constructor.getNameNode().getValue()));
+        Name nameNode = new Name(constructor.getNameNode().getOrigin(), getInitMethodName(className, constructor.getNameNode().getValue()));
         var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
         var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
         frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));

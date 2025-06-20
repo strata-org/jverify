@@ -28,7 +28,7 @@ public class NameCompiler {
     public static final String NON_DEFAULT_CTOR_NAME = "ctor";
     public String METHOD_RETURN_VARIABLE_NAME = "result";
     public String CLASS_PREFIX = "Constructable_";
-    private String INIT_METHOD_PREFIX = "init_";
+    public String INIT_METHOD_PREFIX = "init_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;

@@ -265,7 +265,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                        //"--wait-for-debugger",
                 },
                 annotation.verifyByDefault(),
-                false
+                annotation.avoidNameCollisions()
         );
     }
 
@@ -275,7 +275,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      */
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, 
                                                         int dafnyVerified, int dafnyErrors,
-                                                        boolean resolvePrintedDafny) {
+                                                        boolean resolvePrintedDafny,
+                                                        boolean avoidNameCollisions) {
         return new JVerifyTest() {
             @Override
             public Class<? extends Annotation> annotationType() {
@@ -315,6 +316,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             @Override
             public boolean resolvePrintedDafny() {
                 return resolvePrintedDafny;
+            }
+
+            @Override
+            public boolean avoidNameCollisions() {
+                return avoidNameCollisions;
             }
         };
     }

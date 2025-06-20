@@ -6,8 +6,6 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.nio.file.Path;
-import java.util.List;
 
 /**
  * Valid annotation values:
@@ -54,4 +52,6 @@ public @interface JVerifyTest {
     String[] additionalFiles() default {};
     
     boolean resolvePrintedDafny() default false;
+    
+    boolean avoidNameCollisions() default false;
 }
