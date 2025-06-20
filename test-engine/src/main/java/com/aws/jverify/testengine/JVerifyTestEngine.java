@@ -28,6 +28,7 @@ import org.junit.platform.engine.support.hierarchical.Node;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
@@ -221,17 +222,20 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         int resolveExitCode = 0;
         try(var stdout = process.inputReader()) {
             resolveExitCode = process.waitFor();
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = stdout.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-            stdout.close();
-            String content = sb.toString();
+            String content = readerToString(stdout);
             Assertions.assertEquals(0, resolveExitCode, content);
         } catch (InterruptedException e) {
             Assertions.fail();
         }
+    }
+
+    private static String readerToString(BufferedReader stdout) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = stdout.readLine()) != null) {
+            sb.append(line).append("\n");
+        }
+        return sb.toString();
     }
 
     private static AnnotatedRange diagnosticAsAnnotatedRange(Diagnostic<?> diagnostic) {
