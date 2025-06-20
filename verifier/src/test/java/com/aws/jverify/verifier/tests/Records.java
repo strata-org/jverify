@@ -2,11 +2,12 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
+import com.aws.jverify.Unbounded;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 4)
 class Records {
     static void unitRecord() {
         var _ = new UnitRecord();
@@ -77,6 +78,14 @@ class Records {
         check(maxed.y() == 5);
         check(maxed.z() == 5);
     }
+
+    static void interfaceImplementingRecord() {
+        var factor = new Factor(2);
+        check(factor.times(8) == 16);
+
+        // we can also create a new record instance within an expression
+        check(new Factor(3).times(7) == 21);
+    }
 }
 
 /** No components */
@@ -111,6 +120,14 @@ record Vec3(int x, int y, int z) {
     }
 }
 
+record Factor(int value) implements ICoefficient {
+    @Pure
+    @Override
+    public @Unbounded int times(int i) {
+        return value * i;
+    }
+}
+
 /**
  * Records are translated to Dafny datatypes,
  * which don't automatically yield both nullable and non-nullable types (as Dafny classes do).
@@ -134,4 +151,8 @@ class Foobar {
         postcondition((Foobar instance) -> instance.id == id);
         this.id = id;
     }
+}
+
+interface ICoefficient {
+    @Unbounded int times(int i);
 }
