@@ -278,7 +278,12 @@ public class ExpressionCompiler {
                 throw new RuntimeException("All Dafny type references are NameSegments, since we do not use Dafny modules");
             }
             case JCTree.JCNewClass newClass -> {
-                return translateNewRecord(origin, newClass);
+                if (compiler.isRecord(newClass.type)) {
+                    return translateNewRecord(origin, newClass);
+                }
+                compiler.reportError(expr, "notSupported",
+                        "using 'new' in an expression to create an instance of a non-record class");
+                return JavaToDafnyCompiler.getHole(origin);
             }
             case null, default -> {
             }

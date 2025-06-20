@@ -843,7 +843,7 @@ public class JavaToDafnyCompiler {
         return false;
     }
 
-    private boolean isRecord(com.sun.tools.javac.code.Type type) {
+    boolean isRecord(com.sun.tools.javac.code.Type type) {
         return type instanceof com.sun.tools.javac.code.Type.ClassType classType
                 && (classType.asElement().flags() & Flags.RECORD) != 0;
     }

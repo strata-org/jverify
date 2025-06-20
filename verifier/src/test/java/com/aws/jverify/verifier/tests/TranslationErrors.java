@@ -4,8 +4,6 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import java.util.Objects;
-
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 2)
@@ -161,6 +159,18 @@ class TranslationErrors {
         }
 
         return -1;
+    }
+
+    record DummyRecord() {}
+
+    static class DummyClass {}
+
+    @SuppressWarnings("ConstantValue")
+    static void newInExpression() {
+        check(new DummyRecord() != null);
+
+        check(new DummyClass() != null);
+//            ^ error: using 'new' in an expression to create an instance of a non-record class is not supported
     }
 
     void foo() {}
