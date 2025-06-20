@@ -52,7 +52,6 @@ import java.util.stream.StreamSupport;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
-    public static final String METHOD_RETURN_VARIABLE_NAME = "#_r";
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
