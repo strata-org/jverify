@@ -212,8 +212,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 verifierOptions.dafnyPath().toString(),
                 "resolve",
                 verifierOptions.printDafny().toString(),
-                "--library",
-                verifierOptions.additionalDafnyFile().toAbsolutePath().normalize().toString(),
                 "--allow-axioms",
                 "--type-system-refresh",
                 "--general-newtypes",
@@ -266,7 +264,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         "--use-basename-for-filename",
                        //"--wait-for-debugger",
                 },
-                annotation.verifyByDefault()
+                annotation.verifyByDefault(),
+                false
         );
     }
 

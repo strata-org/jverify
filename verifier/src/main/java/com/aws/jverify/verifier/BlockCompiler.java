@@ -2,7 +2,6 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -497,14 +496,15 @@ public class BlockCompiler {
                         var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
                         var condition = new LetExpr(origin, List.of(new CasePattern(origin, paramName, 
                                 new BoundVar(origin, new Name(origin, paramName), type, false), null)), 
-                                List.of(new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null)), postconditionPredicate, true, null);
+                                List.of(new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null)), postconditionPredicate, true, null);
                         
                         if (postconditionPredicate != null) {
                             header.postconditions.add(new AttributedExpression(condition, null, null));
                         }
                     } else if (first instanceof JCTree.JCMemberReference memberReference) {
                         var origin = compiler.toOrigin(memberReference);
-                        var argBindings = List.of(new ActualBinding(null, new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
+                        var argBindings = List.of(new ActualBinding(null, 
+                                new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
                         var callee = new ExprDotName(origin, 
                                 compiler.expressionCompiler.toExpr(memberReference.expr), 
                                 compiler.getName(memberReference, memberReference.name), null);
@@ -586,7 +586,7 @@ public class BlockCompiler {
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
-                var classBaseType = new NameSegment(baseType.getOrigin(), "_Class_" + baseType.getName(), baseType.getOptTypeArguments());
+                var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), baseType.getOptTypeArguments());
                 var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
                 return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));

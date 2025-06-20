@@ -24,13 +24,25 @@ import java.util.List;
 public class NameCompiler {
     static private final String fieldPrefix = "F_";
     static private final String methodPrefix = "Z_";
-    public static final String CTOR_PREFIX = "_ctor_";
+    public String DEFAULT_CTOR_NAME = "ctor";
+    public static final String NON_DEFAULT_CTOR_NAME = "ctor";
+    public String METHOD_RETURN_VARIABLE_NAME = "result";
+    public String CLASS_PREFIX = "Class_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
+    private final boolean avoidCollisionsUsingUnderscores;
+    private String INIT_METHOD_PREFIX = "init_";
 
-    public NameCompiler() {
+    public NameCompiler(boolean avoidCollisionsUsingUnderscores) {
+        this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
+        if (this.avoidCollisionsUsingUnderscores) {
+            DEFAULT_CTOR_NAME = "_" + DEFAULT_CTOR_NAME;
+            INIT_METHOD_PREFIX = "_" + INIT_METHOD_PREFIX;
+            CLASS_PREFIX = "_" + CLASS_PREFIX;
+            METHOD_RETURN_VARIABLE_NAME = "_" + METHOD_RETURN_VARIABLE_NAME;
+        }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
     }
@@ -46,6 +58,12 @@ public class NameCompiler {
         return name;
     }
 
+
+    public String getInitMethodName(Symbol.MethodSymbol constructor) {
+        var className = this.getCompiledName(constructor.enclClass());
+        return INIT_METHOD_PREFIX  + className;
+    }
+    
     public String getCompiledName(Symbol s) {
         if (symbolStringMap.containsKey(s)) {
             return symbolStringMap.get(s);
@@ -95,9 +113,9 @@ public class NameCompiler {
         StringBuilder result = new StringBuilder();
                 
         ClassNameStats classStats = getGetClassNameStats(s.enclClass(), s.name);
+        boolean willSuffixWithArguments = classStats.methodsWithThisName() == 1;
         if (s.name.equals(s.name.table.names.init)) {
-            Symbol.ClassSymbol enclosingClass = s.enclClass();
-            result.append(getConstructorName(enclosingClass));
+            result.append(getConstructorName(willSuffixWithArguments));
         }
         else {
             if (classStats.sameNameFields()) {
@@ -105,7 +123,7 @@ public class NameCompiler {
             }
             result.append(s.name);
         }
-        if (classStats.methodsWithThisName() == 1) {
+        if (willSuffixWithArguments) {
             return result.toString();
         }
         addArgumentTypes(s, result);
@@ -173,7 +191,7 @@ public class NameCompiler {
 
     private record ClassNameStats(boolean sameNameFields, int methodsWithThisName) {}
 
-    public static String getConstructorName(Symbol.ClassSymbol enclosingClass) {
-        return CTOR_PREFIX + enclosingClass.name.toString();
+    public String getConstructorName(boolean nonDefaultConstructor) {
+        return nonDefaultConstructor ? NON_DEFAULT_CTOR_NAME : DEFAULT_CTOR_NAME;
     }
 }
