@@ -148,14 +148,10 @@ public class BlockCompiler {
             // so that we can have allocation in e.
             var exprOrigin = compiler.toOrigin(expr);
             var returnExpr = toAssignmentRhs(expr);
-            var newLocalVarName = getTmpVariableName();
-            var newLocalVar = new LocalVariable(exprOrigin,
-                    newLocalVarName, null, false);
-            var newLocalVarExpr = new NameSegment(exprOrigin, newLocalVarName, null);
-            var varDeclStmt = new VarDeclStmt(exprOrigin, null, List.of(newLocalVar), null);
+            var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
             var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
-            var returnStmt = new ReturnStmt(origin, null, List.of(new ExprRhs(exprOrigin, null,newLocalVarExpr)));
-            return List.of(varDeclStmt, assignment,returnStmt);
+            var returnStmt = new ReturnStmt(origin, null, null);
+            return List.of(assignment,returnStmt);
         }
     }
 
@@ -250,10 +246,6 @@ public class BlockCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
-    }
-    
-    private String getTmpVariableName() {
-        return compiler.nameCompiler.TEMP_VAR_PREFIX +(generatedIndex++);
     }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride) {
