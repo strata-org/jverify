@@ -3,10 +3,11 @@ JVerify intends to support the full Java language, but is currently being develo
 # Supported Java features
 - All literals
 - All operators
-  - Equality operators (`==` and `!=`) are not allowed when either operand's type could be String, a record, or a boxed primitive, *and* neither operand is a null literal or of primitive type.
+  - Equality operators (`==` and `!=`) are not allowed when both operands' types could be String, a record, or a boxed primitive, *and* neither operand is a `null` literal.
     These types are treated as values instead of as references, and accordingly `.equals()` should be used instead.
-    - For example, if `a` and `b` are statically of type `Object`, then `a == b` is not allowed but `a == null` is allowed.
-    - As another example, if `i` and `j` are statically of type `Integer` and `k` is of type `int`, then `i == j` is not allowed but `i == 0` and `j == k` are allowed.
+    For example:
+    - If `a` and `b` are statically of type `Object`, then `a == b` is not allowed but `a == null` is allowed.
+    - If `i` and `j` are statically of type `Integer` and `k` is of type `int`, then `i == j` is not allowed but `i == 0` and `j == k` are allowed.
 - `switch` expressions and statements using switch rules (`case ... -> ...`), although without pattern matching and yield statements
 - Field access: `a.x`
 - Array access: `a[i]`

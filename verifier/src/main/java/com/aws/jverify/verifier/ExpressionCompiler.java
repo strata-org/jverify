@@ -327,9 +327,12 @@ public class ExpressionCompiler {
             // In both cases the Java semantics are preserved in translation.
             isSafe |= leftType.isPrimitive() || rightType.isPrimitive();
 
-            // If both operands are definitely not of JRDV types,
-            // then the Java semantics are preserved in translation.
-            isSafe |= !(isPossiblyJrdvType(leftType) || isPossiblyJrdvType(rightType));
+            // If one operand is definitely not of a JRDV type,
+            // then since we already checked that it's not of primitive type,
+            // we know that it's of reference type and will be translated to a Dafny reference type.
+            // The type of the other operand doesn't matter:
+            // if it's of JRDV type then the comparison will be rejected during Dafny resolution.
+            isSafe |= !isPossiblyJrdvType(leftType) || !isPossiblyJrdvType(rightType);
 
             if (!isSafe) {
                 compiler.reportError(node, "equalityOperatorRestricted", opName);
@@ -358,6 +361,10 @@ public class ExpressionCompiler {
      * Returns whether a value of the given type is possibly a "Java-Reference-as-Dafny-Value" type ("JRDV type").
      */
     private boolean isPossiblyJrdvType(com.sun.tools.javac.code.Type type) {
+        if (type.isPrimitive()) {
+            return false;
+        }
+
         var types = Types.instance(this.compiler.context);
         return Stream.concat(primitiveTypes().stream(), jrdvTypes().stream())
                 .anyMatch(t -> types.isAssignable(type, t) || types.isAssignable(t, type));

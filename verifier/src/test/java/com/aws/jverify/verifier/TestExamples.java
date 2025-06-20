@@ -1,38 +1,35 @@
 package com.aws.jverify.verifier;
 
-import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.testengine.JVerifyTestEngine;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 public class TestExamples {
-
     @Test
     public void testFibonacci() throws IOException {
         var markedSourcePath = Path.of("Fibonacci.java");
-        verifyPath(markedSourcePath, 0, 4, 0, List.of());
+        verifyPath(markedSourcePath, 0, 4, 0);
     }
 
     
     @Test
     public void testUserProfile() throws IOException {
         var markedSourcePath = Path.of("UserProfile.java");
-        verifyPath(markedSourcePath, 0, 6, 0, List.of());
+        verifyPath(markedSourcePath, 0, 6, 0);
     }
     
     @Test
     public void testBinarySearch() throws IOException {
         var markedSourcePath = Path.of("BinarySearch.java");
-        verifyPath(markedSourcePath, 0, 3, 0, List.of());
+        verifyPath(markedSourcePath, 0, 3, 0);
     }
     
-    private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors, List<AnnotatedRange> ranges) throws IOException {
+    private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors) throws IOException {
         var markedSource = Files.readString(Path.of("../examples/src/test/java/com/aws/jverify/examples/").resolve(path));
-        JVerifyTestEngine.verifyFile(new SourceFile(path, markedSource),
-                JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, dafnyVerified, dafnyErrors), List.of());
+        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, dafnyVerified, dafnyErrors);
+        JVerifyTestEngine.testMarkedSource(new SourceFile(path, markedSource), annotation);
     }
 }
