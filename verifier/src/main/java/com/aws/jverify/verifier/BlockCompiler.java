@@ -253,7 +253,7 @@ public class BlockCompiler {
     }
     
     private String getTmpVariableName() {
-        return "#_tmpVar_"+(generatedIndex++);
+        return compiler.nameCompiler.TEMP_VAR_PREFIX +(generatedIndex++);
     }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride) {
