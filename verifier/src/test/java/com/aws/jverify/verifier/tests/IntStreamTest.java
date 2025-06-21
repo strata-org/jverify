@@ -25,23 +25,23 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 @JVerifyTest(dafnyVerified = 0, dafnyErrors = 0)
-public class Collections {
+public class IntStreamTest {
 
     void Foo() {
         IntStream s  = IntStream.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
     }
 }
 
-@Contract(IntStream.class)
-class IntStreamContract implements IntStream {
+@Contract(java.util.stream.IntStream.class)
+class IntStreamContract implements java.util.stream.IntStream {
 
     @Override
-    public IntStream filter(IntPredicate predicate) {
+    public java.util.stream.IntStream filter(IntPredicate predicate) {
         throw new ContractException();
     }
 
     @Override
-    public IntStream map(IntUnaryOperator mapper) {
+    public java.util.stream.IntStream map(IntUnaryOperator mapper) {
         throw new ContractException();
     }
 
@@ -61,32 +61,32 @@ class IntStreamContract implements IntStream {
     }
 
     @Override
-    public IntStream flatMap(IntFunction mapper) {
+    public java.util.stream.IntStream flatMap(IntFunction mapper) {
         throw new ContractException();
     }
 
     @Override
-    public IntStream distinct() {
+    public java.util.stream.IntStream distinct() {
         throw new ContractException();
     }
 
     @Override
-    public IntStream sorted() {
+    public java.util.stream.IntStream sorted() {
         throw new ContractException();
     }
 
     @Override
-    public IntStream peek(IntConsumer action) {
+    public java.util.stream.IntStream peek(IntConsumer action) {
         throw new ContractException();
     }
 
     @Override
-    public IntStream limit(long maxSize) {
+    public java.util.stream.IntStream limit(long maxSize) {
         throw new ContractException();
     }
 
     @Override
-    public IntStream skip(long n) {
+    public java.util.stream.IntStream skip(long n) {
         throw new ContractException();
     }
 
@@ -191,22 +191,22 @@ class IntStreamContract implements IntStream {
     }
 
     @Override
-    public IntStream sequential() {
+    public java.util.stream.IntStream sequential() {
         throw new ContractException();
     }
 
     @Override
-    public IntStream parallel() {
+    public java.util.stream.IntStream parallel() {
         throw new ContractException();
     }
 
     @Override
-    public IntStream unordered() {
+    public java.util.stream.IntStream unordered() {
         throw new ContractException();
     }
 
     @Override
-    public IntStream onClose(Runnable closeHandler) {
+    public java.util.stream.IntStream onClose(Runnable closeHandler) {
         throw new ContractException();
     }
 

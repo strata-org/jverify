@@ -1331,6 +1331,11 @@ public class JavaToDafnyCompiler {
                 if (className.toString().equals(String.class.getName())) {
                     return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
                 }
+                // TODO: Better check. But watch out for getName() and $
+                if (className.toString().equals("com.aws.jverify.JVerify.Sequence")) {
+                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
+                    return new SeqType(origin, arguments);
+                }
 
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);

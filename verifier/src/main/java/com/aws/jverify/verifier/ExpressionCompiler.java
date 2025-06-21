@@ -345,6 +345,11 @@ public class ExpressionCompiler {
             case "drop" -> {
                 return toSubsequence(origin, receiver, args.getFirst(), null);
             }
+            case "get" -> {
+                var seq = toExpr(receiver);
+                var index = toExpr(args.getFirst());
+                return new SeqSelectExpr(compiler.toOrigin(invocation), true, seq, index, null, null);
+            }
             case "take" -> {
                 return toSubsequence(origin, receiver, null, args.getFirst());
             }
@@ -355,6 +360,10 @@ public class ExpressionCompiler {
                 var element = toExpr(args.getFirst());
                 var seq = toExpr(receiver);
                 return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, seq);
+            }
+            case "size" -> {
+                var seq = toExpr(receiver);
+                return new UnaryOpExpr(compiler.toOrigin(invocation), seq, UnaryOpExprOpcode.Cardinality);
             }
             case "old" -> {
                 var element = toExpr(args.getFirst());
