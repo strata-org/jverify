@@ -702,11 +702,9 @@ public class JavaToDafnyCompiler {
     /**
      * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
      */
-    private static List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
-                                                              IOrigin origin, Name name,
-                                                              ArrayList<MemberDecl> members,
-                                                              List<TypeParameter> typeParameters,
-                                                              List<Type> superTraits) {
+    private List<ClassLikeDecl> buildTraitAndClassTwin(
+            JCTree.JCClassDecl classDecl, IOrigin origin, Name name,
+            ArrayList<MemberDecl> members, List<TypeParameter> typeParameters, List<Type> superTraits) {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
         var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
@@ -742,9 +740,7 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        if (!isInterface(classDecl.sym) || classDecl.getModifiers().getAnnotations().stream().
-                anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
-                        ident.name.contentEquals(Modifiable.class.getSimpleName()))) {
+        if (!isInterface(classDecl.sym) || isAnnotated(classDecl.type, Modifiable.class)) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
 
@@ -997,12 +993,18 @@ public class JavaToDafnyCompiler {
         return isAnnotated(type, com.aws.jverify.Nullable.class);
     }
 
+    /**
+     * Returns {@code true} if the given modifier tree contains an annotation of the given class.
+     */
     private boolean isAnnotated(JCTree.JCModifiers modifiers, Class<? extends Annotation> clazz) {
         return modifiers != null && modifiers.getAnnotations().stream().anyMatch(a ->
                 TreeInfo.symbol(a.getAnnotationType()) instanceof Symbol symbol
                         && symbol.flatName().contentEquals(clazz.getName()));
     }
 
+    /**
+     * Returns {@code true} if the given type is annotated with the given annotation class.
+     */
     private boolean isAnnotated(com.sun.tools.javac.code.Type type, Class<? extends Annotation> clazz) {
         var metadata = type.getMetadata(TypeMetadata.Annotations.class);
         // In some JDK distributions, this conditional is necessary to detect the annotation.
@@ -1018,7 +1020,7 @@ public class JavaToDafnyCompiler {
      */
     private boolean isAnnotatedRecursive(com.sun.tools.javac.code.Type type, Class<? extends Annotation> clazz) {
         var types = Types.instance(context);
-        return types.closure(type).stream().anyMatch(supertype -> isAnnotated(supertype, clazz));
+        return types.closure(type).stream().anyMatch(t -> isAnnotated(t, clazz));
     }
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
