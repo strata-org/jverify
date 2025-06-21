@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(exitCode = 2)
@@ -54,5 +55,17 @@ class RecordsErrors {
             return 4;  // chosen by fair dice roll.
                        // guaranteed to be random.
         }
+    }
+
+    record DoorStuck() implements IDoor {
+//  ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
+        @Override public boolean open() { return false; }
+        @Override public boolean close() { return false; }
+    }
+
+    @Modifiable
+    interface IDoor {
+        boolean open();
+        boolean close();
     }
 }

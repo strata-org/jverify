@@ -42,6 +42,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.File;
+import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -743,7 +744,7 @@ public class JavaToDafnyCompiler {
 
         if (!isInterface(classDecl.sym) || classDecl.getModifiers().getAnnotations().stream().
                 anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
-                        ident.name.contentEquals("Modifiable"))) {
+                        ident.name.contentEquals(Modifiable.class.getSimpleName()))) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
 
@@ -850,6 +851,9 @@ public class JavaToDafnyCompiler {
 
     private IndDatatypeDecl translateRecord(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         assert classDecl.getKind() == Tree.Kind.RECORD;
+        if (isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
+            reportError(origin, "modifiableForbidden", "a record class");
+        }
 
         var typeParams = translateTypeParameters(classDecl.typarams);
 
@@ -985,24 +989,37 @@ public class JavaToDafnyCompiler {
         return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
     }
 
-    public boolean isNullable(JCTree.JCModifiers modifiers) {
-        return modifiers != null && modifiers.getAnnotations().stream().anyMatch(
-                a -> a.getAnnotationType() instanceof JCTree.JCIdent ident && ident.name.contentEquals("Nullable"));
+    private boolean isNullable(JCTree.JCModifiers modifiers) {
+        return isAnnotated(modifiers, com.aws.jverify.Nullable.class);
     }
 
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
-        TypeMetadata.Annotations metadata = type.getMetadata(TypeMetadata.Annotations.class);
-        if (metadata != null) {
-            // In some JDK distributions, this conditional is necessary to detect the nullable annotation.
-            if (metadata.annotationBuffer().stream().
-                    anyMatch(s -> s.type.tsym.getQualifiedName().contentEquals(
-                            com.aws.jverify.Nullable.class.getName()))) {
-                return true;
-            }
-        }
-        return type.getAnnotation(com.aws.jverify.Nullable.class) != null;
+        return isAnnotated(type, com.aws.jverify.Nullable.class);
     }
 
+    private boolean isAnnotated(JCTree.JCModifiers modifiers, Class<? extends Annotation> clazz) {
+        return modifiers != null && modifiers.getAnnotations().stream().anyMatch(a ->
+                TreeInfo.symbol(a.getAnnotationType()) instanceof Symbol symbol
+                        && symbol.flatName().contentEquals(clazz.getName()));
+    }
+
+    private boolean isAnnotated(com.sun.tools.javac.code.Type type, Class<? extends Annotation> clazz) {
+        var metadata = type.getMetadata(TypeMetadata.Annotations.class);
+        // In some JDK distributions, this conditional is necessary to detect the annotation.
+        if (metadata != null && metadata.annotationBuffer().stream()
+                .anyMatch(s -> s.type.tsym.getQualifiedName().contentEquals(clazz.getName()))) {
+            return true;
+        }
+        return type.getAnnotation(clazz) != null || type.tsym.getAnnotation(clazz) != null;
+    }
+
+    /**
+     * Returns {@code true} if the given type or any of its supertypes is annotated with the given annotation class.
+     */
+    private boolean isAnnotatedRecursive(com.sun.tools.javac.code.Type type, Class<? extends Annotation> clazz) {
+        var types = Types.instance(context);
+        return types.closure(type).stream().anyMatch(supertype -> isAnnotated(supertype, clazz));
+    }
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         return translateMethodOrLambda(method, method.getModifiers(), method.sym, method.body, method.typarams, null);
