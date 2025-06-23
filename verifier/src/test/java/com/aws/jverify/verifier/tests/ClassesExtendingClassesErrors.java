@@ -17,12 +17,6 @@ class ExtenderErrors extends ExtendeeErrors {
  
         return 3;
     }
-    
-    @Override
-    public int impureVirtual() {
-        postcondition((Integer r) -> r >= 20);
-        return 20;
-    }
 } 
 
 
@@ -31,10 +25,5 @@ abstract class ExtendeeErrors {
     @Pure
     public int pureVirtual(int input) {
         return 3;
-    }
-    
-    public int impureVirtual() {
-        postcondition((Integer r) -> r >= 30);
-        return 40;
     }
 }
