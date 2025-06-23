@@ -9,5 +9,5 @@ public class InterfacesTranslation { }
 interface HasNoContractMethod {
     @Pure
     int hasNoContract();
-//      ^ error: method 'hasNoContract' without a body still needs a contract. Using @Contract to specify a contract class.
+//      ^ error: method 'hasNoContract' without a body still needs a contract. Use @Contract to specify a contract class.
 }
