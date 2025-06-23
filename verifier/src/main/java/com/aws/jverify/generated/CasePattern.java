@@ -12,9 +12,10 @@ public class CasePattern<VT> extends NodeWithOrigin {
   private final VT var;
 
   @Nullable
-  private final List<CasePattern> arguments;
+  private final List<com.aws.jverify.generated.CasePattern<VT>> arguments;
 
-  public CasePattern(IOrigin origin, String id, VT var, List<CasePattern> arguments) {
+  public CasePattern(IOrigin origin, String id, VT var,
+      List<com.aws.jverify.generated.CasePattern<VT>> arguments) {
     super(origin);
     this.id = id;
     this.var = var;
@@ -29,7 +30,7 @@ public class CasePattern<VT> extends NodeWithOrigin {
     return this.var;
   }
 
-  public List<CasePattern> getArguments() {
+  public List<com.aws.jverify.generated.CasePattern<VT>> getArguments() {
     return this.arguments;
   }
 }

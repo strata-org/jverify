@@ -5,6 +5,7 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
 
+import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -86,7 +87,8 @@ public class NameCompiler {
                 return getMethodName(m);
             }
             case Symbol.VarSymbol varSymbol -> {
-                if (varSymbol.getKind().isField()) {
+                if (varSymbol.getKind().isField()
+                        || varSymbol.getKind() == ElementKind.RECORD_COMPONENT) {
                     return getFieldName(varSymbol);
                 } else { // Local variable, do not change
                     return s.name.toString();

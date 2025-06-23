@@ -88,7 +88,7 @@ public class CSharpToJavaConverter {
         while (classWithBodyMatcher.find()) {
             String abstractKeyword = classWithBodyMatcher.group("abstract");
             String className = classWithBodyMatcher.group("name");
-            String typeParams = classWithBodyMatcher.group("typeParams");  // Type parameters (e.g., "T")
+            String classTypeParams = classWithBodyMatcher.group("typeParams");  // Type parameters (e.g., "T")
             String parentClass = classWithBodyMatcher.group("parentClass"); // Parent class
             String constraints = classWithBodyMatcher.group("constraints"); // Type constraints
             String classBody = classWithBodyMatcher.group("body");
@@ -96,8 +96,8 @@ public class CSharpToJavaConverter {
             CSharpClass csharpClass = new CSharpClass(abstractKeyword != null, className, parentClass);
 
             // Parse type parameters and constraints
-            if (typeParams != null) {
-                String[] params = typeParams.split(",");
+            if (classTypeParams != null) {
+                String[] params = classTypeParams.split(",");
                 for (String param : params) {
                     String paramName = param.trim();
                     String constraint = null;
@@ -118,16 +118,12 @@ public class CSharpToJavaConverter {
             }
 
             // Parse fields
-            Pattern fieldPattern = Pattern.compile(
-                    "(.*)\\s+(\\w+)\\s*;"
-            );
-            Matcher fieldMatcher = fieldPattern.matcher(classBody);
-
+            var fieldPattern = Pattern.compile("\\s+(?<fieldType>.*)\\s+(?<fieldName>\\w+)\\s*;");
+            var fieldMatcher = fieldPattern.matcher(classBody);
             while (fieldMatcher.find()) {
-                String typeString = fieldMatcher.group(1);
-                String fieldName = fieldMatcher.group(2);
-
-                CSharpType fieldType = CSharpType.parse(typeString);
+                var typeString = fieldMatcher.group("fieldType");
+                var fieldName = fieldMatcher.group("fieldName");
+                var fieldType = CSharpType.parse(typeString);
                 csharpClass.fields.add(new CSharpField(fieldType, fieldName));
             }
 
@@ -149,7 +145,7 @@ public class CSharpToJavaConverter {
     private TypeName convertCSharpTypeToJavaFieldType(CSharpType type, List<TypeParameter> classTypeParameters) {
         // Check if the type is a type parameter
         Optional<TypeParameter> typeParam = classTypeParameters.stream()
-                .filter(tp -> tp.name.equals(type))
+                .filter(tp -> tp.name.equals(type.typeName))
                 .findFirst();
 
         if (typeParam.isPresent()) {
@@ -161,7 +157,7 @@ public class CSharpToJavaConverter {
             return TypeVariableName.get(type.typeName);
         }
 
-        String baseType = convertCSharpTypeToJava(type.typeName);
+        String baseType = convertCSharpBaseTypeToJava(type.typeName);
 
         if (!type.hasGenericArguments()) {
             return ClassName.get("", baseType);
@@ -182,7 +178,7 @@ public class CSharpToJavaConverter {
                     if (genericTypeParam.isPresent()) {
                         return TypeVariableName.get(typeArgument.typeName);
                     }
-                    return ClassName.get("", convertCSharpTypeToJava(typeArgument.typeName));
+                    return convertCSharpTypeToJavaFieldType(typeArgument, classTypeParameters);
                 }).toArray(TypeName[]::new));
     }
 
@@ -298,21 +294,22 @@ public class CSharpToJavaConverter {
         }
     }
 
-    private static String convertCSharpTypeToJava(String csharpType) {
-        Map<String, String> typeMap = new HashMap<>();
-        typeMap.put("string", "String");
-        typeMap.put("int", "int");
-        typeMap.put("bool", "boolean");
-        typeMap.put("Int32", "int");
-        typeMap.put("double", "double");
-        typeMap.put("List", "List");
-        typeMap.put("ModuleDefinition", "ModuleDefinition");
-        typeMap.put("TopLevelDecl", "TopLevelDecl");
-        typeMap.put("Node", "Node");
-        typeMap.put("NodeWithComputedRange", "NodeWithComputedRange");
-        typeMap.put("Attributes", "Attributes");
+    private static final Map<String, String> CSHARP_TYPES_TO_JAVA_TYPES = Map.ofEntries(
+            Map.entry("string", "String"),
+            Map.entry("int", "int"),
+            Map.entry("bool", "boolean"),
+            Map.entry("Int32", "int"),
+            Map.entry("double", "double"),
+            Map.entry("List", "List"),
+            Map.entry("ModuleDefinition", "ModuleDefinition"),
+            Map.entry("TopLevelDecl", "TopLevelDecl"),
+            Map.entry("Node", "Node"),
+            Map.entry("NodeWithComputedRange", "NodeWithComputedRange"),
+            Map.entry("Attributes", "Attributes")
+    );
 
-        return typeMap.getOrDefault(csharpType, csharpType);
+    private static String convertCSharpBaseTypeToJava(String csharpType) {
+        return CSHARP_TYPES_TO_JAVA_TYPES.getOrDefault(csharpType, csharpType);
     }
 
     private static String capitalize(String str) {
