@@ -29,7 +29,11 @@ public class GeneratedNameCollisions {
         
         public void init_Base() {
         }
+        public void _init_Base() {
+        }
         public void ctor_Base() {
+        }
+        public void _ctor_Base() {
         }
     }
 
@@ -40,7 +44,11 @@ public class GeneratedNameCollisions {
 
         public void init_Extendee() {
         }
+        public void _init_Extendee() {
+        }
         public void ctor_Extendee() {
+        }
+        public void _ctor_Extendee() {
         }
     }
 }
