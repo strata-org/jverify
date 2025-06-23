@@ -21,8 +21,8 @@ JVerify intends to support the full Java language, but is currently being develo
 - Type casts: `(SomeType)someValue`
 - `class`, but only without type parameters
 - `interface`, but only without type parameters
-- `implements`, but only classes implementing interfaces
-- `extends`, but only interfaces extending interfaces
+- `implements`
+- `extends`
 - Lambda expressions
 - Method references
 - Type parameters, but only those without bounds and no wildcards
@@ -55,7 +55,7 @@ Nothing yet
 - Wildcards: `?`
 - `permits`
 - Verification of annotations
-- For now, JVerify can only specify contracts that require none of the arguments or `this` are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
+- For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
 
 [//]: # (# Do not need to mention)
 
