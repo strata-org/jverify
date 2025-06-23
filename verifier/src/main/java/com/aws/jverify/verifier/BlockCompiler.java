@@ -487,16 +487,15 @@ public class BlockCompiler {
                         var origin = compiler.toOrigin(lambda);
                         var paramName = parameter.getName().toString();
                         var type = compiler.translateType(null, parameter.type, compiler.toOrigin(parameter));
+
+                        var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
+                        var lhs = new CasePattern<>(origin, paramName, returnVar, null);
+                        var rhs = TreeInfo.isConstructor(header.treeOrigin)
+                                ? new ThisExpr(origin)
+                                : new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
                         var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
-                        if (origCondition != null) {
-                            var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
-                            var lhs = new CasePattern<>(origin, paramName, returnVar, null);
-                            var rhs = TreeInfo.isConstructor(header.treeOrigin)
-                                    ? new ThisExpr(origin)
-                                    : new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
-                            var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
-                            header.postconditions.add(new AttributedExpression(condition, null, null));
-                        }
+                        var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
+                        header.postconditions.add(new AttributedExpression(condition, null, null));
                     } else if (first instanceof JCTree.JCMemberReference memberReference) {
                         var origin = compiler.toOrigin(memberReference);
                         var argBindings = List.of(new ActualBinding(null,

@@ -341,7 +341,7 @@ public class ExpressionCompiler {
 
             if (!isSafe) {
                 compiler.reportError(node, "equalityOperatorRestricted", opName);
-                return null;
+                return JavaToDafnyCompiler.getHole(origin);
             }
         }
 
