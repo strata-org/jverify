@@ -706,7 +706,7 @@ public class JavaToDafnyCompiler {
         var classMembers = new ArrayList<MemberDecl>();
         var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
 
-        var inheritedMembers = new HashSet<Symbol.MethodSymbol>();
+        var inheritedMembers = new LinkedHashSet<Symbol.MethodSymbol>();
         getAllMethods(classDecl.sym, inheritedMembers);
         var classMethodNames = new HashSet<String>();
         
@@ -792,7 +792,7 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private void getAllMethods(Symbol.ClassSymbol classSymbol, Set<Symbol.MethodSymbol> result) {
+    private void getAllMethods(Symbol.ClassSymbol classSymbol, LinkedHashSet<Symbol.MethodSymbol> result) {
         for(var member : classSymbol.members().getSymbols()) {
             if (member instanceof Symbol.MethodSymbol methodSymbol) {
                 result.add(methodSymbol);
