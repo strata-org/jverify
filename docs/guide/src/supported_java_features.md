@@ -25,7 +25,8 @@ JVerify intends to support the full Java language, but is currently being develo
 - `extends`, but only interfaces extending interfaces
 - Lambda expressions
 - Method references
-- Type parameters, but only those without bounds and no wildcards
+- Type parameters, including type parameter bounds
+- Type arguments, but only those without wildcards
 
 # Supported Java standard library packages
 

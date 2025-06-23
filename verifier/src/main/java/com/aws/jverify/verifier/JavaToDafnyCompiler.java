@@ -795,9 +795,6 @@ public class JavaToDafnyCompiler {
     private List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
         return typarams.stream().map(p -> {
             var name = getName(p, p.getName());
-            if (!p.bounds.isEmpty()) {
-               reportError(p, "notSupported", "type bounds");
-            }
             var bounds = p.bounds.map(this::translateType);
             return new TypeParameter(toOrigin(p),
                     name, null, TPVarianceSyntax.NonVariant_Strict,
