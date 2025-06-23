@@ -294,23 +294,19 @@ public class CSharpToJavaConverter {
         }
     }
 
-    private static final Map<String, String> CSHARP_TYPES_TO_JAVA_TYPES;
-    static {
-        var typeMap = new HashMap<String, String>();
-        typeMap.put("string", "String");
-        typeMap.put("int", "int");
-        typeMap.put("bool", "boolean");
-        typeMap.put("Int32", "int");
-        typeMap.put("double", "double");
-        typeMap.put("List", "List");
-        typeMap.put("ModuleDefinition", "ModuleDefinition");
-        typeMap.put("TopLevelDecl", "TopLevelDecl");
-        typeMap.put("Node", "Node");
-        typeMap.put("NodeWithComputedRange", "NodeWithComputedRange");
-        typeMap.put("Attributes", "Attributes");
-        //noinspection Java9CollectionFactory
-        CSHARP_TYPES_TO_JAVA_TYPES = Collections.unmodifiableMap(typeMap);
-    }
+    private static final Map<String, String> CSHARP_TYPES_TO_JAVA_TYPES = Map.ofEntries(
+            Map.entry("string", "String"),
+            Map.entry("int", "int"),
+            Map.entry("bool", "boolean"),
+            Map.entry("Int32", "int"),
+            Map.entry("double", "double"),
+            Map.entry("List", "List"),
+            Map.entry("ModuleDefinition", "ModuleDefinition"),
+            Map.entry("TopLevelDecl", "TopLevelDecl"),
+            Map.entry("Node", "Node"),
+            Map.entry("NodeWithComputedRange", "NodeWithComputedRange"),
+            Map.entry("Attributes", "Attributes")
+    );
 
     private static String convertCSharpBaseTypeToJava(String csharpType) {
         return CSHARP_TYPES_TO_JAVA_TYPES.getOrDefault(csharpType, csharpType);
