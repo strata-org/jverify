@@ -50,17 +50,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static com.aws.jverify.verifier.NameCompiler.CTOR_PREFIX;
-
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
-    public static final String METHOD_RETURN_VARIABLE_NAME = "#_r";
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
     private final Stack<IOrigin> contextOrigins = new Stack<>();
     public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-    public final NameCompiler nameCompiler = new NameCompiler();
+    public final NameCompiler nameCompiler;
     private JCDiagnostic.Factory diagnosticFactory;
 
     /**
@@ -85,6 +82,11 @@ public class JavaToDafnyCompiler {
         shouldVerifies.push(verifierOptions.verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
+        nameCompiler = new NameCompiler(verifierOptions.avoidCollisionsUsingUnderscores());
+    }
+
+    public String getInitMethodName(String className, String constructorName) {
+        return constructorName.replace("ctor", nameCompiler.INIT_METHOD_PREFIX) + "_" + className;
     }
 
     public NameCompiler getNameMangler() {
@@ -694,7 +696,7 @@ public class JavaToDafnyCompiler {
     /**
      * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
      */
-    private static List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
+    private List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
                                                               IOrigin origin, Name name,
                                                               ArrayList<MemberDecl> members,
                                                               List<TypeParameter> typeParameters,
@@ -718,7 +720,7 @@ public class JavaToDafnyCompiler {
                 }
                 case Constructor constructor -> {
                     classNeeded = true;
-                    Method initMethod = constructorToInitMethod(constructor);
+                    Method initMethod = constructorToInitMethod(name.getValue(), constructor);
                     if (initMethod != null) {
                         traitMembers.add(initMethod);
                     }
@@ -746,7 +748,7 @@ public class JavaToDafnyCompiler {
                         new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
 
         if (classNeeded) {
-            var clazz = new ClassDecl(origin, new Name(name.getOrigin(), "_Class_" + name.getValue()), null,
+            var clazz = new ClassDecl(origin, new Name(name.getOrigin(), nameCompiler.CLASS_PREFIX + name.getValue()), null,
                     typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
             return List.of(trait, clazz);
         } else {
@@ -758,13 +760,13 @@ public class JavaToDafnyCompiler {
      * To support 'super(...)' calls, we translate each Java constructor to an 'init' method in the Dafny trait
      * The Dafny class constructor then calls the init method of the related trait, and of the trait of its parent type. 
      */
-    private static Method constructorToInitMethod(Constructor constructor) {
+    private Method constructorToInitMethod(String className, Constructor constructor) {
         if (constructor.getBody() == null) {
             return null;
         }
         BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(), 
                 constructor.getBody().getBodyInit());
-        Name nameNode = new Name(constructor.getNameNode().getOrigin(), getInitMethodName(constructor.getNameNode().getValue()));
+        Name nameNode = new Name(constructor.getNameNode().getOrigin(), getInitMethodName(className, constructor.getNameNode().getValue()));
         var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
         var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
         frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));
@@ -773,10 +775,6 @@ public class JavaToDafnyCompiler {
                 constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
                 modClause,
                 false, List.of(), body, false);
-    }
-
-    public static String getInitMethodName(String constructorName) {
-        return "_init_" + constructorName.substring(CTOR_PREFIX.length());
     }
 
     private Symbol.ClassSymbol getCurrentTypeSymbol(JCTree.JCClassDecl classDecl) {
@@ -967,12 +965,7 @@ public class JavaToDafnyCompiler {
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
         var methodCompiler = new BlockCompiler(this);
-        Name name;
-        if (typeForWhichCurrentClassIsDefiningContract != null && isConstructor(methodSymbol)) {
-            name = getName(source, NameCompiler.getConstructorName(typeForWhichCurrentClassIsDefiningContract)); 
-        } else {
-            name = getName(source, methodSymbol);
-        }
+        var name = getName(source, methodSymbol);
         var origin = declToOrigin(source, name);
         var isStatic = isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, origin);
@@ -1023,7 +1016,7 @@ public class JavaToDafnyCompiler {
         if (methodSymbol.type.getReturnType() != null) {
             var returnType = translateType(methodSymbol.type.getReturnType(), bodyOrigin);
             if (returnType != null) {
-                outs.add(new Formal(origin, new Name(origin, METHOD_RETURN_VARIABLE_NAME), returnType,
+                outs.add(new Formal(origin, new Name(origin, nameCompiler.METHOD_RETURN_VARIABLE_NAME), returnType,
                         false, false, null, null, false, false, false, null));
             }
         }

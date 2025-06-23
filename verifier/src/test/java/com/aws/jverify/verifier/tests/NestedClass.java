@@ -3,11 +3,16 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 0, dafnyErrors = 0)
+import static com.aws.jverify.JVerify.check;
+
+@JVerifyTest(exitCode = 4, dafnyVerified = 0, dafnyErrors = 1)
 public class NestedClass {
     @Nullable Nestee nestee;
     public class Nestee {
-        
+        void checkFalse() {
+            check(false);
+//          ^^^^^^^^^^^^ Error: assertion might not hold
+        }
     }
 }
 
