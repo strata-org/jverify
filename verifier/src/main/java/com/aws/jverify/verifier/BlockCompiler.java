@@ -2,7 +2,6 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -495,7 +494,7 @@ public class BlockCompiler {
                         
                         var type = compiler.translateType(null, parameter.type, compiler.toOrigin(parameter));
                         var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
-                        var condition = new LetExpr(origin, List.of(new CasePattern(origin, paramName, 
+                        var condition = new LetExpr(origin, List.of(new CasePattern<>(origin, paramName,
                                 new BoundVar(origin, new Name(origin, paramName), type, false), null)), 
                                 List.of(new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null)), postconditionPredicate, true, null);
                         

@@ -6,7 +6,6 @@ import com.aws.jverify.common.Common;
 import com.sun.source.tree.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
-import com.sun.source.util.Trees;
 import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.api.MultiTaskListener;
@@ -79,6 +78,8 @@ public class JavaToDafnyCompiler {
 
     private final List<Symbol.MethodSymbol> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
+    private final Map<Symbol.MethodSymbol, MemberDecl> intermediateMethodsToSymbols = new HashMap<>();
+    private int implementationIndex = 0;
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -686,7 +687,7 @@ public class JavaToDafnyCompiler {
                 filter(this::typeHasAContract).
                 map((com.sun.tools.javac.code.Type type) -> translateType(null, type, origin)).
                 collect(Collectors.<Type>toList());
-        
+
         var typeParameters = translateTypeParameters(classDecl.typarams);
         return buildTraitAndClassTwin(classDecl, origin, name, members, typeParameters, superTraits);
     }
@@ -694,21 +695,41 @@ public class JavaToDafnyCompiler {
     /**
      * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
      */
-    private static List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
+    private List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
                                                               IOrigin origin, Name name,
                                                               ArrayList<MemberDecl> members,
                                                               List<TypeParameter> typeParameters,
-                                                              List<Type> superTraits) {
+                                                              List<Type> superTraits) {       
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
         var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
+
+        var inheritedMembers = new HashSet<Symbol.MethodSymbol>();
+        getAllMethods(classDecl.sym, inheritedMembers);
+        var classMethodNames = new HashSet<String>();
+        
         for(var member : members) {
             switch (member) {
                 case Method method when !method.getHasStaticKeyword() -> {
                     if (method.getBody() == null) {
+                        classMethodNames.add(method.getNameNode().getValue());
                         classMembers.add(member);
                     }
-                    traitMembers.add(member);
+
+                    var declaration = new Method(method.getOrigin(), method.getNameNode(), null, false, null,
+                            method.getTypeArgs(), method.getIns(),
+                            method.getReq(), method.getEns(), method.getReads(),
+                            method.getDecreases(), method.getMod(), method.getHasStaticKeyword(),
+                            method.getOuts(), null, method.getIsByMethod());
+                    traitMembers.add(declaration);
+
+                    var implementation = new Method(method.getOrigin(), new Name(method.getNameNode().getOrigin(), 
+                            "#_impl_" + (implementationIndex++) + "_" + method.getNameNode().getValue()), null, false, null,
+                            method.getTypeArgs(), method.getIns(),
+                            method.getReq(), method.getEns(), method.getReads(),
+                            method.getDecreases(), method.getMod(), method.getHasStaticKeyword(), 
+                            method.getOuts(), method.getBody(), method.getIsByMethod());
+                    traitMembers.add(implementation);
                 }
                 case Function function -> {
                     traitMembers.add(function);
@@ -730,7 +751,22 @@ public class JavaToDafnyCompiler {
                             null);
                     classMembers.add(classConstructor);
                 }
-                case null, default -> traitMembers.add(member);
+                default -> traitMembers.add(member);
+            }
+        }
+        
+        for(var inherited : inheritedMembers) {
+            var intermediateMember = intermediateMethodsToSymbols.get(inherited);
+            if (intermediateMember instanceof Method method && !method.getHasStaticKeyword()) {
+                if (!classMethodNames.add(method.getNameNode().getValue())) {
+                    continue;
+                }
+                var declaration = new Method(method.getOrigin(), method.getNameNode(), null, false, null,
+                        method.getTypeArgs(), method.getIns(),
+                        method.getReq(), method.getEns(), method.getReads(),
+                        method.getDecreases(), method.getMod(), method.getHasStaticKeyword(),
+                        method.getOuts(), null, method.getIsByMethod());
+                classMembers.add(declaration);
             }
         }
 
@@ -751,6 +787,21 @@ public class JavaToDafnyCompiler {
             return List.of(trait, clazz);
         } else {
             return List.of(trait);
+        }
+    }
+
+    private void getAllMethods(Symbol.ClassSymbol classSymbol, Set<Symbol.MethodSymbol> result) {
+        for(var member : classSymbol.members().getSymbols()) {
+            if (member instanceof Symbol.MethodSymbol methodSymbol) {
+                result.add(methodSymbol);
+            }
+        }
+        for(var inter : classSymbol.getInterfaces()) {
+            getAllMethods((Symbol.ClassSymbol) inter.tsym, result);
+        }
+        
+        if (classSymbol.getSuperclass().tsym instanceof Symbol.ClassSymbol superSymbol) {
+            getAllMethods(superSymbol, result);
         }
     }
 
@@ -848,7 +899,9 @@ public class JavaToDafnyCompiler {
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
-                return translateMethodDecl(method);
+                MethodOrFunction methodOrFunction = translateMethodDecl(method);
+                intermediateMethodsToSymbols.put(method.sym, methodOrFunction);
+                return methodOrFunction;
             }
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateField(variableDecl);
