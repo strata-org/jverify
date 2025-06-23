@@ -184,7 +184,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         : Stream.of(diagnostic))
                 .map(JVerifyTestEngine::diagnosticAsAnnotatedRange)
                 .sorted()
-                .distinct()
                 .toList();
         var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
