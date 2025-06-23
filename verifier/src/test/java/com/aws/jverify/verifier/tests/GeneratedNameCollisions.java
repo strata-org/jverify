@@ -13,6 +13,7 @@ public class GeneratedNameCollisions {
         postcondition((Integer result) -> result < 3);
         int result;
         int g_result;
+        int _g_result;
         return 2;
     }
     

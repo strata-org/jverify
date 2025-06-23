@@ -41,7 +41,7 @@ public class NameCompiler {
             DEFAULT_CTOR_NAME = "_" + DEFAULT_CTOR_NAME;
             INIT_METHOD_PREFIX = "_" + INIT_METHOD_PREFIX;
             CLASS_PREFIX = "_" + CLASS_PREFIX;
-            METHOD_RETURN_VARIABLE_NAME = "_" + METHOD_RETURN_VARIABLE_NAME;
+            METHOD_RETURN_VARIABLE_NAME = "#" + METHOD_RETURN_VARIABLE_NAME;
         }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
