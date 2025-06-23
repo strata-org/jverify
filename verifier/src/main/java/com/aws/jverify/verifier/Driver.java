@@ -239,7 +239,9 @@ public class Driver {
     }
 
     public static void runDafnyProcess(NameCompiler nameCompiler,
-                                       String program, VerifierOptions verifierOptions, VerificationResults outResults) {
+                                       String program, 
+                                       VerifierOptions verifierOptions,
+                                       VerificationResults outResults) {
         // First check the Dafny version is correct
         checkDafnyVersion(verifierOptions);
 

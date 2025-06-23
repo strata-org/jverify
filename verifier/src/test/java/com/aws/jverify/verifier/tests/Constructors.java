@@ -4,7 +4,7 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 1, resolvePrintedDafny = true)
 class Constructors {
     private int f;
     private int g = 22;

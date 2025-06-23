@@ -2,7 +2,6 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -149,14 +148,10 @@ public class BlockCompiler {
             // so that we can have allocation in e.
             var exprOrigin = compiler.toOrigin(expr);
             var returnExpr = toAssignmentRhs(expr);
-            var newLocalVarName = getTmpVariableName();
-            var newLocalVar = new LocalVariable(exprOrigin,
-                    newLocalVarName, null, false);
-            var newLocalVarExpr = new NameSegment(exprOrigin, newLocalVarName, null);
-            var varDeclStmt = new VarDeclStmt(exprOrigin, null, List.of(newLocalVar), null);
+            var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
             var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
-            var returnStmt = new ReturnStmt(origin, null, List.of(new ExprRhs(exprOrigin, null,newLocalVarExpr)));
-            return List.of(varDeclStmt, assignment,returnStmt);
+            var returnStmt = new ReturnStmt(origin, null, null);
+            return List.of(assignment,returnStmt);
         }
     }
 
@@ -251,10 +246,6 @@ public class BlockCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
-    }
-    
-    private String getTmpVariableName() {
-        return "#_tmpVar_"+(generatedIndex++);
     }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride) {
@@ -357,7 +348,8 @@ public class BlockCompiler {
             }
 
             var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor);
-            var initName = JavaToDafnyCompiler.getInitMethodName(baseConstructorName);
+            var baseConstructorClassName = compiler.nameCompiler.getCompiledName(baseConstructor.enclClass());
+            var initName = compiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
             var arguments = invocation.getArguments().stream().map(
                     e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
             var applySuffix = new ApplySuffix(origin,
@@ -501,13 +493,14 @@ public class BlockCompiler {
                             var lhs = new CasePattern<>(origin, paramName, returnVar, null);
                             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                                     ? new ThisExpr(origin)
-                                    : new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null);
+                                    : new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
                             var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
                             header.postconditions.add(new AttributedExpression(condition, null, null));
                         }
                     } else if (first instanceof JCTree.JCMemberReference memberReference) {
                         var origin = compiler.toOrigin(memberReference);
-                        var argBindings = List.of(new ActualBinding(null, new NameSegment(origin, JavaToDafnyCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
+                        var argBindings = List.of(new ActualBinding(null,
+                                new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
                         var callee = new ExprDotName(origin,
                                 compiler.expressionCompiler.toExpr(memberReference.expr),
                                 compiler.getName(memberReference, memberReference.name), null);
@@ -591,7 +584,7 @@ public class BlockCompiler {
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
-                var classBaseType = new NameSegment(baseType.getOrigin(), "_Class_" + baseType.getName(), baseType.getOptTypeArguments());
+                var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), baseType.getOptTypeArguments());
                 var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
                 var argBindings = newClass.getArguments().stream()
