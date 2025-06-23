@@ -218,7 +218,7 @@ public class ExpressionCompiler {
                     boolean methodContainerTypeIsParameter = fieldAccess.selected.type instanceof com.sun.tools.javac.code.Type.TypeVar;
                     if (methodContainerTypeIsParameter) {
                         var classType = fieldAccess.sym.enclClass().type;
-                        // Dafny need an explicit cast otherwise it won't find the members from the type parameter bounds
+                        // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
                         selectedDafnyExpr = new ConversionExpr(origin, selectedDafnyExpr, compiler.translateType(classType, origin), "");
                     }
                     return new ExprDotName(origin, selectedDafnyExpr, compiler.getName(fieldAccess, fieldName), null);
