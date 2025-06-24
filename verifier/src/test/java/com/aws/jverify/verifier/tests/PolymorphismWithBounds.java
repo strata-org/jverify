@@ -8,6 +8,18 @@ import static com.aws.jverify.JVerify.*;
 @JVerifyTest(exitCode = 0, dafnyVerified = 8, dafnyErrors = 0)
 public class PolymorphismWithBounds {
     
+    public static void root() {
+        var dog = new Dog();
+        var cat = new Cat();
+        PetContainer<Dog> container = new PetContainer<Dog>(dog);
+        container.doFeed();
+
+        PetContainer<Cat> container2 = new PetContainer<Cat>(cat);
+        container2.doFeed();
+
+        feedAndSocialize(dog);
+    }
+    
     static <T extends Canid & Pet> void feedAndSocialize(T a) {
         a.feed();
         a.socialize();
