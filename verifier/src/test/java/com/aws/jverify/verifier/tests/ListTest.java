@@ -4,6 +4,7 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Erased;
 import com.aws.jverify.JVerify;
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -33,6 +34,8 @@ import java.util.stream.Stream;
 
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
+import static com.aws.jverify.JVerify.precondition;
+import static com.aws.jverify.JVerify.reads;
 
 @JVerifyTest(dafnyVerified = 0, dafnyErrors = 0)
 public class ListTest {
@@ -40,40 +43,38 @@ public class ListTest {
     void Foo() {
         var s  = List.of("one", "two", "three");
         check(s.size() == 3);
-        check(s.get(1) == "two");
+        check(s.get(1).equals("two"));
     }
 }
 
 @Contract
+@Modifiable
 abstract class ListContract<E> implements List<E> {
 
     JVerify.Sequence<E> elements;
 
-//    @Override
-//    public boolean contains(Object o) {
-//        postcondition((boolean r) -> r == elements.contains(o));
-//    }
-
     static <E> List<E> of(E e1, E e2) {
         postcondition((List<E> r) ->
+                r.size() == 2 &&
                 r.get(0) == e1 &&
-                        r.get(1) == e2 &&
-                        r.size() == 2);
+                r.get(1) == e2);
         throw new ContractException();
     }
 
     static <E> List<E> of(E e1, E e2, E e3) {
         postcondition((List<E> r) ->
+                r.size() == 3 &&
                 r.get(0) == e1 &&
                 r.get(1) == e2 &&
-                r.get(2) == e3 &&
-                r.size() == 3);
+                r.get(2) == e3);
         throw new ContractException();
     }
 
     @Override
     @Pure
     public E get(int index) {
+        reads(this);
+        precondition(0 <= index && index < size());
         postcondition((E e) -> e == elements.get(index));
         throw new ContractException();
     }
@@ -81,7 +82,14 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public int size() {
+        reads(this);
         postcondition((Integer s) -> s == elements.size());
+        throw new ContractException();
+    }
+
+    @Override
+    public boolean contains(Object o) {
+        postcondition((Boolean r) -> r == JVerify.exists((Integer i) -> elements.get(i).equals(o)));
         throw new ContractException();
     }
 }

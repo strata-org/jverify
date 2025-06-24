@@ -92,6 +92,10 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public static <T> boolean exists(Function<T, Boolean> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
     /**
      * Returns a {@link Sequence} representing the contents of the specified array.
      */
@@ -169,7 +173,7 @@ public class JVerify {
         /**
          * Returns {@code true} if this sequence contains the specified element.
          */
-        default boolean contains(T element) {
+        default boolean contains(Object element) {
             throw new VerificationMethodExecutedException();
         }
 

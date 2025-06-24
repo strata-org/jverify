@@ -734,7 +734,7 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        if (!isInterface(classDecl.sym) || classDecl.getModifiers().getAnnotations().stream().
+        if (classDecl.getModifiers().getAnnotations().stream().
                 anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
                         ident.name.contentEquals("Modifiable"))) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
