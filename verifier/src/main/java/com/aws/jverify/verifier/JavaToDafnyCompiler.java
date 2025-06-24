@@ -726,7 +726,7 @@ public class JavaToDafnyCompiler {
                     traitMembers.add(declaration);
 
                     var implementation = new Method(method.getOrigin(), new Name(method.getNameNode().getOrigin(), 
-                            "#_impl_" + (implementationIndex++) + "_" + method.getNameNode().getValue()), null, false, null,
+                            nameCompiler.IMPLEMENTATION_METHOD_PREFIX + (implementationIndex++) + "_" + method.getNameNode().getValue()), null, false, null,
                             method.getTypeArgs(), method.getIns(),
                             method.getReq(), method.getEns(), method.getReads(),
                             method.getDecreases(), method.getMod(), method.getHasStaticKeyword(), 
