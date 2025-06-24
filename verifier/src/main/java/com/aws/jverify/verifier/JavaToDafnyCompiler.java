@@ -114,7 +114,14 @@ public class JavaToDafnyCompiler {
         List<FileStart> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
-            // fileDeclarations.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
+            fileDeclarations.sort(Comparator.comparing(t -> {
+                var startToken = switch(t.getOrigin()) {
+                    case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
+                    case TokenRangeOrigin tokenRangeOrigin -> tokenRangeOrigin.getStartToken();
+                    default -> throw new RuntimeException();
+                };
+                return compilationUnit.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
+            }));
             filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
         }
 
@@ -715,34 +722,16 @@ public class JavaToDafnyCompiler {
         var classMembers = new ArrayList<MemberDecl>();
         var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
 
-        var inheritedMembers = new LinkedHashSet<Symbol.MethodSymbol>();
-        getAllMethods(classDecl.sym, inheritedMembers);
+        var methodMembers = new LinkedHashSet<Symbol.MethodSymbol>();
+        getAllMethods(classDecl.sym, methodMembers);
         var classMethodNames = new HashSet<String>();
         
         for(var member : members) {
             switch (member) {
                 case Method method when !method.getHasStaticKeyword() -> {
-                    if (method.getBody() == null) {
-                        classMethodNames.add(method.getNameNode().getValue());
-                        classMembers.add(member);
-                    } else {
-                        var implementation = new Method(method.getOrigin(), new Name(method.getNameNode().getOrigin(),
-                                nameCompiler.IMPLEMENTATION_METHOD_PREFIX + (implementationIndex++) + "_" + method.getNameNode().getValue()), null, false, null,
-                                method.getTypeArgs(), method.getIns(),
-                                method.getReq(), method.getEns(), method.getReads(),
-                                method.getDecreases(), method.getMod(), method.getHasStaticKeyword(),
-                                method.getOuts(), method.getBody(), method.getIsByMethod());
-                        traitMembers.add(implementation);
-                    }
-
-                    var declaration = new Method(method.getOrigin(), method.getNameNode(), null, false, null,
-                            method.getTypeArgs(), method.getIns(),
-                            method.getReq(), method.getEns(), method.getReads(),
-                            method.getDecreases(), method.getMod(), method.getHasStaticKeyword(),
-                            method.getOuts(), null, method.getIsByMethod());
-                    traitMembers.add(declaration);
-                    
+                    traitMembers.add(member);
                 }
+                
                 case Function function -> {
                     traitMembers.add(function);
                     if (function.getBody() == null) {
@@ -767,7 +756,7 @@ public class JavaToDafnyCompiler {
             }
         }
         
-        for(var inherited : inheritedMembers) {
+        for(var inherited : methodMembers) {
             var intermediateMember = intermediateMethodsToSymbols.get(inherited);
             if (intermediateMember instanceof Method method && !method.getHasStaticKeyword()) {
                 if (!classMethodNames.add(method.getNameNode().getValue())) {
