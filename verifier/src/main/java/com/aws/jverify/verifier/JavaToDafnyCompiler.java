@@ -725,6 +725,14 @@ public class JavaToDafnyCompiler {
                     if (method.getBody() == null) {
                         classMethodNames.add(method.getNameNode().getValue());
                         classMembers.add(member);
+                    } else {
+                        var implementation = new Method(method.getOrigin(), new Name(method.getNameNode().getOrigin(),
+                                nameCompiler.IMPLEMENTATION_METHOD_PREFIX + (implementationIndex++) + "_" + method.getNameNode().getValue()), null, false, null,
+                                method.getTypeArgs(), method.getIns(),
+                                method.getReq(), method.getEns(), method.getReads(),
+                                method.getDecreases(), method.getMod(), method.getHasStaticKeyword(),
+                                method.getOuts(), method.getBody(), method.getIsByMethod());
+                        traitMembers.add(implementation);
                     }
 
                     var declaration = new Method(method.getOrigin(), method.getNameNode(), null, false, null,
@@ -733,14 +741,7 @@ public class JavaToDafnyCompiler {
                             method.getDecreases(), method.getMod(), method.getHasStaticKeyword(),
                             method.getOuts(), null, method.getIsByMethod());
                     traitMembers.add(declaration);
-
-                    var implementation = new Method(method.getOrigin(), new Name(method.getNameNode().getOrigin(), 
-                            nameCompiler.IMPLEMENTATION_METHOD_PREFIX + (implementationIndex++) + "_" + method.getNameNode().getValue()), null, false, null,
-                            method.getTypeArgs(), method.getIns(),
-                            method.getReq(), method.getEns(), method.getReads(),
-                            method.getDecreases(), method.getMod(), method.getHasStaticKeyword(), 
-                            method.getOuts(), method.getBody(), method.getIsByMethod());
-                    traitMembers.add(implementation);
+                    
                 }
                 case Function function -> {
                     traitMembers.add(function);
@@ -772,7 +773,7 @@ public class JavaToDafnyCompiler {
                 if (!classMethodNames.add(method.getNameNode().getValue())) {
                     continue;
                 }
-                var declaration = new Method(method.getOrigin(), method.getNameNode(), null, false, null,
+                var declaration = new Method(method.getOrigin(), method.getNameNode(), getVerifyFalse(method.getOrigin()), false, null,
                         method.getTypeArgs(), method.getIns(),
                         method.getReq(), method.getEns(), method.getReads(),
                         method.getDecreases(), method.getMod(), method.getHasStaticKeyword(),
