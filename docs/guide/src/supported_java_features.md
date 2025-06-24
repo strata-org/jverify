@@ -1,8 +1,13 @@
 JVerify intends to support the full Java language, but is currently being developed and only supports a subset of Java constructs. The supported and not supported features are listed below. If you encounter unsupported features that are not in the unsupported list, please create a GitHub issue.
 
-# Supported Java Features
-- All literals except strings
+# Supported Java features
+- All literals
 - All operators
+  - Equality operators (`==` and `!=`) are not allowed when both operands' types could be String, a record, or a boxed primitive, unless one of the operands is a `null` literal.
+    These types are treated as values instead of as references, and accordingly `.equals()` should be used instead.
+    For example:
+    - If `a` and `b` are statically of type `Object`, then `a == b` is not allowed but `a == null` is allowed.
+    - If `i` and `j` are statically of type `Integer` and `k` is of type `int`, then `i == j` is not allowed but `i == 0` and `j == k` are allowed.
 - `switch` expressions and statements using switch rules (`case ... -> ...`), although without pattern matching and yield statements
 - Field access: `a.x`
 - Array access: `a[i]`
@@ -21,6 +26,9 @@ JVerify intends to support the full Java language, but is currently being develo
 - Type casts: `(SomeType)someValue`
 - `class`, but only without type parameters
 - `interface`, but only without type parameters
+- `record`, with some restrictions:
+  - Explicit constructors and explicit accessors are not allowed
+  - Overriding `equals(Object)` or `hashCode()` is not allowed
 - `implements`
 - `extends`
 - Lambda expressions
@@ -45,7 +53,6 @@ Nothing yet
 - Use of mutating operators such as `=` in a nested expression
 - Operators on `float` and `double`
 - `instanceof <pattern>`, only when using a pattern
-- String literal: `"hello"`
 - String template: `STR."My name is \{name}"`
 - `throw`
 - `try`/`catch`/`finally`

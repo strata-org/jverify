@@ -5,6 +5,7 @@ import com.aws.jverify.generated.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -300,8 +301,9 @@ public class BlockCompiler {
         var origin = compiler.toOrigin(assignOp);
         Expression target = compiler.expressionCompiler.toExpr(assignOp.getVariable());
         List<Expression> lhss = List.of(target);
-        var operated = compiler.expressionCompiler.translateBinary(assignOp, assignOp.type, assignOp.getVariable().type, assignOp.getOperator(),
-                target, compiler.expressionCompiler.toExpr(assignOp.getExpression()));
+        var operated = compiler.expressionCompiler.translateBinary(
+                assignOp, assignOp.getVariable().type, null,
+                assignOp.getOperator(), target, compiler.expressionCompiler.toExpr(assignOp.getExpression()));
         List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
@@ -344,7 +346,7 @@ public class BlockCompiler {
             if (!compiler.symbolsWithAContract.contains(baseConstructor)) {
                 return List.of();
             }
-            
+
             var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor);
             var baseConstructorClassName = compiler.nameCompiler.getCompiledName(baseConstructor.enclClass());
             var initName = compiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
@@ -354,7 +356,7 @@ public class BlockCompiler {
                     new NameSegment(origin, initName, null), null, new ActualBindings(arguments), null);
             var initCall = new AssignStatement(origin, null, List.of(),
                     List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
-            
+
             return List.of(initCall);
         }
         var argBindings = invocation.getArguments().stream().map(
@@ -421,7 +423,7 @@ public class BlockCompiler {
     }
 
     /**
-     * @see #translateHeader(List, MethodOrLoopContract)
+     * @see #translateHeader(List, MethodOrLoopContract, boolean)
      */
     public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodOrLoopContract header, boolean reportErrors) {
         var statements = statement instanceof JCTree.JCBlock block
@@ -439,8 +441,8 @@ public class BlockCompiler {
      * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
      * namely, that it is backed by the original list.
      */
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, 
-                                                    MethodOrLoopContract header, 
+    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements,
+                                                    MethodOrLoopContract header,
                                                     boolean reportErrors) {
         var headerStatements = 0;
         JCTree.JCStatement callToSuper = null;
@@ -480,26 +482,26 @@ public class BlockCompiler {
                         if (lambda.getParameters().size() != 1) {
                             throw new JavaViolationException("A postcondition call lambda may take only one argument");
                         }
-                        
                         var parameter = lambda.params.getFirst();
                         var origin = compiler.toOrigin(lambda);
                         var paramName = parameter.getName().toString();
-                        
                         var type = compiler.translateType(null, parameter.type, compiler.toOrigin(parameter));
-                        var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
-                        var condition = new LetExpr(origin, List.of(new CasePattern<>(origin, paramName,
-                                new BoundVar(origin, new Name(origin, paramName), type, false), null)), 
-                                List.of(new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null)), postconditionPredicate, true, null);
+
+                        var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
+                        var lhs = new CasePattern<>(origin, paramName, returnVar, null);
+                        var rhs = TreeInfo.isConstructor(header.treeOrigin)
+                                ? new ThisExpr(origin)
+                                : new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
+                        var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
+                        var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
+                        header.postconditions.add(new AttributedExpression(condition, null, null));
                         
-                        if (postconditionPredicate != null) {
-                            header.postconditions.add(new AttributedExpression(condition, null, null));
-                        }
                     } else if (first instanceof JCTree.JCMemberReference memberReference) {
                         var origin = compiler.toOrigin(memberReference);
-                        var argBindings = List.of(new ActualBinding(null, 
+                        var argBindings = List.of(new ActualBinding(null,
                                 new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
-                        var callee = new ExprDotName(origin, 
-                                compiler.expressionCompiler.toExpr(memberReference.expr), 
+                        var callee = new ExprDotName(origin,
+                                compiler.expressionCompiler.toExpr(memberReference.expr),
                                 compiler.getName(memberReference, memberReference.name), null);
                         var call = new ApplySuffix(origin, callee, null,
                                 new ActualBindings(argBindings), null);
@@ -574,14 +576,20 @@ public class BlockCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                var argBindings = newClass.getArguments().stream().map(
-                        a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
+                if (((Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz)).isRecord()) {
+                    var datatypeValue = compiler.expressionCompiler.translateNewRecord(origin, newClass);
+                    return new ExprRhs(origin, null, datatypeValue);
+                }
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
                 var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), baseType.getOptTypeArguments());
                 var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
+                var argBindings = newClass.getArguments().stream()
+                        .map(a -> new ActualBinding(
+                                null, compiler.expressionCompiler.toExpr(a), false))
+                        .toList();
                 return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));
             }
             case JCTree.JCNewArray newArray -> {

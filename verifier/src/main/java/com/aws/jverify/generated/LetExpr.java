@@ -2,11 +2,12 @@ package com.aws.jverify.generated;
 
 // Generated LetExpr.java:
 // Generated from C# class
+import com.aws.jverify.generated.CasePattern;
 import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class LetExpr extends Expression {
-  private final List<CasePattern> lhss;
+  private final List<CasePattern<BoundVar>> lhss;
 
   private final List<Expression> rhss;
 
@@ -17,8 +18,8 @@ public class LetExpr extends Expression {
   @Nullable
   private final Attributes attributes;
 
-  public LetExpr(IOrigin origin, List<CasePattern> lhss, List<Expression> rhss, Expression body,
-      Boolean exact, Attributes attributes) {
+  public LetExpr(IOrigin origin, List<CasePattern<BoundVar>> lhss, List<Expression> rhss,
+      Expression body, Boolean exact, Attributes attributes) {
     super(origin);
     this.lhss = lhss;
     this.rhss = rhss;
@@ -27,7 +28,7 @@ public class LetExpr extends Expression {
     this.attributes = attributes;
   }
 
-  public List<CasePattern> getLhss() {
+  public List<CasePattern<BoundVar>> getLhss() {
     return this.lhss;
   }
 

@@ -68,7 +68,7 @@ public class Driver {
                 Files.createDirectories(verifierOptions.printBinaryDafny().getParent());
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
-            runDafnyProcess(compiler.getNameMangler(), program, verifierOptions, verificationResults);
+            runDafnyProcess(compiler.getNameCompiler(), program, verifierOptions, verificationResults);
         }
         return verificationResults;
     }
