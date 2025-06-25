@@ -721,21 +721,26 @@ public class JavaToDafnyCompiler {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
         var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
-
-        var methodMembers = new LinkedHashSet<Symbol.MethodSymbol>();
-        getAllMethods(classDecl.sym, methodMembers);
-        var classMethodNames = new HashSet<String>();
         
         for(var member : members) {
             switch (member) {
                 case Method method when !method.getHasStaticKeyword() -> {
                     traitMembers.add(member);
+                    if (method.getBody() == null) {
+                        classMembers.add(member); 
+                        // A bodyless trait in Dafny is abstract. 
+                        // You can not declare an assumed member in traits in Dafny
+                        // We add the assumed body to the class
+                    }
                 }
                 
                 case Function function -> {
                     traitMembers.add(function);
                     if (function.getBody() == null) {
-                        classMembers.add(member);
+                        // A bodyless trait in Dafny is abstract. 
+                        // You can not declare an assumed member in traits in Dafny
+                        // We add the assumed body to the class
+                        classMembers.add(member); 
                     }
                 }
                 case Constructor constructor -> {
@@ -755,21 +760,6 @@ public class JavaToDafnyCompiler {
                 default -> traitMembers.add(member);
             }
         }
-        
-        for(var inherited : methodMembers) {
-            var intermediateMember = intermediateMethodsToSymbols.get(inherited);
-            if (intermediateMember instanceof Method method && !method.getHasStaticKeyword()) {
-                if (!classMethodNames.add(method.getNameNode().getValue())) {
-                    continue;
-                }
-                var declaration = new Method(method.getOrigin(), method.getNameNode(), getVerifyFalse(method.getOrigin()), false, null,
-                        method.getTypeArgs(), method.getIns(),
-                        method.getReq(), method.getEns(), method.getReads(),
-                        method.getDecreases(), method.getMod(), method.getHasStaticKeyword(),
-                        method.getOuts(), null, method.getIsByMethod());
-                classMembers.add(declaration);
-            }
-        }
 
         if (!isInterface(classDecl.sym) || isAnnotated(classDecl.type, Modifiable.class)) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
@@ -786,21 +776,6 @@ public class JavaToDafnyCompiler {
             return List.of(trait, clazz);
         } else {
             return List.of(trait);
-        }
-    }
-
-    private void getAllMethods(Symbol.ClassSymbol classSymbol, LinkedHashSet<Symbol.MethodSymbol> result) {
-        for(var member : classSymbol.members().getSymbols()) {
-            if (member instanceof Symbol.MethodSymbol methodSymbol) {
-                result.add(methodSymbol);
-            }
-        }
-        for(var inter : classSymbol.getInterfaces()) {
-            getAllMethods((Symbol.ClassSymbol) inter.tsym, result);
-        }
-        
-        if (classSymbol.getSuperclass().tsym instanceof Symbol.ClassSymbol superSymbol) {
-            getAllMethods(superSymbol, result);
         }
     }
 
