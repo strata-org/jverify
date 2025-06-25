@@ -3,12 +3,10 @@ package com.aws.jverify.generated;
 // Generated TopLevelDeclWithMembers.java:
 // Generated from C# class
 import java.util.List;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 public abstract class TopLevelDeclWithMembers extends TopLevelDecl {
   private final List<MemberDecl> members;
 
-  @Nullable
   private final List<Type> traits;
 
   public TopLevelDeclWithMembers(IOrigin origin, Name nameNode, Attributes attributes,

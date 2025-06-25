@@ -68,7 +68,7 @@ public class Driver {
                 Files.createDirectories(verifierOptions.printBinaryDafny().getParent());
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
-            runDafnyProcess(compiler.getNameMangler(), program, verifierOptions, verificationResults);
+            runDafnyProcess(compiler.getNameCompiler(), program, verifierOptions, verificationResults);
         }
         return verificationResults;
     }
@@ -239,7 +239,9 @@ public class Driver {
     }
 
     public static void runDafnyProcess(NameCompiler nameCompiler,
-                                       String program, VerifierOptions verifierOptions, VerificationResults outResults) {
+                                       String program, 
+                                       VerifierOptions verifierOptions,
+                                       VerificationResults outResults) {
         // First check the Dafny version is correct
         checkDafnyVersion(verifierOptions);
 
