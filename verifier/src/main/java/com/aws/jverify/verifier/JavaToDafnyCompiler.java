@@ -1469,6 +1469,17 @@ public class JavaToDafnyCompiler {
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym), null));
             }
+            case com.sun.tools.javac.code.Type.WildcardType wildcardType -> {
+                var extendsBound = wildcardType.getExtendsBound();
+                if (extendsBound != null) {
+                    return translateType(extendsBound, origin);
+                }
+                var superBound = wildcardType.getSuperBound();
+                if (superBound != null) {
+                    return translateType(superBound, origin);
+                }
+                return new UserDefinedType(origin, new NameSegment(origin, "Never", null));
+            }
             default -> {
             }
         }
