@@ -24,8 +24,8 @@ JVerify intends to support the full Java language, but is currently being develo
 - Constructors
 - `instanceof`, but only without a pattern
 - Type casts: `(SomeType)someValue`
-- `class`, but only without type parameters
-- `interface`, but only without type parameters
+- `class`
+- `interface`
 - `implements`, but only classes implementing interfaces
 - `extends`, but only interfaces extending interfaces
 - `record`, with some restrictions:
@@ -33,7 +33,8 @@ JVerify intends to support the full Java language, but is currently being develo
   - Overriding `equals(Object)` or `hashCode()` is not allowed
 - Lambda expressions
 - Method references
-- Type parameters, but only those without bounds and no wildcards
+- Type parameters, including type parameter bounds
+- Type arguments, but only those without wildcards
 
 # Supported Java standard library packages
 
