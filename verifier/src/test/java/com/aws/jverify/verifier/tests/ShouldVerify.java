@@ -5,11 +5,17 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 0, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 5)
 public class ShouldVerify {}
 
 @Verify(value = true, overrideChildren = true)
 class ShouldVerify1 {
+    
+    @Verify(false)
+    public ShouldVerify1() {
+        check(false);
+//      ^^^^^^^^^^^^ Error: assertion might not hold
+    }
     
     @Verify(false)
     void foo1() {

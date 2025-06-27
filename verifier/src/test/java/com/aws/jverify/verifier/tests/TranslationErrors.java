@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -20,14 +21,8 @@ class TranslationErrors {
         var x = 3;
     }
     
-    int multipleReturnNames() {
-       postcondition((Integer i) -> i > 0);
-       postcondition((Integer j) -> j < 2);
-//                            ^ error: all postcondition lambda parameters must use the same name. Got j instead of i
-       return 1;
-    }
-    
     void quantifierNeedsLambdaArgument() {
+        check(forall((Integer i) -> i > 0));
         java.util.function.Function<Integer, Boolean> f =
                 (Integer i) -> i > 0;
         check(forall(f));
@@ -114,6 +109,72 @@ class TranslationErrors {
             default -> i * i * i;
         };
     }
-    
+
+    // This is intentional: primitives aren't nullable in Java.
+    static boolean nullablePrimitive(@Nullable int i) {
+//                                   ^ error: nullable primitive type is not supported
+        return i == 0;
+    }
+
+    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
+    static boolean nullableBoxed(@Nullable Integer i) {
+//                               ^ error: nullable primitive type is not supported
+        return i == 0;
+    }
+
+    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
+    static boolean nullableString(@Nullable String s) {
+//                                ^ error: nullable String type is not supported
+        return s == null;
+    }
+
+    record IntWrapper(int value) {}
+
+    @SuppressWarnings("unused")
+    record IntWrapperWrapper(@Nullable IntWrapper inner) {}
+//                                     ^ error: nullable record type is not supported
+
+    static boolean nullableRecord(@Nullable IntWrapper w) {
+//                                ^ error: nullable record type is not supported
+        return w == null;
+    }
+
+    static int referenceEquality(
+            Object o1, Object o2,
+            Integer i,
+            IntWrapper w1, IntWrapper w2
+    ) {
+        if (o1 == o2) {
+//             ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
+            return 0;
+        } else if (o1 == null) {
+            return 1;
+        } else if (null == o2) {
+            return 2;
+        } else if (i == o1) {
+//                   ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
+            return 3;
+        } else if (w1 == null) {
+            return 4;
+        } else if (w1 == w2) {
+//                    ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
+            return 5;
+        }
+
+        return -1;
+    }
+
+    record DummyRecord() {}
+
+    static class DummyClass {}
+
+    @SuppressWarnings("ConstantValue")
+    static void newInExpression() {
+        check(new DummyRecord() != null);
+
+        check(new DummyClass() != null);
+//            ^ error: using 'new' in an expression to create an instance of a non-record class is not supported
+    }
+
     void foo() {}
 }

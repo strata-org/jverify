@@ -4,17 +4,24 @@ import com.aws.jverify.JVerify;
 import com.aws.jverify.generated.*;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.TypeKind;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
+
+import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 
 public class ExpressionCompiler {
     JavaToDafnyCompiler compiler;
@@ -81,8 +88,6 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
-
-
     public Expression toExpr(JCTree.JCExpression expr) {
         return toExpr(expr, null);
     }
@@ -104,7 +109,7 @@ public class ExpressionCompiler {
                 switch (unary.getTag()) {
                     case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
                         compiler.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
-                        return compiler.getHole(origin);
+                        return JavaToDafnyCompiler.getHole(origin);
                     }
                     case JCTree.Tag.NOT -> {
                         return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
@@ -117,7 +122,7 @@ public class ExpressionCompiler {
                     }
                     default -> {
                         compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                        return compiler.getHole(origin);
+                        return JavaToDafnyCompiler.getHole(origin);
                     }
                 }
             }
@@ -125,10 +130,12 @@ public class ExpressionCompiler {
                 var left = toExpr(binary.getLeftOperand());
                 var right = toExpr(binary.getRightOperand());
                 Symbol.OperatorSymbol operator = binary.getOperator();
-                return translateBinary(binary, binary.type, binary.getLeftOperand().type, operator, left, right);
+                return translateBinary(
+                        binary, binary.getLeftOperand().type, binary.getRightOperand().type,
+                        operator, left, right);
             }
             case JCTree.JCIdent identifier -> {
-                var identName = compiler.nameMangler.mangleSymbolName(identifier.sym);
+                var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
                 if (identName.contentEquals("this")) {
                     return new ThisExpr(origin);
                 }
@@ -156,16 +163,32 @@ public class ExpressionCompiler {
                 var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
                 var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
 
+                final Expression receiver;
+                if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                    receiver = toExpr(fieldAccess.selected);
+                } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
+                    receiver = null;
+                } else {
+                    compiler.reportError(invocation, "notSupported", "call via method reference");
+                    receiver = JavaToDafnyCompiler.getHole(origin);
+                }
+
+                if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
+                        && ownerClass.isRecord()
+                        && invocation.getArguments().isEmpty()
+                ) {
+                    var component = ownerClass.getRecordComponents().stream()
+                            .filter(comp -> comp.name.equals(methodSymbol.name))
+                            .findAny();
+                    if (component.isPresent()) {
+                        var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get());
+                        var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
+                        return new ExprDotName(origin, receiver, fieldName, null);
+                    }
+                }
+
                 if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                         && ownerClass.fullname.contentEquals(String.class.getName())) {
-                    final Expression receiver;
-                    if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-                        receiver = toExpr(fieldAccess.selected);
-                    } else {
-                        compiler.reportError(invocation, "notSupported", "method reference call");
-                        receiver = compiler.getHole(origin);
-                    }
-
                     return switch (methodSymbol.name.toString()) {
                         case "charAt" -> new SeqSelectExpr(origin, true, receiver,
                                 argBindings.getFirst().getActual(), null, null);
@@ -195,7 +218,10 @@ public class ExpressionCompiler {
             }
             case JCTree.JCFieldAccess fieldAccess -> {
                 if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
-                    return new NameSegment(origin, compiler.nameMangler.mangleSymbolName(classSymbol), List.of());
+                    return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
+                }
+                if (fieldAccess.sym instanceof Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
+                    return translateDynamicMethod(origin, fieldAccess, dynamicMethodSymbol);
                 }
                 var selectedExpr = toExpr(fieldAccess.selected);
                 // TODO does this work if the selected expression isn't trivially of array type?
@@ -203,12 +229,19 @@ public class ExpressionCompiler {
                     return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
                 }
 
-                var fieldName = compiler.nameMangler.mangleSymbolName(fieldAccess.sym);
+                var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym);
                 if (compiler.isEnum(fieldAccess.selected)) {
                     return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                             null, new ActualBindings(List.of()), null);
                 } else {
-                    return new ExprDotName(origin, toExpr(fieldAccess.selected), compiler.getName(fieldAccess, fieldName), null);
+                    Expression selectedDafnyExpr = toExpr(fieldAccess.selected);
+                    boolean methodContainerTypeIsParameter = fieldAccess.selected.type instanceof com.sun.tools.javac.code.Type.TypeVar;
+                    if (methodContainerTypeIsParameter) {
+                        var classType = fieldAccess.sym.enclClass().type;
+                        // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
+                        selectedDafnyExpr = new ConversionExpr(origin, selectedDafnyExpr, compiler.translateType(classType, origin), "");
+                    }
+                    return new ExprDotName(origin, selectedDafnyExpr, compiler.getName(fieldAccess, fieldName), null);
                 }
             }
             case JCTree.JCArrayAccess arrayAccess -> {
@@ -221,7 +254,7 @@ public class ExpressionCompiler {
             }
             case JCTree.JCAssignOp assignOp -> {
                 compiler.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
-                return compiler.getHole(origin);
+                return JavaToDafnyCompiler.getHole(origin);
             }
             case JCTree.JCInstanceOf instanceOf -> {
                 var expression = toExpr(instanceOf.getExpression());
@@ -233,32 +266,17 @@ public class ExpressionCompiler {
                 var type = compiler.translateType(cast.getType());
                 return new ConversionExpr(origin, castExpr, type, "");
             }
-            case JCTree.JCLambda lambda -> {
-                var types = Types.instance(compiler.context);
-                var methodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(lambda.target.tsym);
-                var maker = TreeMaker.instance(compiler.context);
-                var methodDecl = compiler.translateMethodOrLambda(lambda, maker.Modifiers(0), methodSymbol, lambda.getBody(), List.of());
-
-                var datatypeName = "Lambda" + compiler.lambdaDatatypeDecls.size();
-                var datatypeNameNode = new Name(origin, datatypeName);
-                var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, List.of());
-                var trait = compiler.translateType(lambda.target, origin);
-                var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
-                        List.of(trait), List.of(datatypeCtor), false);
-                compiler.lambdaDatatypeDecls.add(datatypeDecl);
-
-                // TODO: Using a DatatypeValue directly ends up crashing when printing temp.dfy,
-                // because the printer tries to read DatatypeValue.Arguments before it's filled in by resolution.
-//                return new DatatypeValue(origin, datatypeName, datatypeName, new ActualBindings(List.of()));
-                return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
-            }
+            case JCTree.JCLambda _ ->
+                throw new RuntimeException("Lambdas should have been rewritten, but found one at " + origin);
+            case JCTree.JCMemberReference _ ->
+                throw new RuntimeException("Member references should have been rewritten, but found one at " + origin);
             case JCTree.JCTypeApply typeApply -> {
-                var type = this.toExpr(typeApply.getType());
+                var type = toExpr(typeApply.getType());
                 if (type instanceof NameSegment nameSegment) {
                     List<Type> arguments;
                     if (typeApply.getTypeArguments().isEmpty()) {
                         // Occurs when the type arguments were inferred
-                        arguments = typeApply.type.getTypeArguments().stream().map(t -> compiler.translateType(t, false, origin)).toList();
+                        arguments = typeApply.type.getTypeArguments().stream().map(t -> compiler.translateType(null, t, origin)).toList();
                     } else {
                         arguments = typeApply.getTypeArguments().stream().map(compiler::translateType).toList();
                     }
@@ -266,36 +284,124 @@ public class ExpressionCompiler {
                 }
                 throw new RuntimeException("All Dafny type references are NameSegments, since we do not use Dafny modules");
             }
+            case JCTree.JCNewClass newClass -> {
+                if (compiler.isRecord(newClass.type)) {
+                    return translateNewRecord(origin, newClass);
+                }
+                compiler.reportError(expr, "notSupported",
+                        "using 'new' in an expression to create an instance of a non-record class");
+                return JavaToDafnyCompiler.getHole(origin);
+            }
             case null, default -> {
             }
         }
-        compiler.reportError(expr, "notSupported", expr.getClass().getSimpleName());
-        return compiler.getHole(origin);
+        compiler.reportError(expr, "notSupported", expr.getClass().getSimpleName() + " in an expression");
+        return JavaToDafnyCompiler.getHole(origin);
     }
 
-    public Expression translateBinary(JCTree node,
-                                      com.sun.tools.javac.code.Type resultType,
-                                      com.sun.tools.javac.code.Type leftType,
-                                      Symbol.OperatorSymbol operator, Expression left, Expression right) {
+    /**
+     * Translates a binary operator expression to Dafny.
+     *
+     * @param rightType must be non-null if the operator is a comparison
+     */
+    public Expression translateBinary(
+            JCTree node,
+            com.sun.tools.javac.code.Type leftType,
+            com.sun.tools.javac.code.@Nullable Type rightType,
+            Symbol.OperatorSymbol operator,
+            Expression left,
+            Expression right) {
         var origin = compiler.toOrigin(node);
+        var opName = operator.name.toString();
         if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
             compiler.reportError(node, "notSupported", "operator " + operator);
         }
-        var isBitwise = switch (operator.name.toString()) {
+
+        if (opName.equals("==") || opName.equals("!=")) {
+            assert rightType != null;
+
+            // Some Java reference types are translated to Dafny value types
+            // (e.g. String translates to seq<char16>, record classes translate to datatypes);
+            // let's call these "Java-Reference-as-Dafny-Value types", or "JRDV types" for short.
+            // Distinct heap objects of JRDV type are certainly not equal according to Java's "==",
+            // but their translated values could be (structurally) equal according to Dafny's "==",
+            // and this difference in semantics could lead to unsoundness.
+            var isSafe = false;
+
+            // If either operand is definitely null,
+            // then comparison to a value of JRDV type will be rejected during Dafny resolution,
+            // because the translation of a JRDV type is a Dafny value type by definition.
+            isSafe |= leftType.getKind() == TypeKind.NULL || rightType.getKind() == TypeKind.NULL;
+
+            // If one operand is of primitive type,
+            // then the other operand must either also be of primitive type,
+            // or of a boxed type (in which case the operand undergoes unboxing promotion).
+            // In both cases the Java semantics are preserved in translation.
+            isSafe |= leftType.isPrimitive() || rightType.isPrimitive();
+
+            // If one operand is definitely not of a JRDV type,
+            // then since we already checked that it's not of primitive type,
+            // we know that it's of reference type and will be translated to a Dafny reference type.
+            // The type of the other operand doesn't matter:
+            // if it's of JRDV type then the comparison will be rejected during Dafny resolution.
+            isSafe |= !isPossiblyJrdvType(leftType) || !isPossiblyJrdvType(rightType);
+
+            if (!isSafe) {
+                compiler.reportError(node, "equalityOperatorRestricted", opName);
+                return JavaToDafnyCompiler.getHole(origin);
+            }
+        }
+
+        var isBitwise = switch (opName) {
             case "&", "|", "^", "<<", ">>", ">>>" -> true;
             default -> false;
         };
 
         if (isBitwise) {
             compiler.reportError(node, "notSupported", "operator " + operator);
-            return compiler.getHole(origin);
+            return JavaToDafnyCompiler.getHole(origin);
         }
         BinaryExprOpcode dafnyOperator = toDafny(operator);
         if (dafnyOperator == null) {
             compiler.reportError(node, "notSupported", "operator " + operator);
-            return compiler.getHole(origin);
+            return JavaToDafnyCompiler.getHole(origin);
         }
         return new BinaryExpr(origin, dafnyOperator, left, right);
+    }
+
+    /**
+     * Returns whether a value of the given type is possibly a "Java-Reference-as-Dafny-Value" type ("JRDV type").
+     */
+    private boolean isPossiblyJrdvType(com.sun.tools.javac.code.Type type) {
+        if (type.isPrimitive()) {
+            return false;
+        }
+
+        var types = Types.instance(this.compiler.context);
+        return Stream.concat(primitiveTypes().stream(), jrdvTypes().stream())
+                .anyMatch(t -> types.isAssignable(type, t) || types.isAssignable(t, type));
+    }
+
+    private List<com.sun.tools.javac.code.Type> primitiveTypes() {
+        var symtab = Symtab.instance(this.compiler.context);
+        return List.of(
+                symtab.booleanType,
+                symtab.byteType,
+                symtab.shortType,
+                symtab.charType,
+                symtab.intType,
+                symtab.longType,
+                symtab.floatType,
+                symtab.doubleType
+        );
+    }
+
+    /**
+     * Returns a list of the "Java-Reference-as-Dafny-Value" types ("JRDV types").
+     */
+    private List<com.sun.tools.javac.code.Type> jrdvTypes() {
+        var symtab = Symtab.instance(this.compiler.context);
+        return List.of(symtab.stringType, symtab.recordType);
     }
 
     /**
@@ -304,7 +410,7 @@ public class ExpressionCompiler {
      *
      * <p>Note: header methodContracts like {@link JVerify#precondition(boolean)}
      * and {@link JVerify#postcondition(boolean)}
-     * must be translated by {@link MethodCompiler#translateStatement(JCTree.JCStatement)},
+     * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
      */
     private @Nullable Expression jverifyLibMethodToExpr(JCTree.JCMethodInvocation invocation) {
@@ -331,7 +437,7 @@ public class ExpressionCompiler {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = compiler.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = compiler.translateType(param.getType().type, false, paramOrigin);
+                    var paramType = compiler.translateType(param.getModifiers(), param.getType().type, paramOrigin);
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = toExpr(lambda.getBody());
@@ -386,7 +492,6 @@ public class ExpressionCompiler {
         return new SeqSelectExpr(origin, false, seqOrArrayExpr, loExpr, hiExpr, null);
     }
 
-
     /**
      * Translates the given string literal to a Dafny expression (of type {@code jstring}).
      * For ease of debugging, the translation is the equivalent Dafny string literal
@@ -425,4 +530,101 @@ public class ExpressionCompiler {
             '\r', "\\r",
             '\t', "\\t"
     );
+
+    private Expression translateDynamicMethod(IOrigin origin, JCTree source, Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
+        //
+        // invokedynamic in general is an invocation of a given "bootstrap method handle",
+        // with a subset of the arguments provided statically.
+        // javac translates lambda expressions and method references
+        // to invokedynamic calls to java.lang.invoke.LambdaMetafactory.metafactory,
+        // which is a method that creates factories of objects that implement single-method interfaces.
+        // The static arguments in this case identify the target interface and
+        // the synthetic static method that holds the lambda implementation.
+        //
+        // We can implement the same semantics
+        // via a Dafny datatype that extends the equivalent trait
+        // and a single data constructor that holds on to the static arguments
+        // and prepends them to the arguments to the static method.
+        //
+        // E.g.:
+        //
+        // datatype Lambda42 extends SomethingDoer = Lambda42(p0: int, p1: int) {
+        //   method doSomething(x: int, y: int) returns (r: int) {
+        //     // doSomething$3 is a synthetic static method the UNLAMBDA phase extracted
+        //     r := doSomething$3(p0, p1, x, y);
+        //   }
+        // }
+
+        var types = Types.instance(compiler.context);
+        var names = Names.instance(compiler.context);
+        var maker = TreeMaker.instance(compiler.context).at(source.pos);
+        var symtab = Symtab.instance(compiler.context);
+        if (dynamicMethodSymbol.bsm.owner.type != symtab.lambdaMetafactory
+              || dynamicMethodSymbol.bsm.name != names.metafactory) {
+            compiler.reportError(source, "notSupported", "invokedynamic on " + dynamicMethodSymbol.bsm);
+            return JavaToDafnyCompiler.getHole(compiler.toOrigin(source));
+        }
+
+        // Translate to a method declaration
+        var interfaceType = dynamicMethodSymbol.dynamicType().getReturnType();
+        var interfaceMethodSymbol = (Symbol.MethodSymbol) types.findDescriptorSymbol(interfaceType.tsym);
+        com.sun.tools.javac.util.List<JCTree.JCVariableDecl> params = com.sun.tools.javac.util.List.nil();
+        int index = 0;
+        for (com.sun.tools.javac.code.Type pt : dynamicMethodSymbol.dynamicType().getParameterTypes()) {
+            var name = names.fromString("p" + index);
+            var symbol = new Symbol.VarSymbol(SYNTHETIC, name, pt, dynamicMethodSymbol);
+            params = params.append(maker.VarDef(symbol, null));
+            index++;
+        }
+        params = params.reverse();
+
+        // See the signature and documentation of java.lang.invoke.LambdaMetafactory.metafactory.
+        // We want the `MethodHandle implementation` parameter, which is in position 4 (with zero indexing)
+        // but the first three parameters are filled in by the JVM, so it ends up being at index 1.
+        var methodSymbol = (Symbol.MethodSymbol)((Symbol.MethodHandleSymbol)dynamicMethodSymbol.staticArgs[1]).baseSymbol();
+        var arguments = params.<JCTree.JCExpression>map(p -> maker.Ident(p.sym)).appendList(interfaceMethodSymbol.params().map(p -> maker.Ident(p)));
+        JCTree.JCExpression methodCall;
+        if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
+            var newClass = maker.NewClass(null, com.sun.tools.javac.util.List.nil(), maker.Type(methodSymbol.owner.type), arguments, null);
+            newClass.constructor = methodSymbol;
+            methodCall = newClass;
+        } else {
+            methodCall = methodSymbol.getModifiers().contains(Modifier.STATIC)
+                    ? maker.App(maker.QualIdent(methodSymbol), arguments)
+                    : maker.App(maker.Select(arguments.getFirst(), methodSymbol), arguments.tail);
+        }
+        JCTree.JCStatement returnStmt = maker.Return(methodCall);
+        var stmts = com.sun.tools.javac.util.List.of(returnStmt);
+        var body = maker.Block(0, stmts);
+        var contract = compiler.methodContracts.get(methodSymbol);
+        var methodDecl = compiler.translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
+
+        // Add a wrapper datatype with that method declaration to the outer scope
+        var datatypeName = "Lambda" + compiler.declarationsForFile.get(compiler.compilationUnit).size();
+        var datatypeNameNode = new Name(origin, datatypeName);
+        List<Formal> datatypeCtorParams = params.stream().map(p ->
+                new Formal(origin, compiler.getName(p, p.name), compiler.translateType(p.type, origin), false, true,
+                        null, null, false, false, false, null)).toList();
+        var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, datatypeCtorParams);
+        var trait = compiler.translateType(interfaceType, origin);
+        var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
+                List.of(trait), List.of(datatypeCtor), false);
+        compiler.declarationsForFile.get(compiler.compilationUnit).add(datatypeDecl);
+
+        // Produce the datatype constructor reference: LambdaX.LambdaX
+        return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
+    }
+
+    /**
+     * Translates the given {@code new RecordType(...)} invocation into a {@link DatatypeValue}
+     * that can be used in pure contexts.
+     */
+    DatatypeValue translateNewRecord(IOrigin origin, JCTree.JCNewClass newClass) {
+        var argBindings = newClass.getArguments().stream()
+                .map(a -> new ActualBinding(null, toExpr(a), false)).toList();
+        var datatypeName = compiler.getNameCompiler().getCompiledName(newClass.type.asElement());
+        return new DatatypeValue(
+                origin, datatypeName, datatypeName,
+                new ActualBindings(argBindings));
+    }
 }

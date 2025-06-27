@@ -2,26 +2,20 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
-import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.tree.TreeMaker;
 
-import javax.lang.model.type.ArrayType;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class MethodCompiler {
+public class BlockCompiler {
 
     private final JavaToDafnyCompiler compiler;
-    private final ExpressionCompiler expressionCompiler;
 
-    public MethodCompiler(JavaToDafnyCompiler compiler) {
+    public BlockCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
-        expressionCompiler = compiler.expressionCompiler;
     }
 
     private final Queue<Label> labels = new LinkedList<>();
@@ -63,7 +57,7 @@ public class MethodCompiler {
                 return translateReturn(returnStatement);
             }
             case JCTree.JCVariableDecl variableDecl -> {
-                return translateVariableDeclaration(origin, variableDecl.getName().toString(), variableDecl.getType(), variableDecl.getInitializer());
+                return translateVariableDeclaration(origin, variableDecl);
             }
             case JCTree.JCWhileLoop whileLoop -> {
                 return List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x));
@@ -90,7 +84,7 @@ public class MethodCompiler {
             default -> {
             }
         }
-        compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
+        compiler.reportError(statement, "notSupported", "statement " + statement.getClass().getSimpleName());
         return List.of();
     }
 
@@ -154,14 +148,10 @@ public class MethodCompiler {
             // so that we can have allocation in e.
             var exprOrigin = compiler.toOrigin(expr);
             var returnExpr = toAssignmentRhs(expr);
-            var newLocalVarName = getTmpVariableName();
-            var newLocalVar = new LocalVariable(exprOrigin,
-                    newLocalVarName, null, false);
-            var newLocalVarExpr = new NameSegment(exprOrigin, newLocalVarName, null);
-            var varDeclStmt = new VarDeclStmt(exprOrigin, null, List.of(newLocalVar), null);
+            var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
             var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
-            var returnStmt = new ReturnStmt(origin, null, List.of(new ExprRhs(exprOrigin, null,newLocalVarExpr)));
-            return List.of(varDeclStmt, assignment,returnStmt);
+            var returnStmt = new ReturnStmt(origin, null, null);
+            return List.of(assignment,returnStmt);
         }
     }
 
@@ -211,12 +201,12 @@ public class MethodCompiler {
         return List.of(firstBlock, whileLoop);
     }
 
-    private List<Statement> translateVariableDeclaration(IOrigin origin, String string, JCTree type, JCTree.JCExpression initializer) {
-        LocalVariable localVariable = new LocalVariable(origin,
-                string, compiler.translateType(type.type, false, origin), false);
+    private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
+        LocalVariable localVariable = new LocalVariable(origin, variableDecl.name.toString(),
+                compiler.translateType(variableDecl.getModifiers(), variableDecl.getType().type, origin), false);
         ConcreteAssignStatement dafnyInitializer = null;
-        if (initializer != null) {
-            var rhs = toAssignmentRhs(initializer);
+        if (variableDecl.getInitializer() != null) {
+            var rhs = toAssignmentRhs(variableDecl.getInitializer());
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
             dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
@@ -232,7 +222,7 @@ public class MethodCompiler {
                                     java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = translateHeader(body, header);
+        var postHeader = translateHeader(body, header, true);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -257,10 +247,6 @@ public class MethodCompiler {
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
     }
-    
-    private String getTmpVariableName() {
-        return "#_tmpVar_"+(generatedIndex++);
-    }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride) {
         var expr = statement.getExpression();
@@ -278,7 +264,7 @@ public class MethodCompiler {
                 return translateUnaryExpressionStatement(unary);
             }
             default -> {
-                compiler.reportError(statement, "notSupported", statement.getClass().getSimpleName());
+                compiler.reportError(statement, "notSupported", "expression statement with expr " + expr.getClass().getSimpleName());
                 return List.of();
             }
         }
@@ -315,8 +301,9 @@ public class MethodCompiler {
         var origin = compiler.toOrigin(assignOp);
         Expression target = compiler.expressionCompiler.toExpr(assignOp.getVariable());
         List<Expression> lhss = List.of(target);
-        var operated = compiler.expressionCompiler.translateBinary(assignOp, assignOp.type, assignOp.getVariable().type, assignOp.getOperator(),
-                target, compiler.expressionCompiler.toExpr(assignOp.getExpression()));
+        var operated = compiler.expressionCompiler.translateBinary(
+                assignOp, assignOp.getVariable().type, null,
+                assignOp.getOperator(), target, compiler.expressionCompiler.toExpr(assignOp.getExpression()));
         List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
@@ -353,12 +340,24 @@ public class MethodCompiler {
 
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
         var origin = compiler.toOrigin(invocation);
-        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name.contentEquals("super")) {
-            if (!invocation.getArguments().isEmpty()) {
-                compiler.reportError(invocation, "notSupported", "super calls with arguments");
+        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name == ident.name.table.names._super) {
+            Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) ident.sym;
+
+            if (!compiler.symbolsWithAContract.contains(baseConstructor)) {
                 return List.of();
             }
-            return List.of();
+
+            var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor);
+            var baseConstructorClassName = compiler.nameCompiler.getCompiledName(baseConstructor.enclClass());
+            var initName = compiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
+            var arguments = invocation.getArguments().stream().map(
+                    e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
+            var applySuffix = new ApplySuffix(origin,
+                    new NameSegment(origin, initName, null), null, new ActualBindings(arguments), null);
+            var initCall = new AssignStatement(origin, null, List.of(),
+                    List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
+
+            return List.of(initCall);
         }
         var argBindings = invocation.getArguments().stream().map(
                 a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
@@ -424,13 +423,13 @@ public class MethodCompiler {
     }
 
     /**
-     * @see #translateHeader(List, MethodOrLoopContract)
+     * @see #translateHeader(List, MethodOrLoopContract, boolean)
      */
-    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodOrLoopContract header) {
+    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, MethodOrLoopContract header, boolean reportErrors) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return translateHeader(statements, header);
+        return translateHeader(statements, header, reportErrors);
     }
 
     /**
@@ -442,7 +441,9 @@ public class MethodCompiler {
      * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
      * namely, that it is backed by the original list.
      */
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements, MethodOrLoopContract header) {
+    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements,
+                                                    MethodOrLoopContract header,
+                                                    boolean reportErrors) {
         var headerStatements = 0;
         JCTree.JCStatement callToSuper = null;
         statementLoop: for (var statement : statements) {
@@ -481,24 +482,30 @@ public class MethodCompiler {
                         if (lambda.getParameters().size() != 1) {
                             throw new JavaViolationException("A postcondition call lambda may take only one argument");
                         }
-                        var parameter = lambda.getParameters().getFirst();
+
+                        var parameter = lambda.params.getFirst();
                         var origin = compiler.toOrigin(lambda);
                         var paramName = parameter.getName().toString();
-                        
-                        // Only add the first return name or verify subsequent ones match
-                        if (header.returnName == null) {
-                            header.returnName = new Name(origin, paramName);
-                        } else {
-                            var firstName = header.returnName.getValue();
-                            if (!firstName.equals(paramName)) {
-                                compiler.reportError((JCTree) parameter, "multipleReturnNames", firstName, paramName);
-                            }
-                        }
-                        
-                        var postconditionPredicate = compiler.expressionCompiler.toExpr(lambda.getBody());
-                        if (postconditionPredicate != null) {
-                            header.postconditions.add(new AttributedExpression(postconditionPredicate, null, null));
-                        }
+                        var type = compiler.translateType(null, parameter.type, compiler.toOrigin(parameter));
+
+                        var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
+                        var lhs = new CasePattern<>(origin, paramName, returnVar, null);
+                        var rhs = TreeInfo.isConstructor(header.treeOrigin)
+                                ? new ThisExpr(origin)
+                                : new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
+                        var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
+                        var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
+                        header.postconditions.add(new AttributedExpression(condition, null, null));
+                    } else if (first instanceof JCTree.JCMemberReference memberReference) {
+                        var origin = compiler.toOrigin(memberReference);
+                        var argBindings = List.of(new ActualBinding(null,
+                                new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
+                        var callee = new ExprDotName(origin,
+                                compiler.expressionCompiler.toExpr(memberReference.expr),
+                                compiler.getName(memberReference, memberReference.name), null);
+                        var call = new ApplySuffix(origin, callee, null,
+                                new ActualBindings(argBindings), null);
+                        header.postconditions.add(new AttributedExpression(call, null, null));
                     } else {
                         var dafnyExpr = compiler.expressionCompiler.toExpr(first);
                         header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
@@ -534,13 +541,15 @@ public class MethodCompiler {
                     header.modifies.add(new FrameExpression(origin, expr, null));
                 }
                 default -> {
-                    compiler.reportError(invocation, "notSupported", methodName);
+                    if (reportErrors) {
+                        compiler.reportError(invocation, "notSupported", methodName);
+                    }
                     return null;
                 }
             }
             headerStatements++;
         }
-        var postHeaderStatements = new ArrayList<JCTree.JCStatement>(statements.subList(headerStatements, statements.size()));
+        var postHeaderStatements = new ArrayList<>(statements.subList(headerStatements, statements.size()));
         if (callToSuper != null) {
             postHeaderStatements.addFirst(callToSuper);
         }
@@ -567,33 +576,40 @@ public class MethodCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                var argBindings = newClass.getArguments().stream().map(
-                        a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
-                String ctorNameStr = compiler.nameMangler.mangleSymbolName(newClass.constructor);
+                if (((Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz)).isRecord()) {
+                    var datatypeValue = compiler.expressionCompiler.translateNewRecord(origin, newClass);
+                    return new ExprRhs(origin, null, datatypeValue);
+                }
+                String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
-                var baseType = expressionCompiler.toExpr(newClass.clazz);
-                var ty = new UserDefinedType(origin, new ExprDotName(origin, baseType, ctorName, null));
+                var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
+                var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), baseType.getOptTypeArguments());
+                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
+                var argBindings = newClass.getArguments().stream()
+                        .map(a -> new ActualBinding(
+                                null, compiler.expressionCompiler.toExpr(a), false))
+                        .toList();
                 return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));
             }
             case JCTree.JCNewArray newArray -> {
-                var arrayDimensions = newArray.getDimensions().stream().map(expressionCompiler::toExpr).toList();
+                var arrayDimensions = newArray.getDimensions().stream().map(compiler.expressionCompiler::toExpr).toList();
                 var arrayInitializers = newArray.getInitializers();
                 var arrayJavaType = newArray.getType();
                 if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
                     compiler.reportError(expr, "notSupported", "multi-dimensional arrays");
                 }
-                var arrayDafnyType = compiler.translateType(arrayJavaType.type, true, compiler.toOrigin(arrayJavaType));
+                var arrayDafnyType = compiler.translateType(null, arrayJavaType.type, compiler.toOrigin(arrayJavaType));
 
                 if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                     compiler.reportError(expr, "notSupported", "new array with initializers");
                 }
                 return new AllocateArray(origin, null, arrayDafnyType, arrayDimensions, null);
             }
-            case null, default -> {
+            default -> {
             }
         }
-        var dafnyExpr = expressionCompiler.toExpr(expr, originOverride);
+        var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
     }
 }

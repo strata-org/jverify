@@ -8,9 +8,11 @@ import java.util.Collection;
 public record VerifierOptions(Path dafnyPath,
                               Collection<Path> extraClassPathEntries,
                               Path additionalDafnyFile,
+                              boolean testDafnyVersion,
                               @Nullable Path printDafny, 
                               Path printBinaryDafny, 
                               boolean showRanges,
                               boolean filePath,
                               String[] additionalDafnyArguments,
-                              boolean verifyByDefault) {}
+                              boolean verifyByDefault,
+                              boolean avoidCollisionsUsingUnderscores) {}

@@ -5,6 +5,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
@@ -32,7 +33,7 @@ class AppCommand implements Callable<Integer> {
     private Path printBinaryDafny;
 
     @Option(names = "--jar", description = "Includes this jar file on the classpath", arity = "0..*")
-    private List<Path> additionalJars;
+    private List<String> additionalJars;
 
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
@@ -44,7 +45,7 @@ class AppCommand implements Callable<Integer> {
     private boolean paths;
 
     @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
-    private Path dafny;
+    private Path customDafny;
 
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
@@ -64,11 +65,12 @@ class AppCommand implements Callable<Integer> {
 
         var dafnyPath = getDafnyPath();
         additionalJars = additionalJars == null ? List.of() : additionalJars;
-        List<Path> jars = Stream.concat(additionalJars.stream(), 
+        List<Path> jars = Stream.concat(additionalJars.stream().flatMap(p -> Arrays.stream(p.split(":")).map(Path::of)), 
                 Stream.of(jverifyLibraryLocation)).toList();
         
-        var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(),
-                printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault);
+        var testDafnyVersion = customDafny != null;
+        var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(), testDafnyVersion,
+                printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault, true);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
         System.exit(exitCode);
@@ -76,7 +78,7 @@ class AppCommand implements Callable<Integer> {
     }
 
     private Path getDafnyPath() {
-        var dafnyPath = dafny;
+        var dafnyPath = customDafny;
         if (dafnyPath == null || !Files.exists(dafnyPath)) {
             if (System.getenv("JVERIFY_DAFNY") != null) {
                 dafnyPath = Path.of(System.getenv("JVERIFY_DAFNY"));

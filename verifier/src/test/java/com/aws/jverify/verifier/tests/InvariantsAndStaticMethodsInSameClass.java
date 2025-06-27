@@ -18,11 +18,11 @@ import static com.aws.jverify.JVerify.*;
  * not to static methods.
  */
 @JVerifyTest(exitCode = 0, dafnyVerified = 4, dafnyErrors = 0)
-public class InvariantStaticMethodsFixed {
+public class InvariantsAndStaticMethodsInSameClass {
     
     private @Unbounded int balance;
 
-    public InvariantStaticMethodsFixed(int initialBalance) {
+    public InvariantsAndStaticMethodsInSameClass(int initialBalance) {
         precondition(initialBalance >= 0);
         this.balance = initialBalance;
     }

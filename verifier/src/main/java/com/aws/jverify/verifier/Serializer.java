@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.generated.BoundVar;
 import com.aws.jverify.generated.Expression;
 import com.aws.jverify.generated.FrameExpression;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -49,6 +50,9 @@ public class Serializer {
         } else if (type instanceof TypeVariable<?> && value instanceof Expression) {
             // cheat a little bit for `MethodOrFunction.decreases`
             expectedClass = Expression.class;
+        } else if (type instanceof TypeVariable<?> && value instanceof BoundVar) {
+            // cheat a little bit for `CasePattern.var`
+            expectedClass = BoundVar.class;
         } else {
             throw new RuntimeException("No support for serializing " + type.getClass().getName());
         }
