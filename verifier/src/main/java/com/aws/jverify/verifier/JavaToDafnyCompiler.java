@@ -72,6 +72,7 @@ public class JavaToDafnyCompiler {
     private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
     // All contracts, internal or external
     final Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts = new HashMap<>();
+    public Map<Symbol.ClassSymbol, Symbol.ClassSymbol> contractClassToContractee = new HashMap<>();
     JCTree.JCCompilationUnit compilationUnit;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
 
@@ -83,7 +84,7 @@ public class JavaToDafnyCompiler {
         shouldVerifies.push(verifierOptions.verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
-        nameCompiler = new NameCompiler(verifierOptions.avoidCollisionsUsingUnderscores());
+        nameCompiler = new NameCompiler(this, verifierOptions.avoidCollisionsUsingUnderscores());
     }
 
     public String getInitMethodName(String className, String constructorName) {
@@ -368,6 +369,7 @@ public class JavaToDafnyCompiler {
                 }
             }
             this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
+            this.contractClassToContractee.put(classDecl.sym, contracteeSymbol);
         }
     }
 

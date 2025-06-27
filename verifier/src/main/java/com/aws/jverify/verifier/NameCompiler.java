@@ -34,9 +34,11 @@ public class NameCompiler {
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
+    private final JavaToDafnyCompiler javaToDafnyCompiler;
     private final boolean avoidCollisionsUsingUnderscores;
 
-    public NameCompiler(boolean avoidCollisionsUsingUnderscores) {
+    public NameCompiler(JavaToDafnyCompiler javaToDafnyCompiler, boolean avoidCollisionsUsingUnderscores) {
+        this.javaToDafnyCompiler = javaToDafnyCompiler;
         this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
         if (this.avoidCollisionsUsingUnderscores) {
             DEFAULT_CTOR_NAME = "_" + DEFAULT_CTOR_NAME;
@@ -78,6 +80,10 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
+                var newTarget = javaToDafnyCompiler.contractClassToContractee.get(classSymbol);
+                if (newTarget != null) {
+                    return uncachedGetCompiledName(newTarget);
+                }
                 if (classNameOccurrenceCounts.computeIfAbsent(classSymbol.name, _ -> 2) > 1) {
                     return classSymbol.getQualifiedName().toString().replace(".", "_");
                 }
