@@ -686,6 +686,16 @@ public class JavaToDafnyCompiler {
                 }
             }
         }
+        // TODO: Check for existing equals()
+        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, "Object", null)),
+                false, true, null, null, false, false, false, null);
+        var equalsFunction = new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
+                List.of(otherIn),
+                List.of(), List.of(), new Specification<>(List.of(), null),
+                new Specification<>(List.of(), null), false, false, null, new BoolType(origin),
+                null, null, null);
+        members.add(equalsFunction);
+
         var definingSymbol = getCurrentTypeSymbol(classDecl);
         
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
@@ -709,7 +719,8 @@ public class JavaToDafnyCompiler {
             ArrayList<MemberDecl> members, List<TypeParameter> typeParameters, List<Type> superTraits) {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
-        var classNeeded = !isInterfaceOrAbstract(classDecl.sym);
+        var definingSymbol = getCurrentTypeSymbol(classDecl);
+        var classNeeded = !isInterfaceOrAbstract(definingSymbol);
         for(var member : members) {
             switch (member) {
                 case Method method when !method.getHasStaticKeyword() -> {
@@ -742,7 +753,10 @@ public class JavaToDafnyCompiler {
             }
         }
 
-        if (!isInterface(classDecl.sym) || isAnnotated(classDecl.type, Modifiable.class)) {
+        // We use Object as the top type even for types we translate to Dafny value types, such as String and records,
+        // so we don't want to put `extends object` on the Object trait.
+        if (!(isInterface(definingSymbol) || definingSymbol.className().equals("java.lang.Object"))
+            || isAnnotated(classDecl.type, Modifiable.class)) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
 

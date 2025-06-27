@@ -2,6 +2,7 @@ package com.aws.jverify.builtin;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Pure;
 
 import java.util.Collection;
 import java.util.List;
@@ -9,7 +10,7 @@ import java.util.SequencedCollection;
 
 @Contract(Object.class)
 class ObjectContract {
-    public ObjectContract() {} 
+    public ObjectContract() {}
 }
 
 @Contract(Short.class)

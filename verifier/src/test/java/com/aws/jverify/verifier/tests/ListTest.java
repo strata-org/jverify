@@ -89,7 +89,9 @@ abstract class ListContract<E> implements List<E> {
 
     @Override
     public boolean contains(Object o) {
-        postcondition((Boolean r) -> r == JVerify.exists((Integer i) -> elements.get(i).equals(o)));
+        postcondition((Boolean r) ->
+                r == JVerify.exists((Integer i) ->
+                        0 <= i && i < elements.size() && elements.get(i).equals(o)));
         throw new ContractException();
     }
 }
