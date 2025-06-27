@@ -14,6 +14,7 @@ public class Predicate extends MethodOrFunction {
   @Nullable
   private final Formal result;
 
+  @Nullable
   private final Expression body;
 
   private final PredicateBodyOriginKind bodyOrigin;

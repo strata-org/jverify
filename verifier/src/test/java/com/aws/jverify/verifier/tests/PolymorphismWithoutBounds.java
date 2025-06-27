@@ -8,7 +8,8 @@ import static com.aws.jverify.JVerify.*;
 @JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
 public class PolymorphismWithoutBounds {
     public static void root() {
-        var obj = new Object();
+        // Use a dummy class because we can't currently soundly translate "==" when both operands are of type Object.
+        var obj = new Dummy();
         GenericContainer<Object> container = new GenericContainer<Object>(obj);
         check(obj == container.getValue());
 
@@ -30,6 +31,8 @@ public class PolymorphismWithoutBounds {
         return a;
     }
 }
+
+class Dummy {}
 
 class GenericContainer<T> {
     private T value;

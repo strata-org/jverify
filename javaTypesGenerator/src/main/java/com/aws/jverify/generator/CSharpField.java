@@ -1,8 +1,5 @@
 package com.aws.jverify.generator;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class CSharpField {
     CSharpType type;
     String name;

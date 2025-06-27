@@ -5,29 +5,49 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(exitCode = 0, dafnyVerified = 9, dafnyErrors = 0)
 public class PolymorphismWithBounds {
+    
     public static void root() {
         var dog = new Dog();
         var cat = new Cat();
         PetContainer<Dog> container = new PetContainer<Dog>(dog);
         container.doFeed();
-        
+
         PetContainer<Cat> container2 = new PetContainer<Cat>(cat);
         container2.doFeed();
-        
+
         feedAndSocialize(dog);
     }
     
     static <T extends Canid & Pet> void feedAndSocialize(T a) {
-//          ^ error: type bounds is not supported
         a.feed();
         a.socialize();
+        takesAPet(a);
+    }
+    
+    static void takesAPet(Pet pet) {
+        pet.feed();
+    }
+    
+    static <T extends GenericI<T>> void genericBound(T t) {
+        t.foo();
+    }
+}
+
+interface GenericI<T> {
+    void foo();
+
+    @Contract
+    class GenericIContract<U> implements GenericI<U> {
+        @Override
+        public void foo() {
+            
+        }
     }
 }
 
 class PetContainer<T extends Pet> {
-//                 ^ error: type bounds is not supported
     private T value;
 
     public PetContainer(T value) {
@@ -36,7 +56,6 @@ class PetContainer<T extends Pet> {
     }
 
     public void doFeed() {
-        reads(this);
         value.feed();
     }
 }
