@@ -1,7 +1,11 @@
 package com.aws.jverify;
 
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class JVerify {
@@ -40,19 +44,29 @@ public class JVerify {
     public static void invariant(boolean condition) {
     }
     
-    public static <T> void postcondition(Function<T, Boolean> predicate) {
+    public static <T> void postcondition(Predicate<T> predicate) {
     }
 
     /**
      * The given function must evaluate to true after this method call
      */
-    public static <T> void postcondition(Supplier<Boolean> predicate) {
+    public static <T> void postcondition(BooleanSupplier predicate) {
     }
 
     /**
      * The given expression must evaluate to true after this method call
      */
     public static void postcondition(boolean predicate) {
+    }
+
+    public static <T> void postcondition(BooleanPredicate predicate) {
+    }
+
+    public static <T> void postcondition(IntPredicate predicate) {
+    }
+
+    public static interface BooleanPredicate {
+        boolean apply(boolean value);
     }
 
     /**
@@ -93,6 +107,10 @@ public class JVerify {
     }
 
     public static <T> boolean exists(Function<T, Boolean> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean exists(IntPredicate predicate) {
         throw new VerificationMethodExecutedException();
     }
 
@@ -180,7 +198,7 @@ public class JVerify {
         /**
          * Returns the number of elements in this sequence.
          */
-        default int size() {
+        default @Unbounded int size() {
             throw new VerificationMethodExecutedException();
         }
     }

@@ -83,14 +83,14 @@ abstract class ListContract<E> implements List<E> {
     @Pure
     public int size() {
         reads(this);
-        postcondition((Integer s) -> s == elements.size());
+        postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
 
     @Override
     public boolean contains(Object o) {
-        postcondition((Boolean r) ->
-                r == JVerify.exists((Integer i) ->
+        postcondition((boolean r) ->
+                r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));
         throw new ContractException();
     }

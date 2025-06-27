@@ -687,7 +687,7 @@ public class JavaToDafnyCompiler {
             }
         }
         // TODO: Check for existing equals()
-        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, "Object", null)),
+        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, "java_lang_Object", null)),
                 false, true, null, null, false, false, false, null);
         var equalsFunction = new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
                 List.of(otherIn),
@@ -730,7 +730,9 @@ public class JavaToDafnyCompiler {
                     traitMembers.add(member);
                 }
                 case Function function -> {
-                    traitMembers.add(function);
+                    if (name.getValue().equals("java_lang_Object") || !function.getNameNode().getValue().equals("equals")) {
+                        traitMembers.add(function);
+                    }
                     if (function.getBody() == null) {
                         classMembers.add(member);
                     }
@@ -812,6 +814,12 @@ public class JavaToDafnyCompiler {
         return typarams.stream().map(p -> {
             var name = getName(p, p.getName());
             var bounds = p.bounds.map(this::translateType);
+            // All Java type parameters are implicitly "extends Object",
+            // and this needs to be explicit in the Dafny translation
+            // so we can invoke equals() on any Java values,
+            // even those translated to value types.
+            var tpOrigin = toOrigin(p);
+            bounds = bounds.prepend(new UserDefinedType(tpOrigin, new NameSegment(tpOrigin, "java_lang_Object", null)));
             return new TypeParameter(toOrigin(p),
                     name, null, TPVarianceSyntax.NonVariant_Strict,
                     new TypeParameterCharacteristics(
@@ -1468,7 +1476,7 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
                 // TODO: Better check. But watch out for getName() and $
-                if (className.toString().equals("com.aws.jverify.JVerify.Sequence")) {
+                if (className.toString().equals("com.aws.jverify.JVerify$Sequence")) {
                     var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
                     return new SeqType(origin, arguments);
                 }
@@ -1505,17 +1513,17 @@ public class JavaToDafnyCompiler {
             return TypeKind.VOID;
         } else if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
             return primitiveType.getKind();
-        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
-                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
-            var name = classType.tsym.getSimpleName().toString();
-            if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
-            if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
-            if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
-            if (name.equals(Integer.class.getSimpleName())) return TypeKind.INT;
-            if (name.equals(Long.class.getSimpleName())) return TypeKind.LONG;
-            if (name.equals(Character.class.getSimpleName())) return TypeKind.CHAR;
-            if (name.equals(Float.class.getSimpleName())) return TypeKind.FLOAT;
-            if (name.equals(Double.class.getSimpleName())) return TypeKind.DOUBLE;
+//        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
+//                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
+//            var name = classType.tsym.getSimpleName().toString();
+//            if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
+//            if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
+//            if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
+//            if (name.equals(Integer.class.getSimpleName())) return TypeKind.INT;
+//            if (name.equals(Long.class.getSimpleName())) return TypeKind.LONG;
+//            if (name.equals(Character.class.getSimpleName())) return TypeKind.CHAR;
+//            if (name.equals(Float.class.getSimpleName())) return TypeKind.FLOAT;
+//            if (name.equals(Double.class.getSimpleName())) return TypeKind.DOUBLE;
         }
 
         return null;
