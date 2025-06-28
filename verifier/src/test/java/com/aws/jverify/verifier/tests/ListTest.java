@@ -37,7 +37,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 import static com.aws.jverify.JVerify.reads;
 
-@JVerifyTest(dafnyVerified = 0, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 12, dafnyErrors = 0)
 public class ListTest {
 
     void Foo() {
