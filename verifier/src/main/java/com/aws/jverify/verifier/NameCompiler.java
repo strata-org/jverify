@@ -190,10 +190,14 @@ public class NameCompiler {
         }
     }
 
-    private static ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
+    private ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
         boolean sameNameFields = false;
         int methodsWithThisName = 0;
-        for(var member : clazz.members().getSymbolsByName(name)) {
+        var newClazz = this.javaToDafnyCompiler.contractClassToContractee.get(clazz);
+        if (newClazz == null) {
+            newClazz = clazz;
+        }
+        for(var member : newClazz.members().getSymbolsByName(name)) {
             if (member instanceof Symbol.VarSymbol) {
                 sameNameFields = true;
             }

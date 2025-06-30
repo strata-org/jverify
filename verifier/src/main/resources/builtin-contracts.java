@@ -10,7 +10,6 @@ import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.ContractException;
 
 import java.math.BigInteger;
-import java.math.BigDecimal;
 
 import java.util.Collection;
 import java.util.List;
@@ -79,7 +78,7 @@ class HelperForBigIntegerContract {
 
     @Erased
     @Pure
-    static boolean isValidString(String v) {
+     static boolean isValidString(String v) {
         return (v.length() == 0 ||
                 ((v.charAt(0) == '+' || v.charAt(0) == '-') && isAllDigits(v.substring(1))) ||
                 isAllDigits(v));
@@ -109,72 +108,40 @@ class HelperForBigIntegerContract {
 @Contract(BigInteger.class)
 class BigIntegerContract  {
     // Ghost field supposed to hold the semantics of foo
-    @Unbounded int ghost;
+    @Unbounded int ghostV;
     BigIntegerContract() {}
     BigIntegerContract(String val) {
         precondition(HelperForBigIntegerContract.isValidString(val));
-        postcondition(ghost == HelperForBigIntegerContract.stringToInt(val));
+        postcondition(ghostV == HelperForBigIntegerContract.stringToInt(val));
         throw new ContractException();
     }
+
     @Pure
     int intValue() {
         reads(this);
-        precondition(ghost >= Integer.MIN_VALUE && ghost <= Integer.MAX_VALUE);
-        postcondition((Integer r) -> r == ghost);
+        precondition(ghostV >= Integer.MIN_VALUE && ghostV <= Integer.MAX_VALUE);
+        postcondition((Integer b) -> b == ghostV);
         throw new ContractException();
     }
 
-    @Pure
     BigIntegerContract add(BigIntegerContract v) {
-        reads(this);
-        reads(v);
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost + v.ghost);
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == this.ghostV + v.ghostV);
         throw new ContractException();
     }
 
-    @Pure
-    BigIntegerContract add(int l) {
-        reads(this);
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost + l);
-        throw new ContractException();
-    }
-
-    @Pure
     BigIntegerContract subtract(BigIntegerContract v) {
-        reads(this);
-        reads(v);
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost - v.ghost);
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == this.ghostV - v.ghostV);
         throw new ContractException();
     }
 
-    @Pure
-    BigIntegerContract subtract(int l) {
-        reads(this);
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost - l);
-        throw new ContractException();
-    }
-
-    @Pure
     BigIntegerContract multiply(BigIntegerContract v) {
-        reads(this);
-        reads(v);
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost * v.ghost);
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == this.ghostV * v.ghostV);
         throw new ContractException();
     }
 
-    @Pure
-    BigIntegerContract multiply(int l) {
-        reads(this);
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost * l);
-        throw new ContractException();
-    }
-
-    @Pure
     BigIntegerContract divide(BigIntegerContract v) {
-        reads(this);
-        reads(v);
-        precondition(v.ghost != 0);
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost / v.ghost);
+        precondition(v.ghostV != 0);
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == this.ghostV / v.ghostV);
         throw new ContractException();
     }
 
@@ -182,54 +149,39 @@ class BigIntegerContract  {
     int compareTo(BigIntegerContract v) {
         reads(this);
         reads(v);
-        postcondition((Integer r) -> (r < 0 && this.ghost < v.ghost) || (r == 0 && this.ghost == v.ghost) || (r > 0 && this.ghost > v.ghost));
+        postcondition((Integer r) -> (r < 0 && this.ghostV < v.ghostV) || (r == 0 && this.ghostV == v.ghostV) || (r > 0 && this.ghostV > v.ghostV));
         throw new ContractException();
     }
 
-    @Pure
     BigIntegerContract abs() {
-        reads(this);
-        postcondition((BigIntegerContract b) -> b.ghost == (this.ghost < 0 ? -this.ghost : this.ghost));
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == (this.ghostV < 0 ? -this.ghostV : this.ghostV));
         throw new ContractException();
     }
 
-    @Pure
     BigIntegerContract min(BigIntegerContract v) {
-        reads(this);
-        reads(v);
-        postcondition((BigIntegerContract b) -> b.ghost == (this.ghost < v.ghost ? this.ghost : v.ghost));
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == (this.ghostV < v.ghostV ? this.ghostV : v.ghostV));
         throw new ContractException();
     }
 
-    @Pure
     BigIntegerContract max(BigIntegerContract v) {
-        reads(this);
-        reads(v);
-        postcondition((BigIntegerContract b) -> b.ghost == (this.ghost > v.ghost ? this.ghost : v.ghost));
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == (this.ghostV > v.ghostV ? this.ghostV : v.ghostV));
         throw new ContractException();
     }
 
-    @Pure
     BigIntegerContract mod(BigIntegerContract v) {
-        reads(this);
-        reads(v);
-        precondition(v.ghost != 0);
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost % v.ghost);
+        precondition(v.ghostV != 0);
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == this.ghostV % v.ghostV);
         throw new ContractException();
     }
 
-    @Pure
     BigIntegerContract negate() {
-        reads(this);
-        postcondition((BigIntegerContract b) -> b.ghost == -this.ghost);
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == -this.ghostV);
         throw new ContractException();
     }
 
-    @Pure
     BigIntegerContract pow(int exponent) {
-        reads(this);
         precondition(exponent >= 0);
-        postcondition((BigIntegerContract b) -> b.ghost == HelperForBigIntegerContract.pow(ghost, exponent));
+        postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == HelperForBigIntegerContract.pow(ghostV, exponent));
         throw new ContractException();
     }
 }
