@@ -202,7 +202,6 @@ public class NameCompiler {
                 sameNameFields = true;
             }
             if (member instanceof Symbol.MethodSymbol) {
-                //System.out.println("Found " + member);
                 methodsWithThisName += 1;
             }
         }

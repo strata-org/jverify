@@ -107,9 +107,9 @@ class HelperForBigIntegerContract {
 
 @Contract(BigInteger.class)
 class BigIntegerContract  {
-    // Ghost field supposed to hold the semantics of foo
+    // Ghost field holding the value of the BigInteger
     @Unbounded int ghostV;
-    BigIntegerContract() {}
+
     BigIntegerContract(String val) {
         precondition(HelperForBigIntegerContract.isValidString(val));
         postcondition(ghostV == HelperForBigIntegerContract.stringToInt(val));
