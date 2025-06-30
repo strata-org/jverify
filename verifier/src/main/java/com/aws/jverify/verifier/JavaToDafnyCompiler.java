@@ -72,7 +72,9 @@ public class JavaToDafnyCompiler {
     private final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
     // All contracts, internal or external
     final Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts = new HashMap<>();
+    public Map<com.sun.tools.javac.code.Type, com.sun.tools.javac.code.Type> contractClassTypeToContracteeType = new HashMap<>();
     public Map<Symbol.ClassSymbol, Symbol.ClassSymbol> contractClassToContractee = new HashMap<>();
+
     JCTree.JCCompilationUnit compilationUnit;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
 
@@ -370,6 +372,8 @@ public class JavaToDafnyCompiler {
             }
             this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
             this.contractClassToContractee.put(classDecl.sym, contracteeSymbol);
+            this.contractClassTypeToContracteeType.put(classDecl.sym.type, contracteeSymbol.type);
+
         }
     }
 

@@ -138,7 +138,7 @@ public class NameCompiler {
         return result.toString();
     }
 
-    private static void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
+    private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
         List<Type> argTypes;
         if (method.type instanceof MethodType m) {
             argTypes = m.getParameterTypes();
@@ -155,7 +155,7 @@ public class NameCompiler {
         }
     }
 
-    private static String getShortTypeName(com.sun.tools.javac.code.Type type) {
+    private String getShortTypeName(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
             case VOID : {return "v";}
             case BYTE : {return "b";}
@@ -167,7 +167,14 @@ public class NameCompiler {
             case DOUBLE : {return "d";}
             case BOOLEAN: {return "z";}
             case CLASS: {
-                var classTypeStr = type.toString();
+                var newType = this.javaToDafnyCompiler.contractClassTypeToContracteeType.get(type);
+                String classTypeStr;
+                if (newType != null) {
+                    classTypeStr = newType.toString();
+                }
+                else {
+                    classTypeStr = type.toString();
+                }
                 // Changing '.' to '_' so that the new name is a valid Dafny name
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
@@ -191,6 +198,7 @@ public class NameCompiler {
                 sameNameFields = true;
             }
             if (member instanceof Symbol.MethodSymbol) {
+                //System.out.println("Found " + member);
                 methodsWithThisName += 1;
             }
         }
