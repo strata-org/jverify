@@ -8,6 +8,7 @@ import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.google.auto.service.AutoService;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.platform.commons.support.ReflectionSupport;
@@ -31,10 +32,12 @@ import javax.tools.JavaFileObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -182,7 +185,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))
-                .map(JVerifyTestEngine::diagnosticAsAnnotatedRange)
+                .map(d -> diagnosticAsAnnotatedRange(markedSourceFile.toUri(), d))
+                .filter(Objects::nonNull)
                 .sorted()
                 .toList();
         var expectedAnnotations = ranges.stream().sorted().toList();
@@ -238,13 +242,26 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         return sb.toString();
     }
 
-    private static AnnotatedRange diagnosticAsAnnotatedRange(Diagnostic<?> diagnostic) {
-        var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
-        var endPos = diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
-                ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
-                : new Position(startPos.line(), startPos.character() + 1);
-        var range = new Range(startPos, endPos);
-        return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
+    @Nullable
+    private static AnnotatedRange diagnosticAsAnnotatedRange(URI testFile, Diagnostic<?> diagnostic) {
+        var source = diagnostic.getSource();
+        URI sourceUri = null;
+        if (source instanceof URI uri) {
+            sourceUri = uri;
+        } else if (source instanceof SourceFile javaFileObject) {
+            sourceUri = javaFileObject.toUri();
+        }
+        if (sourceUri == null || sourceUri.equals(testFile)) {
+            var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
+            var endPos = diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                    ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
+                    : new Position(startPos.line(), startPos.character() + 1);
+            var range = new Range(startPos, endPos);
+            return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
+        } else {
+            // TODO allow specifying expected out of file diagnostics
+            return null;
+        }
     }
 
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");

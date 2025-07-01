@@ -167,7 +167,7 @@ public class Driver {
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
         } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            var filePart = filePath ? dafnyDiagnostic.getSource().toString() : dafnyDiagnostic.getSource().getFileName(); 
+            var filePart = filePath ? dafnyDiagnostic.getSource().toString() : dafnyDiagnostic.getSource().getPath(); 
             sb.append(filePart)
                     .append("(")
                     .append(dafnyDiagnostic.getRange())

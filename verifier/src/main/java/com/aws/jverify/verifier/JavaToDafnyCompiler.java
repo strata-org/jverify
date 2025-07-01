@@ -104,7 +104,7 @@ public class JavaToDafnyCompiler {
         }
 
         for (var compilationUnit : parsed) {
-            discoverContractsAndTypeHierarchy((JCTree.JCCompilationUnit) compilationUnit);
+            discoverContractsAndTypeHierarchy(compilationUnit);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         for(var compiledClass : declarationsForSymbolContract.keySet()) {
@@ -116,7 +116,7 @@ public class JavaToDafnyCompiler {
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
             // fileDeclarations.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
-            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
+            filesStarts.add(new FileStart(compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
@@ -126,7 +126,7 @@ public class JavaToDafnyCompiler {
      * Applies a subset of the javac compilation pipeline, to parse,
      * resolve, and partially rewrite some features away.
      */
-    private Iterable<? extends CompilationUnitTree> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
+    private Iterable<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));

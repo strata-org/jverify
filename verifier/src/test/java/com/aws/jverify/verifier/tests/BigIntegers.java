@@ -33,7 +33,8 @@ class BigIntegers {
         check(bi.intValue() == 234);
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
 //            ^^^^^^^^^^^^^ Error: function precondition could not be proved
-
+//            ^^^^^^^^^^^^^ Error: function precondition could not be proved
+// Remy: there are two failing preconditions (both on line 122 of builtin-contracts.java, the LHS and the RHS of the &&), that's why this is reported twice. 
     }
 
     static void testArith() {
