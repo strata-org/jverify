@@ -2,6 +2,8 @@ package com.aws.jverify.builtin;
 
 import com.aws.jverify.Erased;
 import com.aws.jverify.Contract;
+import com.aws.jverify.Verify;
+
 import com.aws.jverify.Pure;
 import com.aws.jverify.Nat;
 import com.aws.jverify.Unbounded;
@@ -104,7 +106,6 @@ class HelperForBigIntegerContract {
     }
 }
 
-
 @Contract(BigInteger.class)
 class BigIntegerContract  {
     // Ghost field holding the value of the BigInteger
@@ -184,4 +185,17 @@ class BigIntegerContract  {
         postcondition((BigIntegerContract b) -> fresh(b) && b.ghostV == HelperForBigIntegerContract.pow(ghostV, exponent));
         throw new ContractException();
     }
+
+    static BigIntegerContract valueOf(long val) {
+        postcondition((BigIntegerContract b) -> b.ghostV == val);
+        throw new ContractException();
+    }
+
+    @Pure
+    public int signum() {
+        reads(this);
+        postcondition((Integer b) -> b == (ghostV < 0 ? -1 : ghostV == 0 ? 0 : 1));
+        throw new ContractException();
+    }
+
 }

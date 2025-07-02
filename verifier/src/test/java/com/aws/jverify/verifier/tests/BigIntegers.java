@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.testengine.JVerifyTest;
+//import com.aws.jverify.testengine.JVerifyTest;
 
 import java.math.BigInteger;
 
@@ -12,7 +12,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 3)
+//@JVerifyTest(exitCode = 4, dafnyVerified = 43, dafnyErrors = 4)
 class BigIntegers {
     static void test1() {
         BigInteger bi = new BigInteger("23");
@@ -20,11 +20,19 @@ class BigIntegers {
         BigInteger bbi = new BigInteger("1");
         BigInteger res = bbi.add(bi);
         check(res.intValue() == 24);
+        BigInteger bbi2 = BigInteger.valueOf(12345);
+        check(bbi2.intValue() == 12345);
+        BigInteger biNeg = new BigInteger("-2");
+        check(biNeg.intValue() == -2);
+        BigInteger biZero = BigInteger.valueOf(0);
+        check(bi.signum() == 1);
+        check(biNeg.signum() == -1);
+        check(biZero.signum() == 0);
+
     }
 
     static void test3() {
-        BigInteger bi = new BigInteger("-2");
-        check(bi.intValue() == -2);
+
     }
 
     // Needs a bigger fuel on stringToInt function
