@@ -115,8 +115,9 @@ public class JavaToDafnyCompiler {
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
+            var isLibrary = compilationUnit.getPackage().packge.getAnnotation(Library.class) != null;
             // fileDeclarations.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
-            filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), false, fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
