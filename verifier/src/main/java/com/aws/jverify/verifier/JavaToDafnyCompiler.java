@@ -1097,6 +1097,7 @@ public class JavaToDafnyCompiler {
                                                               @Nullable MethodOrLoopContract contractOverride) {
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
         var bodyOrigin = toOrigin(sourceBody);
+        var attributes = shouldVerify ? null : getVerifyFalse(bodyOrigin);
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
@@ -1175,7 +1176,7 @@ public class JavaToDafnyCompiler {
                 body = null;
             }
 
-            return new Constructor(origin, name, null, false, null, dafnyTypeParameters, ins,
+            return new Constructor(origin, name, attributes, false, null, dafnyTypeParameters, ins,
                     header.preconditions, header.postconditions, header.getReads(),
                     header.getDecreases(), header.getModifies(),
                     body);
@@ -1186,7 +1187,7 @@ public class JavaToDafnyCompiler {
             } else {
                 body = null;
             }
-            return new Method(origin, name, null, false, null, dafnyTypeParameters,
+            return new Method(origin, name, attributes, false, null, dafnyTypeParameters,
                     ins, header.preconditions, header.postconditions, header.getReads(),
                     header.getDecreases(), header.getModifies(),
                     isStatic, outs,
@@ -1213,6 +1214,7 @@ public class JavaToDafnyCompiler {
                                                  List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify,
                                                  @Nullable MethodOrLoopContract contractOverride) {
         var bodyOrigin = toOrigin(sourceBody);
+        var attributes = shouldVerify ? null : getVerifyFalse(bodyOrigin);
 
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
         var methodCompiler = new BlockCompiler(this);
@@ -1278,7 +1280,7 @@ public class JavaToDafnyCompiler {
         applyInvariants(sourceBody, modifiers, methodSymbol, header);
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
-        return new Function(origin, name, null, false, null, dafnyTypeParameters,
+        return new Function(origin, name, attributes, false, null, dafnyTypeParameters,
                 ins, header.preconditions, header.postconditions, header.getReads(),
                 header.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
                 returnType, body, null, null);
