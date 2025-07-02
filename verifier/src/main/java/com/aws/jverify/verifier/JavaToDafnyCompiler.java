@@ -741,7 +741,7 @@ public class JavaToDafnyCompiler {
                 }
                 case Function function -> {
                     traitMembers.add(function);
-                    if (function.getBody() == null) {
+                    if (function.getBody() == null && !function.getHasStaticKeyword()) {
                         classMembers.add(member);
                     }
                 }
