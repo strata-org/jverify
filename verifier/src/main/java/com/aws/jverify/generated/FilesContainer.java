@@ -5,13 +5,13 @@ package com.aws.jverify.generated;
 import java.util.List;
 
 public class FilesContainer {
-  private final List<FileStart> files;
+  private final List<FileHeader> files;
 
-  public FilesContainer(List<FileStart> files) {
+  public FilesContainer(List<FileHeader> files) {
     this.files = files;
   }
 
-  public List<FileStart> getFiles() {
+  public List<FileHeader> getFiles() {
     return this.files;
   }
 }
