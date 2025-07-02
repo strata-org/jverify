@@ -741,6 +741,7 @@ public class JavaToDafnyCompiler {
                 }
                 case Function function -> {
                     traitMembers.add(function);
+                    // TODO should still add a test for supporting static pure methods
                     if (function.getBody() == null && !function.getHasStaticKeyword()) {
                         classMembers.add(member);
                     }
