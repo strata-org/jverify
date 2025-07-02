@@ -294,6 +294,8 @@ public class JavaToDafnyCompiler {
                     compilationUnit = env.toplevel;
                 }
 
+                // TODO add a test for @Verify(false) on packages
+                // TODO consider refactoring the code that gets annotations from the syntax nodes
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = translateTypeDeclaration(relatedDeclaration);
