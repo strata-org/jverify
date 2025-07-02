@@ -34,7 +34,7 @@ JVerify intends to support the full Java language, but is currently being develo
 - Lambda expressions
 - Method references
 - Type parameters, including type parameter bounds
-- Type arguments, but only those without wildcards
+- Type arguments, but wildcards are ignored. `? extends X` is interpreted as `X`, and similarly for `? super X`.
 
 # Supported Java standard library packages
 
