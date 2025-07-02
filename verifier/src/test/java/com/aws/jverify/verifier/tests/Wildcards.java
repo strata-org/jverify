@@ -5,7 +5,7 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0)
+@JVerifyTest(exitCode = 2)
 public class Wildcards {
     
     boolean isNull(Container<?> elements) {
@@ -14,6 +14,7 @@ public class Wildcards {
     
     void numberGetterUser(Container<Turtle> dogs) {
         var name = animalNameGetter(dogs);
+//                                  ^^^^ Error: incorrect argument type for method in-parameter 'animals' (expected Container<Animal>, found Container<Turtle>) (non-variant type parameter 'T' would require Animal = Turtle)
     }
     
     <T> String animalNameGetter(Container<? extends Animal> animals) {
@@ -22,6 +23,7 @@ public class Wildcards {
 
     void numberSetterUser(Container<Object> objects, Turtle dog) {
         animalSetter(objects, dog);
+//                   ^^^^^^^ Error: incorrect argument type at index 0 for method in-parameter 'numberContainer' (expected Container<Animal>, found Container<Object>) (non-variant type parameter 'T' would require Animal = Object)
     }
     
     <T> void animalSetter(Container<? super Animal> numberContainer, Turtle d) {
@@ -30,6 +32,7 @@ public class Wildcards {
 
     static void alwaysTruerUser(Container<Object> container) {
         alwaysTruer(container);
+//                  ^^^^^^^^^ Error: incorrect argument type for method in-parameter 'container' (expected Container<Never>, found Container<Object>) (non-variant type parameter 'T' would require Never = Object)
     }
     
     static void alwaysTruer(Container<?> container) {
