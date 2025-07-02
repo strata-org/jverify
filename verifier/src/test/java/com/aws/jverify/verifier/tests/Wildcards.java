@@ -1,44 +1,70 @@
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
+import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(exitCode = 0)
 public class Wildcards {
     
     boolean isNull(Container<?> elements) {
-        return elements.isNull();
+        return elements.alwaysTrue();
     }
     
-    static void numberGetterUser(Container<Integer> ints) {
-        numberGetter(ints);
+    void numberGetterUser(Container<Turtle> dogs) {
+        var name = animalNameGetter(dogs);
     }
     
-    static <T> double numberGetter(Container<? extends Number> numbers) {
-        return numbers.get().doubleValue();
+    <T> String animalNameGetter(Container<? extends Animal> animals) {
+        return animals.get().name();
     }
 
-    static void numberSetterUser(Container<Number> ints) {
-        numberSetter(ints, 3.0);
+    void numberSetterUser(Container<Object> objects, Turtle dog) {
+        animalSetter(objects, dog);
     }
     
-    static <T> void numberSetter(Container<? super Number> numberContainer, Double d) {
-        numberContainer.set(d);
+    <T> void animalSetter(Container<? super Animal> numberContainer, Turtle d) {
+        numberContainer.sett(d);
+    }
+
+    static void alwaysTruerUser(Container<Object> container) {
+        alwaysTruer(container);
+    }
+    
+    static void alwaysTruer(Container<?> container) {
+        var x = container.alwaysTrue();
     }
 
     static class Container<T> {
         T value;
 
+        @Pure
         public T get() {
             return value;
         }
 
-        public void set(T value) {
+        public void sett(T value) {
             this.value = value;
         }
         
-        public boolean isNull() {
-            return value == null;
+        public boolean alwaysTrue() {
+            return true;
         }
 
     }
+
+    interface Animal {
+        String name();
+
+        @Contract
+        class MyContract implements Animal {
+
+            @Override
+            public String name() {
+                throw new ContractException();
+            }
+        }
+    }
+    interface Turtle extends Animal {}
 }
