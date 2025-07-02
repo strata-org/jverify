@@ -830,7 +830,7 @@ public class JavaToDafnyCompiler {
         }).toList();
     }
 
-    static final String builtinFile = "/builtin/builtin-contracts.java";
+    public static final String builtinFile = "/builtin/builtin-contracts.java";
     static final String builtinPackageFile = "/builtin/package-info.java";
     private boolean isAlreadyVerified() {
         return compilationUnit.getSourceFile().getName().equals(builtinFile);
