@@ -112,11 +112,12 @@ public class JavaToDafnyCompiler {
         }
         compileSymbolsTopologically();
 
-        List<FileStart> filesStarts = new ArrayList<>();
+        List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
+            var isLibrary = compilationUnit.getPackage().packge.getAnnotation(Library.class) != null;
             // fileDeclarations.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
-            filesStarts.add(new FileStart(compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
@@ -129,7 +130,8 @@ public class JavaToDafnyCompiler {
     private Iterable<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
-        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
+        files.add(new SourceFile("builtin/builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
+        files.add(new SourceFile("builtin/package-info.java", Common.getResourceFile(getClass(), builtinPackageFile)));
 
         for(var extraPath : options.extraClassPathEntries()) {
             if (!Files.exists(extraPath.toAbsolutePath())) {
@@ -292,7 +294,13 @@ public class JavaToDafnyCompiler {
                 if (env != null) {
                     compilationUnit = env.toplevel;
                 }
+
+                // TODO add a test for @Verify(false) on packages
+                // TODO consider refactoring the code that gets annotations from the syntax nodes
+                var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
+                processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = translateTypeDeclaration(relatedDeclaration);
+                shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
         }
@@ -643,6 +651,16 @@ public class JavaToDafnyCompiler {
         }
     }
 
+    private void processVerifyAnnotation(@Nullable Verify verify) {
+        if (verify != null) {
+            var should = verify.value();
+            var includeMembers = verify.overrideChildren();
+            addShouldVerify(getVerifyMode(should, includeMembers));
+        } else {
+            addShouldVerify(ShouldVerifyMode.Inherit);
+        }
+    }
+
     private static Object getLiteralValue(JCTree.JCExpression expression) {
         if (expression instanceof JCTree.JCLiteral literal) {
             return literal.getValue();
@@ -726,7 +744,8 @@ public class JavaToDafnyCompiler {
                 }
                 case Function function -> {
                     traitMembers.add(function);
-                    if (function.getBody() == null) {
+                    // TODO should still add a test for supporting static pure methods
+                    if (function.getBody() == null && !function.getHasStaticKeyword()) {
                         classMembers.add(member);
                     }
                 }
@@ -815,7 +834,8 @@ public class JavaToDafnyCompiler {
         }).toList();
     }
 
-    static final String builtinFile = "/builtin-contracts.java";
+    public static final String builtinFile = "/builtin/builtin-contracts.java";
+    static final String builtinPackageFile = "/builtin/package-info.java";
     private boolean isAlreadyVerified() {
         return compilationUnit.getSourceFile().getName().equals(builtinFile);
     }

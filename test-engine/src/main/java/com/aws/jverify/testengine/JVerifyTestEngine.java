@@ -3,10 +3,7 @@ package com.aws.jverify.testengine;
 import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
-import com.aws.jverify.verifier.DafnyDiagnostic;
-import com.aws.jverify.verifier.Driver;
-import com.aws.jverify.verifier.SourceFile;
-import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.*;
 import com.google.auto.service.AutoService;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
@@ -28,6 +25,7 @@ import org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine;
 import org.junit.platform.engine.support.hierarchical.Node;
 
 import javax.tools.Diagnostic;
+import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -35,6 +33,7 @@ import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -251,16 +250,22 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         } else if (source instanceof SourceFile javaFileObject) {
             sourceUri = javaFileObject.toUri();
         }
+        var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
+        var endPos = diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
+                : new Position(startPos.line(), startPos.character() + 1);
+        var range = new Range(startPos, endPos);
         if (sourceUri == null || sourceUri.equals(testFile)) {
-            var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
-            var endPos = diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
-                    ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
-                    : new Position(startPos.line(), startPos.character() + 1);
-            var range = new Range(startPos, endPos);
             return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
         } else {
-            // TODO allow specifying expected out of file diagnostics
-            return null;
+            Range zeroRange = new Range(new Position(0, 3), new Position(0, 4));
+            String path;
+            if (sourceUri.getPath().contains(JavaToDafnyCompiler.builtinFile)) {
+                path = "builtin-contracts.java";
+            } else {
+                path = Paths.get("").toAbsolutePath().relativize(Paths.get(sourceUri)).toString();
+            }
+            return new AnnotatedRange(path + "(" + range + ")" + Driver.formatMessage(diagnostic), zeroRange);
         }
     }
 
