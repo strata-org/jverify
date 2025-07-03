@@ -1,24 +1,24 @@
-package com.aws.jverify.verifier.simplify.java;
+package com.aws.jverify.verifier.compiler.desugar.java;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.BlockStmt;
 import com.aws.jverify.generated.BreakOrContinueStmt;
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
-import com.aws.jverify.verifier.BlockCompiler;
-import com.aws.jverify.verifier.JavaViolationException;
-import com.aws.jverify.verifier.StatementSimplifier;
+import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.StatementSimplifier;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
 
-public class ForLoopCompiler implements StatementSimplifier {
+public class DesugarForLoop implements StatementSimplifier {
 
     BlockCompiler blockCompiler;
     private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
 
-    public ForLoopCompiler(BlockCompiler blockCompiler) {
+    public DesugarForLoop(BlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
     }
 

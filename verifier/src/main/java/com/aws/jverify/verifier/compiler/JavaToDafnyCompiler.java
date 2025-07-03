@@ -1,8 +1,10 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
+import com.aws.jverify.verifier.*;
+import com.aws.jverify.verifier.compiler.desugar.java.NameCompiler;
 import com.sun.source.tree.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
@@ -38,7 +40,6 @@ import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.traverse.TopologicalOrderIterator;
 
-import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.io.File;
@@ -699,7 +700,7 @@ public class JavaToDafnyCompiler {
         };
     }
 
-    static LiteralExpr getHole(IOrigin origin) {
+    public static LiteralExpr getHole(IOrigin origin) {
         // TODO should be a typeless 'hole' expression, but Dafny does not have that.
         return new LiteralExpr(origin, true);
     }

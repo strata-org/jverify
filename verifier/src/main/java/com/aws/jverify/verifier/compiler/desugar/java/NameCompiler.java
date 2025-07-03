@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler.desugar.java;
 
 import com.sun.tools.javac.code.Symbol;
 
@@ -59,12 +59,6 @@ public class NameCompiler {
             return reverseSymbolStringMap.get(name).name.toString();
         }
         return name;
-    }
-
-
-    public String getInitMethodName(Symbol.MethodSymbol constructor) {
-        var className = this.getCompiledName(constructor.enclClass());
-        return INIT_METHOD_PREFIX  + className;
     }
     
     public String getCompiledName(Symbol s) {

@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler;
 
 /**
  * Occurs when the contracts that we expect from Java resolution are violated

@@ -1,17 +1,17 @@
-package com.aws.jverify.verifier.simplify.java;
+package com.aws.jverify.verifier.compiler.desugar.java;
 
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
-import com.aws.jverify.verifier.BlockCompiler;
-import com.aws.jverify.verifier.StatementSimplifier;
+import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.verifier.compiler.StatementSimplifier;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;
 
-public class DoWhileCompiler implements StatementSimplifier {
+public class DesugarDoWhileLoop implements StatementSimplifier {
     BlockCompiler blockCompiler;
 
-    public DoWhileCompiler(BlockCompiler blockCompiler) {
+    public DesugarDoWhileLoop(BlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
     }
 

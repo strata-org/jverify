@@ -1,11 +1,11 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.simplify.java.DoWhileCompiler;
-import com.aws.jverify.verifier.simplify.java.ForLoopCompiler;
+import com.aws.jverify.verifier.compiler.desugar.java.DesugarDoWhileLoop;
+import com.aws.jverify.verifier.compiler.desugar.java.DesugarForLoop;
+import com.aws.jverify.verifier.compiler.desugar.java.DesugarImpureStatementExpressions;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -19,8 +19,9 @@ public class BlockCompiler {
 
     public BlockCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
-        statementSimplifiers.add(new ForLoopCompiler(this));
-        statementSimplifiers.add(new DoWhileCompiler(this));
+        statementSimplifiers.add(new DesugarForLoop(this));
+        statementSimplifiers.add(new DesugarDoWhileLoop(this));
+        statementSimplifiers.add(new DesugarImpureStatementExpressions(this));
     }
 
     private final Queue<Label> labels = new LinkedList<>();
@@ -112,7 +113,6 @@ public class BlockCompiler {
                 return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
             }
         } else {
-            var loop = this.labelToLoop.get(jcContinue.label.toString());
             var targetLabel = compiler.getName(jcContinue, jcContinue.label);
             return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));
         }
@@ -203,55 +203,11 @@ public class BlockCompiler {
             case JCTree.JCAssign assign -> {
                 return translateAssign(assign, originOverride);
             }
-            case JCTree.JCAssignOp assignOp -> {
-                return translateAssignOp(assignOp);
-            }
-            case JCTree.JCUnary unary -> {
-                return translateUnaryExpressionStatement(unary);
-            }
             default -> {
                 compiler.reportError(statement, "notSupported", "expression statement with expr " + expr.getClass().getSimpleName());
                 return List.of();
             }
         }
-    }
-
-    private List<Statement> translateUnaryExpressionStatement(JCTree.JCUnary unary) {
-        var origin = compiler.toOrigin(unary);
-        var tag = unary.getTag();
-        switch (tag) {
-            case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
-                if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
-                    compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                    return List.of();
-                } else {
-                    Expression target = compiler.expressionCompiler.toExpr(unary.getExpression());
-                    List<Expression> lhss = List.of(target);
-
-                    var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
-                            ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
-                    var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
-                    List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
-                    return List.of(new AssignStatement(origin, null, lhss, rhss, false));
-                }
-
-            }
-            default -> {
-                // non-mutating unary expressions are not valid Java statements
-                throw new JavaViolationException();
-            }
-        }
-    }
-
-    private List<Statement> translateAssignOp(JCTree.JCAssignOp assignOp) {
-        var origin = compiler.toOrigin(assignOp);
-        Expression target = compiler.expressionCompiler.toExpr(assignOp.getVariable());
-        List<Expression> lhss = List.of(target);
-        var operated = compiler.expressionCompiler.translateBinary(
-                assignOp, assignOp.getVariable().type, null,
-                assignOp.getOperator(), target, compiler.expressionCompiler.toExpr(assignOp.getExpression()));
-        List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
-        return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
 
     private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride) {
