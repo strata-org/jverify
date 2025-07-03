@@ -108,6 +108,9 @@ public class JavaToDafnyCompiler {
         for(var compiledClass : declarationsForSymbolContract.keySet()) {
             nameCompiler.registerClass(compiledClass);
         }
+        // These names are referenced by additional.dfy so their compiled names need to be predictable.
+        var symtab = Symtab.instance(context);
+        nameCompiler.registerPreludeReferencedName(symtab.objectType.tsym.name);
         compileSymbolsTopologically();
 
         List<FileStart> filesStarts = new ArrayList<>();

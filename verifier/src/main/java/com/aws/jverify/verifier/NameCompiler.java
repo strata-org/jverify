@@ -2,13 +2,18 @@ package com.aws.jverify.verifier;
 
 import com.sun.tools.javac.code.Symbol;
 
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
+import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Name;
 
 import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness at the Dafny level.
@@ -32,6 +37,7 @@ public class NameCompiler {
     public String INIT_METHOD_PREFIX = "init_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
+    private final Set<Name> preludeReferencedClassNames = new HashSet<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final boolean avoidCollisionsUsingUnderscores;
@@ -50,6 +56,10 @@ public class NameCompiler {
     
     public void registerClass(Symbol.ClassSymbol classSymbol) {
         classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
+    }
+
+    public void registerPreludeReferencedName(Name name) {
+        preludeReferencedClassNames.add(name);
     }
 
     public String safeGetOriginalName(String name) {
@@ -79,7 +89,8 @@ public class NameCompiler {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
                 var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
-                if (occurrenceCount == null || occurrenceCount > 1) {
+                var preludeReferenced = preludeReferencedClassNames.contains(classSymbol.name);
+                if (preludeReferenced || occurrenceCount == null || occurrenceCount > 1) {
                     return classSymbol.getQualifiedName().toString().replace(".", "_");
                 }
                 return classSymbol.name.toString();
