@@ -2,6 +2,8 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.simplify.java.DoWhileCompiler;
+import com.aws.jverify.verifier.simplify.java.ForLoopCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -12,17 +14,18 @@ import java.util.stream.Collectors;
 
 public class BlockCompiler {
 
-    private final JavaToDafnyCompiler compiler;
+    public final JavaToDafnyCompiler compiler;
+    private final List<StatementSimplifier> statementSimplifiers = new ArrayList<>();
 
     public BlockCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
+        statementSimplifiers.add(new ForLoopCompiler(this));
+        statementSimplifiers.add(new DoWhileCompiler(this));
     }
 
     private final Queue<Label> labels = new LinkedList<>();
-    private final Map<String, JCTree.JCStatement> labelToLoop = new HashMap<>();
-    private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
-    private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
-    private JCTree.JCStatement outerLoop;
+    public final Map<String, JCTree.JCStatement> labelToLoop = new HashMap<>();
+    public JCTree.JCStatement outerLoop;
 
     public int generatedIndex = 0;
 
@@ -39,6 +42,13 @@ public class BlockCompiler {
         var labels = this.labels.stream().toList();
         this.labels.clear();
 
+        for(var simplifier : statementSimplifiers) {
+            var result = simplifier.simplify(statement, labels);
+            if (result != null) {
+                return result;
+            }
+        }
+        
         switch (statement) {
             case JCTree.JCExpressionStatement expressionStatement -> {
                 return translateExpressionStatement(expressionStatement, originOverride);
@@ -62,13 +72,6 @@ public class BlockCompiler {
             case JCTree.JCWhileLoop whileLoop -> {
                 return List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x));
             }
-            case JCTree.JCDoWhileLoop doWhileLoop -> {
-                return translateDoWhileLoop(doWhileLoop, labels);
-            }
-            case JCTree.JCForLoop forLoop -> {
-                return translateForLoop(forLoop, labels);
-            }
-
             case JCTree.JCContinue jcContinue -> {
                 return translateContinue(jcContinue);
             }
@@ -100,38 +103,19 @@ public class BlockCompiler {
         return List.of(new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, false));
     }
 
-    private List<Statement> translateContinue(JCTree.JCContinue jcContinue) {
+    public List<Statement> translateContinue(JCTree.JCContinue jcContinue) {
         var origin = compiler.toOrigin(jcContinue);
         if (jcContinue.label == null) {
             if (outerLoop == null) {
                 throw new JavaViolationException();
             } else {
-                if (outerLoop instanceof JCTree.JCForLoop forLoop) {
-                    return translateContinueForForLoop(jcContinue, forLoop);
-                } else {
-                    return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
-                }
+                return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
             }
         } else {
             var loop = this.labelToLoop.get(jcContinue.label.toString());
-            if (loop instanceof JCTree.JCForLoop forLoop) {
-                return translateContinueForForLoop(jcContinue, forLoop);
-            } else {
-                var targetLabel = compiler.getName(jcContinue, jcContinue.label);
-                return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));
-            }
+            var targetLabel = compiler.getName(jcContinue, jcContinue.label);
+            return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));
         }
-    }
-
-    /**
-     * For for-loops, the continue statement must jump to before the increment, instead of to before the guard 
-     */
-    private List<Statement> translateContinueForForLoop(JCTree.JCContinue jcContinue, JCTree.JCForLoop forLoop) {
-        var origin = compiler.toOrigin(jcContinue);
-        forLoopsWithContinue.add(forLoop);
-        var label = getForLoopContinueLabel(forLoop);
-        return List.of(new BreakOrContinueStmt(origin, null, compiler.getName(jcContinue, label), 
-                0, false));
     }
 
     private List<Statement> translateReturn(JCTree.JCReturn returnStatement) {
@@ -167,40 +151,6 @@ public class BlockCompiler {
                 thenBranch, elseBranch));
     }
 
-    private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels) {
-        var origin = compiler.toOrigin(forLoop);
-        var loop = translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
-            List<Statement> outerBody;
-            List<Statement> steps = translateStatements(forLoop.step);
-            if (forLoopsWithContinue.contains(forLoop)) {
-                var continueLabel = getForLoopContinueLabel(forLoop);
-                var wrappedBody = new BlockStmt(origin, null, List.of(new Label(origin, continueLabel)), bodyStatements);
-                outerBody = new ArrayList<>(1 + steps.size());
-                outerBody.add(wrappedBody);
-                outerBody.addAll(steps);
-            } else {
-                outerBody = new ArrayList<>(bodyStatements.size() + steps.size());
-                outerBody.addAll(bodyStatements);
-                outerBody.addAll(steps);
-            }
-            return outerBody;
-        });
-
-        var initializer = translateStatements(forLoop.getInitializer());
-        var result = new ArrayList<Statement>(initializer.size() + 1);
-        result.addAll(initializer);
-        result.add(loop);
-        // Pack the statements in a block to ensure the loop index variable is
-        // scoped
-        return List.of(new BlockStmt(origin, null, List.of(), result));
-    }
-
-    private List<Statement> translateDoWhileLoop(JCTree.JCDoWhileLoop doWhileLoop, List<Label> labels) {
-        var whileLoop = translateLoop(doWhileLoop, doWhileLoop.getCondition(), doWhileLoop.body, labels, x -> x);
-        var firstBlock = whileLoop.getBody();
-        return List.of(firstBlock, whileLoop);
-    }
-
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
         LocalVariable localVariable = new LocalVariable(origin, variableDecl.name.toString(),
                 compiler.translateType(variableDecl.getModifiers(), variableDecl.getType().type, origin), false);
@@ -215,11 +165,11 @@ public class BlockCompiler {
         return List.of(new VarDeclStmt(origin, null, List.of(localVariable), dafnyInitializer));
     }
 
-    private WhileStmt translateLoop(JCTree.JCStatement loop,
-                                    JCTree.JCExpression condition,
-                                    JCTree.JCStatement body,
-                                    List<Label> labels,
-                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
+    public WhileStmt translateLoop(JCTree.JCStatement loop,
+                                   JCTree.JCExpression condition,
+                                   JCTree.JCStatement body,
+                                   List<Label> labels,
+                                   java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
         var postHeader = translateHeader(body, header, true);
@@ -242,10 +192,6 @@ public class BlockCompiler {
         for(var label : labels) {
             labelToLoop.put(label.getName(), loop);
         }
-    }
-
-    private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
-        return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> "$loop" + generatedIndex++);
     }
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride) {

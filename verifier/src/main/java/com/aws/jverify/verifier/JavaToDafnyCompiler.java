@@ -875,7 +875,7 @@ public class JavaToDafnyCompiler {
         return getName(tree, nameCompiler.getCompiledName(symbol), symbol.name.length());
     }
 
-    Name getName(JCTree tree, String name) {
+    public Name getName(JCTree tree, String name) {
         return getName(tree, name, name.length());
     }
 
@@ -933,20 +933,6 @@ public class JavaToDafnyCompiler {
     public static Symbol.MethodSymbol getJVerifyMethod(JCTree.JCMethodInvocation invocation) {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         return fromJVerify(methodSymbol) ? methodSymbol : null;
-    }
-}
-
-/**
- * Occurs when the contracts that we expect from Java resolution are violated
- * Indicates a JVerify compiler bug
- */
-class JavaViolationException extends RuntimeException {
-    public JavaViolationException() {
-        super();
-    }
-    
-    public JavaViolationException(String message) {
-        super(message);
     }
 }
 
