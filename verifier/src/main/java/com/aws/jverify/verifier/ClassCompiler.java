@@ -145,9 +145,7 @@ public class ClassCompiler {
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 var dafnyMember = translateField(variableDecl);
-                if (dafnyMember != null) {
-                    members.add(dafnyMember);
-                }
+                members.add(dafnyMember);
             }
 
         }
@@ -200,7 +198,7 @@ public class ClassCompiler {
                                                        List<Type> superTraits) {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
-        var classNeeded = !compiler.isInterfaceOrAbstract(classDecl.sym);
+        var classNeeded = !JavaToDafnyCompiler.isInterfaceOrAbstract(classDecl.sym);
 
         for(var member : members) {
             switch (member) {
@@ -241,7 +239,7 @@ public class ClassCompiler {
             }
         }
 
-        if (!compiler.isInterface(classDecl.sym) || compiler.isAnnotated(classDecl.type, Modifiable.class)) {
+        if (!JavaToDafnyCompiler.isInterface(classDecl.sym) || compiler.isAnnotated(classDecl.type, Modifiable.class)) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
 
@@ -297,7 +295,6 @@ public class ClassCompiler {
         var comps = TreeInfo.recordFields(classDecl);
         var ctorParams = comps.stream()
                 .map(this::translateField)
-                .filter(Objects::nonNull)
                 .map(field -> new Formal(
                         field.getOrigin(), field.getNameNode(),
                         field.getExplicitType(),
@@ -377,10 +374,9 @@ public class ClassCompiler {
                 && TreeInfo.args(stmt.getExpression()).isEmpty();
     }
 
-
     MemberDecl translateMember(JCTree member) {
         switch (member) {
-            case JCTree.JCClassDecl classDecl -> {
+            case JCTree.JCClassDecl _ -> {
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
@@ -395,7 +391,7 @@ public class ClassCompiler {
         }
     }
 
-    private @Nullable Field translateField(JCTree.JCVariableDecl variableDecl) {
+    private Field translateField(JCTree.JCVariableDecl variableDecl) {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
@@ -476,7 +472,7 @@ public class ClassCompiler {
         var methodCompiler = new BlockCompiler(compiler);
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
-        var isStatic = compiler.isStatic(modifiers);
+        var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol);
 
         MethodOrLoopContract header;
@@ -529,7 +525,7 @@ public class ClassCompiler {
             }
         }
 
-        if (compiler.isConstructor(methodSymbol)) {
+        if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
             DividedBlockStmt body;
             if (shouldVerify) {
                 var treeMaker = TreeMaker.instance(compiler.context);
@@ -578,7 +574,7 @@ public class ClassCompiler {
         var methodCompiler = new BlockCompiler(compiler);
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
-        var isStatic = compiler.isStatic(modifiers);
+        var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol);
         Expression body = null;
         MethodOrLoopContract header;
@@ -646,7 +642,7 @@ public class ClassCompiler {
 
     private void applyInvariants(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopContract header) {
         boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
-        boolean isStaticMethod = compiler.isStatic(modifiers);
+        boolean isStaticMethod = JavaToDafnyCompiler.isStatic(modifiers);
 
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {
