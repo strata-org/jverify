@@ -78,7 +78,8 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
-                if (classNameOccurrenceCounts.computeIfAbsent(classSymbol.name, _ -> 2) > 1) {
+                var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
+                if (occurrenceCount == null || occurrenceCount > 1) {
                     return classSymbol.getQualifiedName().toString().replace(".", "_");
                 }
                 return classSymbol.name.toString();
