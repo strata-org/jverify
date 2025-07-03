@@ -80,6 +80,7 @@ public class JavaToDafnyCompiler {
 
     private final List<Symbol.MethodSymbol> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
+    private SourceFile builtinSource;
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -115,7 +116,7 @@ public class JavaToDafnyCompiler {
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
-            var isLibrary = compilationUnit.getPackage().packge.getAnnotation(Library.class) != null;
+            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
             // fileDeclarations.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
             filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
@@ -130,8 +131,9 @@ public class JavaToDafnyCompiler {
     private Iterable<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
-        files.add(new SourceFile("builtin/builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
-        files.add(new SourceFile("builtin/package-info.java", Common.getResourceFile(getClass(), builtinPackageFile)));
+        builtinSource = new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile));
+        files.add(builtinSource);
+        
 
         for(var extraPath : options.extraClassPathEntries()) {
             if (!Files.exists(extraPath.toAbsolutePath())) {
@@ -834,8 +836,7 @@ public class JavaToDafnyCompiler {
         }).toList();
     }
 
-    public static final String builtinFile = "/builtin/builtin-contracts.java";
-    static final String builtinPackageFile = "/builtin/package-info.java";
+    public static final String builtinFile = "/builtin-contracts.java";
     private boolean isAlreadyVerified() {
         return compilationUnit.getSourceFile().getName().equals(builtinFile);
     }
