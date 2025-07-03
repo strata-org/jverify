@@ -47,17 +47,6 @@ public class ListTest {
         check(s.get(1).equals("two"));
         check(s.contains("two"));
     }
-
-    void Bar() {
-        var s  = List.of(new D(1), new D(2), new D(3));
-        check(s.size() == 3);
-        check(s.get(1).equals(new D(2)));
-        check(s.contains(new D(2)));
-    }
-}
-
-record D(int x) {
-
 }
 
 @Contract
