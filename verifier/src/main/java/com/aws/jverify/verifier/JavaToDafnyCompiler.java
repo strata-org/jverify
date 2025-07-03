@@ -12,6 +12,7 @@ import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
@@ -687,7 +688,9 @@ public class JavaToDafnyCompiler {
             }
         }
         // TODO: Check for existing equals()
-        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, "java_lang_Object", null)),
+        var symtab = Symtab.instance(context);
+        var objectName = nameCompiler.getCompiledName(symtab.objectType.tsym);
+        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, objectName, null)),
                 false, true, null, null, false, false, false, null);
         var equalsFunction = new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
                 List.of(otherIn),
@@ -819,7 +822,9 @@ public class JavaToDafnyCompiler {
             // so we can invoke equals() on any Java values,
             // even those translated to value types.
             var tpOrigin = toOrigin(p);
-            bounds = bounds.prepend(new UserDefinedType(tpOrigin, new NameSegment(tpOrigin, "java_lang_Object", null)));
+            var symtab = Symtab.instance(context);
+            var objectName = nameCompiler.getCompiledName(symtab.objectType.tsym);
+            bounds = bounds.prepend(new UserDefinedType(tpOrigin, new NameSegment(tpOrigin, objectName, null)));
             return new TypeParameter(toOrigin(p),
                     name, null, TPVarianceSyntax.NonVariant_Strict,
                     new TypeParameterCharacteristics(

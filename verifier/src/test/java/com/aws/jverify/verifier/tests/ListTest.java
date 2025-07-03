@@ -13,6 +13,7 @@ import java.util.IntSummaryStatistics;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.PrimitiveIterator;
@@ -44,7 +45,19 @@ public class ListTest {
         var s  = List.of("one", "two", "three");
         check(s.size() == 3);
         check(s.get(1).equals("two"));
+        check(s.contains("two"));
     }
+
+    void Bar() {
+        var s  = List.of(new D(1), new D(2), new D(3));
+        check(s.size() == 3);
+        check(s.get(1).equals(new D(2)));
+        check(s.contains(new D(2)));
+    }
+}
+
+record D(int x) {
+
 }
 
 @Contract
@@ -88,7 +101,9 @@ abstract class ListContract<E> implements List<E> {
     }
 
     @Override
+    @Pure
     public boolean contains(Object o) {
+        reads(this);
         postcondition((boolean r) ->
                 r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));
