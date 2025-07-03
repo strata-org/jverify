@@ -198,4 +198,8 @@ public class NameCompiler {
     public String getConstructorName(boolean nonDefaultConstructor) {
         return nonDefaultConstructor ? NON_DEFAULT_CTOR_NAME : DEFAULT_CTOR_NAME;
     }
+
+    public String getInitMethodName(String className, String constructorName) {
+        return constructorName.replace("ctor", INIT_METHOD_PREFIX) + "_" + className;
+    }
 }

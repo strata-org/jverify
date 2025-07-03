@@ -597,7 +597,7 @@ public class ExpressionCompiler {
         var stmts = com.sun.tools.javac.util.List.of(returnStmt);
         var body = maker.Block(0, stmts);
         var contract = compiler.methodContracts.get(methodSymbol);
-        var methodDecl = compiler.translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
+        var methodDecl = new ClassCompiler(compiler).translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
 
         // Add a wrapper datatype with that method declaration to the outer scope
         var datatypeName = "Lambda" + compiler.declarationsForFile.get(compiler.compilationUnit).size();
