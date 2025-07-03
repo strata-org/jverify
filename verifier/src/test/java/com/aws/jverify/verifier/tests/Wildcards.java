@@ -30,9 +30,10 @@ public class Wildcards {
         numberContainer.sett(d);
     }
 
-    static void alwaysTruerUser(Container<Object> container) {
-        alwaysTruer(container);
-//                  ^^^^^^^^^ Error: incorrect argument type for method in-parameter 'container' (expected Container<Never>, found Container<Object>) (non-variant type parameter 'T' would require Never = Object)
+    static void alwaysTruerUser(Container<Animal> animals, Container<Object> objects) {
+        alwaysTruer(animals);
+//                  ^^^^^^^ Error: incorrect argument type for method in-parameter 'container' (expected Container<Object>, found Container<Animal>) (non-variant type parameter 'T' would require Object = Animal)
+        alwaysTruer(objects);
     }
     
     static void alwaysTruer(Container<?> container) {

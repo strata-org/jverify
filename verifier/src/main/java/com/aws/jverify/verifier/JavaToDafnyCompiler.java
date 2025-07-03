@@ -1478,7 +1478,7 @@ public class JavaToDafnyCompiler {
                 if (superBound != null) {
                     return translateType(superBound, origin);
                 }
-                return new UserDefinedType(origin, new NameSegment(origin, "Never", null));
+                return new UserDefinedType(origin, new NameSegment(origin, "Object", null));
             }
             default -> {
             }

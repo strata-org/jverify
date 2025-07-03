@@ -21,5 +21,3 @@ type byte = x | 0 <= x < 256
 
 type float = real
 type double = real
-
-type Never
