@@ -77,8 +77,6 @@ public class JavaToDafnyCompiler {
 
     private final List<Symbol.MethodSymbol> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
-    private final Map<Symbol.MethodSymbol, MemberDecl> intermediateMethodsToSymbols = new HashMap<>();
-    private int implementationIndex = 0;
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -965,7 +963,6 @@ public class JavaToDafnyCompiler {
             }
             case JCTree.JCMethodDecl method -> {
                 MethodOrFunction methodOrFunction = translateMethodDecl(method);
-                intermediateMethodsToSymbols.put(method.sym, methodOrFunction);
                 return methodOrFunction;
             }
             case JCTree.JCVariableDecl variableDecl -> {

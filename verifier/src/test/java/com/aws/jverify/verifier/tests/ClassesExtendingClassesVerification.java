@@ -10,12 +10,17 @@ import static com.aws.jverify.JVerify.*;
 @JVerifyTest(exitCode = 0, dafnyVerified = 13, dafnyErrors = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {
-        Extendee extender = new Extender(4);
+        Extender extender = new Extender(4);
         check(extender.getX() == 3);
+        var re = extender.virtualMethod();
+        check(re >= 20);
+        Base base = extender;
+        var rb = base.virtualMethod();
+        check(rb >= 10);
     }
 }
 
-class Extender extends Extendee {
+class Extender extends Base {
     int z;
 
     public Extender(int input) {
@@ -39,11 +44,11 @@ class Extender extends Extendee {
 }
 
 
-abstract class Extendee {
+abstract class Base {
     int x;
     final int y;
     
-    public Extendee(int input) {
+    public Base(int input) {
         postcondition(this.x == computeX(input));
         this.x = computeX(input);
         this.y = 3;
@@ -63,9 +68,9 @@ abstract class Extendee {
     }
 
     @Contract
-    class ExtendeeContract extends Extendee {
+    class BaseContract extends Base {
 
-        public ExtendeeContract(int input) {
+        public BaseContract(int input) {
             super(input);
         }
 
