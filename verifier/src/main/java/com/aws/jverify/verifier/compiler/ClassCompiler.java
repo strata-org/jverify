@@ -5,6 +5,7 @@ import com.aws.jverify.InheritContract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.extend.dafny.CompileClassesExtendingClasses;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
@@ -20,12 +21,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ClassCompiler {
-    JavaToDafnyCompiler compiler;
+    public final JavaToDafnyCompiler compiler;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final List<Symbol.MethodSymbol> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
     private final Map<Symbol.MethodSymbol, MemberDecl> intermediateMethodsToSymbols = new HashMap<>();
+    private final TopLevelDeclCompiler classDeclCompiler = new CompileClassesExtendingClasses(this);
 
     public ClassCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -85,12 +87,10 @@ public class ClassCompiler {
             }
             compiler.addShouldVerify(mode);
 
-            List<TopLevelDecl> result = switch (classDecl.getKind()) {
+
+            List<TopLevelDecl> intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> List.of(translateEnum(classDecl, origin, name));
-                case INTERFACE, CLASS -> translateClass(classDecl, origin, name)
-                        .stream()
-                        .map(decl -> (TopLevelDecl) decl)
-                        .toList();
+                case INTERFACE, CLASS -> List.of(translateClass(classDecl, origin, name));
                 case RECORD -> List.of(translateRecord(classDecl, origin, name));
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
@@ -99,6 +99,12 @@ public class ClassCompiler {
                 // JCClassDecl#getKind returns one of the above five values
                 default -> throw new JavaViolationException("unexpected kind: " + classDecl.getKind());
             };
+
+            List<TopLevelDecl> result = new ArrayList<>();
+            for(var topLevelDecl : intermediateResult) {
+                result.addAll(classDeclCompiler.compile(topLevelDecl));
+            }
+            
             typeForWhichCurrentClassIsDefiningContract = null;
             compiler.contextOrigins.pop();
             compiler.shouldVerifies.pop();
@@ -127,7 +133,7 @@ public class ClassCompiler {
     }
 
 
-    private List<ClassLikeDecl> translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    private ClassDecl translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
@@ -170,7 +176,8 @@ public class ClassCompiler {
                 collect(Collectors.<Type>toList());
 
         var typeParameters = translateTypeParameters(classDecl.typarams);
-        return buildTraitAndClassTwin(classDecl, origin, name, members, typeParameters, superTraits);
+        return new ClassDecl(origin, new Name(name.getOrigin(), name.getValue()), null,
+                typeParameters, members, superTraits, false);
     }
 
     private List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
@@ -186,96 +193,6 @@ public class ClassCompiler {
                     ),
                     bounds);
         }).toList();
-    }
-
-    /**
-     * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
-     */
-    private List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
-                                                       IOrigin origin, Name name,
-                                                       ArrayList<MemberDecl> members,
-                                                       List<TypeParameter> typeParameters,
-                                                       List<Type> superTraits) {
-        var traitMembers = new ArrayList<MemberDecl>();
-        var classMembers = new ArrayList<MemberDecl>();
-        var classNeeded = !JavaToDafnyCompiler.isInterfaceOrAbstract(classDecl.sym);
-
-        for(var member : members) {
-            switch (member) {
-                case Method method when !method.getHasStaticKeyword() -> {
-                    traitMembers.add(member);
-                    if (method.getBody() == null) {
-                        classMembers.add(member);
-                        // A bodyless trait in Dafny is abstract. 
-                        // You can not declare an assumed member in traits in Dafny
-                        // We add the assumed member to the class
-                    }
-                }
-
-                case Function function -> {
-                    traitMembers.add(function);
-                    if (function.getBody() == null) {
-                        // A bodyless trait in Dafny is abstract. 
-                        // You can not declare an assumed member in traits in Dafny
-                        // We add the assumed member to the class
-                        classMembers.add(member);
-                    }
-                }
-                case Constructor constructor -> {
-                    classNeeded = true;
-                    Method initMethod = constructorToInitMethod(name.getValue(), constructor);
-                    if (initMethod != null) {
-                        traitMembers.add(initMethod);
-                    }
-
-                    var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null,
-                            constructor.getTypeArgs(), constructor.getIns(),
-                            constructor.getReq(), constructor.getEns(), constructor.getReads(),
-                            constructor.getDecreases(), constructor.getMod(),
-                            null);
-                    classMembers.add(classConstructor);
-                }
-                default -> traitMembers.add(member);
-            }
-        }
-
-        if (!JavaToDafnyCompiler.isInterface(classDecl.sym) || compiler.isAnnotated(classDecl.type, Modifiable.class)) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
-        }
-
-        var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);
-        List<Type> typeArgs = typeParameters.stream().map(
-                p -> (Type)new UserDefinedType(p.getOrigin(),
-                        new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
-
-        if (classNeeded) {
-            var clazz = new ClassDecl(origin, new Name(name.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + name.getValue()), null,
-                    typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
-            return List.of(trait, clazz);
-        } else {
-            return List.of(trait);
-        }
-    }
-
-    /**
-     * To support 'super(...)' calls, we translate each Java constructor to an 'init' method in the Dafny trait
-     * The Dafny class constructor then calls the init method of the related trait, and of the trait of its parent type.
-     */
-    private Method constructorToInitMethod(String className, Constructor constructor) {
-        if (constructor.getBody() == null) {
-            return null;
-        }
-        BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(),
-                constructor.getBody().getBodyInit());
-        Name nameNode = new Name(constructor.getNameNode().getOrigin(), compiler.nameCompiler.getInitMethodName(className, constructor.getNameNode().getValue()));
-        var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
-        var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
-        frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));
-        return new Method(constructor.getOrigin(), nameNode, constructor.getAttributes(),
-                constructor.getIsGhost(), constructor.getSignatureEllipsis(), constructor.getTypeArgs(), constructor.getIns(),
-                constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
-                modClause,
-                false, List.of(), body, false);
     }
     
     private IndDatatypeDecl translateRecord(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {

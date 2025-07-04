@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 public class BlockCompiler {
 
     public final JavaToDafnyCompiler compiler;
-    private final List<StatementSimplifier> statementSimplifiers = new ArrayList<>();
+    private final List<StatementCompiler> statementSimplifiers = new ArrayList<>();
 
     public BlockCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -44,7 +44,7 @@ public class BlockCompiler {
         this.labels.clear();
 
         for(var simplifier : statementSimplifiers) {
-            var result = simplifier.simplify(statement, labels);
+            var result = simplifier.compile(statement, labels);
             if (result != null) {
                 return result;
             }

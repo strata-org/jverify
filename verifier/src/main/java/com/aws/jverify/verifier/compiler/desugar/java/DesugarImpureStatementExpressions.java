@@ -4,13 +4,13 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.StatementSimplifier;
+import com.aws.jverify.verifier.compiler.StatementCompiler;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;
 
-public class DesugarImpureStatementExpressions implements StatementSimplifier {
+public class DesugarImpureStatementExpressions implements StatementCompiler {
     BlockCompiler blockCompiler;
 
     public DesugarImpureStatementExpressions(BlockCompiler blockCompiler) {
@@ -18,7 +18,7 @@ public class DesugarImpureStatementExpressions implements StatementSimplifier {
     }
 
     @Override
-    public @Nullable List<Statement> simplify(JCTree.JCStatement statement, List<Label> labels) {
+    public @Nullable List<Statement> compile(JCTree.JCStatement statement, List<Label> labels) {
         if (statement instanceof JCTree.JCExpressionStatement expressionStatement) {
             var expr = expressionStatement.getExpression();
             switch (expr) {

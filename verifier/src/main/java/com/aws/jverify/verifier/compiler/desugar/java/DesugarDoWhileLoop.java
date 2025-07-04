@@ -3,12 +3,12 @@ package com.aws.jverify.verifier.compiler.desugar.java;
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
-import com.aws.jverify.verifier.compiler.StatementSimplifier;
+import com.aws.jverify.verifier.compiler.StatementCompiler;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;
 
-public class DesugarDoWhileLoop implements StatementSimplifier {
+public class DesugarDoWhileLoop implements StatementCompiler {
     BlockCompiler blockCompiler;
 
     public DesugarDoWhileLoop(BlockCompiler blockCompiler) {
@@ -16,7 +16,7 @@ public class DesugarDoWhileLoop implements StatementSimplifier {
     }
 
     @Override
-    public List<Statement> simplify(JCTree.JCStatement statement, List<Label> labels) {
+    public List<Statement> compile(JCTree.JCStatement statement, List<Label> labels) {
         if (statement instanceof JCTree.JCDoWhileLoop doWhileLoop) {
             var whileLoop = blockCompiler.translateLoop(doWhileLoop,
                     doWhileLoop.getCondition(),

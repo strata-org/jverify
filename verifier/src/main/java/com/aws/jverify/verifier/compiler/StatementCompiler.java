@@ -7,9 +7,9 @@ import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;
 
-public interface StatementSimplifier {
+public interface StatementCompiler {
 
     @Nullable
-    List<Statement> simplify(JCTree.JCStatement statement,
-                             List<Label> labels);
+    List<Statement> compile(JCTree.JCStatement statement,
+                            List<Label> labels);
 }

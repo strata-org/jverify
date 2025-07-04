@@ -7,12 +7,12 @@ import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.StatementSimplifier;
+import com.aws.jverify.verifier.compiler.StatementCompiler;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
 
-public class DesugarForLoop implements StatementSimplifier {
+public class DesugarForLoop implements StatementCompiler {
 
     BlockCompiler blockCompiler;
     private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
@@ -23,7 +23,7 @@ public class DesugarForLoop implements StatementSimplifier {
     }
 
     @Override
-    public @Nullable List<Statement> simplify(JCTree.JCStatement statement, List<Label> labels) {
+    public @Nullable List<Statement> compile(JCTree.JCStatement statement, List<Label> labels) {
         if (statement instanceof JCTree.JCContinue jcContinue) {
             return translateContinue(jcContinue);
         } else if (statement instanceof JCTree.JCForLoop jcForLoop) {

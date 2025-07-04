@@ -73,7 +73,6 @@ public class JavaToDafnyCompiler {
     // All contracts, internal or external
     final Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts = new HashMap<>();
     JCTree.JCCompilationUnit compilationUnit;
-    private int implementationIndex = 0;
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
