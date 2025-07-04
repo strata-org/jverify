@@ -6,7 +6,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.DoWhileLoopCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ForLoopCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ImpureStatementExpressionCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.temporary.RecordCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;

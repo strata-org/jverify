@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.simplifications.temporary.RecordCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -10,19 +10,14 @@ import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.lang.model.element.Modifier;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
-
-import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 
 public class ExpressionCompiler {
      public final JavaToDafnyCompiler compiler;
