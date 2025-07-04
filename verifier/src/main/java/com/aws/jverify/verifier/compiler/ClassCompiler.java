@@ -28,7 +28,7 @@ public class ClassCompiler {
 
     private final Map<Symbol.MethodSymbol, MemberDecl> intermediateMethodsToSymbols = new HashMap<>();
     private final ClassesExtendingClassesCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
-
+    
     public ClassCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
     }
@@ -88,21 +88,21 @@ public class ClassCompiler {
             compiler.addShouldVerify(mode);
 
 
-            List<TopLevelDecl> intermediateResult = switch (classDecl.getKind()) {
-                case ENUM -> List.of(translateEnum(classDecl, origin, name));
-                case INTERFACE, CLASS -> List.of(translateClass(classDecl, origin, name));
-                case RECORD -> List.of(new RecordCompiler(this).translateRecord(classDecl, origin, name));
+            @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
+                case ENUM -> translateEnum(classDecl, origin, name);
+                case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
+                case RECORD -> new RecordCompiler(this).translateRecord(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
-                    yield List.of();
+                    yield null;
                 }
                 // JCClassDecl#getKind returns one of the above five values
                 default -> throw new JavaViolationException("unexpected kind: " + classDecl.getKind());
             };
 
             List<TopLevelDecl> result = new ArrayList<>();
-            for(var topLevelDecl : intermediateResult) {
-                result.addAll(classDeclCompiler.compile(topLevelDecl));
+            if (intermediateResult != null) {
+                result.addAll(classDeclCompiler.compile(intermediateResult, classDecl.sym));
             }
             
             typeForWhichCurrentClassIsDefiningContract = null;

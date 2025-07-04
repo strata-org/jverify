@@ -17,9 +17,8 @@ public class ClassesExtendingClassesCompiler {
         this.classCompiler = classCompiler;
     }
 
-    public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz) {
+    public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
         if (clazz instanceof ClassDecl classDecl) {
-            Symbol.ClassSymbol symbol = null;
             return buildTraitAndClassTwin(symbol, classDecl.getOrigin(),
                     classDecl.getNameNode(), classDecl.getMembers(), 
                     classDecl.getTypeArgs(), classDecl.getTraits());
