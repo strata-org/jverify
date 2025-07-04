@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.extend.dafny;
+package com.aws.jverify.verifier.compiler.temporary;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
@@ -11,10 +11,10 @@ import com.sun.tools.javac.code.Symbol;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CompileClassesExtendingClasses implements TopLevelDeclCompiler {
+public class ClassesExtendingClassesCompiler implements TopLevelDeclCompiler {
     ClassCompiler classCompiler;
 
-    public CompileClassesExtendingClasses(ClassCompiler classCompiler) {
+    public ClassesExtendingClassesCompiler(ClassCompiler classCompiler) {
         this.classCompiler = classCompiler;
     }
 

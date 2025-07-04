@@ -5,7 +5,7 @@ import com.aws.jverify.InheritContract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.extend.dafny.CompileClassesExtendingClasses;
+import com.aws.jverify.verifier.compiler.temporary.ClassesExtendingClassesCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
@@ -27,7 +27,7 @@ public class ClassCompiler {
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
     private final Map<Symbol.MethodSymbol, MemberDecl> intermediateMethodsToSymbols = new HashMap<>();
-    private final TopLevelDeclCompiler classDeclCompiler = new CompileClassesExtendingClasses(this);
+    private final TopLevelDeclCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
 
     public ClassCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;

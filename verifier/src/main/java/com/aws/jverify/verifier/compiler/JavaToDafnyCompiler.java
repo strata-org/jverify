@@ -4,7 +4,7 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.compiler.desugar.java.NameCompiler;
+import com.aws.jverify.verifier.compiler.transformations.NameCompiler;
 import com.sun.source.tree.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;

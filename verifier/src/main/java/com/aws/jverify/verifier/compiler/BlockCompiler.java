@@ -2,9 +2,9 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.desugar.java.DesugarDoWhileLoop;
-import com.aws.jverify.verifier.compiler.desugar.java.DesugarForLoop;
-import com.aws.jverify.verifier.compiler.desugar.java.DesugarImpureStatementExpressions;
+import com.aws.jverify.verifier.compiler.transformations.DoWhileLoopCompiler;
+import com.aws.jverify.verifier.compiler.transformations.ForLoopCompiler;
+import com.aws.jverify.verifier.compiler.transformations.ImpureStatementExpressionCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -19,9 +19,9 @@ public class BlockCompiler {
 
     public BlockCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
-        statementSimplifiers.add(new DesugarForLoop(this));
-        statementSimplifiers.add(new DesugarDoWhileLoop(this));
-        statementSimplifiers.add(new DesugarImpureStatementExpressions(this));
+        statementSimplifiers.add(new ForLoopCompiler(this));
+        statementSimplifiers.add(new DoWhileLoopCompiler(this));
+        statementSimplifiers.add(new ImpureStatementExpressionCompiler(this));
     }
 
     private final Queue<Label> labels = new LinkedList<>();

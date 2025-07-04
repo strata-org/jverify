@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.desugar.java;
+package com.aws.jverify.verifier.compiler.transformations;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
@@ -10,10 +10,10 @@ import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;
 
-public class DesugarImpureStatementExpressions implements StatementCompiler {
+public class ImpureStatementExpressionCompiler implements StatementCompiler {
     BlockCompiler blockCompiler;
 
-    public DesugarImpureStatementExpressions(BlockCompiler blockCompiler) {
+    public ImpureStatementExpressionCompiler(BlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
     }
 

@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.desugar.java;
+package com.aws.jverify.verifier.compiler.transformations;
 
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
@@ -8,10 +8,10 @@ import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;
 
-public class DesugarDoWhileLoop implements StatementCompiler {
+public class DoWhileLoopCompiler implements StatementCompiler {
     BlockCompiler blockCompiler;
 
-    public DesugarDoWhileLoop(BlockCompiler blockCompiler) {
+    public DoWhileLoopCompiler(BlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
     }
 

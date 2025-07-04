@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.desugar.java;
+package com.aws.jverify.verifier.compiler.transformations;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.BlockStmt;
@@ -12,13 +12,13 @@ import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
 
-public class DesugarForLoop implements StatementCompiler {
+public class ForLoopCompiler implements StatementCompiler {
 
     BlockCompiler blockCompiler;
     private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
 
-    public DesugarForLoop(BlockCompiler blockCompiler) {
+    public ForLoopCompiler(BlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
     }
 
