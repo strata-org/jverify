@@ -8,7 +8,7 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 34, dafnyErrors = 3)
 public class Lambdas {
 
     public void useLambdas() {
@@ -21,7 +21,7 @@ public class Lambdas {
         doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
             precondition(x >= y);
-            postcondition((Integer r) -> r == x - y);
+            postcondition((int r) -> r == x - y);
             return x - y;
 //                 ^ Error: value does not satisfy the subset constraints of 'int32'
         });
@@ -108,7 +108,7 @@ interface SomethingDoerWithSpec {
         @Override
         public int doSomething(int x, int y) {
             precondition(x >= y);
-            postcondition((Integer r) -> r == x - y);
+            postcondition((int r) -> r == x - y);
             throw new ContractException();
         }
     }

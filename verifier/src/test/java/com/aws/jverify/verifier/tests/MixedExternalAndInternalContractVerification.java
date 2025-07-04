@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 4, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 1)
 public class MixedExternalAndInternalContractVerification {
     public void root() {
         MixedContractExtender extender = new MixedContractExtender();
@@ -27,7 +27,7 @@ public class MixedExternalAndInternalContractVerification {
 class MixedContractContract implements MixedContract {
     @Override
     public int externalContract(int x) {
-        postcondition((Integer r) -> r > 4);
+        postcondition((int r) -> r > 4);
         return 5;
     }
 }
@@ -36,8 +36,8 @@ interface MixedContract {
     
     int externalContract(int x);
     default int internalContract() {
-        postcondition((Integer r) -> r > 2);
-//                                   ^^^^^ Related location: this is the postcondition that could not be proved
+        postcondition((int r) -> r > 2);
+//                               ^^^^^ Related location: this is the postcondition that could not be proved
         return 1;
 //      ^^^^^^^^^ Error: a postcondition could not be proved on this return path
     }
@@ -46,7 +46,7 @@ interface MixedContract {
 class MixedContractExtender implements MixedContract {
     @Override
     public int externalContract(int x) {
-        postcondition((Integer r) -> r > 5);
+        postcondition((int r) -> r > 5);
         return 6;
     }
     

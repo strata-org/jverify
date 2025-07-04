@@ -1,6 +1,7 @@
 package com.aws.jverify;
 
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -66,7 +67,11 @@ public class JVerify {
     }
 
     public static interface BooleanPredicate {
-        boolean apply(boolean value);
+        boolean test(boolean value);
+    }
+
+    public static interface IntBiPredicate {
+        boolean test(int value1, int value2);
     }
 
     /**
@@ -102,7 +107,11 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
-    public static <T1, T2> boolean forall(BiFunction<T1, T2, Boolean> predicate) {
+    public static <T1, T2> boolean forall(BiPredicate<T1, T2> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static <T1, T2> boolean forall(IntBiPredicate predicate) {
         throw new VerificationMethodExecutedException();
     }
 

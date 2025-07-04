@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 16, dafnyErrors = 3)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());

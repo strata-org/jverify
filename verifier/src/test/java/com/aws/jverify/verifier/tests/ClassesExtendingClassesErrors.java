@@ -22,7 +22,7 @@ class ExtenderErrors extends ExtendeeErrors {
     public int impureVirtual() {
 //             ^^^^^^^^^^^^^ Error: fully defined method 'impureVirtual' is inherited from trait 'ExtendeeErrors' and is not allowed to be re-declared
 // Will be allowed in the future, and then we should move this to the Verification test
-        postcondition((Integer r) -> r >= 20);
+        postcondition((int r) -> r >= 20);
         return 20;
     }
 }
@@ -36,7 +36,7 @@ abstract class ExtendeeErrors {
     }
     
     public int impureVirtual() {
-        postcondition((Integer r) -> r >= 20);
+        postcondition((int r) -> r >= 20);
         return 20;
     }
 }

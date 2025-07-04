@@ -9,7 +9,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 4)
 class FibonacciInvalid {
     @Pure
     @Erased
@@ -19,8 +19,8 @@ class FibonacciInvalid {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        postcondition((Integer r) -> r == Spec(n));
-//                                   ^^^^^^^^^^^^ Related location: this is the postcondition that could not be proved
+        postcondition((int r) -> r == Spec(n));
+//                               ^^^^^^^^^^^^ Related location: this is the postcondition that could not be proved
 
         if (n == 0) {
             return 1;

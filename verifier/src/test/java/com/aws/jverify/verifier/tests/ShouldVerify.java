@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 5)
+@JVerifyTest(exitCode = 4, dafnyVerified = 12, dafnyErrors = 5)
 public class ShouldVerify {}
 
 @Verify(value = true, overrideChildren = true)

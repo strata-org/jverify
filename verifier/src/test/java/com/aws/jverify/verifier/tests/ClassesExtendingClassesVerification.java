@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 8, dafnyErrors = 0)
+@JVerifyTest(exitCode = 0, dafnyVerified = 16, dafnyErrors = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {
         Extendee extender = new Extender(4);
@@ -52,7 +52,7 @@ abstract class Extendee {
     public abstract int computeX(int input);
     
     public int virtualMethodO() {
-        postcondition((Integer r) -> r >= 10);
+        postcondition((int r) -> r >= 10);
         return 10;
     }
 

@@ -216,7 +216,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 "--allow-axioms",
                 "--type-system-refresh",
                 "--general-newtypes",
-                "--general-traits=datatype"
+                "--general-traits=full"
         );
         var process = processBuilder.redirectErrorStream(true).start();
         int resolveExitCode = 0;
