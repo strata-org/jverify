@@ -99,7 +99,7 @@ public class BlockCompiler {
         Name targetLabel = null;
         int breakAndContinueCount = 0;
         if (jcBreak.label == null) {
-            breakAndContinueCount++;
+            breakAndContinueCount = 1;
         } else {
             targetLabel = compiler.getName(jcBreak, jcBreak.label);
         }
