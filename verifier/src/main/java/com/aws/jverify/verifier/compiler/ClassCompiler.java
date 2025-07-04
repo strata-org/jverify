@@ -5,6 +5,7 @@ import com.aws.jverify.InheritContract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.transformations.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.transformations.temporary.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.transformations.temporary.RecordCompiler;
 import com.sun.source.tree.Tree;
@@ -44,7 +45,7 @@ public class ClassCompiler {
             Name name = null;
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
-                var contractee = compiler.getContractTarget(classDecl, contractAnnotation);
+                var contractee = ExternalContractCompiler.getContractTarget(classDecl, contractAnnotation);
                 if (contractee != null) {
 
                     if (compiler.typeHasSource(contractee)) {
@@ -70,7 +71,7 @@ public class ClassCompiler {
                     }
                     // Don't report errors when extracting this contract here,
                     // since the actual translation of the method will report them.
-                    var header = compiler.extractContract(methodDecl, false);
+                    var header = new BlockCompiler(compiler).extractContract(methodDecl, false);
                     compiler.methodContracts.put(methodDecl.sym, header);
                 }
             }
@@ -488,7 +489,7 @@ public class ClassCompiler {
 
     private @Nullable MethodOrLoopContract findExternalContract(Symbol.MethodSymbol methodSymbol) {
         var enclosingClass = methodSymbol.enclClass();
-        var contractor = compiler.externalContracts.get(enclosingClass);
+        var contractor = compiler.externalContractCompiler.externalContracts.get(enclosingClass);
         if (contractor != null) {
             return contractor.methodContracts().get(methodSymbol);
         }

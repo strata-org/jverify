@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.Pure;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.transformations.DoWhileLoopCompiler;
@@ -513,5 +514,20 @@ public class BlockCompiler {
         }
         var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
+    }
+
+    public MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl, boolean reportErrors) {
+        var methodAnnotations = methodDecl.getModifiers().getAnnotations();
+        var methodAnnotationsByName = methodAnnotations.stream().collect(Collectors.toMap(
+                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                a -> a));
+
+        var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
+        var header = new MethodOrLoopContract(methodDecl, isPure);
+        if (methodDecl.getBody() != null) {
+            translateHeader(methodDecl.getBody(), header, reportErrors);
+        }
+
+        return header;
     }
 }

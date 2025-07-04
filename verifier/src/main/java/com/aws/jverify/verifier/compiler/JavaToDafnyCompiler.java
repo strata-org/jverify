@@ -2,30 +2,20 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 
-import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
+import com.aws.jverify.verifier.compiler.transformations.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.transformations.NameCompiler;
 import com.sun.source.tree.*;
-import com.sun.source.util.TaskEvent;
-import com.sun.source.util.TaskListener;
-import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.api.JavacTrees;
-import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
-import com.sun.tools.javac.comp.CompileStates;
 import com.sun.tools.javac.comp.Env;
-import com.sun.tools.javac.comp.LambdaToMethod;
-import com.sun.tools.javac.comp.Todo;
-import com.sun.tools.javac.main.Arguments;
-import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.comp.Enter;
 
 import com.sun.tools.javac.tree.TreeInfo;
@@ -42,14 +32,9 @@ import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
-import java.io.File;
 import java.lang.annotation.Annotation;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -59,20 +44,19 @@ public class JavaToDafnyCompiler {
     public final Stack<IOrigin> contextOrigins = new Stack<>();
     public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public final NameCompiler nameCompiler;
+    ExternalContractCompiler externalContractCompiler = new ExternalContractCompiler(this);
     public JCDiagnostic.Factory diagnosticFactory;
 
     /**
      * Edges are from child to parent types, similar to the references in the code
      */
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
-    private final Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> declarationsForSymbolContract = new HashMap<>();
     public Map<CompilationUnitTree, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
-
-    public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
+    
     // All contracts, internal or external
-    final Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts = new HashMap<>();
-    JCTree.JCCompilationUnit compilationUnit;
+    public final Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts = new HashMap<>();
+    public JCTree.JCCompilationUnit compilationUnit;
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -93,13 +77,17 @@ public class JavaToDafnyCompiler {
             return new FilesContainer(List.of());
         }
 
+        var foundSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
-            discoverContractsAndTypeHierarchy((JCTree.JCCompilationUnit) compilationUnit);
+            externalContractCompiler.discoverContracts((JCTree.JCCompilationUnit) compilationUnit, foundSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
-        for(var compiledClass : declarationsForSymbolContract.keySet()) {
-            nameCompiler.registerClass(compiledClass);
+        
+        for(var foundSymbol : foundSymbols) {
+            addHierarchyForSymbol(foundSymbol);
+            nameCompiler.registerClass(foundSymbol);
         }
+        
         compileSymbolsTopologically();
 
         List<FileStart> filesStarts = new ArrayList<>();
@@ -124,7 +112,7 @@ public class JavaToDafnyCompiler {
         var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
         iterator.forEachRemaining(itemsFromChildrenToParents::add);
         for(var currentTypeSymbol : itemsFromChildrenToParents.reversed()) {
-            var relatedDeclarations = declarationsForSymbolContract.get(currentTypeSymbol);
+            var relatedDeclarations = externalContractCompiler.declarationsForSymbolContract.get(currentTypeSymbol);
             if (relatedDeclarations == null) {
                 continue;
             }
@@ -140,121 +128,6 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) { }
-    private void discoverContractsAndTypeHierarchy(JCTree.JCCompilationUnit compilationUnit) {
-        this.compilationUnit = compilationUnit;
-        var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
-        while(!typesToVisit.isEmpty()) {
-            var typeDecl = typesToVisit.poll();
-            if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
-                continue;
-            }
-            
-            var classAnnotations = classDecl.getModifiers().getAnnotations();
-            var classAnnotationsByName = classAnnotations.stream().collect(Collectors.toMap(
-                    (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                    a -> a));
-            var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
-
-            for(var member : classDecl.getMembers()) {
-                if (member instanceof JCTree.JCClassDecl nestedClass) {
-                    typesToVisit.push(nestedClass);
-                }
-            }
-            if (contractAnnotation == null) {
-                var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
-                declsForSymbol.add(classDecl);
-                addHierarchyForSymbol(classDecl.sym);
-                continue;
-            }
-            
-            var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
-            if (contracteeSymbol == null) {
-                reportError(classDecl, "noContractTarget", classDecl.name.toString());
-                continue;
-            }
-
-            var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
-            declsForSymbol.add(classDecl);
-
-            addHierarchyForSymbol(contracteeSymbol);
-            if (externalContracts.containsKey(contracteeSymbol)) {
-                reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
-                continue;
-            }
-            if (typeHasSource(contracteeSymbol) && !isInterfaceOrAbstract(contracteeSymbol)) {
-                reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
-                continue;
-            }
-            
-            Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
-            for(var member : classDecl.getMembers()) {
-                if (member instanceof JCTree.JCClassDecl nestedClass) {
-                    typesToVisit.push(nestedClass);
-                }
-                
-                if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
-                    continue;
-                }
-
-                var methodSymbol = methodDecl.sym;
-                var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(context));
-                if (baseMethod != null) {
-                    var header = extractContract(methodDecl, true);
-                    externalContracts.put(baseMethod, header);
-                    methodContracts.put(baseMethod, header);
-                } else if (!isSynthetic(methodDecl, methodSymbol)) {
-                    // Check currently does not take into account overloading
-                    // But this only makes it not detect some unused methods.
-                    var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();
-                    if (contractee.isEmpty()) {
-                        reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
-                    }
-                }
-            }
-            this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
-        }
-    }
-    
-    public Symbol.ClassSymbol getContractTarget(JCTree.JCClassDecl classDecl,
-                                                JCTree.JCAnnotation contractAnnotation) {
-        if (contractAnnotation == null) {
-            return null;
-        }
-
-        var arguments = JavaToDafnyCompiler.getArguments(contractAnnotation);
-        var symbol = JavaToDafnyCompiler.getClassSymbol(arguments.get("value"));
-        if (symbol == null || symbol.getQualifiedName().contentEquals("com.aws.jverify.Contract")) {
-            var superClass = classDecl.sym.getSuperclass();
-            if (classDecl.extending != null && superClass != null) {
-                return (Symbol.ClassSymbol) superClass.tsym;
-            }
-            var interfaces = classDecl.sym.getInterfaces();
-            if (interfaces.isEmpty()) {
-                return null;
-            }
-            return (Symbol.ClassSymbol) interfaces.getFirst().tsym;
-        }
-        return symbol;
-    }
-    
-    // TODO Move to Block/Method compiler?
-    public MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl, boolean reportErrors) {
-        var methodAnnotations = methodDecl.getModifiers().getAnnotations();
-        var methodAnnotationsByName = methodAnnotations.stream().collect(Collectors.toMap(
-                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                a -> a));
-
-        var methodCompiler = new BlockCompiler(this);
-        var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
-        var header = new MethodOrLoopContract(methodDecl, isPure);
-        if (methodDecl.getBody() != null) {
-            methodCompiler.translateHeader(methodDecl.getBody(), header, reportErrors);
-        }
-
-        return header;
-    }
-
     private void addHierarchyForSymbol(Symbol.ClassSymbol sym) {
         typeHierarchy.addVertex(sym);
         for(var base : sym.getInterfaces()) {
@@ -266,18 +139,6 @@ public class JavaToDafnyCompiler {
         if (sym.getSuperclass().tsym instanceof Symbol.ClassSymbol baseClass) {
             typeHierarchy.addVertex(baseClass);
             typeHierarchy.addEdge(sym, baseClass);
-        }
-    }
-
-    private String methodToString(JCTree tree) {
-        if (tree instanceof JCTree.JCMethodDecl methodDecl){
-            if (isConstructor(methodDecl.sym)) {
-                return "constructor";
-            } else {
-                return "method '" + methodDecl.name + "'";
-            }
-        } else {
-            return "lambda";
         }
     }
 
@@ -434,7 +295,7 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean typeHasAContract(com.sun.tools.javac.code.Type type) {
-        return this.externalContracts.containsKey(type.tsym) || typeHasSource(type.tsym);
+        return externalContractCompiler.externalContracts.containsKey(type.tsym) || typeHasSource(type.tsym);
     }
 
     public boolean typeHasSource(Symbol.TypeSymbol typeSymbol) {
