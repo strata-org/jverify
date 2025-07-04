@@ -27,7 +27,7 @@ public class ClassCompiler {
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
     private final Map<Symbol.MethodSymbol, MemberDecl> intermediateMethodsToSymbols = new HashMap<>();
-    private final TopLevelDeclCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
+    private final ClassesExtendingClassesCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
 
     public ClassCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;

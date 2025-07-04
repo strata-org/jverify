@@ -5,20 +5,18 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.TopLevelDeclCompiler;
 import com.sun.tools.javac.code.Symbol;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ClassesExtendingClassesCompiler implements TopLevelDeclCompiler {
+public class ClassesExtendingClassesCompiler {
     ClassCompiler classCompiler;
 
     public ClassesExtendingClassesCompiler(ClassCompiler classCompiler) {
         this.classCompiler = classCompiler;
     }
 
-    @Override
     public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz) {
         if (clazz instanceof ClassDecl classDecl) {
             Symbol.ClassSymbol symbol = null;
