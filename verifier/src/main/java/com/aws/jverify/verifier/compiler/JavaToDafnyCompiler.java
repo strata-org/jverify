@@ -3,9 +3,9 @@ package com.aws.jverify.verifier.compiler;
 import com.aws.jverify.*;
 
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.compiler.transformations.ExternalContractCompiler;
-import com.aws.jverify.verifier.compiler.transformations.NameCompiler;
-import com.aws.jverify.verifier.compiler.transformations.VerifyAnnotationCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;

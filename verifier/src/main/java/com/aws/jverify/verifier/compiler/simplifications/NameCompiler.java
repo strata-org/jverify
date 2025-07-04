@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.transformations;
+package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.sun.tools.javac.code.Symbol;
 
