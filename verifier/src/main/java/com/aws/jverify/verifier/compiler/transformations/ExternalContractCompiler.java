@@ -16,14 +16,13 @@ import java.util.stream.StreamSupport;
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
 
 public class ExternalContractCompiler {
-    JavaToDafnyCompiler compiler;
+    final JavaToDafnyCompiler compiler;
     public final Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> declarationsForSymbolContract = new HashMap<>();
+    public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
 
     public ExternalContractCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
     }
-
-    public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
     
     public record ExternalTypeContract(Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts) { }
     

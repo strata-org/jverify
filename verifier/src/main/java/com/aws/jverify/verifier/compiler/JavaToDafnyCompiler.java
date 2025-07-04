@@ -5,6 +5,7 @@ import com.aws.jverify.*;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.transformations.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.transformations.NameCompiler;
+import com.aws.jverify.verifier.compiler.transformations.VerifyAnnotationCompiler;
 import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
@@ -44,8 +45,10 @@ public class JavaToDafnyCompiler {
     public final Stack<IOrigin> contextOrigins = new Stack<>();
     public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public final NameCompiler nameCompiler;
-    ExternalContractCompiler externalContractCompiler = new ExternalContractCompiler(this);
+    public final ExternalContractCompiler externalContractCompiler = new ExternalContractCompiler(this);
+    public final VerifyAnnotationCompiler verifyAnnotationCompiler;
     public JCDiagnostic.Factory diagnosticFactory;
+    public final VerifierOptions verifierOptions;
 
     /**
      * Edges are from child to parent types, similar to the references in the code
@@ -60,11 +63,10 @@ public class JavaToDafnyCompiler {
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
-        shouldVerifies.push(verifierOptions.verifyByDefault()
-                ? ShouldVerifyMode.DefaultYes
-                : ShouldVerifyMode.DefaultNo);
+        this.verifierOptions = verifierOptions;
         nameCompiler = new NameCompiler(verifierOptions.avoidCollisionsUsingUnderscores());
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
+        verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
     }
 
     public NameCompiler getNameCompiler() {
@@ -77,15 +79,15 @@ public class JavaToDafnyCompiler {
             return new FilesContainer(List.of());
         }
 
-        var foundSymbols = new HashSet<Symbol.ClassSymbol>();
+        var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverContracts((JCTree.JCCompilationUnit) compilationUnit, foundSymbols);
+            externalContractCompiler.discoverContracts((JCTree.JCCompilationUnit) compilationUnit, foundClassSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
-        for(var foundSymbol : foundSymbols) {
-            addHierarchyForSymbol(foundSymbol);
-            nameCompiler.registerClass(foundSymbol);
+        for(var foundClassSymbol : foundClassSymbols) {
+            addHierarchyForSymbol(foundClassSymbol);
+            nameCompiler.registerClass(foundClassSymbol);
         }
         
         compileSymbolsTopologically();
@@ -174,40 +176,6 @@ public class JavaToDafnyCompiler {
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
     }
-    enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
-
-    public final Stack<ShouldVerifyMode> shouldVerifies = new Stack<>();
-
-    public boolean processVerifyAnnotationAndPop(Map<String, JCTree.JCAnnotation> annotationsByName) {
-        processVerifyAnnotation(annotationsByName);
-        boolean shouldVerify = shouldVerify();
-        shouldVerifies.pop();
-        return shouldVerify;
-    }
-    
-    private boolean shouldVerify() {
-        for (int i = shouldVerifies.size() - 1; i >= 0; i--) {
-            var mode = shouldVerifies.get(i);
-            if (mode == ShouldVerifyMode.AlwaysYes || mode == ShouldVerifyMode.DefaultYes) {
-                return true;
-            } else if (mode == ShouldVerifyMode.AlwaysNo || mode == ShouldVerifyMode.DefaultNo) {
-                return false;
-            }
-        }
-        throw new RuntimeException("shouldVerify should never be empty");
-    }
-    
-    public void addShouldVerify(ShouldVerifyMode mode) {
-        if (shouldVerifies.peek() == ShouldVerifyMode.AlwaysYes) {
-            shouldVerifies.push(ShouldVerifyMode.AlwaysYes);
-        } else if (shouldVerifies.peek() == ShouldVerifyMode.AlwaysNo) {
-            shouldVerifies.push(ShouldVerifyMode.AlwaysNo);
-        } else if (mode == ShouldVerifyMode.Inherit) {
-            shouldVerifies.push(shouldVerifies.peek());
-        } else {
-            shouldVerifies.push(mode);
-        }
-    }
     
     public static Map<String, JCTree.JCExpression> getArguments(JCTree.JCAnnotation annotation) {
         var result = new HashMap<String, JCTree.JCExpression>();
@@ -221,22 +189,6 @@ public class JavaToDafnyCompiler {
         }
         return result;
     }
-    
-    private ShouldVerifyMode getVerifyMode(boolean should, boolean pushDown) {
-        if (should) {
-            if (pushDown) {
-                return ShouldVerifyMode.AlwaysYes;
-            } else {
-                return ShouldVerifyMode.DefaultYes;
-            }
-        } else {
-            if (pushDown) {
-                return ShouldVerifyMode.AlwaysNo;
-            } else {
-                return ShouldVerifyMode.DefaultNo;
-            }
-        }
-    }
 
     public static boolean isInterface(Symbol.ClassSymbol classDecl) {
         return (classDecl.flags() & Flags.INTERFACE) != 0;
@@ -249,36 +201,8 @@ public class JavaToDafnyCompiler {
     public static boolean isInterfaceOrAbstract(Symbol.ClassSymbol classDecl) {
         return isInterface(classDecl) || isAbstract(classDecl);
     }
-    
-    public void processVerifyAnnotation(Map<String, JCTree.JCAnnotation> annotationsByName) {
-        ShouldVerifyMode mode = getShouldVerifyMode(annotationsByName);
-        addShouldVerify(mode);
-    }
 
-    public ShouldVerifyMode getShouldVerifyMode(Map<String, JCTree.JCAnnotation> annotationsByName) {
-        ShouldVerifyMode mode;
-        var verifyAnnotation = annotationsByName.get(Verify.class.getName());
-        if (verifyAnnotation != null) {
-            var arguments = getArguments(verifyAnnotation);
-            var shouldArgument = arguments.get("value");
-            var should = true;
-            if (shouldArgument != null) {
-                should = (boolean) getLiteralValue(shouldArgument);
-            }
-
-            var pushDownArgument = arguments.get("overrideChildren");
-            var includeMembers = true;
-            if (pushDownArgument != null) {
-                includeMembers = (boolean) getLiteralValue(pushDownArgument);
-            }
-            mode = getVerifyMode(should, includeMembers);
-        } else {
-            mode = ShouldVerifyMode.Inherit;
-        }
-        return mode;
-    }
-
-    private static Object getLiteralValue(JCTree.JCExpression expression) {
+    public static Object getLiteralValue(JCTree.JCExpression expression) {
         if (expression instanceof JCTree.JCLiteral literal) {
             return literal.getValue();
         } else {

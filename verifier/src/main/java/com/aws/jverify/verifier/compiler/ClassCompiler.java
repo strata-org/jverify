@@ -6,6 +6,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.transformations.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.transformations.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.transformations.temporary.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.transformations.temporary.RecordCompiler;
 import com.sun.source.tree.Tree;
@@ -82,11 +83,11 @@ public class ClassCompiler {
             var origin = compiler.declToOrigin(classDecl, name);
             compiler.contextOrigins.push(origin);
 
-            JavaToDafnyCompiler.ShouldVerifyMode mode = compiler.getShouldVerifyMode(annotationsByName);
+            var mode = compiler.verifyAnnotationCompiler.getShouldVerifyMode(annotationsByName);
             if (typeForWhichCurrentClassIsDefiningContract != null) {
-                mode = JavaToDafnyCompiler.ShouldVerifyMode.AlwaysNo;
+                mode = VerifyAnnotationCompiler.ShouldVerifyMode.AlwaysNo;
             }
-            compiler.addShouldVerify(mode);
+            compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
 
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
@@ -108,7 +109,7 @@ public class ClassCompiler {
             
             typeForWhichCurrentClassIsDefiningContract = null;
             compiler.contextOrigins.pop();
-            compiler.shouldVerifies.pop();
+            compiler.verifyAnnotationCompiler.shouldVerifies.pop();
             return result;
         }
         if (tree instanceof JCTree jcTree) {
@@ -260,7 +261,7 @@ public class ClassCompiler {
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
 
-        boolean shouldVerify = compiler.processVerifyAnnotationAndPop(annotationsByName);
+        boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
 
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
 // Hints for whenever this is implemented.
