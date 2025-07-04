@@ -72,7 +72,7 @@ public class ClassCompiler {
                     // Don't report errors when extracting this contract here,
                     // since the actual translation of the method will report them.
                     var header = new BlockCompiler(compiler).extractContract(methodDecl, false);
-                    compiler.methodContracts.put(methodDecl.sym, header);
+                    compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             }
 

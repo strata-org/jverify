@@ -4,6 +4,7 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.sun.source.tree.*;
@@ -47,6 +48,7 @@ public class JavaToDafnyCompiler {
     public final NameCompiler nameCompiler;
     public final ExternalContractCompiler externalContractCompiler = new ExternalContractCompiler(this);
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
+    public final LambdaCompiler lambdaCompiler;
     public JCDiagnostic.Factory diagnosticFactory;
     public final VerifierOptions verifierOptions;
 
@@ -57,8 +59,6 @@ public class JavaToDafnyCompiler {
     public Map<CompilationUnitTree, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
-    // All contracts, internal or external
-    public final Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts = new HashMap<>();
     public JCTree.JCCompilationUnit compilationUnit;
 
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
@@ -67,6 +67,7 @@ public class JavaToDafnyCompiler {
         nameCompiler = new NameCompiler(verifierOptions.avoidCollisionsUsingUnderscores());
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
+        lambdaCompiler = new LambdaCompiler(this);
     }
 
     public NameCompiler getNameCompiler() {
@@ -497,11 +498,11 @@ public class JavaToDafnyCompiler {
         return null;
     }
 
-    Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
+    public Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
         return getName(tree, name.toString());
     }
     
-    Name getName(JCTree tree, Symbol symbol) {
+    public Name getName(JCTree tree, Symbol symbol) {
         return getName(tree, nameCompiler.getCompiledName(symbol), symbol.name.length());
     }
 
@@ -509,7 +510,7 @@ public class JavaToDafnyCompiler {
         return getName(tree, name, name.length());
     }
 
-    Name getName(JCTree tree, String name, int length) {
+    public Name getName(JCTree tree, String name, int length) {
         var positionCalculator = new PositionCalculator(compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);
         var startToken = positionCalculator.toToken(startPos);

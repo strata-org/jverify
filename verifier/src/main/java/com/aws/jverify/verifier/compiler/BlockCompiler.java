@@ -6,6 +6,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.DoWhileLoopCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ForLoopCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ImpureStatementExpressionCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.temporary.RecordCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -480,7 +481,7 @@ public class BlockCompiler {
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
                 if (((Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz)).isRecord()) {
-                    var datatypeValue = compiler.expressionCompiler.translateNewRecord(origin, newClass);
+                    var datatypeValue = RecordCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);

@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.simplifications.temporary;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
+import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.tree.JCTree;
@@ -111,5 +112,18 @@ public class RecordCompiler {
                 && body.getFirst() instanceof JCTree.JCExpressionStatement stmt
                 && TreeInfo.isSuperCall(stmt)
                 && TreeInfo.args(stmt.getExpression()).isEmpty();
+    }
+
+    /**
+     * Translates the given {@code new RecordType(...)} invocation into a {@link DatatypeValue}
+     * that can be used in pure contexts.
+     */
+    public static DatatypeValue translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
+        var argBindings = newClass.getArguments().stream()
+                .map(a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
+        var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.type.asElement());
+        return new DatatypeValue(
+                origin, datatypeName, datatypeName,
+                new ActualBindings(argBindings));
     }
 }
