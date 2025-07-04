@@ -30,6 +30,7 @@ public class NameCompiler {
     public String METHOD_RETURN_VARIABLE_NAME = "g_result";
     public String CLASS_PREFIX = "Constructable_";
     public String INIT_METHOD_PREFIX = "init_";
+    public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
@@ -41,10 +42,11 @@ public class NameCompiler {
         this.javaToDafnyCompiler = javaToDafnyCompiler;
         this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
         if (this.avoidCollisionsUsingUnderscores) {
-            DEFAULT_CTOR_NAME = "_" + DEFAULT_CTOR_NAME;
-            INIT_METHOD_PREFIX = "_" + INIT_METHOD_PREFIX;
-            CLASS_PREFIX = "_" + CLASS_PREFIX;
-            METHOD_RETURN_VARIABLE_NAME = "#" + METHOD_RETURN_VARIABLE_NAME;
+            DEFAULT_CTOR_NAME += "_";
+            INIT_METHOD_PREFIX += "_";
+            CLASS_PREFIX += "_";
+            IMPLEMENTATION_METHOD_PREFIX += "_";
+            METHOD_RETURN_VARIABLE_NAME += "#";
         }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
@@ -84,7 +86,8 @@ public class NameCompiler {
                 if (newTarget != null) {
                     return uncachedGetCompiledName(newTarget);
                 }
-                if (classNameOccurrenceCounts.computeIfAbsent(classSymbol.name, _ -> 2) > 1) {
+                var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
+                if (occurrenceCount == null || occurrenceCount > 1) {
                     return classSymbol.getQualifiedName().toString().replace(".", "_");
                 }
                 return classSymbol.name.toString();
