@@ -6,12 +6,12 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.temporary.ClassesExtendingClassesCompiler;
+import com.aws.jverify.verifier.compiler.temporary.RecordCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -91,7 +91,7 @@ public class ClassCompiler {
             List<TopLevelDecl> intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> List.of(translateEnum(classDecl, origin, name));
                 case INTERFACE, CLASS -> List.of(translateClass(classDecl, origin, name));
-                case RECORD -> List.of(translateRecord(classDecl, origin, name));
+                case RECORD -> List.of(new RecordCompiler(this).translateRecord(classDecl, origin, name));
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield List.of();
@@ -180,7 +180,7 @@ public class ClassCompiler {
                 typeParameters, members, superTraits, false);
     }
 
-    private List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
+    public List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
         return typarams.stream().map(p -> {
             var name = compiler.getName(p, p.getName());
             var bounds = p.bounds.map(compiler::translateType);
@@ -194,104 +194,12 @@ public class ClassCompiler {
                     bounds);
         }).toList();
     }
-    
-    private IndDatatypeDecl translateRecord(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        assert classDecl.getKind() == Tree.Kind.RECORD;
-        if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
-            compiler.reportError(origin, "modifiableForbidden", "a record class");
-        }
 
-        var typeParams = translateTypeParameters(classDecl.typarams);
-
-        var traits = getCurrentTypeSymbol(classDecl)
-                .getInterfaces().stream()
-                .filter(compiler::typeHasAContract)
-                .map(baseType -> compiler.translateType(null, baseType, origin))
-                .toList();
-
-        var comps = TreeInfo.recordFields(classDecl);
-        var ctorParams = comps.stream()
-                .map(this::translateField)
-                .map(field -> new Formal(
-                        field.getOrigin(), field.getNameNode(),
-                        field.getExplicitType(),
-                        false, true,
-                        null, null,
-                        false, false, false,
-                        null
-                ))
-                .toList();
-        var ctors = List.of(new DatatypeCtor(
-                origin,
-                name,
-                null,
-                false,
-                ctorParams
-        ));
-
-        var compNames = comps.stream()
-                .map(JCTree.JCVariableDecl::getName)
-                .map(com.sun.tools.javac.util.Name::toString)
-                .collect(Collectors.toSet());
-        var members = new ArrayList<MemberDecl>();
-        for (var member : classDecl.getMembers()) {
-            if (member instanceof JCTree.JCVariableDecl varDecl
-                    && compNames.contains(varDecl.getName().toString()) ) {
-                // Don't translate fields that arise from record components
-                continue;
-            } else if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                // No constructors should be translated:
-                // explicit constructors are not allowed/supported,
-                // and the implicit canonical constructor is unneeded to construct datatype values.
-                if (TreeInfo.isConstructor(methodDecl)) {
-                    if (!isSyntheticCanonicalConstructor(methodDecl)) {
-                        compiler.reportError(member, "notSupported", "explicit record constructor");
-                    }
-                    continue;
-                }
-                var methodName = methodDecl.getName().toString();
-                var params = methodDecl.getParameters();
-                if (compNames.contains(methodName) && params.isEmpty()) {
-                    compiler.reportError(member, "notSupported", "explicit record component accessor method");
-                    continue;
-                } else if ("equals".equals(methodName)
-                        && params.length() == 1
-                        && params.getFirst().type.toString().equals(Object.class.getName())) {
-                    compiler.reportError(member, "notSupported", "overridden equals method in record");
-                    continue;
-                } else if ("hashCode".equals(methodName) && params.isEmpty()) {
-                    compiler.reportError(member, "notSupported", "overridden hashCode method in record");
-                    continue;
-                }
-            }
-            var dafnyMember = translateMember(member);
-            if (dafnyMember != null) {
-                members.add(dafnyMember);
-            }
-        }
-
-        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, ctors, false);
-    }
-
-    private Symbol.ClassSymbol getCurrentTypeSymbol(JCTree.JCClassDecl classDecl) {
+    public Symbol.ClassSymbol getCurrentTypeSymbol(JCTree.JCClassDecl classDecl) {
         return typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
     }
 
-    /**
-     * Returns whether the declaration is a record's synthetic (implicit) canonical constructor.
-     */
-    private static boolean isSyntheticCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
-        // Ideally we'd check for the SYNTHETIC flag, but it's not set.
-        // So instead we check for its body: just a lone "super()" call.
-        var body = methodDecl.getBody().getStatements();
-        return TreeInfo.isCanonicalConstructor(methodDecl)
-                && body.length() == 1
-                && body.getFirst() instanceof JCTree.JCExpressionStatement stmt
-                && TreeInfo.isSuperCall(stmt)
-                && TreeInfo.args(stmt.getExpression()).isEmpty();
-    }
-
-    MemberDecl translateMember(JCTree member) {
+    public MemberDecl translateMember(JCTree member) {
         switch (member) {
             case JCTree.JCClassDecl _ -> {
                 return null;
@@ -308,7 +216,7 @@ public class ClassCompiler {
         }
     }
 
-    private Field translateField(JCTree.JCVariableDecl variableDecl) {
+    public Field translateField(JCTree.JCVariableDecl variableDecl) {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
