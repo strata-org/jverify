@@ -260,7 +260,7 @@ public class Driver {
                 "--json-output",
                 "--type-system-refresh",
                 "--general-newtypes",
-                "--progress", "Batch",
+                // "--progress", "Batch",
                 //"--check-source-location-consistency",
                 "--general-traits=datatype"
         );

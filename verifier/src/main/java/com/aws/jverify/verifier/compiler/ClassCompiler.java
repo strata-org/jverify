@@ -28,7 +28,6 @@ public class ClassCompiler {
     private final List<Symbol.MethodSymbol> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
-    private final Map<Symbol.MethodSymbol, MemberDecl> intermediateMethodsToSymbols = new HashMap<>();
     private final ClassesExtendingClassesCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
     
     public ClassCompiler(JavaToDafnyCompiler compiler) {
@@ -207,9 +206,7 @@ public class ClassCompiler {
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
-                MethodOrFunction methodOrFunction = translateMethodDecl(method);
-                intermediateMethodsToSymbols.put(method.sym, methodOrFunction);
-                return methodOrFunction;
+                return translateMethodDecl(method);
             }
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateField(variableDecl);
