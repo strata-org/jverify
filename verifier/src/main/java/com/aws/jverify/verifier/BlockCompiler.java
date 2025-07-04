@@ -482,7 +482,6 @@ public class BlockCompiler {
                         if (lambda.getParameters().size() != 1) {
                             throw new JavaViolationException("A postcondition call lambda may take only one argument");
                         }
-
                         var parameter = lambda.params.getFirst();
                         var origin = compiler.toOrigin(lambda);
                         var paramName = parameter.getName().toString();
@@ -496,6 +495,7 @@ public class BlockCompiler {
                         var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
                         var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
                         header.postconditions.add(new AttributedExpression(condition, null, null));
+                        
                     } else if (first instanceof JCTree.JCMemberReference memberReference) {
                         var origin = compiler.toOrigin(memberReference);
                         var argBindings = List.of(new ActualBinding(null,

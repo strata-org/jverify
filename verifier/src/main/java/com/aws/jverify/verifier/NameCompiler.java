@@ -30,6 +30,7 @@ public class NameCompiler {
     public String METHOD_RETURN_VARIABLE_NAME = "g_result";
     public String CLASS_PREFIX = "Constructable_";
     public String INIT_METHOD_PREFIX = "init_";
+    public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
@@ -39,10 +40,11 @@ public class NameCompiler {
     public NameCompiler(boolean avoidCollisionsUsingUnderscores) {
         this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
         if (this.avoidCollisionsUsingUnderscores) {
-            DEFAULT_CTOR_NAME = "_" + DEFAULT_CTOR_NAME;
-            INIT_METHOD_PREFIX = "_" + INIT_METHOD_PREFIX;
-            CLASS_PREFIX = "_" + CLASS_PREFIX;
-            METHOD_RETURN_VARIABLE_NAME = "#" + METHOD_RETURN_VARIABLE_NAME;
+            DEFAULT_CTOR_NAME += "_";
+            INIT_METHOD_PREFIX += "_";
+            CLASS_PREFIX += "_";
+            IMPLEMENTATION_METHOD_PREFIX += "_";
+            METHOD_RETURN_VARIABLE_NAME += "#";
         }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
