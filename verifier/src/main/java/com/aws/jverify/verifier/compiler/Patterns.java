@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.tree.JCTree;
@@ -23,7 +23,7 @@ public class Patterns {
      * such as if the input tree uses unsupported features.
      */
     @Nullable
-    List<SwitchLabelPatternAndBody> translateSwitchLabels(JCTree switchTree) {
+    public List<SwitchLabelPatternAndBody> translateSwitchLabels(JCTree switchTree) {
         // JCTree is the first common superclass of JCSwitch and JCSwitchExpression,
         // so we settle for dynamically checking that the argument is one of them.
         var cases = switch (switchTree) {

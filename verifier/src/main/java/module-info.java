@@ -13,4 +13,7 @@ module com.aws.jverify.verifier {
     requires org.jgrapht.core;
 
     opens com.aws.jverify.verifier to info.picocli;
+    opens com.aws.jverify.verifier.compiler.simplifications to info.picocli;
+    opens com.aws.jverify.verifier.compiler to info.picocli;
+    opens com.aws.jverify.verifier.compiler.simplifications.workaround to info.picocli;
 }
