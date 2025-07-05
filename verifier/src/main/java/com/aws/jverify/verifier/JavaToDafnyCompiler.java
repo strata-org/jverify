@@ -349,6 +349,8 @@ public class JavaToDafnyCompiler {
                 reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
                 continue;
             }
+
+            this.contractClassToContractee.put(classDecl.sym, contracteeSymbol);
             
             Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
             for(var member : classDecl.getMembers()) {
@@ -376,7 +378,6 @@ public class JavaToDafnyCompiler {
                 }
             }
             this.externalContracts.put(contracteeSymbol, new ExternalTypeContract(externalContracts));
-            this.contractClassToContractee.put(classDecl.sym, contracteeSymbol);
         }
     }
 
