@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.simplifications.temporary;
+package com.aws.jverify.verifier.compiler.simplifications.workaround;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;

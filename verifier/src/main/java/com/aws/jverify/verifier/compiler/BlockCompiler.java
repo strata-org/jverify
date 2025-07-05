@@ -3,10 +3,7 @@ package com.aws.jverify.verifier.compiler;
 import com.aws.jverify.Pure;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.simplifications.DoWhileLoopCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.ForLoopCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.ImpureStatementExpressionCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -17,13 +14,13 @@ import java.util.stream.Collectors;
 public class BlockCompiler {
 
     public final JavaToDafnyCompiler compiler;
-    private final List<StatementCompiler> statementSimplifiers = new ArrayList<>();
+    private final List<StatementCompiler> statementCompilers = new ArrayList<>();
 
     public BlockCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
-        statementSimplifiers.add(new ForLoopCompiler(this));
-        statementSimplifiers.add(new DoWhileLoopCompiler(this));
-        statementSimplifiers.add(new ImpureStatementExpressionCompiler(this));
+        statementCompilers.add(new ForLoopCompiler(this));
+        statementCompilers.add(new DoWhileLoopCompiler(this));
+        statementCompilers.add(new ImpureExpressionStatementCompiler(this));
     }
 
     private final Queue<Label> labels = new LinkedList<>();
@@ -45,8 +42,8 @@ public class BlockCompiler {
         var labels = this.labels.stream().toList();
         this.labels.clear();
 
-        for(var simplifier : statementSimplifiers) {
-            var result = simplifier.compile(statement, labels);
+        for(var compiler : statementCompilers) {
+            var result = compiler.compile(statement, labels);
             if (result != null) {
                 return result;
             }
@@ -96,24 +93,20 @@ public class BlockCompiler {
 
     private List<Statement> translateBreak(JCTree.JCBreak jcBreak) {
         var origin = compiler.toOrigin(jcBreak);
-        Name targetLabel = null;
-        int breakAndContinueCount = 0;
+        Statement result;
         if (jcBreak.label == null) {
-            breakAndContinueCount = 1;
+            result = new BreakOrContinueStmt(origin, null, null, 1, false);
         } else {
-            targetLabel = compiler.getName(jcBreak, jcBreak.label);
+            var targetLabel = compiler.getName(jcBreak, jcBreak.label);
+            result = new BreakOrContinueStmt(origin, null, targetLabel, 0, false);
         }
-        return List.of(new BreakOrContinueStmt(origin, null, targetLabel, breakAndContinueCount, false));
+        return List.of(result);
     }
 
     public List<Statement> translateContinue(JCTree.JCContinue jcContinue) {
         var origin = compiler.toOrigin(jcContinue);
         if (jcContinue.label == null) {
-            if (outerLoop == null) {
-                throw new JavaViolationException();
-            } else {
-                return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
-            }
+            return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
         } else {
             var targetLabel = compiler.getName(jcContinue, jcContinue.label);
             return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));

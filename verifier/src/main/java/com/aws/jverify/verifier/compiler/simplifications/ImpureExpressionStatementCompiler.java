@@ -4,16 +4,15 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.StatementCompiler;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;
 
-public class ImpureStatementExpressionCompiler implements StatementCompiler {
+public class ImpureExpressionStatementCompiler implements StatementCompiler {
     BlockCompiler blockCompiler;
 
-    public ImpureStatementExpressionCompiler(BlockCompiler blockCompiler) {
+    public ImpureExpressionStatementCompiler(BlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
     }
 

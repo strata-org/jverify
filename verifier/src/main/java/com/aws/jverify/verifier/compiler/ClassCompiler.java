@@ -7,7 +7,7 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.temporary.ClassesExtendingClassesCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.api.JavacTrees;
