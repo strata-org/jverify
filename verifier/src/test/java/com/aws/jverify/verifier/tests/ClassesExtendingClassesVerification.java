@@ -10,12 +10,17 @@ import static com.aws.jverify.JVerify.*;
 @JVerifyTest(exitCode = 0, dafnyVerified = 16, dafnyErrors = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {
-        Extendee extender = new Extender(4);
+        Extender extender = new Extender(4);
         check(extender.getX() == 3);
+        var re = extender.virtualMethod();
+        check(re >= 20);
+        Base base = extender;
+        var rb = base.virtualMethod();
+        check(rb >= 10);
     }
 }
 
-class Extender extends Extendee {
+class Extender extends Base {
     int z;
 
     public Extender(int input) {
@@ -30,14 +35,20 @@ class Extender extends Extendee {
     public int computeX(int input) {
         return 3;
     }
+
+    @Override
+    public int virtualMethod() {
+        postcondition((Integer r) -> r >= 20);
+        return 20;
+    }
 }
 
 
-abstract class Extendee {
+abstract class Base {
     int x;
     final int y;
     
-    public Extendee(int input) {
+    public Base(int input) {
         postcondition(this.x == computeX(input));
         this.x = computeX(input);
         this.y = 3;
@@ -51,15 +62,15 @@ abstract class Extendee {
 
     public abstract int computeX(int input);
     
-    public int virtualMethodO() {
+    public int virtualMethod() {
         postcondition((int r) -> r >= 10);
         return 10;
     }
 
     @Contract
-    class ExtendeeContract extends Extendee {
+    class BaseContract extends Base {
 
-        public ExtendeeContract(int input) {
+        public BaseContract(int input) {
             super(input);
         }
 
@@ -67,5 +78,20 @@ abstract class Extendee {
         public int computeX(int input) {
             throw new ContractException();
         }
+    }
+}
+
+interface IExtendee {
+    default int virtualMethod() {
+        postcondition((Integer r) -> r >= 10);
+        return 10;
+    }
+}
+
+interface IExtender extends IExtendee {
+    @Override
+    default int virtualMethod() {
+        postcondition((Integer r) -> r >= 20);
+        return 20;
     }
 }

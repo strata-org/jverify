@@ -116,8 +116,15 @@ public class JavaToDafnyCompiler {
         List<FileStart> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
-            // fileDeclarations.sort(t -> ((SourceOrigin)t.getOrigin()).getEntireRange().getStartToken());
-            filesStarts.add(new FileStart(compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
+            fileDeclarations.sort(Comparator.comparing(t -> {
+                var startToken = switch(t.getOrigin()) {
+                    case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
+                    case TokenRangeOrigin tokenRangeOrigin -> tokenRangeOrigin.getStartToken();
+                    default -> throw new RuntimeException();
+                };
+                return compilationUnit.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
+            }));
+            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
@@ -712,7 +719,7 @@ public class JavaToDafnyCompiler {
                 filter(this::typeHasAContract).
                 map((com.sun.tools.javac.code.Type type) -> translateType(null, type, origin)).
                 collect(Collectors.<Type>toList());
-        
+
         var typeParameters = translateTypeParameters(classDecl.typarams);
         return buildTraitAndClassTwin(classDecl, origin, name, members, typeParameters, superTraits);
     }
@@ -720,27 +727,37 @@ public class JavaToDafnyCompiler {
     /**
      * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
      */
-    private List<ClassLikeDecl> buildTraitAndClassTwin(
-            JCTree.JCClassDecl classDecl, IOrigin origin, Name name,
-            ArrayList<MemberDecl> members, List<TypeParameter> typeParameters, List<Type> superTraits) {
+    private List<ClassLikeDecl> buildTraitAndClassTwin(JCTree.JCClassDecl classDecl,
+                                                              IOrigin origin, Name name,
+                                                              ArrayList<MemberDecl> members,
+                                                              List<TypeParameter> typeParameters,
+                                                              List<Type> superTraits) {       
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
         var definingSymbol = getCurrentTypeSymbol(classDecl);
         var classNeeded = !isInterfaceOrAbstract(definingSymbol);
+        
         for(var member : members) {
             switch (member) {
                 case Method method when !method.getHasStaticKeyword() -> {
-                    if (method.getBody() == null) {
-                        classMembers.add(member);
-                    }
                     traitMembers.add(member);
+                    if (method.getBody() == null) {
+                        classMembers.add(member); 
+                        // A bodyless trait in Dafny is abstract. 
+                        // You can not declare an assumed member in traits in Dafny
+                        // We add the assumed member to the class
+                    }
                 }
+                
                 case Function function -> {
                     if (name.getValue().equals("java_lang_Object") || !function.getNameNode().getValue().equals("equals")) {
                         traitMembers.add(function);
                     }
                     if (function.getBody() == null) {
-                        classMembers.add(member);
+                        // A bodyless trait in Dafny is abstract. 
+                        // You can not declare an assumed member in traits in Dafny
+                        // We add the assumed member to the class
+                        classMembers.add(member); 
                     }
                 }
                 case Constructor constructor -> {
@@ -757,7 +774,7 @@ public class JavaToDafnyCompiler {
                             null);
                     classMembers.add(classConstructor);
                 }
-                case null, default -> traitMembers.add(member);
+                default -> traitMembers.add(member);
             }
         }
 
@@ -975,7 +992,8 @@ public class JavaToDafnyCompiler {
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
-                return translateMethodDecl(method);
+                MethodOrFunction methodOrFunction = translateMethodDecl(method);
+                return methodOrFunction;
             }
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateField(variableDecl);

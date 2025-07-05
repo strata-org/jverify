@@ -17,14 +17,6 @@ class ExtenderErrors extends ExtendeeErrors {
  
         return 3;
     }
-    
-    @Override
-    public int impureVirtual() {
-//             ^^^^^^^^^^^^^ Error: fully defined method 'impureVirtual' is inherited from trait 'ExtendeeErrors' and is not allowed to be re-declared
-// Will be allowed in the future, and then we should move this to the Verification test
-        postcondition((int r) -> r >= 20);
-        return 20;
-    }
 }
 
 
@@ -33,10 +25,5 @@ abstract class ExtendeeErrors {
     @Pure
     public int pureVirtual(int input) {
         return 3;
-    }
-    
-    public int impureVirtual() {
-        postcondition((int r) -> r >= 20);
-        return 20;
     }
 }
