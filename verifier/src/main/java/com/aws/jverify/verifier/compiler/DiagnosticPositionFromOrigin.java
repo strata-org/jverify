@@ -1,13 +1,12 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.common.Position;
 import com.aws.jverify.generated.TokenRange;
 import com.sun.source.tree.LineMap;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.JCDiagnostic;
 
-record DiagnosticPositionFromOrigin(
+public record DiagnosticPositionFromOrigin(
         TokenRange range, LineMap lineMap) implements JCDiagnostic.DiagnosticPosition {
 
     @Override

@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.sun.tools.javac.code.Symbol;
 
@@ -35,11 +35,11 @@ public class NameCompiler {
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
-    private final JavaToDafnyCompiler javaToDafnyCompiler;
+    private final ExternalContractCompiler contractCompiler;
     private final boolean avoidCollisionsUsingUnderscores;
 
-    public NameCompiler(JavaToDafnyCompiler javaToDafnyCompiler, boolean avoidCollisionsUsingUnderscores) {
-        this.javaToDafnyCompiler = javaToDafnyCompiler;
+    public NameCompiler(ExternalContractCompiler contractCompiler, boolean avoidCollisionsUsingUnderscores) {
+        this.contractCompiler = contractCompiler;
         this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
         if (this.avoidCollisionsUsingUnderscores) {
             DEFAULT_CTOR_NAME += "_";
@@ -62,12 +62,6 @@ public class NameCompiler {
         }
         return name;
     }
-
-
-    public String getInitMethodName(Symbol.MethodSymbol constructor) {
-        var className = this.getCompiledName(constructor.enclClass());
-        return INIT_METHOD_PREFIX  + className;
-    }
     
     public String getCompiledName(Symbol s) {
         if (symbolStringMap.containsKey(s)) {
@@ -82,7 +76,7 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
-                var newTarget = javaToDafnyCompiler.contractClassToContractee.get(classSymbol);
+                var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
                 if (newTarget != null) {
                     return uncachedGetCompiledName(newTarget);
                 }
@@ -204,5 +198,9 @@ public class NameCompiler {
 
     public String getConstructorName(boolean nonDefaultConstructor) {
         return nonDefaultConstructor ? NON_DEFAULT_CTOR_NAME : DEFAULT_CTOR_NAME;
+    }
+
+    public String getInitMethodName(String className, String constructorName) {
+        return constructorName.replace("ctor", INIT_METHOD_PREFIX) + "_" + className;
     }
 }
