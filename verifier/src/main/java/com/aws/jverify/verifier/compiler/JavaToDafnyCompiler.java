@@ -82,7 +82,7 @@ public class JavaToDafnyCompiler {
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverContracts((JCTree.JCCompilationUnit) compilationUnit, foundClassSymbols);
+            externalContractCompiler.discoverTypesAndContractClasses((JCTree.JCCompilationUnit) compilationUnit, foundClassSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
@@ -90,6 +90,8 @@ public class JavaToDafnyCompiler {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
+        
+        externalContractCompiler.registerExternalContracts();
         
         compileSymbolsTopologically();
 

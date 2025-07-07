@@ -44,7 +44,17 @@ public class ClassCompiler {
 
             Name name = null;
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
-            if (contractAnnotation != null) {
+            if (contractAnnotation == null) {
+                for(var member : classDecl.getMembers()) {
+                    if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
+                        continue;
+                    }
+                    // Don't report errors when extracting this contract here,
+                    // since the actual translation of the method will report them.
+                    var header = new BlockCompiler(compiler).extractContract(methodDecl, false);
+                    compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
+                }
+            } else {
                 var contractee = ExternalContractCompiler.getContractTarget(classDecl, contractAnnotation);
                 if (contractee != null) {
 
@@ -63,16 +73,6 @@ public class ClassCompiler {
 
                     typeForWhichCurrentClassIsDefiningContract = contractee;
                     name = compiler.getName(classDecl, typeForWhichCurrentClassIsDefiningContract);
-                }
-            } else {
-                for(var member : classDecl.getMembers()) {
-                    if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
-                        continue;
-                    }
-                    // Don't report errors when extracting this contract here,
-                    // since the actual translation of the method will report them.
-                    var header = new BlockCompiler(compiler).extractContract(methodDecl, false);
-                    compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             }
 
@@ -136,6 +136,8 @@ public class ClassCompiler {
 
     private ClassDecl translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
+        
+        
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
                 if (methodDecl.getModifiers().getAnnotations().stream().
@@ -154,8 +156,15 @@ public class ClassCompiler {
                 var dafnyMember = translateField(variableDecl);
                 members.add(dafnyMember);
             }
-
         }
+        var externalContract = compiler.externalContractCompiler.externalContracts.get(classDecl.sym);
+        if (externalContract != null) {
+            for (var ghostField : externalContract.ghostFields()) {
+                var dafnyMember = translateField(ghostField);
+                members.add(dafnyMember);
+            }
+        }
+        
         // Now translate other members
         for (var member : classDecl.getMembers()) {
             if (!(member instanceof JCTree.JCVariableDecl)) {
