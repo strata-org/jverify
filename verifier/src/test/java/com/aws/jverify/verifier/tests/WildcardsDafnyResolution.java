@@ -3,10 +3,11 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(exitCode = 2)
-public class Wildcards {
+public class WildcardsDafnyResolution {
     
     boolean isNull(Container<?> elements) {
         return elements.alwaysTrue();
@@ -21,15 +22,22 @@ public class Wildcards {
         return animals.get().name();
     }
 
-    void numberSetterUser(Container<Object> objects, Turtle dog) {
-        animalSetter(objects, dog);
-//                   ^^^^^^^ Error: incorrect argument type at index 0 for method in-parameter 'numberContainer' (expected Container<Animal>, found Container<Object>) (non-variant type parameter 'T' would require Animal = Object)
-    }
-    
-    <T> void animalSetter(Container<? super Animal> numberContainer, Turtle d) {
-        numberContainer.sett(d);
+    static void innerSuperUsage(Container<Object> objects, Turtle dog) {
+        Container<? super Animal> animals = objects;
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Container<Object>) not assignable to LHS (of type Container<Animal>) (non-variant type parameter 'T' would require Animal = Object)
+        animals.sett(dog);
     }
 
+    void animalSetterUser(Container<Object> objects, Turtle dog) {
+        animalSetter(objects, dog);
+//                   ^^^^^^^ Error: incorrect argument type at index 0 for method in-parameter 'animals' (expected Container<Animal>, found Container<Object>) (non-variant type parameter 'T' would require Animal = Object)
+    }
+
+    @Verify(false)
+    <T> void animalSetter(Container<? super Animal> animals, Turtle d) {
+        animals.sett(d);
+    }
+    
     static void alwaysTruerUser(Container<Animal> animals, Container<Object> objects) {
         alwaysTruer(animals);
 //                  ^^^^^^^ Error: incorrect argument type for method in-parameter 'container' (expected Container<Object>, found Container<Animal>) (non-variant type parameter 'T' would require Object = Animal)
