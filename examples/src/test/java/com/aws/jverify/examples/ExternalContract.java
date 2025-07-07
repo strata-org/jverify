@@ -3,7 +3,6 @@ package com.aws.jverify.examples;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Modifiable;
-import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
@@ -11,7 +10,7 @@ import static com.aws.jverify.JVerify.*;
 @Contract(Foo.class)
 @JVerifyTest(exitCode = 0, dafnyVerified = 3, dafnyErrors = 0)
 public class ExternalContract implements Foo {
-    int ghostField;
+    int erasedValue;
     
     public int foo(int x) {
         precondition(x > 0);
@@ -20,8 +19,8 @@ public class ExternalContract implements Foo {
     }
     
     public ExternalContract selfType() {
-      postcondition((ExternalContract r) -> r.ghostField == 3);
-      ghostField = 3;
+      postcondition((ExternalContract r) -> r.erasedValue == 3);
+      erasedValue = 3;
       return this;
     }
 }

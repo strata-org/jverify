@@ -13,7 +13,7 @@ import static com.aws.jverify.JVerify.*;
 @JVerifyTest(exitCode = 0, dafnyVerified = 8, dafnyErrors = 0)
 public class ExternalContractGhostField {
     static void test(BigIntegerContract v) {
-        precondition(v.ghost == 1);
+        precondition(v.value == 1);
         var b = v.add(v);
         check(b.intValue() == 2);
     }
@@ -22,21 +22,20 @@ public class ExternalContractGhostField {
 @Contract(BigInteger.class)
 class BigIntegerContract {
     
-    // Ghost field supposed to hold the semantics of BigInteger
     @Unbounded
-    int ghost;
+    int value;
     
     @Pure
     int intValue() {
         reads(this);
         //noinspection ConstantValue
-        precondition(ghost >= Integer.MIN_VALUE && ghost <= Integer.MAX_VALUE);
-        postcondition((Integer r) -> r == ghost);
+        precondition(value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE);
+        postcondition((Integer r) -> r == value);
         throw new ContractException();
     }
 
     BigIntegerContract add(BigIntegerContract v) {
-        postcondition((BigIntegerContract b) -> b.ghost == this.ghost + v.ghost);
+        postcondition((BigIntegerContract b) -> b.value == this.value + v.value);
         throw new ContractException();
     }
     
