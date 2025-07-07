@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.sun.tools.javac.code.Symbol;
 
@@ -30,6 +30,7 @@ public class NameCompiler {
     public String METHOD_RETURN_VARIABLE_NAME = "g_result";
     public String CLASS_PREFIX = "Constructable_";
     public String INIT_METHOD_PREFIX = "init_";
+    public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
@@ -39,10 +40,11 @@ public class NameCompiler {
     public NameCompiler(boolean avoidCollisionsUsingUnderscores) {
         this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
         if (this.avoidCollisionsUsingUnderscores) {
-            DEFAULT_CTOR_NAME = "_" + DEFAULT_CTOR_NAME;
-            INIT_METHOD_PREFIX = "_" + INIT_METHOD_PREFIX;
-            CLASS_PREFIX = "_" + CLASS_PREFIX;
-            METHOD_RETURN_VARIABLE_NAME = "#" + METHOD_RETURN_VARIABLE_NAME;
+            DEFAULT_CTOR_NAME += "_";
+            INIT_METHOD_PREFIX += "_";
+            CLASS_PREFIX += "_";
+            IMPLEMENTATION_METHOD_PREFIX += "_";
+            METHOD_RETURN_VARIABLE_NAME += "#";
         }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
@@ -58,12 +60,6 @@ public class NameCompiler {
         }
         return name;
     }
-
-
-    public String getInitMethodName(Symbol.MethodSymbol constructor) {
-        var className = this.getCompiledName(constructor.enclClass());
-        return INIT_METHOD_PREFIX  + className;
-    }
     
     public String getCompiledName(Symbol s) {
         if (symbolStringMap.containsKey(s)) {
@@ -78,7 +74,8 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
-                if (classNameOccurrenceCounts.computeIfAbsent(classSymbol.name, _ -> 2) > 1) {
+                var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
+                if (occurrenceCount == null || occurrenceCount > 1) {
                     return classSymbol.getQualifiedName().toString().replace(".", "_");
                 }
                 return classSymbol.name.toString();
@@ -195,5 +192,9 @@ public class NameCompiler {
 
     public String getConstructorName(boolean nonDefaultConstructor) {
         return nonDefaultConstructor ? NON_DEFAULT_CTOR_NAME : DEFAULT_CTOR_NAME;
+    }
+
+    public String getInitMethodName(String className, String constructorName) {
+        return constructorName.replace("ctor", INIT_METHOD_PREFIX) + "_" + className;
     }
 }

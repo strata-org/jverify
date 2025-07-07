@@ -26,11 +26,11 @@ JVerify intends to support the full Java language, but is currently being develo
 - Type casts: `(SomeType)someValue`
 - `class`
 - `interface`
-- `implements`, but only classes implementing interfaces
-- `extends`, but only interfaces extending interfaces
 - `record`, with some restrictions:
   - Explicit constructors and explicit accessors are not allowed
   - Overriding `equals(Object)` or `hashCode()` is not allowed
+- `implements`
+- `extends`
 - Lambda expressions
 - Method references
 - Type parameters, including type parameter bounds
@@ -63,7 +63,7 @@ Nothing yet
 - Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to a type that can not be instantiated.
 - `permits`
 - Verification of annotations
-- For now, JVerify can only specify contracts that require none of the arguments or `this` are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
+- For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
 
 [//]: # (# Do not need to mention)
 
