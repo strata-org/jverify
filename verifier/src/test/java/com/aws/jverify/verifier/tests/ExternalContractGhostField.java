@@ -10,7 +10,15 @@ import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 5)
+@JVerifyTest(exitCode = 0, dafnyVerified = 8, dafnyErrors = 0)
+public class ExternalContractGhostField {
+    static void test(BigIntegerContract v) {
+        precondition(v.ghost == 1);
+        var b = v.add(v);
+        check(b.intValue() == 2);
+    }
+}
+
 @Contract(BigInteger.class)
 class BigIntegerContract {
     
@@ -18,20 +26,15 @@ class BigIntegerContract {
     @Unbounded
     int ghost;
     
-    BigIntegerContract() {}
-    BigIntegerContract(String val) {
-        postcondition(ghost == val.length()); // In reality something more complex than length but this is for illustration purpose
-        throw new ContractException();
-    }
     @Pure
     int intValue() {
         reads(this);
+        //noinspection ConstantValue
         precondition(ghost >= Integer.MIN_VALUE && ghost <= Integer.MAX_VALUE);
         postcondition((Integer r) -> r == ghost);
         throw new ContractException();
     }
-    
-    @Pure
+
     BigIntegerContract add(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.ghost == this.ghost + v.ghost);
         throw new ContractException();
