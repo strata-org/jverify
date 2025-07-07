@@ -265,8 +265,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             if (sourceUri.getScheme().equals("string")) {
                 path = sourceUri.getPath();
             } else {
-                var parent = Path.of(testFile.getPath()).getParent();
-                path = parent.toAbsolutePath().relativize(Paths.get(sourceUri)).toString();
+                path = testFile.resolve(".").relativize(sourceUri).getPath();
             }
             return new AnnotatedRange(path + "(" + range + ") " + Driver.formatMessage(diagnostic), zeroRange);
         }
