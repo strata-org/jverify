@@ -38,9 +38,7 @@ public class ClassCompiler {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
             var annotations = classDecl.getModifiers().getAnnotations();
-            var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                    (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                    a -> a));
+            var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
 
             Name name = null;
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
@@ -263,9 +261,7 @@ public class ClassCompiler {
         compiler.symbolsWithAContract.add(methodSymbol);
 
         var annotations = modifiers.getAnnotations();
-        var annotationsByName = annotations.stream().collect(Collectors.toMap(
-                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                a -> a));
+        var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(modifiers);
 
         boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
 

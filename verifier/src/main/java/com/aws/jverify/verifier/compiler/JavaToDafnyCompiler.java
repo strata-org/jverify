@@ -37,6 +37,7 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -178,6 +179,13 @@ public class JavaToDafnyCompiler {
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
+    }
+
+    public static Map<String, JCTree.JCAnnotation> getAnnotationsByName(JCTree.JCModifiers modifiers) {
+        var classAnnotations = modifiers.getAnnotations();
+        return classAnnotations.stream().collect(Collectors.toMap(
+                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                a -> a));
     }
     
     public static Map<String, JCTree.JCExpression> getArguments(JCTree.JCAnnotation annotation) {

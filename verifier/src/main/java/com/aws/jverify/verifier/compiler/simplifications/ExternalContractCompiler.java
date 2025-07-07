@@ -41,10 +41,7 @@ public class ExternalContractCompiler {
                 continue;
             }
 
-            var classAnnotations = classDecl.getModifiers().getAnnotations();
-            var classAnnotationsByName = classAnnotations.stream().collect(Collectors.toMap(
-                    (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                    a -> a));
+            var classAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
             var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
 
             for(var member : classDecl.getMembers()) {
@@ -69,10 +66,6 @@ public class ExternalContractCompiler {
             declsForSymbol.add(classDecl);
 
             foundClasses.add(contracteeSymbol);
-            if (externalContracts.containsKey(contracteeSymbol)) {
-                compiler.reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
-                continue;
-            }
             if (compiler.typeHasSource(contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
                 compiler.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
                 continue;
@@ -81,12 +74,19 @@ public class ExternalContractCompiler {
             this.contractClassToContractee.put(classDecl.sym, contracteeSymbol);
         }
     }
-    
+
     public void registerExternalContracts() {
         for(var entry : contractClassToContractee.entrySet()) {
             var externalContractDecl = JavacTrees.instance(compiler.context).getTree(entry.getKey());
-            var externalContract = getExternalTypeContract(externalContractDecl, entry.getValue());
-            this.externalContracts.put(entry.getValue(), externalContract);
+            Symbol.ClassSymbol contractee = entry.getValue();
+            var externalContract = getExternalTypeContract(externalContractDecl, contractee);
+            if (externalContracts.containsKey(contractee)) {
+                var annotations = JavaToDafnyCompiler.getAnnotationsByName(externalContractDecl.getModifiers());
+                var contractAnnotation = annotations.get(Contract.class.getName());
+                compiler.reportError(contractAnnotation, "duplicateContract", contractee.name);
+                continue;
+            }
+            this.externalContracts.put(contractee, externalContract);
         }
     }
 

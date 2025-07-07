@@ -511,10 +511,7 @@ public class BlockCompiler {
     }
 
     public MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl, boolean reportErrors) {
-        var methodAnnotations = methodDecl.getModifiers().getAnnotations();
-        var methodAnnotationsByName = methodAnnotations.stream().collect(Collectors.toMap(
-                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                a -> a));
+        var methodAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(methodDecl.getModifiers());
 
         var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
         var header = new MethodOrLoopContract(methodDecl, isPure);
