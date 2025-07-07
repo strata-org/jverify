@@ -1,11 +1,17 @@
-package com.aws.jverify.verifier.tests;
+package com.aws.jverify.verifier.tests.shouldVerify;
 
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 5)
+@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 5, 
+        additionalFiles = {
+        "./a/WontVerify.java", 
+        "./a/package-info.java", 
+        "./b/WillVerify.java", 
+        "./b/package-info.java" }
+)
 public class ShouldVerify {}
 
 @Verify(value = true, overrideChildren = true)

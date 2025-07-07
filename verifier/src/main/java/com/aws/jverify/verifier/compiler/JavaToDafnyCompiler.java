@@ -125,7 +125,12 @@ public class JavaToDafnyCompiler {
                 if (env != null) {
                     compilationUnit = env.toplevel;
                 }
+                // TODO add a test for @Verify(false) on packages
+                // TODO consider refactoring the code that gets annotations from the syntax nodes
+                var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
+                verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
+                verifyAnnotationCompiler.shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
         }
