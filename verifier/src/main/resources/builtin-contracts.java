@@ -2,10 +2,21 @@ package com.aws.jverify.builtin;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import static com.aws.jverify.JVerify.check;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.SequencedCollection;
+
+/**
+ * This class is here to test that this file is not verified.
+ * Once we add other things to this file that would normally be verified, we can remove this class
+ */
+class TestCaseRemoveLater {
+    void foo() {
+        check(false);
+    }
+}
 
 @Contract(Object.class)
 class ObjectContract {

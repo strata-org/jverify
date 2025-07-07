@@ -60,7 +60,9 @@ public class JavaToDafnyCompiler {
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
     public JCTree.JCCompilationUnit compilationUnit;
-
+    public SourceFile builtinSource;
+    public static final String builtinFile = "/builtin-contracts.java";
+    
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
@@ -93,9 +95,10 @@ public class JavaToDafnyCompiler {
         
         compileSymbolsTopologically();
 
-        List<FileStart> filesStarts = new ArrayList<>();
+        List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
+            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
@@ -104,7 +107,7 @@ public class JavaToDafnyCompiler {
                 };
                 return compilationUnit.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
             }));
-            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
@@ -230,7 +233,7 @@ public class JavaToDafnyCompiler {
 
     // TODO this does not seem to be fully used or working, and we've replaced it with the library concept now. So remove?
     private boolean isAlreadyVerified() {
-        return compilationUnit.getSourceFile().getName().equals(JavaFrontEnd.builtinFile);
+        return compilationUnit.getSourceFile().getName().equals(builtinFile);
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
