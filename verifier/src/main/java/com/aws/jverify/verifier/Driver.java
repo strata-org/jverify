@@ -1,6 +1,8 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Position;
+import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -239,7 +241,7 @@ public class Driver {
     }
 
     public static void runDafnyProcess(NameCompiler nameCompiler,
-                                       String program, 
+                                       String program,
                                        VerifierOptions verifierOptions,
                                        VerificationResults outResults) {
         // First check the Dafny version is correct

@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler;
 
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
@@ -7,7 +7,7 @@ import com.sun.tools.javac.util.JCDiagnostic;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 
-record DiagnosticPositionFromDiagnostic(
+public record DiagnosticPositionFromDiagnostic(
         Diagnostic<? extends JavaFileObject> diagnostic) implements JCDiagnostic.DiagnosticPosition {
 
     @Override
