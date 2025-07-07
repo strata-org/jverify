@@ -8,6 +8,9 @@ import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.comp.AttrContext;
+import com.sun.tools.javac.comp.Enter;
+import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.JCTree;
 
 import javax.naming.Context;
@@ -78,6 +81,12 @@ public class ExternalContractCompiler {
     public void registerExternalContracts() {
         for(var entry : contractClassToContractee.entrySet()) {
             var externalContractDecl = JavacTrees.instance(compiler.context).getTree(entry.getKey());
+
+            Enter enter = Enter.instance(compiler.context);
+            Env<AttrContext> env = enter.getEnv(externalContractDecl.sym);
+            if (env != null) {
+                compiler.compilationUnit = env.toplevel;
+            }
             Symbol.ClassSymbol contractee = entry.getValue();
             var externalContract = getExternalTypeContract(externalContractDecl, contractee);
             if (externalContracts.containsKey(contractee)) {
