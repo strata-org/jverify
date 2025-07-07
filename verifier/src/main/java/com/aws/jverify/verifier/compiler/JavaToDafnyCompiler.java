@@ -77,15 +77,12 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        Iterable<JCTree.JCCompilationUnit> parsedIterable = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
-        if (parsedIterable == null) {
+        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
+        if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
         
-        List<JCTree.JCCompilationUnit> parsed = new ArrayList<>();
-        for (var file : parsedIterable) {
-            parsed.add(file);
-        }
+        var parsed = parsedSet.stream().toList();
 
         /*
          * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
