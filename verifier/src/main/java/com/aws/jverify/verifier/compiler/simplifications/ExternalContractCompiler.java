@@ -24,7 +24,7 @@ public class ExternalContractCompiler {
     final JavaToDafnyCompiler compiler;
     public final Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> declarationsForSymbolContract = new HashMap<>();
     public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
-    public Map<Symbol.ClassSymbol, Symbol.ClassSymbol> contractClassToContractee = new HashMap<>();
+    public LinkedHashMap<Symbol.ClassSymbol, Symbol.ClassSymbol> contractClassToContractee = new LinkedHashMap<>();
 
     public ExternalContractCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
