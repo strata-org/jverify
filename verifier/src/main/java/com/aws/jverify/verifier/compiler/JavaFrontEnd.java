@@ -11,6 +11,7 @@ import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.comp.*;
 import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
+import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
@@ -41,7 +42,7 @@ public class JavaFrontEnd {
      * Applies a subset of the javac compilation pipeline, to parse,
      * resolve, and partially rewrite some features away.
      */
-    public Iterable<? extends CompilationUnitTree> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
+    public Iterable<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
         files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
