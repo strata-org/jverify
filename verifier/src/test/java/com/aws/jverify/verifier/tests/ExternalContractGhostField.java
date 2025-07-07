@@ -39,4 +39,12 @@ class BigIntegerContract {
         postcondition((BigIntegerContract b) -> b.ghost == this.ghost + v.ghost);
         throw new ContractException();
     }
+    
+    /*
+    Test static pure bodyless method
+     */
+    @Pure
+    public static BigInteger valueOf(long val) {
+        throw new ContractException();
+    }
 }

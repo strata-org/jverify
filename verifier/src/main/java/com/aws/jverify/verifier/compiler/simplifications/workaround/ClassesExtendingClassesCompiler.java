@@ -52,7 +52,7 @@ public class ClassesExtendingClassesCompiler {
 
                 case Function function -> {
                     traitMembers.add(function);
-                    if (function.getBody() == null) {
+                    if (function.getBody() == null && !function.getHasStaticKeyword()) {
                         // A bodyless trait in Dafny is abstract. 
                         // You can not declare an assumed member in traits in Dafny
                         // We add the assumed member to the class
