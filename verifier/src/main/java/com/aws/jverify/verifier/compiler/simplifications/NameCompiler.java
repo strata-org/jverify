@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.sun.tools.javac.code.Symbol;
 
@@ -69,12 +69,6 @@ public class NameCompiler {
             return reverseSymbolStringMap.get(name).name.toString();
         }
         return name;
-    }
-
-
-    public String getInitMethodName(Symbol.MethodSymbol constructor) {
-        var className = this.getCompiledName(constructor.enclClass());
-        return INIT_METHOD_PREFIX  + className;
     }
     
     public String getCompiledName(Symbol s) {
@@ -209,5 +203,9 @@ public class NameCompiler {
 
     public String getConstructorName(boolean nonDefaultConstructor) {
         return nonDefaultConstructor ? NON_DEFAULT_CTOR_NAME : DEFAULT_CTOR_NAME;
+    }
+
+    public String getInitMethodName(String className, String constructorName) {
+        return constructorName.replace("ctor", INIT_METHOD_PREFIX) + "_" + className;
     }
 }
