@@ -77,14 +77,28 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        var parsed = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
-        if (parsed == null) {
+        Iterable<JCTree.JCCompilationUnit> parsedIterable = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
+        if (parsedIterable == null) {
             return new FilesContainer(List.of());
         }
+        
+        List<JCTree.JCCompilationUnit> parsed = new ArrayList<>();
+        for (var file : parsedIterable) {
+            parsed.add(file);
+        }
+
+        /*
+         * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
+         * To work around this bug, the built-in contracts file must be serialized after 
+         * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
+         */
+        parsed.sort(Comparator.<JCTree.JCCompilationUnit, String>comparing(
+                f -> f.getSourceFile().toUri().toString())
+        );
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverContracts((JCTree.JCCompilationUnit) compilationUnit, foundClassSymbols);
+            externalContractCompiler.discoverContracts(compilationUnit, foundClassSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
