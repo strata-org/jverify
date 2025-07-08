@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 
+import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
@@ -61,7 +62,9 @@ public class JavaToDafnyCompiler {
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
     public JCTree.JCCompilationUnit compilationUnit;
-
+    public SourceFile builtinSource;
+    public static final String builtinFile = "/builtin-contracts.java";
+    
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
@@ -76,14 +79,28 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        var parsed = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
-        if (parsed == null) {
+        if (options.includeBuiltinContracts()) {
+            builtinSource = new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
+            files.add(builtinSource);
+        }
+        
+        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
+        if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
+        
+        var parsed = new ArrayList<>(parsedSet);
+
+        /*
+         * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
+         * To work around this bug, the built-in contracts file must be serialized after 
+         * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
+         */
+        parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverTypesAndContractClasses((JCTree.JCCompilationUnit) compilationUnit, foundClassSymbols);
+            externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
@@ -96,9 +113,10 @@ public class JavaToDafnyCompiler {
         
         compileSymbolsTopologically();
 
-        List<FileStart> filesStarts = new ArrayList<>();
+        List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
+            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
@@ -107,7 +125,7 @@ public class JavaToDafnyCompiler {
                 };
                 return compilationUnit.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
             }));
-            filesStarts.add(new FileStart(compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
@@ -243,7 +261,7 @@ public class JavaToDafnyCompiler {
 
     // TODO this does not seem to be fully used or working, and we've replaced it with the library concept now. So remove?
     private boolean isAlreadyVerified() {
-        return compilationUnit.getSourceFile().getName().equals(JavaFrontEnd.builtinFile);
+        return compilationUnit.getSourceFile().getName().equals(builtinFile);
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {

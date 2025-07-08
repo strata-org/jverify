@@ -121,7 +121,8 @@ public class RecordCompiler {
     public static DatatypeValue translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
         var argBindings = newClass.getArguments().stream()
                 .map(a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
-        var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.type.asElement());
+        
+        var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
         return new DatatypeValue(
                 origin, datatypeName, datatypeName,
                 new ActualBindings(argBindings));

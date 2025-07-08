@@ -30,11 +30,10 @@ import java.util.stream.Collectors;
 
 public class JavaFrontEnd {
     public final Context context;
-    JavaToDafnyCompiler javaToDafnyCompiler;
-    public static final String builtinFile = "/builtin-contracts.java";
+    JavaToDafnyCompiler compiler;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
-        this.javaToDafnyCompiler = javaToDafnyCompiler;
+        this.compiler = javaToDafnyCompiler;
         this.context = javaToDafnyCompiler.context;
     }
 
@@ -42,10 +41,9 @@ public class JavaFrontEnd {
      * Applies a subset of the javac compilation pipeline, to parse,
      * resolve, and partially rewrite some features away.
      */
-    public Iterable<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
+    public Set<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
-        files.add(new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), builtinFile)));
 
         for(var extraPath : options.extraClassPathEntries()) {
             if (!Files.exists(extraPath.toAbsolutePath())) {
@@ -148,7 +146,7 @@ public class JavaFrontEnd {
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
-                javaToDafnyCompiler.diagnostics.report(javaToDafnyCompiler.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+                this.compiler.diagnostics.report(this.compiler.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                         new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
                         diagnostic.getMessage(Locale.ENGLISH)));
 
