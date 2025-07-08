@@ -2,7 +2,6 @@ package com.aws.jverify.builtin;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import static com.aws.jverify.JVerify.check;
 
 import java.util.Collection;
 import java.util.List;
