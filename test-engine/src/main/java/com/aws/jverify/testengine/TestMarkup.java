@@ -120,7 +120,10 @@ public class TestMarkup {
         int[] cumulativePositions = new int[lines.length];
         cumulativePositions[0] = 0;
         int annotatedIndex = 0;
-        for (int i = 1; i < lines.length; i++) {
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) {
+                cumulativePositions[i] = cumulativePositions[i - 1] + lines[i - 1].length() + 1; // +1 for newline
+            }
             String nextLine = lines[i];
 
             Pattern pattern = Pattern.compile("^//\\s+(\\^+)\\s+(.+)$");
@@ -132,6 +135,12 @@ public class TestMarkup {
 
                 int caretStartIndex = nextLine.indexOf(carets);
 
+                if (annotatedIndex == 0) {
+                    TextSpan span = new TextSpan(0, 1);
+                    result.add(new AnnotatedSpan(annotation, span));
+                    continue;
+                }
+                
                 var annotatedLine = lines[annotatedIndex];
                 if (caretStartIndex >= 0 && caretStartIndex < annotatedLine.length()) {
                     int spanStart = cumulativePositions[annotatedIndex] + caretStartIndex;
@@ -148,7 +157,6 @@ public class TestMarkup {
                 annotatedIndex = i;
             }
 
-            cumulativePositions[i] = cumulativePositions[i - 1] + lines[i - 1].length() + 1; // +1 for newline
         }
 
         return result;

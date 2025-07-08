@@ -1,15 +1,16 @@
+// ^ b/Foo.java(10:22-10:27) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests.multipackage;
-
 import com.aws.jverify.testengine.JVerifyTest;
 import com.aws.jverify.verifier.tests.multipackage.a.Foo;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0, additionalFiles = {"./a/Foo.java", "./b/Foo.java"})
+@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 1, additionalFiles = {"./a/Foo.java", "./b/Foo.java"})
 public class MultiPackageTest {
     void foo() {
         var f = new Foo();
         var f2 = new com.aws.jverify.verifier.tests.multipackage.b.Foo();
-        check(f.bar() + f2.bar() == 3);
+        check(f.bar(1) + f2.bar(2) == 3);
+//                       ^^^^^^^^^ Error: function precondition could not be proved
     }
 }

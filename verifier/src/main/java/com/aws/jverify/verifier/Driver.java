@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -169,7 +170,7 @@ public class Driver {
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
         } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            var filePart = filePath ? dafnyDiagnostic.getSource().toString() : dafnyDiagnostic.getSource().getFileName(); 
+            var filePart = filePath ? dafnyDiagnostic.getSource().toString() : dafnyDiagnostic.getSource().getPath(); 
             sb.append(filePart)
                     .append("(")
                     .append(dafnyDiagnostic.getRange())
@@ -323,6 +324,9 @@ public class Driver {
                     DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
                     switch (output) {
                         case DafnyDiagnostic dafnyDiagnostic -> {
+                            if (dafnyDiagnostic.defaultFormatMessage.contains("[internal error]")) {
+                                throw new RuntimeException("JVerify had an internal exception when calling Dafny: " + dafnyDiagnostic.getMessage(Locale.ENGLISH));
+                            }
                             for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
                                 dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
                             }
