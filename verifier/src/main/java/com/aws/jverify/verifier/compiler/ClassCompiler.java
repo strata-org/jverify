@@ -343,7 +343,11 @@ public class ClassCompiler {
 
         var outs = new ArrayList<Formal>();
         if (methodSymbol.type.getReturnType() != null) {
-            var returnType = compiler.translateMethodSignatureType(methodSymbol.type.getReturnType(), bodyOrigin, shouldVerify);
+            JavacTrees trees = JavacTrees.instance(compiler.context);
+            var methodDecl = trees.getTree(methodSymbol);
+            var returnTypeDecl = methodDecl.getReturnType();
+            var returnOrigin = compiler.toOrigin(returnTypeDecl);
+            var returnType = compiler.translateMethodSignatureType(methodSymbol.type.getReturnType(), returnOrigin, shouldVerify);
             if (returnType != null) {
                 outs.add(makeReturnFormal(origin, returnType));
             }

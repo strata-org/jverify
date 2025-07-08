@@ -12,9 +12,14 @@ public class WildcardsNotSupported {
         animalSetter(objects, dog);
     }
     
-    <T> void animalSetter(Container<? super Animal> animals, Turtle d) {
-//                        ^ error: keyword 'super' in method signature is not supported  
+    void animalSetter(Container<? super Animal> animals, Turtle d) {
+//                    ^ error: keyword 'super' in method signature is not supported  
         animals.sett(d);
+    }
+
+    Container<? super Animal> superReturnType() {
+//  ^ error: keyword 'super' in method signature is not supported
+        return null;
     }
 
     static class Container<T> {
