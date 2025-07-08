@@ -6,45 +6,43 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.Unbounded;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 6, dafnyErrors = 0)
+@JVerifyTest(useBuiltinContracts = false, exitCode = 0, dafnyVerified = 8, dafnyErrors = 0)
 public class ExternalContractGhostField {
-    static void test(AtomicIntegerContract v) {
+    static void test(DummyBigIntegerContract v) {
         precondition(v.value == 1);
-        var b = v.addAndGet(v.get());
-        check(b == 2);
+        var b = v.add(v);
+        check(b.intValue() == 2);
     }
 }
 
-@Contract(AtomicInteger.class)
-class AtomicIntegerContract {
+@Contract(BigInteger.class)
+class DummyBigIntegerContract {
     
     @Unbounded
     int value;
     
     @Pure
-    int get() {
+    int intValue() {
         reads(this);
         //noinspection ConstantValue
-        precondition(value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE);
+        precondition(value >= -10 && value <= 10);
         postcondition((Integer r) -> r == value);
         throw new ContractException();
     }
 
-    int addAndGet(int delta) {
-        postcondition((Integer b) -> b == this.value + delta);
+    DummyBigIntegerContract add(DummyBigIntegerContract delta) {
+        postcondition((DummyBigIntegerContract b) -> b.value == this.value + delta.value);
         throw new ContractException();
     }
 
-    /*
-    Test static pure bodyless method
-    TODO: re-add this test
+
+    // Test static pure bodyless method
     @Pure
-    public static AtomicInteger valueOf(long val) {
+    public static DummyBigIntegerContract valueOf(long val) {
         throw new ContractException();
     }
-     */
 }

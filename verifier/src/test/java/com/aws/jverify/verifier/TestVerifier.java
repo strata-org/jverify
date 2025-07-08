@@ -50,7 +50,7 @@ public class TestVerifier {
     @Test
     public void javaError() throws IOException {
         var source = Common.getResourceFile(getClass(), "/JavaError.java");
-        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, 2, -1, -1, false, false);
+        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, 2, -1, -1, false, false, true);
         testMarkedSource(new SourceFile("JavaError.java", source), annotation);
     }
 
