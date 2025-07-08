@@ -4,6 +4,7 @@ import com.aws.jverify.common.Range;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.tools.Diagnostic;
+import java.net.URI;
 import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.*;
@@ -12,7 +13,7 @@ import java.util.stream.Stream;
 /**
  * Adapts Dafny's {@code --json-diagnostics} output to the {@link Diagnostic} interface.
  */
-public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Path> {
+public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<URI> {
     private static final int SEVERITY_ERROR = 1;
     private static final int SEVERITY_WARNING = 2;
     private static final int SEVERITY_INFO = 4;
@@ -67,8 +68,8 @@ public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<Pat
     }
 
     @Override
-    public Path getSource() {
-        return location == null ? null : Path.of(location.filePath());
+    public URI getSource() {
+        return location == null ? null : URI.create(location.uri);
     }
 
     @Override

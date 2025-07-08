@@ -37,6 +37,7 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -65,7 +66,7 @@ public class JavaToDafnyCompiler {
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
-        nameCompiler = new NameCompiler(verifierOptions.avoidCollisionsUsingUnderscores());
+        nameCompiler = new NameCompiler(externalContractCompiler, verifierOptions.avoidCollisionsUsingUnderscores());
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
         lambdaCompiler = new LambdaCompiler(this);
@@ -83,7 +84,7 @@ public class JavaToDafnyCompiler {
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverContracts((JCTree.JCCompilationUnit) compilationUnit, foundClassSymbols);
+            externalContractCompiler.discoverTypesAndContractClasses((JCTree.JCCompilationUnit) compilationUnit, foundClassSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
@@ -91,6 +92,8 @@ public class JavaToDafnyCompiler {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
+        
+        externalContractCompiler.registerExternalContracts();
         
         compileSymbolsTopologically();
 
@@ -105,7 +108,7 @@ public class JavaToDafnyCompiler {
                 };
                 return compilationUnit.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
             }));
-            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
+            filesStarts.add(new FileStart(compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
@@ -126,7 +129,10 @@ public class JavaToDafnyCompiler {
                 if (env != null) {
                     compilationUnit = env.toplevel;
                 }
+                var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
+                verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
+                verifyAnnotationCompiler.shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
         }
@@ -177,6 +183,13 @@ public class JavaToDafnyCompiler {
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
+    }
+
+    public static Map<String, JCTree.JCAnnotation> getAnnotationsByName(JCTree.JCModifiers modifiers) {
+        var classAnnotations = modifiers.getAnnotations();
+        return classAnnotations.stream().collect(Collectors.toMap(
+                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                a -> a));
     }
     
     public static Map<String, JCTree.JCExpression> getArguments(JCTree.JCAnnotation annotation) {
