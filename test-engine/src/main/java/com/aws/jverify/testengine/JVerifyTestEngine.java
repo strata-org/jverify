@@ -276,8 +276,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
     private static VerifierOptions getVerifierOptions(JVerifyTest annotation) {
-        var dafnyPath = Path.of("../dafny").toAbsolutePath()
-                .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
+        var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
@@ -290,6 +289,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 Path.of("../build/temp.dbin"),
                 true,
                 true,
+                true,
                 new String[] {
                         "--use-basename-for-filename",
                         //"--wait-for-debugger",
@@ -297,6 +297,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 annotation.verifyByDefault(),
                 annotation.avoidNameCollisions()
         );
+    }
+
+    public static Path getDafnyInSubmodulePath() {
+        return Path.of("../dafny").toAbsolutePath()
+                .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
     }
 
     /**
