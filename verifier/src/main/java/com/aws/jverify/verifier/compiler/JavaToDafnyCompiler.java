@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 
+import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
@@ -37,6 +38,7 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -77,21 +79,24 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
+        if (options.includeBuiltinContracts()) {
+            builtinSource = new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
+            files.add(builtinSource);
+        }
+        
         Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
         
-        var parsed = parsedSet.stream().toList();
+        var parsed = new ArrayList<>(parsedSet);
 
         /*
          * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
          * To work around this bug, the built-in contracts file must be serialized after 
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
-        parsed.sort(Comparator.<JCTree.JCCompilationUnit, String>comparing(
-                f -> f.getSourceFile().toUri().toString())
-        );
+        parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {

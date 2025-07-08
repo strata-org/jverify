@@ -87,16 +87,16 @@ public class Driver {
 
     private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
         for (var diagnostic : verificationResults.getJverifyDiagnostics()) {
-            outputWriter.write(formatDiagnostic(verifierOptions.filePath(), diagnostic));
+            outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), diagnostic));
             outputWriter.write('\n');
         }
         for (var dafnyOutput : verificationResults.outputs) {
             if (dafnyOutput instanceof DafnyDiagnostic dafnyDiagnostic) {
-                outputWriter.write(formatDiagnostic(verifierOptions.filePath(), dafnyDiagnostic));
+                outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), dafnyDiagnostic));
                 outputWriter.write('\n');
                 if (dafnyDiagnostic.relatedInformation != null) {
                     for (var relatedInfo : dafnyDiagnostic.relatedInformation) {
-                        outputWriter.write(formatDiagnostic(verifierOptions.filePath(), relatedInfo.asDiagnostic()));
+                        outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), relatedInfo.asDiagnostic()));
                         outputWriter.write('\n');
                     }
                 }

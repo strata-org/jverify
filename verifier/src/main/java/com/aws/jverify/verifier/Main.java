@@ -50,6 +50,9 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
 
+    @Option(names = "--builtin-contracts", description = "Whether to include built-in contracts for the Java standard library", defaultValue = "true")
+    private boolean builtinContracts;
+
     @Override
     public Integer call() throws IOException {
         Writer writer = new OutputStreamWriter(System.out);
@@ -70,11 +73,10 @@ class AppCommand implements Callable<Integer> {
         
         var testDafnyVersion = customDafny != null;
         var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(), testDafnyVersion,
-                printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault, true);
+                printDafny, printBinaryDafny, showRanges, builtinContracts, paths, new String[0], verifyByDefault, true);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
-        System.exit(exitCode);
-        return 0;
+        return exitCode;
     }
 
     private Path getDafnyPath() {
