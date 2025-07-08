@@ -3,7 +3,12 @@ package com.aws.jverify.testengine;
 import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
-import com.aws.jverify.verifier.*;
+import com.aws.jverify.verifier.DafnyDiagnostic;
+import com.aws.jverify.verifier.Driver;
+import com.aws.jverify.verifier.SourceFile;
+import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.compiler.JavaFrontEnd;
+import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.google.auto.service.AutoService;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
@@ -185,7 +190,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))
                 .map(d -> diagnosticAsAnnotatedRange(markedSourceFile.toUri(), d))
-                .filter(Objects::nonNull)
                 .sorted()
                 .toList();
         var expectedAnnotations = ranges.stream().sorted().toList();
@@ -258,14 +262,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         if (sourceUri == null || sourceUri.equals(testFile)) {
             return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
         } else {
-            Range zeroRange = new Range(new Position(0, 3), new Position(0, 4));
+            Range zeroRange = new Range(new Position(1, 1), new Position(1, 2));
             String path;
-            if (sourceUri.getPath().contains(JavaToDafnyCompiler.builtinFile)) {
-                path = "builtin-contracts.java";
+            if (sourceUri.getScheme().equals("string")) {
+                path = sourceUri.getPath();
             } else {
-                path = Paths.get("").toAbsolutePath().relativize(Paths.get(sourceUri)).toString();
+                path = testFile.resolve(".").relativize(sourceUri).getPath();
             }
-            return new AnnotatedRange(path + "(" + range + ")" + Driver.formatMessage(diagnostic), zeroRange);
+            return new AnnotatedRange(path + "(" + range + ") " + Driver.formatMessage(diagnostic), zeroRange);
         }
     }
 

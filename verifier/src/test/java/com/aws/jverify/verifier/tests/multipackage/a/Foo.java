@@ -4,7 +4,7 @@ import com.aws.jverify.Pure;
 
 public class Foo {
     @Pure
-    public int bar() {
+    public int bar(int x) {
         return 1;
     }
 }

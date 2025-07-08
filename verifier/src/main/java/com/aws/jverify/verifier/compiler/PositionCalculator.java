@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.Token;
 import com.sun.tools.javac.tree.JCTree;
