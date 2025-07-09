@@ -16,9 +16,9 @@ class UserProfile {
         this.accountType = accountType;
         if (AccountType.Premium == accountType) {
             this.premiumFeatures = new PremiumFeatures();
-        } 
-        
-        
+        } else {
+            this.premiumFeatures = null;
+        }
     }
 
     @Erased
@@ -33,7 +33,7 @@ class UserProfile {
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
-        this.premiumFeatures = new PremiumFeatures();
+        //this.premiumFeatures = new PremiumFeatures();
         return;
     }
 
