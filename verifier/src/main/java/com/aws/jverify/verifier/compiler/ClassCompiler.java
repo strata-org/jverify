@@ -7,6 +7,7 @@ import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompile
 import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -143,7 +144,7 @@ public class ClassCompiler {
         }
         
         invariants.clear();
-        
+
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
                 if (methodDecl.getModifiers().getAnnotations().stream().
@@ -195,7 +196,7 @@ public class ClassCompiler {
                         // A class that extends 'Object' will extend '@Modifiable Object' instead
                         return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
                     }
-                    return compiler.translateType(type, origin, null);
+                    return compiler.translateType(type, origin, null, true);
                 }).
                 collect(Collectors.<Type>toList());
 
@@ -214,7 +215,7 @@ public class ClassCompiler {
                     // Contains because when we're verifying the built-in file itself, the path is different.
                     !this.compiler.compilationUnit.getSourceFile().getName().contains(JavaToDafnyCompiler.builtinFile)) {
                 // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones.
-                bounds = bounds.append(new UserDefinedType(origin, 
+                bounds = bounds.append(new UserDefinedType(origin,
                         new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             }
             return new TypeParameter(origin,

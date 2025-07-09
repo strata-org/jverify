@@ -36,9 +36,9 @@ public class RecordCompiler {
         var traits = currentTypeSymbol
                 .getInterfaces().stream()
                 .filter(compiler::typeHasAContract)
-                .map(baseType -> compiler.translateType(baseType, origin, null))
+                .map(baseType -> compiler.translateType(baseType, origin, null, true))
                 .collect(Collectors.toList());
-        
+
         var superClass = currentTypeSymbol.getSuperclass();
         if (superClass != null) {
             Symtab symtab = Symtab.instance(classCompiler.compiler.context);
@@ -89,7 +89,7 @@ public class RecordCompiler {
                     members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
                 }
                 continue;
-            } 
+            }
             var dafnyMember = classCompiler.translateMember(member);
             if (dafnyMember != null) {
                 members.add(dafnyMember);
@@ -100,7 +100,7 @@ public class RecordCompiler {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
-        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
+        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
                 List.of(getDatatypeCtor(classDecl, origin, name, fields)), false);
     }
 
@@ -131,7 +131,7 @@ public class RecordCompiler {
         if (isImplicitCanonicalConstructor(methodDecl)) {
             return;
         }
-        
+
         NameSegment resultReference = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
 
         java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifierOverride = (identifier, innerOrigin) -> {
@@ -151,7 +151,7 @@ public class RecordCompiler {
         var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(
                 () -> classCompiler.translateMember(methodDecl),
             handleIdentifierOverride);
-        
+
         if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
@@ -190,7 +190,7 @@ public class RecordCompiler {
 
         JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.compiler.context);
         boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
-            
+
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
 

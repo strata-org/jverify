@@ -37,6 +37,7 @@ public class NameCompiler {
     public String LABEL_PREFIX = "g" + sep;
     public String UNDERSCORE_START_PREFIX = "a" + sep;
     public String RESERVED_PREFIX = "r" + sep;
+    public String UNION_PREFIX = "Union" + sep;
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
@@ -44,7 +45,7 @@ public class NameCompiler {
     private final ExternalContractCompiler contractCompiler;
 
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate");
-    
+
     public NameCompiler(ExternalContractCompiler contractCompiler) {
         this.contractCompiler = contractCompiler;
         this.symbolStringMap = new HashMap<>();
@@ -158,7 +159,7 @@ public class NameCompiler {
         }
         return name.replace('$', '_');
     }
-    
+
     private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
         List<Type> argTypes;
         if (method.type instanceof MethodType m) {

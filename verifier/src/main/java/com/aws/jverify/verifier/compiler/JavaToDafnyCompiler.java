@@ -8,7 +8,10 @@ import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompile
 import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
+import com.sun.source.tree.*;
+import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
+import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Kinds;
@@ -18,6 +21,7 @@ import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.comp.Enter;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
@@ -68,7 +72,7 @@ public class JavaToDafnyCompiler {
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
     private boolean skipDiagnostics;
-    
+
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
@@ -89,7 +93,7 @@ public class JavaToDafnyCompiler {
         }
         var contractSource = new SourceFile(JavaToDafnyCompiler.objectFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
         files.add(contractSource);
-        
+
         Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
@@ -224,7 +228,7 @@ public class JavaToDafnyCompiler {
         this.skipDiagnostics = previous;
         return result;
     }
-    
+
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
         if (this.skipDiagnostics) {
             return;
@@ -298,7 +302,7 @@ public class JavaToDafnyCompiler {
         return false;
     }
 
-    boolean isRecord(com.sun.tools.javac.code.Type type) {
+    public boolean isRecord(com.sun.tools.javac.code.Type type) {
         return type instanceof com.sun.tools.javac.code.Type.ClassType classType
                 && (classType.asElement().flags() & Flags.RECORD) != 0;
     }
@@ -394,7 +398,7 @@ public class JavaToDafnyCompiler {
         }
         return false;
     }
-    
+
     public @Nullable Type translateType(JCTree tree) {
         return translateType(tree.type, toOrigin(tree), null);
     }
@@ -410,8 +414,19 @@ public class JavaToDafnyCompiler {
         return translateType(type, origin, null);
     }
 
+    /**
+     * @param useBaseName
+     *      whether to use the base type's name
+     *      (e.g. the trait of a trait-and-constructable-class pair,
+     *      or the trait of a trait-and-union-subset pair)
+     */
     @Nullable
-    public Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
+    public Type translateType(
+            com.sun.tools.javac.code.Type type,
+            IOrigin origin,
+            JCTree.JCModifiers additionalModifiers,
+            boolean useBaseName
+    ) {
         // In several cases annotations that come right before types
         // end up bound to tree nodes such as variable declarations instead of the type.
         // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
@@ -493,7 +508,7 @@ public class JavaToDafnyCompiler {
 
                 var mirrors = type.getAnnotationMirrors();
                 var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
-                
+
                 Symtab symtab = Symtab.instance(context);
                 if (modifiableAnnotation.isPresent() || isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
                     if (classType.tsym == symtab.objectType.tsym) {
@@ -514,15 +529,23 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
 
-
-
                 if (isRecord(classType) && isNullable) {
                     reportError(origin, "notSupported", "nullable record type");
                     return null;
                 }
 
+                var isUnion = classType.isInterface() && type.tsym.isSealed()
+                        && isAnnotated(classType, Union.class);
+                if (isUnion && isNullable) {
+                    reportError(origin, "notSupported", "nullable @Union type");
+                    return null;
+                }
+
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
+                if (isUnion && !useBaseName) {
+                    compiledName = nameCompiler.UNION_PREFIX + compiledName;
+                }
                 var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null)).toList();
                 if (arguments.isEmpty()) {
                     arguments = null;
@@ -556,6 +579,14 @@ public class JavaToDafnyCompiler {
         }
         reportError(origin, "notSupported", "type " + type.getClass().getName());
         return null;
+    }
+
+    /**
+     * @see #translateType(com.sun.tools.javac.code.Type, IOrigin, JCTree.JCModifiers, boolean)
+     */
+    @Nullable
+    public Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
+        return translateType(type, origin, additionalModifiers, false);
     }
 
     /**
