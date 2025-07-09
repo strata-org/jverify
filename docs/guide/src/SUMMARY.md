@@ -2,10 +2,17 @@
 
 [JVerify Overview](./overview.md)
 
+# Adoption
+- [Common use-cases](./common_usecases.md)
+- [Partially verifying a large codebase](./partial_verification.md)
+- [Adding contracts to third-party code](./external_contracts.md)
+- [Erase verification code during compilation](./erase_verification.md)
+- [Supported Java features](./supported_java_features.md)
+
 # Getting started
 
-- [Getting Started](./getting_started.md)
-- [Supported Java features](./supported_java_features.md)
+- [Installation](./installation)
+- [Verify a Java program](./first_verification)
 
 # Fundamentals
 
