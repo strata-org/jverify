@@ -33,7 +33,7 @@ class UserProfile {
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
-        //this.premiumFeatures = new PremiumFeatures();
+        this.premiumFeatures = new PremiumFeatures();
         return;
     }
 
