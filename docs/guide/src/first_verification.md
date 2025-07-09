@@ -1,4 +1,4 @@
-# Verify a Java program
+# Running JVerify
 
 Let's try running JVerify on the following Java program,
 found [here](https://github.com/aws/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/BinarySearch.java):

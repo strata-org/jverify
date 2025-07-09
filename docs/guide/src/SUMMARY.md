@@ -14,7 +14,7 @@
 # Getting started
 
 - [Installation](./installation)
-- [Verify a Java program](./first_verification)
+- [Running JVerify](./first_verification)
 
 # Fundamentals
 
