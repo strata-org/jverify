@@ -16,9 +16,9 @@ class UserProfile {
         this.accountType = accountType;
         if (AccountType.Premium == accountType) {
             this.premiumFeatures = new PremiumFeatures();
-        } else {
-            this.premiumFeatures = null;
-        }
+        } 
+        
+        
     }
 
     @Erased
