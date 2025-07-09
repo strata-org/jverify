@@ -1,5 +1,5 @@
-// ^ /builtin-contracts.java(117:22-117:49) Related location: this proposition could not be proved
-// ^ /builtin-contracts.java(117:53-117:80) Related location: this proposition could not be proved
+// ^ /builtin-contracts.java(117:22-117:51) Related location: this proposition could not be proved
+// ^ /builtin-contracts.java(117:55-117:84) Related location: this proposition could not be proved
 
 package com.aws.jverify.verifier.tests;
 
@@ -15,34 +15,46 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 1, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 4)
 class BigIntegers {
-    static void test1() {
+    static void testConstructors() {
         BigInteger bi = new BigInteger("23");
         check(bi.intValue() == 23);
         BigInteger bbi = new BigInteger("1");
-        BigInteger res = bbi.add(bi);
-        check(res.intValue() == 24);
-        BigInteger bbi2 = BigInteger.valueOf(12345);
-        check(bbi2.intValue() == 12345);
+        check(bbi.intValue() == 1);
         BigInteger biNeg = new BigInteger("-2");
         check(biNeg.intValue() == -2);
+        BigInteger bbi2 = BigInteger.valueOf(12345);
+        check(bbi2.intValue() == 12345);
+    }
+
+    static void testComparisons() {
+        BigInteger bi = new BigInteger("23");
+        BigInteger biNeg = new BigInteger("-2");
         BigInteger biZero = BigInteger.valueOf(0);
         check(bi.signum() == 1);
         check(biNeg.signum() == -1);
         check(biZero.signum() == 0);
+        int cmp = bi.compareTo(biNeg);
+        check(cmp > 0);
+        BigInteger biAgain = new BigInteger("23");
+        cmp = bi.compareTo(biAgain);
+        check(cmp == 0);
+        cmp = biNeg.compareTo(biZero);
+        check(cmp < 0);
     }
 
     // Needs a bigger fuel on stringToInt function
-    static void test2() {
+    static void testConstructorNegative() {
         BigInteger bi = new BigInteger("234");
         check(bi.intValue() == 234);
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
 //            ^^^^^^^^^^^^^ Error: function precondition could not be proved
 //            ^^^^^^^^^^^^^ Error: function precondition could not be proved
-// Remy: there are two failing preconditions (both on line 122 of builtin-contracts.java, the LHS and the RHS of the &&), that's why this is reported twice. 
+// There are two failing preconditions (both on line 117 of builtin-contracts.java, the LHS and the RHS of the &&), that's why this is reported twice.
     }
 
+    // Test all arithmetic operations on BigIntegers
     static void testArith() {
         BigInteger bi = new BigInteger("23");
         BigInteger two = new BigInteger("2");
