@@ -3,7 +3,7 @@
 [JVerify Overview](./overview.md)
 
 # Adoption
-- [Common use-cases](./common_usecases.md)
+- [Example use-cases](./example_usecases)
 - [Partially verifying a large codebase](./partial_verification.md)
 - [Adding contracts to third-party code](./external_contracts.md)
 - [Erase verification code during compilation](./erase_verification.md)
