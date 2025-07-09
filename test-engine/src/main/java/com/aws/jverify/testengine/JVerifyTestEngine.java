@@ -286,7 +286,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 Path.of("../build/temp.dfy"),
                 Path.of("../build/temp.dbin"),
                 true,
-                true,
+                annotation.useBuiltinContracts(),
                 true,
                 new String[] {
                         "--use-basename-for-filename",
@@ -309,7 +309,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, 
                                                         int dafnyVerified, int dafnyErrors,
                                                         boolean resolvePrintedDafny,
-                                                        boolean avoidNameCollisions) {
+                                                        boolean avoidNameCollisions,
+                                                        boolean useBuiltinContracts) {
         return new JVerifyTest() {
             @Override
             public Class<? extends Annotation> annotationType() {
@@ -324,6 +325,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             @Override
             public boolean verifyByDefault() {
                 return verifyByDefault;
+            }
+
+            @Override
+            public boolean useBuiltinContracts() {
+                return useBuiltinContracts;
             }
 
             @Override

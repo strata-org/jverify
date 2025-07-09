@@ -43,6 +43,8 @@ public @interface JVerifyTest {
      */
     boolean verifyByDefault() default true;
 
+    boolean useBuiltinContracts() default true;
+
     int exitCode() default 0;
 
     int dafnyVerified() default -1;
