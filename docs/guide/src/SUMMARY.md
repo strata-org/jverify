@@ -5,7 +5,9 @@
 # Adoption
 - [Example use-cases](./example_usecases)
 - [Partially verifying a large codebase](./partial_verification.md)
+- [Testing unverified contracts](./testing_unverified_contracts.md)
 - [Adding contracts to third-party code](./external_contracts.md)
+- [Runtime checking of contracts](./runtime_checking.md)
 - [Erase verification code during compilation](./erase_verification.md)
 - [Supported Java features](./supported_java_features.md)
 

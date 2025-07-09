@@ -1,8 +1,12 @@
 # Example use-cases
+WIP 
 
 ## Prevent exceptions
 
 ### UserProfile
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/UserProfile.java}}
+```
 
 ### Class cast example
 
@@ -25,6 +29,9 @@
 ## Safely optimize performance
 
 ### Binary search
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java}}
+```
 
 ### Diff two trees
 (taken from a customer)
