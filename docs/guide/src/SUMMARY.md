@@ -2,19 +2,20 @@
 
 [JVerify Overview](./overview.md)
 
-# Adoption
-- [Example use-cases](./example_usecases)
+
+# Getting started
+
+- [Installation](./installation.md)
+- [Running JVerify](./first_verification.md)
+- [Example use-cases](./example_usecases.md)
+- [Supported Java features](./supported_java_features.md)
+
+# Integration
 - [Partially verifying a large codebase](./partial_verification.md)
 - [Testing unverified contracts](./testing_unverified_contracts.md)
 - [Adding contracts to third-party code](./external_contracts.md)
 - [Runtime checking of contracts](./runtime_checking.md)
 - [Erase verification code during compilation](./erase_verification.md)
-- [Supported Java features](./supported_java_features.md)
-
-# Getting started
-
-- [Installation](./installation)
-- [Running JVerify](./first_verification)
 
 # Fundamentals
 

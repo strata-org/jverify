@@ -57,16 +57,6 @@ Because the JVerify packages are not yet published to any shared repositories,
 you will need to run `./gradlew publishToMavenLocal` first so this can be resolved.
 See [the sample project](https://github.com/aws/jverify/blob/main/sample-project) for more details.
 
-## Gradual verification
-
-If some of your code can't yet be verified, especially if it uses [features that aren't supported yet](supported_java_features.md),
-you can control which code elements are verified with [the `@Verify` annotation](https://github.com/aws/jverify/blob/main/library/src/main/java/com/aws/jverify/Verify.java)
-and the `--verify-by-default` CLI parameter.
-
-Passing `--verify-by-default false` means that only elements explicitly annotated with `@Verify`,
-or beneath elements with `@Verify(value = true, overrideChildren = true)`,
-will be verified.
-
 ### GitHub issues related to the above:
 
 - Let the number of reported verified things match Java concepts: https://github.com/aws/jverify/issues/127
