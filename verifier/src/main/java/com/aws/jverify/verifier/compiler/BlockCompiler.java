@@ -5,6 +5,7 @@ import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -495,11 +496,11 @@ public class BlockCompiler {
             case JCTree.JCNewArray newArray -> {
                 var arrayDimensions = newArray.getDimensions().stream().map(compiler.expressionCompiler::toExpr).toList();
                 var arrayInitializers = newArray.getInitializers();
-                var arrayJavaType = newArray.getType();
-                if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
+                var arrayJavaType = ((com.sun.tools.javac.code.Type.ArrayType) newArray.type).elemtype;
+                if (arrayJavaType instanceof com.sun.tools.javac.code.Type.ArrayType) {
                     compiler.reportError(expr, "notSupported", "multi-dimensional arrays");
                 }
-                var arrayDafnyType = compiler.translateType(null, arrayJavaType.type, compiler.toOrigin(arrayJavaType));
+                var arrayDafnyType = compiler.translateType(null, arrayJavaType, compiler.toOrigin(newArray));
 
                 if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                     compiler.reportError(expr, "notSupported", "new array with initializers");
