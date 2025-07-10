@@ -34,7 +34,7 @@ JVerify intends to support the full Java language, but is currently being develo
 - Lambda expressions
 - Method references
 - Type parameters, including type parameter bounds
-- Type arguments, but only those without wildcards
+- Type arguments, but wildcards are ignored. `? extends X` is interpreted as `X`, and similarly for `? super X`.
 
 # Supported Java standard library packages
 
@@ -58,7 +58,7 @@ Nothing yet
 - `checked exceptions` (ignored)
 - `synchronized`
 - Module declarations
-- Wildcards: `?`
+- Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to `C<Object>`.
 - `permits`
 - Verification of annotations
 - For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.

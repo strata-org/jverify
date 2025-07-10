@@ -62,6 +62,7 @@ public class JavaToDafnyCompiler {
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
     public JCTree.JCCompilationUnit compilationUnit;
+    private boolean translatingVerifiedMethodSignature;
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
     
@@ -383,6 +384,13 @@ public class JavaToDafnyCompiler {
         return translateType(modifiers, tree.type, toOrigin(tree));
     }
 
+    public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
+        translatingVerifiedMethodSignature = willVerify;
+        var result = translateType(null, type, origin);
+        translatingVerifiedMethodSignature = false;
+        return result;
+    }
+    
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
         return translateType(null, type, origin);
     }
@@ -495,6 +503,20 @@ public class JavaToDafnyCompiler {
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym), null));
+            }
+            case com.sun.tools.javac.code.Type.WildcardType wildcardType -> {
+                var extendsBound = wildcardType.getExtendsBound();
+                if (extendsBound != null) {
+                    return translateType(extendsBound, origin);
+                }
+                var superBound = wildcardType.getSuperBound();
+                if (superBound != null) {
+                    if (translatingVerifiedMethodSignature) {
+                        reportError(origin, "notSupported", "keyword 'super' in method signature");
+                    }
+                    return translateType(superBound, origin);
+                }
+                return new UserDefinedType(origin, new NameSegment(origin, "Object", null));
             }
             default -> {
             }

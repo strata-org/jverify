@@ -302,7 +302,7 @@ public class ClassCompiler {
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
         var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
-        List<Formal> ins = getIns(methodSymbol);
+        List<Formal> ins = getIns(methodSymbol, shouldVerify, bodyOrigin);
 
         MethodOrLoopContract header;
         List<Statement> bodyStatements = null;
@@ -348,7 +348,16 @@ public class ClassCompiler {
 
         var outs = new ArrayList<Formal>();
         if (methodSymbol.type.getReturnType() != null) {
-            var returnType = compiler.translateType(methodSymbol.type.getReturnType(), bodyOrigin);
+            JavacTrees trees = JavacTrees.instance(compiler.context);
+            var methodDecl = trees.getTree(methodSymbol);
+            IOrigin returnOrigin;
+            if (methodDecl == null) {
+                returnOrigin = bodyOrigin;
+            } else {
+                var returnTypeDecl = methodDecl.getReturnType();
+                returnOrigin = compiler.toOrigin(returnTypeDecl);
+            }
+            var returnType = compiler.translateMethodSignatureType(methodSymbol.type.getReturnType(), returnOrigin, shouldVerify);
             if (returnType != null) {
                 outs.add(makeReturnFormal(origin, returnType));
             }
@@ -404,10 +413,10 @@ public class ClassCompiler {
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
         var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
-        List<Formal> ins = getIns(methodSymbol);
+        List<Formal> ins = getIns(methodSymbol, shouldVerify, bodyOrigin);
         Expression body = null;
         MethodOrLoopContract header;
-        var returnType = compiler.translateType(methodSymbol.type.getReturnType(), bodyOrigin);
+        var returnType = compiler.translateMethodSignatureType(methodSymbol.type.getReturnType(), bodyOrigin, shouldVerify);
         if (returnType == null) {
             compiler.reportError(source, "pureMethodsNeedsReturnType");
             return null;
@@ -499,13 +508,18 @@ public class ClassCompiler {
         return null;
     }
 
-    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol) {
+    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, boolean shouldVerify, IOrigin bodyOrigin) {
         return methodSymbol.getParameters().map(jvd -> {
             var trees = JavacTrees.instance(compiler.context);
             var parameter = trees.getTree(jvd);
-            var parameterOrigin  = compiler.toOrigin(parameter);
+            IOrigin parameterOrigin;
+            if (parameter == null) {
+                parameterOrigin = bodyOrigin;
+            } else {
+                parameterOrigin = compiler.toOrigin(parameter);
+            }
             Name formalName = new Name(parameterOrigin, jvd.name.toString());
-            var syntacticType = compiler.translateType(jvd.type, parameterOrigin);
+            var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         });
