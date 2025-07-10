@@ -16,7 +16,7 @@ Yes, more about that is in [partially verifying a codebase](./partial_verificati
 
 Yes, more about that is in [adding contracts to third-party code](./external_contracts.md).
 
-#### Will using JVerify slow down my program?
+#### Will adding calls to the JVerify library slow down my program?
 No, more about that is in [erase verification code during compilation](./erase_verification.md). 
 
 # This guide
