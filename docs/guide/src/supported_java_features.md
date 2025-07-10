@@ -58,7 +58,7 @@ Nothing yet
 - `checked exceptions` (ignored)
 - `synchronized`
 - Module declarations
-- Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to a type that can not be instantiated.
+- Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to `C<Object>`.
 - `permits`
 - Verification of annotations
 - For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
