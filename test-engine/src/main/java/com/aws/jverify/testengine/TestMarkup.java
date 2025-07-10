@@ -45,7 +45,18 @@ public class TestMarkup {
     private static final String SPAN_END_STRING = "<]";
 
     private static String parse(String input, List<Integer> positions, List<AnnotatedSpan> spans) {
-        StringBuilder outputBuilder = new StringBuilder();
+
+        var outputParts = parseParts(input, positions, spans);
+
+        var output = String.join("", outputParts);
+        var hatAnnotations = findHatAnnotationSpans(String.join("", output));
+        spans.addAll(hatAnnotations);
+        
+        return output;
+    }
+
+    public static  List<String> parseParts(String input, List<Integer> positions, List<AnnotatedSpan> spans) {
+        var output = new ArrayList<String>();
         
         // Without those, the calculated positions are incorrect on Windows
         input = input.replaceAll("\r\n", "\n");
@@ -71,7 +82,7 @@ public class TestMarkup {
             int matchIndexInOutput = matcher.start() - diff;
             String outputPart = input.substring(inputPosition, matcher.start());
             outputPosition += outputPart.length();
-            outputBuilder.append(outputPart);
+            output.add(outputPart);
             inputPosition = matcher.end();
 
             if (matcher.group("Position") != null) {
@@ -102,18 +113,18 @@ public class TestMarkup {
             throw new IllegalArgumentException("Saw '{<' without matching '>}'");
         }
 
-        
-        // Append the remainder of the string.
-        outputBuilder.append(input.substring(inputPosition));
-        String output = outputBuilder.toString();
 
-        var hatAnnotations = findHatAnnotations(output);
-        spans.addAll(hatAnnotations);
-        
+        // Append the remainder of the string.
+        output.add(input.substring(inputPosition));
         return output;
     }
+
+    public static List<AnnotatedRange> findHatAnnotationRanges(String text) {
+        var spans = findHatAnnotationSpans(text);
+        return getAnnotatedRangesFromSpans(spans, new TextBuffer(text));
+    }
     
-    private static List<AnnotatedSpan> findHatAnnotations(String text) {
+    private static List<AnnotatedSpan> findHatAnnotationSpans(String text) {
         List<AnnotatedSpan> result = new ArrayList<>();
         String[] lines = text.split("\\r?\\n");
 
@@ -192,12 +203,14 @@ public class TestMarkup {
         return new GetPositionsAndNamedRangesResult(output.output, output.positions, namedRanges);
     }
 
-    public record GetPositionsAndAnnotatedRangesResult(String output, List<Position> positions, List<AnnotatedRange> ranges) {}
+    public record GetPositionsAndAnnotatedRangesResult(String output, 
+                                                       List<Position> positions, 
+                                                       List<AnnotatedRange> ranges) {}
+    
     public static GetPositionsAndAnnotatedRangesResult getPositionsAndAnnotatedRanges(String input) {
         List<Integer> positionIndices = new ArrayList<>();
         List<AnnotatedSpan> spans = new ArrayList<>();
         List<Position> positions = new ArrayList<>();
-        List<AnnotatedRange> ranges = new ArrayList<>();
         
         var output = getIndexAndSpans(input, positionIndices, spans);
 
@@ -207,6 +220,12 @@ public class TestMarkup {
             positions.add(buffer.positionFromIndex(index));
         }
 
+        List<AnnotatedRange> ranges = getAnnotatedRangesFromSpans(spans, buffer);
+        return new GetPositionsAndAnnotatedRangesResult(output, positions, ranges);
+    }
+
+    private static List<AnnotatedRange> getAnnotatedRangesFromSpans(List<AnnotatedSpan> spans, TextBuffer buffer) {
+        List<AnnotatedRange> ranges = new ArrayList<>();
         for (AnnotatedSpan annotatedSpan : spans) {
             Range range = new Range(
                     buffer.positionFromIndex(annotatedSpan.span.start),
@@ -214,7 +233,7 @@ public class TestMarkup {
             );
             ranges.add(new AnnotatedRange(annotatedSpan.annotation, range));
         }
-        return new GetPositionsAndAnnotatedRangesResult(output, positions, ranges);
+        return ranges;
     }
 
     public static String getPositionsAndRanges(String input, List<Position> positions, List<Range> ranges) {
