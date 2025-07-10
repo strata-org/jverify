@@ -177,4 +177,9 @@ class TranslationErrors {
     }
 
     void foo() {}
+
+    void arrayWithInitializer() {
+        int[] arr = {1, 2, 3};
+//                  ^ error: new array with initializers is not supported
+    }
 }
