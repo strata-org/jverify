@@ -458,6 +458,9 @@ public class BlockCompiler {
      * or wraps it in a singleton block otherwise.
      */
     public static BlockStmt blockifyStatements(IOrigin origin,  List<Statement> statements) {
+        if (statements.isEmpty()) {
+            return new BlockStmt(origin, null, List.of(), statements);
+        }
         return statements.getFirst() instanceof BlockStmt block
                 ? block
                 : new BlockStmt(origin, null, List.of(), statements);

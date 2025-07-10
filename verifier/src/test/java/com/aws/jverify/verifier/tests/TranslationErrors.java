@@ -177,4 +177,11 @@ class TranslationErrors {
     }
 
     void foo() {}
+
+    void ifWithThrow(int x) {
+        if (x > 0) {
+            throw new RuntimeException("");
+//          ^ error: statement JCThrow is not supported
+        }
+    }
 }
