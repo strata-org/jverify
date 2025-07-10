@@ -29,7 +29,7 @@ public class TestExamples {
     
     private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors) throws IOException {
         var markedSource = Files.readString(Path.of("../examples/src/test/java/com/aws/jverify/examples/").resolve(path));
-        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, dafnyVerified, dafnyErrors, false, false);
+        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, dafnyVerified, dafnyErrors, false, false, true);
         JVerifyTestEngine.testMarkedSource(new SourceFile(path, markedSource), annotation);
     }
 }

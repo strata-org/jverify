@@ -10,9 +10,9 @@ import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 8, dafnyErrors = 0)
+@JVerifyTest(useBuiltinContracts = false, exitCode = 0, dafnyVerified = 8, dafnyErrors = 0)
 public class ExternalContractGhostField {
-    static void test(BigIntegerContract v) {
+    static void test(DummyBigIntegerContract v) {
         precondition(v.value == 1);
         var b = v.add(v);
         check(b.intValue() == 2);
@@ -20,7 +20,7 @@ public class ExternalContractGhostField {
 }
 
 @Contract(BigInteger.class)
-class BigIntegerContract {
+class DummyBigIntegerContract {
     
     @Unbounded
     int value;
@@ -29,21 +29,20 @@ class BigIntegerContract {
     int intValue() {
         reads(this);
         //noinspection ConstantValue
-        precondition(value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE);
+        precondition(value >= -10 && value <= 10);
         postcondition((Integer r) -> r == value);
         throw new ContractException();
     }
 
-    BigIntegerContract add(BigIntegerContract v) {
-        postcondition((BigIntegerContract b) -> b.value == this.value + v.value);
+    DummyBigIntegerContract add(DummyBigIntegerContract delta) {
+        postcondition((DummyBigIntegerContract b) -> b.value == this.value + delta.value);
         throw new ContractException();
     }
-    
-    /*
-    Test static pure bodyless method
-     */
+
+
+    // Test static pure bodyless method
     @Pure
-    public static BigInteger valueOf(long val) {
+    public static DummyBigIntegerContract valueOf(long val) {
         throw new ContractException();
     }
 }

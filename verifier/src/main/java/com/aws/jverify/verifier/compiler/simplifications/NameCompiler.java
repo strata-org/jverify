@@ -135,7 +135,7 @@ public class NameCompiler {
         return result.toString();
     }
 
-    private static void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
+    private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
         List<Type> argTypes;
         if (method.type instanceof MethodType m) {
             argTypes = m.getParameterTypes();
@@ -152,7 +152,7 @@ public class NameCompiler {
         }
     }
 
-    private static String getShortTypeName(com.sun.tools.javac.code.Type type) {
+    private String getShortTypeName(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
             case VOID : {return "v";}
             case BYTE : {return "b";}
@@ -164,7 +164,14 @@ public class NameCompiler {
             case DOUBLE : {return "d";}
             case BOOLEAN: {return "z";}
             case CLASS: {
-                var classTypeStr = type.toString();
+                var newType = this.contractCompiler.contractClassTypeToContracteeType.get(type);
+                String classTypeStr;
+                if (newType != null) {
+                    classTypeStr = newType.toString();
+                }
+                else {
+                    classTypeStr = type.toString();
+                }
                 // Changing '.' to '_' so that the new name is a valid Dafny name
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
@@ -180,10 +187,14 @@ public class NameCompiler {
         }
     }
 
-    private static ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
+    private ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
         boolean sameNameFields = false;
         int methodsWithThisName = 0;
-        for(var member : clazz.members().getSymbolsByName(name)) {
+        var newClazz = this.contractCompiler.contractClassToContractee.get(clazz);
+        if (newClazz == null) {
+            newClazz = clazz;
+        }
+        for(var member : newClazz.members().getSymbolsByName(name)) {
             if (member instanceof Symbol.VarSymbol) {
                 sameNameFields = true;
             }
