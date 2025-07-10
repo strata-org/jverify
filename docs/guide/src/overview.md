@@ -4,6 +4,21 @@ JVerify is a tool that can detect most bugs in a Java program at compile-time. I
 
 Program specifications are provided by making calls to the JVerify library. These calls will be removed during compilation, using a plugin for `javac`, so they will not have an effect at run-time. Java code that contains JVerify specifications is still regular Java code, so it can be developed using any Java IDE.
 
+# Frequently asked questions
+
+#### Does JVerify support the entire Java language?
+It will. You can find the list of currently supported features here: [supported Java features](./supported_java_features.md).
+
+#### Can I gradually adopt JVerify in an existing codebase?
+Yes, more about that is in [partially verifying a codebase](./partial_verification.md).
+
+#### Can I use JVerify when calling libraries that were developed without JVerify?
+
+Yes, more about that is in [adding contracts to third-party code](./external_contracts.md).
+
+#### Will using JVerify slow down my program?
+No, more about that is in [erase verification code during compilation](./erase_verification.md). 
+
 # This guide
 
 This guide assumes that you're already familiar with Java. Specifications used by JVerify are written using regular Java expressions. However, verifying the correctness of Java code uses concepts that do not exist in regular Java, such as pre- and post-conditions. You can view JVerify as extending the Java language, even though it does not introduce any new syntax. This guide will walk you through the concepts that JVerify introduces.
