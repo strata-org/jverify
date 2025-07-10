@@ -31,12 +31,12 @@ public class TestUserProfileEdits {
         JVerifyTestEngine.verifyFile(new SourceFile(path, second), secondTestAnnotation, List.of(TestMarkup.findHatAnnotationRanges(second).get(2)));
         
         var third = keepAnnotations(outputParts, 0, 1);
-        var thirdTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(4, 1);
+        var thirdTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(5, 1);
         List<AnnotatedRange> hatAnnotationRanges = TestMarkup.findHatAnnotationRanges(third);
         JVerifyTestEngine.verifyFile(new SourceFile(path, third), thirdTestAnnotation, List.of(hatAnnotationRanges.get(2), hatAnnotationRanges.get(1), hatAnnotationRanges.get(3)));
         
         var fourth = keepAnnotations(outputParts, 0, 1, 2);
-        var fourthTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(5, 0);
+        var fourthTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(6, 0);
         JVerifyTestEngine.verifyFile(new SourceFile(path, fourth), fourthTestAnnotation, List.of());
     }
     
