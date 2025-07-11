@@ -38,4 +38,4 @@ WIP
 
 If you traverse both trees and for each node, check whether it is equal to the node at the same path in the other tree, you can determine which paths were added in each tree, but you will do a recursive equality comparison for each tree node, leading to `O(N^2)` complexity.
 
-### Efficient string matching from customer Y
+### Efficient string matching from AWS IAM
