@@ -209,4 +209,12 @@ class StringContract {
         postcondition((Boolean b) -> implies(prefix.length() <= s.length() && exists((Integer i) -> 0<=i && i<prefix.length() && prefix.charAt(i) != s.charAt(i)), b==false));
         throw  new ContractException();
     }
+
+    @Pure
+    public static String concat(String s1, String s2) {
+        postcondition((String s) -> s.length() == s1.length() + s2.length());
+        postcondition((String s) -> forall((Integer i) -> implies(0<=i&&i<s1.length(), s.charAt(i) == s1.charAt(i))));
+        postcondition((String s) -> forall((Integer i) -> implies(0<=i&&i<s2.length(), s.charAt(s1.length()+i) == s2.charAt(i))));
+        throw new ContractException();
+    }
 }

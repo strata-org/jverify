@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 5)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 6)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
@@ -115,6 +115,17 @@ class Strings {
         check(s1.startsWith(s3));
         String s4 = s2.substring(1);
         check(s2.startsWith(s4));
+//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+
+    }
+
+    static void testConcat(String s1, String s2) {
+        precondition(s1.length() == 3 && s2.length() == 5);
+        precondition(!s2.startsWith(s1));
+        String s3 = s1.concat(s2);
+        check(s3.length() == 8);
+        check(s3.startsWith(s1));
+        check(s3.startsWith(s2));
 //      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
 
     }

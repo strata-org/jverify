@@ -220,7 +220,7 @@ public class ExpressionCompiler {
                             yield new SeqSelectExpr(origin, false, receiver,
                                     argBindings.getFirst().getActual(), endIndex, null);
                         }
-                        case "indexOf", "startsWith" -> {
+                        case "indexOf", "startsWith","concat" -> {
                             var strSeg = new NameSegment(origin, ownerClass.name.toString(), null);
                             var newCalleeSymbol = addReceiverType(methodSymbol, receiverType);
                             var calleeNameStr = compiler.nameCompiler.getCompiledName(newCalleeSymbol);
