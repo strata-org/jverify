@@ -100,7 +100,9 @@ public class ExpressionCompiler {
             case JCTree.JCUnary unary -> {
                 return translateUnary(expr, unary, origin);
             }
-            case JCTree.JCBinary binary -> translateBinary(binary);
+            case JCTree.JCBinary binary -> {
+                return translateBinary(binary);
+            }
             case JCTree.JCIdent identifier -> {
                 return translateIdentifier(identifier, origin);
             }
@@ -123,7 +125,9 @@ public class ExpressionCompiler {
                 compiler.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
                 return JavaToDafnyCompiler.getHole(origin);
             }
-            case JCTree.JCInstanceOf instanceOf -> translateInstanceOf(instanceOf, origin);
+            case JCTree.JCInstanceOf instanceOf -> {
+                return translateInstanceOf(instanceOf, origin);
+            }
             case JCTree.JCTypeCast cast -> {
                 return translateCast(cast, origin);
             }
