@@ -85,6 +85,20 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
+    // Given a symbol, assumed to be a MethodSymbol, returns a new MethodSymbol with
+    // same name but with a new argument type prepended.
+    static private Symbol addReceiverType(Symbol sym, com.sun.tools.javac.code.Type typ) {
+        // Create a new symbol with same name but different type (one new argument)
+        var methodType = (com.sun.tools.javac.code.Type.MethodType) sym.type;
+        var newArgTypes = methodType.argtypes.prepend(typ);
+        var newMethodType =
+                new com.sun.tools.javac.code.Type.MethodType(
+                        newArgTypes, methodType.restype, methodType.thrown, null);
+        return new Symbol.MethodSymbol((long)0, sym.name,
+                newMethodType,
+                sym.owner);
+    }
+
     public Expression toExpr(JCTree.JCExpression expr) {
         return toExpr(expr, null);
     }
@@ -159,15 +173,18 @@ public class ExpressionCompiler {
 
                 var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
                 var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-
+                final com.sun.tools.javac.code.Type receiverType;
                 final Expression receiver;
                 if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
                     receiver = toExpr(fieldAccess.selected);
+                    receiverType = fieldAccess.selected.type;
                 } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
                     receiver = null;
+                    receiverType = null;
                 } else {
                     compiler.reportError(invocation, "notSupported", "call via method reference");
                     receiver = JavaToDafnyCompiler.getHole(origin);
+                    receiverType = null;
                 }
 
                 if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
@@ -203,16 +220,12 @@ public class ExpressionCompiler {
                             yield new SeqSelectExpr(origin, false, receiver,
                                     argBindings.getFirst().getActual(), endIndex, null);
                         }
-                        case "indexOf" -> {
-                                var strSeg = new NameSegment(origin,"String", null);
-                                var callee = new ExprDotName(origin, strSeg, new Name(origin, "indexOf_Cjava_lang_Stringi"), null);
-                                var newArgBindings = new ArrayList<>(argBindings);
-                                newArgBindings.addFirst(new ActualBinding(null, receiver, false));
-                            yield new ApplySuffix(origin, callee, null, new ActualBindings(newArgBindings), null);
-                        }
-                        case "startsWith" -> {
-                            var strSeg = new NameSegment(origin,"String", null);
-                            var callee = new ExprDotName(origin, strSeg, new Name(origin, "startsWith_Cjava_lang_StringCjava_lang_String"), null);
+                        case "indexOf", "startsWith" -> {
+                            var strSeg = new NameSegment(origin, ownerClass.name.toString(), null);
+                            var newCalleeSymbol = addReceiverType(methodSymbol, receiverType);
+                            var calleeNameStr = compiler.nameCompiler.getCompiledName(newCalleeSymbol);
+                            var calleeName = new Name(origin, calleeNameStr);
+                            var callee = new ExprDotName(origin, strSeg,calleeName , null);
                             var newArgBindings = new ArrayList<>(argBindings);
                             newArgBindings.addFirst(new ActualBinding(null, receiver, false));
                             yield new ApplySuffix(origin, callee, null, new ActualBindings(newArgBindings), null);
