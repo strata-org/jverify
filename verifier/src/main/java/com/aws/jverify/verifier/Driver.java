@@ -14,8 +14,10 @@ import picocli.CommandLine;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.*;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -170,7 +172,7 @@ public class Driver {
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
         } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            var filePart = filePath ? dafnyDiagnostic.getSource().toString() : dafnyDiagnostic.getSource().getPath(); 
+            var filePart = filePath ? dafnyDiagnostic.location.filePath() :dafnyDiagnostic.location.filename(); 
             sb.append(filePart)
                     .append("(")
                     .append(dafnyDiagnostic.getRange())

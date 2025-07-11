@@ -160,7 +160,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         verifyFile(markedSourceFile, annotation, ranges);
     }
 
-    public static void verifyFile(SourceFile markedSourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
+    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
         assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
@@ -169,14 +169,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var options = getVerifierOptions(annotation);
         var inputs = Arrays.stream(annotation.additionalFiles()).map(f -> {
             try {
-                var p = Path.of(markedSourceFile.toUri()).getParent().resolve(f);
+                var p = Path.of(sourceFile.toUri()).getParent().resolve(f);
                 String markedSource = Files.readString(p);
                 return (JavaFileObject)new SourceFile(p, markedSource);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }).collect(Collectors.toList());
-        inputs.add(markedSourceFile);
+        inputs.add(sourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
         
         if (annotation.resolvePrintedDafny()) {
@@ -187,7 +187,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))
-                .map(d -> diagnosticAsAnnotatedRange(markedSourceFile.toUri(), d))
+                .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
                 .sorted()
                 .toList();
         var expectedAnnotations = ranges.stream().sorted().toList();
@@ -302,6 +302,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
     }
 
+    /**
+     * For creating a JVerifyTest annotation without having it in source code.
+     * Useful for testing things like examples where we don't want the explicit annotation.
+     */
+    public static JVerifyTest makeJVerifyTestAnnotation(int dafnyVerified, int dafnyErrors) {
+        return makeJVerifyTestAnnotation(true, dafnyErrors > 0 ? 4 : 0, dafnyVerified, dafnyErrors, false, false, true);
+    }
+    
     /**
      * For creating a JVerifyTest annotation without having it in source code.
      * Useful for testing things like examples where we don't want the explicit annotation.
