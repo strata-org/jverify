@@ -14,6 +14,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -185,7 +186,8 @@ public class ExpressionCompiler {
 
                 if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                         && ownerClass.fullname.contentEquals(String.class.getName())) {
-                    return switch (methodSymbol.name.toString()) {
+                    return
+                        switch (methodSymbol.name.toString()) {
                         case "charAt" -> new SeqSelectExpr(origin, true, receiver,
                                 argBindings.getFirst().getActual(), null, null);
                         case "equals" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
@@ -200,6 +202,20 @@ public class ExpressionCompiler {
                                     : new UnaryOpExpr(origin, receiver, UnaryOpExprOpcode.Cardinality);
                             yield new SeqSelectExpr(origin, false, receiver,
                                     argBindings.getFirst().getActual(), endIndex, null);
+                        }
+                        case "indexOf" -> {
+                                var strSeg = new NameSegment(origin,"String", null);
+                                var callee = new ExprDotName(origin, strSeg, new Name(origin, "indexOf_Cjava_lang_Stringi"), null);
+                                var newArgBindings = new ArrayList<>(argBindings);
+                                newArgBindings.addFirst(new ActualBinding(null, receiver, false));
+                            yield new ApplySuffix(origin, callee, null, new ActualBindings(newArgBindings), null);
+                        }
+                        case "startsWith" -> {
+                            var strSeg = new NameSegment(origin,"String", null);
+                            var callee = new ExprDotName(origin, strSeg, new Name(origin, "startsWith_Cjava_lang_StringCjava_lang_String"), null);
+                            var newArgBindings = new ArrayList<>(argBindings);
+                            newArgBindings.addFirst(new ActualBinding(null, receiver, false));
+                            yield new ApplySuffix(origin, callee, null, new ActualBindings(newArgBindings), null);
                         }
                         default -> {
                             compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
@@ -465,15 +481,22 @@ public class ExpressionCompiler {
             case "contains" -> {
                 var element = toExpr(args.getFirst());
                 var seq = toExpr(receiver);
-                return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, seq);
+                return new BinaryExpr(origin, BinaryExprOpcode.In, element, seq);
             }
             case "old" -> {
                 var element = toExpr(args.getFirst());
-                return new OldExpr(compiler.toOrigin(invocation), element, null);
+                return new OldExpr(origin, element, null);
             }
             case "fresh" -> {
                 var element = toExpr(args.getFirst());
-                return new FreshExpr(compiler.toOrigin(invocation), element, null);
+                return new FreshExpr(origin, element, null);
+            }
+            case "implies" -> {
+                var antecedent = toExpr(args.getFirst());
+                var consequent = toExpr(args.getLast());
+                var notAntecedent = new UnaryOpExpr(origin, antecedent, UnaryOpExprOpcode.Not);
+                return new BinaryExpr(origin,BinaryExprOpcode.Or, notAntecedent, consequent);
+
             }
         }
 

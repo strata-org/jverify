@@ -88,6 +88,10 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public static <T> boolean exists(Function<T, Boolean> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
     public static <T1, T2> boolean forall(BiFunction<T1, T2, Boolean> predicate) {
         throw new VerificationMethodExecutedException();
     }
