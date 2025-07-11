@@ -1,3 +1,8 @@
+// ^ /additional.dfy(25:22-25:24) Related location: this proposition could not be proved
+// ^ /additional.dfy(42:20-42:22) Related location: this proposition could not be proved
+
+
+
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -10,7 +15,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 6)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
@@ -85,5 +90,48 @@ class Strings {
         check(cat.charAt(0) == dog.charAt(0));
         check(cat.charAt(1) + 5 == dog.charAt(1));
         check((cat + dog).length() == 4);
+    }
+
+    static void testIndexOf() {
+        var hello = "hello";
+
+        check(hello.charAt(4) == 'o');
+        check(hello.indexOf('o')==4);   // Proven thanks to the check above
+        check(hello.indexOf('e')==1);  // Not proven due to Dafny limitation
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+        check(hello.indexOf('3')==-1); // Proven without any help
+    }
+
+    static void testSubstring() {
+        var hello = "hello";
+        var he = "he";
+        var hellohello = "hellohello";
+        var hi = "f";
+        check(hello.startsWith(he));
+        check(!hello.startsWith(hellohello));
+        check(hi.charAt(0) != hello.charAt(0));
+        check(!hello.startsWith(hi));
+    }
+
+    static void testSubstring2(String s1, String s2) {
+        precondition(s1.startsWith(s2));
+        precondition(s2.length() > 3);
+        String s3 = s2.substring(0,1);
+        check(s1.startsWith(s3));
+        String s4 = s2.substring(1);
+        check(s2.startsWith(s4));
+//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+
+    }
+
+    static void testConcat(String s1, String s2) {
+        precondition(s1.length() == 3 && s2.length() == 5);
+        precondition(!s2.startsWith(s1));
+        String s3 = s1.concat(s2);
+        check(s3.length() == 8);
+        check(s3.startsWith(s1));
+        check(s3.startsWith(s2));
+//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+
     }
 }
