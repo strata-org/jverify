@@ -3,8 +3,6 @@ package com.aws.jverify.builtin;
 import com.aws.jverify.*;
 
 import java.math.BigInteger;
-import com.aws.jverify.Contract;
-import com.aws.jverify.ContractException;
 
 import java.util.Collection;
 import java.util.List;
@@ -64,24 +62,6 @@ class DoubleContract {
 class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
-}
-
-@Contract(String.class)
-class StringContract {
-    @Pure
-    public static int indexOf(String s, int c) {
-        postcondition((Integer result) -> result == -1 || (0 <= result && result < s.length() && s.charAt(result) == c));
-        postcondition((Integer result) -> implies(result == -1, forall((Integer j) -> implies(0<=j&&j<s.length(),s.charAt(j)!=c))));
-        postcondition((Integer result) -> implies(result >= 0, forall((Integer j) -> implies(0<=j&&j<result,s.charAt(j)!=c))));
-        throw new ContractException();
-    }
-    @Pure
-    public static boolean startsWith(String s, String prefix) {
-        postcondition((Boolean b) -> implies(prefix.length() > s.length(),b==false));
-        postcondition((Boolean b) -> implies(prefix.length() <= s.length() && forall((Integer i) -> implies(0<=i && i<prefix.length(), prefix.charAt(i) == s.charAt(i))), b==true));
-        postcondition((Boolean b) -> implies(prefix.length() <= s.length() && exists((Integer i) -> 0<=i && i<prefix.length() && prefix.charAt(i) != s.charAt(i)), b==false));
-        throw  new ContractException();
-    }
 }
 
 class HelperForBigIntegerContract {
@@ -211,4 +191,22 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+}
+
+@Contract(String.class)
+class StringContract {
+    @Pure
+    public static int indexOf(String s, int c) {
+        postcondition((Integer result) -> result == -1 || (0 <= result && result < s.length() && s.charAt(result) == c));
+        postcondition((Integer result) -> implies(result == -1, forall((Integer j) -> implies(0<=j&&j<s.length(),s.charAt(j)!=c))));
+        postcondition((Integer result) -> implies(result >= 0, forall((Integer j) -> implies(0<=j&&j<result,s.charAt(j)!=c))));
+        throw new ContractException();
+    }
+    @Pure
+    public static boolean startsWith(String s, String prefix) {
+        postcondition((Boolean b) -> implies(prefix.length() > s.length(),b==false));
+        postcondition((Boolean b) -> implies(prefix.length() <= s.length() && forall((Integer i) -> implies(0<=i && i<prefix.length(), prefix.charAt(i) == s.charAt(i))), b==true));
+        postcondition((Boolean b) -> implies(prefix.length() <= s.length() && exists((Integer i) -> 0<=i && i<prefix.length() && prefix.charAt(i) != s.charAt(i)), b==false));
+        throw  new ContractException();
+    }
 }
