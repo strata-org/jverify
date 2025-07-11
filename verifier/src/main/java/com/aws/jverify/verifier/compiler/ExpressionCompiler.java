@@ -14,13 +14,13 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
      public final JavaToDafnyCompiler compiler;
+
+     private static final Set<String> supportedStringMethods = Set.of("equals", "concat", "startsWith", "substring", "isEmpty", "charAt", "length", "indexOf");
 
     public ExpressionCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -82,6 +82,20 @@ public class ExpressionCompiler {
 
         var source = toExpr(switchExpr.getExpression());
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
+    }
+
+    // Given a symbol, assumed to be a MethodSymbol, returns a new MethodSymbol with
+    // same name but with a new argument type prepended.
+    static private Symbol addReceiverType(Symbol sym, com.sun.tools.javac.code.Type typ) {
+        // Create a new symbol with same name but different type (one new argument)
+        var methodType = (com.sun.tools.javac.code.Type.MethodType) sym.type;
+        var newArgTypes = methodType.argtypes.prepend(typ);
+        var newMethodType =
+                new com.sun.tools.javac.code.Type.MethodType(
+                        newArgTypes, methodType.restype, methodType.thrown, null);
+        return new Symbol.MethodSymbol((long)0, sym.name,
+                newMethodType,
+                sym.owner);
     }
 
     public Expression toExpr(JCTree.JCExpression expr) {
@@ -314,27 +328,10 @@ public class ExpressionCompiler {
 
         if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                 && ownerClass.fullname.contentEquals(String.class.getName())) {
-            return switch (methodSymbol.name.toString()) {
-                case "charAt" -> new SeqSelectExpr(origin, true, receiver,
-                        argBindings.getFirst().getActual(), null, null);
-                case "equals" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
-                        argBindings.getFirst().getActual());
-                case "isEmpty" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
-                        new SeqDisplayExpr(origin, List.of()));
-                case "length" -> new UnaryOpExpr(
-                        origin, receiver, UnaryOpExprOpcode.Cardinality);
-                case "substring" -> {
-                    var endIndex = argBindings.size() == 2
-                            ? argBindings.get(1).getActual()
-                            : new UnaryOpExpr(origin, receiver, UnaryOpExprOpcode.Cardinality);
-                    yield new SeqSelectExpr(origin, false, receiver,
-                            argBindings.getFirst().getActual(), endIndex, null);
-                }
-                default -> {
+                 if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
                     compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
-                    yield compiler.getHole(origin);
+                    return compiler.getHole(origin);
                 }
-            };
         }
 
         var target = toExpr(invocation.getMethodSelect());
@@ -358,6 +355,13 @@ public class ExpressionCompiler {
         var opName = operator.name.toString();
         if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
             compiler.reportError(node, "notSupported", "operator " + operator);
+        }
+
+        if (opName.equals("+") && leftType.toString().contentEquals(String.class.getName())) {
+            var callee = new ExprDotName(origin, left, new Name(origin, "concat"), null);
+            var arg = List.of(new ActualBinding(null, right, false));
+            return new ApplySuffix(origin, callee, null,
+                    new ActualBindings(arg), null);
         }
 
         if (opName.equals("==") || opName.equals("!=")) {
@@ -447,7 +451,6 @@ public class ExpressionCompiler {
         return List.of(symtab.stringType, symtab.recordType);
     }
 
-
     /**
      * Translates the given string literal to a Dafny expression (of type {@code jstring}).
      * For ease of debugging, the translation is the equivalent Dafny string literal
@@ -468,7 +471,8 @@ public class ExpressionCompiler {
                 // Fallback to sequence of numeric values
                 var charExprs = stringValue.chars().boxed()
                         .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
-                return new SeqDisplayExpr(origin, charExprs);
+                return new ApplySuffix(origin, new NameSegment(origin, "JS", null), null,
+                        new ActualBindings(List.of(new ActualBinding(null, new SeqDisplayExpr(origin, charExprs), false))), null);
             }
         }
 
