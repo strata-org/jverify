@@ -203,8 +203,7 @@ public class ExpressionCompiler {
 
                 if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                         && ownerClass.fullname.contentEquals(String.class.getName())) {
-                    return
-                        switch (methodSymbol.name.toString()) {
+                    return switch (methodSymbol.name.toString()) {
                         case "charAt" -> new SeqSelectExpr(origin, true, receiver,
                                 argBindings.getFirst().getActual(), null, null);
                         case "equals" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
