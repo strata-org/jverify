@@ -1,6 +1,6 @@
 # Partial Verification
 
-Given a codebase, you can configure what methods to verify. You can toggle verification on or off at the various levels in your code's hierarchy: `CLI`, `package`, `type`, `method`.
+Given a codebase, you can configure what methods to verify. You can toggle verification on or off at the various levels in your code's hierarchy: CLI, package, type, method.
 
 The CLI option `--verify-by-default` determines whether methods are verified by default or not.
 
@@ -31,7 +31,7 @@ class C {
 }
 ```
 
-You can enforce an entire hierarchy level to be verified by using the `overrideChildren` argument of `@Verify`. The following code forces any code in the package `my.safe.code` to be verified:
+You can enforce an entire hierarchy level to be verified by using the `overrideChildren` argument of `@Verify`. The following code, when placed in a appropriately located `package-info.java` file, forces any code in the package `my.safe.code` to be verified:
 
 ```java
 @Verify(overrideChildren = true)
