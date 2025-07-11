@@ -207,7 +207,7 @@ public class ClassCompiler {
         return typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
     }
 
-    public MemberDecl translateMember(JCTree member) {
+    public @Nullable MemberDecl translateMember(JCTree member) {
         switch (member) {
             case JCTree.JCClassDecl _ -> {
                 return null;
@@ -218,6 +218,10 @@ public class ClassCompiler {
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateField(variableDecl);
             }
+            case JCTree.JCBlock initializerBlock -> {
+                compiler.reportError(initializerBlock, "notSupported", "an initializer block");
+                return null;
+            } 
             default -> throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
         }
     }
