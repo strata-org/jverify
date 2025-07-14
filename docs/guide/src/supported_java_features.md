@@ -34,7 +34,7 @@ JVerify intends to support the full Java language, but is currently being develo
 - Lambda expressions
 - Method references
 - Type parameters, including type parameter bounds
-- Type arguments, but only those without wildcards
+- Type arguments, but wildcards are ignored. `? extends X` is interpreted as `X`, and similarly for `? super X`.
 
 # Supported Java standard library packages
 
@@ -42,48 +42,23 @@ Nothing yet
 
 # Unsupported Java features
 
+- static fields
+- `throw`
+- `try`/`catch`/`finally`
 - Pattern matches in switch expressions and statements
 - Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
 - `yield` in switch expressions
-- `import` statements
-- `package` statements
 - Multi-dimensional array instantiation: `new [,]`
 - Array instantiation with initializers: `new int[] { 1, 2, 3 }`
-- `extends`: but only classes inheriting other classes
 - Enhanced for loop: `for(var x : xs) { ... }`
 - Use of mutating operators such as `=` in a nested expression
 - Operators on `float` and `double`
 - `instanceof <pattern>`, only when using a pattern
 - String template: `STR."My name is \{name}"`
-- `throw`
-- `try`/`catch`/`finally`
 - `checked exceptions` (ignored)
 - `synchronized`
 - Module declarations
-- Wildcards: `?`
+- Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to `C<Object>`.
 - `permits`
 - Verification of annotations
 - For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
-
-[//]: # (# Do not need to mention)
-
-[//]: # ()
-[//]: # (- Method invocation)
-
-[//]: # (- Variable declaration)
-
-[//]: # (- Expression statement)
-
-[//]: # (- Return)
-
-[//]: # (- Blocks `{}`)
-
-[//]: # (- Default case label)
-
-[//]: # (- Skip)
-
-[//]: # (- LetExpr, not part of grammar)
-
-[//]: # (- Type intersection, not part of grammar)
-
-[//]: # (- Type union, not part of grammar)

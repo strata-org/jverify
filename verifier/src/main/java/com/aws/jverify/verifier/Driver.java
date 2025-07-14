@@ -14,10 +14,13 @@ import picocli.CommandLine;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.*;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -87,16 +90,16 @@ public class Driver {
 
     private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
         for (var diagnostic : verificationResults.getJverifyDiagnostics()) {
-            outputWriter.write(formatDiagnostic(verifierOptions.filePath(), diagnostic));
+            outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), diagnostic));
             outputWriter.write('\n');
         }
         for (var dafnyOutput : verificationResults.outputs) {
             if (dafnyOutput instanceof DafnyDiagnostic dafnyDiagnostic) {
-                outputWriter.write(formatDiagnostic(verifierOptions.filePath(), dafnyDiagnostic));
+                outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), dafnyDiagnostic));
                 outputWriter.write('\n');
                 if (dafnyDiagnostic.relatedInformation != null) {
                     for (var relatedInfo : dafnyDiagnostic.relatedInformation) {
-                        outputWriter.write(formatDiagnostic(verifierOptions.filePath(), relatedInfo.asDiagnostic()));
+                        outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), relatedInfo.asDiagnostic()));
                         outputWriter.write('\n');
                     }
                 }
@@ -169,7 +172,7 @@ public class Driver {
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
         } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            var filePart = filePath ? dafnyDiagnostic.getSource().toString() : dafnyDiagnostic.getSource().getFileName(); 
+            var filePart = filePath ? dafnyDiagnostic.location.filePath() :dafnyDiagnostic.location.filename(); 
             sb.append(filePart)
                     .append("(")
                     .append(dafnyDiagnostic.getRange())
@@ -323,6 +326,9 @@ public class Driver {
                     DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
                     switch (output) {
                         case DafnyDiagnostic dafnyDiagnostic -> {
+                            if (dafnyDiagnostic.defaultFormatMessage.contains("[internal error]")) {
+                                throw new RuntimeException("JVerify had an internal exception when calling Dafny: " + dafnyDiagnostic.getMessage(Locale.ENGLISH));
+                            }
                             for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
                                 dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
                             }

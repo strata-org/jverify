@@ -41,9 +41,11 @@ public class NameCompiler {
     private final Set<Name> preludeReferencedClassNames = new HashSet<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
+    private final ExternalContractCompiler contractCompiler;
     private final boolean avoidCollisionsUsingUnderscores;
 
-    public NameCompiler(boolean avoidCollisionsUsingUnderscores) {
+    public NameCompiler(ExternalContractCompiler contractCompiler, boolean avoidCollisionsUsingUnderscores) {
+        this.contractCompiler = contractCompiler;
         this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
         if (this.avoidCollisionsUsingUnderscores) {
             DEFAULT_CTOR_NAME += "_";
@@ -84,6 +86,10 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
+                var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
+                if (newTarget != null) {
+                    return uncachedGetCompiledName(newTarget);
+                }
                 var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
                 var preludeReferenced = preludeReferencedClassNames.contains(classSymbol.name);
                 if (preludeReferenced || occurrenceCount == null || occurrenceCount > 1) {
@@ -140,7 +146,7 @@ public class NameCompiler {
         return result.toString();
     }
 
-    private static void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
+    private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
         List<Type> argTypes;
         if (method.type instanceof MethodType m) {
             argTypes = m.getParameterTypes();
@@ -157,7 +163,7 @@ public class NameCompiler {
         }
     }
 
-    private static String getShortTypeName(com.sun.tools.javac.code.Type type) {
+    private String getShortTypeName(com.sun.tools.javac.code.Type type) {
         switch (type.getTag()) {
             case VOID : {return "v";}
             case BYTE : {return "b";}
@@ -169,7 +175,14 @@ public class NameCompiler {
             case DOUBLE : {return "d";}
             case BOOLEAN: {return "z";}
             case CLASS: {
-                var classTypeStr = type.toString();
+                var newType = this.contractCompiler.contractClassTypeToContracteeType.get(type);
+                String classTypeStr;
+                if (newType != null) {
+                    classTypeStr = newType.toString();
+                }
+                else {
+                    classTypeStr = type.toString();
+                }
                 // Changing '.' to '_' so that the new name is a valid Dafny name
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
@@ -185,10 +198,14 @@ public class NameCompiler {
         }
     }
 
-    private static ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
+    private ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
         boolean sameNameFields = false;
         int methodsWithThisName = 0;
-        for(var member : clazz.members().getSymbolsByName(name)) {
+        var newClazz = this.contractCompiler.contractClassToContractee.get(clazz);
+        if (newClazz == null) {
+            newClazz = clazz;
+        }
+        for(var member : newClazz.members().getSymbolsByName(name)) {
             if (member instanceof Symbol.VarSymbol) {
                 sameNameFields = true;
             }

@@ -57,8 +57,8 @@ public class ClassesExtendingClassesCompiler {
                     if (name.getValue().equals("java_lang_Object") || !function.getNameNode().getValue().equals("equals")) {
                         traitMembers.add(function);
                     }
-                    if (function.getBody() == null) {
-                        // A bodyless trait in Dafny is abstract. 
+                    if (function.getBody() == null && !function.getHasStaticKeyword()) {
+                        // A bodyless trait in Dafny is abstract.
                         // You can not declare an assumed member in traits in Dafny
                         // We add the assumed member to the class
                         classMembers.add(member);

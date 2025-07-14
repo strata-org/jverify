@@ -16,6 +16,8 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.Spec;
+import picocli.CommandLine.Model.CommandSpec;
 
 public class Main {
     public static void main(String[] args) {
@@ -26,6 +28,9 @@ public class Main {
 
 @Command(name = "verify", description = "Verify Java code that calls the JVerify library")
 class AppCommand implements Callable<Integer> {
+    @Spec
+    CommandSpec spec;
+    
     @Parameters(description = "Java files to verify", arity = "1..*")
     private List<Path> inputs;
     
@@ -50,9 +55,12 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
 
+    @Option(names = "--builtin-contracts", description = "Whether to include built-in contracts for the Java standard library", defaultValue = "true")
+    private boolean builtinContracts;
+
     @Override
     public Integer call() throws IOException {
-        Writer writer = new OutputStreamWriter(System.out);
+        Writer writer = spec.commandLine().getOut();
 
         // In the future we'll have to add an argument to specify jar files for dependencies of the input sources,
         // And those will include the JVerify library jar.
@@ -70,11 +78,10 @@ class AppCommand implements Callable<Integer> {
         
         var testDafnyVersion = customDafny != null;
         var verifierOptions = new VerifierOptions(dafnyPath, jars, tempFile.toPath(), testDafnyVersion,
-                printDafny, printBinaryDafny, showRanges, paths, new String[0], verifyByDefault, true);
+                printDafny, printBinaryDafny, showRanges, builtinContracts, paths, new String[0], verifyByDefault, true);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
-        System.exit(exitCode);
-        return 0;
+        return exitCode;
     }
 
     private Path getDafnyPath() {

@@ -175,4 +175,16 @@ class TranslationErrors {
     }
 
     void foo() {}
+
+    void ifWithThrow(int x) {
+        if (x > 0) {
+            throw new RuntimeException("");
+//          ^ error: statement JCThrow is not supported
+        }
+    }
+    
+    void arrayWithInitializer() {
+        int[] arr = {1, 2, 3};
+//                  ^ error: new array with initializers is not supported
+    }
 }

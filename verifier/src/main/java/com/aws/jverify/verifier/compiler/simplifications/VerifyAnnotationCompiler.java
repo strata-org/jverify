@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.tree.JCTree;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Map;
 import java.util.Stack;
@@ -52,6 +53,16 @@ public class VerifyAnnotationCompiler {
         }
     }
 
+    public void processVerifyAnnotation(@Nullable Verify verify) {
+        if (verify != null) {
+            var should = verify.value();
+            var includeMembers = verify.overrideChildren();
+            addShouldVerify(getVerifyMode(should, includeMembers));
+        } else {
+            addShouldVerify(ShouldVerifyMode.Inherit);
+        }
+    }
+    
     public void processVerifyAnnotation(Map<String, JCTree.JCAnnotation> annotationsByName) {
         ShouldVerifyMode mode = getShouldVerifyMode(annotationsByName);
         addShouldVerify(mode);

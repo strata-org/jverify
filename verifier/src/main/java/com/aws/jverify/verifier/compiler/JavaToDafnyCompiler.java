@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 
+import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
@@ -38,6 +39,7 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -61,11 +63,14 @@ public class JavaToDafnyCompiler {
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
     public JCTree.JCCompilationUnit compilationUnit;
-
+    private boolean translatingVerifiedMethodSignature;
+    public SourceFile builtinSource;
+    public static final String builtinFile = "/builtin-contracts.java";
+    
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
-        nameCompiler = new NameCompiler(verifierOptions.avoidCollisionsUsingUnderscores());
+        nameCompiler = new NameCompiler(externalContractCompiler, verifierOptions.avoidCollisionsUsingUnderscores());
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
         lambdaCompiler = new LambdaCompiler(this);
@@ -76,14 +81,28 @@ public class JavaToDafnyCompiler {
     }
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
-        var parsed = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
-        if (parsed == null) {
+        if (options.includeBuiltinContracts()) {
+            builtinSource = new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
+            files.add(builtinSource);
+        }
+        
+        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
+        if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
+        
+        var parsed = new ArrayList<>(parsedSet);
+
+        /*
+         * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
+         * To work around this bug, the built-in contracts file must be serialized after 
+         * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
+         */
+        parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverContracts((JCTree.JCCompilationUnit) compilationUnit, foundClassSymbols);
+            externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
@@ -95,11 +114,15 @@ public class JavaToDafnyCompiler {
         // These names are referenced by additional.dfy so their compiled names need to be predictable.
         var symtab = Symtab.instance(context);
         nameCompiler.registerPreludeReferencedName(symtab.objectType.tsym.name);
+
+        externalContractCompiler.registerExternalContracts();
+        
         compileSymbolsTopologically();
 
-        List<FileStart> filesStarts = new ArrayList<>();
+        List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
+            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
@@ -108,7 +131,7 @@ public class JavaToDafnyCompiler {
                 };
                 return compilationUnit.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
             }));
-            filesStarts.add(new FileStart(this.compilationUnit.sourcefile.toUri().toString(), fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
@@ -129,7 +152,10 @@ public class JavaToDafnyCompiler {
                 if (env != null) {
                     compilationUnit = env.toplevel;
                 }
+                var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
+                verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
+                verifyAnnotationCompiler.shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
         }
@@ -180,6 +206,13 @@ public class JavaToDafnyCompiler {
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
+    }
+
+    public static Map<String, JCTree.JCAnnotation> getAnnotationsByName(JCTree.JCModifiers modifiers) {
+        var classAnnotations = modifiers.getAnnotations();
+        return classAnnotations.stream().collect(Collectors.toMap(
+                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
+                a -> a));
     }
     
     public static Map<String, JCTree.JCExpression> getArguments(JCTree.JCAnnotation annotation) {
@@ -234,7 +267,7 @@ public class JavaToDafnyCompiler {
 
     // TODO this does not seem to be fully used or working, and we've replaced it with the library concept now. So remove?
     private boolean isAlreadyVerified() {
-        return compilationUnit.getSourceFile().getName().equals(JavaFrontEnd.builtinFile);
+        return compilationUnit.getSourceFile().getName().equals(builtinFile);
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
@@ -356,6 +389,13 @@ public class JavaToDafnyCompiler {
         return translateType(modifiers, tree.type, toOrigin(tree));
     }
 
+    public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
+        translatingVerifiedMethodSignature = willVerify;
+        var result = translateType(null, type, origin);
+        translatingVerifiedMethodSignature = false;
+        return result;
+    }
+    
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
         return translateType(null, type, origin);
     }
@@ -474,6 +514,20 @@ public class JavaToDafnyCompiler {
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym), null));
+            }
+            case com.sun.tools.javac.code.Type.WildcardType wildcardType -> {
+                var extendsBound = wildcardType.getExtendsBound();
+                if (extendsBound != null) {
+                    return translateType(extendsBound, origin);
+                }
+                var superBound = wildcardType.getSuperBound();
+                if (superBound != null) {
+                    if (translatingVerifiedMethodSignature) {
+                        reportError(origin, "notSupported", "keyword 'super' in method signature");
+                    }
+                    return translateType(superBound, origin);
+                }
+                return new UserDefinedType(origin, new NameSegment(origin, "Object", null));
             }
             default -> {
             }
