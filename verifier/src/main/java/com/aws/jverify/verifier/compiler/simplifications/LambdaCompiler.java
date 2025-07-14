@@ -4,9 +4,8 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
-import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Symtab;
-import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.code.*;
+import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Names;
@@ -94,10 +93,30 @@ public class LambdaCompiler {
         var stmts = com.sun.tools.javac.util.List.of(returnStmt);
         var body = maker.Block(0, stmts);
         var contract = methodContracts.get(methodSymbol);
-        var methodDecl = new ClassCompiler(compiler).translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
+
+        com.sun.tools.javac.code.Type returnType = methodSymbol.getReturnType();
+        if (methodSymbol.name == methodSymbol.name.table.names.init) {
+            returnType = methodSymbol.owner.type;
+        }
+        new InplaceParallelTypeVisitor().visitType(interfaceMethodSymbol.type, methodSymbol.type);
+        var methodTypeWithAnnotations = methodSymbol.type;
+        
+//        com.sun.tools.javac.code.Type.MethodType methodType = new com.sun.tools.javac.code.Type.MethodType(
+//                methodSymbol.type.getParameterTypes(),
+//                returnType, methodSymbol.getThrownTypes(), 
+//                (Symbol.TypeSymbol) methodSymbol.getEnclosingElement());
+//        
+//        
+//        var methodTypeWithAnnotations = mergeAnnotations(interfaceMethodSymbol.type, methodType, types);
+
+        // TODO create a new method symbol instead of passing in a separate type.
+        // Like this 'new MethodSymbol(flags | SYNTHETIC | PRIVATE, name, type, owner);'
+        var methodDecl = new ClassCompiler(compiler).
+                translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol,
+                        methodTypeWithAnnotations, body, List.of(), contract);
 
         // Add a wrapper datatype with that method declaration to the outer scope
-        var datatypeName = "Lambda" + compiler.declarationsForFile.get(compiler.compilationUnit).size();
+        var datatypeName = "Lambda" + originToIdentifierSuffix(origin);
         var datatypeNameNode = new Name(origin, datatypeName);
         List<Formal> datatypeCtorParams = params.stream().map(p ->
                 new Formal(origin, compiler.getName(p, p.name), compiler.translateType(p.type, origin), false, true,
@@ -110,5 +129,22 @@ public class LambdaCompiler {
 
         // Produce the datatype constructor reference: LambdaX.LambdaX
         return new ExprDotName(origin, new NameSegment(origin, datatypeName, null), datatypeNameNode, null);
+    }
+    
+    public Type mergeAnnotations(Type genericType, Type instantiatedType, Types types) {
+        return new ParallelTypeVisitor().visit(genericType, instantiatedType);
+    }
+
+    private String originToIdentifierSuffix(IOrigin origin) {
+        return switch (origin) {
+            case TokenRangeOrigin tokenRangeOrigin -> tokenToIdentifierSuffix(tokenRangeOrigin.getStartToken()) + 
+                "_" + 
+                tokenToIdentifierSuffix(tokenRangeOrigin.getEndToken());
+            default -> throw new IllegalStateException("Unexpected value: " + origin);
+        };
+    } 
+    
+    private String tokenToIdentifierSuffix(Token token) {
+        return token.getLine() + "_" + token.getCol();
     }
 }

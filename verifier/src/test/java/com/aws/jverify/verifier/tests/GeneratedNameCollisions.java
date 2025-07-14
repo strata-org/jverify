@@ -2,6 +2,11 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static com.aws.jverify.JVerify.postcondition;
 
@@ -50,5 +55,13 @@ public class GeneratedNameCollisions {
         }
         public void _ctor_Extendee() {
         }
+    }
+    
+    void overloads(List<? extends Object> elements) {}
+    void overloads(int x) {}
+    
+    void lambdas() {
+        Stream<Map.Entry<String, Integer>> entries = IntStream.range(0, 3).mapToObj(i -> Map.entry("Hello", 2 * i));
+        var r = Map.ofEntries(entries.toArray(Map.Entry[]::new));
     }
 }

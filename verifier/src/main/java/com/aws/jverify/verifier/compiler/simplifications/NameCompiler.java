@@ -9,6 +9,7 @@ import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness at the Dafny level.
@@ -37,6 +38,9 @@ public class NameCompiler {
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
     private final boolean avoidCollisionsUsingUnderscores;
+    
+    // TODO needs test
+    Set<String> reservedNames = Set.of("map", "function", "seq", "type", "method");
 
     public NameCompiler(ExternalContractCompiler contractCompiler, boolean avoidCollisionsUsingUnderscores) {
         this.contractCompiler = contractCompiler;
@@ -94,7 +98,8 @@ public class NameCompiler {
                         || varSymbol.getKind() == ElementKind.RECORD_COMPONENT) {
                     return getFieldName(varSymbol);
                 } else { // Local variable, do not change
-                    return s.name.toString();
+                    // Needs test in "GenerateNameCollisions"
+                    return fixReservedName(s.name.toString().replace("$", "_"));
                 }
             }
             default -> {
@@ -111,7 +116,7 @@ public class NameCompiler {
         if (classStats.methodsWithThisName > 0) {
             return fieldPrefix + s.name.toString();
         }
-        return s.name.toString();
+        return fixReservedName(s.name.toString());
     }
 
     private String getMethodName(Symbol.MethodSymbol s) {
@@ -126,13 +131,31 @@ public class NameCompiler {
             if (classStats.sameNameFields()) {
                 result.append(methodPrefix);
             }
-            result.append(s.name);
+            String name;
+            if (avoidCollisionsUsingUnderscores) {
+                name = s.name.toString();
+            } else {
+                // TODO add test. Lambdas generate $'s signs
+                name = s.name.toString().replace("$", "_");
+            }
+            name = fixReservedName(name);
+            result.append(name);
         }
         if (willSuffixWithArguments) {
             return result.toString();
         }
         addArgumentTypes(s, result);
         return result.toString();
+    }
+
+    private String fixReservedName(String name) {
+        if (reservedNames.contains(name)) {
+            name += "_";
+        }
+        if (name.startsWith("_")) {
+            name = "a" + name;
+        }
+        return name;
     }
 
     private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
@@ -164,14 +187,11 @@ public class NameCompiler {
             case DOUBLE : {return "d";}
             case BOOLEAN: {return "z";}
             case CLASS: {
-                var newType = this.contractCompiler.contractClassTypeToContracteeType.get(type);
-                String classTypeStr;
+                Type newType = this.contractCompiler.contractClassTypeToContracteeType.get(type);
                 if (newType != null) {
-                    classTypeStr = newType.toString();
+                    type = newType;
                 }
-                else {
-                    classTypeStr = type.toString();
-                }
+                String classTypeStr = type.tsym.toString();
                 // Changing '.' to '_' so that the new name is a valid Dafny name
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
@@ -180,6 +200,9 @@ public class NameCompiler {
                 var arrayType = (ArrayType) type;
                 var componentType = arrayType.getComponentType();
                 return "A" + getShortTypeName(componentType);
+            }
+            case TYPEVAR: {
+                return type.toString();
             }
             default : {
                 return type.toString();

@@ -58,6 +58,9 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--builtin-contracts", description = "Whether to include built-in contracts for the Java standard library", defaultValue = "true")
     private boolean builtinContracts;
 
+    @Option(names = "--avoid-name-collisions", description = "", defaultValue = "true")
+    private boolean avoidNameCollisions;
+    
     @Override
     public Integer call() throws IOException {
         Writer writer = spec.commandLine().getOut();
@@ -79,7 +82,8 @@ class AppCommand implements Callable<Integer> {
         var testDafnyVersion = customDafny != null;
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var verifierOptions = new VerifierOptions(workingDirectory, dafnyPath, jars, tempFile.toPath(), testDafnyVersion,
-                printDafny, printBinaryDafny, showRanges, builtinContracts, paths, new String[0], verifyByDefault, true);
+                printDafny, printBinaryDafny, showRanges, builtinContracts, paths, new String[0], 
+                verifyByDefault, avoidNameCollisions);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
         return exitCode;

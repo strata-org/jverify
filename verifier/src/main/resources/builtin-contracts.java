@@ -65,6 +65,13 @@ class LongContract {
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
 }
 
+@Contract
+class IntFunction<R> implements java.util.function.IntFunction<R> {
+    public R apply(int value) {
+        throw new ContractException();
+    }
+}
+
 class HelperForBigIntegerContract {
     @Erased
     @Pure

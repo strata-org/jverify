@@ -2,7 +2,10 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Nat;
 import com.aws.jverify.testengine.JVerifyTest;
+
+import java.util.function.IntFunction;
 
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
@@ -113,3 +116,31 @@ interface SomethingDoerWithSpec {
         }
     }
 }
+
+// TODO add a test for a lambda that implements a polymorphic interface
+// Since the implementing datatype has to use the resolved type arguments
+//void useLambdaForGenericInterface() {
+//    foo(i -> i < 10 ? i + 2 : i);
+//}
+//
+//void foo(IntFunction<Integer> function) {}
+
+// TODO Lambdas do not work with annotated parameters, such as @Nat int value in NatFunction.apply
+//    void newArrayMethodReference() {
+//        foo(Integer[]::new);
+//    }
+//    
+//    void foo(NatFunction<Integer[]> function) {}
+
+//interface NatFunction<R> {
+//    R apply(@Nat int value);
+//
+//    @Contract
+//    class MyContract<R> implements NatFunction<R> {
+//
+//        @Override
+//        public R apply(@Nat int value) {
+//            throw new ContractException();
+//        }
+//    }
+//}

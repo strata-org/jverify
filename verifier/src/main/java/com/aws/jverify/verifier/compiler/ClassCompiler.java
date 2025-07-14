@@ -6,6 +6,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
@@ -81,8 +82,12 @@ public class ClassCompiler {
             compiler.contextOrigins.push(origin);
 
             var mode = compiler.verifyAnnotationCompiler.getShouldVerifyMode(annotationsByName);
+            Symbol.ClassSymbol classSymbol;
             if (typeForWhichCurrentClassIsDefiningContract != null) {
                 mode = VerifyAnnotationCompiler.ShouldVerifyMode.AlwaysNo;
+                classSymbol = typeForWhichCurrentClassIsDefiningContract;
+            } else {
+                classSymbol = classDecl.sym;
             }
             compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
@@ -101,7 +106,7 @@ public class ClassCompiler {
 
             List<TopLevelDecl> result = new ArrayList<>();
             if (intermediateResult != null) {
-                result.addAll(classDeclCompiler.compile(intermediateResult, classDecl.sym));
+                result.addAll(classDeclCompiler.compile(intermediateResult, classSymbol));
             }
             
             typeForWhichCurrentClassIsDefiningContract = null;
@@ -242,7 +247,9 @@ public class ClassCompiler {
 
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
-        return translateMethodOrLambda(method, method.getModifiers(), method.sym, method.body, method.typarams, null);
+        return translateMethodOrLambda(method, method.getModifiers(), method.sym,
+                method.sym.type, 
+                method.body, method.typarams, null);
     }
 
     /**
@@ -251,6 +258,7 @@ public class ClassCompiler {
     @Nullable
     public MethodOrFunction translateMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers,
                                                     Symbol.MethodSymbol methodSymbol,
+                                                    com.sun.tools.javac.code.Type type,
                                                     JCTree sourceBody,
                                                     List<JCTree.JCTypeParameter> typeParameters,
                                                     @Nullable MethodOrLoopContract contract
@@ -282,14 +290,16 @@ public class ClassCompiler {
             isPure = externalContract.isPure;
         }
         if (isPure) {
-            return translatePureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify, contract);
+            return translatePureMethodOrLambda(source, modifiers, methodSymbol, type, sourceBody, typeParameters, shouldVerify, contract);
         } else {
-            return translateImpureMethodOrLambda(source, modifiers, methodSymbol, sourceBody, typeParameters, shouldVerify, contract);
+            return translateImpureMethodOrLambda(source, modifiers, methodSymbol, type, sourceBody, typeParameters, shouldVerify, contract);
         }
     }
 
     private MethodOrConstructor translateImpureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers,
-                                                              Symbol.MethodSymbol methodSymbol, JCTree sourceBody,
+                                                              Symbol.MethodSymbol methodSymbol,
+                                                              com.sun.tools.javac.code.Type type, 
+                                                              JCTree sourceBody,
                                                               List<JCTree.JCTypeParameter> typeParameters,
                                                               boolean shouldVerify,
                                                               @Nullable MethodOrLoopContract contractOverride) {
@@ -347,7 +357,7 @@ public class ClassCompiler {
         methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
 
         var outs = new ArrayList<Formal>();
-        if (methodSymbol.type.getReturnType() != null) {
+        if (type.getReturnType() != null && type.getReturnType().tsym != null) {
             JavacTrees trees = JavacTrees.instance(compiler.context);
             var methodDecl = trees.getTree(methodSymbol);
             IOrigin returnOrigin;
@@ -357,7 +367,7 @@ public class ClassCompiler {
                 var returnTypeDecl = methodDecl.getReturnType();
                 returnOrigin = compiler.toOrigin(returnTypeDecl);
             }
-            var returnType = compiler.translateMethodSignatureType(methodSymbol.type.getReturnType(), returnOrigin, shouldVerify);
+            var returnType = compiler.translateMethodSignatureType(type.getReturnType(), returnOrigin, shouldVerify);
             if (returnType != null) {
                 outs.add(makeReturnFormal(origin, returnType));
             }
@@ -403,7 +413,9 @@ public class ClassCompiler {
 
 
     private Function translatePureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers,
-                                                 Symbol.MethodSymbol methodSymbol, JCTree sourceBody,
+                                                 Symbol.MethodSymbol methodSymbol,
+                                                 com.sun.tools.javac.code.Type type,
+                                                 JCTree sourceBody,
                                                  List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify,
                                                  @Nullable MethodOrLoopContract contractOverride) {
         var bodyOrigin = compiler.toOrigin(sourceBody);
@@ -416,7 +428,7 @@ public class ClassCompiler {
         List<Formal> ins = getIns(methodSymbol, shouldVerify, bodyOrigin);
         Expression body = null;
         MethodOrLoopContract header;
-        var returnType = compiler.translateMethodSignatureType(methodSymbol.type.getReturnType(), bodyOrigin, shouldVerify);
+        var returnType = compiler.translateMethodSignatureType(type.getReturnType(), bodyOrigin, shouldVerify);
         if (returnType == null) {
             compiler.reportError(source, "pureMethodsNeedsReturnType");
             return null;
@@ -518,7 +530,7 @@ public class ClassCompiler {
             } else {
                 parameterOrigin = compiler.toOrigin(parameter);
             }
-            Name formalName = new Name(parameterOrigin, jvd.name.toString());
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd));
             var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);

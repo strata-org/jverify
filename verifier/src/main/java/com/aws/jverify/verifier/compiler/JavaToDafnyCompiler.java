@@ -474,6 +474,9 @@ public class JavaToDafnyCompiler {
                 }
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
+            case com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType -> {
+                return null;
+            }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
@@ -492,6 +495,9 @@ public class JavaToDafnyCompiler {
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
                 var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
+                if (arguments.stream().anyMatch(Objects::isNull)) {
+                    return null;
+                }
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }

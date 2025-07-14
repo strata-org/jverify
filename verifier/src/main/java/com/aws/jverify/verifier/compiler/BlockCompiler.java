@@ -148,7 +148,7 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
-        LocalVariable localVariable = new LocalVariable(origin, variableDecl.name.toString(),
+        LocalVariable localVariable = new LocalVariable(origin, compiler.nameCompiler.getCompiledName(variableDecl.sym),
                 compiler.translateType(variableDecl.getModifiers(), variableDecl.getType().type, origin), false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
@@ -484,7 +484,8 @@ public class BlockCompiler {
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
-                var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), baseType.getOptTypeArguments());
+                var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), 
+                        baseType.getOptTypeArguments());
                 var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
                 var argBindings = newClass.getArguments().stream()
