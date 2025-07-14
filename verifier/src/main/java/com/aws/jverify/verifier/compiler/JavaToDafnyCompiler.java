@@ -369,7 +369,7 @@ public class JavaToDafnyCompiler {
         var isNullable = isNullable(type) || (isNullable(modifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
         var nullableSuffix = isNullable ? "?" : "";
 
-        var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
+        var primitiveTypeKind = toPrimitiveType(type);
         if (primitiveTypeKind != null) {
             if (isNullable) {
                 reportError(origin, "notSupported", "nullable primitive type");
@@ -483,26 +483,15 @@ public class JavaToDafnyCompiler {
     }
 
     /**
-     * If the specified tree represents either a primitive type or a boxed primitive type,
+     * If the specified tree represents a primitive type,
      * returns the corresponding {@link TypeKind},
      * otherwise returns {@code null}.
      */
-    private @Nullable TypeKind toPrimitiveTypeModuloBoxing(com.sun.tools.javac.code.Type type) {
+    private @Nullable TypeKind toPrimitiveType(com.sun.tools.javac.code.Type type) {
         if (type instanceof com.sun.tools.javac.code.Type.JCVoidType) {
             return TypeKind.VOID;
         } else if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
             return primitiveType.getKind();
-//        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
-//                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
-//            var name = classType.tsym.getSimpleName().toString();
-//            if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
-//            if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
-//            if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
-//            if (name.equals(Integer.class.getSimpleName())) return TypeKind.INT;
-//            if (name.equals(Long.class.getSimpleName())) return TypeKind.LONG;
-//            if (name.equals(Character.class.getSimpleName())) return TypeKind.CHAR;
-//            if (name.equals(Float.class.getSimpleName())) return TypeKind.FLOAT;
-//            if (name.equals(Double.class.getSimpleName())) return TypeKind.DOUBLE;
         }
 
         return null;
