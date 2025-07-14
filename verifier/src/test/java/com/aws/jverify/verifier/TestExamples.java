@@ -11,7 +11,7 @@ public class TestExamples {
     @Test
     public void testFibonacci() throws IOException {
         var markedSourcePath = Path.of("Fibonacci.java");
-        verifyPath(markedSourcePath, 0, 10, 0);
+        verifyPath(markedSourcePath, 0, 11, 0);
     }
 
     
@@ -24,7 +24,7 @@ public class TestExamples {
     @Test
     public void testBinarySearch() throws IOException {
         var markedSourcePath = Path.of("BinarySearch.java");
-        verifyPath(markedSourcePath, 0, 9, 0);
+        verifyPath(markedSourcePath, 0, 10, 0);
     }
     
     private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors) throws IOException {

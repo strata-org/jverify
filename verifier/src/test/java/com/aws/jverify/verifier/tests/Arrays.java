@@ -6,7 +6,7 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(exitCode = 4, dafnyVerified = 12, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 2)
 class Arrays {
 
     static void intArrayOfSize10() {

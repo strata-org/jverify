@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 6, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 7, dafnyErrors = 0)
 class NoConstructor {
     public int f;
 }

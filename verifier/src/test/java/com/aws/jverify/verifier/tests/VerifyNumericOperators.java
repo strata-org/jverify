@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 1)
 class VerifyNumericOperators {
     public void foo() {
         var l = 3L;
