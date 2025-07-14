@@ -8,7 +8,7 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 35, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 29, dafnyErrors = 3)
 public class Lambdas {
 
     public void useLambdas() {

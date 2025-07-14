@@ -67,7 +67,7 @@ class HelperForBigIntegerContract {
     @Erased
     @Pure
     static boolean isAllDigits(String v) {
-        return forall((Integer i) -> !(0<=i && i<v.length()) || (v.charAt(i) >= '0' && v.charAt(i) <= '9'));
+        return forall((int i) -> !(0<=i && i<v.length()) || (v.charAt(i) >= '0' && v.charAt(i) <= '9'));
     }
 
     @Erased
@@ -113,7 +113,7 @@ class BigIntegerContract  {
     int intValue() {
         reads(this);
         precondition(intValue >= Integer.MIN_VALUE && intValue <= Integer.MAX_VALUE);
-        postcondition((Integer b) -> b == intValue);
+        postcondition((int b) -> b == intValue);
         throw new ContractException();
     }
 
@@ -142,7 +142,7 @@ class BigIntegerContract  {
     int compareTo(BigIntegerContract v) {
         reads(this);
         reads(v);
-        postcondition((Integer r) -> (r < 0 && this.intValue < v.intValue) || (r == 0 && this.intValue == v.intValue) || (r > 0 && this.intValue > v.intValue));
+        postcondition((int r) -> (r < 0 && this.intValue < v.intValue) || (r == 0 && this.intValue == v.intValue) || (r > 0 && this.intValue > v.intValue));
         throw new ContractException();
     }
 
@@ -186,7 +186,7 @@ class BigIntegerContract  {
     @Pure
     public int signum() {
         reads(this);
-        postcondition((Integer b) -> b == (intValue < 0 ? -1 : intValue == 0 ? 0 : 1));
+        postcondition((int b) -> b == (intValue < 0 ? -1 : intValue == 0 ? 0 : 1));
         throw new ContractException();
     }
 

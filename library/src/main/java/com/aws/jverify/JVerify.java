@@ -111,7 +111,11 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
-    public static <T1, T2> boolean forall(IntBiPredicate predicate) {
+    public static boolean forall(IntPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean forall(IntBiPredicate predicate) {
         throw new VerificationMethodExecutedException();
     }
 

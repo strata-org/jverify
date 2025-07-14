@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 12, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 1)
 public class MixedExternalAndInternalContractVerification {
     public void root() {
         MixedContractExtender extender = new MixedContractExtender();

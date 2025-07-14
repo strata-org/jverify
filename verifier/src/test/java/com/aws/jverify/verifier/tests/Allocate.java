@@ -6,7 +6,7 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(dafnyVerified = 13, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 7, dafnyErrors = 0)
 class Allocate {
     public static IntPair allocateInReturn(int a, int b) {
         postcondition((IntPair p) -> fresh(p) &&  p.getA() == a);

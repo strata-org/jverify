@@ -1,5 +1,5 @@
-// ^ /builtin-contracts.java(117:22-117:51) Related location: this proposition could not be proved
-// ^ /builtin-contracts.java(117:55-117:84) Related location: this proposition could not be proved
+// ^ /builtin-contracts.java(115:22-115:51) Related location: this proposition could not be proved
+// ^ /builtin-contracts.java(115:55-115:84) Related location: this proposition could not be proved
 
 package com.aws.jverify.verifier.tests;
 
@@ -15,7 +15,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 4)
 class BigIntegers {
     static void testConstructors() {
         BigInteger bi = new BigInteger("23");
