@@ -116,7 +116,7 @@ public class LambdaCompiler {
                         methodTypeWithAnnotations, body, List.of(), contract);
 
         // Add a wrapper datatype with that method declaration to the outer scope
-        var datatypeName = "Lambda" + originToIdentifierSuffix(origin);
+        var datatypeName = "Lambda" + System.identityHashCode(dynamicMethodSymbol);
         var datatypeNameNode = new Name(origin, datatypeName);
         List<Formal> datatypeCtorParams = params.stream().map(p ->
                 new Formal(origin, compiler.getName(p, p.name), compiler.translateType(p.type, origin), false, true,

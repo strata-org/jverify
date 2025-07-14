@@ -2,14 +2,19 @@ package com.aws.jverify.builtin;
 
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
+
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import static com.aws.jverify.JVerify.check;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.SequencedCollection;
+import java.util.*;
+import java.util.function.IntPredicate;
+import java.util.function.Predicate;
+import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.function.Consumer;
 
 @Contract(Object.class)
 class ObjectContract {
@@ -199,4 +204,44 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+}
+
+@Contract
+abstract class IntPredicateContract implements IntPredicate {
+}
+
+@Contract
+abstract class PredicateContract<T> implements Predicate<T> {
+}
+
+@Contract
+abstract class ConsumerContract<T> implements Consumer<T> {
+}
+
+@Contract
+abstract class FunctionContract<In, Out> implements Function<In, Out> {
+}
+
+@Contract(Optional.class)
+abstract class OptionalContract<T> {
+}
+
+@Contract
+abstract class SetContract<T> implements Set<T> {
+}
+
+@Contract
+abstract class MapContract<K, V> implements Map<K, V> {
+}
+
+@Contract
+abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
+}
+
+@Contract(HashMap.class)
+abstract class HashMapContract<K, V> {
+}
+
+@Contract(BigDecimal.class)
+abstract class BigDecimalContract {
 }
