@@ -564,12 +564,23 @@ public class JavaToDafnyCompiler {
     }
 
     public Name getName(JCTree tree, String name, int length) {
+        IOrigin origin;
+        if (name.startsWith("Lambdas$")) {
+            var clazz = ((JCTree.JCClassDecl)tree);
+            JCTree.JCMethodDecl methodDecl = (JCTree.JCMethodDecl) clazz.getMembers().get(1);
+            origin = getOrigin(methodDecl, methodDecl.name.length());
+        } else {
+            origin = getOrigin(tree, length);
+        }
+        return new Name(origin, name);
+    }
+
+    private IOrigin getOrigin(JCTree tree, int length) {
         var positionCalculator = new PositionCalculator(compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);
         var startToken = positionCalculator.toToken(startPos);
         var endToken = positionCalculator.toToken(startPos + length);
-        var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
-        return new Name(origin, name);
+        return startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
     }
 
     public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {

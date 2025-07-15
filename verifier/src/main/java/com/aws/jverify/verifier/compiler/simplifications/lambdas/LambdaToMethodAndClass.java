@@ -27,7 +27,6 @@ package com.aws.jverify.verifier.compiler.simplifications.lambdas;
 
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.code.Symbol.MethodHandleSymbol;
-import com.sun.tools.javac.code.Types.SignatureGenerator.InvalidSignatureException;
 import com.sun.tools.javac.comp.*;
 import com.sun.tools.javac.jvm.PoolConstant.LoadableConstant;
 //import com.sun.tools.javac.resources.CompilerProperties.Errors;
@@ -44,7 +43,7 @@ import com.sun.tools.javac.code.Symbol.TypeSymbol;
 import com.sun.tools.javac.code.Symbol.VarSymbol;
 import com.sun.tools.javac.code.Type.MethodType;
 import com.sun.tools.javac.code.Type.TypeVar;
-import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaToMethod.LambdaAnalyzerPreprocessor.*;
+import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaToMethodAndClass.LambdaAnalyzerPreprocessor.*;
 //import com.sun.tools.javac.comp.Lower.BasicFreeVarCollector;
 //import com.sun.tools.javac.resources.CompilerProperties.Notes;
 import com.sun.tools.javac.jvm.*;
@@ -62,7 +61,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaToMethod.LambdaSymbolKind.*;
+import static com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaToMethodAndClass.LambdaSymbolKind.*;
 import static com.sun.tools.javac.code.Flags.*;
 import static com.sun.tools.javac.code.Kinds.Kind.*;
 import static com.sun.tools.javac.code.TypeTag.*;
@@ -81,7 +80,7 @@ import com.sun.tools.javac.main.Option;
  *  This code and its internal interfaces are subject to change or
  *  deletion without notice.</b>
  */
-public class LambdaToMethod extends TreeTranslator {
+public class LambdaToMethodAndClass extends TreeTranslator {
 
     private Attr attr;
     private JCDiagnostic.Factory diags;
@@ -130,16 +129,16 @@ public class LambdaToMethod extends TreeTranslator {
     public static final int FLAG_BRIDGES = 1 << 2;
 
     // <editor-fold defaultstate="collapsed" desc="Instantiating">
-    protected static final Context.Key<LambdaToMethod> unlambdaKey = new Context.Key<>();
+    protected static final Context.Key<LambdaToMethodAndClass> unlambdaKey = new Context.Key<>();
 
-    public static LambdaToMethod instance(Context context) {
-        LambdaToMethod instance = context.get(unlambdaKey);
+    public static LambdaToMethodAndClass instance(Context context) {
+        LambdaToMethodAndClass instance = context.get(unlambdaKey);
         if (instance == null) {
-            instance = new LambdaToMethod(context);
+            instance = new LambdaToMethodAndClass(context);
         }
         return instance;
     }
-    private LambdaToMethod(Context context) {
+    private LambdaToMethodAndClass(Context context) {
         context.put(unlambdaKey, this);
         diags = JCDiagnostic.Factory.instance(context);
         log = Log.instance(context);
@@ -280,7 +279,7 @@ public class LambdaToMethod extends TreeTranslator {
             List<JCTree> newMethods = kInfo.appendedMethodList.toList();
             tree.defs = tree.defs.appendList(newMethods);
             for (JCTree lambda : newMethods) {
-                tree.sym.members().enter(((JCMethodDecl)lambda).sym);
+                tree.sym.members().enter(((JCClassDecl)lambda).sym);
             }
             result = tree;
         } finally {
@@ -2231,6 +2230,9 @@ public class LambdaToMethod extends TreeTranslator {
 
         method.sym = methodSym;
         method.type = methodSym.type;
+
+        // Set the position to the lambda's position
+        method.pos = tree.pos;
 
         classSym.members().enter(methodSym);
 
