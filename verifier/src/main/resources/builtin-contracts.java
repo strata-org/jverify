@@ -6,6 +6,10 @@ import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import static com.aws.jverify.JVerify.check;
+import java.util.function.IntPredicate;
+import java.util.function.Predicate;
+import java.util.function.Function;
+import java.util.function.Consumer;
 
 import java.util.Collection;
 import java.util.List;
@@ -63,6 +67,21 @@ class DoubleContract {
 class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
+}
+
+@Contract
+class IntFunction<R> implements java.util.function.IntFunction<R> {
+    public R apply(int value) {
+        throw new ContractException();
+    }
+}
+
+@Contract
+abstract class IntPredicateContract implements IntPredicate {
+}
+
+@Contract
+abstract class PredicateContract<T> implements Predicate<T> {
 }
 
 class HelperForBigIntegerContract {

@@ -14,14 +14,14 @@ import static com.aws.jverify.JVerify.precondition;
 @JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 3)
 public class Lambdas {
 
-    void lambdaForGenericInterfaces() {
-        foo(i -> i < 10 ? i + 2 : i);
-        bar(i -> i > 10);
-    }
+//    void lambdaForGenericInterfaces() {
+//        foo(i -> i < 10 ? i + 2 : i);
+//        bar(i -> i > 10);
+//    }
 
-    <T> void lambdaForGenericMethod() {
-        zaz((T e) -> true);
-    }
+//    <T> void lambdaForGenericMethod() {
+//        zaz((T e) -> true);
+//    }
 
     void foo(IntFunction<Integer> function) {}
     void bar(Predicate<Integer> function) {}

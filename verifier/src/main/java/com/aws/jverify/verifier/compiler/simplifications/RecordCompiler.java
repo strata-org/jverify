@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -71,7 +72,7 @@ public class RecordCompiler {
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
-                    if (!isSyntheticCanonicalConstructor(methodDecl)) {
+                    if ((methodDecl.mods.flags & Flags.SYNTHETIC) == 0) { // !isSyntheticCanonicalConstructor(methodDecl)) {
                         compiler.reportError(member, "notSupported", "explicit record constructor");
                     }
                     continue;

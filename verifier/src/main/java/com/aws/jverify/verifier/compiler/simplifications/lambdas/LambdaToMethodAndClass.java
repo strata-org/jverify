@@ -1895,11 +1895,12 @@ public class LambdaToMethodAndClass extends TreeTranslator {
 
         // Create class symbol
         ClassSymbol classSym = new ClassSymbol(
-                FINAL | SYNTHETIC | PRIVATE,
+                FINAL | SYNTHETIC | PRIVATE | RECORD,
                 className,
                 functionalInterface,
                 kInfo.clazz.sym
         );
+        classSym.type = new Type.ClassType(Type.noType, List.nil(), classSym);
 
         // Set up class members
         classSym.members_field = Scope.WriteableScope.create(classSym);
@@ -1921,7 +1922,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
         classMembers.append(samImpl);
 
         JCClassDecl classDecl = make.ClassDef(
-                make.Modifiers(FINAL | SYNTHETIC | PRIVATE),
+                make.Modifiers(FINAL | SYNTHETIC | PRIVATE | RECORD),
                 className,
                 List.nil(), // no type parameters
                 make.Type(functionalInterface), // implements functional interface
@@ -2030,7 +2031,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
 
         // Create constructor method symbol
         MethodSymbol constructorSym = new MethodSymbol(
-                PUBLIC | SYNTHETIC,
+                PUBLIC | SYNTHETIC | RECORD,
                 names.init,
                 new MethodType(
                         TreeInfo.types(params.toList()),
@@ -2085,9 +2086,9 @@ public class LambdaToMethodAndClass extends TreeTranslator {
 
         // Create parameters
         ListBuffer<JCVariableDecl> params = new ListBuffer<>();
-        for (VarSymbol param : samMethod.params) {
+        for (JCVariableDecl param : localContext.syntheticParams) {
             VarSymbol newParam = new VarSymbol(
-                    param.flags() | PARAMETER,
+                    param.sym.flags() | PARAMETER,
                     param.name,
                     param.type,
                     methodSym
