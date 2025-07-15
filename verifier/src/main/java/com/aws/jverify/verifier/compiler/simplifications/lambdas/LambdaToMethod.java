@@ -25,6 +25,7 @@
 
 package com.aws.jverify.verifier.compiler.simplifications.lambdas;
 
+import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.code.Symbol.MethodHandleSymbol;
 import com.sun.tools.javac.code.Types.SignatureGenerator.InvalidSignatureException;
 import com.sun.tools.javac.comp.*;
@@ -36,18 +37,13 @@ import com.sun.tools.javac.tree.JCTree.*;
 import com.sun.tools.javac.tree.JCTree.JCMemberReference.ReferenceKind;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
-import com.sun.tools.javac.code.Attribute;
-import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symbol.ClassSymbol;
 import com.sun.tools.javac.code.Symbol.DynamicMethodSymbol;
 import com.sun.tools.javac.code.Symbol.MethodSymbol;
 import com.sun.tools.javac.code.Symbol.TypeSymbol;
 import com.sun.tools.javac.code.Symbol.VarSymbol;
-import com.sun.tools.javac.code.Symtab;
-import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.MethodType;
 import com.sun.tools.javac.code.Type.TypeVar;
-import com.sun.tools.javac.code.Types;
 import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaToMethod.LambdaAnalyzerPreprocessor.*;
 //import com.sun.tools.javac.comp.Lower.BasicFreeVarCollector;
 //import com.sun.tools.javac.resources.CompilerProperties.Notes;
@@ -292,127 +288,6 @@ public class LambdaToMethod extends TreeTranslator {
         }
     }
 
-    /**
-     * Translate a lambda into a method to be inserted into the class.
-     * Then replace the lambda site with an invokedynamic call of to lambda
-     * meta-factory, which will use the lambda method.
-     * @param tree
-     */
-    @Override
-    public void visitLambda(JCLambda tree) {
-        LambdaTranslationContext localContext = (LambdaTranslationContext)context;
-        MethodSymbol sym = localContext.translatedSym;
-        MethodType lambdaType = (MethodType) sym.type;
-
-        {   /* Type annotation management: Based on where the lambda features, type annotations that
-               are interior to it, may at this point be attached to the enclosing method, or the first
-               constructor in the class, or in the enclosing class symbol or in the field whose
-               initializer is the lambda. In any event, gather up the annotations that belong to the
-               lambda and attach it to the implementation method.
-            */
-
-            Symbol owner = localContext.owner;
-            apportionTypeAnnotations(tree,
-                    owner::getRawTypeAttributes,
-                    owner::setTypeAttributes,
-                    sym::setTypeAttributes);
-
-
-            boolean init;
-            if ((init = (owner.name == names.init)) || owner.name == names.clinit) {
-                owner = owner.owner;
-                apportionTypeAnnotations(tree,
-                        init ? owner::getInitTypeAttributes : owner::getClassInitTypeAttributes,
-                        init ? owner::setInitTypeAttributes : owner::setClassInitTypeAttributes,
-                        sym::appendUniqueTypeAttributes);
-            }
-            if (localContext.self != null && localContext.self.getKind() == ElementKind.FIELD) {
-                owner = localContext.self;
-                apportionTypeAnnotations(tree,
-                        owner::getRawTypeAttributes,
-                        owner::setTypeAttributes,
-                        sym::appendUniqueTypeAttributes);
-            }
-        }
-
-        //create the method declaration hoisting the lambda body
-        JCMethodDecl lambdaDecl = make.MethodDef(make.Modifiers(sym.flags_field),
-                sym.name,
-                make.QualIdent(lambdaType.getReturnType().tsym),
-                List.nil(),
-                localContext.syntheticParams,
-                lambdaType.getThrownTypes() == null ?
-                        List.nil() :
-                        make.Types(lambdaType.getThrownTypes()),
-                null,
-                null);
-        lambdaDecl.sym = sym;
-        lambdaDecl.type = lambdaType;
-
-        //translate lambda body
-        //As the lambda body is translated, all references to lambda locals,
-        //captured variables, enclosing members are adjusted accordingly
-        //to refer to the static method parameters (rather than i.e. accessing
-        //captured members directly).
-        lambdaDecl.body = translate(makeLambdaBody(tree, lambdaDecl));
-
-        boolean dedupe = false;
-        if (deduplicateLambdas && !debugLinesOrVars) {
-            DedupedLambda dedupedLambda = new DedupedLambda(lambdaDecl.sym, lambdaDecl.body);
-            DedupedLambda existing = kInfo.dedupedLambdas.putIfAbsent(dedupedLambda, dedupedLambda);
-            if (existing != null) {
-                sym = existing.symbol;
-                dedupe = true;
-                // TODO
-//                if (verboseDeduplication) log.note(tree, Notes.VerboseL2mDeduplicate(sym));
-            }
-        }
-        if (!dedupe) {
-            //Add the method to the list of methods to be added to this class.
-            kInfo.addMethod(lambdaDecl);
-        }
-
-        //now that we have generated a method for the lambda expression,
-        //we can translate the lambda into a method reference pointing to the newly
-        //created method.
-        //
-        //Note that we need to adjust the method handle so that it will match the
-        //signature of the SAM descriptor - this means that the method reference
-        //should be added the following synthetic arguments:
-        //
-        // * the "this" argument if it is an instance method
-        // * enclosing locals captured by the lambda expression
-
-        ListBuffer<JCExpression> syntheticInits = new ListBuffer<>();
-
-        if (localContext.methodReferenceReceiver != null) {
-            syntheticInits.append(localContext.methodReferenceReceiver);
-        } else if (!sym.isStatic()) {
-            syntheticInits.append(makeThis(
-                    sym.owner.enclClass().asType(),
-                    localContext.owner.enclClass()));
-        }
-
-        //add captured locals
-        for (Symbol fv : localContext.getSymbolMap(CAPTURED_VAR).keySet()) {
-            if (fv != localContext.self) {
-                JCExpression captured_local = make.Ident(fv).setType(fv.type);
-                syntheticInits.append(captured_local);
-            }
-        }
-        // add captured outer this instances (used only when `this' capture itself is illegal)
-        for (Symbol fv : localContext.getSymbolMap(CAPTURED_OUTER_THIS).keySet()) {
-            JCExpression captured_local = make.QualThis(fv.type);
-            syntheticInits.append(captured_local);
-        }
-
-        //then, determine the arguments to the indy call
-        List<JCExpression> indy_args = translate(syntheticInits.toList(), localContext.prev);
-
-        //convert to an invokedynamic call
-        result = makeMetafactoryIndyCall(context, sym.asHandle(), indy_args);
-    }
-
     // where
     // Reassign type annotations from the source that should really belong to the lambda
     private void apportionTypeAnnotations(JCLambda tree,
@@ -470,7 +345,7 @@ public class LambdaToMethod extends TreeTranslator {
 
             case BOUND:             /** Expr :: instMethod */
                 init = transTypes.coerce(attrEnv, tree.getQualifierExpression(),
-                        types.erasure(tree.sym.owner.type));
+                        tree.sym.owner.type);
                 init = attr.makeNullCheck(init);
                 break;
 
@@ -713,7 +588,7 @@ public class LambdaToMethod extends TreeTranslator {
      */
     private List<JCExpression> convertArgs(Symbol meth, List<JCExpression> args, Type varargsElement) {
         Assert.check(meth.kind == MTH);
-        List<Type> formals = types.erasure(meth.type).getParameterTypes();
+        List<Type> formals = meth.type.getParameterTypes();
         if (varargsElement != null) {
             Assert.check((meth.flags() & VARARGS) != 0);
         }
@@ -882,7 +757,7 @@ public class LambdaToMethod extends TreeTranslator {
                     setType(tree.sym.erasure(types).getReturnType());
 
             apply = transTypes.coerce(attrEnv, apply,
-                    types.erasure(localContext.tree.referentType.getReturnType()));
+                    localContext.tree.referentType.getReturnType());
 
             setVarargsIfNeeded(apply, tree.varargsElement);
             return apply;
@@ -930,7 +805,7 @@ public class LambdaToMethod extends TreeTranslator {
     }
 
     private MethodType typeToMethodType(Type mt) {
-        Type type = types.erasure(mt);
+        Type type = mt;
         return new MethodType(type.getParameterTypes(),
                 type.getReturnType(),
                 type.getThrownTypes(),
@@ -971,7 +846,6 @@ public class LambdaToMethod extends TreeTranslator {
                     types.directSupertypes(tree.target) :
                     List.nil();
             for (Type t : targets) {
-                t = types.erasure(t);
                 if (t.tsym != syms.serializableType.tsym &&
                         t.tsym != tree.type.tsym &&
                         t.tsym != syms.objectType.tsym) {
@@ -1806,7 +1680,7 @@ public class LambdaToMethod extends TreeTranslator {
                         ret = sym;  // self represented
                         break;
                     case CAPTURED_VAR:
-                        ret = new VarSymbol(SYNTHETIC | FINAL | PARAMETER, sym.name, types.erasure(sym.type), translatedSym) {
+                        ret = new VarSymbol(SYNTHETIC | FINAL | PARAMETER, sym.name, sym.type, translatedSym) {
                             @Override
                             public Symbol baseSymbol() {
                                 //keep mapping with original captured symbol
@@ -1816,7 +1690,7 @@ public class LambdaToMethod extends TreeTranslator {
                         break;
                     case CAPTURED_OUTER_THIS:
                         Name name = names.fromString(sym.flatName().toString().replace('.', '$') + names.dollarThis);
-                        ret = new VarSymbol(SYNTHETIC | FINAL | PARAMETER, name, types.erasure(sym.type), translatedSym) {
+                        ret = new VarSymbol(SYNTHETIC | FINAL | PARAMETER, name, sym.type, translatedSym) {
                             @Override
                             public Symbol baseSymbol() {
                                 //keep mapping with original captured symbol
@@ -1843,7 +1717,7 @@ public class LambdaToMethod extends TreeTranslator {
                         }
                         break;
                     case PARAM:
-                        ret = new VarSymbol((sym.flags() & FINAL) | PARAMETER, sym.name, types.erasure(sym.type), translatedSym);
+                        ret = new VarSymbol((sym.flags() & FINAL) | PARAMETER, sym.name, sym.type, translatedSym);
                         ((VarSymbol) ret).pos = ((VarSymbol) sym).pos;
                         // Set ret.data. Same as case LOCAL_VAR above.
                         if (((VarSymbol) sym).isExceptionParameter()) {
@@ -2000,7 +1874,7 @@ public class LambdaToMethod extends TreeTranslator {
             }
 
             Type generatedLambdaSig() {
-                return types.erasure(tree.getDescriptorType(types));
+                return tree.getDescriptorType(types);
             }
         }
 
@@ -2047,8 +1921,8 @@ public class LambdaToMethod extends TreeTranslator {
                 assert !nestmateLambdas;
                 return  (tree.sym.flags() & PRIVATE) != 0 &&
                         !types.isSameType(
-                                types.erasure(tree.sym.enclClass().asType()),
-                                types.erasure(owner.enclClass().asType()));
+                                tree.sym.enclClass().asType(),
+                                owner.enclClass().asType());
             }
 
             /**
@@ -2096,11 +1970,11 @@ public class LambdaToMethod extends TreeTranslator {
             }
 
             Type generatedRefSig() {
-                return types.erasure(tree.sym.type);
+                return tree.sym.type;
             }
 
             Type bridgedRefSig() {
-                return types.erasure(types.findDescriptorSymbol(tree.target.tsym).type);
+                return types.findDescriptorSymbol(tree.target.tsym).type;
             }
         }
     }
@@ -2129,100 +2003,339 @@ public class LambdaToMethod extends TreeTranslator {
         }
     }
 
-    /**
-     * ****************************************************************
-     * Signature Generation
-     * ****************************************************************
-     */
-
-    private String typeSig(Type type) {
-        return typeSig(type, false);
-    }
-
-    private String typeSig(Type type, boolean allowIllegalSignature) {
-        try {
-            L2MSignatureGenerator sg = new L2MSignatureGenerator(allowIllegalSignature);
-            sg.assembleSig(type);
-            return sg.toString();
-        } catch (InvalidSignatureException ex) {
-            Symbol c = attrEnv.enclClass.sym;
-            // TODO
-//            log.error(Errors.CannotGenerateClass(c, Fragments.IllegalSignature(c, ex.type())));
-            return "<ERRONEOUS>";
-        }
-    }
-
-    private String classSig(Type type) {
-        try {
-            L2MSignatureGenerator sg = new L2MSignatureGenerator(false);
-            sg.assembleClassSig(type);
-            return sg.toString();
-        } catch (InvalidSignatureException ex) {
-            Symbol c = attrEnv.enclClass.sym;
-            // TODO
-//            log.error(Errors.CannotGenerateClass(c, Fragments.IllegalSignature(c, ex.type())));
-            return "<ERRONEOUS>";
-        }
-    }
-
     private boolean isProtectedInSuperClassOfEnclosingClassInOtherPackage(Symbol targetReference,
                                                                           Symbol currentClass) {
         return ((targetReference.flags() & PROTECTED) != 0 &&
                 targetReference.packge() != currentClass.packge());
     }
 
+    // Add this field to the main class
+    private int lambdaClassCount = 0;
+
     /**
-     * Signature Generation
+     * Generate a class that implements the functional interface for a lambda
      */
-    private class L2MSignatureGenerator extends Types.SignatureGenerator {
+    private JCClassDecl generateLambdaClass(LambdaTranslationContext localContext) {
+        JCLambda tree = localContext.tree;
 
-        /**
-         * An output buffer for type signatures.
-         */
-        StringBuilder sb = new StringBuilder();
+        // Create synthetic class name
+        Name className = names.fromString(kInfo.clazz.name + "$Lambda$" + (++lambdaClassCount));
 
-        /**
-         * Are signatures incompatible with JVM spec allowed?
-         * Used by {@link LambdaTranslationContext#serializedLambdaDisambiguation()}.
-         */
-        boolean allowIllegalSignatures;
+        // Get the functional interface type
+        Type functionalInterface = tree.target;
 
-        L2MSignatureGenerator(boolean allowIllegalSignatures) {
-            super(types);
-            this.allowIllegalSignatures = allowIllegalSignatures;
+        // Find the single abstract method (SAM)
+        MethodSymbol samMethod = (MethodSymbol) types.findDescriptorSymbol(functionalInterface.tsym);
+
+        // Create class symbol
+        ClassSymbol classSym = new ClassSymbol(
+                FINAL | SYNTHETIC | PRIVATE,
+                className,
+                functionalInterface,
+                kInfo.clazz.sym
+        );
+
+        // Set up class members
+        classSym.members_field = Scope.WriteableScope.create(classSym);
+        classSym.completer = Symbol.Completer.NULL_COMPLETER;
+
+        // Create constructor
+        JCMethodDecl constructor = generateLambdaConstructor(localContext, classSym);
+
+        // Create the method that implements the functional interface
+        JCMethodDecl samImpl = generateSAMImplementation(localContext, classSym, samMethod);
+
+        // Create fields for captured variables
+        List<JCTree> capturedFields = generateCapturedFields(localContext, classSym);
+
+        // Build the class declaration
+        ListBuffer<JCTree> classMembers = new ListBuffer<>();
+        classMembers.appendList(capturedFields);
+        classMembers.append(constructor);
+        classMembers.append(samImpl);
+
+        JCClassDecl classDecl = make.ClassDef(
+                make.Modifiers(FINAL | SYNTHETIC | PRIVATE),
+                className,
+                List.nil(), // no type parameters
+                make.Type(functionalInterface), // implements functional interface
+                List.nil(), // no other interfaces
+                classMembers.toList()
+        );
+
+        classDecl.sym = classSym;
+        classDecl.type = classSym.type;
+
+        return classDecl;
+    }
+
+    /**
+     * Generate fields for captured variables
+     */
+    private List<JCTree> generateCapturedFields(LambdaTranslationContext localContext, ClassSymbol classSym) {
+        ListBuffer<JCTree> fields = new ListBuffer<>();
+
+        // Add fields for captured variables
+        for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_VAR).entrySet()) {
+            Symbol original = entry.getKey();
+
+            // Create field symbol
+            VarSymbol fieldSym = new VarSymbol(
+                    FINAL | SYNTHETIC | PRIVATE,
+                    original.name,
+                    original.type,
+                    classSym
+            );
+
+            // Create field declaration
+            JCVariableDecl field = make.VarDef(fieldSym, null);
+            fields.append(field);
+
+            // Add to class members
+            classSym.members().enter(fieldSym);
         }
 
-        @Override
-        protected void reportIllegalSignature(Type t) {
-            if (!allowIllegalSignatures) {
-                super.reportIllegalSignature(t);
+        // Add fields for captured outer this
+        for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_OUTER_THIS).entrySet()) {
+            Symbol original = entry.getKey();
+
+            VarSymbol fieldSym = new VarSymbol(
+                    FINAL | SYNTHETIC | PRIVATE,
+                    names.fromString(original.flatName().toString().replace('.', '$') + "$captured"),
+                    original.type,
+                    classSym
+            );
+
+            JCVariableDecl field = make.VarDef(fieldSym, null);
+            fields.append(field);
+
+            classSym.members().enter(fieldSym);
+        }
+
+        return fields.toList();
+    }
+
+    /**
+     * Generate constructor that initializes captured variables
+     */
+    private JCMethodDecl generateLambdaConstructor(LambdaTranslationContext localContext, ClassSymbol classSym) {
+        ListBuffer<JCVariableDecl> params = new ListBuffer<>();
+        ListBuffer<JCStatement> body = new ListBuffer<>();
+
+        // Add parameters and initialization for captured variables
+        for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_VAR).entrySet()) {
+            Symbol original = entry.getKey();
+
+            // Constructor parameter
+            VarSymbol paramSym = new VarSymbol(
+                    FINAL | PARAMETER,
+                    original.name,
+                    original.type,
+                    null // will be set when method is created
+            );
+            params.append(make.VarDef(paramSym, null));
+
+            // Assignment in constructor body: this.field = param
+            JCFieldAccess fieldAccess = make.Select(make.Ident(names._this), original.name);
+            JCAssign assign = make.Assign(fieldAccess, make.Ident(paramSym));
+            body.append(make.Exec(assign));
+        }
+
+        // Handle captured outer this
+        for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_OUTER_THIS).entrySet()) {
+            Symbol original = entry.getKey();
+            Name fieldName = names.fromString(original.flatName().toString().replace('.', '$') + "$captured");
+
+            VarSymbol paramSym = new VarSymbol(
+                    FINAL | PARAMETER,
+                    fieldName,
+                    original.type,
+                    null
+            );
+            params.append(make.VarDef(paramSym, null));
+
+            JCFieldAccess fieldAccess = make.Select(make.Ident(names._this), fieldName);
+            JCAssign assign = make.Assign(fieldAccess, make.Ident(paramSym));
+            body.append(make.Exec(assign));
+        }
+
+        // Create constructor method symbol
+        MethodSymbol constructorSym = new MethodSymbol(
+                PUBLIC | SYNTHETIC,
+                names.init,
+                new MethodType(
+                        TreeInfo.types(params.toList()),
+                        syms.voidType,
+                        List.nil(),
+                        syms.methodClass
+                ),
+                classSym
+        );
+
+        // Update parameter owners
+        for (JCVariableDecl param : params) {
+            param.sym.owner = constructorSym;
+        }
+
+        // Create constructor declaration
+        JCMethodDecl constructor = make.MethodDef(
+                constructorSym,
+                make.Block(0, body.toList())
+        );
+
+        classSym.members().enter(constructorSym);
+
+        return constructor;
+    }
+
+    /**
+     * Generate the method that implements the functional interface
+     */
+    private JCMethodDecl generateSAMImplementation(LambdaTranslationContext localContext, ClassSymbol classSym, MethodSymbol samMethod) {
+        JCLambda tree = localContext.tree;
+
+        // Create method symbol for the SAM implementation
+        MethodSymbol methodSym = new MethodSymbol(
+                PUBLIC | SYNTHETIC,
+                samMethod.name,
+                samMethod.type,
+                classSym
+        );
+
+        // Create parameters
+        ListBuffer<JCVariableDecl> params = new ListBuffer<>();
+        for (VarSymbol param : samMethod.params) {
+            VarSymbol newParam = new VarSymbol(
+                    param.flags() | PARAMETER,
+                    param.name,
+                    param.type,
+                    methodSym
+            );
+            params.append(make.VarDef(newParam, null));
+        }
+
+        // Translate lambda body, replacing captured variable references with field accesses
+        JCBlock lambdaBody = translateLambdaBodyForClass(tree, localContext, classSym, methodSym);
+
+        // Create method declaration
+        JCMethodDecl method = make.MethodDef(
+                make.Modifiers(PUBLIC | SYNTHETIC),
+                samMethod.name,
+                make.Type(samMethod.getReturnType()),
+                List.nil(),
+                params.toList(),
+                samMethod.getThrownTypes() == null ? List.nil() : make.Types(samMethod.getThrownTypes()),
+                lambdaBody,
+                null
+        );
+
+        method.sym = methodSym;
+        method.type = methodSym.type;
+
+        classSym.members().enter(methodSym);
+
+        return method;
+    }
+
+    /**
+     * Translate lambda body for use in class, replacing captured vars with field access
+     */
+    private JCBlock translateLambdaBodyForClass(JCLambda tree, LambdaTranslationContext localContext,
+                                                ClassSymbol classSym, MethodSymbol methodSym) {
+
+        // Create a custom translator that replaces captured variable references
+        TreeTranslator bodyTranslator = new TreeTranslator() {
+            @Override
+            public void visitIdent(JCIdent tree) {
+                if (localContext.getSymbolMap(CAPTURED_VAR).containsKey(tree.sym)) {
+                    // Replace with field access: this.capturedVar
+                    JCFieldAccess fieldAccess = make.Select(make.Ident(names._this), tree.sym.name);
+                    fieldAccess.type = tree.type;
+                    result = fieldAccess;
+                } else {
+                    super.visitIdent(tree);
+                }
+            }
+
+            @Override
+            public void visitSelect(JCFieldAccess tree) {
+                if (tree.name == names._this && localContext.getSymbolMap(CAPTURED_OUTER_THIS).containsKey(tree.sym.owner)) {
+                    // Replace outer this access with captured field
+                    Name fieldName = names.fromString(tree.sym.owner.flatName().toString().replace('.', '$') + "$captured");
+                    JCFieldAccess fieldAccess = make.Select(make.Ident(names._this), fieldName);
+                    fieldAccess.type = tree.type;
+                    result = fieldAccess;
+                } else {
+                    super.visitSelect(tree);
+                }
+            }
+        };
+
+        // Get the lambda body and translate it
+        JCTree lambdaBodyTree = tree.body;
+        JCTree translatedBody = bodyTranslator.translate(lambdaBodyTree);
+
+        // Convert to block if needed
+        if (tree.getBodyKind() == JCLambda.BodyKind.EXPRESSION) {
+            JCExpression expr = (JCExpression) translatedBody;
+            Type returnType = methodSym.getReturnType();
+
+            if (returnType.hasTag(VOID)) {
+                return make.Block(0, List.of(make.Exec(expr)));
+            } else {
+                return make.Block(0, List.of(make.Return(expr)));
+            }
+        } else {
+            return (JCBlock) translatedBody;
+        }
+    }
+
+    /**
+     * Modified visitLambda to use class generation instead of metafactory
+     */
+    @Override
+    public void visitLambda(JCLambda tree) {
+        LambdaTranslationContext localContext = (LambdaTranslationContext)context;
+
+        // Generate the lambda implementation class
+        JCClassDecl lambdaClass = generateLambdaClass(localContext);
+
+        // Add the class to the enclosing class
+        kInfo.addMethod(lambdaClass);
+
+        // Create instantiation of the lambda class
+        result = generateLambdaClassInstantiation(localContext, lambdaClass);
+    }
+
+    /**
+     * Generate constructor call to create lambda class instance
+     */
+    private JCExpression generateLambdaClassInstantiation(LambdaTranslationContext localContext, JCClassDecl lambdaClass) {
+        ListBuffer<JCExpression> args = new ListBuffer<>();
+
+        // Add captured variables as constructor arguments
+        for (Symbol capturedVar : localContext.getSymbolMap(CAPTURED_VAR).keySet()) {
+            if (capturedVar != localContext.self) {
+                args.append(make.Ident(capturedVar));
             }
         }
 
-        @Override
-        protected void append(char ch) {
-            sb.append(ch);
+        // Add captured outer this
+        for (Symbol outerThis : localContext.getSymbolMap(CAPTURED_OUTER_THIS).keySet()) {
+            args.append(make.QualThis(outerThis.type));
         }
 
-        @Override
-        protected void append(byte[] ba) {
-            Name name;
-            try {
-                name = names.fromUtf(ba);
-            } catch (InvalidUtfException e) {
-                throw new AssertionError(e);
-            }
-            sb.append(name.toString());
-        }
+        // Create new instance
+        JCNewClass newClass = make.NewClass(
+                null,
+                List.nil(),
+                make.Ident(lambdaClass.name),
+                args.toList(),
+                null
+        );
 
-        @Override
-        protected void append(Name name) {
-            sb.append(name.toString());
-        }
+        newClass.type = lambdaClass.type;
 
-        @Override
-        public String toString() {
-            return sb.toString();
-        }
+        return newClass;
     }
 }
