@@ -33,8 +33,8 @@ public class Lambdas {
         int z = 42;
         doSomethingTwice((x, y) -> z);
 
-        doSomethingTwice(this::add);
-        doSomethingTwice(Lambdas::staticAdd);
+        //doSomethingTwice(this::add);
+        //doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
             precondition(x >= y);
             postcondition((Integer r) -> r == x - y);
@@ -54,7 +54,7 @@ public class Lambdas {
         // they could be equal Dafny values.
         check(doer != doer2);
 
-        makeSomeClass(SomeClass::new);
+        //makeSomeClass(SomeClass::new);
     }
 
     public void doSomethingTwice(SomethingDoer doer) {

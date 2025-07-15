@@ -477,10 +477,11 @@ public class BlockCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                if (((Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz)).isRecord()) {
-                    var datatypeValue = RecordCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
-                    return new ExprRhs(origin, null, datatypeValue);
-                }
+                // TODO fix
+//                if (((Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz)).isRecord()) {
+//                    var datatypeValue = RecordCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
+//                    return new ExprRhs(origin, null, datatypeValue);
+//                }
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);

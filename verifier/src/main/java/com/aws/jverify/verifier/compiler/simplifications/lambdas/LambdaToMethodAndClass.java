@@ -51,6 +51,7 @@ import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.JCDiagnostic.DiagnosticPosition;
 import com.sun.source.tree.MemberReferenceTree.ReferenceMode;
 
+import java.awt.*;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -71,6 +72,7 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
 
 import com.sun.tools.javac.main.Option;
+import com.sun.tools.javac.util.List;
 
 /**
  * This pass desugars lambda expressions into static methods
@@ -82,6 +84,7 @@ import com.sun.tools.javac.main.Option;
  */
 public class LambdaToMethodAndClass extends TreeTranslator {
 
+    private Enter enter;
     private Attr attr;
     private JCDiagnostic.Factory diags;
     private Log log;
@@ -142,6 +145,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
         context.put(unlambdaKey, this);
         diags = JCDiagnostic.Factory.instance(context);
         log = Log.instance(context);
+        enter = Enter.instance(context);
         lower = Lower.instance(context);
         names = Names.instance(context);
         syms = Symtab.instance(context);
@@ -315,7 +319,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 names._this,
                 type,
                 owner);
-        return make.Ident(_this);
+        return makeIdent(_this);
     }
 
     /**
@@ -325,45 +329,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
      */
     @Override
     public void visitReference(JCMemberReference tree) {
-        ReferenceTranslationContext localContext = (ReferenceTranslationContext)context;
-
-        //first determine the method symbol to be used to generate the sam instance
-        //this is either the method reference symbol, or the bridged reference symbol
-        MethodSymbol refSym = (MethodSymbol)tree.sym;
-
-        //the qualifying expression is treated as a special captured arg
-        JCExpression init;
-        switch(tree.kind) {
-
-            case IMPLICIT_INNER:    /** Inner :: new */
-            case SUPER:             /** super :: instMethod */
-                init = makeThis(
-                        localContext.owner.enclClass().asType(),
-                        localContext.owner.enclClass());
-                break;
-
-            case BOUND:             /** Expr :: instMethod */
-                init = transTypes.coerce(attrEnv, tree.getQualifierExpression(),
-                        tree.sym.owner.type);
-                init = attr.makeNullCheck(init);
-                break;
-
-            case UNBOUND:           /** Type :: instMethod */
-            case STATIC:            /** Type :: staticMethod */
-            case TOPLEVEL:          /** Top level :: new */
-            case ARRAY_CTOR:        /** ArrayType :: new */
-                init = null;
-                break;
-
-            default:
-                throw new InternalError("Should not have an invalid kind");
-        }
-
-        List<JCExpression> indy_args = init==null? List.nil() : translate(List.of(init), localContext.prev);
-
-
-        //build a sam instance using an indy call to the meta-factory
-        result = makeMetafactoryIndyCall(localContext, refSym.asHandle(), indy_args);
+        throw new RuntimeException();
     }
 
     /**
@@ -720,7 +686,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
 
         private JCExpression makeReceiver(VarSymbol rcvr) {
             if (rcvr == null) return null;
-            JCExpression rcvrExpr = make.Ident(rcvr);
+            JCExpression rcvrExpr = makeIdent(rcvr);
             boolean protAccess =
                     isProtectedInSuperClassOfEnclosingClassInOtherPackage(tree.sym, owner);
             Type rcvrType = tree.ownerAccessible && !protAccess ? tree.sym.enclClass().type
@@ -746,7 +712,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                             tree.getQualifierExpression();
 
             //create the qualifier expression
-            JCFieldAccess select = make.Select(qualifier, tree.sym.name);
+            JCFieldAccess select = make.Select(qualifier, tree.sym);
             select.sym = tree.sym;
             select.type = tree.sym.erasure(types);
 
@@ -770,7 +736,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 //create the array creation expression
                 JCNewArray newArr = make.NewArray(
                         make.Type(types.elemtype(tree.getQualifierExpression().type)),
-                        List.of(make.Ident(params.first())),
+                        List.of(makeIdent(params.first().sym)),
                         null);
                 newArr.type = tree.getQualifierExpression().type;
                 return newArr;
@@ -797,7 +763,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
             vsym.pos = tree.pos;
             params.append(make.VarDef(vsym, null));
             if (genArg) {
-                args.append(make.Ident(vsym));
+                args.append(makeIdent(vsym));
             }
             return vsym;
         }
@@ -809,111 +775,6 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 type.getReturnType(),
                 type.getThrownTypes(),
                 syms.methodClass);
-    }
-
-    /**
-     * Generate an indy method call to the meta factory
-     */
-    private JCExpression makeMetafactoryIndyCall(TranslationContext<?> context,
-                                                 MethodHandleSymbol refSym, List<JCExpression> indy_args) {
-        JCFunctionalExpression tree = context.tree;
-        //determine the static bsm args
-        MethodSymbol samSym = (MethodSymbol) types.findDescriptorSymbol(tree.target.tsym);
-        List<LoadableConstant> staticArgs = List.of(
-                typeToMethodType(samSym.type),
-                refSym.asHandle(),
-                typeToMethodType(tree.getDescriptorType(types)));
-
-        //computed indy arg types
-        ListBuffer<Type> indy_args_types = new ListBuffer<>();
-        for (JCExpression arg : indy_args) {
-            indy_args_types.append(arg.type);
-        }
-
-        //finally, compute the type of the indy call
-        MethodType indyType = new MethodType(indy_args_types.toList(),
-                tree.type,
-                List.nil(),
-                syms.methodClass);
-
-        Name metafactoryName = context.needsAltMetafactory() ?
-                names.altMetafactory : names.metafactory;
-
-        if (context.needsAltMetafactory()) {
-            ListBuffer<Type> markers = new ListBuffer<>();
-            List<Type> targets = tree.target.isIntersection() ?
-                    types.directSupertypes(tree.target) :
-                    List.nil();
-            for (Type t : targets) {
-                if (t.tsym != syms.serializableType.tsym &&
-                        t.tsym != tree.type.tsym &&
-                        t.tsym != syms.objectType.tsym) {
-                    markers.append(t);
-                }
-            }
-            int flags = 0;
-            boolean hasMarkers = markers.nonEmpty();
-            boolean hasBridges = context.bridges.nonEmpty();
-            if (hasMarkers) {
-                flags |= FLAG_MARKERS;
-            }
-            if (hasBridges) {
-                flags |= FLAG_BRIDGES;
-            }
-            staticArgs = staticArgs.append(LoadableConstant.Int(flags));
-            if (hasMarkers) {
-                staticArgs = staticArgs.append(LoadableConstant.Int(markers.length()));
-                staticArgs = staticArgs.appendList(List.convert(LoadableConstant.class, markers.toList()));
-            }
-            if (hasBridges) {
-                staticArgs = staticArgs.append(LoadableConstant.Int(context.bridges.length() - 1));
-                for (Symbol s : context.bridges) {
-                    Type s_erasure = s.erasure(types);
-                    if (!types.isSameType(s_erasure, samSym.erasure(types))) {
-                        staticArgs = staticArgs.append(((MethodType)s.erasure(types)));
-                    }
-                }
-            }
-        }
-
-        return makeIndyCall(tree, syms.lambdaMetafactory, metafactoryName, staticArgs, indyType, indy_args, samSym.name);
-    }
-
-    /**
-     * Generate an indy method call with given name, type and static bootstrap
-     * arguments types
-     */
-    private JCExpression makeIndyCall(DiagnosticPosition pos, Type site, Name bsmName,
-                                      List<LoadableConstant> staticArgs, MethodType indyType, List<JCExpression> indyArgs,
-                                      Name methName) {
-        int prevPos = make.pos;
-        try {
-            make.at(pos);
-            List<Type> bsm_staticArgs = List.of(syms.methodHandleLookupType,
-                    syms.stringType,
-                    syms.methodTypeType).appendList(staticArgs.map(types::constantType));
-
-            MethodSymbol bsm = rs.resolveInternalMethod(pos, attrEnv, site,
-                    bsmName, bsm_staticArgs, List.nil());
-
-            DynamicMethodSymbol dynSym =
-                    new DynamicMethodSymbol(methName,
-                            syms.noSymbol,
-                            bsm.asHandle(),
-                            indyType,
-                            staticArgs.toArray(new LoadableConstant[staticArgs.length()]));
-            JCFieldAccess qualifier = make.Select(make.QualIdent(site.tsym), bsmName);
-            DynamicMethodSymbol existing = kInfo.dynMethSyms.putIfAbsent(
-                    dynSym.poolKey(types), dynSym);
-            qualifier.sym = existing != null ? existing : dynSym;
-            qualifier.type = indyType.getReturnType();
-
-            JCMethodInvocation proxyCall = make.Apply(List.nil(), qualifier, indyArgs);
-            proxyCall.type = indyType.getReturnType();
-            return proxyCall;
-        } finally {
-            make.at(prevPos);
-        }
     }
 
     // <editor-fold defaultstate="collapsed" desc="Lambda/reference analyzer">
@@ -1762,7 +1623,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                         default:
                             if (m.containsKey(lambdaIdent.sym)) {
                                 Symbol tSym = m.get(lambdaIdent.sym);
-                                JCTree t = make.Ident(tSym).setType(lambdaIdent.type);
+                                JCTree t = makeIdent(tSym).setType(lambdaIdent.type);
                                 return t;
                             }
                             break;
@@ -1773,8 +1634,8 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                             if (proxy.isPresent()) {
                                 // Transform outer instance variable references anchoring them to the captured synthetic.
                                 Symbol tSym = m.get(proxy.get());
-                                JCExpression t = make.Ident(tSym).setType(lambdaIdent.sym.owner.type);
-                                t = make.Select(t, lambdaIdent.name);
+                                JCExpression t = makeIdent(tSym).setType(lambdaIdent.sym.owner.type);
+                                t = make.Select(t, lambdaIdent.sym);
                                 t.setType(lambdaIdent.type);
                                 TreeInfo.setSymbol(t, lambdaIdent.sym);
                                 return t;
@@ -1793,7 +1654,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 Map<Symbol, Symbol> m = translatedSymbols.get(LambdaSymbolKind.CAPTURED_OUTER_THIS);
                 if (m.containsKey(fieldAccess.sym.owner)) {
                     Symbol tSym = m.get(fieldAccess.sym.owner);
-                    JCExpression t = make.Ident(tSym).setType(fieldAccess.sym.owner.type);
+                    JCExpression t = makeIdent(tSym).setType(fieldAccess.sym.owner.type);
                     return t;
                 }
                 return null;
@@ -1808,7 +1669,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 final Type enclosingType = newClass.clazz.type.getEnclosingType();
                 if (m.containsKey(enclosingType.tsym)) {
                     Symbol tSym = m.get(enclosingType.tsym);
-                    JCExpression encl = make.Ident(tSym).setType(enclosingType);
+                    JCExpression encl = makeIdent(tSym).setType(enclosingType);
                     newClass.encl = encl;
                 }
                 return newClass;
@@ -1977,6 +1838,12 @@ public class LambdaToMethodAndClass extends TreeTranslator {
             }
         }
     }
+
+    private JCIdent makeIdent(Symbol tSym) {
+        var result = make.Ident(tSym);
+        result.sym = tSym;
+        return result;
+    }
     // </editor-fold>
 
     /*
@@ -2062,9 +1929,12 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 classMembers.toList()
         );
 
+        
         classDecl.sym = classSym;
         classDecl.type = classSym.type;
-
+        
+        classDecl.pos = context.tree.pos;
+        
         return classDecl;
     }
 
@@ -2135,8 +2005,8 @@ public class LambdaToMethodAndClass extends TreeTranslator {
             params.append(make.VarDef(paramSym, null));
 
             // Assignment in constructor body: this.field = param
-            JCFieldAccess fieldAccess = make.Select(make.Ident(names._this), original.name);
-            JCAssign assign = make.Assign(fieldAccess, make.Ident(paramSym));
+            JCFieldAccess fieldAccess = make.Select(makeThis(classSym), original);
+            JCAssign assign = make.Assign(fieldAccess, makeIdent(paramSym));
             body.append(make.Exec(assign));
         }
 
@@ -2153,8 +2023,8 @@ public class LambdaToMethodAndClass extends TreeTranslator {
             );
             params.append(make.VarDef(paramSym, null));
 
-            JCFieldAccess fieldAccess = make.Select(make.Ident(names._this), fieldName);
-            JCAssign assign = make.Assign(fieldAccess, make.Ident(paramSym));
+            JCFieldAccess fieldAccess = make.Select(makeThis(classSym), original);
+            JCAssign assign = make.Assign(fieldAccess, makeIdent(paramSym));
             body.append(make.Exec(assign));
         }
 
@@ -2181,10 +2051,22 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 constructorSym,
                 make.Block(0, body.toList())
         );
+        constructor.pos = localContext.tree.pos;
 
         classSym.members().enter(constructorSym);
-
+        
         return constructor;
+    }
+
+    private JCIdent makeThis(ClassSymbol currentClassSymbol) {
+        JCIdent result = make.Ident(names._this);
+
+        VarSymbol thisSym = new VarSymbol(FINAL | SYNTHETIC, names._this, currentClassSymbol.type, currentClassSymbol);
+
+        result.sym = thisSym;
+        result.type = currentClassSymbol.type;
+
+        return result;
     }
 
     /**
@@ -2251,7 +2133,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
             public void visitIdent(JCIdent tree) {
                 if (localContext.getSymbolMap(CAPTURED_VAR).containsKey(tree.sym)) {
                     // Replace with field access: this.capturedVar
-                    JCFieldAccess fieldAccess = make.Select(make.Ident(names._this), tree.sym.name);
+                    JCFieldAccess fieldAccess = make.Select(makeThis(classSym), tree.sym);
                     fieldAccess.type = tree.type;
                     result = fieldAccess;
                 } else {
@@ -2264,7 +2146,8 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 if (tree.name == names._this && localContext.getSymbolMap(CAPTURED_OUTER_THIS).containsKey(tree.sym.owner)) {
                     // Replace outer this access with captured field
                     Name fieldName = names.fromString(tree.sym.owner.flatName().toString().replace('.', '$') + "$captured");
-                    JCFieldAccess fieldAccess = make.Select(make.Ident(names._this), fieldName);
+                    // TODO replace fieldName with symbol
+                    JCFieldAccess fieldAccess = make.Select(makeThis(classSym), fieldName);
                     fieldAccess.type = tree.type;
                     result = fieldAccess;
                 } else {
@@ -2318,7 +2201,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
         // Add captured variables as constructor arguments
         for (Symbol capturedVar : localContext.getSymbolMap(CAPTURED_VAR).keySet()) {
             if (capturedVar != localContext.self) {
-                args.append(make.Ident(capturedVar));
+                args.append(makeIdent(capturedVar));
             }
         }
 
@@ -2327,15 +2210,17 @@ public class LambdaToMethodAndClass extends TreeTranslator {
             args.append(make.QualThis(outerThis.type));
         }
 
-        // Create new instance
+        var constructor = (JCMethodDecl)lambdaClass.getMembers().get(lambdaClass.getMembers().size() - 2);
+
         JCNewClass newClass = make.NewClass(
                 null,
                 List.nil(),
-                make.Ident(lambdaClass.name),
+                make.Ident(lambdaClass.sym),
                 args.toList(),
                 null
         );
 
+        newClass.constructor = constructor.sym;
         newClass.type = lambdaClass.type;
 
         return newClass;

@@ -567,7 +567,7 @@ public class JavaToDafnyCompiler {
         IOrigin origin;
         if (name.startsWith("Lambdas$")) {
             var clazz = ((JCTree.JCClassDecl)tree);
-            JCTree.JCMethodDecl methodDecl = (JCTree.JCMethodDecl) clazz.getMembers().get(1);
+            JCTree.JCMethodDecl methodDecl = (JCTree.JCMethodDecl) clazz.getMembers().get(clazz.getMembers().size() - 1);
             origin = getOrigin(methodDecl, methodDecl.name.length());
         } else {
             origin = getOrigin(tree, length);
