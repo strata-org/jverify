@@ -4,10 +4,12 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
+import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.util.ListBuffer;
 import com.sun.tools.javac.util.Names;
 
 import javax.lang.model.element.Modifier;
@@ -110,11 +112,25 @@ public class LambdaCompiler {
 //        var methodTypeWithAnnotations = mergeAnnotations(interfaceMethodSymbol.type, methodType, types);
 
         // TODO create a new method symbol instead of passing in a separate type.
-        // Like this 'new MethodSymbol(flags | SYNTHETIC | PRIVATE, name, type, owner);'
+        var newSymbol = new Symbol.MethodSymbol(interfaceMethodSymbol.flags() | SYNTHETIC, 
+                interfaceMethodSymbol.name, 
+                methodTypeWithAnnotations, interfaceMethodSymbol.owner);
         var methodDecl = new ClassCompiler(compiler).
-                translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol,
+                translateMethodOrLambda(source, maker.Modifiers(0), newSymbol,
                         methodTypeWithAnnotations, body, List.of(), contract);
 
+        ListBuffer<com.sun.tools.javac.code.Type> from = new ListBuffer<>();
+        ListBuffer<com.sun.tools.javac.code.Type> to = new ListBuffer<>();
+        //types.adapt(interfaceMethodSymbol.type, methodTypeWithAnnotations, from, to);
+        types.adapt(interfaceMethodSymbol.type.getReturnType(), methodTypeWithAnnotations.getReturnType(), from, to);
+        
+        com.sun.tools.javac.util.List<com.sun.tools.javac.code.Type> parameterTypes = interfaceMethodSymbol.type.getParameterTypes();
+        for (int i = 0; i < parameterTypes.size(); i++) {
+            var parameter = parameterTypes.get(i);
+            var parameter2 = methodTypeWithAnnotations.getParameterTypes().get(i);
+            types.adapt(parameter, parameter2, from, to);
+        }
+        
         // Add a wrapper datatype with that method declaration to the outer scope
         var datatypeName = "Lambda" + System.identityHashCode(dynamicMethodSymbol);
         var datatypeNameNode = new Name(origin, datatypeName);
@@ -122,8 +138,13 @@ public class LambdaCompiler {
                 new Formal(origin, compiler.getName(p, p.name), compiler.translateType(p.type, origin), false, true,
                         null, null, false, false, false, null)).toList();
         var datatypeCtor = new DatatypeCtor(origin, datatypeNameNode, null, false, datatypeCtorParams);
-        var trait = compiler.translateType(interfaceType, origin);
-        var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, List.of(), List.of(methodDecl),
+        
+        var instantiatedInterfaceType = types.subst(interfaceType, from.toList(), to.toList());
+        var trait = compiler.translateType(instantiatedInterfaceType, origin);
+        JavacTrees trees = JavacTrees.instance(compiler.context);
+        List<TypeParameter> typeArgs = new ClassCompiler(compiler).translateTypeParameters(
+                methodSymbol.enclClass().getTypeParameters().map(tps -> (JCTree.JCTypeParameter) trees.getTree(tps)));
+        var datatypeDecl = new IndDatatypeDecl(origin, datatypeNameNode, null, typeArgs, List.of(methodDecl),
                 List.of(trait), List.of(datatypeCtor), false);
         compiler.declarationsForFile.get(compiler.compilationUnit).add(datatypeDecl);
 

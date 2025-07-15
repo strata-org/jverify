@@ -7,13 +7,11 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import static com.aws.jverify.JVerify.check;
 
 import java.util.*;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Function;
-import java.util.function.IntPredicate;
 import java.util.function.Consumer;
 
 @Contract(Object.class)
@@ -49,6 +47,7 @@ abstract class ListContract<E> implements SequencedCollection<E> {
     }
 }
 
+// TODO if I rename E to T, ResolveGeneratedDafny fails
 @Contract(SequencedCollection.class)
 interface SequencedCollectionContract<E> extends Collection<E> {
     
@@ -227,7 +226,7 @@ abstract class OptionalContract<T> {
 }
 
 @Contract
-abstract class SetContract<T> implements Set<T> {
+abstract class SetContract<E> implements Set<E> {
 }
 
 @Contract

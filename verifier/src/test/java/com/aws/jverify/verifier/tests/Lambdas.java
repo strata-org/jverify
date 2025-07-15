@@ -144,3 +144,5 @@ interface SomethingDoerWithSpec {
 //        }
 //    }
 //}
+
+// TODO needs a test for when the class enclosing the lambda has a type parameter

@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.testengine.JVerifyTestEngine;
 import org.junit.jupiter.api.Assertions;
@@ -9,6 +10,7 @@ import picocli.CommandLine;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.IntPredicate;
 
 import static com.aws.jverify.testengine.JVerifyTestEngine.testMarkedSource;
 import static org.hamcrest.CoreMatchers.*;
