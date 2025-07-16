@@ -11,7 +11,7 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 3, resolvePrintedDafny = true)
 public class Lambdas {
 
 //    void lambdaForGenericInterfaces() {

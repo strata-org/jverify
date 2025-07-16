@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 public class ClassCompiler {
     public final JavaToDafnyCompiler compiler;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
-    private final List<Symbol.MethodSymbol> invariants = new ArrayList<>();
+    private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
     private final ClassesExtendingClassesCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
@@ -137,7 +137,7 @@ public class ClassCompiler {
                 if (methodDecl.getModifiers().getAnnotations().stream().
                         anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
                                 ident.name.contentEquals("Invariant"))) {
-                    invariants.add(methodDecl.sym);
+                    invariants.add(methodDecl);
                 }
             }
         }
@@ -474,9 +474,9 @@ public class ClassCompiler {
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {
             for(var invariant : invariants) {
-                var memberName = compiler.nameCompiler.getCompiledName(invariant);
-                var invariantName = compiler.getName(source, memberName);
-                var invariantOrigin = compiler.declToOrigin(source, invariantName);
+                var memberName = compiler.nameCompiler.getCompiledName(invariant.sym);
+                var invariantName = compiler.getName(invariant, invariant.getName());
+                var invariantOrigin = compiler.declToOrigin(invariant, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                         memberName, null), null, new ActualBindings(List.of()), null);
                 var invariantCall = new AttributedExpression(call,null, null);
@@ -505,7 +505,7 @@ public class ClassCompiler {
             } else {
                 parameterOrigin = compiler.toOrigin(parameter);
             }
-            Name formalName = new Name(parameterOrigin, parameter.name.toString());
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym));
             var syntacticType = compiler.translateMethodSignatureType(parameter.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);

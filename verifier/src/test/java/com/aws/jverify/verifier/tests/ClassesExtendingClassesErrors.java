@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(exitCode = 22)
 public class ClassesExtendingClassesErrors {}
 
 class ExtenderErrors extends ExtendeeErrors {

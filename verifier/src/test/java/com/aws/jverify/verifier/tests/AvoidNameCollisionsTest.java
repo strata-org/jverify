@@ -5,8 +5,8 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 2, dafnyErrors = 0, avoidNameCollisions = true)
-public class GeneratedNameCollisions {
+@JVerifyTest(dafnyVerified = 2, dafnyErrors = 0, avoidNameCollisions = true, resolvePrintedDafny = false)
+public class AvoidNameCollisionsTest {
 
     public int differentReturnValueNames() {
         postcondition(this::predicate);

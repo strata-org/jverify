@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(exitCode = 22)
 class ResolutionErrorsTypes {
     @Pure
     static boolean boxedIsZero(Integer i) {
