@@ -190,7 +190,8 @@ public class ClassCompiler {
             var bounds = p.bounds.map(compiler::translateType);
             
             IOrigin origin = compiler.toOrigin(p);
-            if (!this.compiler.verifierOptions.includeBuiltinContracts()) {
+            if (!this.compiler.verifierOptions.includeBuiltinContracts() &&
+                    !this.compiler.compilationUnit.getSourceFile().getName().contains("builtin-contracts.java")) {
                 // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones. 
                 Symtab symtab = Symtab.instance(compiler.context);
                 var objectName = compiler.nameCompiler.getCompiledName(symtab.objectType.tsym);

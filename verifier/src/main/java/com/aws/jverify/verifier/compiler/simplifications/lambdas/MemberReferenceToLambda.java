@@ -13,6 +13,8 @@ import static com.sun.tools.javac.code.Flags.PARAMETER;
 import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 
 /**
+ * Small modification have been made compared to the origin from LambdaToMethod.java
+ * 
  * Converts a method reference which cannot be used directly into a lambda
  */
 class MemberReferenceToLambda {
@@ -23,8 +25,6 @@ class MemberReferenceToLambda {
     private final Symbol owner;
     private final ListBuffer<JCTree.JCExpression> args = new ListBuffer<>();
     private final ListBuffer<JCTree.JCVariableDecl> params = new ListBuffer<>();
-
-    private JCTree.JCExpression receiverExpression = null;
 
     public MemberReferenceToLambda(LambdaCompiler lambdaCompiler, JCTree.JCMemberReference tree, 
                                    LambdaAnalyzerPreprocessor.ReferenceTranslationContext localContext, 
@@ -71,12 +71,8 @@ class MemberReferenceToLambda {
         // Determine the receiver, if any
         switch (tree.kind) {
             case BOUND:
-                // The receiver is explicit in the method reference
-                // receiverExpression = lambdaCompiler.attr.makeNullCheck(tree.getQualifierExpression());
                 break;
             case UNBOUND:
-                // The receiver is the first parameter, extract it and
-                // adjust the SAM and unerased type lists accordingly
                 rcvr = addParameter("rec$", samDesc.getParameterTypes().head, false);
                 samPTypes = samPTypes.tail;
                 descPTypes = descPTypes.tail;
@@ -133,7 +129,7 @@ class MemberReferenceToLambda {
     }
 
     JCTree.JCExpression getReceiverExpression() {
-        return receiverExpression;
+        return null;
     }
 
     private JCTree.JCExpression makeReceiver(Symbol.VarSymbol rcvr) {
