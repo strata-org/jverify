@@ -148,7 +148,7 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
-        LocalVariable localVariable = new LocalVariable(origin, variableDecl.name.toString(),
+        LocalVariable localVariable = new LocalVariable(origin, compiler.nameCompiler.getCompiledName(variableDecl.sym),
                 compiler.translateType(variableDecl.getModifiers(), variableDecl.getType().type, origin), false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {

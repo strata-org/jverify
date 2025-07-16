@@ -96,6 +96,9 @@ public class NameCompiler {
                         || varSymbol.getKind() == ElementKind.RECORD_COMPONENT) {
                     return getFieldName(varSymbol);
                 } else { // Local variable, do not change
+                    if (s.name.isEmpty()) {
+                        return "unnamed";
+                    }
                     return s.name.toString();
                 }
             }

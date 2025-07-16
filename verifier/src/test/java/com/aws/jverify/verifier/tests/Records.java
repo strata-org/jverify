@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 4, resolvePrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 4)
 class Records {
     static void unitRecord() {
         var _ = new UnitRecord();
