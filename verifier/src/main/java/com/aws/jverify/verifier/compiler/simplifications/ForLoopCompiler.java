@@ -95,6 +95,6 @@ public class ForLoopCompiler implements StatementCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> 
-                blockCompiler.compiler.nameCompiler.LOCAL_VARIABLE_PREFIX + "loop" + blockCompiler.generatedIndex++);
+                blockCompiler.compiler.nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
     }
 }

@@ -32,7 +32,7 @@ public class NameCompiler {
     public String CLASS_PREFIX = "Constructable_";
     public String INIT_METHOD_PREFIX = "init_";
     public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
-    public String LOCAL_VARIABLE_PREFIX = "g_";
+    public String LABEL_PREFIX = "g_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
@@ -51,7 +51,7 @@ public class NameCompiler {
             CLASS_PREFIX += "_";
             IMPLEMENTATION_METHOD_PREFIX += "_";
             METHOD_RETURN_VARIABLE_NAME += "#";
-            LOCAL_VARIABLE_PREFIX = "$";
+            LABEL_PREFIX = "$";
         }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
@@ -191,16 +191,16 @@ public class NameCompiler {
             case BOOLEAN: {return "z";}
             case CLASS: {
                 var newType = this.contractCompiler.contractClassTypeToContracteeType.get(type);
-                String classTypeStr;
                 if (newType != null) {
-                    classTypeStr = newType.toString();
+                    type = newType;
                 }
-                else {
-                    classTypeStr = type.toString();
-                }
+                String classTypeStr = type.tsym.toString();
                 // Changing '.' to '_' so that the new name is a valid Dafny name
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
+            }
+            case TYPEVAR: {
+                return type.toString();
             }
             case ARRAY : {
                 var arrayType = (ArrayType) type;
