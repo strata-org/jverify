@@ -119,7 +119,6 @@ public class ExternalContractCompiler {
             if (baseMethod != null) {
                 var header = new BlockCompiler(compiler).extractContract(methodDecl, true);
                 externalContracts.put(baseMethod, header);
-                compiler.lambdaCompiler.methodContracts.put(baseMethod, header);
             } else if (!compiler.isSynthetic(methodDecl, methodSymbol)) {
                 // Check currently does not take into account overloading
                 // But this only makes it not detect some unused methods.

@@ -5,7 +5,6 @@ import com.aws.jverify.*;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.sun.source.tree.*;
@@ -50,7 +49,6 @@ public class JavaToDafnyCompiler {
     public final NameCompiler nameCompiler;
     public final ExternalContractCompiler externalContractCompiler = new ExternalContractCompiler(this);
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
-    public final LambdaCompiler lambdaCompiler;
     public JCDiagnostic.Factory diagnosticFactory;
     public final VerifierOptions verifierOptions;
 
@@ -72,7 +70,6 @@ public class JavaToDafnyCompiler {
         nameCompiler = new NameCompiler(externalContractCompiler, verifierOptions.avoidCollisionsUsingUnderscores());
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
-        lambdaCompiler = new LambdaCompiler(this);
     }
 
     public NameCompiler getNameCompiler() {

@@ -1900,7 +1900,9 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 functionalInterface,
                 kInfo.clazz.sym
         );
-        classSym.type = new Type.ClassType(Type.noType, List.nil(), classSym);
+        Type.ClassType classType = new Type.ClassType(Type.noType, List.nil(), classSym);
+        classSym.type = classType;
+        classType.supertype_field = functionalInterface;
 
         // Set up class members
         classSym.members_field = Scope.WriteableScope.create(classSym);
@@ -1929,7 +1931,6 @@ public class LambdaToMethodAndClass extends TreeTranslator {
                 List.nil(), // no other interfaces
                 classMembers.toList()
         );
-
         
         classDecl.sym = classSym;
         classDecl.type = classSym.type;
@@ -2086,13 +2087,15 @@ public class LambdaToMethodAndClass extends TreeTranslator {
 
         // Create parameters
         ListBuffer<JCVariableDecl> params = new ListBuffer<>();
-        for (JCVariableDecl param : localContext.syntheticParams) {
+        for (var paramEntry : localContext.getSymbolMap(PARAM).entrySet()) {
+            var param = paramEntry.getValue();
             VarSymbol newParam = new VarSymbol(
-                    param.sym.flags() | PARAMETER,
+                    param.flags() | PARAMETER,
                     param.name,
                     param.type,
                     methodSym
             );
+            methodSym.params().append(newParam);
             params.append(make.VarDef(newParam, null));
         }
 

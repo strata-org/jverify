@@ -7,12 +7,14 @@ import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RecordCompiler {
     final ClassCompiler classCompiler;
@@ -31,8 +33,9 @@ public class RecordCompiler {
 
         var typeParams = classCompiler.translateTypeParameters(classDecl.typarams);
 
-        var traits = classCompiler.getCurrentTypeSymbol(classDecl)
-                .getInterfaces().stream()
+        Symbol.ClassSymbol currentTypeSymbol = classCompiler.getCurrentTypeSymbol(classDecl);
+        var traits = Stream.concat(Stream.of(currentTypeSymbol.getSuperclass()), currentTypeSymbol
+                .getInterfaces().stream())
                 .filter(compiler::typeHasAContract)
                 .map(baseType -> compiler.translateType(null, baseType, origin))
                 .toList();
