@@ -59,7 +59,7 @@ public class JavaToDafnyCompiler {
      * Edges are from child to parent types, similar to the references in the code
      */
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
-    public Map<CompilationUnitTree, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
+    public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
     public JCTree.JCCompilationUnit compilationUnit;
@@ -86,7 +86,7 @@ public class JavaToDafnyCompiler {
             files.add(builtinSource);
         }
         
-        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
+        Set<JVerifyCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
@@ -98,12 +98,12 @@ public class JavaToDafnyCompiler {
          * To work around this bug, the built-in contracts file must be serialized after 
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
-        parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
+        parsed.sort(Comparator.comparing(f -> f.unit().getSourceFile().toUri().toString()));
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
             externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
-            declarationsForFile.put(compilationUnit, new ArrayList<>());
+            declarationsForFile.put(compilationUnit.unit(), new ArrayList<>());
         }
         
         for(var foundClassSymbol : foundClassSymbols) {
@@ -121,17 +121,17 @@ public class JavaToDafnyCompiler {
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
-            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
-            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
+            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit.unit());
+            var isLibrary = compilationUnit.unit().getSourceFile() == builtinSource;
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
                     case TokenRangeOrigin tokenRangeOrigin -> tokenRangeOrigin.getStartToken();
                     default -> throw new RuntimeException();
                 };
-                return compilationUnit.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
+                return compilationUnit.unit().getLineMap().getPosition(startToken.getLine(), startToken.getCol());
             }));
-            filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.unit().sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);

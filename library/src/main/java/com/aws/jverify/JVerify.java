@@ -60,10 +60,10 @@ public class JVerify {
     public static void postcondition(boolean predicate) {
     }
 
-    public static <T> void postcondition(BooleanPredicate predicate) {
+    public static void postcondition(BooleanPredicate predicate) {
     }
 
-    public static <T> void postcondition(IntPredicate predicate) {
+    public static void postcondition(IntPredicate predicate) {
     }
 
     public static interface BooleanPredicate {

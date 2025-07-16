@@ -16,6 +16,7 @@ import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.ListBuffer;
 import com.sun.tools.javac.util.Position;
 
 import javax.tools.Diagnostic;
@@ -41,7 +42,7 @@ public class JavaFrontEnd {
      * Applies a subset of the javac compilation pipeline, to parse,
      * resolve, and partially rewrite some features away.
      */
-    public Set<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
+    public Set<JVerifyCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
 
@@ -111,7 +112,7 @@ public class JavaFrontEnd {
          * and the Todo instance in the context).
          */
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
-        final Queue<Env<AttrContext>> envs = new LinkedList<>();
+        final Queue<JVerifyCompilationUnit> units = new LinkedList<>();
         MultiTaskListener mtl = MultiTaskListener.instance(context);
         mtl.add(new TaskListener() {
             @Override
@@ -135,7 +136,8 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    envs.addAll(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo))))));
+                    var envs = unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo)))));
+                    envs.stream().forEach(env -> units.add(new JVerifyCompilationUnit(env.toplevel, env.toplevel.defs)));
                 }
             }
         });
@@ -154,7 +156,7 @@ public class JavaFrontEnd {
             }
         }
 
-        return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
+        return hasErrors ? null : new HashSet<>(units);
     }
 
     // Phase to replace erased code such as specifications with placeholders
@@ -188,5 +190,21 @@ public class JavaFrontEnd {
             env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
         }
         return envs;
+    }
+
+    private List<JVerifyCompilationUnit> partialLower(Queue<Env<AttrContext>> envs) {
+        TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
+        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
+
+        // Note JavaCompiler.desugar has some additional logic to
+        // scan for classes that have lambdas first,
+        // to not waste time with these traversals.
+        // We could do the same here to save time in the future.
+        for (Env<AttrContext> env : envs) {
+            com.sun.tools.javac.util.List<JCTree> classes = Lower.instance(context).translateTopLevelClass(env, env.tree, localMake);
+            JVerifyCompilationUnit newUnit = new JVerifyCompilationUnit(env.toplevel, classes);
+            results.add(newUnit);
+        }
+        return results.toList();
     }
 }

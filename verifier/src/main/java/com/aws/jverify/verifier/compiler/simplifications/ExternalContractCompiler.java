@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.verifier.compiler.JVerifyCompilationUnit;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
@@ -35,8 +36,8 @@ public class ExternalContractCompiler {
             Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
             List<JCTree.JCVariableDecl> ghostFields) { }
     
-    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit, Set<Symbol.ClassSymbol> foundClasses) {
-        compiler.compilationUnit = compilationUnit;
+    public void discoverTypesAndContractClasses(JVerifyCompilationUnit compilationUnit, Set<Symbol.ClassSymbol> foundClasses) {
+        compiler.compilationUnit = compilationUnit.unit();
         
         var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
         while(!typesToVisit.isEmpty()) {
