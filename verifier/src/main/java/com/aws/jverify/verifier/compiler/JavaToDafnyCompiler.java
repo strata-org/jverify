@@ -245,7 +245,8 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean typeHasAContract(com.sun.tools.javac.code.Type type) {
-        return externalContractCompiler.externalContracts.containsKey(type.tsym) || typeHasSource(type.tsym);
+        return (type.tsym != null && type.tsym.getQualifiedName().contentEquals("java.lang.Object")) || 
+                externalContractCompiler.externalContracts.containsKey(type.tsym) || typeHasSource(type.tsym);
     }
 
     public boolean typeHasSource(Symbol.TypeSymbol typeSymbol) {
@@ -509,7 +510,7 @@ public class JavaToDafnyCompiler {
                     }
                     return translateType(superBound, origin);
                 }
-                return new UserDefinedType(origin, new NameSegment(origin, "Object", null));
+                return new UserDefinedType(origin, new NameSegment(origin, "java_lang_Object", null));
             }
             default -> {
             }

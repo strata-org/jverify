@@ -1,21 +1,25 @@
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 22, dafnyErrors = 3, useBuiltinContracts = true, resolvePrintedDafny = true)
+@JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0, 
+        useBuiltinContracts = false, resolvePrintedDafny = true)
 public class PolymorphicLambdas {
 
-//    void lambdaForGenericInterfaces() {
-//        foo(i -> i < 10 ? i + 2 : i);
-//        bar(() -> 10);
-//    }
+    class Anything {}
+    void lambdaForGenericInterfaces() {
+        foo(i -> 3);
+        //noinspection Convert2MethodRef
+        bar(() -> new Anything());
+    }
 
     <U> void lambdaForGenericMethod() {
         zaz((U e) -> 3);
     }
 
-    void foo(MyConsumer<Integer> f) {}
-    void bar(MyProducer<Integer> f) {}
+    void foo(MyConsumer<Anything> f) {}
+    void bar(MyProducer<Anything> f) {}
     <R> void zaz(MyConsumer<R> f) {}
 }
 
@@ -34,3 +38,4 @@ interface MyConsumer<T> {
 interface MyProducer<T> {
     T produce();
 }
+

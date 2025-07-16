@@ -131,7 +131,6 @@ public class ClassCompiler {
     private ClassDecl translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
         
-        
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
                 if (methodDecl.getModifiers().getAnnotations().stream().
@@ -188,7 +187,9 @@ public class ClassCompiler {
         return typarams.stream().map(p -> {
             var name = compiler.getName(p, p.getName());
             var bounds = p.bounds.map(compiler::translateType);
-            return new TypeParameter(compiler.toOrigin(p),
+            IOrigin origin = compiler.toOrigin(p);
+            bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, "java_lang_Object", null)));
+            return new TypeParameter(origin,
                     name, null, TPVarianceSyntax.NonVariant_Strict,
                     new TypeParameterCharacteristics(
                             TypeParameterEqualitySupportValue.InferredRequired,
