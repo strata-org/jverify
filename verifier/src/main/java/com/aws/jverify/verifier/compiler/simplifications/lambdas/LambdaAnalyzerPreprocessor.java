@@ -19,6 +19,10 @@ import static com.sun.tools.javac.code.TypeTag.NONE;
 import static com.sun.tools.javac.tree.JCTree.Tag.*;
 
 /**
+ * Compared to the original LambdaToMethod.LambdaAnalyzerPreprocessor
+ * 
+ * visitReference has been modified
+ * 
  * This visitor collects information about translation of a lambda expression.
  * More specifically, it keeps track of the enclosing contexts and captured locals
  * accessed by the lambda being translated (as well as other useful info).
