@@ -31,7 +31,6 @@ import com.sun.tools.javac.comp.*;
 //import com.sun.tools.javac.resources.CompilerProperties.Fragments;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
-import com.sun.tools.javac.tree.JCTree.JCMemberReference.ReferenceKind;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.code.Symbol.ClassSymbol;
@@ -45,11 +44,9 @@ import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaAnalyzerP
 //import com.sun.tools.javac.resources.CompilerProperties.Notes;
 import com.sun.tools.javac.jvm.*;
 import com.sun.tools.javac.util.*;
-import com.sun.source.tree.MemberReferenceTree.ReferenceMode;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -57,8 +54,6 @@ import static com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaCo
 import static com.sun.tools.javac.code.Flags.*;
 import static com.sun.tools.javac.code.Kinds.Kind.*;
 import static com.sun.tools.javac.code.TypeTag.*;
-
-import javax.lang.model.type.TypeKind;
 
 import com.sun.tools.javac.main.Option;
 import com.sun.tools.javac.util.List;
@@ -73,6 +68,7 @@ import com.sun.tools.javac.util.List;
  */
 public class LambdaCompiler extends TreeTranslator {
 
+    
     private Enter enter;
     public Attr attr;
     public JCDiagnostic.Factory diags;
@@ -614,7 +610,11 @@ public class LambdaCompiler extends TreeTranslator {
 
         // Find the single abstract method (SAM)
         MethodSymbol samMethod = (MethodSymbol) types.findDescriptorSymbol(functionalInterface.tsym);
-
+        ListBuffer<Type> from = new ListBuffer<>();
+        ListBuffer<Type> to = new ListBuffer<>();
+        types.adapt(functionalInterface.tsym.type, functionalInterface, from, to);
+        var methodType = (MethodType)types.subst(samMethod.type, from.toList(),  to.toList());
+        
         // Create class symbol
         ClassSymbol classSym = new ClassSymbol(
                 FINAL | SYNTHETIC | PRIVATE | RECORD,
@@ -634,7 +634,7 @@ public class LambdaCompiler extends TreeTranslator {
         JCMethodDecl constructor = generateLambdaConstructor(localContext, classSym);
 
         // Create the method that implements the functional interface
-        JCMethodDecl samImpl = generateSAMImplementation(localContext, classSym, samMethod);
+        JCMethodDecl samImpl = generateSAMImplementation(localContext, classSym, samMethod, methodType);
 
         // Create fields for captured variables
         List<JCTree> capturedFields = generateCapturedFields(localContext, classSym);
@@ -645,12 +645,18 @@ public class LambdaCompiler extends TreeTranslator {
         classMembers.append(constructor);
         classMembers.append(samImpl);
 
+        List<JCTypeParameter> typeParameters = List.nil();
+        for(var type : functionalInterface.getTypeArguments()) {
+            if (type instanceof TypeVar var) {
+                typeParameters = typeParameters.append(make.TypeParam(type.tsym.name, var));
+            }   
+        }
         JCClassDecl classDecl = make.ClassDef(
                 make.Modifiers(FINAL | SYNTHETIC | PRIVATE | RECORD),
                 className,
-                List.nil(), // no type parameters
-                make.Type(functionalInterface), // implements functional interface
-                List.nil(), // no other interfaces
+                typeParameters,
+                make.Type(functionalInterface),
+                List.nil(),
                 classMembers.toList()
         );
         
@@ -808,14 +814,17 @@ public class LambdaCompiler extends TreeTranslator {
     /**
      * Generate the method that implements the functional interface
      */
-    private JCMethodDecl generateSAMImplementation(LambdaTranslationContext localContext, ClassSymbol classSym, MethodSymbol samMethod) {
+    private JCMethodDecl generateSAMImplementation(LambdaTranslationContext localContext,
+                                                   ClassSymbol classSym,
+                                                   MethodSymbol samMethod, 
+                                                   MethodType methodType) {
         JCLambda tree = localContext.tree;
 
         // Create method symbol for the SAM implementation
         MethodSymbol methodSym = new MethodSymbol(
                 PUBLIC | SYNTHETIC,
                 samMethod.name,
-                samMethod.type,
+                methodType,
                 classSym
         );
 
@@ -840,7 +849,7 @@ public class LambdaCompiler extends TreeTranslator {
         JCMethodDecl method = make.MethodDef(
                 make.Modifiers(PUBLIC | SYNTHETIC),
                 samMethod.name,
-                make.Type(samMethod.getReturnType()),
+                make.Type(methodType.getReturnType()),
                 List.nil(),
                 params.toList(),
                 samMethod.getThrownTypes() == null ? List.nil() : make.Types(samMethod.getThrownTypes()),
@@ -963,9 +972,10 @@ public class LambdaCompiler extends TreeTranslator {
 
         var constructor = (JCMethodDecl)lambdaClass.getMembers().get(lambdaClass.getMembers().size() - 2);
 
+        List<JCExpression> map = lambdaClass.getTypeParameters().map(t -> make.Type(t.type));
         JCNewClass newClass = make.NewClass(
                 null,
-                List.nil(),
+                map,
                 make.Ident(lambdaClass.sym),
                 args.toList(),
                 null

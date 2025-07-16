@@ -8,21 +8,8 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 22, dafnyErrors = 3, useBuiltinContracts = true, resolvePrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 22, dafnyErrors = 3, resolvePrintedDafny = true)
 public class Lambdas {
-
-//    void lambdaForGenericInterfaces() {
-//        foo(i -> i < 10 ? i + 2 : i);
-//        bar(i -> i > 10);
-//    }
-
-//    <T> void lambdaForGenericMethod() {
-//        zaz((T e) -> true);
-//    }
-
-//    void foo(IntFunction<Integer> function) {}
-//    void bar(Predicate<Integer> function) {}
-//    <T> void zaz(Predicate<T> function) {}
     
     public void useLambdas() {
         doSomethingTwice((x, y) -> x);

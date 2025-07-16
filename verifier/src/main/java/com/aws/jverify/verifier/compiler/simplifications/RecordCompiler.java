@@ -75,7 +75,7 @@ public class RecordCompiler {
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
-                    if ((methodDecl.mods.flags & Flags.SYNTHETIC) == 0) { // !isSyntheticCanonicalConstructor(methodDecl)) {
+                    if ((methodDecl.mods.flags & Flags.SYNTHETIC) == 0 && !isSyntheticCanonicalConstructor(methodDecl)) { // ) {
                         compiler.reportError(member, "notSupported", "explicit record constructor");
                     }
                     continue;
@@ -122,13 +122,17 @@ public class RecordCompiler {
      * Translates the given {@code new RecordType(...)} invocation into a {@link DatatypeValue}
      * that can be used in pure contexts.
      */
-    public static DatatypeValue translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
+    public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
         var argBindings = newClass.getArguments().stream()
                 .map(a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
-        
+
+        com.sun.tools.javac.util.List<Type> typeArgs = newClass.typeargs.map(expressionCompiler.compiler::translateType);
+        if (newClass.clazz instanceof JCTree.JCTypeApply typeApply) {
+            typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));
+        }
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
-        return new DatatypeValue(
-                origin, datatypeName, datatypeName,
-                new ActualBindings(argBindings));
+        var dafnyConstructor = new ExprDotName(
+                origin, new NameSegment(origin, datatypeName, typeArgs), expressionCompiler.compiler.getName(newClass, datatypeName), null);
+        return new ApplySuffix(origin, dafnyConstructor, null, new ActualBindings(argBindings), null);
     }
 }
