@@ -142,15 +142,7 @@ public class NameCompiler {
             if (classStats.sameNameFields()) {
                 result.append(methodPrefix);
             }
-            String name = s.name.toString();
-//            if (avoidCollisionsUsingUnderscores) {
-//                name = s.name.toString();
-//            } else {
-//                // TODO add test. Lambdas generate $'s signs
-//                name = s.name.toString().replace("$", "_");
-//            }
-            name = encodeName(name);
-            result.append(name);
+            result.append(encodeName(s.name.toString()));
         }
         if (willSuffixWithArguments) {
             return result.toString();
@@ -166,7 +158,7 @@ public class NameCompiler {
         if (name.startsWith("_")) {
             name = "a" + name;
         }
-        return name;
+        return name.replace('$', '_');
     }
     
     private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
