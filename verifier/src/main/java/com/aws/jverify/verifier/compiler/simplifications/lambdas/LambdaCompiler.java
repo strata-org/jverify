@@ -26,9 +26,7 @@
 package com.aws.jverify.verifier.compiler.simplifications.lambdas;
 
 import com.sun.tools.javac.code.*;
-import com.sun.tools.javac.code.Symbol.MethodHandleSymbol;
 import com.sun.tools.javac.comp.*;
-import com.sun.tools.javac.jvm.PoolConstant.LoadableConstant;
 //import com.sun.tools.javac.resources.CompilerProperties.Errors;
 //import com.sun.tools.javac.resources.CompilerProperties.Fragments;
 import com.sun.tools.javac.tree.*;
@@ -43,15 +41,13 @@ import com.sun.tools.javac.code.Symbol.TypeSymbol;
 import com.sun.tools.javac.code.Symbol.VarSymbol;
 import com.sun.tools.javac.code.Type.MethodType;
 import com.sun.tools.javac.code.Type.TypeVar;
-import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaToMethodAndClass.LambdaAnalyzerPreprocessor.*;
+import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaCompiler.LambdaAnalyzerPreprocessor.*;
 //import com.sun.tools.javac.comp.Lower.BasicFreeVarCollector;
 //import com.sun.tools.javac.resources.CompilerProperties.Notes;
 import com.sun.tools.javac.jvm.*;
 import com.sun.tools.javac.util.*;
-import com.sun.tools.javac.util.JCDiagnostic.DiagnosticPosition;
 import com.sun.source.tree.MemberReferenceTree.ReferenceMode;
 
-import java.awt.*;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,7 +58,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaToMethodAndClass.LambdaSymbolKind.*;
+import static com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaCompiler.LambdaSymbolKind.*;
 import static com.sun.tools.javac.code.Flags.*;
 import static com.sun.tools.javac.code.Kinds.Kind.*;
 import static com.sun.tools.javac.code.TypeTag.*;
@@ -82,7 +78,7 @@ import com.sun.tools.javac.util.List;
  *  This code and its internal interfaces are subject to change or
  *  deletion without notice.</b>
  */
-public class LambdaToMethodAndClass extends TreeTranslator {
+public class LambdaCompiler extends TreeTranslator {
 
     private Enter enter;
     private Attr attr;
@@ -132,16 +128,16 @@ public class LambdaToMethodAndClass extends TreeTranslator {
     public static final int FLAG_BRIDGES = 1 << 2;
 
     // <editor-fold defaultstate="collapsed" desc="Instantiating">
-    protected static final Context.Key<LambdaToMethodAndClass> unlambdaKey = new Context.Key<>();
+    protected static final Context.Key<LambdaCompiler> unlambdaKey = new Context.Key<>();
 
-    public static LambdaToMethodAndClass instance(Context context) {
-        LambdaToMethodAndClass instance = context.get(unlambdaKey);
+    public static LambdaCompiler instance(Context context) {
+        LambdaCompiler instance = context.get(unlambdaKey);
         if (instance == null) {
-            instance = new LambdaToMethodAndClass(context);
+            instance = new LambdaCompiler(context);
         }
         return instance;
     }
-    private LambdaToMethodAndClass(Context context) {
+    private LambdaCompiler(Context context) {
         context.put(unlambdaKey, this);
         diags = JCDiagnostic.Factory.instance(context);
         log = Log.instance(context);
@@ -1952,7 +1948,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
 
             // Create field symbol
             VarSymbol fieldSym = new VarSymbol(
-                    FINAL | SYNTHETIC | PRIVATE,
+                    FINAL | SYNTHETIC | PRIVATE | RECORD,
                     original.name,
                     original.type,
                     classSym
@@ -1971,7 +1967,7 @@ public class LambdaToMethodAndClass extends TreeTranslator {
             Symbol original = entry.getKey();
 
             VarSymbol fieldSym = new VarSymbol(
-                    FINAL | SYNTHETIC | PRIVATE,
+                    FINAL | SYNTHETIC | PRIVATE | RECORD,
                     names.fromString(original.flatName().toString().replace('.', '$') + "$captured"),
                     original.type,
                     classSym

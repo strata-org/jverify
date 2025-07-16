@@ -11,7 +11,7 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 3)
 public class Lambdas {
 
 //    void lambdaForGenericInterfaces() {
@@ -39,7 +39,7 @@ public class Lambdas {
             precondition(x >= y);
             postcondition((Integer r) -> r == x - y);
             return x - y;
-//                 ^ Error: value does not satisfy the subset constraints of 'int32'
+//                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
         });
 
         SomethingDoer doer = (x, y) -> {

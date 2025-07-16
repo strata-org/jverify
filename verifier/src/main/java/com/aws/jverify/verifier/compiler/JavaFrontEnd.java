@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.verifier.VerifierOptions;
-import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaToMethodAndClass;
+import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaCompiler;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.ClientCodeWrapper;
@@ -186,7 +186,7 @@ public class JavaFrontEnd {
         // to not waste time with these traversals.
         // We could do the same here to save time in the future.
         for (Env<AttrContext> env : envs) {
-            env.tree = LambdaToMethodAndClass.instance(context).translateTopLevelClass(env, env.tree, localMake);
+            env.tree = LambdaCompiler.instance(context).translateTopLevelClass(env, env.tree, localMake);
         }
         return envs;
     }
