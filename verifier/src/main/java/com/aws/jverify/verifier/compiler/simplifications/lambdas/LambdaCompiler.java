@@ -49,6 +49,7 @@ import com.sun.source.tree.MemberReferenceTree.ReferenceMode;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -667,6 +668,25 @@ public class LambdaCompiler extends TreeTranslator {
     private List<JCTree> generateCapturedFields(LambdaTranslationContext localContext, ClassSymbol classSym) {
         ListBuffer<JCTree> fields = new ListBuffer<>();
 
+        for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_THIS).entrySet()) {
+            Symbol original = entry.getKey();
+
+            // Create field symbol
+            VarSymbol fieldSym = new VarSymbol(
+                    FINAL | SYNTHETIC | PRIVATE | RECORD,
+                    names.fromString(original.flatName().toString().replace('.', '$') + "$captured"),
+                    original.type,
+                    classSym
+            );
+
+            // Create field declaration
+            JCVariableDecl field = make.VarDef(fieldSym, null);
+            fields.append(field);
+
+            // Add to class members
+            classSym.members().enter(fieldSym);
+        }
+        
         // Add fields for captured variables
         for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_VAR).entrySet()) {
             Symbol original = entry.getKey();
@@ -716,39 +736,13 @@ public class LambdaCompiler extends TreeTranslator {
 
         // Add parameters and initialization for captured variables
         for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_VAR).entrySet()) {
-            Symbol original = entry.getKey();
-
-            // Constructor parameter
-            VarSymbol paramSym = new VarSymbol(
-                    FINAL | PARAMETER,
-                    original.name,
-                    original.type,
-                    null // will be set when method is created
-            );
-            params.append(make.VarDef(paramSym, null));
-
-            // Assignment in constructor body: this.field = param
-            JCFieldAccess fieldAccess = make.Select(makeThis(classSym), original);
-            JCAssign assign = make.Assign(fieldAccess, makeIdent(paramSym));
-            body.append(make.Exec(assign));
+            handleCaptureVariable(classSym, entry, params, body);
         }
-
-        // Handle captured outer this
+        for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_THIS).entrySet()) {
+            handleCaptureVariable(classSym, entry, params, body);
+        }
         for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_OUTER_THIS).entrySet()) {
-            Symbol original = entry.getKey();
-            Name fieldName = names.fromString(original.flatName().toString().replace('.', '$') + "$captured");
-
-            VarSymbol paramSym = new VarSymbol(
-                    FINAL | PARAMETER,
-                    fieldName,
-                    original.type,
-                    null
-            );
-            params.append(make.VarDef(paramSym, null));
-
-            JCFieldAccess fieldAccess = make.Select(makeThis(classSym), original);
-            JCAssign assign = make.Assign(fieldAccess, makeIdent(paramSym));
-            body.append(make.Exec(assign));
+            handleCaptureVariable(classSym, entry, params, body);
         }
 
         // Create constructor method symbol
@@ -779,6 +773,25 @@ public class LambdaCompiler extends TreeTranslator {
         classSym.members().enter(constructorSym);
         
         return constructor;
+    }
+
+    private void handleCaptureVariable(ClassSymbol classSym, Map.Entry<Symbol, Symbol> entry, ListBuffer<JCVariableDecl> params, ListBuffer<JCStatement> body) {
+        Symbol original = entry.getKey();
+        Symbol translatedSym = entry.getValue();
+
+        // Constructor parameter
+        VarSymbol paramSym = new VarSymbol(
+                FINAL | PARAMETER,
+                translatedSym.name,
+                translatedSym.type,
+                null // will be set when method is created
+        );
+        params.append(make.VarDef(paramSym, null));
+
+        // Assignment in constructor body: this.field = param
+        JCFieldAccess fieldAccess = make.Select(makeThis(classSym), translatedSym);
+        JCAssign assign = make.Assign(fieldAccess, makeIdent(paramSym));
+        body.append(make.Exec(assign));
     }
 
     private JCIdent makeThis(ClassSymbol currentClassSymbol) {
@@ -861,6 +874,15 @@ public class LambdaCompiler extends TreeTranslator {
                     JCFieldAccess fieldAccess = make.Select(makeThis(classSym), tree.sym);
                     fieldAccess.type = tree.type;
                     result = fieldAccess;
+                    return;
+                }
+
+                var translatedThis = localContext.getSymbolMap(CAPTURED_THIS).get(tree.sym);
+                if (translatedThis != null) {
+                    // Replace with field access: this.capturedVar
+                    JCFieldAccess fieldAccess = make.Select(makeThis(classSym), translatedThis);
+                    fieldAccess.type = tree.type;
+                    result = fieldAccess;
                 } else {
                     super.visitIdent(tree);
                 }
@@ -930,6 +952,10 @@ public class LambdaCompiler extends TreeTranslator {
             }
         }
 
+        for (Symbol this_ : localContext.getSymbolMap(CAPTURED_THIS).keySet()) {
+            args.append(make.This(this_.type));
+        }
+        
         // Add captured outer this
         for (Symbol outerThis : localContext.getSymbolMap(CAPTURED_OUTER_THIS).keySet()) {
             args.append(make.QualThis(outerThis.type));

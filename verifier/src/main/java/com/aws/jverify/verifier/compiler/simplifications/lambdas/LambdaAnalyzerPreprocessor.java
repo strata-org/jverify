@@ -197,7 +197,7 @@ class LambdaAnalyzerPreprocessor extends TreeTranslator {
                             case CLASSDEF:
                                 JCTree.JCClassDecl cdecl = (JCTree.JCClassDecl) block;
                                 ((LambdaTranslationContext) localContext)
-                                        .addSymbol(cdecl.sym, CAPTURED_THIS);
+                                        .addSymbol(tree.sym, CAPTURED_THIS);
                                 break;
                             default:
                                 Assert.error("bad block kind");
@@ -343,7 +343,8 @@ class LambdaAnalyzerPreprocessor extends TreeTranslator {
         ReferenceTranslationContext rcontext = new ReferenceTranslationContext(tree);
         lambdaCompiler.contextMap.put(tree, rcontext);
         MemberReferenceToLambda conv = new MemberReferenceToLambda(this.lambdaCompiler, tree, rcontext, owner());
-        analyzeLambda(conv.lambda(), conv.getReceiverExpression());
+        JCTree.JCLambda lambda = conv.lambda();
+        analyzeLambda(lambda, conv.getReceiverExpression());
     }
 
     @Override
@@ -797,7 +798,15 @@ class LambdaAnalyzerPreprocessor extends TreeTranslator {
             Symbol ret;
             switch (skind) {
                 case CAPTURED_THIS:
-                    ret = sym;  // self represented
+                    ret = new Symbol.VarSymbol(SYNTHETIC | FINAL | PARAMETER, 
+                            lambdaCompiler.names.fromString(sym.name.toString() + "$captured"), 
+                            sym.type, translatedSym) {
+                        @Override
+                        public Symbol baseSymbol() {
+                            //keep mapping with original captured symbol
+                            return sym;
+                        }
+                    };
                     break;
                 case CAPTURED_VAR:
                     ret = new Symbol.VarSymbol(SYNTHETIC | FINAL | PARAMETER, sym.name, sym.type, translatedSym) {

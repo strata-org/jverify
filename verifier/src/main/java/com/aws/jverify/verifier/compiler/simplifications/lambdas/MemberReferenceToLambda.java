@@ -42,7 +42,7 @@ class MemberReferenceToLambda {
 
             //body generation - this can be either a method call or a
             //new instance creation expression, depending on the member reference kind
-            Symbol.VarSymbol rcvr = addParametersReturnReceiver();
+            var rcvr = addParametersReturnReceiver();
             JCTree.JCExpression expr = (tree.getMode() == MemberReferenceTree.ReferenceMode.INVOKE)
                     ? expressionInvoke(rcvr)
                     : expressionNew();
@@ -67,13 +67,12 @@ class MemberReferenceToLambda {
         List<Type> samPTypes = samDesc.getParameterTypes();
         List<Type> descPTypes = tree.getDescriptorType(lambdaCompiler.types).getParameterTypes();
 
+        Symbol.VarSymbol rcvr = null;
         // Determine the receiver, if any
-        Symbol.VarSymbol rcvr;
         switch (tree.kind) {
             case BOUND:
                 // The receiver is explicit in the method reference
-                rcvr = addParameter("rec$", tree.getQualifierExpression().type, false);
-                receiverExpression = lambdaCompiler.attr.makeNullCheck(tree.getQualifierExpression());
+                // receiverExpression = lambdaCompiler.attr.makeNullCheck(tree.getQualifierExpression());
                 break;
             case UNBOUND:
                 // The receiver is the first parameter, extract it and
@@ -83,7 +82,6 @@ class MemberReferenceToLambda {
                 descPTypes = descPTypes.tail;
                 break;
             default:
-                rcvr = null;
                 break;
         }
         List<Type> implPTypes = tree.sym.type.getParameterTypes();
@@ -130,7 +128,7 @@ class MemberReferenceToLambda {
         for (int i = last; i < samSize; ++i) {
             addParameter("xva$" + i, tree.varargsElement, true);
         }
-
+        
         return rcvr;
     }
 

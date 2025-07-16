@@ -34,6 +34,7 @@ public class Lambdas {
         doSomethingTwice((x, y) -> z);
 
         doSomethingTwice(this::add);
+        useTakesLambdas(Lambdas::add);
         doSomethingTwice(Lambdas::staticAdd);
         doSomethingWithSpecTwice((x, y) -> {
             precondition(x >= y);
@@ -57,6 +58,12 @@ public class Lambdas {
         makeSomeClass(SomeClass::new);
     }
 
+    interface TakesLambdas {
+        int sam(Lambdas lambdas, int x, int y);
+    }
+    
+    void useTakesLambdas(TakesLambdas takesLambdas) {}
+    
     public void doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         var z = doer.doSomething(2, y);
