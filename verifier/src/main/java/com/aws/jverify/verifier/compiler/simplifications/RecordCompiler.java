@@ -75,7 +75,7 @@ public class RecordCompiler {
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
-                    if ((methodDecl.mods.flags & Flags.SYNTHETIC) == 0 && !isSyntheticCanonicalConstructor(methodDecl)) { // ) {
+                    if ((methodDecl.mods.flags & Flags.SYNTHETIC) == 0 && !isSyntheticCanonicalConstructor(methodDecl)) {
                         compiler.reportError(member, "notSupported", "explicit record constructor");
                     }
                     continue;
