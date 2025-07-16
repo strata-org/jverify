@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 1, resolvePrintedDafny = true)
+@JVerifyTest(exitCode = 0, dafnyVerified = 1, dafnyErrors = 0, resolvePrintedDafny = true)
 public class ResolvePrintedDafny {
 
     void function(int function) {}

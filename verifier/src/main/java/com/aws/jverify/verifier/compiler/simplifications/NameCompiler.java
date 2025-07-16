@@ -9,6 +9,7 @@ import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness at the Dafny level.
@@ -39,6 +40,8 @@ public class NameCompiler {
     private final ExternalContractCompiler contractCompiler;
     private final boolean avoidCollisionsUsingUnderscores;
 
+    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method");
+    
     public NameCompiler(ExternalContractCompiler contractCompiler, boolean avoidCollisionsUsingUnderscores) {
         this.contractCompiler = contractCompiler;
         this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
@@ -78,34 +81,42 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
-                var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
-                if (newTarget != null) {
-                    return uncachedGetCompiledName(newTarget);
-                }
-                var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
-                if (occurrenceCount == null || occurrenceCount > 1) {
-                    return classSymbol.getQualifiedName().toString().replace(".", "_");
-                }
-                return classSymbol.name.toString();
+                return getClassName(classSymbol);
             }
             case Symbol.MethodSymbol m -> {
                 return getMethodName(m);
             }
             case Symbol.VarSymbol varSymbol -> {
-                if (varSymbol.getKind().isField()
-                        || varSymbol.getKind() == ElementKind.RECORD_COMPONENT) {
-                    return getFieldName(varSymbol);
-                } else { // Local variable, do not change
-                    if (s.name.isEmpty()) {
-                        return "unnamed";
-                    }
-                    return s.name.toString();
-                }
+                return getVariableName(s, varSymbol);
             }
             default -> {
                 return s.name.toString();
             }
         }
+    }
+
+    private String getVariableName(Symbol s, Symbol.VarSymbol varSymbol) {
+        if (varSymbol.getKind().isField()
+                || varSymbol.getKind() == ElementKind.RECORD_COMPONENT) {
+            return getFieldName(varSymbol);
+        } else { // Local variable, do not change
+            if (s.name.isEmpty()) {
+                return "unnamed";
+            }
+            return encodeName(s.name.toString());
+        }
+    }
+
+    private String getClassName(Symbol.ClassSymbol classSymbol) {
+        var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
+        if (newTarget != null) {
+            return uncachedGetCompiledName(newTarget);
+        }
+        var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
+        if (occurrenceCount == null || occurrenceCount > 1) {
+            return classSymbol.getQualifiedName().toString().replace(".", "_");
+        }
+        return encodeName(classSymbol.name.toString());
     }
 
     private String getFieldName(Symbol.VarSymbol s) {
@@ -116,7 +127,7 @@ public class NameCompiler {
         if (classStats.methodsWithThisName > 0) {
             return fieldPrefix + s.name.toString();
         }
-        return s.name.toString();
+        return encodeName(s.name.toString());
     }
 
     private String getMethodName(Symbol.MethodSymbol s) {
@@ -131,7 +142,15 @@ public class NameCompiler {
             if (classStats.sameNameFields()) {
                 result.append(methodPrefix);
             }
-            result.append(s.name);
+            String name = s.name.toString();
+//            if (avoidCollisionsUsingUnderscores) {
+//                name = s.name.toString();
+//            } else {
+//                // TODO add test. Lambdas generate $'s signs
+//                name = s.name.toString().replace("$", "_");
+//            }
+            name = encodeName(name);
+            result.append(name);
         }
         if (willSuffixWithArguments) {
             return result.toString();
@@ -140,6 +159,16 @@ public class NameCompiler {
         return result.toString();
     }
 
+    private String encodeName(String name) {
+        if (reservedDafnyNames.contains(name)) {
+            name = "r_" + name;
+        }
+        if (name.startsWith("_")) {
+            name = "a" + name;
+        }
+        return name;
+    }
+    
     private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
         List<Type> argTypes;
         if (method.type instanceof MethodType m) {
