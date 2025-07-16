@@ -31,6 +31,7 @@ public class NameCompiler {
     public String CLASS_PREFIX = "Constructable_";
     public String INIT_METHOD_PREFIX = "init_";
     public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
+    public String LOCAL_VARIABLE_PREFIX = "g_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
@@ -47,6 +48,7 @@ public class NameCompiler {
             CLASS_PREFIX += "_";
             IMPLEMENTATION_METHOD_PREFIX += "_";
             METHOD_RETURN_VARIABLE_NAME += "#";
+            LOCAL_VARIABLE_PREFIX = "$";
         }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
