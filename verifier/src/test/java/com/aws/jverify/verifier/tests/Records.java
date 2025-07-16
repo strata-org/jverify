@@ -108,8 +108,8 @@ record BasicConsList(String head, @Nullable Wrapper<BasicConsList> tail) {}
 record Vec3(int x, int y, int z) {
     @Pure
     public int max() {
-        postcondition((Integer m) -> m >= x && m >= y && m >= z);
-        postcondition((Integer m) -> m == x || m == y || m == z);
+        postcondition((int m) -> m >= x && m >= y && m >= z);
+        postcondition((int m) -> m == x || m == y || m == z);
         return (x >= y && x >= z) ? x
                 : (y >= z ? y : z);
     }

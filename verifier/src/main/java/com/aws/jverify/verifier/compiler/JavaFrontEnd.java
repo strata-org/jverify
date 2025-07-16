@@ -13,6 +13,7 @@ import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -136,8 +137,12 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    var envs = unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo)))));
+                    var envs = partialLower(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo))))));
                     envs.stream().forEach(env -> units.add(new JVerifyCompilationUnit(env.toplevel, env.toplevel.defs)));
+
+//                    var enter = Enter.instance(context);
+//                    var newUnits = partialLower(envs);
+//                    units.addAll(newUnits);
                 }
             }
         });
@@ -192,19 +197,45 @@ public class JavaFrontEnd {
         return envs;
     }
 
-    private List<JVerifyCompilationUnit> partialLower(Queue<Env<AttrContext>> envs) {
+    private Queue<Env<AttrContext>> partialLower(Queue<Env<AttrContext>> envs) {
+        for (Env<AttrContext> env : envs) {
+            env.tree = PartialLower.instance(context).translate(env.tree);
+        }
+        return envs;
+    }
+
+    private List<JVerifyCompilationUnit> partialLower2(Queue<Env<AttrContext>> envs) {
         TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
         ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
 
-        // Note JavaCompiler.desugar has some additional logic to
-        // scan for classes that have lambdas first,
-        // to not waste time with these traversals.
-        // We could do the same here to save time in the future.
         for (Env<AttrContext> env : envs) {
             com.sun.tools.javac.util.List<JCTree> classes = Lower.instance(context).translateTopLevelClass(env, env.tree, localMake);
             JVerifyCompilationUnit newUnit = new JVerifyCompilationUnit(env.toplevel, classes);
             results.add(newUnit);
         }
         return results.toList();
+    }
+
+    private static class PartialLower extends TreeTranslator {
+
+        protected static final Context.Key<PartialLower> partialLowerKey = new Context.Key<>();
+
+        private final Lower lower;
+
+        public PartialLower(Context context) {
+            lower = Lower.instance(context);
+        }
+
+        public static PartialLower instance(Context context) {
+            PartialLower instance = context.get(partialLowerKey);
+            if (instance == null)
+                instance = new PartialLower(context);
+            return instance;
+        }
+
+        @Override
+        public void visitNewClass(JCTree.JCNewClass tree) {
+            lower.visitNewClass(tree);
+        }
     }
 }
