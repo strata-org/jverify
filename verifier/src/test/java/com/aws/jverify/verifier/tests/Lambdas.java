@@ -4,14 +4,11 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import java.util.function.IntFunction;
-import java.util.function.Predicate;
-
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 22, dafnyErrors = 3, resolvePrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 22, dafnyErrors = 3, useBuiltinContracts = true, resolvePrintedDafny = true)
 public class Lambdas {
 
 //    void lambdaForGenericInterfaces() {
