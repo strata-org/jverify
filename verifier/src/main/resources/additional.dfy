@@ -11,8 +11,6 @@ type int64 = x: int | -0x8000_0000_0000_0000 <= x <= 0x7fff_ffff_ffff_ffff
 type char16 = i: int | 0x0000 <= i <= 0xffff
 type jstring = seq<char16>
 
-trait java_lang_Object {}
-
 function JString(s: string): jstring
   requires forall i | 0 <= i < |s| :: 0x0000 <= s[i] as int <= 0xffff
 {

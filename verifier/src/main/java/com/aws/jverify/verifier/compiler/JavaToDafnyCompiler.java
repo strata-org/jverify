@@ -11,14 +11,12 @@ import com.sun.source.tree.*;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
-import com.sun.tools.javac.comp.AttrContext;
-import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.comp.Enter;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
@@ -63,6 +61,7 @@ public class JavaToDafnyCompiler {
     private boolean translatingVerifiedMethodSignature;
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
+    public static final String objectFile = "/object-contract.java";
     
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -81,6 +80,8 @@ public class JavaToDafnyCompiler {
             builtinSource = new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
             files.add(builtinSource);
         }
+        var contractSource = new SourceFile("object-contract.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
+        files.add(contractSource);
         
         Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
@@ -114,7 +115,7 @@ public class JavaToDafnyCompiler {
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
-            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
+            var isLibrary = isLibrary(compilationUnit);
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
@@ -127,6 +128,10 @@ public class JavaToDafnyCompiler {
         }
 
         return new FilesContainer(filesStarts);
+    }
+
+    private boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
+        return compilationUnit.getSourceFile() == builtinSource;
     }
 
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
@@ -245,18 +250,12 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean typeHasAContract(com.sun.tools.javac.code.Type type) {
-        return (type.tsym != null && type.tsym.getQualifiedName().contentEquals("java.lang.Object")) || 
-                externalContractCompiler.externalContracts.containsKey(type.tsym) || typeHasSource(type.tsym);
+        return externalContractCompiler.externalContracts.containsKey(type.tsym) || typeHasSource(type.tsym);
     }
 
     public boolean typeHasSource(Symbol.TypeSymbol typeSymbol) {
         var trees = JavacTrees.instance(context);
         return trees.getTree(typeSymbol) != null;
-    }
-
-    // TODO this does not seem to be fully used or working, and we've replaced it with the library concept now. So remove?
-    private boolean isAlreadyVerified() {
-        return compilationUnit.getSourceFile().getName().equals(builtinFile);
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
@@ -278,11 +277,7 @@ public class JavaToDafnyCompiler {
     }
 
     public Attributes getAttributes(IOrigin origin) {
-        return isAlreadyVerified() ? getVerifyFalse(origin) : null;
-    }
-
-    private static Attributes getVerifyFalse(IOrigin origin) {
-        return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
+        return null;
     }
 
     private boolean isNullable(JCTree.JCModifiers modifiers) {
@@ -510,7 +505,9 @@ public class JavaToDafnyCompiler {
                     }
                     return translateType(superBound, origin);
                 }
-                return new UserDefinedType(origin, new NameSegment(origin, "java_lang_Object", null));
+                Symtab symtab = Symtab.instance(context);
+                var name = nameCompiler.getCompiledName(symtab.objectType.tsym);
+                return new UserDefinedType(origin, new NameSegment(origin, name, null));
             }
             default -> {
             }

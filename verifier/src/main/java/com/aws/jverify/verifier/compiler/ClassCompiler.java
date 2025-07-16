@@ -13,6 +13,7 @@ import com.sun.source.tree.Tree;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -187,8 +188,14 @@ public class ClassCompiler {
         return typarams.stream().map(p -> {
             var name = compiler.getName(p, p.getName());
             var bounds = p.bounds.map(compiler::translateType);
+            
             IOrigin origin = compiler.toOrigin(p);
-            bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, "java_lang_Object", null)));
+            if (!this.compiler.verifierOptions.includeBuiltinContracts()) {
+                // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones. 
+                Symtab symtab = Symtab.instance(compiler.context);
+                var objectName = compiler.nameCompiler.getCompiledName(symtab.objectType.tsym);
+                bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, objectName, null)));
+            }
             return new TypeParameter(origin,
                     name, null, TPVarianceSyntax.NonVariant_Strict,
                     new TypeParameterCharacteristics(

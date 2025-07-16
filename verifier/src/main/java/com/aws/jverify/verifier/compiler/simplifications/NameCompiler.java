@@ -113,8 +113,7 @@ public class NameCompiler {
             return uncachedGetCompiledName(newTarget);
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
-        boolean isObject = classSymbol.getQualifiedName().contentEquals("java.lang.Object");
-        if (occurrenceCount == null || occurrenceCount > 1 || isObject) {
+        if (occurrenceCount == null || occurrenceCount > 1) {
             return classSymbol.getQualifiedName().toString().replace(".", "_");
         }
         return encodeName(classSymbol.name.toString());
