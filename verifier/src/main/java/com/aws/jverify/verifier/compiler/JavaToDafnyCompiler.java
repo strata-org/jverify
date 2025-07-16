@@ -96,20 +96,20 @@ public class JavaToDafnyCompiler {
          */
         parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
-        var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
+        var foundClassSymbols = new HashMap<Symbol.ClassSymbol, JCTree.JCCompilationUnit>();
         for (var compilationUnit : parsed) {
             externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
-        for(var foundClassSymbol : foundClassSymbols) {
+        for(var foundClassSymbol : foundClassSymbols.keySet()) {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
         
         externalContractCompiler.registerExternalContracts();
         
-        compileSymbolsTopologically();
+        compileSymbolsTopologically(foundClassSymbols);
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
@@ -129,7 +129,7 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
 
-    private void compileSymbolsTopologically() {
+    private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
         var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
         iterator.forEachRemaining(itemsFromChildrenToParents::add);
@@ -138,12 +138,8 @@ public class JavaToDafnyCompiler {
             if (relatedDeclarations == null) {
                 continue;
             }
+            compilationUnit = symbolToCompilationUnit.get(currentTypeSymbol);
             for(var relatedDeclaration : relatedDeclarations) {
-                Enter enter = Enter.instance(context);
-                Env<AttrContext> env = enter.getEnv(relatedDeclaration.sym);
-                if (env != null) {
-                    compilationUnit = env.toplevel;
-                }
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
