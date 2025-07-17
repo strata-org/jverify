@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.BlockCompiler;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
@@ -61,6 +62,13 @@ public class RecordCompiler {
                 .map(com.sun.tools.javac.util.Name::toString)
                 .collect(Collectors.toSet());
         var members = new ArrayList<MemberDecl>();
+        List<JCTree.JCVariableDecl> fields = new ArrayList<>();
+        for (var member : classDecl.getMembers()) {
+            if (member instanceof JCTree.JCVariableDecl varDecl
+                    && compNames.contains(varDecl.getName().toString())) {
+                fields.add(varDecl);
+            }
+        }
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl varDecl
                     && compNames.contains(varDecl.getName().toString()) ) {
@@ -72,25 +80,37 @@ public class RecordCompiler {
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
                     String resultName = "resultName";
+                    NameSegment resultReference = new NameSegment(origin, resultName, null);
                     compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> {
-                        return new NameSegment(innerOrigin, resultName, null);
+                        return resultReference;
                     };
                     var dafnyMember = classCompiler.translateMember(member);
                     compiler.expressionCompiler.handleThis = null;
-                    if (dafnyMember instanceof Constructor constructor && constructor.getBody() == null) {
-                        var out = new Formal(constructor.getOrigin(), new Name(constructor.getOrigin(), resultName),
-                                compiler.translateType(classDecl.type, constructor.getOrigin()), false, false, null, null, false, false, false, null);
-                        var staticMethod = new Method(constructor.getOrigin(), constructor.getNameNode(), 
-                                constructor.getAttributes(), false, null, constructor.getTypeArgs(),
-                                constructor.getIns(), constructor.getReq(), constructor.getEns(),
-                                constructor.getReads(), constructor.getDecreases(), constructor.getMod(), true, 
-                                List.of(out),
-                                null, false);
-                        members.add(staticMethod);
-                    } else {
-                        if (!isSyntheticCanonicalConstructor(methodDecl)) {
-                            compiler.reportError(member, "notSupported", "explicit record constructor");
+                    if (dafnyMember instanceof Constructor constructor &&
+                            (constructor.getBody() == null || isSyntheticCanonicalConstructor(methodDecl))) {
+
+                        List<AttributedExpression> ens = constructor.getEns();
+                        var shouldAddImplicitContract = isSyntheticCanonicalConstructor(methodDecl);
+                        if (shouldAddImplicitContract) {
+                            ens = new ArrayList<>();
+                            for(var field : fields) {
+                                String paramName = field.name.toString();
+                                var paramReference = new NameSegment(origin, paramName, null);
+                                Name fieldNameNode = new Name(origin, this.compiler.nameCompiler.getCompiledName(field.sym));
+                                var ensExpression = new BinaryExpr(origin, BinaryExprOpcode.Eq,
+                                        new ExprDotName(origin, resultReference, fieldNameNode, null), paramReference);
+                                ens.add(new AttributedExpression(ensExpression, null, null));
+                            }
                         }
+                        
+                        Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
+                        Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
+                        var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
+                            constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
+                        true, false, result, outType, null, null, null);
+                        members.add(staticFunction);
+                    } else {
+                        compiler.reportError(member, "notSupported", "verified explicit record constructor");
                     }
                     continue;
                 }
@@ -121,7 +141,7 @@ public class RecordCompiler {
     /**
      * Returns whether the declaration is a record's synthetic (implicit) canonical constructor.
      */
-    private static boolean isSyntheticCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
+    public static boolean isSyntheticCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
         // Ideally we'd check for the SYNTHETIC flag, but it's not set.
         // So instead we check for its body: just a lone "super()" call.
         var body = methodDecl.getBody().getStatements();
@@ -136,13 +156,19 @@ public class RecordCompiler {
      * Translates the given {@code new RecordType(...)} invocation into a {@link DatatypeValue}
      * that can be used in pure contexts.
      */
-    public static DatatypeValue translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
+    public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
         var argBindings = newClass.getArguments().stream()
                 .map(a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
         
+        com.sun.tools.javac.util.List<Type> typeArgs = newClass.typeargs.map(expressionCompiler.compiler::translateType);
+        if (newClass.clazz instanceof JCTree.JCTypeApply typeApply) {
+            typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));
+        }
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
-        return new DatatypeValue(
-                origin, datatypeName, datatypeName,
-                new ActualBindings(argBindings));
+        var constructorName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
+
+        NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
+        var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.compiler.getName(newClass, constructorName), null);
+        return new ApplySuffix(origin, dafnyConstructor, null, new ActualBindings(argBindings), null);
     }
 }
