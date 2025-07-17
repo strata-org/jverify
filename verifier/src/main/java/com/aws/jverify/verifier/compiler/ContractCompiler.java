@@ -18,47 +18,41 @@ public class ContractCompiler {
         this.compiler = compiler;
     }
 
-    /**
-     * @see #translateHeader(List, MethodOrLoopContract, boolean, boolean)
-     */
     public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, 
-                                                    MethodOrLoopContract header,
-                                                    boolean allowEnd,
+                                                    MethodOrLoopContract contract,
+                                                    boolean allowFooterButNotHeader,
                                                     boolean reportErrors) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return translateHeader(statements, header, allowEnd, reportErrors);
+        return translateHeader(statements, contract, allowFooterButNotHeader, reportErrors);
     }
     
-    /**
-     * Translates header statements from the start of {@code statements}
-     * until the first non-header statement or the end of the list,
-     * appending the translations to the given {@link MethodOrLoopContract},
-     * and returning a list view of the remaining statements.
-     *
-     * <p>NOTE: The list view is constructed using {@link List#subList(int, int)} and has the corresponding caveats;
-     * namely, that it is backed by the original list.
-     */
     public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements,
-                                                    MethodOrLoopContract header,
-                                                    boolean allowEnd,
+                                                    MethodOrLoopContract contract,
+                                                    boolean allowFooterButNotHeader,
                                                     boolean reportErrors) {
-        int i;
-        for (i = 0; i < statements.size(); i++) {
-            var statement = statements.get(i);
-            boolean foundHeader = handleStatement(statement, header, reportErrors);
-            if (!foundHeader) {
-                break;
+        int headerContracts;
+        if (!allowFooterButNotHeader) {
+            int i;
+            for (i = 0; i < statements.size(); i++) {
+                var statement = statements.get(i);
+                boolean foundHeader = handleStatement(statement, contract, reportErrors);
+                if (!foundHeader) {
+                    break;
+                }
             }
+            headerContracts = i;
+        } else {
+            headerContracts = 0;
         }
-        var headerContracts = i;
 
         int footerContracts;
-        if (allowEnd) {
+        if (allowFooterButNotHeader) {
+            int i;
             for (i = statements.size() - 1; i > headerContracts; i--) {
                 var statement = statements.get(i);
-                boolean foundHeader = handleStatement(statement, header, reportErrors);
+                boolean foundHeader = handleStatement(statement, contract, reportErrors);
                 if (!foundHeader) {
                     break;
                 }

@@ -154,8 +154,8 @@ class Foobar {
     int id;
 
     Foobar(int id) {
-        postcondition((Foobar instance) -> instance.id == id);
         this.id = id;
+        postcondition((Foobar instance) -> instance.id == id);
     }
 }
 

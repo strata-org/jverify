@@ -49,7 +49,7 @@ public class ClassCompiler {
                     }
                     // Don't report errors when extracting this contract here,
                     // since the actual translation of the method will report them.
-                    var header = new BlockCompiler(compiler).extractContract(methodDecl, false);
+                    var header = new BlockCompiler(compiler, methodDecl.sym).extractContract(methodDecl, false);
                     compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             } else {
@@ -298,7 +298,7 @@ public class ClassCompiler {
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
-        var blockCompiler = new BlockCompiler(compiler);
+        var blockCompiler = new BlockCompiler(compiler, methodSymbol);
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
         var isStatic = JavaToDafnyCompiler.isStatic(modifiers);

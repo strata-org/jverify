@@ -6,13 +6,12 @@ import static com.aws.jverify.JVerify.postcondition;
 
 @JVerifyTest(dafnyVerified = 1, dafnyErrors = 0)
 public class Constructors {
-}
+    class Box {
+        private final int value;
 
-class Box {
-    private final int value;
-
-    public Box(int value_) {
-        this.value = value_;
-        postcondition(this.value == value_);
+        public Box(int value_) {
+            this.value = value_;
+            postcondition(this.value == value_);
+        }
     }
 }

@@ -17,10 +17,12 @@ import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructo
 public class BlockCompiler {
 
     public final JavaToDafnyCompiler compiler;
+    private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
 
-    public BlockCompiler(JavaToDafnyCompiler compiler) {
+    public BlockCompiler(JavaToDafnyCompiler compiler, Symbol.MethodSymbol methodSymbol) {
         this.compiler = compiler;
+        this.methodSymbol = methodSymbol;
         statementCompilers.add(new ForLoopCompiler(this));
         statementCompilers.add(new DoWhileLoopCompiler(this));
         statementCompilers.add(new ImpureExpressionStatementCompiler(this));
@@ -233,7 +235,11 @@ public class BlockCompiler {
             return List.of(new AssertStmt(compiler.toOrigin(invocation), null,
                     compiler.expressionCompiler.toExpr(invocation.args.getFirst()), null));
         } else {
-            compiler.reportError(invocation, "contractAfterBody", jverifyMethod.getQualifiedName());
+            if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
+                compiler.reportError(invocation, "contractBeforeBody");
+            } else {
+                compiler.reportError(invocation, "contractAfterBody");
+            }
             return List.of();
         }
     }
