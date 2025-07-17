@@ -8,8 +8,6 @@ import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompile
 import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
-import com.sun.source.tree.*;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -20,7 +18,6 @@ import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.comp.Enter;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
@@ -90,7 +87,13 @@ public class JavaToDafnyCompiler {
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
-        
+
+        JVerifyIndex index = JVerifyIndex.instance(context);
+        for (JVerifyCompilationUnit unit : parsedSet) {
+            for (JCTree tree : unit.newDefs()) {
+                index.index(unit.env(), tree);
+            }
+        }
         var parsed = new ArrayList<>(parsedSet);
 
         /*
@@ -98,12 +101,12 @@ public class JavaToDafnyCompiler {
          * To work around this bug, the built-in contracts file must be serialized after 
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
-        parsed.sort(Comparator.comparing(f -> f.unit().getSourceFile().toUri().toString()));
+        parsed.sort(Comparator.comparing(f -> f.env().toplevel.getSourceFile().toUri().toString()));
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
             externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
-            declarationsForFile.put(compilationUnit.unit(), new ArrayList<>());
+            declarationsForFile.put(compilationUnit.env().toplevel, new ArrayList<>());
         }
         
         for(var foundClassSymbol : foundClassSymbols) {
@@ -121,17 +124,17 @@ public class JavaToDafnyCompiler {
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
-            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit.unit());
-            var isLibrary = compilationUnit.unit().getSourceFile() == builtinSource;
+            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit.env().toplevel);
+            var isLibrary = compilationUnit.env().toplevel.getSourceFile() == builtinSource;
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
                     case TokenRangeOrigin tokenRangeOrigin -> tokenRangeOrigin.getStartToken();
                     default -> throw new RuntimeException();
                 };
-                return compilationUnit.unit().getLineMap().getPosition(startToken.getLine(), startToken.getCol());
+                return compilationUnit.env().toplevel.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
             }));
-            filesStarts.add(new FileHeader(compilationUnit.unit().sourcefile.toUri().toString(), isLibrary, fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.env().toplevel.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
@@ -147,8 +150,9 @@ public class JavaToDafnyCompiler {
                 continue;
             }
             for(var relatedDeclaration : relatedDeclarations) {
-                Enter enter = Enter.instance(context);
-                Env<AttrContext> env = enter.getEnv(relatedDeclaration.sym);
+//                Enter enter = Enter.instance(context);
+                JVerifyIndex index = JVerifyIndex.instance(context);
+                Env<AttrContext> env = index.getEnv(relatedDeclaration.sym);
                 if (env != null) {
                     compilationUnit = env.toplevel;
                 }
@@ -261,8 +265,9 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean typeHasSource(Symbol.TypeSymbol typeSymbol) {
-        var trees = JavacTrees.instance(context);
-        return trees.getTree(typeSymbol) != null;
+//        var trees = JavacTrees.instance(context);
+        var index = JVerifyIndex.instance(context);
+        return index.getTree(typeSymbol) != null;
     }
 
     // TODO this does not seem to be fully used or working, and we've replaced it with the library concept now. So remove?
@@ -335,7 +340,7 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean isSynthetic(JCTree methodNode, Symbol.MethodSymbol methodSymbol) {
-        var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
+        var containerPos = JVerifyIndex.instance(context).getTree(methodSymbol.enclClass()).pos;
         return methodNode.pos == containerPos;
     }
 

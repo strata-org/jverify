@@ -3,20 +3,17 @@ package com.aws.jverify.verifier.compiler.simplifications;
 import com.aws.jverify.Contract;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JVerifyCompilationUnit;
+import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
-import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.JCTree;
 
-import javax.naming.Context;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
@@ -37,7 +34,7 @@ public class ExternalContractCompiler {
             List<JCTree.JCVariableDecl> ghostFields) { }
     
     public void discoverTypesAndContractClasses(JVerifyCompilationUnit compilationUnit, Set<Symbol.ClassSymbol> foundClasses) {
-        compiler.compilationUnit = compilationUnit.unit();
+        compiler.compilationUnit = compilationUnit.env().toplevel;
         
         var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
         while(!typesToVisit.isEmpty()) {
@@ -83,10 +80,11 @@ public class ExternalContractCompiler {
 
     public void registerExternalContracts() {
         for(var entry : contractClassToContractee.entrySet()) {
-            var externalContractDecl = JavacTrees.instance(compiler.context).getTree(entry.getKey());
+//            var externalContractDecl = JavacTrees.instance(compiler.context).getTree(entry.getKey());
+            var externalContractDecl = (JCTree.JCClassDecl) JVerifyIndex.instance(compiler.context).getTree(entry.getKey());
 
-            Enter enter = Enter.instance(compiler.context);
-            Env<AttrContext> env = enter.getEnv(externalContractDecl.sym);
+            JVerifyIndex index = JVerifyIndex.instance(compiler.context);
+            Env<AttrContext> env = index.getEnv(externalContractDecl.sym);
             if (env != null) {
                 compiler.compilationUnit = env.toplevel;
             }

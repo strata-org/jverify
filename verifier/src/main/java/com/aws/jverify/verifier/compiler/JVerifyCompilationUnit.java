@@ -1,5 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.sun.tools.javac.comp.AttrContext;
+import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.List;
 
@@ -8,7 +10,7 @@ import static com.sun.tools.javac.tree.JCTree.Tag.MODULEDEF;
 import static com.sun.tools.javac.tree.JCTree.Tag.MODULEIMPORT;
 import static com.sun.tools.javac.tree.JCTree.Tag.PACKAGEDEF;
 
-public record JVerifyCompilationUnit(JCTree.JCCompilationUnit unit, List<JCTree> newDefs) {
+public record JVerifyCompilationUnit(Env<AttrContext> env, List<JCTree> newDefs) {
 
     public List<JCTree> getTypeDecls() {
         List<JCTree> typeDefs;

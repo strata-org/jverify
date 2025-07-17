@@ -10,7 +10,6 @@ import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompile
 import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.source.tree.Tree;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -370,8 +369,9 @@ public class ClassCompiler {
 
         var outs = new ArrayList<Formal>();
         if (methodSymbol.type.getReturnType() != null) {
-            JavacTrees trees = JavacTrees.instance(compiler.context);
-            var methodDecl = trees.getTree(methodSymbol);
+//            JavacTrees trees = JavacTrees.instance(compiler.context);
+            JVerifyIndex index = JVerifyIndex.instance(compiler.context);
+            var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
             IOrigin returnOrigin;
             if (methodDecl == null) {
                 returnOrigin = bodyOrigin;
@@ -532,8 +532,9 @@ public class ClassCompiler {
 
     private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, boolean shouldVerify, IOrigin bodyOrigin) {
         return methodSymbol.getParameters().map(jvd -> {
-            var trees = JavacTrees.instance(compiler.context);
-            var parameter = trees.getTree(jvd);
+//            var trees = JavacTrees.instance(compiler.context);
+            var index = JVerifyIndex.instance(compiler.context);
+            var parameter = index.getTree(jvd);
             IOrigin parameterOrigin;
             if (parameter == null) {
                 parameterOrigin = bodyOrigin;
