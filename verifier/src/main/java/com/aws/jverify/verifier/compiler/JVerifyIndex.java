@@ -43,6 +43,11 @@ public class JVerifyIndex extends JCTree.Visitor {
         tree.accept(this);
     }
 
+    void index(Env<AttrContext> env, List<? extends JCTree> trees) {
+        this.currentEnv = env;
+        trees.forEach(tree -> tree.accept(this));
+    }
+
     /** Visitor method: enter classes of a list of trees.
      */
     <T extends JCTree> void classEnter(List<T> trees) {

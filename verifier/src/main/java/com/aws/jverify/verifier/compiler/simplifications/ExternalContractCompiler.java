@@ -34,7 +34,7 @@ public class ExternalContractCompiler {
             List<JCTree.JCVariableDecl> ghostFields) { }
     
     public void discoverTypesAndContractClasses(JVerifyCompilationUnit compilationUnit, Set<Symbol.ClassSymbol> foundClasses) {
-        compiler.compilationUnit = compilationUnit.env().toplevel;
+        compiler.compilationUnit = compilationUnit.unit();
         
         var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
         while(!typesToVisit.isEmpty()) {

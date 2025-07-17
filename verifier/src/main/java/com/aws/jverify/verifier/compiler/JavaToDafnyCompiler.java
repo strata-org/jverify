@@ -88,12 +88,6 @@ public class JavaToDafnyCompiler {
             return new FilesContainer(List.of());
         }
 
-        JVerifyIndex index = JVerifyIndex.instance(context);
-        for (JVerifyCompilationUnit unit : parsedSet) {
-            for (JCTree tree : unit.newDefs()) {
-                index.index(unit.env(), tree);
-            }
-        }
         var parsed = new ArrayList<>(parsedSet);
 
         /*
@@ -101,12 +95,12 @@ public class JavaToDafnyCompiler {
          * To work around this bug, the built-in contracts file must be serialized after 
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
-        parsed.sort(Comparator.comparing(f -> f.env().toplevel.getSourceFile().toUri().toString()));
+        parsed.sort(Comparator.comparing(f -> f.unit().getSourceFile().toUri().toString()));
 
         var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
         for (var compilationUnit : parsed) {
             externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
-            declarationsForFile.put(compilationUnit.env().toplevel, new ArrayList<>());
+            declarationsForFile.put(compilationUnit.unit(), new ArrayList<>());
         }
         
         for(var foundClassSymbol : foundClassSymbols) {
@@ -124,17 +118,17 @@ public class JavaToDafnyCompiler {
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
-            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit.env().toplevel);
-            var isLibrary = compilationUnit.env().toplevel.getSourceFile() == builtinSource;
+            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit.unit());
+            var isLibrary = compilationUnit.unit().getSourceFile() == builtinSource;
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
                     case TokenRangeOrigin tokenRangeOrigin -> tokenRangeOrigin.getStartToken();
                     default -> throw new RuntimeException();
                 };
-                return compilationUnit.env().toplevel.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
+                return compilationUnit.unit().getLineMap().getPosition(startToken.getLine(), startToken.getCol());
             }));
-            filesStarts.add(new FileHeader(compilationUnit.env().toplevel.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.unit().sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);

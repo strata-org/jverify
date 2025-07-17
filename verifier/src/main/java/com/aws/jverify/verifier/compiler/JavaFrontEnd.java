@@ -138,7 +138,13 @@ public class JavaFrontEnd {
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
                     var envs = unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo)))));
-                    envs.stream().forEach(env -> units.add(new JVerifyCompilationUnit(env, env.toplevel.defs)));
+
+                    JVerifyIndex index = JVerifyIndex.instance(context);
+                    for (Env<AttrContext> env : envs) {
+                        index.index(env, env.toplevel.defs);
+                    }
+
+                    envs.stream().forEach(env -> units.add(new JVerifyCompilationUnit(env.toplevel, env.toplevel.defs)));
 
 //                    var enter = Enter.instance(context);
 //                    var newUnits = partialLower(envs);
@@ -210,7 +216,7 @@ public class JavaFrontEnd {
 
         for (Env<AttrContext> env : envs) {
             com.sun.tools.javac.util.List<JCTree> classes = Lower.instance(context).translateTopLevelClass(env, env.tree, localMake);
-            JVerifyCompilationUnit newUnit = new JVerifyCompilationUnit(env, classes);
+            JVerifyCompilationUnit newUnit = new JVerifyCompilationUnit(env.toplevel, classes);
             results.add(newUnit);
         }
         return results.toList();
