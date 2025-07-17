@@ -1,8 +1,3 @@
-// ^ /additional.dfy(25:22-25:24) Related location: this proposition could not be proved
-// ^ /additional.dfy(42:20-42:22) Related location: this proposition could not be proved
-
-
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -37,7 +32,7 @@ class Strings {
 
     static void stringNotEqual() {
         check("hello world".equals("helloworld"));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void stringIsEmpty(String str) {
@@ -46,7 +41,7 @@ class Strings {
 
     static void stringNotEmpty() {
         check("full".isEmpty());
-//      ^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//            ^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static boolean stringLengthEven(String str) {

@@ -1,6 +1,3 @@
-// ^ /builtin-contracts.java(116:22-116:51) Related location: this proposition could not be proved
-// ^ /builtin-contracts.java(116:55-116:84) Related location: this proposition could not be proved
-
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -15,7 +12,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 4, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 2, useBuiltinContracts = true)
 class BigIntegers {
     static void testConstructors() {
         BigInteger bi = new BigInteger("23");
@@ -46,12 +43,9 @@ class BigIntegers {
 
     // Needs a bigger fuel on stringToInt function
     static void testConstructorNegative() {
-        BigInteger bi = new BigInteger("234");
-        check(bi.intValue() == 234);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
-//            ^^^^^^^^^^^^^ Error: function precondition could not be proved
-//            ^^^^^^^^^^^^^ Error: function precondition could not be proved
-// There are two failing preconditions (both on line 117 of builtin-contracts.java, the LHS and the RHS of the &&), that's why this is reported twice.
+        BigInteger bi = new BigInteger("23456");
+        check(bi.intValue() == 23456);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     // Test all arithmetic operations on BigIntegers
