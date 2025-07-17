@@ -180,6 +180,9 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))
+                .filter(d -> d instanceof DafnyDiagnostic dafnyDiagnostic
+                        ? !dafnyDiagnostic.location.filename().contentEquals("additional.dfy")
+                        : true)
                 .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
                 .sorted()
                 .toList();
