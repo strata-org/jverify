@@ -34,12 +34,10 @@ import com.sun.tools.javac.tree.JCTree.*;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.code.Symbol.ClassSymbol;
-import com.sun.tools.javac.code.Symbol.DynamicMethodSymbol;
 import com.sun.tools.javac.code.Symbol.MethodSymbol;
 import com.sun.tools.javac.code.Symbol.VarSymbol;
 import com.sun.tools.javac.code.Type.MethodType;
 import com.sun.tools.javac.code.Type.TypeVar;
-import com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaAnalyzerPreprocessor.*;
 //import com.sun.tools.javac.comp.Lower.BasicFreeVarCollector;
 //import com.sun.tools.javac.resources.CompilerProperties.Notes;
 import com.sun.tools.javac.jvm.*;
@@ -47,8 +45,6 @@ import com.sun.tools.javac.util.*;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static com.aws.jverify.verifier.compiler.simplifications.lambdas.LambdaCompiler.LambdaSymbolKind.*;
 import static com.sun.tools.javac.code.Flags.*;
@@ -274,14 +270,9 @@ public class LambdaCompiler extends TreeTranslator {
         }
     }
 
-    /**
-     * Translate a method reference into an invokedynamic call to the
-     * meta-factory.
-     * @param tree
-     */
     @Override
     public void visitReference(JCMemberReference tree) {
-        throw new RuntimeException();
+        throw new RuntimeException("Method reference should have already been translated to a Lambda");
     }
 
     /**
@@ -386,21 +377,6 @@ public class LambdaCompiler extends TreeTranslator {
      */
     private VarSymbol makeSyntheticVar(long flags, Name name, Type type, Symbol owner) {
         return new VarSymbol(flags | SYNTHETIC, name, type, owner);
-    }
-
-    /**
-     * Set varargsElement field on a given tree (must be either a new class tree
-     * or a method call tree)
-     */
-    public void setVarargsIfNeeded(JCTree tree, Type varargsElement) {
-        if (varargsElement != null) {
-            switch (tree.getTag()) {
-                case APPLY: ((JCMethodInvocation)tree).varargsElement = varargsElement; break;
-                case NEWCLASS: ((JCNewClass)tree).varargsElement = varargsElement; break;
-                case TYPECAST: setVarargsIfNeeded(((JCTypeCast) tree).expr, varargsElement); break;
-                default: throw new AssertionError();
-            }
-        }
     }
 
     /**

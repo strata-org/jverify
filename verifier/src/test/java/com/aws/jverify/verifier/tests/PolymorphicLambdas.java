@@ -4,7 +4,7 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0, 
-        useBuiltinContracts = false, resolvePrintedDafny = true)
+        useBuiltinContracts = false, verifyPrintedDafny = true)
 public class PolymorphicLambdas {
 
     class Anything {}

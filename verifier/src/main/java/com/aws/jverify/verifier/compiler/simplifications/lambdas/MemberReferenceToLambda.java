@@ -21,13 +21,13 @@ class MemberReferenceToLambda {
 
     private final LambdaCompiler lambdaCompiler;
     private final JCTree.JCMemberReference tree;
-    private final LambdaAnalyzerPreprocessor.ReferenceTranslationContext localContext;
+    private final ReferenceTranslationContext localContext;
     private final Symbol owner;
     private final ListBuffer<JCTree.JCExpression> args = new ListBuffer<>();
     private final ListBuffer<JCTree.JCVariableDecl> params = new ListBuffer<>();
 
     public MemberReferenceToLambda(LambdaCompiler lambdaCompiler, JCTree.JCMemberReference tree, 
-                                   LambdaAnalyzerPreprocessor.ReferenceTranslationContext localContext, 
+                                   ReferenceTranslationContext localContext, 
                                    Symbol owner) {
         this.lambdaCompiler = lambdaCompiler;
         this.tree = tree;
@@ -172,7 +172,7 @@ class MemberReferenceToLambda {
         apply = lambdaCompiler.transTypes.coerce(lambdaCompiler.attrEnv, apply,
                 localContext.tree.referentType.getReturnType());
 
-        lambdaCompiler.setVarargsIfNeeded(apply, tree.varargsElement);
+        setVarargsIfNeeded(apply, tree.varargsElement);
         return apply;
     }
 
@@ -201,7 +201,7 @@ class MemberReferenceToLambda {
             newClass.constructor = tree.sym;
             newClass.constructorType = tree.sym.erasure(lambdaCompiler.types);
             newClass.type = tree.getQualifierExpression().type;
-            lambdaCompiler.setVarargsIfNeeded(newClass, tree.varargsElement);
+            setVarargsIfNeeded(newClass, tree.varargsElement);
             return newClass;
         }
     }
@@ -214,6 +214,21 @@ class MemberReferenceToLambda {
             args.append(lambdaCompiler.makeIdent(vsym));
         }
         return vsym;
+    }
+
+    /**
+     * Set varargsElement field on a given tree (must be either a new class tree
+     * or a method call tree)
+     */
+    private static void setVarargsIfNeeded(JCTree tree, Type varargsElement) {
+        if (varargsElement != null) {
+            switch (tree.getTag()) {
+                case APPLY: ((JCTree.JCMethodInvocation)tree).varargsElement = varargsElement; break;
+                case NEWCLASS: ((JCTree.JCNewClass)tree).varargsElement = varargsElement; break;
+                case TYPECAST: setVarargsIfNeeded(((JCTree.JCTypeCast) tree).expr, varargsElement); break;
+                default: throw new AssertionError();
+            }
+        }
     }
 }
 
