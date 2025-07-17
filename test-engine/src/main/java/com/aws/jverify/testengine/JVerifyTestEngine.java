@@ -172,8 +172,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         inputs.add(sourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
         
-        if (annotation.resolvePrintedDafny()) {
-            resolvePrintedDafny(verificationResults, options);
+        if (annotation.verifyPrintedDafny()) {
+            verifyPrintedDafny(verificationResults, options);
         }
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
@@ -201,7 +201,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         );
     }
 
-    private static void resolvePrintedDafny(VerificationResults previousResults, VerifierOptions verifierOptions) 
+    private static void verifyPrintedDafny(VerificationResults previousResults, VerifierOptions verifierOptions) 
             throws IOException {
         boolean jverifyCompilationFailed = previousResults.getExitCode() == 2;
         if (jverifyCompilationFailed) {
@@ -312,7 +312,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      */
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, 
                                                         int dafnyVerified, int dafnyErrors,
-                                                        boolean resolvePrintedDafny,
+                                                        boolean verifyPrintedDafny,
                                                         boolean avoidNameCollisions,
                                                         boolean useBuiltinContracts) {
         return new JVerifyTest() {
@@ -357,8 +357,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
 
             @Override
-            public boolean resolvePrintedDafny() {
-                return resolvePrintedDafny;
+            public boolean verifyPrintedDafny() {
+                return verifyPrintedDafny;
             }
 
             @Override

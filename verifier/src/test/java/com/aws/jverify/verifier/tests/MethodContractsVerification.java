@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 4, dafnyErrors = 0, resolvePrintedDafny = true)
+@JVerifyTest(dafnyVerified = 4, dafnyErrors = 0, verifyPrintedDafny = true)
 public class MethodContractsVerification {
     
     public int methodReferencePostCondition() {
