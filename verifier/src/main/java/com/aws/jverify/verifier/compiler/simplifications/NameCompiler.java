@@ -33,6 +33,8 @@ public class NameCompiler {
     public String INIT_METHOD_PREFIX = "init_";
     public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
     public String LABEL_PREFIX = "g_";
+    public String UNDERSCORE_START_PREFIX = "a";
+    public String RESERVED_PREFIX = "r_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
@@ -52,6 +54,8 @@ public class NameCompiler {
             IMPLEMENTATION_METHOD_PREFIX += "_";
             METHOD_RETURN_VARIABLE_NAME += "#";
             LABEL_PREFIX = "$";
+            UNDERSCORE_START_PREFIX = "";
+            RESERVED_PREFIX = "";
         }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
@@ -153,10 +157,10 @@ public class NameCompiler {
 
     private String encodeName(String name) {
         if (reservedDafnyNames.contains(name)) {
-            name = "r_" + name;
+            name = RESERVED_PREFIX + name;
         }
         if (name.startsWith("_")) {
-            name = "a" + name;
+            name = UNDERSCORE_START_PREFIX + name;
         }
         return name.replace('$', '_');
     }

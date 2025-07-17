@@ -53,7 +53,7 @@ public @interface JVerifyTest {
 
     String[] additionalFiles() default {};
     
-    boolean resolvePrintedDafny() default false;
+    boolean verifyPrintedDafny() default false;
     
     boolean avoidNameCollisions() default false;
 }
