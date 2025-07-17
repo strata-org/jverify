@@ -9,6 +9,7 @@ import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness at the Dafny level.
@@ -31,6 +32,9 @@ public class NameCompiler {
     public String CLASS_PREFIX = "Constructable_";
     public String INIT_METHOD_PREFIX = "init_";
     public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
+    public String LABEL_PREFIX = "g_";
+    public String UNDERSCORE_START_PREFIX = "a";
+    public String RESERVED_PREFIX = "r_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
@@ -38,6 +42,8 @@ public class NameCompiler {
     private final ExternalContractCompiler contractCompiler;
     private final boolean avoidCollisionsUsingUnderscores;
 
+    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method");
+    
     public NameCompiler(ExternalContractCompiler contractCompiler, boolean avoidCollisionsUsingUnderscores) {
         this.contractCompiler = contractCompiler;
         this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
@@ -47,6 +53,9 @@ public class NameCompiler {
             CLASS_PREFIX += "_";
             IMPLEMENTATION_METHOD_PREFIX += "_";
             METHOD_RETURN_VARIABLE_NAME += "#";
+            LABEL_PREFIX = "$";
+            UNDERSCORE_START_PREFIX = "";
+            RESERVED_PREFIX = "";
         }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
@@ -76,31 +85,42 @@ public class NameCompiler {
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
-                var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
-                if (newTarget != null) {
-                    return uncachedGetCompiledName(newTarget);
-                }
-                var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
-                if (occurrenceCount == null || occurrenceCount > 1) {
-                    return classSymbol.getQualifiedName().toString().replace(".", "_");
-                }
-                return classSymbol.name.toString();
+                return getClassName(classSymbol);
             }
             case Symbol.MethodSymbol m -> {
                 return getMethodName(m);
             }
             case Symbol.VarSymbol varSymbol -> {
-                if (varSymbol.getKind().isField()
-                        || varSymbol.getKind() == ElementKind.RECORD_COMPONENT) {
-                    return getFieldName(varSymbol);
-                } else { // Local variable, do not change
-                    return s.name.toString();
-                }
+                return getVariableName(s, varSymbol);
             }
             default -> {
                 return s.name.toString();
             }
         }
+    }
+
+    private String getVariableName(Symbol s, Symbol.VarSymbol varSymbol) {
+        if (varSymbol.getKind().isField()
+                || varSymbol.getKind() == ElementKind.RECORD_COMPONENT) {
+            return getFieldName(varSymbol);
+        } else { // Local variable, do not change
+            if (s.name.isEmpty()) {
+                return "unnamed";
+            }
+            return encodeName(s.name.toString());
+        }
+    }
+
+    private String getClassName(Symbol.ClassSymbol classSymbol) {
+        var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
+        if (newTarget != null) {
+            return uncachedGetCompiledName(newTarget);
+        }
+        var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
+        if (occurrenceCount == null || occurrenceCount > 1) {
+            return classSymbol.getQualifiedName().toString().replace(".", "_");
+        }
+        return encodeName(classSymbol.name.toString());
     }
 
     private String getFieldName(Symbol.VarSymbol s) {
@@ -111,7 +131,7 @@ public class NameCompiler {
         if (classStats.methodsWithThisName > 0) {
             return fieldPrefix + s.name.toString();
         }
-        return s.name.toString();
+        return encodeName(s.name.toString());
     }
 
     private String getMethodName(Symbol.MethodSymbol s) {
@@ -126,7 +146,7 @@ public class NameCompiler {
             if (classStats.sameNameFields()) {
                 result.append(methodPrefix);
             }
-            result.append(s.name);
+            result.append(encodeName(s.name.toString()));
         }
         if (willSuffixWithArguments) {
             return result.toString();
@@ -135,6 +155,16 @@ public class NameCompiler {
         return result.toString();
     }
 
+    private String encodeName(String name) {
+        if (reservedDafnyNames.contains(name)) {
+            name = RESERVED_PREFIX + name;
+        }
+        if (name.startsWith("_")) {
+            name = UNDERSCORE_START_PREFIX + name;
+        }
+        return name.replace('$', '_');
+    }
+    
     private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
         List<Type> argTypes;
         if (method.type instanceof MethodType m) {
@@ -165,16 +195,16 @@ public class NameCompiler {
             case BOOLEAN: {return "z";}
             case CLASS: {
                 var newType = this.contractCompiler.contractClassTypeToContracteeType.get(type);
-                String classTypeStr;
                 if (newType != null) {
-                    classTypeStr = newType.toString();
+                    type = newType;
                 }
-                else {
-                    classTypeStr = type.toString();
-                }
+                String classTypeStr = type.tsym.toString();
                 // Changing '.' to '_' so that the new name is a valid Dafny name
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
+            }
+            case TYPEVAR: {
+                return type.toString();
             }
             case ARRAY : {
                 var arrayType = (ArrayType) type;

@@ -15,7 +15,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 4, useBuiltinContracts = true)
 class BigIntegers {
     static void testConstructors() {
         BigInteger bi = new BigInteger("23");

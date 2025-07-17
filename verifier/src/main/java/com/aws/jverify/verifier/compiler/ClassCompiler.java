@@ -518,7 +518,7 @@ public class ClassCompiler {
             } else {
                 parameterOrigin = compiler.toOrigin(parameter);
             }
-            Name formalName = new Name(parameterOrigin, jvd.name.toString());
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd));
             var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
