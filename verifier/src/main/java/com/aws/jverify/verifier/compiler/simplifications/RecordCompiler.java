@@ -6,12 +6,15 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.code.Flags;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RecordCompiler {
     final ClassCompiler classCompiler;
@@ -30,8 +33,9 @@ public class RecordCompiler {
 
         var typeParams = classCompiler.translateTypeParameters(classDecl.typarams);
 
-        var traits = classCompiler.getCurrentTypeSymbol(classDecl)
-                .getInterfaces().stream()
+        Symbol.ClassSymbol currentTypeSymbol = classCompiler.getCurrentTypeSymbol(classDecl);
+        var traits = Stream.concat(Stream.of(currentTypeSymbol.getSuperclass()), currentTypeSymbol
+                .getInterfaces().stream())
                 .filter(compiler::typeHasAContract)
                 .map(baseType -> compiler.translateType(null, baseType, origin))
                 .toList();
@@ -118,13 +122,17 @@ public class RecordCompiler {
      * Translates the given {@code new RecordType(...)} invocation into a {@link DatatypeValue}
      * that can be used in pure contexts.
      */
-    public static DatatypeValue translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
+    public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
         var argBindings = newClass.getArguments().stream()
                 .map(a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
-        
+
+        com.sun.tools.javac.util.List<Type> typeArgs = newClass.typeargs.map(expressionCompiler.compiler::translateType);
+        if (newClass.clazz instanceof JCTree.JCTypeApply typeApply) {
+            typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));
+        }
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
-        return new DatatypeValue(
-                origin, datatypeName, datatypeName,
-                new ActualBindings(argBindings));
+        var dafnyConstructor = new ExprDotName(
+                origin, new NameSegment(origin, datatypeName, typeArgs), expressionCompiler.compiler.getName(newClass, datatypeName), null);
+        return new ApplySuffix(origin, dafnyConstructor, null, new ActualBindings(argBindings), null);
     }
 }

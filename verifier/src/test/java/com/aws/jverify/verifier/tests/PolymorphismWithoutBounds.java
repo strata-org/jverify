@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -29,6 +30,10 @@ public class PolymorphismWithoutBounds {
     @Pure
     public static <T> T genericIdentity(T a) {
         return a;
+    }
+    
+    public static <T> void objectIsTop(T value) {
+        Object o = value;
     }
 }
 

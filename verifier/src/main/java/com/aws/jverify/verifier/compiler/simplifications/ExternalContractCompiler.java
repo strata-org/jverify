@@ -13,9 +13,7 @@ import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.JCTree;
 
-import javax.naming.Context;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
@@ -35,7 +33,8 @@ public class ExternalContractCompiler {
             Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
             List<JCTree.JCVariableDecl> ghostFields) { }
     
-    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit, Set<Symbol.ClassSymbol> foundClasses) {
+    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit, 
+                                                Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> foundClasses) {
         compiler.compilationUnit = compilationUnit;
         
         var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
@@ -56,7 +55,7 @@ public class ExternalContractCompiler {
             if (contractAnnotation == null) {
                 var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
                 declsForSymbol.add(classDecl);
-                foundClasses.add(classDecl.sym);
+                foundClasses.put(classDecl.sym, compilationUnit);
                 continue;
             }
 
@@ -69,7 +68,7 @@ public class ExternalContractCompiler {
             var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
             declsForSymbol.add(classDecl);
 
-            foundClasses.add(contracteeSymbol);
+            foundClasses.put(contracteeSymbol, compilationUnit);
             if (compiler.typeHasSource(contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
                 compiler.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
                 continue;

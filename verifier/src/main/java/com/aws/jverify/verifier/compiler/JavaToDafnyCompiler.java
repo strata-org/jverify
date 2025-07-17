@@ -65,6 +65,7 @@ public class JavaToDafnyCompiler {
     private boolean translatingVerifiedMethodSignature;
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
+    public static final String objectFile = "/object-contract.java";
     
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -84,6 +85,8 @@ public class JavaToDafnyCompiler {
             builtinSource = new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
             files.add(builtinSource);
         }
+        var contractSource = new SourceFile("object-contract.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
+        files.add(contractSource);
         
         Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
@@ -99,25 +102,25 @@ public class JavaToDafnyCompiler {
          */
         parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
-        var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
+        var foundClassSymbols = new HashMap<Symbol.ClassSymbol, JCTree.JCCompilationUnit>();
         for (var compilationUnit : parsed) {
             externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
-        for(var foundClassSymbol : foundClassSymbols) {
+        for(var foundClassSymbol : foundClassSymbols.keySet()) {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
         
         externalContractCompiler.registerExternalContracts();
         
-        compileSymbolsTopologically();
+        compileSymbolsTopologically(foundClassSymbols);
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
-            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
+            var isLibrary = isLibrary(compilationUnit);
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
@@ -132,7 +135,11 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
 
-    private void compileSymbolsTopologically() {
+    private boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
+        return compilationUnit.getSourceFile() == builtinSource;
+    }
+
+    private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
         var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
         iterator.forEachRemaining(itemsFromChildrenToParents::add);
@@ -141,12 +148,8 @@ public class JavaToDafnyCompiler {
             if (relatedDeclarations == null) {
                 continue;
             }
+            compilationUnit = symbolToCompilationUnit.get(currentTypeSymbol);
             for(var relatedDeclaration : relatedDeclarations) {
-                Enter enter = Enter.instance(context);
-                Env<AttrContext> env = enter.getEnv(relatedDeclaration.sym);
-                if (env != null) {
-                    compilationUnit = env.toplevel;
-                }
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
@@ -260,11 +263,6 @@ public class JavaToDafnyCompiler {
         return trees.getTree(typeSymbol) != null;
     }
 
-    // TODO this does not seem to be fully used or working, and we've replaced it with the library concept now. So remove?
-    private boolean isAlreadyVerified() {
-        return compilationUnit.getSourceFile().getName().equals(builtinFile);
-    }
-
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
             return classType.supertype_field != null && ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
@@ -284,11 +282,7 @@ public class JavaToDafnyCompiler {
     }
 
     public Attributes getAttributes(IOrigin origin) {
-        return isAlreadyVerified() ? getVerifyFalse(origin) : null;
-    }
-
-    private static Attributes getVerifyFalse(IOrigin origin) {
-        return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
+        return null;
     }
 
     private boolean isNullable(JCTree.JCModifiers modifiers) {
@@ -516,7 +510,9 @@ public class JavaToDafnyCompiler {
                     }
                     return translateType(superBound, origin);
                 }
-                return new UserDefinedType(origin, new NameSegment(origin, "Object", null));
+                Symtab symtab = Symtab.instance(context);
+                var name = nameCompiler.getCompiledName(symtab.objectType.tsym);
+                return new UserDefinedType(origin, new NameSegment(origin, name, null));
             }
             default -> {
             }
