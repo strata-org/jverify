@@ -42,6 +42,7 @@ public class JVerify {
      */
     public static void decreases(Object... values) {}
     public static void decreases(int value) {}
+    public static void decreases(int value1, int value2) {}
 
     public static void invariant(boolean condition) {
     }
