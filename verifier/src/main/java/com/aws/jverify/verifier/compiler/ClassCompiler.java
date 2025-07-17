@@ -337,7 +337,9 @@ public class ClassCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, false);
                 }
-                List<JCTree.JCStatement> postHeader = new ContractCompiler(compiler).translateHeader(((JCTree.JCBlock) sourceBody).stats, header, true);
+                var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
+                List<JCTree.JCStatement> postHeader = new ContractCompiler(compiler).
+                        translateHeader(((JCTree.JCBlock) sourceBody).stats, header, allowFooter, true);
                 if (shouldVerify) {
                     bodyStatements = blockCompiler.translateStatements(postHeader);
                 }
@@ -401,7 +403,6 @@ public class ClassCompiler {
         }
     }
 
-
     private Function translatePureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers,
                                                  Symbol.MethodSymbol methodSymbol, JCTree sourceBody,
                                                  List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify,
@@ -409,7 +410,6 @@ public class ClassCompiler {
         var bodyOrigin = compiler.toOrigin(sourceBody);
 
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
-        var methodCompiler = new BlockCompiler(compiler);
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
         var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
@@ -452,7 +452,9 @@ public class ClassCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, true);
                 }
-                var postHeader = new ContractCompiler(compiler).translateHeader((JCTree.JCBlock) sourceBody, header, true);
+                var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
+                var postHeader = new ContractCompiler(compiler).
+                        translateHeader((JCTree.JCBlock) sourceBody, header, allowFooter, true);
                 if (postHeader.size() != 1) {
                     compiler.reportError(source, "pureMethodMultipleStatements");
                     return null;

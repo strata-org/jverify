@@ -12,6 +12,8 @@ import com.sun.tools.javac.tree.TreeInfo;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
+
 public class BlockCompiler {
 
     public final JavaToDafnyCompiler compiler;
@@ -168,7 +170,7 @@ public class BlockCompiler {
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = new ContractCompiler(compiler).translateHeader(body, header, true);
+        var postHeader = new ContractCompiler(compiler).translateHeader(body, header, false, true);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -386,7 +388,9 @@ public class BlockCompiler {
         var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
         var header = new MethodOrLoopContract(methodDecl, isPure);
         if (methodDecl.getBody() != null) {
-            new ContractCompiler(compiler).translateHeader(methodDecl.getBody(), header, reportErrors);
+            var allowFooter = isConstructor(methodDecl.sym);
+            new ContractCompiler(compiler).
+                    translateHeader(methodDecl.getBody(), header, allowFooter, reportErrors);
         }
 
         return header;
