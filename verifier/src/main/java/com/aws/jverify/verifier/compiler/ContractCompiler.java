@@ -63,7 +63,7 @@ public class ContractCompiler {
                     break;
                 }
             }
-            footerContracts = i;
+            footerContracts = i + 1;
         } else {
             footerContracts = statements.size();
         }
