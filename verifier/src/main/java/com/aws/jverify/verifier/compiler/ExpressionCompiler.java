@@ -101,7 +101,7 @@ public class ExpressionCompiler {
                 return translateUnary(expr, unary, origin);
             }
             case JCTree.JCBinary binary -> {
-                translateBinary(binary);
+                return translateBinary(binary);
             }
             case JCTree.JCIdent identifier -> {
                 return translateIdentifier(identifier, origin);
@@ -126,7 +126,7 @@ public class ExpressionCompiler {
                 return JavaToDafnyCompiler.getHole(origin);
             }
             case JCTree.JCInstanceOf instanceOf -> {
-                translateInstanceOf(instanceOf, origin);
+                return translateInstanceOf(instanceOf, origin);
             }
             case JCTree.JCTypeCast cast -> {
                 return translateCast(cast, origin);
