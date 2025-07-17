@@ -56,7 +56,6 @@ class IntegerContract {
 class DoubleContract {
 }
 
-
 @Contract(Long.class)
 class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
