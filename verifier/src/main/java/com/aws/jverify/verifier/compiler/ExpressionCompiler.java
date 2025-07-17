@@ -212,11 +212,17 @@ public class ExpressionCompiler {
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,
                 operator, left, right);
     }
+    
+    public java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleThis;
 
     private Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
         if (identName.contentEquals("this")) {
-            return new ThisExpr(origin);
+            if (handleThis == null) {
+                return new ThisExpr(origin);
+            } else {
+                return handleThis.apply(identifier, origin);
+            }
         }
         return new NameSegment(origin, identName, null);
     }

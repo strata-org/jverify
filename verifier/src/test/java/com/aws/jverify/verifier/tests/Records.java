@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Unbounded;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
@@ -86,6 +87,11 @@ class Records {
         // we can also create a new record instance within an expression
         check(new Factor(3).times(7) == 21);
     }
+    
+    static void HasConstructorRecord() {
+        var hasConstructor = new HasConstructor();
+        check(hasConstructor.x() == 3);
+    }
 }
 
 /** No components */
@@ -155,4 +161,12 @@ class Foobar {
 
 interface ICoefficient {
     @Unbounded int times(int i);
+}
+
+@Verify(false)
+record HasConstructor(int x) {
+    HasConstructor() {
+        this(3);
+        postcondition(this.x() == 3);
+    }
 }

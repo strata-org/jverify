@@ -71,8 +71,26 @@ public class RecordCompiler {
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
-                    if (!isSyntheticCanonicalConstructor(methodDecl)) {
-                        compiler.reportError(member, "notSupported", "explicit record constructor");
+                    String resultName = "resultName";
+                    compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> {
+                        return new NameSegment(innerOrigin, resultName, null);
+                    };
+                    var dafnyMember = classCompiler.translateMember(member);
+                    compiler.expressionCompiler.handleThis = null;
+                    if (dafnyMember instanceof Constructor constructor && constructor.getBody() == null) {
+                        var out = new Formal(constructor.getOrigin(), new Name(constructor.getOrigin(), resultName),
+                                compiler.translateType(classDecl.type, constructor.getOrigin()), false, false, null, null, false, false, false, null);
+                        var staticMethod = new Method(constructor.getOrigin(), constructor.getNameNode(), 
+                                constructor.getAttributes(), false, null, constructor.getTypeArgs(),
+                                constructor.getIns(), constructor.getReq(), constructor.getEns(),
+                                constructor.getReads(), constructor.getDecreases(), constructor.getMod(), true, 
+                                List.of(out),
+                                null, false);
+                        members.add(staticMethod);
+                    } else {
+                        if (!isSyntheticCanonicalConstructor(methodDecl)) {
+                            compiler.reportError(member, "notSupported", "explicit record constructor");
+                        }
                     }
                     continue;
                 }
