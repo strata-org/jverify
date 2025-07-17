@@ -5,9 +5,19 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 2, dafnyErrors = 0, avoidNameCollisions = true)
-public class GeneratedNameCollisions {
+@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0, avoidNameCollisions = true, verifyPrintedDafny = false)
+public class AvoidNameCollisionsTest {
 
+    void set(int set, int r_set) {}
+
+    void _test() {
+        var _test = 3;
+        var a_test = 4;
+    }
+
+    class _test {}
+    class a_test {}
+    
     public int differentReturnValueNames() {
         postcondition(this::predicate);
         postcondition((Integer result) -> result < 3);
