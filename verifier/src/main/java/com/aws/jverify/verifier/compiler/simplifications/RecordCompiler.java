@@ -7,6 +7,7 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -89,24 +90,10 @@ public class RecordCompiler {
                     if (dafnyMember instanceof Constructor constructor &&
                             (constructor.getBody() == null || isSyntheticCanonicalConstructor(methodDecl))) {
 
-                        List<AttributedExpression> ens = constructor.getEns();
-                        var shouldAddImplicitContract = isSyntheticCanonicalConstructor(methodDecl);
-                        if (shouldAddImplicitContract) {
-                            ens = new ArrayList<>();
-                            for(var field : fields) {
-                                String paramName = field.name.toString();
-                                var paramReference = new NameSegment(origin, paramName, null);
-                                Name fieldNameNode = new Name(origin, this.compiler.nameCompiler.getCompiledName(field.sym));
-                                var ensExpression = new BinaryExpr(origin, BinaryExprOpcode.Eq,
-                                        new ExprDotName(origin, resultReference, fieldNameNode, null), paramReference);
-                                ens.add(new AttributedExpression(ensExpression, null, null));
-                            }
-                        }
-                        
                         Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
                         Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
                         var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
-                            constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
+                            constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
                         true, false, result, outType, null, null, null);
                         members.add(staticFunction);
                     } else {
@@ -164,8 +151,12 @@ public class RecordCompiler {
         if (newClass.clazz instanceof JCTree.JCTypeApply typeApply) {
             typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));
         }
+
+        JavacTrees trees = JavacTrees.instance(expressionCompiler.compiler.context);
+        boolean callDatatypeConstructor = isSyntheticCanonicalConstructor((JCTree.JCMethodDecl) trees.getTree(newClass.constructor));
+            
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
-        var constructorName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
+        var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
         var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.compiler.getName(newClass, constructorName), null);
