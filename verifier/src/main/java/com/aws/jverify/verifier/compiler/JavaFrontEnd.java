@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 
 public class JavaFrontEnd {
     public final Context context;
-    JavaToDafnyCompiler compiler;
+    private final JavaToDafnyCompiler compiler;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
         this.compiler = javaToDafnyCompiler;
@@ -137,18 +137,7 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    var envs = unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo)))));
-
-                    JVerifyIndex index = JVerifyIndex.instance(context);
-                    for (Env<AttrContext> env : envs) {
-                        index.index(env, env.toplevel.defs);
-                    }
-
-                    envs.stream().forEach(env -> units.add(new JVerifyCompilationUnit(env.toplevel, env.toplevel.defs)));
-
-//                    var enter = Enter.instance(context);
-//                    var newUnits = partialLower(envs);
-//                    units.addAll(newUnits);
+                    units.addAll(partialLower2(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo)))))));
                 }
             }
         });
@@ -190,6 +179,19 @@ public class JavaFrontEnd {
         return envs;
     }
 
+    // Phase to replace placeholders substituted by the earlier SUBSTITUTE phase
+    // with their original AST nodes.
+    private List<JVerifyCompilationUnit> unsubstitute2(List<JVerifyCompilationUnit> envs) {
+        var substituter = ErasedCodeSubstituter.instance(context);
+        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
+
+        for (JVerifyCompilationUnit unit : envs) {
+            var newDefs = unit.newDefs().map(substituter::unsubstitute);
+            results.add(new JVerifyCompilationUnit(unit.unit(), newDefs));
+        }
+        return results.toList();
+    }
+
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
         TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
 
@@ -203,19 +205,51 @@ public class JavaFrontEnd {
         return envs;
     }
 
-    private Queue<Env<AttrContext>> partialLower(Queue<Env<AttrContext>> envs) {
+    private List<JVerifyCompilationUnit> noLower(Queue<Env<AttrContext>> envs) {
+        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
+        var index = JVerifyIndex.instance(context);
         for (Env<AttrContext> env : envs) {
             env.tree = PartialLower.instance(context).translate(env.tree);
+
+            for (JCTree clazz : env.toplevel.defs) {
+                index.index(env, clazz);
+            }
+
+            results.add(JVerifyCompilationUnit.of(env.toplevel));
         }
-        return envs;
+
+        return results.toList();
+    }
+
+    private List<JVerifyCompilationUnit> partialLower(Queue<Env<AttrContext>> envs) {
+        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
+        var index = JVerifyIndex.instance(context);
+        for (Env<AttrContext> env : envs) {
+            env.tree = PartialLower.instance(context).translate(env.tree);
+
+            for (JCTree clazz : env.toplevel.defs) {
+                index.index(env, clazz);
+            }
+
+            results.add(JVerifyCompilationUnit.of(env.toplevel));
+        }
+
+        return results.toList();
     }
 
     private List<JVerifyCompilationUnit> partialLower2(Queue<Env<AttrContext>> envs) {
         TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
         ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
 
+        var index = JVerifyIndex.instance(context);
+
         for (Env<AttrContext> env : envs) {
             com.sun.tools.javac.util.List<JCTree> classes = Lower.instance(context).translateTopLevelClass(env, env.tree, localMake);
+
+            for (JCTree clazz : classes) {
+                index.index(env, clazz);
+            }
+
             JVerifyCompilationUnit newUnit = new JVerifyCompilationUnit(env.toplevel, classes);
             results.add(newUnit);
         }

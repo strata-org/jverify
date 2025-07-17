@@ -12,6 +12,10 @@ import static com.sun.tools.javac.tree.JCTree.Tag.PACKAGEDEF;
 
 public record JVerifyCompilationUnit(JCTree.JCCompilationUnit unit, List<JCTree> newDefs) {
 
+    public static JVerifyCompilationUnit of(JCTree.JCCompilationUnit unit) {
+        return new JVerifyCompilationUnit(unit, unit.defs);
+    }
+
     public List<JCTree> getTypeDecls() {
         List<JCTree> typeDefs;
         for (typeDefs = newDefs; !typeDefs.isEmpty(); typeDefs = typeDefs.tail) {

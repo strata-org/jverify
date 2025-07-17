@@ -417,7 +417,12 @@ public class BlockCompiler {
                 }
                 case "decreases" -> {
                     for(var decrease : invocation.getArguments()) {
-                        header.decreases.add(compiler.expressionCompiler.toExpr(decrease));
+                        // TODO: LOWER inserts an explicit NewArray for varargs
+                        if (decrease instanceof JCTree.JCNewArray newArray) {
+                            header.decreases.addAll(newArray.getInitializers().map(compiler.expressionCompiler::toExpr));
+                        } else {
+                            header.decreases.add(compiler.expressionCompiler.toExpr(decrease));
+                        }
                     }
                 }
                 case "reads" -> {

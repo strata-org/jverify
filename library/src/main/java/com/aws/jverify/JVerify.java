@@ -41,7 +41,8 @@ public class JVerify {
      * also known as a lexicographical comparison.
      */
     public static void decreases(Object... values) {}
-    
+    public static void decreases(int value) {}
+
     public static void invariant(boolean condition) {
     }
     

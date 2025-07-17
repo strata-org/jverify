@@ -117,18 +117,18 @@ public class JavaToDafnyCompiler {
         compileSymbolsTopologically();
 
         List<FileHeader> filesStarts = new ArrayList<>();
-        for (var compilationUnit : parsed) {
-            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit.unit());
-            var isLibrary = compilationUnit.unit().getSourceFile() == builtinSource;
+        for (var compilationUnit : parsed.stream().map(JVerifyCompilationUnit::unit).collect(Collectors.toSet())) {
+            List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
+            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
                     case TokenRangeOrigin tokenRangeOrigin -> tokenRangeOrigin.getStartToken();
                     default -> throw new RuntimeException();
                 };
-                return compilationUnit.unit().getLineMap().getPosition(startToken.getLine(), startToken.getCol());
+                return compilationUnit.getLineMap().getPosition(startToken.getLine(), startToken.getCol());
             }));
-            filesStarts.add(new FileHeader(compilationUnit.unit().sourcefile.toUri().toString(), isLibrary, fileDeclarations));
+            filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
 
         return new FilesContainer(filesStarts);
