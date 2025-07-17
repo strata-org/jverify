@@ -298,7 +298,7 @@ public class ClassCompiler {
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
-        var methodCompiler = new BlockCompiler(compiler);
+        var blockCompiler = new BlockCompiler(compiler);
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
         var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
@@ -337,14 +337,14 @@ public class ClassCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, false);
                 }
-                List<JCTree.JCStatement> postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header, true);
+                List<JCTree.JCStatement> postHeader = blockCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header, true);
                 if (shouldVerify) {
-                    bodyStatements = methodCompiler.translateStatements(postHeader);
+                    bodyStatements = blockCompiler.translateStatements(postHeader);
                 }
             }
         }
         applyInvariants(sourceBody, modifiers, methodSymbol, header);
-        methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
+        blockCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
 
         var outs = new ArrayList<Formal>();
         if (methodSymbol.type.getReturnType() != null) {
@@ -372,7 +372,7 @@ public class ClassCompiler {
                 for (JCTree.JCVariableDecl variableDecl : initializers) {
                     var rhs = variableDecl.getInitializer();
                     var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                    newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
+                    newBodyStatements.addAll(blockCompiler.translateStatement(assignStmt, bodyOrigin));
                 }
                 newBodyStatements.addAll(bodyStatements);
                 bodyStatements = newBodyStatements;
