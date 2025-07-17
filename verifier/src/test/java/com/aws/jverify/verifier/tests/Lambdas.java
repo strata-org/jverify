@@ -12,6 +12,13 @@ import static com.aws.jverify.JVerify.precondition;
 public class Lambdas {
     
     public void useLambdas() {
+        // TODO add a lambda that defines a class (inside the lambda!!)
+        // TODO do something with nested classes
+        
+        doSomethingTwice((x, y) -> add(x,y));
+        doSomethingTwice((x, y) -> this.add(x,y));
+        
+        doSomethingTwice((x, y) -> x);
         doSomethingTwice((x, y) -> x);
         doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
         int z = 42;

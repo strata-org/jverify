@@ -195,8 +195,6 @@ public class LambdaCompiler extends TreeTranslator {
 
         private Map<DedupedLambda, DedupedLambda> dedupedLambdas;
 
-        private Map<Object, DynamicMethodSymbol> dynMethSyms = new HashMap<>();
-
         private final JCClassDecl clazz;
 
         private KlassInfo(JCClassDecl clazz) {
@@ -274,37 +272,6 @@ public class LambdaCompiler extends TreeTranslator {
         } finally {
             kInfo = prevKlassInfo;
         }
-    }
-
-    // where
-    // Reassign type annotations from the source that should really belong to the lambda
-    private void apportionTypeAnnotations(JCLambda tree,
-                                          Supplier<List<Attribute.TypeCompound>> source,
-                                          Consumer<List<Attribute.TypeCompound>> owner,
-                                          Consumer<List<Attribute.TypeCompound>> lambda) {
-
-        ListBuffer<Attribute.TypeCompound> ownerTypeAnnos = new ListBuffer<>();
-        ListBuffer<Attribute.TypeCompound> lambdaTypeAnnos = new ListBuffer<>();
-
-        for (Attribute.TypeCompound tc : source.get()) {
-            if (tc.position.onLambda == tree) {
-                lambdaTypeAnnos.append(tc);
-            } else {
-                ownerTypeAnnos.append(tc);
-            }
-        }
-        if (lambdaTypeAnnos.nonEmpty()) {
-            owner.accept(ownerTypeAnnos.toList());
-            lambda.accept(lambdaTypeAnnos.toList());
-        }
-    }
-
-    private JCIdent makeThis(Type type, Symbol owner) {
-        VarSymbol _this = new VarSymbol(PARAMETER | FINAL | SYNTHETIC,
-                names._this,
-                type,
-                owner);
-        return makeIdent(_this);
     }
 
     /**
@@ -406,100 +373,6 @@ public class LambdaCompiler extends TreeTranslator {
     }
 
     // </editor-fold>
-
-    // <editor-fold defaultstate="collapsed" desc="Translation helper methods">
-
-    private JCBlock makeLambdaBody(JCLambda tree, JCMethodDecl lambdaMethodDecl) {
-        return tree.getBodyKind() == JCLambda.BodyKind.EXPRESSION ?
-                makeLambdaExpressionBody((JCExpression)tree.body, lambdaMethodDecl) :
-                makeLambdaStatementBody((JCBlock)tree.body, lambdaMethodDecl, tree.canCompleteNormally);
-    }
-
-    private JCBlock makeLambdaExpressionBody(JCExpression expr, JCMethodDecl lambdaMethodDecl) {
-        Type restype = lambdaMethodDecl.type.getReturnType();
-        boolean isLambda_void = expr.type.hasTag(VOID);
-        boolean isTarget_void = restype.hasTag(VOID);
-        boolean isTarget_Void = types.isSameType(restype, types.boxedClass(syms.voidType).type);
-        int prevPos = make.pos;
-        try {
-            if (isTarget_void) {
-                //target is void:
-                // BODY;
-                JCStatement stat = make.at(expr).Exec(expr);
-                return make.Block(0, List.of(stat));
-            } else if (isLambda_void && isTarget_Void) {
-                //void to Void conversion:
-                // BODY; return null;
-                ListBuffer<JCStatement> stats = new ListBuffer<>();
-                stats.append(make.at(expr).Exec(expr));
-                stats.append(make.Return(make.Literal(BOT, null).setType(syms.botType)));
-                return make.Block(0, stats.toList());
-            } else {
-                //non-void to non-void conversion:
-                // return BODY;
-                return make.at(expr).Block(0, List.of(make.Return(expr)));
-            }
-        } finally {
-            make.at(prevPos);
-        }
-    }
-
-    private JCBlock makeLambdaStatementBody(JCBlock block, final JCMethodDecl lambdaMethodDecl, boolean completeNormally) {
-        final Type restype = lambdaMethodDecl.type.getReturnType();
-        final boolean isTarget_void = restype.hasTag(VOID);
-        boolean isTarget_Void = types.isSameType(restype, types.boxedClass(syms.voidType).type);
-
-        class LambdaBodyTranslator extends TreeTranslator {
-
-            @Override
-            public void visitClassDef(JCClassDecl tree) {
-                //do NOT recurse on any inner classes
-                result = tree;
-            }
-
-            @Override
-            public void visitLambda(JCLambda tree) {
-                //do NOT recurse on any nested lambdas
-                result = tree;
-            }
-
-            @Override
-            public void visitReturn(JCReturn tree) {
-                boolean isLambda_void = tree.expr == null;
-                if (isTarget_void && !isLambda_void) {
-                    //Void to void conversion:
-                    // { TYPE $loc = RET-EXPR; return; }
-                    VarSymbol loc = makeSyntheticVar(0, names.fromString("$loc"), tree.expr.type, lambdaMethodDecl.sym);
-                    JCVariableDecl varDef = make.VarDef(loc, tree.expr);
-                    result = make.Block(0, List.of(varDef, make.Return(null)));
-                } else {
-                    result = tree;
-                }
-
-            }
-        }
-
-        JCBlock trans_block = new LambdaBodyTranslator().translate(block);
-        if (completeNormally && isTarget_Void) {
-            //there's no return statement and the lambda (possibly inferred)
-            //return type is java.lang.Void; emit a synthetic return statement
-            trans_block.stats = trans_block.stats.append(make.Return(make.Literal(BOT, null).setType(syms.botType)));
-        }
-        return trans_block;
-    }
-
-    /** Make an attributed class instance creation expression.
-     *  @param ctype    The class type.
-     *  @param args     The constructor arguments.
-     *  @param cons     The constructor symbol
-     */
-    JCNewClass makeNewClass(Type ctype, List<JCExpression> args, Symbol cons) {
-        JCNewClass tree = make.NewClass(null,
-                null, make.QualIdent(ctype.tsym), args, null);
-        tree.constructor = cons;
-        tree.type = ctype;
-        return tree;
-    }
 
     /**
      * Create new synthetic method with given flags, name, type, owner
@@ -676,6 +549,9 @@ public class LambdaCompiler extends TreeTranslator {
 
         for (Map.Entry<Symbol, Symbol> entry : localContext.getSymbolMap(CAPTURED_THIS).entrySet()) {
             Symbol original = entry.getKey();
+            if (!(original instanceof VarSymbol)) {
+                continue;
+            }
 
             // Create field symbol
             VarSymbol fieldSym = new VarSymbol(
@@ -785,19 +661,21 @@ public class LambdaCompiler extends TreeTranslator {
         Symbol original = entry.getKey();
         Symbol translatedSym = entry.getValue();
 
-        // Constructor parameter
-        VarSymbol paramSym = new VarSymbol(
-                FINAL | PARAMETER,
-                translatedSym.name,
-                translatedSym.type,
-                null // will be set when method is created
-        );
-        params.append(make.VarDef(paramSym, null));
+        if (original instanceof VarSymbol) {
+            // Constructor parameter
+            VarSymbol paramSym = new VarSymbol(
+                    FINAL | PARAMETER,
+                    translatedSym.name,
+                    translatedSym.type,
+                    null // will be set when method is created
+            );
+            params.append(make.VarDef(paramSym, null));
 
-        // Assignment in constructor body: this.field = param
-        JCFieldAccess fieldAccess = make.Select(makeThis(classSym), translatedSym);
-        JCAssign assign = make.Assign(fieldAccess, makeIdent(paramSym));
-        body.append(make.Exec(assign));
+            // Assignment in constructor body: this.field = param
+            JCFieldAccess fieldAccess = make.Select(makeThis(classSym), translatedSym);
+            JCAssign assign = make.Assign(fieldAccess, makeIdent(paramSym));
+            body.append(make.Exec(assign));
+        }
     }
 
     private JCIdent makeThis(ClassSymbol currentClassSymbol) {

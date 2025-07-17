@@ -195,7 +195,6 @@ class LambdaAnalyzerPreprocessor extends TreeTranslator {
                         if (block == null) break;
                         switch (block.getTag()) {
                             case CLASSDEF:
-                                JCTree.JCClassDecl cdecl = (JCTree.JCClassDecl) block;
                                 ((LambdaTranslationContext) localContext)
                                         .addSymbol(tree.sym, CAPTURED_THIS);
                                 break;
@@ -798,8 +797,8 @@ class LambdaAnalyzerPreprocessor extends TreeTranslator {
             Symbol ret;
             switch (skind) {
                 case CAPTURED_THIS:
-                    ret = new Symbol.VarSymbol(SYNTHETIC | FINAL | PARAMETER, 
-                            lambdaCompiler.names.fromString(sym.name.toString() + "$captured"), 
+                    ret = new Symbol.VarSymbol(SYNTHETIC | FINAL | PARAMETER,
+                            sym.name, 
                             sym.type, translatedSym) {
                         @Override
                         public Symbol baseSymbol() {
