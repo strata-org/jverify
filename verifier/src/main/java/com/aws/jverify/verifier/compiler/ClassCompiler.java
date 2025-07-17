@@ -337,7 +337,7 @@ public class ClassCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, false);
                 }
-                List<JCTree.JCStatement> postHeader = blockCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header, true);
+                List<JCTree.JCStatement> postHeader = new ContractCompiler(compiler).translateHeader(((JCTree.JCBlock) sourceBody).stats, header, true);
                 if (shouldVerify) {
                     bodyStatements = blockCompiler.translateStatements(postHeader);
                 }
@@ -452,7 +452,7 @@ public class ClassCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, true);
                 }
-                var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header, true);
+                var postHeader = new ContractCompiler(compiler).translateHeader((JCTree.JCBlock) sourceBody, header, true);
                 if (postHeader.size() != 1) {
                     compiler.reportError(source, "pureMethodMultipleStatements");
                     return null;
