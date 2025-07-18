@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.Immutable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -33,7 +34,7 @@ public class PolymorphismWithoutBounds {
     }
     
     public static <T> void objectIsTop(T value) {
-        Object o = value;
+        @Immutable Object o = value;
     }
 }
 

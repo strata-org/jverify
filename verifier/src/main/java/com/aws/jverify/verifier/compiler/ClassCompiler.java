@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.InheritContract;
-import com.aws.jverify.Modifiable;
-import com.aws.jverify.Pure;
+import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
@@ -87,13 +84,10 @@ public class ClassCompiler {
             }
             compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
-
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
-                case INTERFACE, CLASS -> {
-                    yield translateClass(classDecl, origin, name);
-                }
-                case RECORD -> new RecordCompiler(this).translateRecord(classDecl, origin, name);
+                case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
+                case RECORD -> new RecordCompiler(this).translateValueType(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -104,7 +98,8 @@ public class ClassCompiler {
 
             List<TopLevelDecl> result = new ArrayList<>();
             if (intermediateResult != null) {
-                result.addAll(classDeclCompiler.compile(intermediateResult, classDecl.sym));
+                var classSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
+                result.addAll(classDeclCompiler.compile(intermediateResult, classSymbol));
             }
             
             typeForWhichCurrentClassIsDefiningContract = null;
@@ -137,7 +132,6 @@ public class ClassCompiler {
 
     private ClassDecl translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
-        
         
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
@@ -199,10 +193,8 @@ public class ClassCompiler {
             IOrigin origin = compiler.toOrigin(p);
             if (!this.compiler.verifierOptions.includeBuiltinContracts() &&
                     !this.compiler.compilationUnit.getSourceFile().getName().contains("builtin-contracts.java")) {
-                // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones. 
-                Symtab symtab = Symtab.instance(compiler.context);
-                var objectName = compiler.nameCompiler.getCompiledName(symtab.objectType.tsym);
-                bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, objectName, null)));
+                // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones.
+                bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
             }
             return new TypeParameter(origin,
                     name, null, TPVarianceSyntax.NonVariant_Strict,

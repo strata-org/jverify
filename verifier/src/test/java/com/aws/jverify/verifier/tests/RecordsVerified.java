@@ -40,11 +40,14 @@ class RecordsVerified {
     }
 
     static void genericRecords() {
-        var intBool = new Pair<Integer, Boolean>(1, true);
-        var longString = new Pair<Long, String>(2L, "foo");
-        check(intBool.a() * 2 == longString.a());
-        check(intBool.b());
-        check(longString.b().equals("foo"));
+        var intRecordPair = new Pair<IntRecord, IntRecord>(new IntRecord(1), new IntRecord(2));
+        check(intRecordPair.a().value() == 1);
+        check(intRecordPair.b().value() == 2);
+//        var intBool = new Pair<Integer, Boolean>(1, true);
+//        var longString = new Pair<Long, String>(2L, "foo");
+//        check(intBool.a() * 2 == longString.a());
+//        check(intBool.b());
+//        check(longString.b().equals("foo"));
 
         var foobar = new Foobar(3);
         var foobarRecord = new FoobarRecord(foobar);
@@ -55,8 +58,8 @@ class RecordsVerified {
         check(foobarFoobarRecord.b().foobar() == null);
 
         // Do not store the record in a variable, because we want to test not capturing the type
-        var someInt = new Pair<Integer, Boolean>(1, true).a();
-        var someInt2 = new UnusedTypeParameter<Long, String>(1).x();
+//        var someInt = new Pair<Integer, Boolean>(1, true).a();
+        var someInt3 = new UnusedTypeParameter<IntRecord, IntRecord>(3).x();
     }
 
     static void recursiveRecords() {

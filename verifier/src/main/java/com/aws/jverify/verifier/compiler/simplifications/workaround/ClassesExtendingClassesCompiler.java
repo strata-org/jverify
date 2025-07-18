@@ -6,9 +6,11 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class ClassesExtendingClassesCompiler {
     ClassCompiler classCompiler;
@@ -77,8 +79,15 @@ public class ClassesExtendingClassesCompiler {
             }
         }
 
-        if (!JavaToDafnyCompiler.isInterface(classSymbol) || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
+        Symtab symtab = Symtab.instance(classCompiler.compiler.context);
+        if ((!JavaToDafnyCompiler.isInterface(classSymbol) && classSymbol != symtab.recordType.tsym) 
+                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
+        }
+        
+        if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
+            superTraits.clear();
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
         }
 
         var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);

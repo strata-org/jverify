@@ -15,6 +15,6 @@ import java.lang.annotation.Target;
  * For source code, use a record instead of a class
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.TYPE)
+@Target(ElementType.TYPE_USE)
 public @interface Immutable {
 }

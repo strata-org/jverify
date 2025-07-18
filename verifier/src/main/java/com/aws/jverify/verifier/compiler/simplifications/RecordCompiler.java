@@ -25,7 +25,7 @@ public class RecordCompiler {
         this.compiler = classCompiler.compiler;
     }
 
-    public IndDatatypeDecl translateRecord(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    public IndDatatypeDecl translateValueType(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         assert classDecl.getKind() == Tree.Kind.RECORD;
         if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
@@ -86,9 +86,10 @@ public class RecordCompiler {
                     NameSegment resultReference = new NameSegment(origin, resultName, null);
                     compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> resultReference;
                     boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
+                    var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify() && !isImplicitCanonicalConstructor;
                     var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor);
                     compiler.expressionCompiler.handleThis = null;
-                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || isImplicitCanonicalConstructor)) {
+                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
 
                         Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
                         Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
@@ -97,7 +98,9 @@ public class RecordCompiler {
                         true, false, result, outType, null, null, null);
                         members.add(staticFunction);
                     } else {
-                        compiler.reportError(member, "notSupported", "verified explicit record constructor");
+                        if (dafnyMember != null) {
+                            compiler.reportError(member, "notSupported", "verified explicit record constructor");
+                        }
                     }
                     continue;
                 }

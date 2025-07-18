@@ -29,7 +29,7 @@ public class VerifyAnnotationCompiler {
         return shouldVerify;
     }
 
-    private boolean shouldVerify() {
+    public boolean shouldVerify() {
         for (int i = shouldVerifies.size() - 1; i >= 0; i--) {
             var mode = shouldVerifies.get(i);
             if (mode == ShouldVerifyMode.AlwaysYes || mode == ShouldVerifyMode.DefaultYes) {
