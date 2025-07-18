@@ -145,14 +145,12 @@ class TranslationErrors {
             IntWrapper w1, IntWrapper w2
     ) {
         if (o1 == o2) {
-//             ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
             return 0;
         } else if (o1 == null) {
             return 1;
         } else if (null == o2) {
             return 2;
         } else if (i == o1) {
-//                   ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
             return 3;
         } else if (w1 == null) {
             return 4;
