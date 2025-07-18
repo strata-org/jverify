@@ -1,10 +1,12 @@
 package com.aws.jverify.verifier.compiler.simplifications.workaround;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 
@@ -21,9 +23,16 @@ public class ClassesExtendingClassesCompiler {
 
     public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
         if (clazz instanceof ClassDecl classDecl) {
-            return buildTraitAndClassTwin(symbol, classDecl.getOrigin(),
+            var mutable = !JavaToDafnyCompiler.isInterface(symbol)
+                    || classCompiler.compiler.isAnnotated(symbol.type, Modifiable.class);
+            return buildTraitAndClassTwin(mutable, symbol, classDecl.getOrigin(),
                     classDecl.getNameNode(), classDecl.getMembers(), 
                     classDecl.getTypeArgs(), classDecl.getTraits());
+        }
+        if (clazz instanceof IndDatatypeDecl datatypeDecl) {
+            return buildTraitAndClassTwin(false, symbol, datatypeDecl.getOrigin(),
+                    datatypeDecl.getNameNode(), datatypeDecl.getMembers(),
+                    datatypeDecl.getTypeArgs(), datatypeDecl.getTraits());
         }
         return List.of(clazz);
     }
@@ -31,7 +40,8 @@ public class ClassesExtendingClassesCompiler {
     /**
      * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
      */
-    private List<TopLevelDecl> buildTraitAndClassTwin(Symbol.ClassSymbol classSymbol,
+    private List<TopLevelDecl> buildTraitAndClassTwin(boolean mutable,
+                                                      Symbol.ClassSymbol classSymbol,
                                                        IOrigin origin, Name name,
                                                        List<MemberDecl> members,
                                                        List<TypeParameter> typeParameters,
@@ -81,12 +91,11 @@ public class ClassesExtendingClassesCompiler {
 
         Symtab symtab = Symtab.instance(classCompiler.compiler.context);
         if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
-            superTraits.clear();
+            superTraits = new ArrayList<>();
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
         }
         
-        if ((!JavaToDafnyCompiler.isInterface(classSymbol) && classSymbol != symtab.recordType.tsym) 
-                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
+        if (mutable) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
 
@@ -95,7 +104,7 @@ public class ClassesExtendingClassesCompiler {
                 p -> (Type)new UserDefinedType(p.getOrigin(),
                         new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
 
-        if (classNeeded) {
+        if (classNeeded && mutable) {
             var clazz = new ClassDecl(origin, new Name(name.getOrigin(), classCompiler.compiler.nameCompiler.CLASS_PREFIX + name.getValue()), null,
                     typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
             return List.of(trait, clazz);

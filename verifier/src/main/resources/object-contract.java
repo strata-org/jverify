@@ -20,6 +20,6 @@ class ObjectContract {
     public ObjectContract() {}
 }
 
-@Contract(Record.class)
+@Contract(value = Record.class, immutable = true)
 class RecordConstract {
 }

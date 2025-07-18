@@ -35,7 +35,6 @@ public class ClassCompiler {
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
-            var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
 
             Name name = null;
@@ -130,7 +129,17 @@ public class ClassCompiler {
     }
 
 
-    private ClassDecl translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    private TopLevelDeclWithMembers translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+        var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
+        if (contractAnnotation != null && contractAnnotation.immutable()) {
+            if (typeForWhichCurrentClassIsDefiningContract != null) {
+                return new RecordCompiler(this).translateValueType(classDecl, origin, name);
+            } else {
+                compiler.reportError(classDecl, "immutableInternalContract");
+                return null;
+            }
+        }
+        
         invariants.clear();
         
         for (var member : classDecl.getMembers()) {

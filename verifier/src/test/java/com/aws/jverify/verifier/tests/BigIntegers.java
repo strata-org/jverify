@@ -3,6 +3,7 @@
 
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import java.math.BigInteger;
@@ -15,11 +16,11 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 4, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 4, useBuiltinContracts = true)
 class BigIntegers {
     static void testConstructors() {
-        BigInteger bi = new BigInteger("23");
-        check(bi.intValue() == 23);
+        BigInteger bi = new BigInteger("3");
+        check(bi.intValue() == 3);
         BigInteger bbi = new BigInteger("1");
         check(bbi.intValue() == 1);
         BigInteger biNeg = new BigInteger("-2");
@@ -29,7 +30,7 @@ class BigIntegers {
     }
 
     static void testComparisons() {
-        BigInteger bi = new BigInteger("23");
+        BigInteger bi = new BigInteger("3");
         BigInteger biNeg = new BigInteger("-2");
         BigInteger biZero = BigInteger.valueOf(0);
         check(bi.signum() == 1);
@@ -37,7 +38,7 @@ class BigIntegers {
         check(biZero.signum() == 0);
         int cmp = bi.compareTo(biNeg);
         check(cmp > 0);
-        BigInteger biAgain = new BigInteger("23");
+        BigInteger biAgain = new BigInteger("3");
         cmp = bi.compareTo(biAgain);
         check(cmp == 0);
         cmp = biNeg.compareTo(biZero);
@@ -80,6 +81,11 @@ class BigIntegers {
         BigInteger fail = bi.add(minusTwo);
         check(fail.intValue() == 25);
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+    
+    @Pure
+    BigInteger createInPure() {
+        return new BigInteger("2");
     }
 
 }

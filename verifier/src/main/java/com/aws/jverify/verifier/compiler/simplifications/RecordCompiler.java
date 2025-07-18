@@ -82,26 +82,7 @@ public class RecordCompiler {
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
-                    String resultName = "resultName";
-                    NameSegment resultReference = new NameSegment(origin, resultName, null);
-                    compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> resultReference;
-                    boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
-                    var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify() && !isImplicitCanonicalConstructor;
-                    var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor);
-                    compiler.expressionCompiler.handleThis = null;
-                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
-
-                        Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
-                        Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
-                        var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
-                            constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
-                        true, false, result, outType, null, null, null);
-                        members.add(staticFunction);
-                    } else {
-                        if (dafnyMember != null) {
-                            compiler.reportError(member, "notSupported", "verified explicit record constructor");
-                        }
-                    }
+                    translateConstructor(classDecl, origin, methodDecl, members);
                     continue;
                 }
                 var methodName = methodDecl.getName().toString();
@@ -128,10 +109,49 @@ public class RecordCompiler {
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, ctors, false);
     }
 
+    private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin, 
+                                      JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members) {
+        String resultName = "resultName";
+        NameSegment resultReference = new NameSegment(origin, resultName, null);
+        compiler.expressionCompiler.handleIdentifier = (identifier, innerOrigin) -> {
+            if (identifier.sym.owner == classDecl.sym) {
+                if (identifier.name == identifier.name.table.names._this) {
+                    return resultReference;
+                } else {
+                    var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
+                    return new ExprDotName(origin, resultReference, compiler.getName(identifier, identName), null);
+                }
+            } else {
+                return compiler.expressionCompiler.translateIdentifierNoOverride(identifier, innerOrigin);
+            }
+        };
+        boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
+        var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify() && !isImplicitCanonicalConstructor;
+        var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(methodDecl), isImplicitCanonicalConstructor);
+        compiler.expressionCompiler.handleIdentifier = null;
+        if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
+
+            Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
+            Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
+            var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
+                constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
+            true, false, result, outType, null, null, null);
+            members.add(staticFunction);
+        } else {
+            if (dafnyMember != null) {
+                compiler.reportError(methodDecl, "notSupported", "verified explicit record constructor");
+            }
+        }
+    }
+
     /**
      * Returns whether the declaration is a record's synthetic (implicit) canonical constructor.
      */
     public static boolean isImplicitCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
+        if (methodDecl == null) {
+            return false;
+        }
+        
         // Ideally we'd check for the SYNTHETIC flag, but it's not set.
         // So instead we check for its body: just a lone "super()" call.
         var body = methodDecl.getBody().getStatements();

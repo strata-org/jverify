@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.Immutable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
@@ -149,12 +150,19 @@ public class ExpressionCompiler {
     }
 
     private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin) {
-        if (compiler.isRecord(newClass.type)) {
+        Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
+        if (useConstructorFunction(compiler, newClass, classSymbol)) {
             return RecordCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",
                 "using 'new' in an expression to create an instance of a non-record class");
         return JavaToDafnyCompiler.getHole(origin);
+    }
+
+    public static boolean useConstructorFunction(JavaToDafnyCompiler compiler,  JCTree.JCNewClass newClass, Symbol.ClassSymbol classSymbol) {
+        var decls = compiler.externalContractCompiler.declarationsForSymbolContract.get(classSymbol);
+        var immutableClass = decls.size() == 1 && decls.getFirst().sym.getAnnotation(Contract.class).immutable();
+        return compiler.isRecord(newClass.type) || immutableClass;
     }
 
     private TypeTestExpr translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin) {
@@ -214,16 +222,20 @@ public class ExpressionCompiler {
                 operator, left, right);
     }
     
-    public java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleThis;
+    public java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
 
-    private Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
+    public Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
+        if (handleIdentifier == null) {
+            return translateIdentifierNoOverride(identifier, origin);
+        } else {
+            return handleIdentifier.apply(identifier, origin);
+        }
+    }
+
+    public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
         if (identName.contentEquals("this")) {
-            if (handleThis == null) {
-                return new ThisExpr(origin);
-            } else {
-                return handleThis.apply(identifier, origin);
-            }
+            return new ThisExpr(origin);
         }
         return new NameSegment(origin, identName, null);
     }
