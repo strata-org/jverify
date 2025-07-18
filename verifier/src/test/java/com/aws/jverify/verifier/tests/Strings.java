@@ -93,6 +93,9 @@ class Strings {
         check(hello.charAt(4) == 'o');
         check(hello.indexOf('o')==4);   // Proven thanks to the check above
         check(hello.indexOf('e')==1);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ // Error: assertion might not hold
+// The assertion above fails in CI but not on a local machine, instability probably due to the recursive function
+// indexOf that may require too much verifier capacity
         check(hello.indexOf('3')==-1); // Proven without any help
     }
 
