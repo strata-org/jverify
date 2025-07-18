@@ -161,7 +161,13 @@ public class ExpressionCompiler {
 
     public static boolean useConstructorFunction(JavaToDafnyCompiler compiler,  JCTree.JCNewClass newClass, Symbol.ClassSymbol classSymbol) {
         var decls = compiler.externalContractCompiler.declarationsForSymbolContract.get(classSymbol);
-        var immutableClass = decls.size() == 1 && decls.getFirst().sym.getAnnotation(Contract.class).immutable();
+        boolean immutableClass = false;
+        if (decls.size() == 1) {
+            var contract = decls.getFirst().sym.getAnnotation(Contract.class);
+            if (contract != null) {
+                immutableClass = contract.immutable();
+            }
+        }
         return compiler.isRecord(newClass.type) || immutableClass;
     }
 
