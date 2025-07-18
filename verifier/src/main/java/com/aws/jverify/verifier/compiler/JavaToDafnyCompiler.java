@@ -478,11 +478,13 @@ public class JavaToDafnyCompiler {
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
                     if (!isNullable) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
+                        return new UserDefinedType(origin, new NameSegment(origin, "DString", null));
                     }
                     reportError(origin, "notSupported", "nullable String type");
                     return null;
                 }
+
+
 
                 if (isRecord(classType) && isNullable) {
                     reportError(origin, "notSupported", "nullable record type");
