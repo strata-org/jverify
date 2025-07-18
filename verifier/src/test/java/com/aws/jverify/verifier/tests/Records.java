@@ -7,11 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 4,
-        // Turned this on to turn off Object being the top type.
-        // To make that possible, object-contract.java needs a RecordContract
-        // And have the upcoming @Immutable on that and on ObjectContract
-        useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 4)
 class Records {
     static void unitRecord() {
         var _ = new UnitRecord();
