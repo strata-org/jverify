@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 
 @SuppressWarnings({"ConstantValue", "PointlessBooleanExpression"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 1, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 0, dafnyErrors = 1)
 class VerifyBooleanOperators {
     public void foo() {
         var p = true;

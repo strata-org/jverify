@@ -80,7 +80,6 @@ public class ExternalContractCompiler {
 
     public void registerExternalContracts() {
         for(var entry : contractClassToContractee.entrySet()) {
-//            var externalContractDecl = JavacTrees.instance(compiler.context).getTree(entry.getKey());
             var externalContractDecl = (JCTree.JCClassDecl) JVerifyIndex.instance(compiler.context).getTree(entry.getKey());
 
             JVerifyIndex index = JVerifyIndex.instance(compiler.context);

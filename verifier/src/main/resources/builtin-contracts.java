@@ -38,6 +38,13 @@ interface CollectionContract<E> {
 
 }
 
+@Contract(List.class)
+abstract class ListContract<E> implements SequencedCollection<E> {
+    public static <E> List<E> of(E first, E second) {
+        throw new ContractException();
+    }
+}
+
 @Contract(SequencedCollection.class)
 interface SequencedCollectionContract<E> extends Collection<E> {
     

@@ -175,13 +175,6 @@ public class JVerify {
 
     public interface Sequence<T> {
         /**
-         * Returns the elements at index {@code index}.
-         */
-        default T get(int index) {
-            throw new VerificationMethodExecutedException();
-        }
-
-        /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
          */
         default Sequence<T> drop(int fromIndex) {
@@ -206,14 +199,7 @@ public class JVerify {
         /**
          * Returns {@code true} if this sequence contains the specified element.
          */
-        default boolean contains(Object element) {
-            throw new VerificationMethodExecutedException();
-        }
-
-        /**
-         * Returns the number of elements in this sequence.
-         */
-        default @Unbounded int size() {
+        default boolean contains(T element) {
             throw new VerificationMethodExecutedException();
         }
     }

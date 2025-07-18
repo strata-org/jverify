@@ -38,7 +38,6 @@ public class ClassesExtendingClassesCompiler {
                                                        List<Type> superTraits) {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
-        var definingSymbol = classCompiler.getCurrentTypeSymbol(classSymbol);
         var classNeeded = !JavaToDafnyCompiler.isInterfaceOrAbstract(classSymbol);
 
         for(var member : members) {
@@ -54,9 +53,7 @@ public class ClassesExtendingClassesCompiler {
                 }
 
                 case Function function -> {
-                    if (name.getValue().equals("java_lang_Object") || !function.getNameNode().getValue().equals("equals")) {
-                        traitMembers.add(function);
-                    }
+                    traitMembers.add(function);
                     if (function.getBody() == null && !function.getHasStaticKeyword()) {
                         // A bodyless trait in Dafny is abstract.
                         // You can not declare an assumed member in traits in Dafny
@@ -84,8 +81,7 @@ public class ClassesExtendingClassesCompiler {
 
         // We use Object as the top type even for types we translate to Dafny value types, such as String and records,
         // so we don't want to put `extends object` on the Object trait.
-        if (!(isInterface(definingSymbol) || definingSymbol.className().equals("java.lang.Object"))
-                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
+        if (!JavaToDafnyCompiler.isInterface(classSymbol) || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
 

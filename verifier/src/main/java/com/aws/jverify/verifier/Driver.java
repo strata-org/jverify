@@ -265,7 +265,7 @@ public class Driver {
                 "--general-newtypes",
                 // "--progress", "Batch",
                 //"--check-source-location-consistency",
-                "--general-traits=full"
+                "--general-traits=datatype"
         );
         if (verifierOptions.printDafny() != null) {
             processBuilder.command().add("--print=" + verifierOptions.printDafny());

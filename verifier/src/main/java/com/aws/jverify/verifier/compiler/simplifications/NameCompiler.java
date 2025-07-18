@@ -38,7 +38,6 @@ public class NameCompiler {
     public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
-    private final Set<Name> preludeReferencedClassNames = new HashSet<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
@@ -60,10 +59,6 @@ public class NameCompiler {
     
     public void registerClass(Symbol.ClassSymbol classSymbol) {
         classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
-    }
-
-    public void registerPreludeReferencedName(Name name) {
-        preludeReferencedClassNames.add(name);
     }
 
     public String safeGetOriginalName(String name) {
@@ -91,8 +86,7 @@ public class NameCompiler {
                     return uncachedGetCompiledName(newTarget);
                 }
                 var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
-                var preludeReferenced = preludeReferencedClassNames.contains(classSymbol.name);
-                if (preludeReferenced || occurrenceCount == null || occurrenceCount > 1) {
+                if (occurrenceCount == null || occurrenceCount > 1) {
                     return classSymbol.getQualifiedName().toString().replace(".", "_");
                 }
                 return classSymbol.name.toString();

@@ -177,19 +177,7 @@ public class ClassCompiler {
             }
         }
 
-        // TODO: Check for existing equals()
-        var symtab = Symtab.instance(compiler.context);
-        var objectName = compiler.nameCompiler.getCompiledName(symtab.objectType.tsym);
-        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, objectName, null)),
-                false, true, null, null, false, false, false, null);
-        var equalsFunction = new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
-                List.of(otherIn),
-                List.of(), List.of(), new Specification<>(List.of(), null),
-                new Specification<>(List.of(), null), false, false, null, new BoolType(origin),
-                null, null, null);
-        members.add(equalsFunction);
-        
-        var definingSymbol = getCurrentTypeSymbol(classDecl.sym);
+        var definingSymbol = getCurrentTypeSymbol(classDecl);
 
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
         if (definingSymbol.getSuperclass() != null) {
@@ -228,8 +216,8 @@ public class ClassCompiler {
         }).toList();
     }
 
-    public Symbol.ClassSymbol getCurrentTypeSymbol(Symbol.ClassSymbol classSymbol) {
-        return typeForWhichCurrentClassIsDefiningContract == null ? classSymbol : typeForWhichCurrentClassIsDefiningContract;
+    public Symbol.ClassSymbol getCurrentTypeSymbol(JCTree.JCClassDecl classDecl) {
+        return typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
     }
 
     public MemberDecl translateMember(JCTree member) {
@@ -381,7 +369,6 @@ public class ClassCompiler {
 
         var outs = new ArrayList<Formal>();
         if (methodSymbol.type.getReturnType() != null) {
-//            JavacTrees trees = JavacTrees.instance(compiler.context);
             JVerifyIndex index = JVerifyIndex.instance(compiler.context);
             var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
             IOrigin returnOrigin;
@@ -544,7 +531,6 @@ public class ClassCompiler {
 
     private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, boolean shouldVerify, IOrigin bodyOrigin) {
         return methodSymbol.getParameters().map(jvd -> {
-//            var trees = JavacTrees.instance(compiler.context);
             var index = JVerifyIndex.instance(compiler.context);
             var parameter = index.getTree(jvd);
             IOrigin parameterOrigin;

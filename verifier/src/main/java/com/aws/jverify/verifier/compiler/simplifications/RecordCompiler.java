@@ -30,7 +30,7 @@ public class RecordCompiler {
 
         var typeParams = classCompiler.translateTypeParameters(classDecl.typarams);
 
-        var traits = classCompiler.getCurrentTypeSymbol(classDecl.sym)
+        var traits = classCompiler.getCurrentTypeSymbol(classDecl)
                 .getInterfaces().stream()
                 .filter(compiler::typeHasAContract)
                 .map(baseType -> compiler.translateType(null, baseType, origin))

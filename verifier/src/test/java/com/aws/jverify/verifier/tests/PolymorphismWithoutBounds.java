@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 9, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
 public class PolymorphismWithoutBounds {
     public static void root() {
         // Use a dummy class because we can't currently soundly translate "==" when both operands are of type Object.

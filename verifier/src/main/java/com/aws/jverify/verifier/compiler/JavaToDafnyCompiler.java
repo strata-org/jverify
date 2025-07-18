@@ -108,10 +108,6 @@ public class JavaToDafnyCompiler {
             nameCompiler.registerClass(foundClassSymbol);
         }
 
-        // These names are referenced by additional.dfy so their compiled names need to be predictable.
-        var symtab = Symtab.instance(context);
-        nameCompiler.registerPreludeReferencedName(symtab.objectType.tsym.name);
-
         externalContractCompiler.registerExternalContracts();
 
         // Add a default origin to fallback to
@@ -150,7 +146,6 @@ public class JavaToDafnyCompiler {
                 continue;
             }
             for(var relatedDeclaration : relatedDeclarations) {
-//                Enter enter = Enter.instance(context);
                 JVerifyIndex index = JVerifyIndex.instance(context);
                 Env<AttrContext> env = index.getEnv(relatedDeclaration.sym);
                 if (env != null) {
@@ -265,7 +260,6 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean typeHasSource(Symbol.TypeSymbol typeSymbol) {
-//        var trees = JavacTrees.instance(context);
         var index = JVerifyIndex.instance(context);
         return index.getTree(typeSymbol) != null;
     }
@@ -499,12 +493,6 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
 
-                // TODO: Better check. But watch out for getName() and $
-                if (className.toString().equals("com.aws.jverify.JVerify$Sequence")) {
-                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
-                    return new SeqType(origin, arguments);
-                }
-                
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
                 var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
