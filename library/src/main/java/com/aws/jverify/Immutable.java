@@ -6,13 +6,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Enables constructing this class in pure code
- * 
- * Must only be used on classes that are immutable and
- * whose hashcode and equals implementation define structural equality.
- * 
- * Only usable on classes defined in libraries. 
- * For source code, use a record instead of a class
+ * Can be used on a variable of type Object, 
+ * to allow assigning values with a record type, or a generic type, to this variable.
+ * However, the `==` operator can not be used on immutable objects.
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE_USE)
