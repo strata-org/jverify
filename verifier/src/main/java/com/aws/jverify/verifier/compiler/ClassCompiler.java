@@ -37,6 +37,10 @@ public class ClassCompiler {
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
+            if (classDecl.name.toString().equals("package-info")) {
+                return List.of();
+            }
+
             var annotations = classDecl.getModifiers().getAnnotations();
             var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
 
@@ -238,6 +242,14 @@ public class ClassCompiler {
             }
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateField(variableDecl);
+            }
+            case JCTree.JCBlock block -> {
+                // LOWER generates empty static blocks
+                if (block.stats.isEmpty()) {
+                    return null;
+                } else {
+                    throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
+                }
             }
             default -> throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
         }
