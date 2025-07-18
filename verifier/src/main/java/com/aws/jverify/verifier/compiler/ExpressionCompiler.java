@@ -83,7 +83,7 @@ public class ExpressionCompiler {
         var source = toExpr(switchExpr.getExpression());
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
-    
+
     public Expression toExpr(JCTree.JCExpression expr) {
         return toExpr(expr, null);
     }
@@ -268,14 +268,13 @@ public class ExpressionCompiler {
             return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                     null, new ActualBindings(List.of()), null);
         } else {
-            Expression selectedDafnyExpr = toExpr(fieldAccess.selected);
             boolean methodContainerTypeIsParameter = fieldAccess.selected.type instanceof com.sun.tools.javac.code.Type.TypeVar;
             if (methodContainerTypeIsParameter) {
                 var classType = fieldAccess.sym.enclClass().type;
                 // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
-                selectedDafnyExpr = new ConversionExpr(origin, selectedDafnyExpr, compiler.translateType(classType, origin), "");
+                selectedExpr = new ConversionExpr(origin, selectedExpr, compiler.translateType(classType, origin), "");
             }
-            return new ExprDotName(origin, selectedDafnyExpr, compiler.getName(fieldAccess, fieldName), null);
+            return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, fieldName), null);
         }
     }
 
@@ -288,14 +287,9 @@ public class ExpressionCompiler {
         var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
         var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
 
-        final Expression receiver;
-        if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-            receiver = toExpr(fieldAccess.selected);
-        } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
-            receiver = null;
-        } else {
+        if (!((invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) ||
+             (invocation.getMethodSelect() instanceof JCTree.JCIdent))) {
             compiler.reportError(invocation, "notSupported", "call via method reference");
-            receiver = JavaToDafnyCompiler.getHole(origin);
         }
 
         if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
@@ -306,6 +300,14 @@ public class ExpressionCompiler {
                     .filter(comp -> comp.name.equals(methodSymbol.name))
                     .findAny();
             if (component.isPresent()) {
+                final Expression receiver;
+                if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                    receiver = toExpr(fieldAccess.selected);
+                } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
+                    receiver = null;
+                } else {
+                    receiver = JavaToDafnyCompiler.getHole(origin);
+                }
                 var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get());
                 var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
