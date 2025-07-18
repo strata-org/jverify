@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.BlockCompiler;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
@@ -82,14 +81,11 @@ public class RecordCompiler {
                 if (TreeInfo.isConstructor(methodDecl)) {
                     String resultName = "resultName";
                     NameSegment resultReference = new NameSegment(origin, resultName, null);
-                    compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> {
-                        return resultReference;
-                    };
-                    boolean primaryConstructor = isSyntheticCanonicalConstructor(methodDecl);
-                    var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member),
-                      primaryConstructor);
+                    compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> resultReference;
+                    boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
+                    var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor);
                     compiler.expressionCompiler.handleThis = null;
-                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || primaryConstructor)) {
+                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || isImplicitCanonicalConstructor)) {
 
                         Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
                         Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
@@ -129,7 +125,7 @@ public class RecordCompiler {
     /**
      * Returns whether the declaration is a record's synthetic (implicit) canonical constructor.
      */
-    public static boolean isSyntheticCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
+    public static boolean isImplicitCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
         // Ideally we'd check for the SYNTHETIC flag, but it's not set.
         // So instead we check for its body: just a lone "super()" call.
         var body = methodDecl.getBody().getStatements();
@@ -154,7 +150,7 @@ public class RecordCompiler {
         }
 
         JavacTrees trees = JavacTrees.instance(expressionCompiler.compiler.context);
-        boolean callDatatypeConstructor = isSyntheticCanonicalConstructor((JCTree.JCMethodDecl) trees.getTree(newClass.constructor));
+        boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) trees.getTree(newClass.constructor));
             
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
