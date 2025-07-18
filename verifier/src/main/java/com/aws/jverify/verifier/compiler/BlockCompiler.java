@@ -236,7 +236,7 @@ public class BlockCompiler {
                     compiler.expressionCompiler.toExpr(invocation.args.getFirst()), null));
         } else {
             if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
-                compiler.reportError(invocation, "contractBeforeBody");
+                compiler.reportError(invocation, "contractForConstructor");
             } else {
                 compiler.reportError(invocation, "contractAfterBody");
             }

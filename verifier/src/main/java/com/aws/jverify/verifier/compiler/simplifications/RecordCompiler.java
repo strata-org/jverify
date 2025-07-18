@@ -85,10 +85,11 @@ public class RecordCompiler {
                     compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> {
                         return resultReference;
                     };
-                    var dafnyMember = classCompiler.translateMember(member);
+                    boolean primaryConstructor = isSyntheticCanonicalConstructor(methodDecl);
+                    var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member),
+                      primaryConstructor);
                     compiler.expressionCompiler.handleThis = null;
-                    if (dafnyMember instanceof Constructor constructor &&
-                            (constructor.getBody() == null || isSyntheticCanonicalConstructor(methodDecl))) {
+                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || primaryConstructor)) {
 
                         Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
                         Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
