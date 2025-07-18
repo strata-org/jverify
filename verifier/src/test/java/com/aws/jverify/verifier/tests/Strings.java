@@ -92,12 +92,7 @@ class Strings {
 
         check(hello.charAt(4) == 'o');
         check(hello.indexOf('o')==4);   // Proven thanks to the check above
-<<<<<<< HEAD
         check(hello.indexOf('e')==1);
-=======
-        check(hello.indexOf('e')==1);  // Not proven due to Dafny limitation
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
->>>>>>> 4e55ad50e732048c504519219c15d2a001528ada
         check(hello.indexOf('3')==-1); // Proven without any help
     }
 
