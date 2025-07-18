@@ -39,6 +39,7 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
@@ -67,6 +68,7 @@ public class JavaToDafnyCompiler {
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
+    private boolean skipDiagnostics;
     
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -201,7 +203,18 @@ public class JavaToDafnyCompiler {
         reportError(positionFromNode(tree, compilationUnit), key, args);
     }
     
+    public <T> T withSkipDiagnostics(Supplier<T> supplier, boolean skipDiagnostics) {
+        var previous = this.skipDiagnostics;
+        this.skipDiagnostics = skipDiagnostics;
+        var result = supplier.get();
+        this.skipDiagnostics = previous;
+        return result;
+    }
+    
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
+        if (this.skipDiagnostics) {
+            return;
+        }
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));

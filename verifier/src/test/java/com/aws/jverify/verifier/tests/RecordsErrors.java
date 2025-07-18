@@ -9,14 +9,14 @@ class RecordsErrors {
     record ExplicitConstructors(int i, boolean b) {
         // Explicit canonical constructors are forbidden
         ExplicitConstructors(int i, boolean b) {
-//      ^ error: explicit record constructor is not supported
+//      ^ error: verified explicit record constructor is not supported
             this.i = i;
             this.b = b;
         }
 
         // Other explicit constructors are also forbidden
         ExplicitConstructors() {
-//      ^ error: explicit record constructor is not supported
+//      ^ error: verified explicit record constructor is not supported
             this(1, true);
         }
     }

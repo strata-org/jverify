@@ -116,7 +116,7 @@ public class ExternalContractCompiler {
             var methodSymbol = methodDecl.sym;
             var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
-                var header = new BlockCompiler(compiler).extractContract(methodDecl, true);
+                var header = new BlockCompiler(compiler, methodSymbol).extractContract(methodDecl, true);
                 externalContracts.put(baseMethod, header);
                 compiler.lambdaCompiler.methodContracts.put(baseMethod, header);
             } else if (!compiler.isSynthetic(methodDecl, methodSymbol)) {

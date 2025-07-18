@@ -3,12 +3,13 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Unbounded;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 4)
-class Records {
+@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 4)
+class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
     }
@@ -52,6 +53,10 @@ class Records {
 
         var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
         check(foobarFoobarRecord.b().foobar() == null);
+
+        // Do not store the record in a variable, because we want to test not capturing the type
+        var someInt = new Pair<Integer, Boolean>(1, true).a();
+        var someInt2 = new UnusedTypeParameter<Long, String>(1).x();
     }
 
     static void recursiveRecords() {
@@ -86,6 +91,11 @@ class Records {
         // we can also create a new record instance within an expression
         check(new Factor(3).times(7) == 21);
     }
+    
+    static void HasConstructorRecord() {
+        var hasConstructor = new HasConstructor();
+        check(hasConstructor.x() == 3);
+    }
 }
 
 /** No components */
@@ -99,6 +109,9 @@ record FoobarRecord(@Nullable Foobar foobar) {}
 
 /** Generic-type record and components */
 record Pair<A, B>(A a, B b) {}
+
+/** Generic-type record and components */
+record UnusedTypeParameter<A, B>(int x) {}
 
 /** Recursion */
 record BasicConsList(String head, @Nullable Wrapper<BasicConsList> tail) {}
@@ -155,4 +168,12 @@ class Foobar {
 
 interface ICoefficient {
     @Unbounded int times(int i);
+}
+
+@Verify(false)
+record HasConstructor(int x) {
+    HasConstructor() {
+        this(3);
+        postcondition(this.x() == 3);
+    }
 }

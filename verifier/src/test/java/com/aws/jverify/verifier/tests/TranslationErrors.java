@@ -32,7 +32,7 @@ class TranslationErrors {
     void contractAfterBody(int x) {
         x = x + 3;
         precondition(x == 3);
-//                  ^ error: call to JVerify header method precondition is not allowed after non-header statement
+//                  ^ error: call to contract method must come before the rest of the body
     }
     
     void wrongContractMethod(int x) {
