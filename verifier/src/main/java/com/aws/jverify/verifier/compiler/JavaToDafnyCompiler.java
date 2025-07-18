@@ -113,8 +113,14 @@ public class JavaToDafnyCompiler {
         nameCompiler.registerPreludeReferencedName(symtab.objectType.tsym.name);
 
         externalContractCompiler.registerExternalContracts();
-        
+
+        // Add a default origin to fallback to
+        var dummyToken = new Token(1, 1);
+        contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
+
         compileSymbolsTopologically();
+
+        contextOrigins.pop();
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed.stream().map(JVerifyCompilationUnit::unit).collect(Collectors.toSet())) {
@@ -562,6 +568,7 @@ public class JavaToDafnyCompiler {
         return getName(tree, name, name.length());
     }
 
+    // TODO: Should be calling toOrigin() instead of duplicating the logic
     public Name getName(JCTree tree, String name, int length) {
         var positionCalculator = new PositionCalculator(compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);
