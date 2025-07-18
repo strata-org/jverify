@@ -5,6 +5,7 @@ import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -147,7 +148,7 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
-        LocalVariable localVariable = new LocalVariable(origin, variableDecl.name.toString(),
+        LocalVariable localVariable = new LocalVariable(origin, compiler.nameCompiler.getCompiledName(variableDecl.sym),
                 compiler.translateType(variableDecl.getModifiers(), variableDecl.getType().type, origin), false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
@@ -458,6 +459,9 @@ public class BlockCompiler {
      * or wraps it in a singleton block otherwise.
      */
     public static BlockStmt blockifyStatements(IOrigin origin,  List<Statement> statements) {
+        if (statements.isEmpty()) {
+            return new BlockStmt(origin, null, List.of(), statements);
+        }
         return statements.getFirst() instanceof BlockStmt block
                 ? block
                 : new BlockStmt(origin, null, List.of(), statements);
@@ -492,11 +496,11 @@ public class BlockCompiler {
             case JCTree.JCNewArray newArray -> {
                 var arrayDimensions = newArray.getDimensions().stream().map(compiler.expressionCompiler::toExpr).toList();
                 var arrayInitializers = newArray.getInitializers();
-                var arrayJavaType = newArray.getType();
-                if (arrayJavaType instanceof JCTree.JCArrayTypeTree _) {
+                var arrayJavaType = ((com.sun.tools.javac.code.Type.ArrayType) newArray.type).elemtype;
+                if (arrayJavaType instanceof com.sun.tools.javac.code.Type.ArrayType) {
                     compiler.reportError(expr, "notSupported", "multi-dimensional arrays");
                 }
-                var arrayDafnyType = compiler.translateType(null, arrayJavaType.type, compiler.toOrigin(arrayJavaType));
+                var arrayDafnyType = compiler.translateType(null, arrayJavaType, compiler.toOrigin(newArray));
 
                 if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                     compiler.reportError(expr, "notSupported", "new array with initializers");

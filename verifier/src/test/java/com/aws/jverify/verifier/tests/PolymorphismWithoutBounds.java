@@ -5,21 +5,21 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 6, dafnyErrors = 0)
 public class PolymorphismWithoutBounds {
     public static void root() {
         // Use a dummy class because we can't currently soundly translate "==" when both operands are of type Object.
         var obj = new Dummy();
-        GenericContainer<Object> container = new GenericContainer<Object>(obj);
+        GenericContainer<DummySuper> container = new GenericContainer<DummySuper>(obj);
         check(obj == container.getValue());
 
-        GenericContainer<Object> container2 = new GenericContainer<>(obj);
+        GenericContainer<DummySuper> container2 = new GenericContainer<>(obj);
         check(obj == container2.getValue());
 
         var container3 = new GenericContainer.NestedGenericContainer<>(obj);
         check(obj == container3.getValue());
         
-        var obj2 = PolymorphismWithoutBounds.<Object>genericIdentity(obj);
+        var obj2 = PolymorphismWithoutBounds.<DummySuper>genericIdentity(obj);
         check(obj == obj2);
 
         var obj3 = genericIdentity(obj);
@@ -32,7 +32,8 @@ public class PolymorphismWithoutBounds {
     }
 }
 
-class Dummy {}
+class DummySuper { }
+class Dummy extends DummySuper {}
 
 class GenericContainer<T> {
     private T value;
