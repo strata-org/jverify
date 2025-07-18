@@ -1,14 +1,11 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Nullable;
-import com.aws.jverify.Pure;
-import com.aws.jverify.Unbounded;
-import com.aws.jverify.Verify;
+import com.aws.jverify.*;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
@@ -95,9 +92,13 @@ class RecordsVerified {
         check(new Factor(3).times(7) == 21);
     }
     
-    static void HasConstructorRecord() {
+    static void hasConstructorRecord() {
         var hasConstructor = new HasConstructor();
         check(hasConstructor.x() == 3);
+    }
+    
+    static void assignRecordToValueObject() {
+        @Immutable Object o = new IntRecord(3);
     }
 }
 

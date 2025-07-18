@@ -483,6 +483,14 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
+                if (isAnnotated(modifiers, com.aws.jverify.Immutable.class)) {
+                    Symtab symtab = Symtab.instance(context);
+                    if (classType.tsym == symtab.objectType.tsym) {
+                        return new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null));
+                    } else {
+                        reportError(origin, "notSupported", "@Immutable on another type reference than Object");
+                    }
+                }
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
                     if (!isNullable) {
