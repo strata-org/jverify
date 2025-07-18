@@ -9,7 +9,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 4)
-class Records {
+class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
     }
