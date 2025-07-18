@@ -53,6 +53,10 @@ class RecordsVerified {
 
         var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
         check(foobarFoobarRecord.b().foobar() == null);
+
+        // Do not store the record in a variable, because we want to test not capturing the type
+        var someInt = new Pair<Integer, Boolean>(1, true).a();
+        var someInt2 = new UnusedTypeParameter<Long, String>(1).x();
     }
 
     static void recursiveRecords() {
@@ -105,6 +109,9 @@ record FoobarRecord(@Nullable Foobar foobar) {}
 
 /** Generic-type record and components */
 record Pair<A, B>(A a, B b) {}
+
+/** Generic-type record and components */
+record UnusedTypeParameter<A, B>(int x) {}
 
 /** Recursion */
 record BasicConsList(String head, @Nullable Wrapper<BasicConsList> tail) {}
