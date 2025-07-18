@@ -80,14 +80,14 @@ public class ClassesExtendingClassesCompiler {
         }
 
         Symtab symtab = Symtab.instance(classCompiler.compiler.context);
-        if ((!JavaToDafnyCompiler.isInterface(classSymbol) && classSymbol != symtab.recordType.tsym) 
-                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
-        }
-        
         if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
             superTraits.clear();
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
+        }
+        
+        if ((!JavaToDafnyCompiler.isInterface(classSymbol) && classSymbol != symtab.recordType.tsym) 
+                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
 
         var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);
