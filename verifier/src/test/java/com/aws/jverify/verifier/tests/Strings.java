@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 6)
+@JVerifyTest(exitCode = 4, dafnyVerified = 12, dafnyErrors = 5)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
@@ -92,8 +92,7 @@ class Strings {
 
         check(hello.charAt(4) == 'o');
         check(hello.indexOf('o')==4);   // Proven thanks to the check above
-        check(hello.indexOf('e')==1);  // Not proven due to Dafny limitation
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+        check(hello.indexOf('e')==1);
         check(hello.indexOf('3')==-1); // Proven without any help
     }
 

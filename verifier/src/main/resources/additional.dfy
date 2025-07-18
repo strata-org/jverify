@@ -13,12 +13,14 @@ datatype DString = JS(elements: seq<char16>) {
     function indexOf_i(c: char16) : (result:int32)
         ensures -1 <= result < |this.elements|
         ensures (result == -1 <==> forall i | 0 <= i < |this.elements| :: this.elements[i] != c)
-        ensures (result >= 0 <==> this.elements[result] == c &&   forall j| 0 <= j && j < result :: this.elements[j] != c)
+        ensures (result >= 0 && result<|this.elements| ==> this.elements[result] == c &&   forall j| 0 <= j && j < result :: this.elements[j] != c)
 
      function length() : int {
         |this.elements|
         }
-      function charAt(x: int) : char16 {
+      function charAt(x: int) : char16
+        requires 0<=x<|this.elements|
+      {
         this.elements[x]
       }
       function isEmpty() : bool {
