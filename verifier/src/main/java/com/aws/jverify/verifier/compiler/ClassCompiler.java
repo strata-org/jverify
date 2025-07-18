@@ -90,7 +90,9 @@ public class ClassCompiler {
 
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
-                case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
+                case INTERFACE, CLASS -> {
+                    yield translateClass(classDecl, origin, name);
+                }
                 case RECORD -> new RecordCompiler(this).translateRecord(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));

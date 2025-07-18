@@ -15,7 +15,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.SequencedCollection;
 
+@Immutable
 @Contract(Object.class)
 class ObjectContract {
     public ObjectContract() {}
+}
+
+@Immutable
+@Contract(Record.class)
+class RecordConstract {
 }

@@ -6,12 +6,8 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
-<<<<<<< HEAD
-import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-=======
 import com.sun.tools.javac.api.JavacTrees;
->>>>>>> recordConstructors
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
