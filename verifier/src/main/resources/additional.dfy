@@ -31,12 +31,12 @@ datatype DString = JS(elements: seq<char16>) {
         JS(this.elements + other.elements)
       }
     function substring_i(start: int) : DString
-      requires start >= 0 && start < |this.elements|
+      requires start >= 0 && start <= |this.elements|
     {
       JS(this.elements[start..])
     }
     function substring_ii(start: int, end:int) : DString
-        requires start >= 0 && start <= end && end < |this.elements|
+        requires start >= 0 && start <= end && end <= |this.elements|
     {
       JS(this.elements[start..end])
     }
