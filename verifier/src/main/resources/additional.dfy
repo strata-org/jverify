@@ -15,6 +15,7 @@ datatype DString = JS(elements: seq<char16>) {
         ensures (result == -1 <==> forall i | 0 <= i < |this.elements| :: this.elements[i] != c)
         ensures (result >= 0 && result<|this.elements| ==> this.elements[result] == c &&   forall j| 0 <= j && j < result :: this.elements[j] != c)
 
+
      function length() : int {
         |this.elements|
         }

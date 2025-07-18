@@ -84,6 +84,20 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
+    // Given a symbol, assumed to be a MethodSymbol, returns a new MethodSymbol with
+    // same name but with a new argument type prepended.
+    static private Symbol addReceiverType(Symbol sym, com.sun.tools.javac.code.Type typ) {
+        // Create a new symbol with same name but different type (one new argument)
+        var methodType = (com.sun.tools.javac.code.Type.MethodType) sym.type;
+        var newArgTypes = methodType.argtypes.prepend(typ);
+        var newMethodType =
+                new com.sun.tools.javac.code.Type.MethodType(
+                        newArgTypes, methodType.restype, methodType.thrown, null);
+        return new Symbol.MethodSymbol((long)0, sym.name,
+                newMethodType,
+                sym.owner);
+    }
+
     public Expression toExpr(JCTree.JCExpression expr) {
         return toExpr(expr, null);
     }
