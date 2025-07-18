@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.Immutable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
@@ -426,6 +427,11 @@ public class ExpressionCompiler {
             return false;
         }
 
+        var symtab = Symtab.instance(this.compiler.context);
+        if (type == symtab.objectType) {
+            return compiler.isAnnotated(type, Immutable.class);
+        }
+
         var types = Types.instance(this.compiler.context);
         return Stream.concat(primitiveTypes().stream(), jrdvTypes().stream())
                 .anyMatch(t -> types.isAssignable(type, t) || types.isAssignable(t, type));
@@ -452,7 +458,6 @@ public class ExpressionCompiler {
         var symtab = Symtab.instance(this.compiler.context);
         return List.of(symtab.stringType, symtab.recordType);
     }
-
 
     /**
      * Translates the given string literal to a Dafny expression (of type {@code jstring}).
