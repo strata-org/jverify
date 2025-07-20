@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -104,14 +105,7 @@ public class RecordCompiler {
      * Returns whether the declaration is a record's synthetic (implicit) canonical constructor.
      */
     private static boolean isSyntheticCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
-        // Ideally we'd check for the SYNTHETIC flag, but it's not set.
-        // So instead we check for its body: just a lone "super()" call.
-        var body = methodDecl.getBody().getStatements();
-        return TreeInfo.isCanonicalConstructor(methodDecl)
-                && body.length() == 1
-                && body.getFirst() instanceof JCTree.JCExpressionStatement stmt
-                && TreeInfo.isSuperCall(stmt)
-                && TreeInfo.args(stmt.getExpression()).isEmpty();
+        return (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0;
     }
 
     /**

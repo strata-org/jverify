@@ -97,6 +97,9 @@ public class JVerify {
     public static <T> T old(T value) {
         throw new ContractException();
     }
+    public static int old(int value) {
+        throw new ContractException();
+    }
 
     /**
      * Returns true if the given object were allocated during the current method call.

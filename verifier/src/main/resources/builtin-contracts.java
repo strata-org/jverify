@@ -54,6 +54,16 @@ interface SequencedCollectionContract<E> extends Collection<E> {
 class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
+
+    public static Integer valueOf(int i) {
+        postcondition((Integer b) -> b.intValue() == i);
+        throw new ContractException();
+    }
+
+    @Pure
+    public int intValue() {
+        throw new ContractException();
+    }
 }
 
 @Contract(Double.class)
@@ -64,10 +74,30 @@ class DoubleContract {
 class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
+
+    public static Long valueOf(long l) {
+        postcondition((Long b) -> b.longValue() == l);
+        throw new ContractException();
+    }
+
+    @Pure
+    public long longValue() {
+        throw new ContractException();
+    }
 }
 
 @Contract(Boolean.class)
 class BooleanContract {
+
+    public static Boolean valueOf(boolean b) {
+        postcondition((Boolean boxed) -> boxed.booleanValue() == b);
+        throw new ContractException();
+    }
+
+    @Pure
+    public boolean booleanValue() {
+        throw new ContractException();
+    }
 }
 
 class HelperForBigIntegerContract {

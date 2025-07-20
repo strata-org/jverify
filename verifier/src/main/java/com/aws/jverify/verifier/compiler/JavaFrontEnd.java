@@ -137,7 +137,9 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    units.addAll(partialLower2(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo)))))));
+                    units.addAll(revealRecords(partialLower2(hideRecords(
+                            unsubstitute(unlambda(substitute(
+                                    compiler.flow(compiler.attribute(todo)))))))));
                 }
             }
         });
@@ -203,6 +205,28 @@ public class JavaFrontEnd {
             env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
         }
         return envs;
+    }
+
+    // Phase to replace erased code such as specifications with placeholders
+    // so future phases don't rewrite them.
+    private Queue<Env<AttrContext>> hideRecords(Queue<Env<AttrContext>> envs) {
+        var hider = RecordHider.instance(context);
+        for (Env<AttrContext> env: envs) {
+            env.tree = hider.hide(env.tree);
+        }
+        return envs;
+    }
+
+    // Phase to replace placeholders substituted by the earlier SUBSTITUTE phase
+    // with their original AST nodes.
+    private List<JVerifyCompilationUnit> revealRecords(List<JVerifyCompilationUnit> units) {
+        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
+        var hider = RecordHider.instance(context);
+        for (JVerifyCompilationUnit unit : units) {
+            var newDefs = unit.newDefs().map(hider::reveal);
+            results.add(new JVerifyCompilationUnit(unit.unit(), newDefs));
+        }
+        return results.toList();
     }
 
     private List<JVerifyCompilationUnit> noLower(Queue<Env<AttrContext>> envs) {

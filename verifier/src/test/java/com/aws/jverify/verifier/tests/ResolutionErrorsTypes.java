@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 1, dafnyErrors = 1)
 class ResolutionErrorsTypes {
     @Pure
     static boolean boxedIsZero(Integer i) {
@@ -15,7 +15,7 @@ class ResolutionErrorsTypes {
     @SuppressWarnings("ConstantValue")
     static void nullArgForNonNullParam() {
         Integer zero = null;
-//                     ^^^^ Error: type of 'null' is a reference type, but it is used as int
+//                     ^^^^ Error: value of expression (of type 'Integer?') is not known to be an instance of type 'Integer', because it might be null
         check(boxedIsZero(zero));
     }
 }
