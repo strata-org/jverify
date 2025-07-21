@@ -13,6 +13,7 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.EndPosTable;
@@ -35,6 +36,7 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
@@ -62,6 +64,7 @@ public class JavaToDafnyCompiler {
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
+    private boolean skipDiagnostics;
     
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
@@ -194,8 +197,23 @@ public class JavaToDafnyCompiler {
     public void reportError(JCTree tree, String key, Object... args) {
         reportError(positionFromNode(tree, compilationUnit), key, args);
     }
+
+    /**
+     * In case of synthetic program nodes, which may occur nodes that are copies of source nodes that occur elsewhere in the program,
+     * this method can be used not to generate diagnostics when processing the synthetic node.
+     */
+    public <T> T withSkipDiagnostics(Supplier<T> supplier, boolean skipDiagnostics) {
+        var previous = this.skipDiagnostics;
+        this.skipDiagnostics = skipDiagnostics;
+        var result = supplier.get();
+        this.skipDiagnostics = previous;
+        return result;
+    }
     
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
+        if (this.skipDiagnostics) {
+            return;
+        }
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
@@ -464,14 +482,24 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
+                if (isAnnotated(modifiers, com.aws.jverify.Immutable.class)) {
+                    Symtab symtab = Symtab.instance(context);
+                    if (classType.tsym == symtab.objectType.tsym) {
+                        return new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null));
+                    } else {
+                        reportError(origin, "notSupported", "@Immutable on another type reference than Object");
+                    }
+                }
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
                     if (!isNullable) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
+                        return new UserDefinedType(origin, new NameSegment(origin, "DString", null));
                     }
                     reportError(origin, "notSupported", "nullable String type");
                     return null;
                 }
+
+
 
                 if (isRecord(classType) && isNullable) {
                     reportError(origin, "notSupported", "nullable record type");

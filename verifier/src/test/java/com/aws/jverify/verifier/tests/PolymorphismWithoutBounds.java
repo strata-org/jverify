@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Contract;
+import com.aws.jverify.Immutable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -8,6 +8,11 @@ import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(dafnyVerified = 6, dafnyErrors = 0)
 public class PolymorphismWithoutBounds {
+
+    public static <T> void valueObjectIsTop(T value) {
+        @Immutable Object o = value;
+    }
+    
     public static void root() {
         // Use a dummy class because we can't currently soundly translate "==" when both operands are of type Object.
         var obj = new Dummy();

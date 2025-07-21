@@ -19,3 +19,7 @@ import java.util.SequencedCollection;
 class ObjectContract {
     public ObjectContract() {}
 }
+
+@Contract(Record.class)
+class RecordConstract {
+}

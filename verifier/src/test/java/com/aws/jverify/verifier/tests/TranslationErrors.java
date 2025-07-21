@@ -32,7 +32,7 @@ class TranslationErrors {
     void contractAfterBody(int x) {
         x = x + 3;
         precondition(x == 3);
-//                  ^ error: call to JVerify header method precondition is not allowed after non-header statement
+//                  ^ error: call to contract method must come before the rest of the body
     }
     
     void wrongContractMethod(int x) {
@@ -145,14 +145,12 @@ class TranslationErrors {
             IntWrapper w1, IntWrapper w2
     ) {
         if (o1 == o2) {
-//             ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
             return 0;
         } else if (o1 == null) {
             return 1;
         } else if (null == o2) {
             return 2;
         } else if (i == o1) {
-//                   ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
             return 3;
         } else if (w1 == null) {
             return 4;

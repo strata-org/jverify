@@ -2,6 +2,7 @@ package com.aws.jverify.builtin;
 
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
+
 import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
