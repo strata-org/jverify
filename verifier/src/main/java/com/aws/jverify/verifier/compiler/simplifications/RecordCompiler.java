@@ -12,7 +12,6 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -25,7 +24,7 @@ public class RecordCompiler {
         this.compiler = classCompiler.compiler;
     }
 
-    public IndDatatypeDecl translateValueType(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    public TopLevelDeclWithMembers translateValueType(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         assert classDecl.getKind() == Tree.Kind.RECORD;
         if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
@@ -41,43 +40,14 @@ public class RecordCompiler {
                 .toList();
 
         var comps = TreeInfo.recordFields(classDecl);
-        var ctorParams = comps.stream()
-                .map(classCompiler::translateField)
-                .map(field -> new Formal(
-                        field.getOrigin(), field.getNameNode(),
-                        field.getExplicitType(),
-                        false, true,
-                        null, null,
-                        false, false, false,
-                        null
-                ))
-                .toList();
-        var ctors = List.of(new DatatypeCtor(
-                origin,
-                name,
-                null,
-                false,
-                ctorParams
-        ));
-
         var compNames = comps.stream()
                 .map(JCTree.JCVariableDecl::getName)
                 .map(com.sun.tools.javac.util.Name::toString)
                 .collect(Collectors.toSet());
         var members = new ArrayList<MemberDecl>();
-        List<JCTree.JCVariableDecl> fields = new ArrayList<>();
+
         for (var member : classDecl.getMembers()) {
-            if (member instanceof JCTree.JCVariableDecl varDecl
-                    && compNames.contains(varDecl.getName().toString())) {
-                fields.add(varDecl);
-            }
-        }
-        for (var member : classDecl.getMembers()) {
-            if (member instanceof JCTree.JCVariableDecl varDecl
-                    && compNames.contains(varDecl.getName().toString()) ) {
-                // Don't translate fields that arise from record components
-                continue;
-            } else if (member instanceof JCTree.JCMethodDecl methodDecl) {
+            if (member instanceof JCTree.JCMethodDecl methodDecl) {
                 // No constructors should be translated:
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
@@ -106,7 +76,7 @@ public class RecordCompiler {
             }
         }
 
-        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, ctors, false);
+        return new TraitDecl(origin, name, null, typeParams, members, traits, false);
     }
 
     private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin, 
@@ -137,7 +107,6 @@ public class RecordCompiler {
             handleIdentifierOverride);
         
         if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
-
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
             var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
@@ -182,7 +151,7 @@ public class RecordCompiler {
         }
 
         JavacTrees trees = JavacTrees.instance(expressionCompiler.compiler.context);
-        boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) trees.getTree(newClass.constructor));
+        boolean callDatatypeConstructor = false; //isImplicitCanonicalConstructor((JCTree.JCMethodDecl) trees.getTree(newClass.constructor));
             
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
