@@ -111,9 +111,11 @@ public class RecordCompiler {
 
     private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin, 
                                       JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members) {
+
         String resultName = "resultName";
         NameSegment resultReference = new NameSegment(origin, resultName, null);
-        compiler.expressionCompiler.handleIdentifier = (identifier, innerOrigin) -> {
+
+        java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifierOverride = (identifier, innerOrigin) -> {
             if (identifier.sym.owner == classDecl.sym) {
                 if (identifier.name == identifier.name.table.names._this) {
                     return resultReference;
@@ -127,8 +129,13 @@ public class RecordCompiler {
         };
         boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
         var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify() && !isImplicitCanonicalConstructor;
-        var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(methodDecl), isImplicitCanonicalConstructor);
-        compiler.expressionCompiler.handleIdentifier = null;
+
+        var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(() ->
+                // Do not generate diagnostics for an implicitly created constructor
+                // These diagnostics already occur on the fields of the record.        
+                compiler.withSkipDiagnostics(() -> classCompiler.translateMember(methodDecl), isImplicitCanonicalConstructor),
+            handleIdentifierOverride);
+        
         if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
 
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());

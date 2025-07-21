@@ -20,19 +20,36 @@ public class ContractCompiler {
 
     public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, 
                                                     MethodOrLoopContract contract,
-                                                    boolean allowFooterButNotHeader,
+                                                    boolean allowFooter,
                                                     boolean reportErrors) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return translateHeader(statements, contract, allowFooterButNotHeader, reportErrors);
+        return translateHeader(statements, contract, allowFooter, reportErrors);
     }
     
     public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements,
                                                     MethodOrLoopContract contract,
                                                     boolean allowFooter,
                                                     boolean reportErrors) {
+        var superOrThis = getSuperOrThis(statements);
+        
+        var remainingStatements = statements;
+        if (superOrThis != null) {
+            remainingStatements = remainingStatements.subList(1, statements.size());
+        }
+        remainingStatements = addHeaderContracts(remainingStatements, contract, reportErrors);
+        if (allowFooter) {
+            remainingStatements = addFooterContracts(remainingStatements, contract, reportErrors);
+        }
+        var result = new ArrayList<>(remainingStatements);
+        if (superOrThis != null) {
+            result.addFirst(superOrThis);
+        }
+        return result;
+    }
 
+    private static JCTree.JCStatement getSuperOrThis(List<JCTree.JCStatement> statements) {
         JCTree.JCStatement superOrThis = null;
         var first = statements.isEmpty() ? null : statements.getFirst();
         if ((first instanceof JCTree.JCExpressionStatement expressionStatement
@@ -43,39 +60,15 @@ public class ContractCompiler {
                 superOrThis = first;
             }
         }
-        
-        var startIndex = superOrThis == null ? 0 : 1;
-        int headerContracts = addHeaderContracts(statements, contract, reportErrors, startIndex);
-        int footerContracts = addFooterContracts(statements, contract, allowFooter, reportErrors, headerContracts);
-        ArrayList<JCTree.JCStatement> result = new ArrayList<>(statements.subList(headerContracts, footerContracts));
-        if (superOrThis != null) {
-            result.addFirst(superOrThis);
-        }
-        return result;
+        return superOrThis;
     }
 
-    private int addFooterContracts(List<JCTree.JCStatement> statements, MethodOrLoopContract contract, boolean allowFooter, boolean reportErrors, int headerContracts) {
-        int footerContracts;
-        if (allowFooter) {
-            int i;
-            for (i = statements.size() - 1; i > headerContracts; i--) {
-                var statement = statements.get(i);
-                boolean foundHeader = handleStatement(statement, contract, reportErrors);
-                if (!foundHeader) {
-                    break;
-                }
-            }
-            footerContracts = i + 1;
-        } else {
-            footerContracts = statements.size();
-        }
-        return footerContracts;
-    }
-
-    private int addHeaderContracts(List<JCTree.JCStatement> statements, MethodOrLoopContract contract, boolean reportErrors, int startIndex) {
+    private List<JCTree.JCStatement> addHeaderContracts(List<JCTree.JCStatement> statements,
+                                                        MethodOrLoopContract contract,
+                                                        boolean reportErrors) {
         int headerContracts;
         int i;
-        for (i = startIndex; i < statements.size(); i++) {
+        for (i = 0; i < statements.size(); i++) {
             var statement = statements.get(i);
             boolean foundHeader = handleStatement(statement, contract, reportErrors);
             if (!foundHeader) {
@@ -83,7 +76,22 @@ public class ContractCompiler {
             }
         }
         headerContracts = i;
-        return headerContracts;
+        return statements.subList(headerContracts, statements.size());
+    }
+
+    private List<JCTree.JCStatement> addFooterContracts(List<JCTree.JCStatement> statements, 
+                                                        MethodOrLoopContract contract,
+                                                        boolean reportErrors) {
+        int i;
+        for (i = statements.size() - 1; i > 0; i--) {
+            var statement = statements.get(i);
+            boolean foundHeader = handleStatement(statement, contract, reportErrors);
+            if (!foundHeader) {
+                break;
+            }
+        }
+        int footerContracts = i + 1;
+        return statements.subList(0, footerContracts);
     }
 
     private boolean handleStatement(JCTree.JCStatement statement, MethodOrLoopContract header, boolean reportErrors) {
