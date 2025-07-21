@@ -85,7 +85,7 @@ public class RecordCompiler {
                     boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
                     
                     var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(() ->
-                            // Do not generate diagnostics for an implicitly created member
+                            // Do not generate diagnostics for an implicitly created constructor
                             // These diagnostics already occur on the fields of the record.        
                             compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor),
                             (_, _) -> resultReference);
