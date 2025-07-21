@@ -8,11 +8,14 @@ import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.api.JavacTrees;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class RecordCompiler {
@@ -33,11 +36,23 @@ public class RecordCompiler {
         var typeParams = classCompiler.translateTypeParameters(classDecl.typarams);
 
         Symbol.ClassSymbol currentTypeSymbol = classCompiler.getCurrentTypeSymbol(classDecl);
-        var traits = Stream.concat(Stream.of(currentTypeSymbol.getSuperclass()), currentTypeSymbol
-                .getInterfaces().stream())
+        var traits = currentTypeSymbol
+                .getInterfaces().stream()
                 .filter(compiler::typeHasAContract)
                 .map(baseType -> compiler.translateType(null, baseType, origin))
-                .toList();
+                .collect(Collectors.toList());
+        
+        var superClass = currentTypeSymbol.getSuperclass();
+        if (superClass != null) {
+            Symtab symtab = Symtab.instance(classCompiler.compiler.context);
+            if (superClass.tsym == symtab.objectType.tsym) {
+                traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
+            } else {
+                if (compiler.typeHasAContract(superClass)) {
+                    traits.addFirst(compiler.translateType(null, superClass, origin));
+                }
+            }
+        }
 
         var comps = TreeInfo.recordFields(classDecl);
         var compNames = comps.stream()
@@ -52,7 +67,7 @@ public class RecordCompiler {
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
-                    translateConstructor(classDecl, origin, methodDecl, members);
+                    translateConstructor(classDecl, origin, methodDecl, members, comps);
                     continue;
                 }
                 var methodName = methodDecl.getName().toString();
@@ -79,8 +94,9 @@ public class RecordCompiler {
         return new TraitDecl(origin, name, null, typeParams, members, traits, false);
     }
 
-    private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin, 
-                                      JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members) {
+    private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin,
+                                      JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members, 
+                                      List<JCTree.JCVariableDecl> comps) {
 
         String resultName = "resultName";
         NameSegment resultReference = new NameSegment(origin, resultName, null);
@@ -107,10 +123,24 @@ public class RecordCompiler {
             handleIdentifierOverride);
         
         if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
+            List<AttributedExpression> ens;
+            if (isImplicitCanonicalConstructor) {
+                ens = IntStream.range(0, constructor.getIns().size()).mapToObj(index -> {
+                    var field = comps.get(index);
+                    var parameter = constructor.getIns().get(index);
+                    var fieldOrigin = compiler.toOrigin(field);
+                    return new AttributedExpression(new BinaryExpr(fieldOrigin, BinaryExprOpcode.Eq,
+                            new ExprDotName(fieldOrigin, resultReference, compiler.getName(field, field.sym), null),
+                            new NameSegment(fieldOrigin, parameter.getNameNode().getValue(), null)), null, null);
+                }).toList();
+            } else {
+                ens = constructor.getEns();
+            }
+            
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
             var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
-                constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
+                constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
             members.add(staticFunction);
         } else {

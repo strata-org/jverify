@@ -9,6 +9,7 @@ import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,11 +29,6 @@ public class ClassesExtendingClassesCompiler {
             return buildTraitAndClassTwin(mutable, symbol, classDecl.getOrigin(),
                     classDecl.getNameNode(), classDecl.getMembers(), 
                     classDecl.getTypeArgs(), classDecl.getTraits());
-        }
-        if (clazz instanceof IndDatatypeDecl datatypeDecl) {
-            return buildTraitAndClassTwin(false, symbol, datatypeDecl.getOrigin(),
-                    datatypeDecl.getNameNode(), datatypeDecl.getMembers(),
-                    datatypeDecl.getTypeArgs(), datatypeDecl.getTraits());
         }
         return List.of(clazz);
     }
