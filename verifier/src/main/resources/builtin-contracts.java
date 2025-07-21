@@ -125,7 +125,6 @@ class BigIntegerContract  {
 
     @Pure
     int intValue() {
-        reads(this);
         precondition(intValue >= Integer.MIN_VALUE && intValue <= Integer.MAX_VALUE);
         postcondition((Integer b) -> b == intValue);
         throw new ContractException();
@@ -154,8 +153,6 @@ class BigIntegerContract  {
 
     @Pure
     int compareTo(BigIntegerContract v) {
-        reads(this);
-        reads(v);
         postcondition((Integer r) -> (r < 0 && this.intValue < v.intValue) || (r == 0 && this.intValue == v.intValue) || (r > 0 && this.intValue > v.intValue));
         throw new ContractException();
     }
@@ -199,7 +196,6 @@ class BigIntegerContract  {
 
     @Pure
     public int signum() {
-        reads(this);
         postcondition((Integer b) -> b == (intValue < 0 ? -1 : intValue == 0 ? 0 : 1));
         throw new ContractException();
     }

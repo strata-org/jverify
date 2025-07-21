@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Immutable;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 22)
+@JVerifyTest(dafnyVerified = 1, dafnyErrors = 0)
 public class PolymorphismDafnyResolutionErrors2 {
     
     public static void valueObjectHasNoEquality() {
@@ -11,6 +11,5 @@ public class PolymorphismDafnyResolutionErrors2 {
         @Immutable Object a = new Object();
         Object b = new Object();
         var c = a == b;
-//              ^ Error: == can only be applied to expressions of types that support equality (got ValueObject)
     }
 }
