@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.code.Attribute;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Symtab;
@@ -84,7 +85,13 @@ public class RecordCompiler {
                     compiler.reportError(member, "notSupported", "overridden hashCode method in record");
                     continue;
                 }
-            }
+            } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
+                Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
+                var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
+                Type type = compiler.translateType(variableDecl.getModifiers(), variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype));
+                members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
+                continue;
+            } 
             var dafnyMember = classCompiler.translateMember(member);
             if (dafnyMember != null) {
                 members.add(dafnyMember);
