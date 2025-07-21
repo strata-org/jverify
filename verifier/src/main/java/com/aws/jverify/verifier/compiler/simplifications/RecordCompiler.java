@@ -81,10 +81,15 @@ public class RecordCompiler {
                 if (TreeInfo.isConstructor(methodDecl)) {
                     String resultName = "resultName";
                     NameSegment resultReference = new NameSegment(origin, resultName, null);
-                    compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> resultReference;
+                    
                     boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
-                    var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor);
-                    compiler.expressionCompiler.handleThis = null;
+                    
+                    var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(() ->
+                            // Do not generate diagnostics for an implicitly created member
+                            // These diagnostics already occur on the fields of the record.        
+                            compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor),
+                            (_, _) -> resultReference);
+                    
                     if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || isImplicitCanonicalConstructor)) {
 
                         Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());

@@ -17,6 +17,7 @@ import javax.lang.model.type.TypeKind;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
@@ -213,15 +214,25 @@ public class ExpressionCompiler {
                 operator, left, right);
     }
     
-    public java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleThis;
+    private java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
 
+    public <T> T withOverrideTranslateIdentifier(Supplier<T> supplier, 
+                                                 java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> override) 
+    {
+        var previous = handleIdentifier;
+        handleIdentifier = override;
+        var result = supplier.get();
+        handleIdentifier = previous;
+        return result;
+    }
+    
     private Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
         if (identName.contentEquals("this")) {
-            if (handleThis == null) {
+            if (handleIdentifier == null) {
                 return new ThisExpr(origin);
             } else {
-                return handleThis.apply(identifier, origin);
+                return handleIdentifier.apply(identifier, origin);
             }
         }
         return new NameSegment(origin, identName, null);
