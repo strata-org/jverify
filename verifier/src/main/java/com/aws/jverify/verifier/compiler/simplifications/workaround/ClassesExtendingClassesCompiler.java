@@ -24,9 +24,7 @@ public class ClassesExtendingClassesCompiler {
 
     public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
         if (clazz instanceof ClassDecl classDecl) {
-            var mutable = !JavaToDafnyCompiler.isInterface(symbol)
-                    || classCompiler.compiler.isAnnotated(symbol.type, Modifiable.class);
-            return buildTraitAndClassTwin(mutable, symbol, classDecl.getOrigin(),
+            return buildTraitAndClassTwin(symbol, classDecl.getOrigin(),
                     classDecl.getNameNode(), classDecl.getMembers(), 
                     classDecl.getTypeArgs(), classDecl.getTraits());
         }
@@ -36,8 +34,7 @@ public class ClassesExtendingClassesCompiler {
     /**
      * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
      */
-    private List<TopLevelDecl> buildTraitAndClassTwin(boolean mutable,
-                                                      Symbol.ClassSymbol classSymbol,
+    private List<TopLevelDecl> buildTraitAndClassTwin(Symbol.ClassSymbol classSymbol,
                                                        IOrigin origin, Name name,
                                                        List<MemberDecl> members,
                                                        List<TypeParameter> typeParameters,
@@ -91,6 +88,8 @@ public class ClassesExtendingClassesCompiler {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
         }
         
+        var mutable = !JavaToDafnyCompiler.isInterface(classSymbol)
+                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class);
         if (mutable) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
@@ -100,7 +99,7 @@ public class ClassesExtendingClassesCompiler {
                 p -> (Type)new UserDefinedType(p.getOrigin(),
                         new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
 
-        if (classNeeded && mutable) {
+        if (classNeeded) {
             var clazz = new ClassDecl(origin, new Name(name.getOrigin(), classCompiler.compiler.nameCompiler.CLASS_PREFIX + name.getValue()), null,
                     typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
             return List.of(trait, clazz);

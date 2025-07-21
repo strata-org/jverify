@@ -186,12 +186,9 @@ public class RecordCompiler {
         if (newClass.clazz instanceof JCTree.JCTypeApply typeApply) {
             typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));
         }
-
-        JavacTrees trees = JavacTrees.instance(expressionCompiler.compiler.context);
-        boolean callDatatypeConstructor = false; //isImplicitCanonicalConstructor((JCTree.JCMethodDecl) trees.getTree(newClass.constructor));
             
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
-        var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
+        var constructorName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
         var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.compiler.getName(newClass, constructorName), null);
