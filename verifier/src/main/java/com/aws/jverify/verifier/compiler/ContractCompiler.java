@@ -20,12 +20,12 @@ public class ContractCompiler {
 
     public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, 
                                                     MethodOrLoopContract contract,
-                                                    boolean allowFooterButNotHeader,
+                                                    boolean allowFooter,
                                                     boolean reportErrors) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return translateHeader(statements, contract, allowFooterButNotHeader, reportErrors);
+        return translateHeader(statements, contract, allowFooter, reportErrors);
     }
     
     public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements,
@@ -44,7 +44,7 @@ public class ContractCompiler {
         
         var startIndex = superOrThis == null ? 0 : 1;
         int headerContracts = addHeaderContracts(statements, contract, reportErrors, startIndex);
-        int footerContracts = addFooterContracts(statements, contract, allowFooter, reportErrors, headerContracts);
+        int footerContracts = countAndAddFooterContracts(statements, contract, allowFooter, reportErrors, headerContracts);
         ArrayList<JCTree.JCStatement> result = new ArrayList<>(statements.subList(headerContracts, footerContracts));
         if (superOrThis != null) {
             result.addFirst(superOrThis);
@@ -52,7 +52,10 @@ public class ContractCompiler {
         return result;
     }
 
-    private int addFooterContracts(List<JCTree.JCStatement> statements, MethodOrLoopContract contract, boolean allowFooter, boolean reportErrors, int headerContracts) {
+    private int countAndAddFooterContracts(List<JCTree.JCStatement> statements, MethodOrLoopContract contract,
+                                           boolean allowFooter,
+                                           boolean reportErrors,
+                                           int headerContracts) {
         int footerContracts;
         if (allowFooter) {
             int i;
