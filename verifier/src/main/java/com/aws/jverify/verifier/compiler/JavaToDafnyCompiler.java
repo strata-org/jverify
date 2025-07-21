@@ -202,7 +202,11 @@ public class JavaToDafnyCompiler {
     public void reportError(JCTree tree, String key, Object... args) {
         reportError(positionFromNode(tree, compilationUnit), key, args);
     }
-    
+
+    /**
+     * In case of synthetic program nodes, which may occur nodes that are copies of source nodes that occur elsewhere in the program,
+     * this method can be used not to generate diagnostics when processing the synthetic node.
+     */
     public <T> T withSkipDiagnostics(Supplier<T> supplier, boolean skipDiagnostics) {
         var previous = this.skipDiagnostics;
         this.skipDiagnostics = skipDiagnostics;
@@ -494,11 +498,13 @@ public class JavaToDafnyCompiler {
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
                     if (!isNullable) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
+                        return new UserDefinedType(origin, new NameSegment(origin, "DString", null));
                     }
                     reportError(origin, "notSupported", "nullable String type");
                     return null;
                 }
+
+
 
                 if (isRecord(classType) && isNullable) {
                     reportError(origin, "notSupported", "nullable record type");

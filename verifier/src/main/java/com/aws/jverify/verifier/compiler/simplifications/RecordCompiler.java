@@ -84,13 +84,17 @@ public class RecordCompiler {
                 if (TreeInfo.isConstructor(methodDecl)) {
                     String resultName = "resultName";
                     NameSegment resultReference = new NameSegment(origin, resultName, null);
-                    compiler.expressionCompiler.handleThis = (thisExpr, innerOrigin) -> resultReference;
+                    
                     boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
-                    var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify() && !isImplicitCanonicalConstructor;
-                    var dafnyMember = compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor);
-                    compiler.expressionCompiler.handleThis = null;
-                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
 
+                    var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify() && !isImplicitCanonicalConstructor;
+                    var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(() ->
+                            // Do not generate diagnostics for an implicitly created constructor
+                            // These diagnostics already occur on the fields of the record.        
+                            compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor),
+                            (_, _) -> resultReference);
+
+                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
                         Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
                         Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
                         var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,

@@ -18,10 +18,14 @@ import javax.lang.model.type.TypeKind;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
      public final JavaToDafnyCompiler compiler;
+
+     private static final Set<String> supportedStringMethods = Set.of("equals", "concat", "startsWith", "substring", "isEmpty", "charAt", "length", "indexOf");
 
     public ExpressionCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -214,15 +218,25 @@ public class ExpressionCompiler {
                 operator, left, right);
     }
     
-    public java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleThis;
+    private java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
 
+    public <T> T withOverrideTranslateIdentifier(Supplier<T> supplier, 
+                                                 java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> override) 
+    {
+        var previous = handleIdentifier;
+        handleIdentifier = override;
+        var result = supplier.get();
+        handleIdentifier = previous;
+        return result;
+    }
+    
     private Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
         if (identName.contentEquals("this")) {
-            if (handleThis == null) {
+            if (handleIdentifier == null) {
                 return new ThisExpr(origin);
             } else {
-                return handleThis.apply(identifier, origin);
+                return handleIdentifier.apply(identifier, origin);
             }
         }
         return new NameSegment(origin, identName, null);
@@ -275,14 +289,13 @@ public class ExpressionCompiler {
             return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                     null, new ActualBindings(List.of()), null);
         } else {
-            Expression selectedDafnyExpr = toExpr(fieldAccess.selected);
             boolean methodContainerTypeIsParameter = fieldAccess.selected.type instanceof com.sun.tools.javac.code.Type.TypeVar;
             if (methodContainerTypeIsParameter) {
                 var classType = fieldAccess.sym.enclClass().type;
                 // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
-                selectedDafnyExpr = new ConversionExpr(origin, selectedDafnyExpr, compiler.translateType(classType, origin), "");
+                selectedExpr = new ConversionExpr(origin, selectedExpr, compiler.translateType(classType, origin), "");
             }
-            return new ExprDotName(origin, selectedDafnyExpr, compiler.getName(fieldAccess, fieldName), null);
+            return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, fieldName), null);
         }
     }
 
@@ -295,14 +308,9 @@ public class ExpressionCompiler {
         var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
         var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
 
-        final Expression receiver;
-        if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-            receiver = toExpr(fieldAccess.selected);
-        } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
-            receiver = null;
-        } else {
+        if (!((invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) ||
+             (invocation.getMethodSelect() instanceof JCTree.JCIdent))) {
             compiler.reportError(invocation, "notSupported", "call via method reference");
-            receiver = JavaToDafnyCompiler.getHole(origin);
         }
 
         if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
@@ -313,6 +321,14 @@ public class ExpressionCompiler {
                     .filter(comp -> comp.name.equals(methodSymbol.name))
                     .findAny();
             if (component.isPresent()) {
+                final Expression receiver;
+                if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                    receiver = toExpr(fieldAccess.selected);
+                } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
+                    receiver = null;
+                } else {
+                    receiver = JavaToDafnyCompiler.getHole(origin);
+                }
                 var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get());
                 var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
@@ -321,27 +337,10 @@ public class ExpressionCompiler {
 
         if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                 && ownerClass.fullname.contentEquals(String.class.getName())) {
-            return switch (methodSymbol.name.toString()) {
-                case "charAt" -> new SeqSelectExpr(origin, true, receiver,
-                        argBindings.getFirst().getActual(), null, null);
-                case "equals" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
-                        argBindings.getFirst().getActual());
-                case "isEmpty" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
-                        new SeqDisplayExpr(origin, List.of()));
-                case "length" -> new UnaryOpExpr(
-                        origin, receiver, UnaryOpExprOpcode.Cardinality);
-                case "substring" -> {
-                    var endIndex = argBindings.size() == 2
-                            ? argBindings.get(1).getActual()
-                            : new UnaryOpExpr(origin, receiver, UnaryOpExprOpcode.Cardinality);
-                    yield new SeqSelectExpr(origin, false, receiver,
-                            argBindings.getFirst().getActual(), endIndex, null);
-                }
-                default -> {
+                 if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
                     compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
-                    yield compiler.getHole(origin);
+                    return compiler.getHole(origin);
                 }
-            };
         }
 
         var target = toExpr(invocation.getMethodSelect());
@@ -365,6 +364,13 @@ public class ExpressionCompiler {
         var opName = operator.name.toString();
         if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
             compiler.reportError(node, "notSupported", "operator " + operator);
+        }
+
+        if (opName.equals("+") && leftType.toString().contentEquals(String.class.getName())) {
+            var callee = new ExprDotName(origin, left, new Name(origin, "concat"), null);
+            var arg = List.of(new ActualBinding(null, right, false));
+            return new ApplySuffix(origin, callee, null,
+                    new ActualBindings(arg), null);
         }
 
         if (opName.equals("==") || opName.equals("!=")) {
@@ -479,7 +485,8 @@ public class ExpressionCompiler {
                 // Fallback to sequence of numeric values
                 var charExprs = stringValue.chars().boxed()
                         .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
-                return new SeqDisplayExpr(origin, charExprs);
+                return new ApplySuffix(origin, new NameSegment(origin, "JS", null), null,
+                        new ActualBindings(List.of(new ActualBinding(null, new SeqDisplayExpr(origin, charExprs), false))), null);
             }
         }
 
