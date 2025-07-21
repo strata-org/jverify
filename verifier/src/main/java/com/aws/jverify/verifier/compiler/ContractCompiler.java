@@ -37,7 +37,9 @@ public class ContractCompiler {
         var first = statements.isEmpty() ? null : statements.getFirst();
         if ((first instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
-            if (TreeInfo.isConstructorCall(invocation)) {
+            var isSuperOrThisCall = invocation.getMethodSelect() instanceof JCTree.JCIdent ident && 
+                    (ident.name == ident.name.table.names._super || ident.name == ident.name.table.names._this);
+            if (isSuperOrThisCall) {
                 superOrThis = first;
             }
         }
