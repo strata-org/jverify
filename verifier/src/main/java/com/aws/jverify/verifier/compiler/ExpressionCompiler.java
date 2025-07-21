@@ -14,7 +14,11 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
@@ -212,11 +216,27 @@ public class ExpressionCompiler {
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,
                 operator, left, right);
     }
+    
+    private java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
 
+    public <T> T withOverrideTranslateIdentifier(Supplier<T> supplier, 
+                                                 java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> override) 
+    {
+        var previous = handleIdentifier;
+        handleIdentifier = override;
+        var result = supplier.get();
+        handleIdentifier = previous;
+        return result;
+    }
+    
     private Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
         if (identName.contentEquals("this")) {
-            return new ThisExpr(origin);
+            if (handleIdentifier == null) {
+                return new ThisExpr(origin);
+            } else {
+                return handleIdentifier.apply(identifier, origin);
+            }
         }
         return new NameSegment(origin, identName, null);
     }
