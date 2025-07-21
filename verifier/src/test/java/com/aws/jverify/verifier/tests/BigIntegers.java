@@ -1,5 +1,3 @@
-// ^ /builtin-contracts.java(129:22-129:51) Related location: this proposition could not be proved
-// ^ /builtin-contracts.java(129:55-129:84) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Pure;
@@ -15,7 +13,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 2, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 2, useBuiltinContracts = true)
 class BigIntegers {
     static void testConstructors() {
         BigInteger bi = new BigInteger("3");
