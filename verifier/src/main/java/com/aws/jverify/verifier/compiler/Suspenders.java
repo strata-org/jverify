@@ -41,7 +41,7 @@ public class Suspenders extends TreeTranslator {
     private final Name placeholderName;
     private JCTree.JCVariableDecl placeholderField;
     private final Symtab symtab;
-    private final Symbol.OperatorSymbol caseMatchSymbol;
+    private final Name caseMatchName;
 
     public static Suspenders instance(Context context) {
         Suspenders instance = context.get(key);
@@ -58,9 +58,7 @@ public class Suspenders extends TreeTranslator {
         this.names = Names.instance(context);
         this.placeholderName = names.fromString("$jverifySwitches");
         this.symtab = Symtab.instance(context);
-        this.caseMatchSymbol = new Symbol.OperatorSymbol(names.fromString("caseMatch"),
-                new Type.MethodType(List.of(symtab.objectType, symtab.objectType), symtab.booleanType, null, null),
-                -1, symtab.noSymbol);
+        this.caseMatchName = names.fromString("$caseMatch");
     }
 
     private JCTree.JCExpression getPlaceholderField(JCTree.JCMethodInvocation invocation) {
@@ -184,7 +182,7 @@ public class Suspenders extends TreeTranslator {
     private Stream<JCTree.JCExpression> selectorsFromExpression(JCTree.JCExpression expr) {
         return switch (expr) {
             case JCTree.JCBinary binary -> {
-                if (binary.operator.equals(caseMatchSymbol)) {
+                if (binary.operator.name.equals(caseMatchName)) {
                     yield Stream.of(binary.lhs);
                 } else if (binary.hasTag(JCTree.Tag.OR)) {
                     yield Stream.concat(selectorsFromExpression(binary.lhs), selectorsFromExpression(binary.rhs));
@@ -192,16 +190,14 @@ public class Suspenders extends TreeTranslator {
                     yield Stream.empty();
                 }
             }
-            case JCTree.JCLiteral literal when literal.value == Boolean.TRUE ->
-                    Stream.empty();
-            default -> throw new IllegalStateException();
+            default -> Stream.empty();
         };
     }
 
     private List<JCTree.JCCaseLabel> caseLabelsFromExpression(JCTree.JCExpression expr) {
         return switch (expr) {
             case JCTree.JCBinary binary -> {
-                if (binary.operator.equals(caseMatchSymbol)) {
+                if (binary.operator.name.equals(caseMatchName)) {
                     yield List.of(maker.ConstantCaseLabel(binary.rhs));
                 } else if (binary.hasTag(JCTree.Tag.OR)) {
                     yield caseLabelsFromExpression(binary.lhs).appendList(caseLabelsFromExpression(binary.rhs));
@@ -218,9 +214,9 @@ public class Suspenders extends TreeTranslator {
     private JCTree.JCExpression caseLabelToExpression(JCTree.JCExpression selector, JCTree.JCCaseLabel label) {
         return switch (label) {
             case JCTree.JCConstantCaseLabel constantCaseLabel -> {
-                var result = makeResolvedBinary(JCTree.Tag.EQ, selector, constantCaseLabel.expr,
-                    new Type.MethodType(List.of(symtab.objectType, symtab.objectType), symtab.booleanType, null, null));
-                result.operator = caseMatchSymbol;
+                var methodType = new Type.MethodType(List.of(selector.type, constantCaseLabel.expr.type), symtab.booleanType, null, null);
+                var result = makeResolvedBinary(JCTree.Tag.EQ, selector, constantCaseLabel.expr, methodType);
+                result.operator = new Symbol.OperatorSymbol(caseMatchName, methodType, -1, symtab.noSymbol);;
                 yield result;
             }
             case JCTree.JCDefaultCaseLabel _ -> maker.Literal(true);
