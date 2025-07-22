@@ -203,8 +203,6 @@ public class ClassCompiler {
             // even those translated to value types.
             var tpOrigin = compiler.toOrigin(p);
             var symtab = Symtab.instance(compiler.context);
-            var objectName = compiler.nameCompiler.getCompiledName(symtab.objectType.tsym);
-            bounds = bounds.prepend(new UserDefinedType(tpOrigin, new NameSegment(tpOrigin, objectName, null)));
             return new TypeParameter(compiler.toOrigin(p),
                     name, null, TPVarianceSyntax.NonVariant_Strict,
                     new TypeParameterCharacteristics(

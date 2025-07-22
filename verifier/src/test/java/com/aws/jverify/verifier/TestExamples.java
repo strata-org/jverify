@@ -24,7 +24,7 @@ public class TestExamples {
     @Test
     public void testBinarySearch() throws IOException {
         var markedSourcePath = Path.of("BinarySearch.java");
-        verifyPath(markedSourcePath, 0, 4, 0);
+        verifyPath(markedSourcePath, 0, 3, 0);
     }
     
     private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors) throws IOException {

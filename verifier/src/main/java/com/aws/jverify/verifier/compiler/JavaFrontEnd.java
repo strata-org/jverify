@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.common.Common;
-import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
-import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.ClientCodeWrapper;
@@ -210,7 +207,7 @@ public class JavaFrontEnd {
     // Phase to replace erased code such as specifications with placeholders
     // so future phases don't rewrite them.
     private Queue<Env<AttrContext>> hideRecords(Queue<Env<AttrContext>> envs) {
-        var hider = RecordHider.instance(context);
+        var hider = Suspenders.instance(context);
         for (Env<AttrContext> env: envs) {
             env.tree = hider.hide(env.tree);
         }
@@ -221,7 +218,7 @@ public class JavaFrontEnd {
     // with their original AST nodes.
     private List<JVerifyCompilationUnit> revealRecords(List<JVerifyCompilationUnit> units) {
         ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
-        var hider = RecordHider.instance(context);
+        var hider = Suspenders.instance(context);
         for (JVerifyCompilationUnit unit : units) {
             var newDefs = unit.newDefs().map(hider::reveal);
             results.add(new JVerifyCompilationUnit(unit.unit(), newDefs));

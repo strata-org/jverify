@@ -343,6 +343,7 @@ public class JavaToDafnyCompiler {
     }
 
     private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node, JCTree.JCCompilationUnit compilationUnit) {
+        Objects.requireNonNull(node);
         return new JCDiagnostic.DiagnosticPosition() {
             @Override
             public JCTree getTree() {

@@ -158,21 +158,21 @@ public class JVerify {
     /**
      * Same as {@link #sequence(Object[])}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array) {
+    public static IntSequence sequence(int[] array) {
         throw new VerificationMethodExecutedException();
     }
 
     /**
      * Same as {@link #sequence(Object[], int)}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array, int fromIndex) {
+    public static IntSequence sequence(int[] array, int fromIndex) {
         throw new VerificationMethodExecutedException();
     }
 
     /**
      * Same as {@link #sequence(Object[], int, int)}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array, int fromIndex, int toIndex) {
+    public static IntSequence sequence(int[] array, int fromIndex, int toIndex) {
         throw new VerificationMethodExecutedException();
     }
 
@@ -203,6 +203,37 @@ public class JVerify {
          * Returns {@code true} if this sequence contains the specified element.
          */
         default boolean contains(T element) {
+            throw new VerificationMethodExecutedException();
+        }
+    }
+
+    public interface IntSequence {
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        default IntSequence drop(int fromIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
+        default IntSequence take(int toIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
+         */
+        default IntSequence subsequence(int fromIndex, int toIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
+        default boolean contains(int element) {
             throw new VerificationMethodExecutedException();
         }
     }

@@ -3,11 +3,12 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Unbounded;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 4)
 class Records {
     static void unitRecord() {
         var _ = new UnitRecord();
@@ -39,8 +40,12 @@ class Records {
     }
 
     static void genericRecords() {
-        var intBool = new Pair<Integer, Boolean>(1, true);
-        var longString = new Pair<Long, String>(2L, "foo");
+        // Ensuring the boxing happens outside of expressions
+        Integer a = 1;
+        Boolean b = true;
+        var intBool = new Pair<Integer, Boolean>(a, b);
+        Long l = 2L;
+        var longString = new Pair<Long, String>(l, "foo");
         check(intBool.a() * 2 == longString.a());
         check(intBool.b());
         check(longString.b().equals("foo"));
