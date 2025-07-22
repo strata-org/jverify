@@ -29,7 +29,6 @@ public class RecordCompiler {
     }
 
     public TopLevelDeclWithMembers translateValueType(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        assert classDecl.getKind() == Tree.Kind.RECORD;
         if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
         }
