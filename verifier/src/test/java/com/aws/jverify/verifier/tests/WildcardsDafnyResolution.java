@@ -24,13 +24,13 @@ public class WildcardsDafnyResolution {
 
     static void innerSuperUsage(Container<Object> objects, Turtle dog) {
         Container<? super Animal> animals = objects;
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Container<Object>) not assignable to LHS (of type Container<Animal>) (non-variant type parameter 'T' would require Animal = Object)
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Container<ModifiableObject>) not assignable to LHS (of type Container<Animal>) (non-variant type parameter 'T' would require Animal = Object)
         animals.sett(dog);
     }
 
     void animalSetterUser(Container<Object> objects, Turtle dog) {
         animalSetter(objects, dog);
-//                   ^^^^^^^ Error: incorrect argument type at index 0 for method in-parameter 'animals' (expected Container<Animal>, found Container<Object>) (non-variant type parameter 'T' would require Animal = Object)
+//                   ^^^^^^^ Error: incorrect argument type at index 0 for method in-parameter 'animals' (expected Container<Animal>, found Container<ModifiableObject>) (non-variant type parameter 'T' would require Animal = Object)
     }
 
     @Verify(false)
@@ -40,7 +40,7 @@ public class WildcardsDafnyResolution {
     
     static void alwaysTruerUser(Container<Animal> animals, Container<Object> objects) {
         alwaysTruer(animals);
-//                  ^^^^^^^ Error: incorrect argument type for method in-parameter 'container' (expected Container<Object>, found Container<Animal>) (non-variant type parameter 'T' would require Object = Animal)
+//                  ^^^^^^^ Error: incorrect argument type for method in-parameter 'container' (expected Container<ModifiableObject>, found Container<Animal>) (non-variant type parameter 'T' would require Object = Animal)
         alwaysTruer(objects);
     }
     
