@@ -24,13 +24,13 @@ public class WildcardsDafnyResolution {
 
     static void innerSuperUsage(Container<Object> objects, Turtle dog) {
         Container<? super Animal> animals = objects;
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Container<ModifiableObject>) not assignable to LHS (of type Container<Animal>) (non-variant type parameter 'T' would require Animal = Object)
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Container<Object>) not assignable to LHS (of type Container<Animal>) (non-variant type parameter 'T' would require Animal = Object)
         animals.sett(dog);
     }
 
     void animalSetterUser(Container<Object> objects, Turtle dog) {
         animalSetter(objects, dog);
-//                   ^^^^^^^ Error: incorrect argument type at index 0 for method in-parameter 'animals' (expected Container<Animal>, found Container<ModifiableObject>) (non-variant type parameter 'T' would require Animal = Object)
+//                   ^^^^^^^ Error: incorrect argument type at index 0 for method in-parameter 'animals' (expected Container<Animal>, found Container<Object>) (non-variant type parameter 'T' would require Animal = Object)
     }
 
     @Verify(false)

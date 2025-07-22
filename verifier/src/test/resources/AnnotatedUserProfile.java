@@ -1,10 +1,8 @@
 package com.aws.jverify.examples;
 
 import static com.aws.jverify.JVerify.*;
-import com.aws.jverify.Invariant;
-import com.aws.jverify.Nullable;
-import com.aws.jverify.Erased;
-import com.aws.jverify.Pure;
+
+import com.aws.jverify.*;
 
 class UserProfile {
     public enum AccountType { Free, Premium }
@@ -28,7 +26,7 @@ class UserProfile {
     private boolean valid() {
 //                  ^^^^^ Related location: this is the postcondition that could not be proved
         reads(this);
-        return (Object)this != premiumFeatures &&
+        return (@Modifiable Object)this != premiumFeatures &&
                 (accountType != AccountType.Premium || premiumFeatures != null);
 //               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
     }

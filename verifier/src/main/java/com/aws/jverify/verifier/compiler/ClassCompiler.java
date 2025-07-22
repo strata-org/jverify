@@ -175,9 +175,15 @@ public class ClassCompiler {
         if (definingSymbol.getSuperclass() != null) {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
         }
+        var symtab = Symtab.instance(this.compiler.context);
         var superTraits = baseTypes.
                 filter(compiler::typeHasAContract).
-                map((com.sun.tools.javac.code.Type type) -> compiler.translateType(null, type, origin)).
+                map((com.sun.tools.javac.code.Type type) -> {
+                    if (type.baseType() == symtab.objectType) {
+                        return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
+                    }
+                    return compiler.translateType(null, type, origin);
+                }).
                 collect(Collectors.<Type>toList());
 
         var typeParameters = translateTypeParameters(classDecl.typarams);
@@ -232,7 +238,8 @@ public class ClassCompiler {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.translateType(variableDecl.getModifiers(), variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype));
+        Type type = compiler.translateType(variableDecl.getModifiers().getAnnotations(), 
+                variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());

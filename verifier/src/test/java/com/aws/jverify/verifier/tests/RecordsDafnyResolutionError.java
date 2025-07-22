@@ -10,6 +10,6 @@ class RecordsDafnyResolutionError {
     record Foo() {}
     static void assignRecordToModifiableObject() {
         @Modifiable Object o = new Foo();
-//      ^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Foo) not assignable to LHS (of type ModifiableObject)
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Foo) not assignable to LHS (of type ModifiableObject)
     }
 }

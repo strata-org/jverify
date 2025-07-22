@@ -169,7 +169,8 @@ public class ExpressionCompiler {
 
     private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin) {
         var castExpr = toExpr(cast.getExpression());
-        var type = compiler.translateType(cast.getType());
+
+        var type = compiler.translateType(null, cast);
         return new ConversionExpr(origin, castExpr, type, "");
     }
 

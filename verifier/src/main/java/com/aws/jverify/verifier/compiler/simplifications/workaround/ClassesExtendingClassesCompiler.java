@@ -81,10 +81,7 @@ public class ClassesExtendingClassesCompiler {
         }
 
         Symtab symtab = Symtab.instance(classCompiler.compiler.context);
-        if (classSymbol == symtab.objectType.tsym) {
-            return List.of();
-        }
-        if (classSymbol == symtab.recordType.tsym) {
+        if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
             superTraits.clear();
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }

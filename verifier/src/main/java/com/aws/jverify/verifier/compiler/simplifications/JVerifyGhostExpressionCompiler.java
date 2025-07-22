@@ -52,7 +52,7 @@ public class JVerifyGhostExpressionCompiler {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = compiler.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = compiler.translateType(param.getModifiers(), param.getType().type, paramOrigin);
+                    var paramType = compiler.translateType(param.getModifiers().getAnnotations(), param.getType().type, paramOrigin);
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = expressionCompiler.toExpr(lambda.getBody());
