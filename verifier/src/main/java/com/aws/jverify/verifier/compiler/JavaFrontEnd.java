@@ -15,6 +15,7 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.ListBuffer;
+import com.sun.tools.javac.util.Log;
 import com.sun.tools.javac.util.Position;
 
 import javax.tools.Diagnostic;
@@ -103,6 +104,9 @@ public class JavaFrontEnd {
          * SUBSTITUTE,
          * UNLAMBDA(8),
          * UNSUBSTITUTE
+         * SUSPEND,
+         * LOWER(9),
+         * UNSUSPEND
          *
          * For practical reasons we also have to stop the normal flow of the JavaCompiler
          * after 3 in order to get a reference to the set of compilation targets
@@ -208,7 +212,9 @@ public class JavaFrontEnd {
     // so future phases don't rewrite them.
     private Queue<Env<AttrContext>> hideRecords(Queue<Env<AttrContext>> envs) {
         var hider = Suspenders.instance(context);
+        Log log = Log.instance(context);
         for (Env<AttrContext> env: envs) {
+            log.useSource(env.toplevel.sourcefile);
             env.tree = hider.hide(env.tree);
         }
         return envs;
@@ -260,12 +266,15 @@ public class JavaFrontEnd {
 
     private List<JVerifyCompilationUnit> partialLower2(Queue<Env<AttrContext>> envs) {
         TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
+        Lower lower = Lower.instance(context);
+        Log log = Log.instance(context);
         ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
 
         var index = JVerifyIndex.instance(context);
 
         for (Env<AttrContext> env : envs) {
-            com.sun.tools.javac.util.List<JCTree> classes = Lower.instance(context).translateTopLevelClass(env, env.tree, localMake);
+            log.useSource(env.toplevel.sourcefile);
+            com.sun.tools.javac.util.List<JCTree> classes = lower.translateTopLevelClass(env, env.tree, localMake);
 
             for (JCTree clazz : classes) {
                 index.index(env, clazz);

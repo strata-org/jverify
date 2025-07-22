@@ -5,11 +5,13 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.comp.Operators;
+import com.sun.tools.javac.resources.CompilerProperties;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
+import com.sun.tools.javac.util.Log;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 
@@ -35,6 +37,7 @@ public class Suspenders extends TreeTranslator {
 
     private final Set<Symbol> records = new HashSet<>();
 
+    private final Log log;
     private final TreeMaker maker;
     private final Names names;
     private JCTree.JCVariableDecl placeholderField;
@@ -51,6 +54,7 @@ public class Suspenders extends TreeTranslator {
     public Suspenders(Context context) {
         context.put(key, this);
 
+        this.log = Log.instance(context);
         this.maker = TreeMaker.instance(context);
         this.names = Names.instance(context);
         this.symtab = Symtab.instance(context);
@@ -230,13 +234,17 @@ public class Suspenders extends TreeTranslator {
                 yield result;
             }
             case JCTree.JCDefaultCaseLabel _ -> maker.Literal(true);
-            default -> throw new UnsupportedOperationException();
+            default -> {
+                log.error(label.pos(), log.diags.errorKey("notSupported", "case pattern"));
+                yield maker.Literal(false);
+            }
         };
     }
 
     private JCTree.JCExpression caseToExpression(JCTree.JCExpression selector, JCTree.JCCase cas, List<JCTree.JCCaseLabel> labels) {
-        if (cas.caseKind == CaseTree.CaseKind.STATEMENT || cas.guard != null) {
-            throw new UnsupportedOperationException();
+        if (cas.caseKind == CaseTree.CaseKind.STATEMENT) {
+            log.error(cas.pos(), log.diags.errorKey("notSupported", "switch labeled statement group"));
+            return maker.Literal(symtab.botType.getTag(), null).setType(symtab.botType);
         } else if (labels.tail.isEmpty()) {
             return caseLabelToExpression(selector, labels.head);
         } else {
@@ -258,22 +266,29 @@ public class Suspenders extends TreeTranslator {
         if (direction == Direction.HIDE) {
             var selector = translate(tree.selector);
             var cases = translateCases(tree.cases);
-            result = switchExpressionToConditional(selector, cases);
+            result = switchExpressionToConditional(selector, cases, tree.type);
         } else {
             super.visitSwitchExpression(tree);
         }
     }
 
-    private JCTree.JCExpression switchExpressionToConditional(JCTree.JCExpression selector, List<JCTree.JCCase> cases) {
+    private JCTree.JCExpression switchExpressionToConditional(JCTree.JCExpression selector, List<JCTree.JCCase> cases, Type typ) {
         if (cases.isEmpty()) {
             // TODO: Should be a "hole" instead, or we should ensure the default case comes last in the list
             return maker.Literal(false);
         } else {
-            var rest = switchExpressionToConditional(selector, cases.tail);
-            var headBody = (JCTree.JCExpression) cases.head.body;
-            var conditional = maker.Conditional(caseToExpression(selector, cases.head, cases.head.labels), headBody, rest);
-            conditional.type = headBody.type;
-            return conditional;
+            var rest = switchExpressionToConditional(selector, cases.tail, typ);
+
+            if (cases.head.body instanceof JCTree.JCExpression headExpr) {
+                var conditional = maker.Conditional(caseToExpression(selector, cases.head, cases.head.labels), headExpr, rest);
+                conditional.type = typ;
+                return conditional;
+            } else {
+                var bodyKind = cases.head.body instanceof JCTree.JCBlock ? "block" : "throw statement";
+                log.error(cases.head.pos(), log.diags.errorKey("notSupported", "switch rule %s".formatted(bodyKind)));
+                return maker.Literal(symtab.botType.getTag(), null).setType(symtab.botType);
+            }
+
         }
     }
 
