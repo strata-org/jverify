@@ -68,8 +68,10 @@ class CInvalidContract implements I {
     }
 }
 
+class Anything {}
+
 class CValid implements I {
-    @Nullable Object obj;
+    @Nullable Anything obj;
 
     //@InheritContract
     @Pure
@@ -85,7 +87,7 @@ class CValid implements I {
     public int m() {
         modifies(this);
         postcondition((int r) -> r > 2);
-        obj = new Object();
+        obj = new Anything();
         return 3;
     }
 }

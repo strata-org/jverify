@@ -2,26 +2,20 @@ package com.aws.jverify.builtin;
 
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
+
 import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import static com.aws.jverify.JVerify.check;
+import java.util.function.IntPredicate;
+import java.util.function.Predicate;
+import java.util.function.Function;
+import java.util.function.Consumer;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.SequencedCollection;
-
-@Contract(Object.class)
-class ObjectContract {
-    public ObjectContract() {}
-}
-
-@Contract(Short.class)
-class ShortContract {
-    public static final short MIN_VALUE = -32768;
-    public static final short MAX_VALUE = 32767;
-}
 
 @Contract(Comparable.class)
 class ComparableContract<T> {
@@ -46,8 +40,12 @@ abstract class ListContract<E> implements SequencedCollection<E> {
 }
 
 @Contract(SequencedCollection.class)
-interface SequencedCollectionContract<E> extends Collection<E> {
-    
+interface SequencedCollectionContract<E> extends Collection<E> { }
+
+@Contract(Short.class)
+class ShortContract {
+    public static final short MIN_VALUE = -32768;
+    public static final short MAX_VALUE = 32767;
 }
 
 @Contract(Integer.class)
@@ -98,6 +96,21 @@ class BooleanContract {
     public boolean booleanValue() {
         throw new ContractException();
     }
+}
+
+@Contract
+class IntFunction<R> implements java.util.function.IntFunction<R> {
+    public R apply(int value) {
+        throw new ContractException();
+    }
+}
+
+@Contract
+abstract class IntPredicateContract implements IntPredicate {
+}
+
+@Contract
+abstract class PredicateContract<T> implements Predicate<T> {
 }
 
 class HelperForBigIntegerContract {

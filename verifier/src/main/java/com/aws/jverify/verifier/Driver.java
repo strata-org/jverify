@@ -8,30 +8,25 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.sun.tools.javac.util.*;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.*;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Driver {
     public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
             try {
-                return new SourceFile(p, Files.readString(p));
+                return new SourceFile(p, Files.readString(verifierOptions.workingDirectory().resolve(p)));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -58,13 +53,13 @@ public class Driver {
         var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles);
         var hasErrors = false;
         for (var diagnostic : compiler.diagnostics.getDiagnostics()) {
-            verificationResults.jverifyDiagnostics.add(diagnostic);
+            verificationResults.getJverifyDiagnostics().add(diagnostic);
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 hasErrors = true;
             }
         }
         if (dafnyEquivalent == null || hasErrors) {
-            verificationResults.exitCode = CommandLine.ExitCode.USAGE;
+            verificationResults.setExitCode(CommandLine.ExitCode.USAGE);
         } else {
             var programBuilder = new StringBuilder();
             new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
@@ -85,7 +80,7 @@ public class Driver {
     ) throws IOException {
         var verificationResults = verifyJavaFiles(readFiles, verifierOptions);
         outputVerificationResults(verificationResults, verifierOptions, outputWriter);
-        return verificationResults.exitCode;
+        return verificationResults.getExitCode();
     }
 
     private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
@@ -93,7 +88,7 @@ public class Driver {
             outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), diagnostic));
             outputWriter.write('\n');
         }
-        for (var dafnyOutput : verificationResults.outputs) {
+        for (var dafnyOutput : verificationResults.getOutputs()) {
             if (dafnyOutput instanceof DafnyDiagnostic dafnyDiagnostic) {
                 outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), dafnyDiagnostic));
                 outputWriter.write('\n');
@@ -105,56 +100,8 @@ public class Driver {
                 }
             }
         }
-        if (verificationResults.dafnyFinishedMessage != null) {
-            outputWriter.write(verificationResults.dafnyFinishedMessage);
-        }
-    }
-
-    public static final class VerificationResults {
-        // dummy value to tell when it hasn't been set
-        private int exitCode = -999;
-
-        private final List<Diagnostic<?>> jverifyDiagnostics = new ArrayList<>();
-        private final List<DafnyOutput> outputs = new ArrayList<>();
-
-        /**
-         * Can be null if verification failed before invoking Dafny.
-         */
-        private @Nullable Integer dafnyVerifiedCount;
-
-        /**
-         * Can be null if verification failed before invoking Dafny.
-         */
-        private @Nullable Integer dafnyErrorCount;
-
-        /**
-         * Can be null if verification failed before invoking Dafny.
-         */
-        private @Nullable String dafnyFinishedMessage;
-
-        public int getExitCode() {
-            return exitCode;
-        }
-
-        public List<DafnyOutput> getOutput() {
-            return outputs;
-        }
-
-        public Stream<Diagnostic<?>> getDiagnostics() {
-            return Stream.concat(
-                    jverifyDiagnostics.stream(), 
-                    outputs.stream().filter(DafnyDiagnostic.class::isInstance).map(DafnyDiagnostic.class::cast));
-        }
-        public List<Diagnostic<?>> getJverifyDiagnostics() {
-            return jverifyDiagnostics;
-        }
-
-        public @Nullable Integer getDafnyVerifiedCount() {
-            return dafnyVerifiedCount;
-        }
-
-        public @Nullable Integer getDafnyErrorCount() {
-            return dafnyErrorCount;
+        if (verificationResults.getDafnyFinishedMessage() != null) {
+            outputWriter.write(verificationResults.getDafnyFinishedMessage());
         }
     }
 
@@ -289,12 +236,18 @@ public class Driver {
             }
             try (var stdout = process.inputReader()) {
                 parseDafnyJsonOutput(nameCompiler, stdout, outResults);
-                outResults.exitCode = process.waitFor();
+                int dafnyExitCode = process.waitFor();
+                var exitCode = getExitCodeFromDafny(dafnyExitCode);
+                outResults.setExitCode(exitCode);
             }
         } catch (InterruptedException | IOException e) {
             e.printStackTrace();
-            outResults.exitCode = -1;
+            outResults.setExitCode(-1);
         }
+    }
+
+    public static int getExitCodeFromDafny(int dafnyExitCode) {
+        return dafnyExitCode == 2 ? Integer.parseInt("2" + dafnyExitCode) : dafnyExitCode;
     }
 
     private static final Pattern dafnySummaryPattern = Pattern.compile(
@@ -305,7 +258,9 @@ public class Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static void parseDafnyJsonOutput(NameCompiler nameCompiler, BufferedReader dafnyOutput, VerificationResults outResults) {
+    private static void parseDafnyJsonOutput(NameCompiler nameCompiler,
+                                             BufferedReader dafnyOutput,
+                                             VerificationResults outResults) {
         var objectMapper = new ObjectMapper();
         
         SimpleModule module = new SimpleModule();
@@ -335,16 +290,16 @@ public class Driver {
                         }
                         case StatusMessage statusMessage -> {
                             if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
-                                if (outResults.dafnyVerifiedCount != null) {
+                                if (outResults.getDafnyVerifiedCount() != null) {
                                     throw new RuntimeException("Dafny output contains multiple summary lines");
                                 }
-                                outResults.dafnyVerifiedCount = Integer.parseInt(matcher.group("VerifiedCount"));
-                                outResults.dafnyErrorCount = Integer.parseInt(matcher.group("ErrorCount"));
-                                outResults.dafnyFinishedMessage = statusMessage.getValue();
+                                outResults.setDafnyVerifiedCount(Integer.parseInt(matcher.group("VerifiedCount")));
+                                outResults.setDafnyErrorCount(Integer.parseInt(matcher.group("ErrorCount")));
+                                outResults.setDafnyFinishedMessage(statusMessage.getValue());
                             }
                         }
                     }
-                    outResults.outputs.add(output);
+                    outResults.getOutputs().add(output);
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
                 }

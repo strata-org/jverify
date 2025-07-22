@@ -60,7 +60,7 @@ public class TestVerifier {
                 Path.of("./src/main/resources/builtin-contracts.java").toString(),
                 "--dafny=" + dafnyPath,
                 "--builtin-contracts=false");
-        Assertions.assertEquals(0, exitCode);
+        Assertions.assertEquals(0, exitCode, out.toString());
     }
     
     @Test

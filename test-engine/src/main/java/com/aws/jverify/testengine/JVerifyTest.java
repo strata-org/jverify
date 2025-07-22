@@ -43,7 +43,7 @@ public @interface JVerifyTest {
      */
     boolean verifyByDefault() default true;
 
-    boolean useBuiltinContracts() default true;
+    boolean useBuiltinContracts() default false;
 
     int exitCode() default 0;
 
@@ -53,7 +53,7 @@ public @interface JVerifyTest {
 
     String[] additionalFiles() default {};
     
-    boolean resolvePrintedDafny() default false;
+    boolean verifyPrintedDafny() default false;
     
     boolean avoidNameCollisions() default false;
 }

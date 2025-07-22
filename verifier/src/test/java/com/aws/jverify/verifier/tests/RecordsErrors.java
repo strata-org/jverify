@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.tests;
 
+import com.aws.jverify.Immutable;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -9,14 +10,14 @@ class RecordsErrors {
     record ExplicitConstructors(int i, boolean b) {
         // Explicit canonical constructors are forbidden
         ExplicitConstructors(int i, boolean b) {
-//      ^ error: explicit record constructor is not supported
+//      ^ error: verified explicit record constructor is not supported
             this.i = i;
             this.b = b;
         }
 
         // Other explicit constructors are also forbidden
         ExplicitConstructors() {
-//      ^ error: explicit record constructor is not supported
+//      ^ error: verified explicit record constructor is not supported
             this(1, true);
         }
     }

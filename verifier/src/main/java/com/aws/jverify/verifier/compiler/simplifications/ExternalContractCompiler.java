@@ -33,9 +33,10 @@ public class ExternalContractCompiler {
             Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
             List<JCTree.JCVariableDecl> ghostFields) { }
     
-    public void discoverTypesAndContractClasses(JVerifyCompilationUnit compilationUnit, Set<Symbol.ClassSymbol> foundClasses) {
+    public void discoverTypesAndContractClasses(JVerifyCompilationUnit compilationUnit,
+                                                Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> foundClasses) {
         compiler.compilationUnit = compilationUnit.unit();
-        
+
         var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
         while(!typesToVisit.isEmpty()) {
             var typeDecl = typesToVisit.poll();
@@ -54,7 +55,7 @@ public class ExternalContractCompiler {
             if (contractAnnotation == null) {
                 var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
                 declsForSymbol.add(classDecl);
-                foundClasses.add(classDecl.sym);
+                foundClasses.put(classDecl.sym, compilationUnit.unit());
                 continue;
             }
 
@@ -67,7 +68,7 @@ public class ExternalContractCompiler {
             var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
             declsForSymbol.add(classDecl);
 
-            foundClasses.add(contracteeSymbol);
+            foundClasses.put(contracteeSymbol, compilationUnit.unit());
             if (compiler.typeHasSource(contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
                 compiler.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
                 continue;
@@ -115,7 +116,7 @@ public class ExternalContractCompiler {
             var methodSymbol = methodDecl.sym;
             var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
-                var header = new BlockCompiler(compiler).extractContract(methodDecl, true);
+                var header = new BlockCompiler(compiler, methodSymbol).extractContract(methodDecl, true);
                 externalContracts.put(baseMethod, header);
                 compiler.lambdaCompiler.methodContracts.put(baseMethod, header);
             } else if (!compiler.isSynthetic(methodDecl, methodSymbol)) {

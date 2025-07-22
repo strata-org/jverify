@@ -1,15 +1,12 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Nullable;
-import com.aws.jverify.Pure;
-import com.aws.jverify.Unbounded;
-import com.aws.jverify.Verify;
+import com.aws.jverify.*;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 4)
-class Records {
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 4)
+class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
     }
@@ -40,15 +37,9 @@ class Records {
     }
 
     static void genericRecords() {
-        // Ensuring the boxing happens outside of expressions
-        Integer a = 1;
-        Boolean b = true;
-        var intBool = new Pair<Integer, Boolean>(a, b);
-        Long l = 2L;
-        var longString = new Pair<Long, String>(l, "foo");
-        check(intBool.a() * 2 == longString.a());
-        check(intBool.b());
-        check(longString.b().equals("foo"));
+        var intRecordPair = new Pair<IntRecord, IntRecord>(new IntRecord(1), new IntRecord(2));
+        check(intRecordPair.a().value() == 1);
+        check(intRecordPair.b().value() == 2);
 
         var foobar = new Foobar(3);
         var foobarRecord = new FoobarRecord(foobar);
@@ -57,6 +48,11 @@ class Records {
 
         var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
         check(foobarFoobarRecord.b().foobar() == null);
+    }
+    
+    static void unusedGenericType() {
+        // Do not store the record itself in a variable, because we want to test not capturing the type
+        var someInt3 = new UnusedTypeParameter<IntRecord, IntRecord>(3).x();
     }
 
     static void recursiveRecords() {
@@ -91,6 +87,15 @@ class Records {
         // we can also create a new record instance within an expression
         check(new Factor(3).times(7) == 21);
     }
+    
+    static void hasConstructorRecord() {
+        var hasConstructor = new HasConstructor();
+        check(hasConstructor.x() == 3);
+    }
+    
+    static void assignRecordToValueObject() {
+        @Immutable Object o = new IntRecord(3);
+    }
 }
 
 /** No components */
@@ -104,6 +109,9 @@ record FoobarRecord(@Nullable Foobar foobar) {}
 
 /** Generic-type record and components */
 record Pair<A, B>(A a, B b) {}
+
+/** Generic-type record and components */
+record UnusedTypeParameter<A, B>(int x) {}
 
 /** Recursion */
 record BasicConsList(String head, @Nullable Wrapper<BasicConsList> tail) {}
@@ -160,4 +168,12 @@ class Foobar {
 
 interface ICoefficient {
     @Unbounded int times(int i);
+}
+
+@Verify(false)
+record HasConstructor(int x) {
+    HasConstructor() {
+        this(3);
+        postcondition(this.x() == 3);
+    }
 }

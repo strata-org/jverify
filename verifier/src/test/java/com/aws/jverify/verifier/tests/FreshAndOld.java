@@ -8,8 +8,9 @@ import static com.aws.jverify.JVerify.*;
 class FreshAndOld {
     int x;
     
+    class Anything {}
     void freshTest() {
-        var c = new Object();
+        var c = new Anything();
         check(fresh(c));
         check(!fresh(this));
     }

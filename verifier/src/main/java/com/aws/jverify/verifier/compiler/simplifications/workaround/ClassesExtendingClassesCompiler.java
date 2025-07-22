@@ -6,9 +6,11 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isInterface;
 
@@ -79,9 +81,14 @@ public class ClassesExtendingClassesCompiler {
             }
         }
 
-        // We use Object as the top type even for types we translate to Dafny value types, such as String and records,
-        // so we don't want to put `extends object` on the Object trait.
-        if (!JavaToDafnyCompiler.isInterface(classSymbol) || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
+        Symtab symtab = Symtab.instance(classCompiler.compiler.context);
+        if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
+            superTraits.clear();
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
+        }
+        
+        if ((!JavaToDafnyCompiler.isInterface(classSymbol) && classSymbol != symtab.recordType.tsym) 
+                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
         }
 
