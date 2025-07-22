@@ -538,8 +538,7 @@ public class JavaToDafnyCompiler {
                     return translateType(superBound, origin);
                 }
                 Symtab symtab = Symtab.instance(context);
-                var name = nameCompiler.getCompiledName(symtab.objectType.tsym);
-                return new UserDefinedType(origin, new NameSegment(origin, name, null));
+                return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
             }
             default -> {
             }

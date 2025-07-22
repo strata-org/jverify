@@ -40,7 +40,7 @@ public class WildcardsDafnyResolution {
     
     static void alwaysTruerUser(Container<Animal> animals, Container<Object> objects) {
         alwaysTruer(animals);
-//                  ^^^^^^^ Error: incorrect argument type for method in-parameter 'container' (expected Container<ModifiableObject>, found Container<Animal>) (non-variant type parameter 'T' would require Object = Animal)
+//                  ^^^^^^^ Error: incorrect argument type for method in-parameter 'container' (expected Container<Object>, found Container<Animal>) (non-variant type parameter 'T' would require Object = Animal)
         alwaysTruer(objects);
     }
     
