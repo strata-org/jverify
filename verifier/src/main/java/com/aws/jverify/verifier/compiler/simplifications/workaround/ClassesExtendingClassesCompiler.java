@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 public class ClassesExtendingClassesCompiler {
+    public static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     ClassCompiler classCompiler;
 
     public ClassesExtendingClassesCompiler(ClassCompiler classCompiler) {
@@ -85,13 +86,13 @@ public class ClassesExtendingClassesCompiler {
         Symtab symtab = Symtab.instance(classCompiler.compiler.context);
         if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
             superTraits = new ArrayList<>();
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
         
         var mutable = !JavaToDafnyCompiler.isInterface(classSymbol)
                 || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class);
         if (mutable) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
 
         var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);

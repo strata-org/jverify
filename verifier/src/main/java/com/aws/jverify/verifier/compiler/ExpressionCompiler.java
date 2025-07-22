@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.Immutable;
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
@@ -183,7 +183,8 @@ public class ExpressionCompiler {
 
     private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin) {
         var castExpr = toExpr(cast.getExpression());
-        var type = compiler.translateType(cast.getType());
+
+        var type = compiler.translateType(cast);
         return new ConversionExpr(origin, castExpr, type, "");
     }
 
@@ -452,8 +453,8 @@ public class ExpressionCompiler {
         }
 
         var symtab = Symtab.instance(this.compiler.context);
-        if (type == symtab.objectType) {
-            return compiler.isAnnotated(type, Immutable.class);
+        if (type.baseType() == symtab.objectType) {
+            return !compiler.isAnnotated(type, Modifiable.class);
         }
 
         var types = Types.instance(this.compiler.context);

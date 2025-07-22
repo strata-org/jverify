@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Immutable;
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(dafnyVerified = 1, dafnyErrors = 0)
@@ -8,8 +8,9 @@ public class PolymorphismDafnyResolutionErrors2 {
     
     public static void valueObjectHasNoEquality() {
         // Annotations on method parameters are broken ATM, so these are locals
-        @Immutable Object a = new Object();
-        Object b = new Object();
-        var c = a == b;
+        Object a = new Object();
+        @Modifiable Object b = new Object();
+        var c = a == (@Modifiable Object)b;
+//              ^ Error: == can only be applied to expressions of types that support equality (got Object)
     }
 }

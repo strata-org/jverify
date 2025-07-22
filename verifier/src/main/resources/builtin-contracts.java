@@ -17,7 +17,6 @@ import java.util.SequencedCollection;
 
 @Contract(Comparable.class)
 class ComparableContract<T> {
-
 }
 
 @Contract(value = Number.class, immutable = true)

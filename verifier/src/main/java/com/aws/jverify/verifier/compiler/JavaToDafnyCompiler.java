@@ -16,11 +16,8 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
-import com.sun.tools.javac.comp.AttrContext;
-import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.comp.Enter;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
@@ -44,6 +41,8 @@ import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
+    public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -383,13 +382,10 @@ public class JavaToDafnyCompiler {
         }
         return false;
     }
-
+    
+    // TODO Dangerous. Delete? 
     public @Nullable Type translateType(JCTree tree) {
-        return translateType(null, tree);
-    }
-
-    public @Nullable Type translateType(JCTree.JCModifiers modifiers, JCTree tree) {
-        return translateType(modifiers, tree.type, toOrigin(tree));
+        return translateType(null, tree.type, toOrigin(tree));
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
@@ -483,13 +479,20 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
-                if (isAnnotated(modifiers, com.aws.jverify.Immutable.class)) {
-                    Symtab symtab = Symtab.instance(context);
+
+                var mirrors = type.getAnnotationMirrors();
+                var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
+                
+                Symtab symtab = Symtab.instance(context);
+                if (modifiableAnnotation.isPresent() || isAnnotated(modifiers, com.aws.jverify.Modifiable.class)) {
                     if (classType.tsym == symtab.objectType.tsym) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null));
+                        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
                     } else {
-                        reportError(origin, "notSupported", "@Immutable on a type other than Object");
+                        reportError(origin, "notSupported", "@Modifiable on a type other than Object");
                     }
+                }
+                if (classType.tsym == symtab.objectType.tsym) {
+                    return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
                 }
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
@@ -535,8 +538,7 @@ public class JavaToDafnyCompiler {
                     return translateType(superBound, origin);
                 }
                 Symtab symtab = Symtab.instance(context);
-                var name = nameCompiler.getCompiledName(symtab.objectType.tsym);
-                return new UserDefinedType(origin, new NameSegment(origin, name, null));
+                return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
             }
             default -> {
             }
