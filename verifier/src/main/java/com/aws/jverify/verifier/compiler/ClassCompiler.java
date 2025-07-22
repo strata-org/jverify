@@ -194,7 +194,7 @@ public class ClassCompiler {
             if (!this.compiler.verifierOptions.includeBuiltinContracts() &&
                     !this.compiler.compilationUnit.getSourceFile().getName().equals(JavaToDafnyCompiler.builtinFile)) {
                 // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones.
-                bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
+                bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, "Object", null)));
             }
             return new TypeParameter(origin,
                     name, null, TPVarianceSyntax.NonVariant_Strict,

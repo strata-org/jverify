@@ -434,7 +434,7 @@ public class ExpressionCompiler {
         }
 
         var symtab = Symtab.instance(this.compiler.context);
-        if (type == symtab.objectType) {
+        if (type.baseType() == symtab.objectType) {
             return !compiler.isAnnotated(type, Modifiable.class);
         }
 

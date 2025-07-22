@@ -1,4 +1,5 @@
-trait ValueObject {}
+trait Object {}
+trait ModifiableObject extends Object, object {}
 
 type nat15 = x: int16 | x >= 0
 type int16 = x: int | -0x8000 <= x <= 0x7fff

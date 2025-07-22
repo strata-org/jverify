@@ -15,6 +15,6 @@ import java.lang.annotation.Target;
  * However, this will prevent assigning values with a record type, or a generic type, to this value.
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.TYPE)
+@Target({ElementType.TYPE, ElementType.TYPE_USE})
 public @interface Modifiable {
 }

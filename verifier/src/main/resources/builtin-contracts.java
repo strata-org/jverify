@@ -18,7 +18,6 @@ import java.util.SequencedCollection;
 
 @Contract(Comparable.class)
 class ComparableContract<T> {
-
 }
 
 @Contract(Number.class)
