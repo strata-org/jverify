@@ -295,8 +295,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         "--use-basename-for-filename",
                         //"--wait-for-debugger",
                 },
-                annotation.verifyByDefault(),
-                annotation.avoidNameCollisions()
+                annotation.verifyByDefault()
         );
     }
 
@@ -366,11 +365,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             @Override
             public boolean verifyPrintedDafny() {
                 return verifyPrintedDafny;
-            }
-
-            @Override
-            public boolean avoidNameCollisions() {
-                return avoidNameCollisions;
             }
         };
     }

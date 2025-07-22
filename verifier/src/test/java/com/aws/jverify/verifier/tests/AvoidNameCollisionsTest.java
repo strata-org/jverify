@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0, avoidNameCollisions = true, verifyPrintedDafny = false)
+@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0, verifyPrintedDafny = true)
 public class AvoidNameCollisionsTest {
 
     void set(int set, int r_set) {}
@@ -23,7 +23,7 @@ public class AvoidNameCollisionsTest {
         postcondition((Integer result) -> result < 3);
         int result;
         int g_result;
-        int _g_result;
+        boolean _g_result = this.map(3);
         return 2;
     }
     
@@ -31,6 +31,9 @@ public class AvoidNameCollisionsTest {
     boolean predicate(int r) {
         return true;
     }
+
+    @Pure
+    boolean map(int r) {return true;}
 
     public class Base {
         public Base() {
