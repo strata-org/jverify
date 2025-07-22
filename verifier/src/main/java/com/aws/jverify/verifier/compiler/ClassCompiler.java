@@ -201,7 +201,8 @@ public class ClassCompiler {
             
             IOrigin origin = compiler.toOrigin(p);
             if (!this.compiler.verifierOptions.includeBuiltinContracts() &&
-                    !this.compiler.compilationUnit.getSourceFile().getName().contains("builtin-contracts.java")) {
+                    // Contains because when we're verifying the built-in file itself, the path is different.
+                    !this.compiler.compilationUnit.getSourceFile().getName().contains(JavaToDafnyCompiler.builtinFile)) {
                 // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones.
                 bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
             }
@@ -244,7 +245,7 @@ public class ClassCompiler {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());
                 var isStatic = varFlags.contains(Modifier.STATIC);
-                return new ConstantField(origin, fieldName, compiler.getAttributes(origin), false, type, rhs, isStatic, false);
+                return new ConstantField(origin, fieldName, null, false, type, rhs, isStatic, false);
             }
 
             // Keep this variable declaration in the initializers list to be added to constructors laters

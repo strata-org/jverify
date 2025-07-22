@@ -85,10 +85,10 @@ public class JavaToDafnyCompiler {
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
         if (options.includeBuiltinContracts()) {
-            builtinSource = new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
+            builtinSource = new SourceFile(JavaToDafnyCompiler.builtinFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
             files.add(builtinSource);
         }
-        var contractSource = new SourceFile("object-contract.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
+        var contractSource = new SourceFile(JavaToDafnyCompiler.objectFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
         files.add(contractSource);
         
         Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
@@ -299,10 +299,6 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    public Attributes getAttributes(IOrigin origin) {
-        return null;
-    }
-
     private boolean isNullable(JCTree.JCModifiers modifiers) {
         return isAnnotated(modifiers, com.aws.jverify.Nullable.class);
     }
@@ -492,7 +488,7 @@ public class JavaToDafnyCompiler {
                     if (classType.tsym == symtab.objectType.tsym) {
                         return new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null));
                     } else {
-                        reportError(origin, "notSupported", "@Immutable on another type reference than Object");
+                        reportError(origin, "notSupported", "@Immutable on a type other than Object");
                     }
                 }
                 var className = classType.asElement().flatName();
