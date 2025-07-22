@@ -528,7 +528,7 @@ public class ClassCompiler {
     }
 
     private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, boolean shouldVerify, IOrigin bodyOrigin) {
-        return methodSymbol.getParameters().map(jvd -> {
+        return methodSymbol.extraParams.appendList(methodSymbol.getParameters()).map(jvd -> {
             var index = JVerifyIndex.instance(compiler.context);
             var parameter = index.getTree(jvd);
             IOrigin parameterOrigin;
