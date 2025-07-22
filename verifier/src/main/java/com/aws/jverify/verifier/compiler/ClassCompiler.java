@@ -192,7 +192,7 @@ public class ClassCompiler {
             
             IOrigin origin = compiler.toOrigin(p);
             if (!this.compiler.verifierOptions.includeBuiltinContracts() &&
-                    !this.compiler.compilationUnit.getSourceFile().getName().equals(JavaToDafnyCompiler.builtinFile)) {
+                    !this.compiler.compilationUnit.getSourceFile().getName().contains(JavaToDafnyCompiler.builtinFile)) {
                 // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones.
                 bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
             }
