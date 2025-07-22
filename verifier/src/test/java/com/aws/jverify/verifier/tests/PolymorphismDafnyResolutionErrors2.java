@@ -11,6 +11,6 @@ public class PolymorphismDafnyResolutionErrors2 {
         @Immutable Object a = new Object();
         Object b = new Object();
         var c = a == b;
-//              ^ Error: == can only be applied to expressions of types that support equality (got ValueObject)
+//              ^ Error: == can only be applied to expressions of types that support equality (got Object)
     }
 }

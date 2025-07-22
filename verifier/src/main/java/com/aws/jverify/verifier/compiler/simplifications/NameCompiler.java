@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.sun.tools.javac.code.Symbol;
 
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
 
@@ -112,6 +113,11 @@ public class NameCompiler {
     }
 
     private String getClassName(Symbol.ClassSymbol classSymbol) {
+
+        var symtab = Symtab.instance(this.contractCompiler.compiler.context);
+        if (classSymbol.type == symtab.objectType) {
+            return "ModifiableObject";
+        }
         var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
         if (newTarget != null) {
             return uncachedGetCompiledName(newTarget);

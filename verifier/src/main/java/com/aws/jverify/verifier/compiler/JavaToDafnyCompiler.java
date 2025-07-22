@@ -16,11 +16,8 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
-import com.sun.tools.javac.comp.AttrContext;
-import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.comp.Enter;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
@@ -44,6 +41,7 @@ import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -486,7 +484,7 @@ public class JavaToDafnyCompiler {
                 if (isAnnotated(modifiers, com.aws.jverify.Immutable.class)) {
                     Symtab symtab = Symtab.instance(context);
                     if (classType.tsym == symtab.objectType.tsym) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null));
+                        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
                     } else {
                         reportError(origin, "notSupported", "@Immutable on a type other than Object");
                     }
