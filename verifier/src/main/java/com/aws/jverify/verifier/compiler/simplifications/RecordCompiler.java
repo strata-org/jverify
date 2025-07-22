@@ -47,7 +47,7 @@ public class RecordCompiler {
         if (superClass != null) {
             Symtab symtab = Symtab.instance(classCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym) {
-                traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
+                traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             } else {
                 if (compiler.typeHasAContract(superClass)) {
                     traits.addFirst(compiler.translateType(null, superClass, origin));
