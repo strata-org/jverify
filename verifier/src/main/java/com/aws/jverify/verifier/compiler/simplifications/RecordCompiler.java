@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -13,6 +14,7 @@ import com.sun.tools.javac.tree.TreeInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RecordCompiler {
     final ClassCompiler classCompiler;
@@ -23,7 +25,7 @@ public class RecordCompiler {
         this.compiler = classCompiler.compiler;
     }
 
-    public IndDatatypeDecl translateRecord(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    public IndDatatypeDecl translateValueType(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         assert classDecl.getKind() == Tree.Kind.RECORD;
         if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
@@ -31,8 +33,9 @@ public class RecordCompiler {
 
         var typeParams = classCompiler.translateTypeParameters(classDecl.typarams);
 
-        var traits = classCompiler.getCurrentTypeSymbol(classDecl)
-                .getInterfaces().stream()
+        Symbol.ClassSymbol currentTypeSymbol = classCompiler.getCurrentTypeSymbol(classDecl);
+        var traits = Stream.concat(Stream.of(currentTypeSymbol.getSuperclass()), currentTypeSymbol
+                .getInterfaces().stream())
                 .filter(compiler::typeHasAContract)
                 .map(baseType -> compiler.translateType(null, baseType, origin))
                 .toList();
@@ -83,15 +86,15 @@ public class RecordCompiler {
                     NameSegment resultReference = new NameSegment(origin, resultName, null);
                     
                     boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
-                    
+
+                    var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify() && !isImplicitCanonicalConstructor;
                     var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(() ->
                             // Do not generate diagnostics for an implicitly created constructor
                             // These diagnostics already occur on the fields of the record.        
                             compiler.withSkipDiagnostics(() -> classCompiler.translateMember(member), isImplicitCanonicalConstructor),
                             (_, _) -> resultReference);
-                    
-                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || isImplicitCanonicalConstructor)) {
 
+                    if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
                         Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
                         Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
                         var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
@@ -99,7 +102,9 @@ public class RecordCompiler {
                         true, false, result, outType, null, null, null);
                         members.add(staticFunction);
                     } else {
-                        compiler.reportError(member, "notSupported", "verified explicit record constructor");
+                        if (dafnyMember != null) {
+                            compiler.reportError(member, "notSupported", "verified explicit record constructor");
+                        }
                     }
                     continue;
                 }
@@ -148,7 +153,6 @@ public class RecordCompiler {
     public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
         var argBindings = newClass.getArguments().stream()
                 .map(a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
-        
         com.sun.tools.javac.util.List<Type> typeArgs = newClass.typeargs.map(expressionCompiler.compiler::translateType);
         if (newClass.clazz instanceof JCTree.JCTypeApply typeApply) {
             typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));

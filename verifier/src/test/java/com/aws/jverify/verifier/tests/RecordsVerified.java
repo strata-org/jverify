@@ -1,14 +1,11 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Nullable;
-import com.aws.jverify.Pure;
-import com.aws.jverify.Unbounded;
-import com.aws.jverify.Verify;
+import com.aws.jverify.*;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
@@ -40,11 +37,9 @@ class RecordsVerified {
     }
 
     static void genericRecords() {
-        var intBool = new Pair<Integer, Boolean>(1, true);
-        var longString = new Pair<Long, String>(2L, "foo");
-        check(intBool.a() * 2 == longString.a());
-        check(intBool.b());
-        check(longString.b().equals("foo"));
+        var intRecordPair = new Pair<IntRecord, IntRecord>(new IntRecord(1), new IntRecord(2));
+        check(intRecordPair.a().value() == 1);
+        check(intRecordPair.b().value() == 2);
 
         var foobar = new Foobar(3);
         var foobarRecord = new FoobarRecord(foobar);
@@ -53,10 +48,11 @@ class RecordsVerified {
 
         var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
         check(foobarFoobarRecord.b().foobar() == null);
-
-        // Do not store the record in a variable, because we want to test not capturing the type
-        var someInt = new Pair<Integer, Boolean>(1, true).a();
-        var someInt2 = new UnusedTypeParameter<Long, String>(1).x();
+    }
+    
+    static void unusedGenericType() {
+        // Do not store the record itself in a variable, because we want to test not capturing the type
+        var someInt3 = new UnusedTypeParameter<IntRecord, IntRecord>(3).x();
     }
 
     static void recursiveRecords() {
@@ -92,9 +88,13 @@ class RecordsVerified {
         check(new Factor(3).times(7) == 21);
     }
     
-    static void HasConstructorRecord() {
+    static void hasConstructorRecord() {
         var hasConstructor = new HasConstructor();
         check(hasConstructor.x() == 3);
+    }
+    
+    static void assignRecordToValueObject() {
+        @Immutable Object o = new IntRecord(3);
     }
 }
 

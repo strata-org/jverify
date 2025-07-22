@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.Immutable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
@@ -430,6 +431,11 @@ public class ExpressionCompiler {
     private boolean isPossiblyJrdvType(com.sun.tools.javac.code.Type type) {
         if (type.isPrimitive()) {
             return false;
+        }
+
+        var symtab = Symtab.instance(this.compiler.context);
+        if (type == symtab.objectType) {
+            return compiler.isAnnotated(type, Immutable.class);
         }
 
         var types = Types.instance(this.compiler.context);
