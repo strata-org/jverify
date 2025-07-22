@@ -54,14 +54,18 @@ class TranslationErrors {
     int switchLabeledStatementGroup(int i) {
         var acc = 0;
         var ret = switch (i) {
-//                ^ error: switch labeled statement group is not supported
             case 0:
+//          ^ error: switch labeled statement group is not supported
                 acc += 100;
                 yield 0;
             case 1, 2, 3:
+//          ^ error: switch labeled statement group is not supported
+//          ^ error: switch labeled statement group is not supported
+//          ^ error: switch labeled statement group is not supported
                 acc += 200;
                 yield i * 2;
             default:
+//          ^ error: switch labeled statement group is not supported
                 yield -1;
         };
         return acc + ret;
@@ -90,6 +94,8 @@ class TranslationErrors {
         return switch (i) {
             case 0 -> 0;
             case 1, 2, 3 -> {
+//          ^ error: switch labeled statement group is not supported
+//          ^ error: switch labeled statement group is not supported
 //                          ^ error: switch rule block is not supported
                 var acc = 0;
                 for (int j = 0; j < i; j++) {
@@ -106,13 +112,14 @@ class TranslationErrors {
             case 0 -> throw new RuntimeException("");
 //                    ^ error: switch rule throw statement is not supported
             case 1, 2 -> -i;
+//          ^ error: switch labeled statement group is not supported
             default -> i * i * i;
         };
     }
 
     // This is intentional: primitives aren't nullable in Java.
     static boolean nullablePrimitive(@Nullable int i) {
-//                                   ^ error: nullable primitive type is not supported
+//                                                    ^ error: nullable primitive type is not supported
         return i == 0;
     }
 
@@ -122,7 +129,7 @@ class TranslationErrors {
 
     // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
     static boolean nullableString(@Nullable String s) {
-//                                ^ error: nullable String type is not supported
+//                                                    ^ error: nullable String type is not supported
         return s == null;
     }
 
@@ -133,7 +140,7 @@ class TranslationErrors {
 //                                     ^ error: nullable record type is not supported
 
     static boolean nullableRecord(@Nullable IntWrapper w) {
-//                                ^ error: nullable record type is not supported
+//                                                        ^ error: nullable record type is not supported
         return w == null;
     }
 

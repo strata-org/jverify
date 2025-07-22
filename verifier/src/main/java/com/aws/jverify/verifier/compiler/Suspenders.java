@@ -102,15 +102,18 @@ public class Suspenders extends TreeTranslator {
     @Override
     public void visitSwitch(JCTree.JCSwitch tree) {
         if (direction == Direction.HIDE) {
-            var selector = translate(tree.selector);
-            var cases = translateCases(tree.cases);
             var exhaustive = tree.isExhaustive &&
-                    !cases.stream().anyMatch(cas ->
+                    tree.cases.stream().noneMatch(cas ->
                             cas.labels.stream().anyMatch(label -> label instanceof JCTree.JCDefaultCaseLabel));
-            result = switchToIf(selector, cases, exhaustive);
-        } else {
-            super.visitSwitch(tree);
+            var maybeIf = switchToIf(tree.selector, tree.cases, exhaustive);
+            if (maybeIf.isPresent()) {
+                result = maybeIf.get();
+                result.accept(this);
+                return;
+            }
         }
+
+        super.visitSwitch(tree);
     }
 
     @Override
@@ -141,14 +144,22 @@ public class Suspenders extends TreeTranslator {
         super.visitConditional(tree);
     }
 
-    private JCTree.JCStatement switchToIf(JCTree.JCExpression selector, List<JCTree.JCCase> cases, boolean exhaustive) {
-        JCTree.JCStatement rest = null;
+    private Optional<JCTree.JCStatement> switchToIf(JCTree.JCExpression selector, List<JCTree.JCCase> cases, boolean exhaustive) {
+        final JCTree.JCStatement rest;
         if (cases.tail.nonEmpty()) {
-            rest = switchToIf(selector, cases.tail, exhaustive);
+            var maybeRest = switchToIf(selector, cases.tail, exhaustive);
+            if (maybeRest.isEmpty()) {
+                return maybeRest;
+            }
+            rest = maybeRest.get();
         } else if (exhaustive) {
             rest = maker.Assert(maker.Literal(false), null);
+        } else {
+            rest = null;
         }
-        return maker.If(caseToExpression(selector, cases.head, cases.head.labels), maker.Block(0, cases.head.stats), rest);
+        return caseToExpression(selector, cases.head, cases.head.labels).map(head ->
+            maker.If(head, maker.Block(0, cases.head.stats), rest)
+        );
     }
 
     private Optional<JCTree.JCSwitch> switchFromIf(JCTree.JCIf ifStmt) {
@@ -225,32 +236,29 @@ public class Suspenders extends TreeTranslator {
         };
     }
 
-    private JCTree.JCExpression caseLabelToExpression(JCTree.JCExpression selector, JCTree.JCCaseLabel label) {
+    private Optional<JCTree.JCExpression> caseLabelToExpression(JCTree.JCExpression selector, JCTree.JCCaseLabel label) {
         return switch (label) {
             case JCTree.JCConstantCaseLabel constantCaseLabel -> {
                 var methodType = new Type.MethodType(List.of(selector.type, constantCaseLabel.expr.type), symtab.booleanType, null, null);
                 var result = makeResolvedBinary(JCTree.Tag.EQ, selector, constantCaseLabel.expr, methodType);
                 result.operator = new Symbol.OperatorSymbol(caseMatchName, methodType, -1, symtab.noSymbol);;
-                yield result;
+                yield Optional.of(result);
             }
-            case JCTree.JCDefaultCaseLabel _ -> maker.Literal(true);
-            default -> {
-                log.error(label.pos(), log.diags.errorKey("notSupported", "case pattern"));
-                yield maker.Literal(false);
-            }
+            case JCTree.JCDefaultCaseLabel _ -> Optional.of(maker.Literal(true));
+            default -> Optional.empty();
         };
     }
 
-    private JCTree.JCExpression caseToExpression(JCTree.JCExpression selector, JCTree.JCCase cas, List<JCTree.JCCaseLabel> labels) {
+    private Optional<JCTree.JCExpression> caseToExpression(JCTree.JCExpression selector, JCTree.JCCase cas, List<JCTree.JCCaseLabel> labels) {
         if (cas.caseKind == CaseTree.CaseKind.STATEMENT) {
-            log.error(cas.pos(), log.diags.errorKey("notSupported", "switch labeled statement group"));
-            return maker.Literal(symtab.botType.getTag(), null).setType(symtab.botType);
+            return Optional.empty();
         } else if (labels.tail.isEmpty()) {
             return caseLabelToExpression(selector, labels.head);
         } else {
-            var rest = caseToExpression(selector, cas, labels.tail);
-            return makeResolvedBinary(JCTree.Tag.OR, caseLabelToExpression(selector, labels.head), rest,
-                    new Type.MethodType(List.of(symtab.booleanType, symtab.booleanType), symtab.booleanType, null, null));
+            return caseToExpression(selector, cas, labels.tail).flatMap(rest ->
+                caseLabelToExpression(selector, labels.head).map(head ->
+                    makeResolvedBinary(JCTree.Tag.OR, head, rest,
+                            new Type.MethodType(List.of(symtab.booleanType, symtab.booleanType), symtab.booleanType, null, null))));
         }
     }
 
@@ -264,29 +272,35 @@ public class Suspenders extends TreeTranslator {
     @Override
     public void visitSwitchExpression(JCTree.JCSwitchExpression tree) {
         if (direction == Direction.HIDE) {
-            var selector = translate(tree.selector);
-            var cases = translateCases(tree.cases);
-            result = switchExpressionToConditional(selector, cases, tree.type);
-        } else {
-            super.visitSwitchExpression(tree);
+            var maybeSwitch = switchExpressionToConditional(tree.selector, tree.cases, tree.type);
+            if (maybeSwitch.isPresent()) {
+                result = maybeSwitch.get();
+                result.accept(this);
+                return;
+            }
         }
+
+        super.visitSwitchExpression(tree);
     }
 
-    private JCTree.JCExpression switchExpressionToConditional(JCTree.JCExpression selector, List<JCTree.JCCase> cases, Type typ) {
+    private Optional<JCTree.JCExpression> switchExpressionToConditional(JCTree.JCExpression selector, List<JCTree.JCCase> cases, Type typ) {
         if (cases.isEmpty()) {
             // TODO: Should be a "hole" instead, or we should ensure the default case comes last in the list
-            return maker.Literal(false);
+            return Optional.of(maker.Literal(false));
         } else {
             var rest = switchExpressionToConditional(selector, cases.tail, typ);
+            if (rest.isEmpty()) {
+                return rest;
+            }
 
             if (cases.head.body instanceof JCTree.JCExpression headExpr) {
-                var conditional = maker.Conditional(caseToExpression(selector, cases.head, cases.head.labels), headExpr, rest);
-                conditional.type = typ;
-                return conditional;
+                return caseToExpression(selector, cases.head, cases.head.labels).map(head -> {
+                    var conditional = maker.Conditional(head, headExpr, rest.get());
+                    conditional.type = typ;
+                    return conditional;
+                });
             } else {
-                var bodyKind = cases.head.body instanceof JCTree.JCBlock ? "block" : "throw statement";
-                log.error(cases.head.pos(), log.diags.errorKey("notSupported", "switch rule %s".formatted(bodyKind)));
-                return maker.Literal(symtab.botType.getTag(), null).setType(symtab.botType);
+                return Optional.empty();
             }
 
         }
