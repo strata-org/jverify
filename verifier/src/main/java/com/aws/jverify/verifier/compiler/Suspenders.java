@@ -165,7 +165,7 @@ public class Suspenders extends TreeTranslator {
 
     private List<JCTree.JCCase> casesFromIf(JCTree.JCIf ifStmt) {
         var labels = caseLabelsFromExpression(ifStmt.cond);
-        var cas = maker.Case(CaseTree.CaseKind.RULE, labels, null, ((JCTree.JCBlock)ifStmt.thenpart).stats, null);
+        var cas = maker.Case(CaseTree.CaseKind.RULE, labels, null, ((JCTree.JCBlock)ifStmt.thenpart).stats, ifStmt.thenpart);
         var ifCase = List.of(cas);
         if (ifStmt.elsepart instanceof JCTree.JCIf elseIf) {
             return ifCase.appendList(casesFromIf(elseIf));
@@ -287,7 +287,8 @@ public class Suspenders extends TreeTranslator {
 
     private List<JCTree.JCCase> casesFromConditional(JCTree.JCConditional conditional) {
         var labels = caseLabelsFromExpression(conditional.cond);
-        var cas = maker.Case(CaseTree.CaseKind.RULE, labels, null, null, conditional.truepart);
+        var stats = List.<JCTree.JCStatement>of(maker.Yield(conditional.truepart));
+        var cas = maker.Case(CaseTree.CaseKind.RULE, labels, null, stats, conditional.truepart);
         var truepartCase = List.of(cas);
         if (conditional.falsepart instanceof JCTree.JCConditional falseCond) {
             return truepartCase.appendList(casesFromConditional(falseCond));
