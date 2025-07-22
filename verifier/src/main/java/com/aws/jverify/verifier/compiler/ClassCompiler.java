@@ -180,6 +180,7 @@ public class ClassCompiler {
                 filter(compiler::typeHasAContract).
                 map((com.sun.tools.javac.code.Type type) -> {
                     if (type.baseType() == symtab.objectType) {
+                        // A class that extends 'Object' will extend '@Modifiable Object' instead
                         return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
                     }
                     return compiler.translateType(null, type, origin);
@@ -238,7 +239,7 @@ public class ClassCompiler {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.translateType(variableDecl.getModifiers().getAnnotations(), 
+        Type type = compiler.translateType(variableDecl.getModifiers(), 
                 variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype));
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {

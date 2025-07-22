@@ -298,8 +298,8 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private boolean isNullable(List<JCTree.JCAnnotation> annotations) {
-        return isAnnotated(annotations, com.aws.jverify.Nullable.class);
+    private boolean isNullable(JCTree.JCModifiers modifiers) {
+        return isAnnotated(modifiers, com.aws.jverify.Nullable.class);
     }
 
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
@@ -309,8 +309,8 @@ public class JavaToDafnyCompiler {
     /**
      * Returns {@code true} if the given modifier tree contains an annotation of the given class.
      */
-    private boolean isAnnotated(List<JCTree.JCAnnotation> annotations, Class<? extends Annotation> clazz) {
-        return annotations != null && annotations.stream().anyMatch(a ->
+    private boolean isAnnotated(JCTree.JCModifiers modifiers, Class<? extends Annotation> clazz) {
+        return modifiers != null && modifiers.getAnnotations().stream().anyMatch(a ->
                 TreeInfo.symbol(a.getAnnotationType()) instanceof Symbol symbol
                         && symbol.flatName().contentEquals(clazz.getName()));
     }
@@ -382,18 +382,10 @@ public class JavaToDafnyCompiler {
         }
         return false;
     }
-
-    public @Nullable Type translateType(JCTree.JCAnnotatedType type) {
-        return translateType(type.getAnnotations(), type);
-    }
     
     // TODO Dangerous. Delete? 
     public @Nullable Type translateType(JCTree tree) {
-        return translateType(null, tree);
-    }
-    
-    public @Nullable Type translateType(List<JCTree.JCAnnotation> outOfTypeAnnotations, JCTree tree) {
-        return translateType(outOfTypeAnnotations, tree.type, toOrigin(tree));
+        return translateType(null, tree.type, toOrigin(tree));
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
@@ -408,12 +400,12 @@ public class JavaToDafnyCompiler {
     }
 
     @Nullable
-    public Type translateType(List<JCTree.JCAnnotation> annotations, com.sun.tools.javac.code.Type type, IOrigin origin) {
+    public Type translateType(JCTree.JCModifiers modifiers, com.sun.tools.javac.code.Type type, IOrigin origin) {
         // In several cases annotations that come right before types
         // end up bound to tree nodes such as variable declarations instead of the type.
         // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
         // we apply the modifier to the innermost element type of an array type.
-        var isNullable = isNullable(type) || (isNullable(annotations) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
+        var isNullable = isNullable(type) || (isNullable(modifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
@@ -479,7 +471,7 @@ public class JavaToDafnyCompiler {
         switch (type) {
             case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
                 // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
-                var elemType = translateType(annotations, arrayTypeTree.elemtype, origin);
+                var elemType = translateType(modifiers, arrayTypeTree.elemtype, origin);
                 if (elemType == null) {
                     // should be unreachable
                     throw new IllegalArgumentException("Array type without element type");
@@ -492,7 +484,7 @@ public class JavaToDafnyCompiler {
                 var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
                 
                 Symtab symtab = Symtab.instance(context);
-                if (modifiableAnnotation.isPresent() || isAnnotated(annotations, com.aws.jverify.Modifiable.class)) {
+                if (modifiableAnnotation.isPresent() || isAnnotated(modifiers, com.aws.jverify.Modifiable.class)) {
                     if (classType.tsym == symtab.objectType.tsym) {
                         return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
                     } else {

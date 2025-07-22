@@ -170,7 +170,7 @@ public class ExpressionCompiler {
     private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin) {
         var castExpr = toExpr(cast.getExpression());
 
-        var type = compiler.translateType(null, cast);
+        var type = compiler.translateType(cast);
         return new ConversionExpr(origin, castExpr, type, "");
     }
 

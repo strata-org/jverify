@@ -4,7 +4,7 @@ import static com.aws.jverify.JVerify.*;
 
 import com.aws.jverify.*;
 
-class UserProfile extends Object {
+class UserProfile {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
     private AccountType accountType;
