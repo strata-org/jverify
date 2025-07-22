@@ -35,10 +35,8 @@ public class Suspenders extends TreeTranslator {
 
     private final Set<Symbol> records = new HashSet<>();
 
-    private final Context context;
     private final TreeMaker maker;
     private final Names names;
-    private final Name placeholderName;
     private JCTree.JCVariableDecl placeholderField;
     private final Symtab symtab;
     private final Name caseMatchName;
@@ -53,22 +51,10 @@ public class Suspenders extends TreeTranslator {
     public Suspenders(Context context) {
         context.put(key, this);
 
-        this.context = context;
         this.maker = TreeMaker.instance(context);
         this.names = Names.instance(context);
-        this.placeholderName = names.fromString("$jverifySwitches");
         this.symtab = Symtab.instance(context);
         this.caseMatchName = names.fromString("$caseMatch");
-    }
-
-    private JCTree.JCExpression getPlaceholderField(JCTree.JCMethodInvocation invocation) {
-        if (placeholderField == null) {
-            var symtab = Symtab.instance(context);
-            var owner = ((JCTree.JCIdent)invocation.getMethodSelect()).sym.owner;
-            var symbol = new Symbol.VarSymbol(SYNTHETIC | NATIVE, placeholderName, symtab.booleanType, owner);
-            this.placeholderField = maker.VarDef(symbol, maker.Literal(false));
-        }
-        return maker.Ident(placeholderField);
     }
 
     private enum Direction {
@@ -114,7 +100,10 @@ public class Suspenders extends TreeTranslator {
         if (direction == Direction.HIDE) {
             var selector = translate(tree.selector);
             var cases = translateCases(tree.cases);
-            result = switchToIf(selector, cases);
+            var exhaustive = tree.isExhaustive &&
+                    !cases.stream().anyMatch(cas ->
+                            cas.labels.stream().anyMatch(label -> label instanceof JCTree.JCDefaultCaseLabel));
+            result = switchToIf(selector, cases, exhaustive);
         } else {
             super.visitSwitch(tree);
         }
@@ -148,8 +137,13 @@ public class Suspenders extends TreeTranslator {
         super.visitConditional(tree);
     }
 
-    private JCTree.JCStatement switchToIf(JCTree.JCExpression selector, List<JCTree.JCCase> cases) {
-        var rest = cases.tail.nonEmpty() ? switchToIf(selector, cases.tail) : null;
+    private JCTree.JCStatement switchToIf(JCTree.JCExpression selector, List<JCTree.JCCase> cases, boolean exhaustive) {
+        JCTree.JCStatement rest = null;
+        if (cases.tail.nonEmpty()) {
+            rest = switchToIf(selector, cases.tail, exhaustive);
+        } else if (exhaustive) {
+            rest = maker.Assert(maker.Literal(false), null);
+        }
         return maker.If(caseToExpression(selector, cases.head, cases.head.labels), maker.Block(0, cases.head.stats), rest);
     }
 
@@ -157,7 +151,9 @@ public class Suspenders extends TreeTranslator {
         var maybeSelector = selectorFromIf(ifStmt);
         return maybeSelector.map(selector -> {
             var cases = casesFromIf(ifStmt);
-            return maker.Switch(selector, cases);
+            var result = maker.Switch(selector, cases);
+            result.isExhaustive = exhaustiveFromIf(ifStmt);
+            return result;
         });
     }
 
@@ -167,8 +163,22 @@ public class Suspenders extends TreeTranslator {
         var ifCase = List.of(cas);
         if (ifStmt.elsepart instanceof JCTree.JCIf elseIf) {
             return ifCase.appendList(casesFromIf(elseIf));
+        } else if (ifStmt.elsepart != null) {
+            return ifCase.append(defaultCase(ifStmt.elsepart));
         } else {
             return ifCase;
+        }
+    }
+
+    private JCTree.JCCase defaultCase(JCTree.JCStatement statement) {
+        return maker.Case(CaseTree.CaseKind.RULE, List.of(maker.DefaultCaseLabel()), null, ((JCTree.JCBlock)statement).stats, statement);
+    }
+
+    private boolean exhaustiveFromIf(JCTree.JCIf ifStmt) {
+        if (ifStmt.elsepart instanceof JCTree.JCIf elseIf) {
+            return exhaustiveFromIf(elseIf);
+        } else {
+            return ifStmt.elsepart != null;
         }
     }
 
@@ -289,7 +299,12 @@ public class Suspenders extends TreeTranslator {
         if (conditional.falsepart instanceof JCTree.JCConditional falseCond) {
             return truepartCase.appendList(casesFromConditional(falseCond));
         } else {
-            return truepartCase;
+            return truepartCase.append(defaultCaseFromExpr(conditional.falsepart));
         }
+    }
+
+    private JCTree.JCCase defaultCaseFromExpr(JCTree.JCExpression expr) {
+        var stats = List.<JCTree.JCStatement>of(maker.Yield(expr));
+        return maker.Case(CaseTree.CaseKind.RULE, List.of(maker.DefaultCaseLabel()), null, stats, expr);
     }
 }
