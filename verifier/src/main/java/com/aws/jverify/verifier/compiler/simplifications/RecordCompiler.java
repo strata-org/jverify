@@ -87,7 +87,7 @@ public class RecordCompiler {
             } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
                 var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
-                Type type = compiler.translateType(variableDecl.getModifiers(), variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype));
+                Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
                 members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
                 continue;
             } 
