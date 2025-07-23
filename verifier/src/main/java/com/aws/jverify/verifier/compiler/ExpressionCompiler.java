@@ -507,42 +507,4 @@ public class ExpressionCompiler {
             '\r', "\\r",
             '\t', "\\t"
     );
-
-    public AttributedExpression translatePostconditionExpression(JCTree.JCExpression expr, JCTree treeOrigin) {
-        if (expr instanceof JCTree.JCLambda lambda) {
-            if (lambda.getParameters().size() != 1) {
-                throw new JavaViolationException("A postcondition call lambda may take only one argument");
-            }
-            var parameter = lambda.params.getFirst();
-            var origin = compiler.toOrigin(lambda);
-            var paramName = parameter.getName().toString();
-            var type = compiler.translateType(null, parameter.type, compiler.toOrigin(parameter));
-
-            var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
-            var lhs = new CasePattern<>(origin, paramName, returnVar, null);
-            var rhs = TreeInfo.isConstructor(treeOrigin)
-                    ? new ThisExpr(origin)
-                    : new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
-            var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
-            var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
-            return new AttributedExpression(condition, null, null);
-
-        } else if (expr instanceof JCTree.JCMemberReference memberReference) {
-            var origin = compiler.toOrigin(memberReference);
-            var argBindings = List.of(new ActualBinding(null,
-                    new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
-            var callee = new ExprDotName(origin,
-                    compiler.expressionCompiler.toExpr(memberReference.expr),
-                    compiler.getName(memberReference, memberReference.name), null);
-            var call = new ApplySuffix(origin, callee, null,
-                    new ActualBindings(argBindings), null);
-            return new AttributedExpression(call, null, null);
-        } else if (expr instanceof JCTree.JCTypeCast typeCast) {
-            // Casts like (IntPredicate) are sometimes necessary to disambiguate
-            return translatePostconditionExpression(typeCast.getExpression(), treeOrigin);
-        } else {
-            var dafnyExpr = compiler.expressionCompiler.toExpr(expr);
-            return new AttributedExpression(dafnyExpr, null, null);
-        }
-    }
 }

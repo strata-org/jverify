@@ -69,7 +69,24 @@ public class JVerifyIndex extends JCTree.Visitor {
     }
 
     public Env<AttrContext> getEnv(Symbol sym) {
-        return envs.get(sym);
+        if (sym == null) {
+            return null;
+        }
+
+        // Get enclosing class of sym, or sym itself if it is a class
+        // package, or module.
+        Symbol.TypeSymbol ts = null;
+        switch (sym.kind) {
+            case PCK:
+                ts = (Symbol.PackageSymbol)sym;
+                break;
+            case MDL:
+                ts = (Symbol.ModuleSymbol)sym;
+                break;
+            default:
+                ts = sym.enclClass();
+        }
+        return envs.get(ts);
     }
 
     public Pair<JCTree, JCTree.JCCompilationUnit> getTreeAndTopLevel(Symbol sym) {

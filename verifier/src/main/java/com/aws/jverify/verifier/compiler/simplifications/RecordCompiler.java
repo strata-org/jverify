@@ -4,6 +4,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
+import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
@@ -152,8 +153,8 @@ public class RecordCompiler {
             typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));
         }
 
-        JavacTrees trees = JavacTrees.instance(expressionCompiler.compiler.context);
-        boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) trees.getTree(newClass.constructor));
+        JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.compiler.context);
+        boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
             
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);

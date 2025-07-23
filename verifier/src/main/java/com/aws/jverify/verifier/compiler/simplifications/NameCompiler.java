@@ -2,15 +2,11 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.sun.tools.javac.code.Symbol;
 
-import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
-import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.Name;
 
 import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
