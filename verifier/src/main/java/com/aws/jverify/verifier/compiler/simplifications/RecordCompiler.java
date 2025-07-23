@@ -4,8 +4,10 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
+import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.source.tree.Tree;
+import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.tree.JCTree;
@@ -136,14 +138,7 @@ public class RecordCompiler {
      * Returns whether the declaration is a record's synthetic (implicit) canonical constructor.
      */
     public static boolean isImplicitCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
-        // Ideally we'd check for the SYNTHETIC flag, but it's not set.
-        // So instead we check for its body: just a lone "super()" call.
-        var body = methodDecl.getBody().getStatements();
-        return TreeInfo.isCanonicalConstructor(methodDecl)
-                && body.length() == 1
-                && body.getFirst() instanceof JCTree.JCExpressionStatement stmt
-                && TreeInfo.isSuperCall(stmt)
-                && TreeInfo.args(stmt.getExpression()).isEmpty();
+        return (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0;
     }
 
     /**
@@ -158,8 +153,8 @@ public class RecordCompiler {
             typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));
         }
 
-        JavacTrees trees = JavacTrees.instance(expressionCompiler.compiler.context);
-        boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) trees.getTree(newClass.constructor));
+        JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.compiler.context);
+        boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
             
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);

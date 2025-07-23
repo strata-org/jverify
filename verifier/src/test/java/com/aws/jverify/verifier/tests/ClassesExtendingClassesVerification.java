@@ -38,7 +38,7 @@ class Extender extends Base {
 
     @Override
     public int virtualMethod() {
-        postcondition((Integer r) -> r >= 20);
+        postcondition((int r) -> r >= 20);
         return 20;
     }
 }
@@ -63,7 +63,7 @@ abstract class Base {
     public abstract int computeX(int input);
     
     public int virtualMethod() {
-        postcondition((Integer r) -> r >= 10);
+        postcondition((int r) -> r >= 10);
         return 10;
     }
 
@@ -83,7 +83,7 @@ abstract class Base {
 
 interface IExtendee {
     default int virtualMethod() {
-        postcondition((Integer r) -> r >= 10);
+        postcondition((int r) -> r >= 10);
         return 10;
     }
 }
@@ -91,7 +91,7 @@ interface IExtendee {
 interface IExtender extends IExtendee {
     @Override
     default int virtualMethod() {
-        postcondition((Integer r) -> r >= 20);
+        postcondition((int r) -> r >= 20);
         return 20;
     }
 }

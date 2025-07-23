@@ -19,8 +19,8 @@ class FibonacciInvalid {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        postcondition((Integer r) -> r == Spec(n));
-//                                   ^^^^^^^^^^^^ Related location: this is the postcondition that could not be proved
+        postcondition((int r) -> r == Spec(n));
+//                               ^^^^^^^^^^^^ Related location: this is the postcondition that could not be proved
 
         if (n == 0) {
             return 1;

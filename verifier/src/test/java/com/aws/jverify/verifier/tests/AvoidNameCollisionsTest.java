@@ -3,6 +3,8 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import java.util.function.IntPredicate;
+
 import static com.aws.jverify.JVerify.postcondition;
 
 @JVerifyTest(dafnyVerified = 3, dafnyErrors = 0, verifyPrintedDafny = true)
@@ -22,8 +24,8 @@ public class AvoidNameCollisionsTest {
     }
     
     public int differentReturnValueNames() {
-        postcondition(this::predicate);
-        postcondition((Integer result) -> result < 3);
+        postcondition((IntPredicate)this::predicate);
+        postcondition((int result) -> result < 3);
         int result;
         int g_result;
         boolean _g_result = this.map(3);

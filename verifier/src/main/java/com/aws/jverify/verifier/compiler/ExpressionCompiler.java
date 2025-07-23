@@ -75,7 +75,10 @@ public class ExpressionCompiler {
             final Expression translatedBody;
 
             // A switch rule introduces either an expression, a block, or a throw statement.
-            if (body instanceof JCTree.JCExpression) {
+            if (body == null) {
+                // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
+                translatedBody = JavaToDafnyCompiler.getHole(origin);
+            } else if (body instanceof JCTree.JCExpression) {
                 translatedBody = toExpr(body);
             } else {
                 var bodyKind = body instanceof JCTree.JCBlock ? "block" : "throw statement";
