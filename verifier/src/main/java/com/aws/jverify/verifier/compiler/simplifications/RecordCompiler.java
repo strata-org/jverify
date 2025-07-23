@@ -49,7 +49,7 @@ public class RecordCompiler {
                 traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             } else {
                 if (compiler.typeHasAContract(superClass)) {
-                    traits.addFirst(compiler.translateType(, superClass, origin, null));
+                    traits.addFirst(compiler.translateType(superClass, origin, null));
                 }
             }
         }
