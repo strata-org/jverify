@@ -93,8 +93,8 @@ class RecordsVerified {
         check(hasConstructor.x() == 3);
     }
     
-    static void assignRecordToValueObject() {
-        @Immutable Object o = new IntRecord(3);
+    static void assignRecordToObject() {
+        Object o = new IntRecord(3);
     }
 }
 

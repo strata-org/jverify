@@ -16,5 +16,4 @@ public record VerifierOptions(Path workingDirectory,
                               boolean includeBuiltinContracts,
                               boolean showFilepaths,
                               String[] additionalDafnyArguments,
-                              boolean verifyByDefault,
-                              boolean avoidCollisionsUsingUnderscores) {}
+                              boolean verifyByDefault) {}
