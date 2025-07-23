@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Immutable;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.testengine.JVerifyTest;
 

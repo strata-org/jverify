@@ -169,7 +169,7 @@ public class ContractCompiler {
             var parameter = lambda.params.getFirst();
             var origin = compiler.toOrigin(lambda);
             var paramName = parameter.getName().toString();
-            var type = compiler.translateType(null, parameter.type, compiler.toOrigin(parameter));
+            var type = compiler.translateType(parameter.type, compiler.toOrigin(parameter), null);
 
             var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
             var lhs = new CasePattern<>(origin, paramName, returnVar, null);

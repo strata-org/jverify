@@ -37,7 +37,7 @@ public class RecordCompiler {
         var traits = Stream.concat(Stream.of(currentTypeSymbol.getSuperclass()), currentTypeSymbol
                 .getInterfaces().stream())
                 .filter(compiler::typeHasAContract)
-                .map(baseType -> compiler.translateType(null, baseType, origin))
+                .map(baseType -> compiler.translateType(baseType, origin, null))
                 .toList();
 
         var comps = TreeInfo.recordFields(classDecl);

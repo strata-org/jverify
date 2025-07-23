@@ -175,9 +175,16 @@ public class ClassCompiler {
         if (definingSymbol.getSuperclass() != null) {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
         }
+        var symtab = Symtab.instance(this.compiler.context);
         var superTraits = baseTypes.
                 filter(compiler::typeHasAContract).
-                map((com.sun.tools.javac.code.Type type) -> compiler.translateType(null, type, origin)).
+                map((com.sun.tools.javac.code.Type type) -> {
+                    if (type.baseType() == symtab.objectType) {
+                        // A class that extends 'Object' will extend '@Modifiable Object' instead
+                        return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
+                    }
+                    return compiler.translateType(type, origin, null);
+                }).
                 collect(Collectors.<Type>toList());
 
         var typeParameters = translateTypeParameters(classDecl.typarams);
@@ -195,7 +202,8 @@ public class ClassCompiler {
                     // Contains because when we're verifying the built-in file itself, the path is different.
                     !this.compiler.compilationUnit.getSourceFile().getName().contains(JavaToDafnyCompiler.builtinFile)) {
                 // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones.
-                bounds = bounds.append(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
+                bounds = bounds.append(new UserDefinedType(origin, 
+                        new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             }
             return new TypeParameter(origin,
                     name, null, TPVarianceSyntax.NonVariant_Strict,
@@ -231,7 +239,8 @@ public class ClassCompiler {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.translateType(variableDecl.getModifiers(), variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype));
+        Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
+        );
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());
