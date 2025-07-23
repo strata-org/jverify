@@ -1,11 +1,9 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.Pure;
-import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -153,7 +151,7 @@ public class BlockCompiler {
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
         LocalVariable localVariable = new LocalVariable(origin, compiler.nameCompiler.getCompiledName(variableDecl.sym),
-                compiler.translateType(variableDecl.getModifiers(), variableDecl.getType().type, origin), false);
+                compiler.translateType(variableDecl.getType().type, origin, variableDecl.getModifiers()), false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
             var rhs = toAssignmentRhs(variableDecl.getInitializer());
@@ -374,7 +372,7 @@ public class BlockCompiler {
                 if (arrayJavaType instanceof com.sun.tools.javac.code.Type.ArrayType) {
                     compiler.reportError(expr, "notSupported", "multi-dimensional arrays");
                 }
-                var arrayDafnyType = compiler.translateType(null, arrayJavaType, compiler.toOrigin(newArray));
+                var arrayDafnyType = compiler.translateType(arrayJavaType, compiler.toOrigin(newArray), null);
 
                 if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
                     compiler.reportError(expr, "notSupported", "new array with initializers");
