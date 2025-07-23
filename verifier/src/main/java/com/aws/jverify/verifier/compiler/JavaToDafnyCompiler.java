@@ -72,7 +72,7 @@ public class JavaToDafnyCompiler {
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
-        nameCompiler = new NameCompiler(externalContractCompiler, verifierOptions.avoidCollisionsUsingUnderscores());
+        nameCompiler = new NameCompiler(externalContractCompiler);
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
         lambdaCompiler = new LambdaCompiler(this);
