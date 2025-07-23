@@ -88,7 +88,7 @@ public class JavaToDafnyCompiler {
         var contractSource = new SourceFile(JavaToDafnyCompiler.objectFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
         files.add(contractSource);
         
-        Set<JVerifyCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
+        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
@@ -100,12 +100,12 @@ public class JavaToDafnyCompiler {
          * To work around this bug, the built-in contracts file must be serialized after 
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
-        parsed.sort(Comparator.comparing(f -> f.unit().getSourceFile().toUri().toString()));
+        parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
         var foundClassSymbols = new HashMap<Symbol.ClassSymbol, JCTree.JCCompilationUnit>();
         for (var compilationUnit : parsed) {
             externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
-            declarationsForFile.put(compilationUnit.unit(), new ArrayList<>());
+            declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
         for(var foundClassSymbol : foundClassSymbols.keySet()) {
@@ -124,7 +124,7 @@ public class JavaToDafnyCompiler {
         contextOrigins.pop();
 
         List<FileHeader> filesStarts = new ArrayList<>();
-        for (var compilationUnit : parsed.stream().map(JVerifyCompilationUnit::unit).collect(Collectors.toSet())) {
+        for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
             var isLibrary = isLibrary(compilationUnit);
             fileDeclarations.sort(Comparator.comparing(t -> {

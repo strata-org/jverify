@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
-import com.aws.jverify.verifier.compiler.JVerifyCompilationUnit;
 import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
@@ -35,11 +34,11 @@ public class ExternalContractCompiler {
             Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
             List<JCTree.JCVariableDecl> ghostFields) { }
     
-    public void discoverTypesAndContractClasses(JVerifyCompilationUnit compilationUnit,
+    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit,
                                                 Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> foundClasses) {
-        compiler.compilationUnit = compilationUnit.unit();
+        compiler.compilationUnit = compilationUnit;
 
-        var typesToVisit = new LinkedList<>(getTypeDecls(compilationUnit.newDefs()));
+        var typesToVisit = new LinkedList<>(getTypeDecls(compilationUnit.defs));
         while(!typesToVisit.isEmpty()) {
             var typeDecl = typesToVisit.poll();
             if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
@@ -57,7 +56,7 @@ public class ExternalContractCompiler {
             if (contractAnnotation == null) {
                 var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
                 declsForSymbol.add(classDecl);
-                foundClasses.put(classDecl.sym, compilationUnit.unit());
+                foundClasses.put(classDecl.sym, compilationUnit);
                 continue;
             }
 
@@ -70,7 +69,7 @@ public class ExternalContractCompiler {
             var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
             declsForSymbol.add(classDecl);
 
-            foundClasses.put(contracteeSymbol, compilationUnit.unit());
+            foundClasses.put(contracteeSymbol, compilationUnit);
             if (compiler.typeHasSource(contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
                 compiler.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
                 continue;

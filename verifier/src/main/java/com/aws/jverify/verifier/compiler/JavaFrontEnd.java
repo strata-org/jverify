@@ -13,7 +13,6 @@ import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
-import com.sun.tools.javac.util.ListBuffer;
 import com.sun.tools.javac.util.Log;
 import com.sun.tools.javac.util.Position;
 
@@ -40,7 +39,7 @@ public class JavaFrontEnd {
      * Applies a subset of the javac compilation pipeline, to parse,
      * resolve, and partially rewrite some features away.
      */
-    public Set<JVerifyCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
+    public Set<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
 
@@ -113,7 +112,7 @@ public class JavaFrontEnd {
          * and the Todo instance in the context).
          */
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
-        final Queue<JVerifyCompilationUnit> units = new LinkedList<>();
+        final Queue<Env<AttrContext>> envs = new LinkedList<>();
         MultiTaskListener mtl = MultiTaskListener.instance(context);
         mtl.add(new TaskListener() {
             @Override
@@ -137,7 +136,7 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    units.addAll(unsuspend(lower(suspend(
+                    envs.addAll(unsuspend(lower(suspend(
                             unsubstitute(unlambda(substitute(
                                     compiler.flow(compiler.attribute(todo)))))))));
                 }
@@ -158,7 +157,7 @@ public class JavaFrontEnd {
             }
         }
 
-        return hasErrors ? null : new HashSet<>(units);
+        return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
     }
 
     // Phase to replace erased code such as specifications with placeholders
@@ -207,23 +206,21 @@ public class JavaFrontEnd {
     }
 
     // Phase to undo the effects of suspend().
-    private List<JVerifyCompilationUnit> unsuspend(List<JVerifyCompilationUnit> units) {
-        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
+    private Queue<Env<AttrContext>> unsuspend(Queue<Env<AttrContext>> envs) {
         var hider = Suspenders.instance(context);
-        for (JVerifyCompilationUnit unit : units) {
-            var newDefs = unit.newDefs().map(hider::unsuspend);
-            results.add(new JVerifyCompilationUnit(unit.unit(), newDefs));
-        }
-        return results.toList();
+        envs.stream().map(env -> env.toplevel).distinct().forEach(topLevel -> {
+            topLevel.defs = topLevel.defs.map(hider::unsuspend);
+        });
+        return envs;
     }
 
-    private List<JVerifyCompilationUnit> lower(Queue<Env<AttrContext>> envs) {
+    private Queue<Env<AttrContext>> lower(Queue<Env<AttrContext>> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
         var lower = Lower.instance(context);
         var log = Log.instance(context);
         var index = JVerifyIndex.instance(context);
 
-        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
+        Map<JCTree.JCCompilationUnit, com.sun.tools.javac.util.List<JCTree>> newDecls = new HashMap<>();
         for (Env<AttrContext> env : envs) {
             log.useSource(env.toplevel.sourcefile);
             com.sun.tools.javac.util.List<JCTree> classes = lower.translateTopLevelClass(env, env.tree, localMake);
@@ -232,9 +229,12 @@ public class JavaFrontEnd {
                 index.index(env, clazz);
             }
 
-            var newUnit = new JVerifyCompilationUnit(env.toplevel, classes);
-            results.add(newUnit);
+            var decls = newDecls.getOrDefault(env.toplevel, com.sun.tools.javac.util.List.nil());
+            newDecls.put(env.toplevel, decls.appendList(classes));
         }
-        return results.toList();
+        for(var entry : newDecls.entrySet()) {
+            entry.getKey().defs = entry.getValue();
+        }
+        return envs;
     }
 }
