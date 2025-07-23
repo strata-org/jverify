@@ -21,17 +21,4 @@ public record JVerifyCompilationUnit(JCTree.JCCompilationUnit unit, List<JCTree>
     public static JVerifyCompilationUnit of(JCTree.JCCompilationUnit unit) {
         return new JVerifyCompilationUnit(unit, unit.defs);
     }
-
-    public List<JCTree> getTypeDecls() {
-        List<JCTree> typeDefs;
-        for (typeDefs = newDefs; !typeDefs.isEmpty(); typeDefs = typeDefs.tail) {
-            if (!typeDefs.head.hasTag(MODULEDEF)
-                    && !typeDefs.head.hasTag(PACKAGEDEF)
-                    && !typeDefs.head.hasTag(IMPORT)
-                    && !typeDefs.head.hasTag(MODULEIMPORT)) {
-                break;
-            }
-        }
-        return typeDefs;
-    }
 }
