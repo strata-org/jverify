@@ -9,14 +9,17 @@ import static com.aws.jverify.JVerify.postcondition;
 public class AvoidNameCollisionsTest {
 
     void set(int set, int r_set) {}
+    void function(int function) {}
+    void set(int set) {}
+
+    class _test {}
+
+    class a_test {}
 
     void _test() {
         var _test = 3;
         var a_test = 4;
     }
-
-    class _test {}
-    class a_test {}
     
     public int differentReturnValueNames() {
         postcondition(this::predicate);
