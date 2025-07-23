@@ -54,6 +54,4 @@ public @interface JVerifyTest {
     String[] additionalFiles() default {};
     
     boolean verifyPrintedDafny() default false;
-    
-    boolean avoidNameCollisions() default false;
 }

@@ -24,39 +24,27 @@ import java.util.Set;
  * allowing for name resolution in both directions.
  */
 public class NameCompiler {
-    static private final String fieldPrefix = "F_";
-    static private final String methodPrefix = "Z_";
-    public String DEFAULT_CTOR_NAME = "ctor";
-    public static final String NON_DEFAULT_CTOR_NAME = "ctor";
-    public String METHOD_RETURN_VARIABLE_NAME = "g_result";
-    public String CLASS_PREFIX = "Constructable_";
-    public String INIT_METHOD_PREFIX = "init_";
-    public String IMPLEMENTATION_METHOD_PREFIX = "impl_";
-    public String LABEL_PREFIX = "g_";
-    public String UNDERSCORE_START_PREFIX = "a";
-    public String RESERVED_PREFIX = "r_";
+    static private final String sep = "'";
+    static private final String fieldPrefix = "F" + sep;
+    static private final String methodPrefix = "Z" + sep;
+    public String DEFAULT_CTOR_NAME = "ctor" + sep;
+    public static final String NON_DEFAULT_CTOR_NAME = "ctor" + sep;
+    public String METHOD_RETURN_VARIABLE_NAME = "result" + sep;
+    public String CLASS_PREFIX = "Constructable" + sep;
+    public String INIT_METHOD_PREFIX = "init" + sep;
+    public String LABEL_PREFIX = "g" + sep;
+    public String UNDERSCORE_START_PREFIX = "a" + sep;
+    public String RESERVED_PREFIX = "r" + sep;
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
-    private final boolean avoidCollisionsUsingUnderscores;
 
-    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method");
+    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate");
     
-    public NameCompiler(ExternalContractCompiler contractCompiler, boolean avoidCollisionsUsingUnderscores) {
+    public NameCompiler(ExternalContractCompiler contractCompiler) {
         this.contractCompiler = contractCompiler;
-        this.avoidCollisionsUsingUnderscores = avoidCollisionsUsingUnderscores;
-        if (this.avoidCollisionsUsingUnderscores) {
-            DEFAULT_CTOR_NAME += "_";
-            INIT_METHOD_PREFIX += "_";
-            CLASS_PREFIX += "_";
-            IMPLEMENTATION_METHOD_PREFIX += "_";
-            METHOD_RETURN_VARIABLE_NAME += "#";
-            LABEL_PREFIX = "$";
-            UNDERSCORE_START_PREFIX = "";
-            RESERVED_PREFIX = "";
-        }
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
     }
