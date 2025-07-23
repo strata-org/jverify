@@ -21,11 +21,20 @@ import java.util.stream.Stream;
 import static com.sun.tools.javac.code.Flags.RECORD;
 
 
-/**
- * A reversible rewriting phase that prevents features like
- * records and switch statements/expressions from being lowered by the LOWER phase.
- * (get it? :)
- */
+///
+/// A reversible rewriting phase that prevents features like
+/// records and switch statements/expressions from being lowered by the LOWER phase.
+/// (get it? :)
+/// Currently, it applies two different transformations to avoid undesirable lowerings:
+///
+///   - Records are translated into normal classes with extra synthetic declarations.
+///     To avoid this we remove the RECORD flag on records and then restore it afterwards.
+///   - Switches with case rules (which we do support) are rewritten into case statements (which we don't).
+///     To avoid this we rewrite switches into equivalent chained if statements or ?: conditionals,
+///     and then reverse it afterwards.
+///     This ensures all the content of the switches is still in scope for lowering.
+///     See `switchToIf` and `switchExpressionToConditional` for details on the encoding.
+///
 public class Suspenders extends TreeTranslator {
 
     protected static final Context.Key<Suspenders> key = new Context.Key<>();
@@ -139,48 +148,48 @@ public class Suspenders extends TreeTranslator {
         super.visitConditional(tree);
     }
 
-    /**
-     * Translates a switch statement into an equivalent chained if statement.
-     * See also switchFromIf for the reverse transformation used
-     * in the UNSUSPECT direction.
-     *
-     * For example:
-     *
-     *      var num = -1;
-     *      switch (i) {
-     *           case 0 -> num = 10;
-     *           case 1, 2 -> num = 20;
-     *           case 3 -> num = 30;
-     *           default -> num = 40;
-     *      }
-     *
-     * Becomes:
-     *
-     *      var num = -1;
-     *      if (i == 0) {
-     *           num = 10;
-     *      } else if (i == 1 || i == 2) {
-     *           num = 20;
-     *      } else if (i == 3) {
-     *           num = 30;
-     *      } else {
-     *           num = 40;
-     *      }
-     *
-     * If the switch was determined to be exhaustive and there is no default case label,
-     * then an extra `else { assert false; } branch is added at the end to encode that bit.
-     *
-     * The "==" operators are tagged with a separate Name to identify them
-     * as encoding implicit switch case patterns,
-     * so there is no ambiguity with existing source code.
-     *
-     * Returns an Optional<JCStatement> because not all switch statements are possible
-     * to encode in this way. This mapping covers all statements we currently support,
-     * however, so if the encoding fails we can just skip suspending the switch.
-     * The translation to Dafny will cause errors anyway,
-     * and the only consequence of the LOWER rewriting is that
-     * some errors may be relocated or duplicated.
-     */
+    ///
+    /// Translates a switch statement into an equivalent chained if statement.
+    /// See also switchFromIf for the reverse transformation used
+    /// in the UNSUSPECT direction.
+    ///
+    /// For example:
+    /// {@snippet :
+    ///       var num = -1;
+    ///       switch (i) {
+    ///            case 0 -> num = 10;
+    ///            case 1, 2 -> num = 20;
+    ///            case 3 -> num = 30;
+    ///            default -> num = 40;
+    ///       }
+    ///  }
+    /// Becomes:
+    /// {@snippet :
+    ///       var num = -1;
+    ///       if (i == 0) {
+    ///            num = 10;
+    ///       } else if (i == 1 || i == 2) {
+    ///            num = 20;
+    ///       } else if (i == 3) {
+    ///            num = 30;
+    ///       } else {
+    ///            num = 40;
+    ///       }
+    ///  }
+    /// If the switch was determined to be exhaustive and there is no default case label,
+    /// then an extra `else { assert false; } branch is added at the end to encode that bit.
+    ///
+    /// The "==" operators are tagged with a separate Name to identify them
+    /// as encoding implicit switch case patterns,
+    /// so there is no ambiguity with existing source code.
+    ///
+    /// Returns an Optional<JCStatement> because not all switch statements are possible
+    /// to encode in this way. This mapping covers all statements we currently support,
+    /// however, so if the encoding fails we can just skip suspending the switch.
+    /// The translation to Dafny will cause errors anyway,
+    /// and the only consequence of the LOWER rewriting is that
+    /// some errors may be relocated or duplicated.
+    ///
     private Optional<JCTree.JCStatement> switchToIf(JCTree.JCExpression selector, List<JCTree.JCCase> cases, boolean exhaustive) {
         final JCTree.JCStatement rest;
         if (cases.tail.nonEmpty()) {
@@ -320,38 +329,38 @@ public class Suspenders extends TreeTranslator {
         super.visitSwitchExpression(tree);
     }
 
-    /**
-     * Translates a switch expression into an equivalent chained conditional expression.
-     * See also switchExpressionFromConditional for the reverse transformation used
-     * in the UNSUSPECT direction.
-     *
-     * For example:
-     *
-     *      var num = switch (i) {
-     *           case 0 -> 10;
-     *           case 1, 2 -> 20;
-     *           case 3 -> 30;
-     *           default -> 40;
-     *      };
-     *
-     * Becomes:
-     *
-     *      var num = (i == 10) ? 10 :
-     *           (i == 1 || i == 2) ? 20 :
-     *                (i == 3) ? 30 :
-     *                     (true) ? 40 : <hole>
-     *
-     * The "==" operators are tagged with a separate Name to identify them
-     * as encoding implicit switch case patterns,
-     * so there is no ambiguity with existing source code.
-     *
-     * Returns an Optional<JCExpression> because not all switch expressions are possible
-     * to encode in this way. This mapping covers all statements we currently support,
-     * however, so if the encoding fails we can just skip suspending the switch.
-     * The translation to Dafny will cause errors anyway,
-     * and the only consequence of the LOWER rewriting is that
-     * some errors may be relocated or duplicated.
-     */
+    ///
+    /// Translates a switch expression into an equivalent chained conditional expression.
+    /// See also switchExpressionFromConditional for the reverse transformation used
+    /// in the UNSUSPEND direction.
+    ///
+    /// For example:
+    /// {@snippet :
+    ///       var num = switch (i) {
+    ///            case 0 -> 10;
+    ///            case 1, 2 -> 20;
+    ///            case 3 -> 30;
+    ///            default -> 40;
+    ///       };
+    ///  }
+    /// Becomes:
+    /// {@snippet :
+    ///       var num = (i == 10) ? 10 :
+    ///            (i == 1 || i == 2) ? 20 :
+    ///                 (i == 3) ? 30 :
+    ///                      (true) ? 40 : <hole>
+    ///  }
+    /// The "==" operators are tagged with a separate Name to identify them
+    /// as encoding implicit switch case patterns,
+    /// so there is no ambiguity with existing source code.
+    ///
+    /// Returns an Optional<JCExpression> because not all switch expressions are possible
+    /// to encode in this way. This mapping covers all statements we currently support,
+    /// however, so if the encoding fails we can just skip suspending the switch.
+    /// The translation to Dafny will cause errors anyway,
+    /// and the only consequence of the LOWER rewriting is that
+    /// some errors may be relocated or duplicated.
+    ///
     private Optional<JCTree.JCExpression> switchExpressionToConditional(JCTree.JCExpression selector, List<JCTree.JCCase> cases, Type typ) {
         if (cases.isEmpty()) {
             // TODO: Should be a "hole" instead, or we should ensure the default case comes last in the list

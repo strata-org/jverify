@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 
 @JVerifyTest(exitCode = 4, dafnyVerified = 1, dafnyErrors = 1, useBuiltinContracts = true)
-class ResolutionErrorsTypes { // TODO test name is incorrect
+class PrimitiveAndBoxedTypes {
     @Pure
     static boolean boxedIsZero(Integer i) {
         return i == 0;
