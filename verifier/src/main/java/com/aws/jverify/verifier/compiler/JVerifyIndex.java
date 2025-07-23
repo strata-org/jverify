@@ -15,6 +15,10 @@ import com.sun.tools.javac.util.Pair;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A replacement for some of the lookup functionality of
+ * indexes like JavacTrees and Elements.
+ */
 public class JVerifyIndex extends JCTree.Visitor {
 
     private final Map<Symbol, Env<AttrContext>> envs = new HashMap<>();

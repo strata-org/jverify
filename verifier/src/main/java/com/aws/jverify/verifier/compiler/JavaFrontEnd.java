@@ -10,7 +10,6 @@ import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -86,13 +85,13 @@ public class JavaFrontEnd {
          *
          * Currently, we apply 0 through 5,
          * skip 6 and 7 as they remove features Dafny supports directly (generics and patterns),
-         * but then apply 8 in order to rewrite lambda expressions and method references.
-         * We may partially apply 9 in the future to rewrite features such as nested classes.
+         * but then apply 8 in order to rewrite lambda expressions and method references,
+         * and 9 to rewrite features such as nested classes and autoboxing.
          * 10 actually generates JVM bytecode so we will likely never apply it.
          *
          * Because we have specification and proof code that use features like lambdas
-         * for different purposes, we also apply our own phases before and after UNLAMBDA
-         * in order to temporarily remove code we don't want rewritten and then restore it.
+         * for different purposes, we also apply our own phases before and after UNLAMBDA and LOWER
+         * in order to temporarily remove/rewrite code we don't want rewritten and then restore it.
          * Therefore, our current pipeline looks like this:
          *
          * INIT(0),
@@ -138,7 +137,7 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    units.addAll(revealRecords(partialLower2(hideRecords(
+                    units.addAll(unsuspend(lower(suspend(
                             unsubstitute(unlambda(substitute(
                                     compiler.flow(compiler.attribute(todo)))))))));
                 }
@@ -182,19 +181,6 @@ public class JavaFrontEnd {
         return envs;
     }
 
-    // Phase to replace placeholders substituted by the earlier SUBSTITUTE phase
-    // with their original AST nodes.
-    private List<JVerifyCompilationUnit> unsubstitute2(List<JVerifyCompilationUnit> envs) {
-        var substituter = ErasedCodeSubstituter.instance(context);
-        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
-
-        for (JVerifyCompilationUnit unit : envs) {
-            var newDefs = unit.newDefs().map(substituter::unsubstitute);
-            results.add(new JVerifyCompilationUnit(unit.unit(), newDefs));
-        }
-        return results.toList();
-    }
-
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
         TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
 
@@ -208,70 +194,36 @@ public class JavaFrontEnd {
         return envs;
     }
 
-    // Phase to replace erased code such as specifications with placeholders
+    // Phase to hide/rewrite higher level features such as switches
     // so future phases don't rewrite them.
-    private Queue<Env<AttrContext>> hideRecords(Queue<Env<AttrContext>> envs) {
-        var hider = Suspenders.instance(context);
+    private Queue<Env<AttrContext>> suspend(Queue<Env<AttrContext>> envs) {
+        var suspenders = Suspenders.instance(context);
         Log log = Log.instance(context);
         for (Env<AttrContext> env: envs) {
             log.useSource(env.toplevel.sourcefile);
-            env.tree = hider.hide(env.tree);
+            env.tree = suspenders.suspend(env.tree);
         }
         return envs;
     }
 
-    // Phase to replace placeholders substituted by the earlier SUBSTITUTE phase
-    // with their original AST nodes.
-    private List<JVerifyCompilationUnit> revealRecords(List<JVerifyCompilationUnit> units) {
+    // Phase to undo the effects of suspend().
+    private List<JVerifyCompilationUnit> unsuspend(List<JVerifyCompilationUnit> units) {
         ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
         var hider = Suspenders.instance(context);
         for (JVerifyCompilationUnit unit : units) {
-            var newDefs = unit.newDefs().map(hider::reveal);
+            var newDefs = unit.newDefs().map(hider::unsuspend);
             results.add(new JVerifyCompilationUnit(unit.unit(), newDefs));
         }
         return results.toList();
     }
 
-    private List<JVerifyCompilationUnit> noLower(Queue<Env<AttrContext>> envs) {
-        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
-        var index = JVerifyIndex.instance(context);
-        for (Env<AttrContext> env : envs) {
-            env.tree = PartialLower.instance(context).translate(env.tree);
-
-            for (JCTree clazz : env.toplevel.defs) {
-                index.index(env, clazz);
-            }
-
-            results.add(JVerifyCompilationUnit.of(env.toplevel));
-        }
-
-        return results.toList();
-    }
-
-    private List<JVerifyCompilationUnit> partialLower(Queue<Env<AttrContext>> envs) {
-        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
-        var index = JVerifyIndex.instance(context);
-        for (Env<AttrContext> env : envs) {
-            env.tree = PartialLower.instance(context).translate(env.tree);
-
-            for (JCTree clazz : env.toplevel.defs) {
-                index.index(env, clazz);
-            }
-
-            results.add(JVerifyCompilationUnit.of(env.toplevel));
-        }
-
-        return results.toList();
-    }
-
-    private List<JVerifyCompilationUnit> partialLower2(Queue<Env<AttrContext>> envs) {
-        TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
-        Lower lower = Lower.instance(context);
-        Log log = Log.instance(context);
-        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
-
+    private List<JVerifyCompilationUnit> lower(Queue<Env<AttrContext>> envs) {
+        var localMake = TreeMaker.instance(context).at(Position.NOPOS);
+        var lower = Lower.instance(context);
+        var log = Log.instance(context);
         var index = JVerifyIndex.instance(context);
 
+        ListBuffer<JVerifyCompilationUnit> results = new ListBuffer<>();
         for (Env<AttrContext> env : envs) {
             log.useSource(env.toplevel.sourcefile);
             com.sun.tools.javac.util.List<JCTree> classes = lower.translateTopLevelClass(env, env.tree, localMake);
@@ -280,32 +232,9 @@ public class JavaFrontEnd {
                 index.index(env, clazz);
             }
 
-            JVerifyCompilationUnit newUnit = new JVerifyCompilationUnit(env.toplevel, classes);
+            var newUnit = new JVerifyCompilationUnit(env.toplevel, classes);
             results.add(newUnit);
         }
         return results.toList();
-    }
-
-    private static class PartialLower extends TreeTranslator {
-
-        protected static final Context.Key<PartialLower> partialLowerKey = new Context.Key<>();
-
-        private final Lower lower;
-
-        public PartialLower(Context context) {
-            lower = Lower.instance(context);
-        }
-
-        public static PartialLower instance(Context context) {
-            PartialLower instance = context.get(partialLowerKey);
-            if (instance == null)
-                instance = new PartialLower(context);
-            return instance;
-        }
-
-        @Override
-        public void visitNewClass(JCTree.JCNewClass tree) {
-            lower.visitNewClass(tree);
-        }
     }
 }

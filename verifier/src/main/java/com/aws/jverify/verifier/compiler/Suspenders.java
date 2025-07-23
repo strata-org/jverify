@@ -4,8 +4,6 @@ import com.sun.source.tree.CaseTree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
-import com.sun.tools.javac.comp.Operators;
-import com.sun.tools.javac.resources.CompilerProperties;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
@@ -18,12 +16,9 @@ import com.sun.tools.javac.util.Names;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.sun.tools.javac.code.Flags.NATIVE;
 import static com.sun.tools.javac.code.Flags.RECORD;
-import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 
 
 /**
@@ -62,20 +57,20 @@ public class Suspenders extends TreeTranslator {
     }
 
     private enum Direction {
-        HIDE,
-        REVEAL
+        SUSPEND,
+        UNSUSPEND
     }
     private Direction direction;
 
-    public <T extends JCTree> T hide(T tree) {
-        direction = Direction.HIDE;
+    public <T extends JCTree> T suspend(T tree) {
+        direction = Direction.SUSPEND;
         T result = translate(tree);
         direction = null;
         return result;
     }
 
-    public <T extends JCTree> T reveal(T tree) {
-        direction = Direction.REVEAL;
+    public <T extends JCTree> T unsuspend(T tree) {
+        direction = Direction.UNSUSPEND;
         T result = translate(tree);
         direction = null;
         return result;
@@ -84,13 +79,13 @@ public class Suspenders extends TreeTranslator {
     @Override
     public void visitClassDef(JCTree.JCClassDecl tree) {
         switch (direction) {
-            case HIDE -> {
+            case SUSPEND -> {
                 if ((tree.mods.flags & RECORD) != 0) {
                     records.add(tree.sym);
                     tree.mods.flags &= ~RECORD;
                 }
             }
-            case Direction.REVEAL -> {
+            case Direction.UNSUSPEND -> {
                 if (records.contains(tree.sym)) {
                     tree.mods.flags |= RECORD;
                 }
@@ -101,7 +96,7 @@ public class Suspenders extends TreeTranslator {
 
     @Override
     public void visitSwitch(JCTree.JCSwitch tree) {
-        if (direction == Direction.HIDE) {
+        if (direction == Direction.SUSPEND) {
             var exhaustive = tree.isExhaustive &&
                     tree.cases.stream().noneMatch(cas ->
                             cas.labels.stream().anyMatch(label -> label instanceof JCTree.JCDefaultCaseLabel));
@@ -118,7 +113,7 @@ public class Suspenders extends TreeTranslator {
 
     @Override
     public void visitIf(JCTree.JCIf tree) {
-        if (direction == Direction.REVEAL) {
+        if (direction == Direction.UNSUSPEND) {
             var maybeSwitch = switchFromIf(tree);
             if (maybeSwitch.isPresent()) {
                 result = maybeSwitch.get();
@@ -132,7 +127,7 @@ public class Suspenders extends TreeTranslator {
 
     @Override
     public void visitConditional(JCTree.JCConditional tree) {
-        if (direction == Direction.REVEAL) {
+        if (direction == Direction.UNSUSPEND) {
             var maybeSwitch = switchExpressionFromConditional(tree);
             if (maybeSwitch.isPresent()) {
                 result = maybeSwitch.get();
@@ -144,6 +139,48 @@ public class Suspenders extends TreeTranslator {
         super.visitConditional(tree);
     }
 
+    /**
+     * Translates a switch statement into an equivalent chained if statement.
+     * See also switchFromIf for the reverse transformation used
+     * in the UNSUSPECT direction.
+     *
+     * For example:
+     *
+     *      var num = -1;
+     *      switch (i) {
+     *           case 0 -> num = 10;
+     *           case 1, 2 -> num = 20;
+     *           case 3 -> num = 30;
+     *           default -> num = 40;
+     *      }
+     *
+     * Becomes:
+     *
+     *      var num = -1;
+     *      if (i == 0) {
+     *           num = 10;
+     *      } else if (i == 1 || i == 2) {
+     *           num = 20;
+     *      } else if (i == 3) {
+     *           num = 30;
+     *      } else {
+     *           num = 40;
+     *      }
+     *
+     * If the switch was determined to be exhaustive and there is no default case label,
+     * then an extra `else { assert false; } branch is added at the end to encode that bit.
+     *
+     * The "==" operators are tagged with a separate Name to identify them
+     * as encoding implicit switch case patterns,
+     * so there is no ambiguity with existing source code.
+     *
+     * Returns an Optional<JCStatement> because not all switch statements are possible
+     * to encode in this way. This mapping covers all statements we currently support,
+     * however, so if the encoding fails we can just skip suspending the switch.
+     * The translation to Dafny will cause errors anyway,
+     * and the only consequence of the LOWER rewriting is that
+     * some errors may be relocated or duplicated.
+     */
     private Optional<JCTree.JCStatement> switchToIf(JCTree.JCExpression selector, List<JCTree.JCCase> cases, boolean exhaustive) {
         final JCTree.JCStatement rest;
         if (cases.tail.nonEmpty()) {
@@ -271,7 +308,7 @@ public class Suspenders extends TreeTranslator {
 
     @Override
     public void visitSwitchExpression(JCTree.JCSwitchExpression tree) {
-        if (direction == Direction.HIDE) {
+        if (direction == Direction.SUSPEND) {
             var maybeSwitch = switchExpressionToConditional(tree.selector, tree.cases, tree.type);
             if (maybeSwitch.isPresent()) {
                 result = maybeSwitch.get();
@@ -283,6 +320,38 @@ public class Suspenders extends TreeTranslator {
         super.visitSwitchExpression(tree);
     }
 
+    /**
+     * Translates a switch expression into an equivalent chained conditional expression.
+     * See also switchExpressionFromConditional for the reverse transformation used
+     * in the UNSUSPECT direction.
+     *
+     * For example:
+     *
+     *      var num = switch (i) {
+     *           case 0 -> 10;
+     *           case 1, 2 -> 20;
+     *           case 3 -> 30;
+     *           default -> 40;
+     *      };
+     *
+     * Becomes:
+     *
+     *      var num = (i == 10) ? 10 :
+     *           (i == 1 || i == 2) ? 20 :
+     *                (i == 3) ? 30 :
+     *                     (true) ? 40 : <hole>
+     *
+     * The "==" operators are tagged with a separate Name to identify them
+     * as encoding implicit switch case patterns,
+     * so there is no ambiguity with existing source code.
+     *
+     * Returns an Optional<JCExpression> because not all switch expressions are possible
+     * to encode in this way. This mapping covers all statements we currently support,
+     * however, so if the encoding fails we can just skip suspending the switch.
+     * The translation to Dafny will cause errors anyway,
+     * and the only consequence of the LOWER rewriting is that
+     * some errors may be relocated or duplicated.
+     */
     private Optional<JCTree.JCExpression> switchExpressionToConditional(JCTree.JCExpression selector, List<JCTree.JCCase> cases, Type typ) {
         if (cases.isEmpty()) {
             // TODO: Should be a "hole" instead, or we should ensure the default case comes last in the list

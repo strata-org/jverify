@@ -10,6 +10,12 @@ import static com.sun.tools.javac.tree.JCTree.Tag.MODULEDEF;
 import static com.sun.tools.javac.tree.JCTree.Tag.MODULEIMPORT;
 import static com.sun.tools.javac.tree.JCTree.Tag.PACKAGEDEF;
 
+/**
+ * A workaround for the fact that we can't create new JCCompilationUnit instances,
+ * but the LOWER phase
+ * @param unit
+ * @param newDefs
+ */
 public record JVerifyCompilationUnit(JCTree.JCCompilationUnit unit, List<JCTree> newDefs) {
 
     public static JVerifyCompilationUnit of(JCTree.JCCompilationUnit unit) {
