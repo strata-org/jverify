@@ -281,7 +281,7 @@ public class ExpressionCompiler {
             List<Type> arguments;
             if (typeApply.getTypeArguments().isEmpty()) {
                 // Occurs when the type arguments were inferred
-                arguments = typeApply.type.getTypeArguments().stream().map(t -> compiler.translateType(null, t, origin)).toList();
+                arguments = typeApply.type.getTypeArguments().stream().map(t -> compiler.translateType(t, origin, null)).toList();
             } else {
                 arguments = typeApply.getTypeArguments().stream().map(compiler::translateType).toList();
             }

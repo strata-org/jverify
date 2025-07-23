@@ -79,7 +79,7 @@ class AppCommand implements Callable<Integer> {
         var testDafnyVersion = customDafny != null;
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var verifierOptions = new VerifierOptions(workingDirectory, dafnyPath, jars, tempFile.toPath(), testDafnyVersion,
-                printDafny, printBinaryDafny, showRanges, builtinContracts, paths, new String[0], verifyByDefault, true);
+                printDafny, printBinaryDafny, showRanges, builtinContracts, paths, new String[0], verifyByDefault);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
         return exitCode;

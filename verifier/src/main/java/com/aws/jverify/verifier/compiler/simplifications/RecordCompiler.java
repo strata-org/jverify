@@ -39,7 +39,7 @@ public class RecordCompiler {
         var traits = currentTypeSymbol
                 .getInterfaces().stream()
                 .filter(compiler::typeHasAContract)
-                .map(baseType -> compiler.translateType(null, baseType, origin))
+                .map(baseType -> compiler.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
         var superClass = currentTypeSymbol.getSuperclass();
@@ -49,7 +49,7 @@ public class RecordCompiler {
                 traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             } else {
                 if (compiler.typeHasAContract(superClass)) {
-                    traits.addFirst(compiler.translateType(null, superClass, origin));
+                    traits.addFirst(compiler.translateType(, superClass, origin, null));
                 }
             }
         }

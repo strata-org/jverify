@@ -192,7 +192,7 @@ public class ClassCompiler {
                         // A class that extends 'Object' will extend '@Modifiable Object' instead
                         return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
                     }
-                    return compiler.translateType(null, type, origin);
+                    return compiler.translateType(type, origin, null);
                 }).
                 collect(Collectors.<Type>toList());
 
@@ -248,8 +248,8 @@ public class ClassCompiler {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.translateType(variableDecl.getModifiers(), 
-                variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype));
+        Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
+        );
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());
