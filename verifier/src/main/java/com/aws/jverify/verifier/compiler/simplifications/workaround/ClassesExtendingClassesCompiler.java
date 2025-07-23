@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isInterface;
 
 public class ClassesExtendingClassesCompiler {
+    public static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     ClassCompiler classCompiler;
 
     public ClassesExtendingClassesCompiler(ClassCompiler classCompiler) {
@@ -84,12 +85,12 @@ public class ClassesExtendingClassesCompiler {
         Symtab symtab = Symtab.instance(classCompiler.compiler.context);
         if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
             superTraits.clear();
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null)));
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
         
         if ((!JavaToDafnyCompiler.isInterface(classSymbol) && classSymbol != symtab.recordType.tsym) 
                 || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, "object", null)));
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
 
         var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);

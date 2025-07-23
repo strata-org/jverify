@@ -14,8 +14,6 @@ import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
-import com.sun.tools.javac.comp.AttrContext;
-import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 
@@ -41,6 +39,8 @@ import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
+    public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -70,7 +70,7 @@ public class JavaToDafnyCompiler {
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
-        nameCompiler = new NameCompiler(externalContractCompiler, verifierOptions.avoidCollisionsUsingUnderscores());
+        nameCompiler = new NameCompiler(externalContractCompiler);
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
         lambdaCompiler = new LambdaCompiler(this);
@@ -392,33 +392,29 @@ public class JavaToDafnyCompiler {
         }
         return false;
     }
-
+    
     public @Nullable Type translateType(JCTree tree) {
-        return translateType(null, tree);
-    }
-
-    public @Nullable Type translateType(JCTree.JCModifiers modifiers, JCTree tree) {
-        return translateType(modifiers, tree.type, toOrigin(tree));
+        return translateType(tree.type, toOrigin(tree), null);
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
         translatingVerifiedMethodSignature = willVerify;
-        var result = translateType(null, type, origin);
+        var result = translateType(type, origin, null);
         translatingVerifiedMethodSignature = false;
         return result;
     }
     
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
-        return translateType(null, type, origin);
+        return translateType(type, origin, null);
     }
 
     @Nullable
-    public Type translateType(JCTree.JCModifiers modifiers, com.sun.tools.javac.code.Type type, IOrigin origin) {
+    public Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
         // In several cases annotations that come right before types
         // end up bound to tree nodes such as variable declarations instead of the type.
         // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
         // we apply the modifier to the innermost element type of an array type.
-        var isNullable = isNullable(type) || (isNullable(modifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
+        var isNullable = isNullable(type) || (isNullable(additionalModifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveType(type);
@@ -484,7 +480,7 @@ public class JavaToDafnyCompiler {
         switch (type) {
             case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
                 // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
-                var elemType = translateType(modifiers, arrayTypeTree.elemtype, origin);
+                var elemType = translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
                 if (elemType == null) {
                     // should be unreachable
                     throw new IllegalArgumentException("Array type without element type");
@@ -492,13 +488,20 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
-                if (isAnnotated(modifiers, com.aws.jverify.Immutable.class)) {
-                    Symtab symtab = Symtab.instance(context);
+
+                var mirrors = type.getAnnotationMirrors();
+                var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
+                
+                Symtab symtab = Symtab.instance(context);
+                if (modifiableAnnotation.isPresent() || isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
                     if (classType.tsym == symtab.objectType.tsym) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "ValueObject", null));
+                        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
                     } else {
-                        reportError(origin, "notSupported", "@Immutable on a type other than Object");
+                        reportError(origin, "notSupported", "@Modifiable on a type other than Object");
                     }
+                }
+                if (classType.tsym == symtab.objectType.tsym) {
+                    return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
                 }
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
@@ -518,7 +521,7 @@ public class JavaToDafnyCompiler {
 
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
-                var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
+                var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null)).toList();
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }
@@ -544,8 +547,7 @@ public class JavaToDafnyCompiler {
                     return translateType(superBound, origin);
                 }
                 Symtab symtab = Symtab.instance(context);
-                var name = nameCompiler.getCompiledName(symtab.objectType.tsym);
-                return new UserDefinedType(origin, new NameSegment(origin, name, null));
+                return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
             }
             default -> {
             }
