@@ -59,11 +59,9 @@ public class RecordCompiler {
         var members = new ArrayList<MemberDecl>();
 
         List<JCTree.JCVariableDecl> fields = new ArrayList<>();
+        boolean isAbstract = classSymbol.isAbstract();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                // No constructors should be translated:
-                // explicit constructors are not allowed/supported,
-                // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
                     translateConstructor(classDecl, origin, methodDecl, members);
                     continue;
@@ -84,6 +82,12 @@ public class RecordCompiler {
                 }
             } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 fields.add(variableDecl);
+                if (isAbstract) {
+                    Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
+                    var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
+                    Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
+                    members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
+                }
                 continue;
             } 
             var dafnyMember = classCompiler.translateMember(member);
@@ -92,11 +96,7 @@ public class RecordCompiler {
             }
         }
 
-        boolean isAbstract = classSymbol.isAbstract();
         if (isAbstract) {
-            if (!fields.isEmpty()) {
-                compiler.reportError(classDecl, "");
-            }
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
@@ -128,7 +128,6 @@ public class RecordCompiler {
 
     private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin,
                                       JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members) {
-
         if (isImplicitCanonicalConstructor(methodDecl)) {
             return;
         }
@@ -149,10 +148,8 @@ public class RecordCompiler {
         };
         var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify();
 
-        var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(() ->
-                // Do not generate diagnostics for an implicitly created constructor
-                // These diagnostics already occur on the fields of the record.        
-                compiler.withSkipDiagnostics(() -> classCompiler.translateMember(methodDecl), false),
+        var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(
+                () -> classCompiler.translateMember(methodDecl),
             handleIdentifierOverride);
         
         if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
