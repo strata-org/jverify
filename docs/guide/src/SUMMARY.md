@@ -1,13 +1,12 @@
 # Summary
 
 [JVerify Overview](./overview.md)
-
+[Example use-cases](./example_usecases.md)
 
 # Getting started
 
 - [Installation](./installation.md)
 - [Running JVerify](./first_verification.md)
-- [Example use-cases](./example_usecases.md)
 - [Supported Java features](./supported_java_features.md)
 
 # Fundamentals

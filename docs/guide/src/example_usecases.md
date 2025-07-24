@@ -1,41 +1,45 @@
 # Example use-cases
-WIP 
+This section contains a number of small code examples that hopefully give you an idea of what types of bugs you can prevent by using JVerify.
 
-## Prevent exceptions
+#### Prevent dereferencing null
+Without instructions, JVerify will detect many common types of bugs. Here's some code that shows two `NullPointerException`s being detected by JVerify:
 
-### UserProfile
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/UserProfile.java}}
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/NullCheck.java}}
 ```
 
-### Class cast example
+#### Keep a cache up to date
+We might store some data that is an aggregate of other data. With JVerify, we can check that the aggregate remains up to date. Here's an example:
 
-### Numeric overflow
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/SumCache.java}}
+```
 
-### Unchecked exceptions
+#### Validate runtime inputs
+Here's an example that uses the annotation `@CheckPreconditionsAtRuntime` to let contracts from JVerify be checked at runtime, which is useful when we're working with external data. In this example, we receive a list of ranges, and want to make sure the range are consecutive, and each individual range ends after it starts.
 
-## Prevent functional bugs
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/ValidRanges.java}}
+```
 
-### AWS IAM
-- deny before approve
-- ...
+#### Prove partial program properties
+In the following example, we're computing a discounted price. We don't know exactly what the discounted value should be, but we do want to make sure that the discounted price is at least 30% of the original price. 
 
-### Pricing agreements
-- Discount monotonicity
-- Strategic irrelevance
-- Gapless ranges (like consecutive date ranges)
-- Values that satisfy a domain contraint (percentages)
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/PositivePrice.java}}
+```
 
-## Safely optimize performance
+#### Prove complete program properties
+Sometimes we have programs whose entire desired behavior can be specified with a property that's much simpler than the program itself. Here follows an example of a `findIndex` method that is implemented using binary search. Its desired behavior, to find the index of an element in an array if it exists, is specified in two lines, but the algorithm to compute that result is much more complicated.
 
-### Binary search
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java}}
 ```
 
-### Diff two trees
-(taken from a customer)
+#### Safely optimize code
+Sometimes we have an algorithm for computing some data, but there's a different algorithm that computes it more quickly, at the cost of being more complex. JVerify allows you to prove that the more compliated algorithm behaves the same as the slower once. Here's an example where that is done for the fibonacci sequence: 
 
-If you traverse both trees and for each node, check whether it is equal to the node at the same path in the other tree, you can determine which paths were added in each tree, but you will do a recursive equality comparison for each tree node, leading to `O(N^2)` complexity.
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java}}
+```
 
-### Efficient string matching from AWS IAM

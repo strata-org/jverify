@@ -14,7 +14,7 @@ class BinarySearch {
                 !(0 <= i && i < j && j < arr.length) || arr[i] < arr[j]);
     }
 
-    public static int binarySearchImpl(int[] arr, int key) {
+    public static int findIndex(int[] arr, int key) {
         precondition(arr.length <= Integer.MAX_VALUE);
         precondition(sorted(arr));
         postcondition((Integer res) ->
