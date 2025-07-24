@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.InheritContract;
-import com.aws.jverify.Modifiable;
-import com.aws.jverify.Pure;
+import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
@@ -53,7 +50,7 @@ public class ClassCompiler {
                     }
                     // Don't report errors when extracting this contract here,
                     // since the actual translation of the method will report them.
-                    var header = new BlockCompiler(compiler).extractContract(methodDecl, false);
+                    var header = new BlockCompiler(compiler, methodDecl.sym).extractContract(methodDecl, false);
                     compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             } else {
@@ -90,11 +87,10 @@ public class ClassCompiler {
             }
             compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
-
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
-                case RECORD -> new RecordCompiler(this).translateRecord(classDecl, origin, name);
+                case RECORD -> new RecordCompiler(this).translateValueType(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -105,7 +101,8 @@ public class ClassCompiler {
 
             List<TopLevelDecl> result = new ArrayList<>();
             if (intermediateResult != null) {
-                result.addAll(classDeclCompiler.compile(intermediateResult, classDecl.sym));
+                var classSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
+                result.addAll(classDeclCompiler.compile(intermediateResult, classSymbol));
             }
             
             typeForWhichCurrentClassIsDefiningContract = null;
@@ -138,7 +135,6 @@ public class ClassCompiler {
 
     private ClassDecl translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         invariants.clear();
-        
         
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
@@ -197,7 +193,13 @@ public class ClassCompiler {
         }
         var superTraits = baseTypes.
                 filter(compiler::typeHasAContract).
-                map((com.sun.tools.javac.code.Type type) -> compiler.translateType(null, type, origin)).
+                map((com.sun.tools.javac.code.Type type) -> {
+                    if (type.baseType() == symtab.objectType) {
+                        // A class that extends 'Object' will extend '@Modifiable Object' instead
+                        return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
+                    }
+                    return compiler.translateType(type, origin, null);
+                }).
                 collect(Collectors.<Type>toList());
 
         var typeParameters = translateTypeParameters(classDecl.typarams);
@@ -209,15 +211,16 @@ public class ClassCompiler {
         return typarams.stream().map(p -> {
             var name = compiler.getName(p, p.getName());
             var bounds = p.bounds.map(compiler::translateType);
-            // All Java type parameters are implicitly "extends Object",
-            // and this needs to be explicit in the Dafny translation
-            // so we can invoke equals() on any Java values,
-            // even those translated to value types.
-            var tpOrigin = compiler.toOrigin(p);
-            var symtab = Symtab.instance(compiler.context);
-            var objectName = compiler.nameCompiler.getCompiledName(symtab.objectType.tsym);
-            bounds = bounds.prepend(new UserDefinedType(tpOrigin, new NameSegment(tpOrigin, objectName, null)));
-            return new TypeParameter(compiler.toOrigin(p),
+
+            IOrigin origin = compiler.toOrigin(p);
+            if (!this.compiler.verifierOptions.includeBuiltinContracts() &&
+                    // Contains because when we're verifying the built-in file itself, the path is different.
+                    !this.compiler.compilationUnit.getSourceFile().getName().contains(JavaToDafnyCompiler.builtinFile)) {
+                // the above condition should be replaced with true once we stop translating boxed primitives to unboxed ones.
+                bounds = bounds.append(new UserDefinedType(origin, 
+                        new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+            }
+            return new TypeParameter(origin,
                     name, null, TPVarianceSyntax.NonVariant_Strict,
                     new TypeParameterCharacteristics(
                             TypeParameterEqualitySupportValue.Unspecified,
@@ -259,12 +262,13 @@ public class ClassCompiler {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.translateType(variableDecl.getModifiers(), variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype));
+        Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
+        );
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());
                 var isStatic = varFlags.contains(Modifier.STATIC);
-                return new ConstantField(origin, fieldName, compiler.getAttributes(origin), false, type, rhs, isStatic, false);
+                return new ConstantField(origin, fieldName, null, false, type, rhs, isStatic, false);
             }
 
             // Keep this variable declaration in the initializers list to be added to constructors laters
@@ -331,7 +335,7 @@ public class ClassCompiler {
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
 
-        var methodCompiler = new BlockCompiler(compiler);
+        var blockCompiler = new BlockCompiler(compiler, methodSymbol);
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
         var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
@@ -370,18 +374,19 @@ public class ClassCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, false);
                 }
-                List<JCTree.JCStatement> postHeader = methodCompiler.translateHeader(((JCTree.JCBlock) sourceBody).stats, header, true);
+                var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
+                List<JCTree.JCStatement> postHeader = new ContractCompiler(compiler).
+                        translateHeader(((JCTree.JCBlock) sourceBody).stats, header, allowFooter, true);
                 if (shouldVerify) {
-                    bodyStatements = methodCompiler.translateStatements(postHeader);
+                    bodyStatements = blockCompiler.translateStatements(postHeader);
                 }
             }
         }
         applyInvariants(sourceBody, modifiers, methodSymbol, header);
-        methodCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
+        blockCompiler.checkEmptyExpressions(source, header.invariants, "invariants", "method");
 
         var outs = new ArrayList<Formal>();
         if (methodSymbol.type.getReturnType() != null) {
-//            JavacTrees trees = JavacTrees.instance(compiler.context);
             JVerifyIndex index = JVerifyIndex.instance(compiler.context);
             var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
             IOrigin returnOrigin;
@@ -406,7 +411,7 @@ public class ClassCompiler {
                 for (JCTree.JCVariableDecl variableDecl : initializers) {
                     var rhs = variableDecl.getInitializer();
                     var assignStmt = treeMaker.Assignment(variableDecl.sym,rhs);
-                    newBodyStatements.addAll(methodCompiler.translateStatement(assignStmt, bodyOrigin));
+                    newBodyStatements.addAll(blockCompiler.translateStatement(assignStmt, bodyOrigin));
                 }
                 newBodyStatements.addAll(bodyStatements);
                 bodyStatements = newBodyStatements;
@@ -435,7 +440,6 @@ public class ClassCompiler {
         }
     }
 
-
     private Function translatePureMethodOrLambda(JCTree source, JCTree.JCModifiers modifiers,
                                                  Symbol.MethodSymbol methodSymbol, JCTree sourceBody,
                                                  List<JCTree.JCTypeParameter> typeParameters, boolean shouldVerify,
@@ -443,7 +447,6 @@ public class ClassCompiler {
         var bodyOrigin = compiler.toOrigin(sourceBody);
 
         @Nullable MethodOrLoopContract externalContract = findExternalContract(methodSymbol);
-        var methodCompiler = new BlockCompiler(compiler);
         var name = compiler.getName(source, methodSymbol);
         var origin = compiler.declToOrigin(source, name);
         var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
@@ -486,7 +489,9 @@ public class ClassCompiler {
                 } else {
                     header = new MethodOrLoopContract(source, true);
                 }
-                var postHeader = methodCompiler.translateHeader((JCTree.JCBlock) sourceBody, header, true);
+                var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
+                var postHeader = new ContractCompiler(compiler).
+                        translateHeader((JCTree.JCBlock) sourceBody, header, allowFooter, true);
                 if (postHeader.size() != 1) {
                     compiler.reportError(source, "pureMethodMultipleStatements");
                     return null;
@@ -543,8 +548,7 @@ public class ClassCompiler {
     }
 
     private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, boolean shouldVerify, IOrigin bodyOrigin) {
-        return methodSymbol.getParameters().map(jvd -> {
-//            var trees = JavacTrees.instance(compiler.context);
+        return methodSymbol.extraParams.appendList(methodSymbol.getParameters()).map(jvd -> {
             var index = JVerifyIndex.instance(compiler.context);
             var parameter = index.getTree(jvd);
             IOrigin parameterOrigin;
@@ -553,7 +557,7 @@ public class ClassCompiler {
             } else {
                 parameterOrigin = compiler.toOrigin(parameter);
             }
-            Name formalName = new Name(parameterOrigin, jvd.name.toString());
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd));
             var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);

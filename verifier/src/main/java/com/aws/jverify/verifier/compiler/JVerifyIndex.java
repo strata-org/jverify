@@ -15,6 +15,20 @@ import com.sun.tools.javac.util.Pair;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A replacement for some of the lookup functionality of
+ * indexes like JavacTrees and Enter.
+ * <p>
+ * This is helpful because the LOWER javac phase
+ * consumes and clears some of the state those classes depend on,
+ * such as the map inside TypeEnvs.
+ * <p>
+ * We could conceivably re-populate it again instead,
+ * but there's a risk of incorrect behavior when reapplying phases
+ * to the same AST nodes.
+ * Having our own type helps decouple us from the particulars
+ * of the javac pipeline somewhat.
+ */
 public class JVerifyIndex extends JCTree.Visitor {
 
     private final Map<Symbol, Env<AttrContext>> envs = new HashMap<>();
@@ -43,11 +57,6 @@ public class JVerifyIndex extends JCTree.Visitor {
         tree.accept(this);
     }
 
-    void index(Env<AttrContext> env, List<? extends JCTree> trees) {
-        this.currentEnv = env;
-        trees.forEach(tree -> tree.accept(this));
-    }
-
     /** Visitor method: enter classes of a list of trees.
      */
     <T extends JCTree> void classEnter(List<T> trees) {
@@ -66,10 +75,23 @@ public class JVerifyIndex extends JCTree.Visitor {
 
     @Override
     public void visitTree(JCTree tree) {
+        // Do nothing
     }
 
     public Env<AttrContext> getEnv(Symbol sym) {
-        return envs.get(sym);
+        if (sym == null) {
+            return null;
+        }
+
+        // Get enclosing class of sym, or sym itself if it is a class
+        // package, or module.
+        // (Same logic as JavacElements.getEnterEnv())
+        Symbol.TypeSymbol ts = switch (sym.kind) {
+            case PCK -> (Symbol.PackageSymbol)sym;
+            case MDL -> (Symbol.ModuleSymbol)sym;
+            default -> sym.enclClass();
+        };
+        return envs.get(ts);
     }
 
     public Pair<JCTree, JCTree.JCCompilationUnit> getTreeAndTopLevel(Symbol sym) {

@@ -13,7 +13,6 @@ public class TestExamples {
         var markedSourcePath = Path.of("Fibonacci.java");
         verifyPath(markedSourcePath, 0, 5, 0);
     }
-
     
     @Test
     public void testUserProfile() throws IOException {

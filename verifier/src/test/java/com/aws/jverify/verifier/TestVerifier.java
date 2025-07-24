@@ -28,7 +28,7 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
                 "--dafny=" + dafnyPath);
-        Assertions.assertEquals(0, exitCode);
+        Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
     }
 
     @Test
@@ -60,7 +60,7 @@ public class TestVerifier {
                 Path.of("./src/main/resources/builtin-contracts.java").toString(),
                 "--dafny=" + dafnyPath,
                 "--builtin-contracts=false");
-        Assertions.assertEquals(0, exitCode);
+        Assertions.assertEquals(0, exitCode, out.toString());
     }
     
     @Test

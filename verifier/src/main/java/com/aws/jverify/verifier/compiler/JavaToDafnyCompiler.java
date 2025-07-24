@@ -12,6 +12,7 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Kinds;
+import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.comp.AttrContext;
@@ -36,10 +37,13 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
+    public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -63,11 +67,13 @@ public class JavaToDafnyCompiler {
     private boolean translatingVerifiedMethodSignature;
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
+    public static final String objectFile = "/object-contract.java";
+    private boolean skipDiagnostics;
     
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
-        nameCompiler = new NameCompiler(externalContractCompiler, verifierOptions.avoidCollisionsUsingUnderscores());
+        nameCompiler = new NameCompiler(externalContractCompiler);
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
         lambdaCompiler = new LambdaCompiler(this);
@@ -79,11 +85,13 @@ public class JavaToDafnyCompiler {
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
         if (options.includeBuiltinContracts()) {
-            builtinSource = new SourceFile("builtin-contracts.java", Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
+            builtinSource = new SourceFile(JavaToDafnyCompiler.builtinFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
             files.add(builtinSource);
         }
+        var contractSource = new SourceFile(JavaToDafnyCompiler.objectFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
+        files.add(contractSource);
         
-        Set<JVerifyCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
+        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
@@ -95,22 +103,18 @@ public class JavaToDafnyCompiler {
          * To work around this bug, the built-in contracts file must be serialized after 
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
-        parsed.sort(Comparator.comparing(f -> f.unit().getSourceFile().toUri().toString()));
+        parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
-        var foundClassSymbols = new HashSet<Symbol.ClassSymbol>();
+        var foundClassSymbols = new HashMap<Symbol.ClassSymbol, JCTree.JCCompilationUnit>();
         for (var compilationUnit : parsed) {
             externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
-            declarationsForFile.put(compilationUnit.unit(), new ArrayList<>());
+            declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
-        for(var foundClassSymbol : foundClassSymbols) {
+        for(var foundClassSymbol : foundClassSymbols.keySet()) {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
-
-        // These names are referenced by additional.dfy so their compiled names need to be predictable.
-        var symtab = Symtab.instance(context);
-        nameCompiler.registerPreludeReferencedName(symtab.objectType.tsym.name);
 
         externalContractCompiler.registerExternalContracts();
 
@@ -118,14 +122,14 @@ public class JavaToDafnyCompiler {
         var dummyToken = new Token(1, 1);
         contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
 
-        compileSymbolsTopologically();
+        compileSymbolsTopologically(foundClassSymbols);
 
         contextOrigins.pop();
 
         List<FileHeader> filesStarts = new ArrayList<>();
-        for (var compilationUnit : parsed.stream().map(JVerifyCompilationUnit::unit).collect(Collectors.toSet())) {
+        for (var compilationUnit : parsed) {
             List<TopLevelDecl> fileDeclarations = declarationsForFile.get(compilationUnit);
-            var isLibrary = compilationUnit.getSourceFile() == builtinSource;
+            var isLibrary = isLibrary(compilationUnit);
             fileDeclarations.sort(Comparator.comparing(t -> {
                 var startToken = switch(t.getOrigin()) {
                     case SourceOrigin sourceOrigin -> sourceOrigin.getReportingRange().getStartToken();
@@ -140,7 +144,11 @@ public class JavaToDafnyCompiler {
         return new FilesContainer(filesStarts);
     }
 
-    private void compileSymbolsTopologically() {
+    private boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
+        return compilationUnit.getSourceFile() == builtinSource;
+    }
+
+    private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
         var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
         iterator.forEachRemaining(itemsFromChildrenToParents::add);
@@ -149,8 +157,8 @@ public class JavaToDafnyCompiler {
             if (relatedDeclarations == null) {
                 continue;
             }
+            compilationUnit = symbolToCompilationUnit.get(currentTypeSymbol);
             for(var relatedDeclaration : relatedDeclarations) {
-//                Enter enter = Enter.instance(context);
                 JVerifyIndex index = JVerifyIndex.instance(context);
                 Env<AttrContext> env = index.getEnv(relatedDeclaration.sym);
                 if (env != null) {
@@ -205,8 +213,23 @@ public class JavaToDafnyCompiler {
     public void reportError(JCTree tree, String key, Object... args) {
         reportError(positionFromNode(tree, compilationUnit), key, args);
     }
+
+    /**
+     * In case of synthetic program nodes, which may occur nodes that are copies of source nodes that occur elsewhere in the program,
+     * this method can be used not to generate diagnostics when processing the synthetic node.
+     */
+    public <T> T withSkipDiagnostics(Supplier<T> supplier, boolean skipDiagnostics) {
+        var previous = this.skipDiagnostics;
+        this.skipDiagnostics = skipDiagnostics;
+        var result = supplier.get();
+        this.skipDiagnostics = previous;
+        return result;
+    }
     
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
+        if (this.skipDiagnostics) {
+            return;
+        }
         this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
@@ -265,14 +288,8 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean typeHasSource(Symbol.TypeSymbol typeSymbol) {
-//        var trees = JavacTrees.instance(context);
         var index = JVerifyIndex.instance(context);
         return index.getTree(typeSymbol) != null;
-    }
-
-    // TODO this does not seem to be fully used or working, and we've replaced it with the library concept now. So remove?
-    private boolean isAlreadyVerified() {
-        return compilationUnit.getSourceFile().getName().equals(builtinFile);
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
@@ -291,14 +308,6 @@ public class JavaToDafnyCompiler {
         public NotImplementedException(String message) {
             super(message);
         }
-    }
-
-    public Attributes getAttributes(IOrigin origin) {
-        return isAlreadyVerified() ? getVerifyFalse(origin) : null;
-    }
-
-    private static Attributes getVerifyFalse(IOrigin origin) {
-        return new Attributes(origin, "verify", List.of(new LiteralExpr(origin, false)), null);
     }
 
     private boolean isNullable(JCTree.JCModifiers modifiers) {
@@ -349,6 +358,7 @@ public class JavaToDafnyCompiler {
     }
 
     private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node, JCTree.JCCompilationUnit compilationUnit) {
+        Objects.requireNonNull(node);
         return new JCDiagnostic.DiagnosticPosition() {
             @Override
             public JCTree getTree() {
@@ -385,33 +395,29 @@ public class JavaToDafnyCompiler {
         }
         return false;
     }
-
+    
     public @Nullable Type translateType(JCTree tree) {
-        return translateType(null, tree);
-    }
-
-    public @Nullable Type translateType(JCTree.JCModifiers modifiers, JCTree tree) {
-        return translateType(modifiers, tree.type, toOrigin(tree));
+        return translateType(tree.type, toOrigin(tree), null);
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
         translatingVerifiedMethodSignature = willVerify;
-        var result = translateType(null, type, origin);
+        var result = translateType(type, origin, null);
         translatingVerifiedMethodSignature = false;
         return result;
     }
     
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
-        return translateType(null, type, origin);
+        return translateType(type, origin, null);
     }
 
     @Nullable
-    public Type translateType(JCTree.JCModifiers modifiers, com.sun.tools.javac.code.Type type, IOrigin origin) {
+    public Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
         // In several cases annotations that come right before types
         // end up bound to tree nodes such as variable declarations instead of the type.
         // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
         // we apply the modifier to the innermost element type of an array type.
-        var isNullable = isNullable(type) || (isNullable(modifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
+        var isNullable = isNullable(type) || (isNullable(additionalModifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
         var nullableSuffix = isNullable ? "?" : "";
 
         var primitiveTypeKind = toPrimitiveType(type);
@@ -477,7 +483,7 @@ public class JavaToDafnyCompiler {
         switch (type) {
             case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
                 // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
-                var elemType = translateType(modifiers, arrayTypeTree.elemtype, origin);
+                var elemType = translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
                 if (elemType == null) {
                     // should be unreachable
                     throw new IllegalArgumentException("Array type without element type");
@@ -485,14 +491,31 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
+
+                var mirrors = type.getAnnotationMirrors();
+                var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
+                
+                Symtab symtab = Symtab.instance(context);
+                if (modifiableAnnotation.isPresent() || isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
+                    if (classType.tsym == symtab.objectType.tsym) {
+                        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
+                    } else {
+                        reportError(origin, "notSupported", "@Modifiable on a type other than Object");
+                    }
+                }
+                if (classType.tsym == symtab.objectType.tsym) {
+                    return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
+                }
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
                     if (!isNullable) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "jstring", null));
+                        return new UserDefinedType(origin, new NameSegment(origin, "DString", null));
                     }
                     reportError(origin, "notSupported", "nullable String type");
                     return null;
                 }
+
+
 
                 if (isRecord(classType) && isNullable) {
                     reportError(origin, "notSupported", "nullable record type");
@@ -501,13 +524,13 @@ public class JavaToDafnyCompiler {
 
                 // TODO: Better check. But watch out for getName() and $
                 if (className.toString().equals("com.aws.jverify.JVerify$Sequence")) {
-                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
+                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
                     return new SeqType(origin, arguments);
                 }
                 
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
-                var arguments = classType.getTypeArguments().stream().map(a -> translateType(null, a, origin)).toList();
+                var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null)).toList();
                 if (arguments.isEmpty()) {
                     arguments = null;
                 }
@@ -532,7 +555,8 @@ public class JavaToDafnyCompiler {
                     }
                     return translateType(superBound, origin);
                 }
-                return new UserDefinedType(origin, new NameSegment(origin, "Object", null));
+                Symtab symtab = Symtab.instance(context);
+                return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
             }
             default -> {
             }
@@ -559,7 +583,7 @@ public class JavaToDafnyCompiler {
     public Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
         return getName(tree, name.toString());
     }
-    
+
     public Name getName(JCTree tree, Symbol symbol) {
         return getName(tree, nameCompiler.getCompiledName(symbol), symbol.name.length());
     }

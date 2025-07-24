@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 6)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
@@ -32,7 +32,7 @@ class Strings {
 
     static void stringNotEqual() {
         check("hello world".equals("helloworld"));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static void stringIsEmpty(String str) {
@@ -41,7 +41,7 @@ class Strings {
 
     static void stringNotEmpty() {
         check("full".isEmpty());
-//      ^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//            ^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 
     static boolean stringLengthEven(String str) {
@@ -85,5 +85,50 @@ class Strings {
         check(cat.charAt(0) == dog.charAt(0));
         check(cat.charAt(1) + 5 == dog.charAt(1));
         check((cat + dog).length() == 4);
+    }
+
+    static void testIndexOf() {
+        var hello = "hello";
+
+        check(hello.charAt(4) == 'o');
+        check(hello.indexOf('o')==4);   // Proven thanks to the check above
+        check(hello.indexOf('e')==1);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+// The assertion above fails in CI but not on a local machine, instability probably due to the recursive function
+// indexOf that may require too much verifier capacity
+        check(hello.indexOf('3')==-1); // Proven without any help
+    }
+
+    static void testSubstring() {
+        var hello = "hello";
+        var he = "he";
+        var hellohello = "hellohello";
+        var hi = "f";
+        check(hello.startsWith(he));
+        check(!hello.startsWith(hellohello));
+        check(hi.charAt(0) != hello.charAt(0));
+        check(!hello.startsWith(hi));
+    }
+
+    static void testSubstring2(String s1, String s2) {
+        precondition(s1.startsWith(s2));
+        precondition(s2.length() > 3);
+        String s3 = s2.substring(0,1);
+        check(s1.startsWith(s3));
+        String s4 = s2.substring(1);
+        check(s2.startsWith(s4));
+//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+
+    }
+
+    static void testConcat(String s1, String s2) {
+        precondition(s1.length() == 3 && s2.length() == 5);
+        precondition(!s2.startsWith(s1));
+        String s3 = s1.concat(s2);
+        check(s3.length() == 8);
+        check(s3.startsWith(s1));
+        check(s3.startsWith(s2));
+//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+
     }
 }

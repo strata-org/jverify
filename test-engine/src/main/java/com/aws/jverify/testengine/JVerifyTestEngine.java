@@ -3,12 +3,7 @@ package com.aws.jverify.testengine;
 import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
-import com.aws.jverify.verifier.DafnyDiagnostic;
-import com.aws.jverify.verifier.Driver;
-import com.aws.jverify.verifier.SourceFile;
-import com.aws.jverify.verifier.VerifierOptions;
-import com.aws.jverify.verifier.compiler.JavaFrontEnd;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.*;
 import com.google.auto.service.AutoService;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
@@ -37,13 +32,11 @@ import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -179,14 +172,19 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         inputs.add(sourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
         
-        if (annotation.resolvePrintedDafny()) {
-            resolvePrintedDafny(options);
+        if (annotation.verifyPrintedDafny()) {
+            verifyPrintedDafny(verificationResults, options);
         }
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))
+                // Remove diagnostics from "additional.dfy" file as they cannot be checked now by
+                // our test engine. And we probably want to localize them elsewhere anyway
+                .filter(d -> d instanceof DafnyDiagnostic dafnyDiagnostic
+                        ? !dafnyDiagnostic.location.filename().contentEquals("additional.dfy")
+                        : true)
                 .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
                 .sorted()
                 .toList();
@@ -208,15 +206,18 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         );
     }
 
-    private static void resolvePrintedDafny(VerifierOptions verifierOptions) 
+    private static void verifyPrintedDafny(VerificationResults previousResults, VerifierOptions verifierOptions) 
             throws IOException {
-        if (verifierOptions.printDafny() == null) {
+        boolean jverifyCompilationFailed = previousResults.getExitCode() == 2;
+        if (jverifyCompilationFailed) {
+            return;
+        } else if (verifierOptions.printDafny() == null) {
             throw new RuntimeException("");
         }
         
         var processBuilder = new ProcessBuilder(
                 verifierOptions.dafnyPath().toString(),
-                "resolve",
+                "verify",
                 verifierOptions.printDafny().toString(),
                 "--allow-axioms",
                 "--type-system-refresh",
@@ -224,11 +225,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 "--general-traits=full"
         );
         var process = processBuilder.redirectErrorStream(true).start();
-        int resolveExitCode = 0;
         try(var stdout = process.inputReader()) {
-            resolveExitCode = process.waitFor();
+            var dafnyExitCode = process.waitFor();
+            var exitCode = Driver.getExitCodeFromDafny(dafnyExitCode);
             String content = readerToString(stdout);
-            Assertions.assertEquals(0, resolveExitCode, content);
+            Assertions.assertEquals(previousResults.getExitCode(), exitCode, content);
         } catch (InterruptedException e) {
             Assertions.fail();
         }
@@ -277,8 +278,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
+        var workingDirectory = Path.of(System.getProperty("user.dir"));
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
         return new VerifierOptions(
+                workingDirectory,
                 dafnyPath,
                 List.of(libraryJar, testEngineClassPath),
                 prelude,
@@ -292,8 +295,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         "--use-basename-for-filename",
                         //"--wait-for-debugger",
                 },
-                annotation.verifyByDefault(),
-                annotation.avoidNameCollisions()
+                annotation.verifyByDefault()
         );
     }
 
@@ -316,7 +318,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      */
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, 
                                                         int dafnyVerified, int dafnyErrors,
-                                                        boolean resolvePrintedDafny,
+                                                        boolean verifyPrintedDafny,
                                                         boolean avoidNameCollisions,
                                                         boolean useBuiltinContracts) {
         return new JVerifyTest() {
@@ -361,13 +363,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
 
             @Override
-            public boolean resolvePrintedDafny() {
-                return resolvePrintedDafny;
-            }
-
-            @Override
-            public boolean avoidNameCollisions() {
-                return avoidNameCollisions;
+            public boolean verifyPrintedDafny() {
+                return verifyPrintedDafny;
             }
         };
     }
