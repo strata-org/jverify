@@ -26,7 +26,7 @@ public @interface Contract {
     Prevents using the `==` operator on values of this type
     
     Must only be added if this class is immutable, 
-    and if its equality has hashcode methods implement structural equality
+    and if its 'equals' and 'hashcode' methods implement structural equality
      */
     boolean immutable() default false;
 }
