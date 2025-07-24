@@ -15,7 +15,6 @@ import com.sun.tools.javac.tree.TreeInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class RecordCompiler {
     final ClassCompiler classCompiler;
@@ -66,10 +65,7 @@ public class RecordCompiler {
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
-                    if (isImplicitCanonicalConstructor(methodDecl)) {
-                        continue;
-                    }   
-                    translateConstructor(classDecl, origin, methodDecl, members, comps);
+                    translateConstructor(classDecl, origin, methodDecl, members);
                     continue;
                 }
                 var methodName = methodDecl.getName().toString();
@@ -131,11 +127,13 @@ public class RecordCompiler {
     }
 
     private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin,
-                                      JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members, 
-                                      List<JCTree.JCVariableDecl> comps) {
+                                      JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members) {
 
-        String resultName = NameCompiler.RETURN_VARIABLE_NAME;
-        NameSegment resultReference = new NameSegment(origin, resultName, null);
+        if (isImplicitCanonicalConstructor(methodDecl)) {
+            return;
+        }
+        
+        NameSegment resultReference = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
 
         java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifierOverride = (identifier, innerOrigin) -> {
             if (identifier.sym.owner == classDecl.sym) {
@@ -149,34 +147,19 @@ public class RecordCompiler {
                 return compiler.expressionCompiler.translateIdentifierNoOverride(identifier, innerOrigin);
             }
         };
-        boolean isImplicitCanonicalConstructor = isImplicitCanonicalConstructor(methodDecl);
-        var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify() && !isImplicitCanonicalConstructor;
+        var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify();
 
         var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(() ->
                 // Do not generate diagnostics for an implicitly created constructor
                 // These diagnostics already occur on the fields of the record.        
-                compiler.withSkipDiagnostics(() -> classCompiler.translateMember(methodDecl), isImplicitCanonicalConstructor),
+                compiler.withSkipDiagnostics(() -> classCompiler.translateMember(methodDecl), false),
             handleIdentifierOverride);
         
         if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
-            List<AttributedExpression> ens;
-            if (isImplicitCanonicalConstructor) {
-                ens = IntStream.range(0, constructor.getIns().size()).mapToObj(index -> {
-                    var field = comps.get(index);
-                    var parameter = constructor.getIns().get(index);
-                    var fieldOrigin = compiler.toOrigin(field);
-                    return new AttributedExpression(new BinaryExpr(fieldOrigin, BinaryExprOpcode.Eq,
-                            new ExprDotName(fieldOrigin, resultReference, compiler.getName(field, field.sym), null),
-                            new NameSegment(fieldOrigin, parameter.getNameNode().getValue(), null)), null, null);
-                }).toList();
-            } else {
-                ens = constructor.getEns();
-            }
-            
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
-            Formal result = new Formal(origin, new Name(origin, resultName), outType, false, false, null, null, false, false, false, null);
+            Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
             var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
-                constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
+                constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
             members.add(staticFunction);
         } else {

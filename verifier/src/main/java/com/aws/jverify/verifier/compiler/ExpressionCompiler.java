@@ -167,6 +167,10 @@ public class ExpressionCompiler {
     }
 
     public static boolean useConstructorFunction(JavaToDafnyCompiler compiler,  JCTree.JCNewClass newClass, Symbol.ClassSymbol classSymbol) {
+        return compiler.isRecord(newClass.type) || isImmutableClass(compiler, classSymbol);
+    }
+
+    private static boolean isImmutableClass(JavaToDafnyCompiler compiler, Symbol.ClassSymbol classSymbol) {
         var decls = compiler.externalContractCompiler.declarationsForSymbolContract.get(classSymbol);
         boolean immutableClass = false;
         if (decls.size() == 1) {
@@ -175,7 +179,7 @@ public class ExpressionCompiler {
                 immutableClass = contract.immutable();
             }
         }
-        return compiler.isRecord(newClass.type) || immutableClass;
+        return immutableClass;
     }
 
     private TypeTestExpr translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin) {
