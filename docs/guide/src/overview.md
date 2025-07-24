@@ -1,18 +1,20 @@
 # JVerify
-JVerify is a tool that helps ensure the correctness of Java programs. There are many existing tools for this. However, such tools are often either incomplete, not revealing bugs that are present, or inaccurate, reporting warnings when there is no bug.
+JVerify is a tool that helps ensure the correctness of Java programs. There are many existing tools for this. However, such tools are often either incomplete, not revealing bugs that are present, or inaccurate, reporting a problem when there is no bug.
 
 JVerify is both complete and accurate. JVerify is complete because it allows the programmer to specify any type of behavior for their program, after which JVerify can ensure the implementation matches this. Typically desired behaviors, such as that the program does not throw any uncaught exceptions, or that the program must eventually terminate, do not need to be specified since JVerify knows about them already.
 
 JVerify is accurate because when it is not sure that the program behaves according to a particular specification, it allows the programmer to provide hints, enabling it to decide whether there is a bug or not.
 
-The specifications and hints used by JVerify are adding to a program using regular Java calls to the JVerify library, enabling existing IDEs to be used.
+The specifications and hints used by JVerify are added to the program using regular Java calls to the JVerify library, enabling existing IDEs to be used.
 
 To see examples of bugs that JVerify can detect, have a look at [this section](./example_usecases.md).
 
 # Frequently asked questions
 
 #### Can I use JVerify right now?
-JVerify is not yet ready for production use. However, you can use the getting starting sections in this guide to get it running and explore what it can currently do. Note that you will run into poor error messages, unsupported features and bugs.
+No, JVerify is not yet ready for production use. 
+
+However, you can use the [installation](./installation.md) and [Rrunning JVerify](./first_verification.md) sections in this guide to explore what it can currently do. Note that you will run into poor error messages, unsupported features and bugs - that are not yours ;-).
 
 #### Does JVerify support the entire Java language?
 It will. You can find the list of currently supported features here: [supported Java features](./supported_java_features.md).
