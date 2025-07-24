@@ -105,10 +105,6 @@ abstract class IntPredicateContract implements IntPredicate {
 abstract class PredicateContract<T> implements Predicate<T> {
 }
 
-@Contract(Boolean.class)
-class BooleanContract {
-}
-
 class HelperForBigIntegerContract {
     @Erased
     @Pure
