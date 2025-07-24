@@ -271,7 +271,7 @@ public class ClassCompiler {
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
         }
-        return new Field(origin, fieldName, null, true, type);
+        return new Field(origin, fieldName, null, false, type);
     }
 
 
@@ -418,7 +418,7 @@ public class ClassCompiler {
                 body = null;
             }
 
-            return new Constructor(origin, name, null, true, null, dafnyTypeParameters, ins,
+            return new Constructor(origin, name, null, false, null, dafnyTypeParameters, ins,
                     header.preconditions, header.postconditions, header.getReads(),
                     header.getDecreases(), header.getModifies(),
                     body);
@@ -429,7 +429,7 @@ public class ClassCompiler {
             } else {
                 body = null;
             }
-            return new Method(origin, name, null, true, null, dafnyTypeParameters,
+            return new Method(origin, name, null, false, null, dafnyTypeParameters,
                     ins, header.preconditions, header.postconditions, header.getReads(),
                     header.getDecreases(), header.getModifies(),
                     isStatic, outs,
@@ -508,7 +508,7 @@ public class ClassCompiler {
         applyInvariants(sourceBody, modifiers, methodSymbol, header);
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
-        return new Function(origin, name, null, true, null, dafnyTypeParameters,
+        return new Function(origin, name, null, false, null, dafnyTypeParameters,
                 ins, header.preconditions, header.postconditions, header.getReads(),
                 header.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
                 returnType, body, null, null);

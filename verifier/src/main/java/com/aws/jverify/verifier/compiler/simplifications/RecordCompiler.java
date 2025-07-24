@@ -87,11 +87,7 @@ public class RecordCompiler {
                     continue;
                 }
             } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                fields.addFirst(variableDecl);
-//                Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
-//                var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
-//                Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
-//                members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
+                fields.add(variableDecl);
                 continue;
             } 
             var dafnyMember = classCompiler.translateMember(member);

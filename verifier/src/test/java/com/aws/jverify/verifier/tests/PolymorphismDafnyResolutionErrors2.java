@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 1, dafnyErrors = 0)
+@JVerifyTest(exitCode = 22)
 public class PolymorphismDafnyResolutionErrors2 {
     
     public static void valueObjectHasNoEquality() {
@@ -11,5 +11,6 @@ public class PolymorphismDafnyResolutionErrors2 {
         Object a = new Object();
         @Modifiable Object b = new Object();
         var c = a == (@Modifiable Object)b;
+//              ^ Error: == can only be applied to expressions of types that support equality (got Object)
     }
 }
