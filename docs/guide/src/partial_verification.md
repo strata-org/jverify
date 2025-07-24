@@ -48,7 +48,7 @@ class C {
     @Verify
     void foo() {
         bar(); // no error
-        zaz(); // error, no precondition was specified for `barCallee`
+        zaz(); // error, no precondition was specified for `zazCallee`
         zoo(); // no error
     }
 
@@ -61,7 +61,7 @@ class C {
     
     // Because this method is not verified,
     // we can not assume an empty precondition,
-    // so this method missing a precondition
+    // so this method missing is a precondition
     void zaz() {
         // body
     }
