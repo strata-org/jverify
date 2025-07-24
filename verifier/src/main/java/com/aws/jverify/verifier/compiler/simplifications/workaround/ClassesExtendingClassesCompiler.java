@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isInterface;
+
 public class ClassesExtendingClassesCompiler {
     public static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     ClassCompiler classCompiler;
@@ -59,7 +61,7 @@ public class ClassesExtendingClassesCompiler {
                 case Function function -> {
                     traitMembers.add(function);
                     if (function.getBody() == null && !function.getHasStaticKeyword()) {
-                        // A bodyless trait in Dafny is abstract. 
+                        // A bodyless trait in Dafny is abstract.
                         // You can not declare an assumed member in traits in Dafny
                         // We add the assumed member to the class
                         classMembers.add(member);

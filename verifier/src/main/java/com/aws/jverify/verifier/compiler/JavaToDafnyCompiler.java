@@ -8,14 +8,14 @@ import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompile
 import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
-import com.sun.source.tree.*;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
-import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.comp.AttrContext;
+import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 
@@ -59,7 +59,7 @@ public class JavaToDafnyCompiler {
      * Edges are from child to parent types, similar to the references in the code
      */
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
-    public Map<CompilationUnitTree, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
+    public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
     public JCTree.JCCompilationUnit compilationUnit;
@@ -94,7 +94,7 @@ public class JavaToDafnyCompiler {
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
-        
+
         var parsed = new ArrayList<>(parsedSet);
 
         /*
@@ -114,10 +114,16 @@ public class JavaToDafnyCompiler {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
-        
+
         externalContractCompiler.registerExternalContracts();
-        
+
+        // Add a default origin to fallback to
+        var dummyToken = new Token(1, 1);
+        contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
+
         compileSymbolsTopologically(foundClassSymbols);
+
+        contextOrigins.pop();
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
@@ -152,6 +158,11 @@ public class JavaToDafnyCompiler {
             }
             compilationUnit = symbolToCompilationUnit.get(currentTypeSymbol);
             for(var relatedDeclaration : relatedDeclarations) {
+                JVerifyIndex index = JVerifyIndex.instance(context);
+                Env<AttrContext> env = index.getEnv(relatedDeclaration.sym);
+                if (env != null) {
+                    compilationUnit = env.toplevel;
+                }
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
@@ -276,8 +287,8 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean typeHasSource(Symbol.TypeSymbol typeSymbol) {
-        var trees = JavacTrees.instance(context);
-        return trees.getTree(typeSymbol) != null;
+        var index = JVerifyIndex.instance(context);
+        return index.getTree(typeSymbol) != null;
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
@@ -337,7 +348,7 @@ public class JavaToDafnyCompiler {
     }
 
     public boolean isSynthetic(JCTree methodNode, Symbol.MethodSymbol methodSymbol) {
-        var containerPos = JavacTrees.instance(context).getTree(methodSymbol.enclClass()).pos;
+        var containerPos = JVerifyIndex.instance(context).getTree(methodSymbol.enclClass()).pos;
         return methodNode.pos == containerPos;
     }
 
@@ -346,6 +357,7 @@ public class JavaToDafnyCompiler {
     }
 
     private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node, JCTree.JCCompilationUnit compilationUnit) {
+        Objects.requireNonNull(node);
         return new JCDiagnostic.DiagnosticPosition() {
             @Override
             public JCTree getTree() {
@@ -407,7 +419,7 @@ public class JavaToDafnyCompiler {
         var isNullable = isNullable(type) || (isNullable(additionalModifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
         var nullableSuffix = isNullable ? "?" : "";
 
-        var primitiveTypeKind = toPrimitiveTypeModuloBoxing(type);
+        var primitiveTypeKind = toPrimitiveType(type);
         if (primitiveTypeKind != null) {
             if (isNullable) {
                 reportError(origin, "notSupported", "nullable primitive type");
@@ -547,26 +559,15 @@ public class JavaToDafnyCompiler {
     }
 
     /**
-     * If the specified tree represents either a primitive type or a boxed primitive type,
+     * If the specified tree represents a primitive type,
      * returns the corresponding {@link TypeKind},
      * otherwise returns {@code null}.
      */
-    private @Nullable TypeKind toPrimitiveTypeModuloBoxing(com.sun.tools.javac.code.Type type) {
+    private @Nullable TypeKind toPrimitiveType(com.sun.tools.javac.code.Type type) {
         if (type instanceof com.sun.tools.javac.code.Type.JCVoidType) {
             return TypeKind.VOID;
         } else if (type instanceof com.sun.tools.javac.code.Type.JCPrimitiveType primitiveType) {
             return primitiveType.getKind();
-        } else if (type instanceof com.sun.tools.javac.code.Type.ClassType classType
-                && classType.tsym.packge().getQualifiedName().contentEquals("java.lang")) {
-            var name = classType.tsym.getSimpleName().toString();
-            if (name.equals(Boolean.class.getSimpleName())) return TypeKind.BOOLEAN;
-            if (name.equals(Byte.class.getSimpleName())) return TypeKind.BYTE;
-            if (name.equals(Short.class.getSimpleName())) return TypeKind.SHORT;
-            if (name.equals(Integer.class.getSimpleName())) return TypeKind.INT;
-            if (name.equals(Long.class.getSimpleName())) return TypeKind.LONG;
-            if (name.equals(Character.class.getSimpleName())) return TypeKind.CHAR;
-            if (name.equals(Float.class.getSimpleName())) return TypeKind.FLOAT;
-            if (name.equals(Double.class.getSimpleName())) return TypeKind.DOUBLE;
         }
 
         return null;

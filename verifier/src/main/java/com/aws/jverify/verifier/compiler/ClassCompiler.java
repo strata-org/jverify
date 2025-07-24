@@ -7,7 +7,6 @@ import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompile
 import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.source.tree.Tree;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -35,6 +34,9 @@ public class ClassCompiler {
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
+            if (classDecl.name.toString().equals("package-info")) {
+                return List.of();
+            }
             var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
 
             Name name = null;
@@ -178,6 +180,7 @@ public class ClassCompiler {
                 }
             }
         }
+
         var definingSymbol = getCurrentTypeSymbol(classDecl);
 
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
@@ -205,7 +208,7 @@ public class ClassCompiler {
         return typarams.stream().map(p -> {
             var name = compiler.getName(p, p.getName());
             var bounds = p.bounds.map(compiler::translateType);
-            
+
             IOrigin origin = compiler.toOrigin(p);
             if (!this.compiler.verifierOptions.includeBuiltinContracts() &&
                     // Contains because when we're verifying the built-in file itself, the path is different.
@@ -239,6 +242,14 @@ public class ClassCompiler {
             }
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateField(variableDecl);
+            }
+            case JCTree.JCBlock block -> {
+                // LOWER generates empty static blocks
+                if (block.stats.isEmpty()) {
+                    return null;
+                } else {
+                    throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
+                }
             }
             default -> throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
         }
@@ -373,8 +384,8 @@ public class ClassCompiler {
 
         var outs = new ArrayList<Formal>();
         if (methodSymbol.type.getReturnType() != null) {
-            JavacTrees trees = JavacTrees.instance(compiler.context);
-            var methodDecl = trees.getTree(methodSymbol);
+            JVerifyIndex index = JVerifyIndex.instance(compiler.context);
+            var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
             IOrigin returnOrigin;
             if (methodDecl == null) {
                 returnOrigin = bodyOrigin;
@@ -534,9 +545,9 @@ public class ClassCompiler {
     }
 
     private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, boolean shouldVerify, IOrigin bodyOrigin) {
-        return methodSymbol.getParameters().map(jvd -> {
-            var trees = JavacTrees.instance(compiler.context);
-            var parameter = trees.getTree(jvd);
+        return methodSymbol.extraParams.appendList(methodSymbol.getParameters()).map(jvd -> {
+            var index = JVerifyIndex.instance(compiler.context);
+            var parameter = index.getTree(jvd);
             IOrigin parameterOrigin;
             if (parameter == null) {
                 parameterOrigin = bodyOrigin;

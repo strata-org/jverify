@@ -2,14 +2,13 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
-import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.JCTree;
 
@@ -17,6 +16,8 @@ import java.util.*;
 import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
+import static com.sun.tools.javac.tree.JCTree.Tag.*;
+import static com.sun.tools.javac.tree.JCTree.Tag.MODULEIMPORT;
 
 public class ExternalContractCompiler {
     final JavaToDafnyCompiler compiler;
@@ -33,11 +34,11 @@ public class ExternalContractCompiler {
             Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
             List<JCTree.JCVariableDecl> ghostFields) { }
     
-    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit, 
+    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit,
                                                 Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> foundClasses) {
         compiler.compilationUnit = compilationUnit;
-        
-        var typesToVisit = new LinkedList<>(compilationUnit.getTypeDecls());
+
+        var typesToVisit = new LinkedList<>(getTypeDecls(compilationUnit.defs));
         while(!typesToVisit.isEmpty()) {
             var typeDecl = typesToVisit.poll();
             if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
@@ -79,12 +80,25 @@ public class ExternalContractCompiler {
         }
     }
 
+    private com.sun.tools.javac.util.List<JCTree> getTypeDecls(com.sun.tools.javac.util.List<JCTree> defs) {
+        com.sun.tools.javac.util.List<JCTree> typeDefs;
+        for (typeDefs = defs; !typeDefs.isEmpty(); typeDefs = typeDefs.tail) {
+            if (!typeDefs.head.hasTag(MODULEDEF)
+                    && !typeDefs.head.hasTag(PACKAGEDEF)
+                    && !typeDefs.head.hasTag(IMPORT)
+                    && !typeDefs.head.hasTag(MODULEIMPORT)) {
+                break;
+            }
+        }
+        return typeDefs;
+    }
+
     public void registerExternalContracts() {
         for(var entry : contractClassToContractee.entrySet()) {
-            var externalContractDecl = JavacTrees.instance(compiler.context).getTree(entry.getKey());
+            var externalContractDecl = (JCTree.JCClassDecl) JVerifyIndex.instance(compiler.context).getTree(entry.getKey());
 
-            Enter enter = Enter.instance(compiler.context);
-            Env<AttrContext> env = enter.getEnv(externalContractDecl.sym);
+            JVerifyIndex index = JVerifyIndex.instance(compiler.context);
+            Env<AttrContext> env = index.getEnv(externalContractDecl.sym);
             if (env != null) {
                 compiler.compilationUnit = env.toplevel;
             }

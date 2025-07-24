@@ -17,7 +17,7 @@ class ExtenderErrors extends ExtendeeErrors {
  
         return 3;
     }
-} 
+}
 
 
 abstract class ExtendeeErrors {

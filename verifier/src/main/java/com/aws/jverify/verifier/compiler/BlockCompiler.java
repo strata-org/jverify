@@ -286,6 +286,7 @@ public class BlockCompiler {
             // A switch rule introduces either an expression, a block, or a throw statement.
             // Within a switch statement, a switch rule expression must be a statement expression.
             List<Statement> translatedBody = switch (body) {
+                case null -> List.of(); // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
                 case JCTree.JCExpressionStatement bodyStatement -> translateStatement(bodyStatement);
                 case JCTree.JCBlock bodyBlock -> translateStatement(bodyBlock);
                 case JCTree.JCThrow ignored -> {
