@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.common.Common;
-import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
-import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.ClientCodeWrapper;
@@ -16,6 +13,7 @@ import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.Log;
 import com.sun.tools.javac.util.Position;
 
 import javax.tools.Diagnostic;
@@ -30,7 +28,7 @@ import java.util.stream.Collectors;
 
 public class JavaFrontEnd {
     public final Context context;
-    JavaToDafnyCompiler compiler;
+    private final JavaToDafnyCompiler compiler;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
         this.compiler = javaToDafnyCompiler;
@@ -86,13 +84,13 @@ public class JavaFrontEnd {
          *
          * Currently, we apply 0 through 5,
          * skip 6 and 7 as they remove features Dafny supports directly (generics and patterns),
-         * but then apply 8 in order to rewrite lambda expressions and method references.
-         * We may partially apply 9 in the future to rewrite features such as nested classes.
+         * but then apply 8 in order to rewrite lambda expressions and method references,
+         * and 9 to rewrite features such as nested classes and autoboxing.
          * 10 actually generates JVM bytecode so we will likely never apply it.
          *
          * Because we have specification and proof code that use features like lambdas
-         * for different purposes, we also apply our own phases before and after UNLAMBDA
-         * in order to temporarily remove code we don't want rewritten and then restore it.
+         * for different purposes, we also apply our own phases before and after UNLAMBDA and LOWER
+         * in order to temporarily remove/rewrite code we don't want rewritten and then restore it.
          * Therefore, our current pipeline looks like this:
          *
          * INIT(0),
@@ -104,6 +102,9 @@ public class JavaFrontEnd {
          * SUBSTITUTE,
          * UNLAMBDA(8),
          * UNSUBSTITUTE
+         * SUSPEND,
+         * LOWER(9),
+         * UNSUSPEND
          *
          * For practical reasons we also have to stop the normal flow of the JavaCompiler
          * after 3 in order to get a reference to the set of compilation targets
@@ -135,7 +136,9 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    envs.addAll(unsubstitute(unlambda(substitute(compiler.flow(compiler.attribute(todo))))));
+                    envs.addAll(unsuspend(lower(suspend(
+                            unsubstitute(unlambda(substitute(
+                                    compiler.flow(compiler.attribute(todo)))))))));
                 }
             }
         });
@@ -186,6 +189,51 @@ public class JavaFrontEnd {
         // We could do the same here to save time in the future.
         for (Env<AttrContext> env : envs) {
             env.tree = LambdaToMethod.instance(context).translateTopLevelClass(env, env.tree, localMake);
+        }
+        return envs;
+    }
+
+    // Phase to hide/rewrite higher level features such as switches
+    // so future phases don't rewrite them.
+    private Queue<Env<AttrContext>> suspend(Queue<Env<AttrContext>> envs) {
+        var suspenders = Suspenders.instance(context);
+        Log log = Log.instance(context);
+        for (Env<AttrContext> env: envs) {
+            log.useSource(env.toplevel.sourcefile);
+            env.tree = suspenders.suspend(env.tree);
+        }
+        return envs;
+    }
+
+    // Phase to undo the effects of suspend().
+    private Queue<Env<AttrContext>> unsuspend(Queue<Env<AttrContext>> envs) {
+        var hider = Suspenders.instance(context);
+        envs.stream().map(env -> env.toplevel).distinct().forEach(topLevel -> {
+            topLevel.defs = topLevel.defs.map(hider::unsuspend);
+        });
+        return envs;
+    }
+
+    private Queue<Env<AttrContext>> lower(Queue<Env<AttrContext>> envs) {
+        var localMake = TreeMaker.instance(context).at(Position.NOPOS);
+        var lower = Lower.instance(context);
+        var log = Log.instance(context);
+        var index = JVerifyIndex.instance(context);
+
+        Map<JCTree.JCCompilationUnit, com.sun.tools.javac.util.List<JCTree>> newDecls = new HashMap<>();
+        for (Env<AttrContext> env : envs) {
+            log.useSource(env.toplevel.sourcefile);
+            com.sun.tools.javac.util.List<JCTree> classes = lower.translateTopLevelClass(env, env.tree, localMake);
+
+            for (JCTree clazz : classes) {
+                index.index(env, clazz);
+            }
+
+            var decls = newDecls.getOrDefault(env.toplevel, com.sun.tools.javac.util.List.nil());
+            newDecls.put(env.toplevel, decls.appendList(classes));
+        }
+        for(var entry : newDecls.entrySet()) {
+            entry.getKey().defs = entry.getValue();
         }
         return envs;
     }

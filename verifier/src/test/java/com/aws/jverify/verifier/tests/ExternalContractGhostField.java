@@ -30,7 +30,7 @@ class DummyBigIntegerContract {
         reads(this);
         //noinspection ConstantValue
         precondition(value >= -10 && value <= 10);
-        postcondition((Integer r) -> r == value);
+        postcondition((int r) -> r == value);
         throw new ContractException();
     }
 

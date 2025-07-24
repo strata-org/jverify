@@ -27,7 +27,7 @@ public class MixedExternalAndInternalContractVerification {
 class MixedContractContract implements MixedContract {
     @Override
     public int externalContract(int x) {
-        postcondition((Integer r) -> r > 4);
+        postcondition((int r) -> r > 4);
         return 5;
     }
 }
@@ -36,8 +36,8 @@ interface MixedContract {
     
     int externalContract(int x);
     default int internalContract() {
-        postcondition((Integer r) -> r > 2);
-//                                   ^^^^^ Related location: this is the postcondition that could not be proved
+        postcondition((int r) -> r > 2);
+//                               ^^^^^ Related location: this is the postcondition that could not be proved
         return 1;
 //      ^^^^^^^^^ Error: a postcondition could not be proved on this return path
     }
@@ -46,7 +46,7 @@ interface MixedContract {
 class MixedContractExtender implements MixedContract {
     @Override
     public int externalContract(int x) {
-        postcondition((Integer r) -> r > 5);
+        postcondition((int r) -> r > 5);
         return 6;
     }
     

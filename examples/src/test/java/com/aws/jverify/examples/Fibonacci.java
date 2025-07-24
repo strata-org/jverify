@@ -12,7 +12,7 @@ class Fibonacci {
 
     public static @Nat int Implementation(@Nat int n)
     {
-        postcondition((Integer r) -> r == Spec(n));
+        postcondition((int r) -> r == Spec(n));
         
         // this precondition prevents overflow later in this method
         precondition(Spec(n) <= Integer.MAX_VALUE);

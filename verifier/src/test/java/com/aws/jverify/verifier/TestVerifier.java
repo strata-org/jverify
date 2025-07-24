@@ -28,7 +28,23 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
                 "--dafny=" + dafnyPath);
-        Assertions.assertEquals(0, exitCode);
+        Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
+    }
+
+    @Test
+    public void checkPathsOutput() {
+        var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
+
+        var command = new CommandLine(new AppCommand());
+        StringWriter out = new StringWriter();
+        command.setOut(new PrintWriter(out));
+        command.setErr(new PrintWriter(out));
+
+        var exitCode = command.execute(
+                Path.of("./src/test/resources/AssertFalse.java").toString(),
+                "--dafny=" + dafnyPath, "--paths");
+        Assertions.assertTrue(out.toString().startsWith("src/test/resources/AssertFalse.java"));
+        Assertions.assertEquals(4, exitCode);
     }
 
     @Test
@@ -44,7 +60,7 @@ public class TestVerifier {
                 Path.of("./src/main/resources/builtin-contracts.java").toString(),
                 "--dafny=" + dafnyPath,
                 "--builtin-contracts=false");
-        Assertions.assertEquals(0, exitCode);
+        Assertions.assertEquals(0, exitCode, out.toString());
     }
     
     @Test

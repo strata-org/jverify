@@ -32,7 +32,7 @@ class TranslationErrors {
     void contractAfterBody(int x) {
         x = x + 3;
         precondition(x == 3);
-//                  ^ error: call to JVerify header method precondition is not allowed after non-header statement
+//                  ^ error: call to contract method must come before the rest of the body
     }
     
     void wrongContractMethod(int x) {
@@ -54,14 +54,18 @@ class TranslationErrors {
     int switchLabeledStatementGroup(int i) {
         var acc = 0;
         var ret = switch (i) {
-//                ^ error: switch labeled statement group is not supported
             case 0:
+//          ^ error: switch labeled statement group is not supported
                 acc += 100;
                 yield 0;
             case 1, 2, 3:
+//          ^ error: switch labeled statement group is not supported
+//          ^ error: switch labeled statement group is not supported
+//          ^ error: switch labeled statement group is not supported
                 acc += 200;
                 yield i * 2;
             default:
+//          ^ error: switch labeled statement group is not supported
                 yield -1;
         };
         return acc + ret;
@@ -90,6 +94,8 @@ class TranslationErrors {
         return switch (i) {
             case 0 -> 0;
             case 1, 2, 3 -> {
+//          ^ error: switch labeled statement group is not supported
+//          ^ error: switch labeled statement group is not supported
 //                          ^ error: switch rule block is not supported
                 var acc = 0;
                 for (int j = 0; j < i; j++) {
@@ -106,6 +112,7 @@ class TranslationErrors {
             case 0 -> throw new RuntimeException("");
 //                    ^ error: switch rule throw statement is not supported
             case 1, 2 -> -i;
+//          ^ error: switch labeled statement group is not supported
             default -> i * i * i;
         };
     }
@@ -116,9 +123,7 @@ class TranslationErrors {
         return i == 0;
     }
 
-    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
     static boolean nullableBoxed(@Nullable Integer i) {
-//                               ^ error: nullable primitive type is not supported
         return i == 0;
     }
 
@@ -145,19 +150,19 @@ class TranslationErrors {
             IntWrapper w1, IntWrapper w2
     ) {
         if (o1 == o2) {
-//             ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
+//             ^ error: '==' is only allowed when at least one operand's type is @Modifiable
             return 0;
         } else if (o1 == null) {
             return 1;
         } else if (null == o2) {
             return 2;
         } else if (i == o1) {
-//                   ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
+//                   ^ error: '==' is only allowed when at least one operand's type is @Modifiable
             return 3;
         } else if (w1 == null) {
             return 4;
         } else if (w1 == w2) {
-//                    ^ error: '==' is not allowed when both operand's types could be String, a record, or a boxed primitive, unless one of the operands is a null literal
+//                    ^ error: '==' is only allowed when at least one operand's type is @Modifiable
             return 5;
         }
 
@@ -177,4 +182,16 @@ class TranslationErrors {
     }
 
     void foo() {}
+
+    void ifWithThrow(int x) {
+        if (x > 0) {
+            throw new RuntimeException("");
+//          ^ error: statement JCThrow is not supported
+        }
+    }
+    
+    void arrayWithInitializer() {
+        int[] arr = {1, 2, 3};
+//                  ^ error: new array with initializers is not supported
+    }
 }

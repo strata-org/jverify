@@ -33,7 +33,7 @@ interface I {
 
         public int m() {
             modifies(this);
-            postcondition((Integer r) -> r > 2);
+            postcondition((int r) -> r > 2);
             throw new ContractException();
         }
     }
@@ -68,8 +68,10 @@ class CInvalidContract implements I {
     }
 }
 
+class Anything {}
+
 class CValid implements I {
-    @Nullable Object obj;
+    @Nullable Anything obj;
 
     //@InheritContract
     @Pure
@@ -84,8 +86,8 @@ class CValid implements I {
     @Override
     public int m() {
         modifies(this);
-        postcondition((Integer r) -> r > 2);
-        obj = new Object();
+        postcondition((int r) -> r > 2);
+        obj = new Anything();
         return 3;
     }
 }
@@ -111,7 +113,7 @@ class CInvalidImplementation implements I {
     @Override
     public int m() {
         modifies(this);
-        postcondition((Integer r) -> r > 2);
+        postcondition((int r) -> r > 2);
         c.x = 3;
 //      ^^^ Error: assignment might update an object not in the enclosing context's modifies clause
         return 3;
