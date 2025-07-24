@@ -218,6 +218,22 @@ public class JVerify {
         }
     }
 
+    public interface IntSequence {
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        default IntSequence drop(int fromIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        default @Unbounded int size() {
+            throw new VerificationMethodExecutedException();
+        }
+    }
+
     public static class VerificationMethodExecutedException extends UnsupportedOperationException {
         public VerificationMethodExecutedException() {
             super("Verification-only method called at runtime");
