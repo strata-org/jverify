@@ -130,7 +130,7 @@ public class BlockCompiler {
             // so that we can have allocation in e.
             var exprOrigin = compiler.toOrigin(expr);
             var returnExpr = toAssignmentRhs(expr);
-            var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
+            var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.RETURN_VARIABLE_NAME, null);
             var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
             var returnStmt = new ReturnStmt(origin, null, null);
             return List.of(assignment,returnStmt);

@@ -6,11 +6,8 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.sun.source.tree.Tree;
-import com.sun.tools.javac.code.Attribute;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -19,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class RecordCompiler {
     final ClassCompiler classCompiler;
@@ -30,7 +26,7 @@ public class RecordCompiler {
         this.compiler = classCompiler.compiler;
     }
 
-    public TopLevelDeclWithMembers translateValueType(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    public TopLevelDeclWithMembers translateValueType(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
         }
@@ -63,12 +59,16 @@ public class RecordCompiler {
                 .collect(Collectors.toSet());
         var members = new ArrayList<MemberDecl>();
 
+        List<JCTree.JCVariableDecl> fields = new ArrayList<>();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
                 // No constructors should be translated:
                 // explicit constructors are not allowed/supported,
                 // and the implicit canonical constructor is unneeded to construct datatype values.
                 if (TreeInfo.isConstructor(methodDecl)) {
+                    if (isImplicitCanonicalConstructor(methodDecl)) {
+                        continue;
+                    }   
                     translateConstructor(classDecl, origin, methodDecl, members, comps);
                     continue;
                 }
@@ -87,10 +87,11 @@ public class RecordCompiler {
                     continue;
                 }
             } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
-                var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
-                Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
-                members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
+                fields.addFirst(variableDecl);
+//                Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
+//                var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
+//                Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
+//                members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
                 continue;
             } 
             var dafnyMember = classCompiler.translateMember(member);
@@ -99,14 +100,45 @@ public class RecordCompiler {
             }
         }
 
-        return new TraitDecl(origin, name, null, typeParams, members, traits, false);
+        boolean isAbstract = classSymbol.isAbstract();
+        if (isAbstract) {
+            if (!fields.isEmpty()) {
+                compiler.reportError(classDecl, "");
+            }
+            return new TraitDecl(origin, name, null, typeParams, members, traits, false);
+        }
+
+        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
+                List.of(getDatatypeCtor(classDecl, origin, name, fields)), false);
+    }
+
+    private DatatypeCtor getDatatypeCtor(JCTree.JCClassDecl classDecl, IOrigin origin, Name name, List<JCTree.JCVariableDecl> fields) {
+        var ctorParams = fields.stream()
+                .map(classCompiler::translateField)
+                .map(field -> new Formal(
+                        field.getOrigin(), field.getNameNode(),
+                        field.getExplicitType(),
+                        false, true,
+                        null, null,
+                        false, false, false,
+                        null
+                ))
+                .toList();
+        DatatypeCtor ctor = new DatatypeCtor(
+                origin,
+                name,
+                null,
+                false,
+                ctorParams
+        );
+        return ctor;
     }
 
     private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin,
                                       JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members, 
                                       List<JCTree.JCVariableDecl> comps) {
 
-        String resultName = "resultName";
+        String resultName = NameCompiler.RETURN_VARIABLE_NAME;
         NameSegment resultReference = new NameSegment(origin, resultName, null);
 
         java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifierOverride = (identifier, innerOrigin) -> {
@@ -184,7 +216,7 @@ public class RecordCompiler {
         boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
             
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
-        var constructorName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
+        var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);;
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
         var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.compiler.getName(newClass, constructorName), null);

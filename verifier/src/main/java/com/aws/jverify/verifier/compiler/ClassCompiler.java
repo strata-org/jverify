@@ -85,10 +85,11 @@ public class ClassCompiler {
             }
             compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
+            var classSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
-                case RECORD -> new RecordCompiler(this).translateValueType(classDecl, origin, name);
+                case RECORD -> new RecordCompiler(this).translateValueType(classSymbol, classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -99,7 +100,6 @@ public class ClassCompiler {
 
             List<TopLevelDecl> result = new ArrayList<>();
             if (intermediateResult != null) {
-                var classSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
                 result.addAll(classDeclCompiler.compile(intermediateResult, classSymbol));
             }
             
@@ -135,7 +135,7 @@ public class ClassCompiler {
         var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
         if (contractAnnotation != null && contractAnnotation.immutable()) {
             if (typeForWhichCurrentClassIsDefiningContract != null) {
-                return new RecordCompiler(this).translateValueType(classDecl, origin, name);
+                return new RecordCompiler(this).translateValueType(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
             } else {
                 compiler.reportError(classDecl, "immutableInternalContract");
                 return null;
@@ -562,7 +562,7 @@ public class ClassCompiler {
     }
 
     private Formal makeReturnFormal(IOrigin origin, Type syntacticType) {
-        var name = new Name(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME);
+        var name = new Name(origin, compiler.nameCompiler.RETURN_VARIABLE_NAME);
         return new Formal(origin, name, syntacticType, false, false, null, null, false, false, false, null);
     }
 }
