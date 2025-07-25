@@ -26,7 +26,6 @@ public class ListTest {
 }
 
 @Contract
-@Modifiable
 abstract class ListContract<E> implements List<E> {
 
     JVerify.Sequence<E> elements;

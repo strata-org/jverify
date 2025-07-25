@@ -1,5 +1,5 @@
 trait Object {
-
+    function equals(other: Object): (b: bool)
 }
 
 type nat15 = x: int16 | x >= 0
@@ -44,9 +44,9 @@ datatype DString extends Object = JS(elements: seq<char16>) {
     {
       JS(this.elements[start..end])
     }
-    function equals(other: DString) : (b: bool)
+    function equals(other: Object) : (b: bool)
     {
-      this.elements == other.elements
+      other is DString && this.elements == (other as DString).elements
     }
 
     function startsWith_Cjava_lang_String(other : DString) : (b : bool)
