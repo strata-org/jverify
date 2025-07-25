@@ -4,6 +4,7 @@ import static com.aws.jverify.JVerify.*;
 
 import com.aws.jverify.*;
 
+@Modifiable
 class UserProfile {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
@@ -24,7 +25,7 @@ class UserProfile {
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
         reads(this);
-        return (@Modifiable Object)this != premiumFeatures && 
+        return (@Modifiable Object)this != premiumFeatures &&
                 (accountType != AccountType.Premium || premiumFeatures != null);
     }
 
@@ -47,6 +48,7 @@ class UserProfile {
         }
     }
 
+    @Modifiable
     static class PremiumFeatures {
         private Theme theme;
 

@@ -14,7 +14,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 import static com.aws.jverify.JVerify.reads;
 
-@JVerifyTest(dafnyVerified = 7, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 8, dafnyErrors = 0)
 public class ListTest {
 
     void Foo() {
@@ -26,6 +26,7 @@ public class ListTest {
 }
 
 @Contract
+@Modifiable
 abstract class ListContract<E> implements List<E> {
 
     JVerify.Sequence<E> elements;

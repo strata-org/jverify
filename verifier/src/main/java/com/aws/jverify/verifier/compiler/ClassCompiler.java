@@ -165,7 +165,7 @@ public class ClassCompiler {
         }
 
         var definingSymbol = getCurrentTypeSymbol(classDecl.sym);
-        var externalContract = compiler.externalContractCompiler.externalContracts.get(definingSymbol);
+        var externalContract = compiler.externalContractCompiler.externalContracts.get(classDecl.sym);
         if (externalContract != null) {
             for (var ghostField : externalContract.ghostFields()) {
                 var dafnyMember = translateField(ghostField);
@@ -184,33 +184,25 @@ public class ClassCompiler {
         }
 
         // TODO: Check for existing equals()
-        var symtab = Symtab.instance(compiler.context);
-        var objectName = "Object";
-        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, objectName, null)),
-                false, true, null, null, false, false, false, null);
-        var equalsFunction = new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
-                List.of(otherIn),
-                List.of(), List.of(), new Specification<>(List.of(), null),
-                new Specification<>(List.of(), null), false, false, null, new BoolType(origin),
-                null, null, null);
-        members.add(equalsFunction);
+        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
         
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
         if (definingSymbol.getSuperclass() != null) {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
         }
-        var modifiableObjectType = new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
-        var superTraits = Stream.concat(Stream.of(modifiableObjectType),
-                        baseTypes
+        var superTraits = baseTypes
                     .filter(compiler::typeHasAContract)
-                    .map((com.sun.tools.javac.code.Type type) -> {
-                        return compiler.translateType(type, origin, null);
-                    }))
-                .collect(Collectors.<Type>toList());
+                    .map((com.sun.tools.javac.code.Type type) ->
+                        compiler.translateType(type, origin, null)
+                    );
+        if (compiler.isAnnotated(classDecl.type, Modifiable.class)) {
+            var modifiableObjectType = new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
+            superTraits = Stream.concat(Stream.of(modifiableObjectType), superTraits);
+        }
 
         var typeParameters = translateTypeParameters(classDecl.typarams);
         return new ClassDecl(origin, new Name(name.getOrigin(), name.getValue()), null,
-                typeParameters, members, superTraits, false);
+                typeParameters, members, superTraits.collect(Collectors.<Type>toList()), false);
     }
 
     public List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {

@@ -96,6 +96,8 @@ public class RecordCompiler {
             }
         }
 
+        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
+
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }

@@ -648,5 +648,15 @@ public class JavaToDafnyCompiler {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
+
+    public static Function equalsFunctionDeclaration(IOrigin origin) {
+        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, "Object", null)),
+                false, true, null, null, false, false, false, null);
+        return new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
+                List.of(otherIn),
+                List.of(), List.of(), new Specification<>(List.of(), null),
+                new Specification<>(List.of(), null), false, false, null, new BoolType(origin),
+                null, null, null);
+    }
 }
 
