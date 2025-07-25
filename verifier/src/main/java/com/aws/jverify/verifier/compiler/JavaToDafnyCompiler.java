@@ -650,7 +650,7 @@ public class JavaToDafnyCompiler {
     }
 
     public static Function equalsFunctionDeclaration(IOrigin origin) {
-        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, "Object", null)),
+        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null)),
                 false, true, null, null, false, false, false, null);
         return new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
                 List.of(otherIn),
