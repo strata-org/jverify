@@ -640,5 +640,22 @@ public class JavaToDafnyCompiler {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
+
+    public boolean useConstructorFunction(JCTree.JCNewClass newClass,
+                                                 Symbol.ClassSymbol classSymbol) {
+        return isRecord(newClass.type) || isImmutableClass(classSymbol);
+    }
+
+    private boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
+        var decls = externalContractCompiler.declarationsForSymbolContract.get(classSymbol);
+        boolean immutableClass = false;
+        if (decls.size() == 1) {
+            var contract = decls.getFirst().sym.getAnnotation(Contract.class);
+            if (contract != null) {
+                immutableClass = contract.immutable();
+            }
+        }
+        return immutableClass;
+    }
 }
 
