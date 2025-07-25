@@ -1,4 +1,6 @@
-trait Object {}
+trait Object {
+
+}
 
 type nat15 = x: int16 | x >= 0
 type int16 = x: int | -0x8000 <= x <= 0x7fff
@@ -11,7 +13,7 @@ type int64 = x: int | -0x8000_0000_0000_0000 <= x <= 0x7fff_ffff_ffff_ffff
 
 // Base type is int and not char, because Java's char allows surrogates and Dafny's char does not
 type char16 = i: int | 0x0000 <= i <= 0xffff
-datatype DString = JS(elements: seq<char16>) {
+datatype DString extends Object = JS(elements: seq<char16>) {
     function indexOf_i(c: char16) : (result:int32)
         ensures -1 <= result < |this.elements|
         ensures (result == -1 <==> forall i | 0 <= i < |this.elements| :: this.elements[i] != c)
