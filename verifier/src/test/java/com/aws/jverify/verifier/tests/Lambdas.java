@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 // TODO move method references to separate test file
-@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 33, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
     public void useLambdas() {
