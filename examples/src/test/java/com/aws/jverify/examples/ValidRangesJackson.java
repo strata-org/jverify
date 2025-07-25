@@ -4,9 +4,9 @@ import com.aws.jverify.CheckPreconditionsAtRuntime;
 import com.aws.jverify.Invariant;
 import com.aws.jverify.PreconditionFailure;
 import com.aws.jverify.Verify;
-import org.gradle.internal.impldep.com.fasterxml.jackson.core.JsonProcessingException;
-import org.gradle.internal.impldep.com.fasterxml.jackson.core.type.TypeReference;
-import org.gradle.internal.impldep.com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
