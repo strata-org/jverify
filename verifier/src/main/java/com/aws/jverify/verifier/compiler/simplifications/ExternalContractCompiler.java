@@ -126,7 +126,6 @@ public class ExternalContractCompiler {
             if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
                 continue;
             }
-
             var methodSymbol = methodDecl.sym;
             var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
@@ -164,7 +163,7 @@ public class ExternalContractCompiler {
         }
 
         var arguments = JavaToDafnyCompiler.getArguments(contractAnnotation);
-        var symbol = JavaToDafnyCompiler.getClassSymbol(arguments.get("value"));
+        var symbol = JavaToDafnyCompiler.getClassSymbol(arguments.get("value"),null);
         if (symbol == null || symbol.getQualifiedName().contentEquals("com.aws.jverify.Contract")) {
             var superClass = classDecl.sym.getSuperclass();
             if (classDecl.extending != null && superClass != null) {

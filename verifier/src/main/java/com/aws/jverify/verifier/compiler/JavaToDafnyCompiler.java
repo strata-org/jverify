@@ -186,20 +186,30 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    public static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument) {
+    public static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument, com.sun.tools.javac.util.Name fieldName) {
         if (valueArgument == null) {
             return null;
         }
-        
-        if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess &&
-            fieldAccess.selected instanceof JCTree.JCIdent ident &&
-            ident.sym instanceof Symbol.ClassSymbol classSymbol)
-        {
-            return classSymbol;
+        if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess) {
+            if (fieldAccess.name.contentEquals("class")) {
+                return getClassSymbol(fieldAccess.selected, fieldName);
+            } else {
+                return getClassSymbol(fieldAccess.selected, fieldAccess.name);
+            }
+        }
+        if (valueArgument instanceof JCTree.JCIdent ident &&
+                ident.sym instanceof Symbol.ClassSymbol classSymbol) {
+            if (fieldName == null) {
+                return classSymbol;
+            }
+            else {
+                return (Symbol.ClassSymbol) classSymbol.members().findFirst(fieldName);
+            }
         } else {
             throw new JavaViolationException();
         }
     }
+
 
     public void reportError(IOrigin origin, String key, Object... args) {
         reportError(positionFromOrigin(origin), key, args);
