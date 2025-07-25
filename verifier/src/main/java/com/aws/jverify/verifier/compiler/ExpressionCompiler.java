@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
@@ -156,7 +157,8 @@ public class ExpressionCompiler {
     }
 
     private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin) {
-        if (compiler.isRecord(newClass.type)) {
+        Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
+        if (compiler.useConstructorFunction(newClass, classSymbol)) {
             return RecordCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",
@@ -234,14 +236,18 @@ public class ExpressionCompiler {
         return result;
     }
     
-    private Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
+    public Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
+        if (handleIdentifier == null) {
+            return translateIdentifierNoOverride(identifier, origin);
+        } else {
+            return handleIdentifier.apply(identifier, origin);
+        }
+    }
+    
+    public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
         if (identName.contentEquals("this")) {
-            if (handleIdentifier == null) {
-                return new ThisExpr(origin);
-            } else {
-                return handleIdentifier.apply(identifier, origin);
-            }
+            return new ThisExpr(origin);
         }
         return new NameSegment(origin, identName, null);
     }

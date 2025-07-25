@@ -1,12 +1,15 @@
 package com.aws.jverify.verifier.compiler.simplifications.workaround;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,12 +87,13 @@ public class ClassesExtendingClassesCompiler {
 
         Symtab symtab = Symtab.instance(classCompiler.compiler.context);
         if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
-            superTraits.clear();
+            superTraits = new ArrayList<>();
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
         
-        if ((!JavaToDafnyCompiler.isInterface(classSymbol) && classSymbol != symtab.recordType.tsym) 
-                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class)) {
+        var mutable = !JavaToDafnyCompiler.isInterface(classSymbol)
+                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class);
+        if (mutable) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
 

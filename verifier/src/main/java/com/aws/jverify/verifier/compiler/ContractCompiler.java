@@ -179,7 +179,7 @@ public class ContractCompiler {
             var lhs = new CasePattern<>(origin, paramName, returnVar, null);
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
-                    : new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
+                    : new NameSegment(origin, compiler.nameCompiler.RETURN_VARIABLE_NAME, null);
             var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
             var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
@@ -187,7 +187,7 @@ public class ContractCompiler {
         } else if (expr instanceof JCTree.JCMemberReference memberReference) {
             var origin = compiler.toOrigin(memberReference);
             var argBindings = List.of(new ActualBinding(null,
-                    new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
+                    new NameSegment(origin, compiler.nameCompiler.RETURN_VARIABLE_NAME, null), false));
             var callee = new ExprDotName(origin,
                     compiler.expressionCompiler.toExpr(memberReference.expr),
                     compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym)), null);
