@@ -130,7 +130,7 @@ public class BlockCompiler {
             // so that we can have allocation in e.
             var exprOrigin = compiler.toOrigin(expr);
             var returnExpr = toAssignmentRhs(expr);
-            var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
+            var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.RETURN_VARIABLE_NAME, null);
             var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
             var returnStmt = new ReturnStmt(origin, null, null);
             return List.of(assignment,returnStmt);
@@ -350,7 +350,8 @@ public class BlockCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                if (((Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz)).isRecord()) {
+                Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
+                if (compiler.useConstructorFunction(newClass, classSymbol)) {
                     var datatypeValue = RecordCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }

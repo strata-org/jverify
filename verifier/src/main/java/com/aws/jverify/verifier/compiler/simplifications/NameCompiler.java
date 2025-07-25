@@ -26,12 +26,12 @@ import java.util.Set;
  * allowing for name resolution in both directions.
  */
 public class NameCompiler {
-    static private final String sep = "'";
+    static private final String sep = "?";
     static private final String fieldPrefix = "F" + sep;
     static private final String methodPrefix = "Z" + sep;
     public String DEFAULT_CTOR_NAME = "ctor" + sep;
     public static final String NON_DEFAULT_CTOR_NAME = "ctor" + sep;
-    public String METHOD_RETURN_VARIABLE_NAME = "result" + sep;
+    public static String RETURN_VARIABLE_NAME = "result" + sep;
     public String CLASS_PREFIX = "Constructable" + sep;
     public String INIT_METHOD_PREFIX = "init" + sep;
     public String LABEL_PREFIX = "g" + sep;
