@@ -6,16 +6,16 @@ import com.aws.jverify.*;
 class Fibonacci {
     @Pure
     @Erased
-    static @Unbounded @Nat int SlowButConcise(@Unbounded @Nat int n) {
-        return n < 2 ? n : SlowButConcise(n - 1) + SlowButConcise(n - 2);
+    static @Unbounded @Nat int spec(@Unbounded @Nat int n) {
+        return n < 2 ? n : spec(n - 1) + spec(n - 2);
     }
 
-    public static @Nat int FastButVerbose(@Nat int n)
+    public static @Nat int implementation(@Nat int n)
     {
-        postcondition((int result) -> result == SlowButConcise(n));
+        postcondition((int result) -> result == spec(n));
         
         // this precondition prevents overflow later in this method
-        precondition(SlowButConcise(n) <= Integer.MAX_VALUE);
+        precondition(spec(n) <= Integer.MAX_VALUE);
 
         if (n == 0) {
             return 0;
@@ -26,8 +26,8 @@ class Fibonacci {
         int i = 1;
         while(i < n)
         {
-            invariant(result == SlowButConcise(i));
-            invariant(previousResult == SlowButConcise(i - 1));
+            invariant(result == spec(i));
+            invariant(previousResult == spec(i - 1));
             invariant(i <= n);
 
             i = i + 1;
@@ -50,13 +50,13 @@ class Fibonacci {
     static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
     {
         precondition(i <= j);
-        postcondition(SlowButConcise(i) <= SlowButConcise(j));
+        postcondition(spec(i) <= spec(j));
 
         @Unbounded @Nat int x = i;
         while(x < j)
         {
             invariant(x <= j);
-            invariant(SlowButConcise(i) <= SlowButConcise(x));
+            invariant(spec(i) <= spec(x));
             x = x + 1;
         }
     }

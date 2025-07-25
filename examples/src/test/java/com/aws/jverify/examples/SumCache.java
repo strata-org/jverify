@@ -10,7 +10,7 @@ public class SumCache {
     
     @Invariant
     boolean validSum() {
-//          ^^^^^^^^ Related: this is the postcondition that could not be proven
+//          ^^^^^^^^ Related: this is the invariant that could not be proven
         return numbers.stream().reduce(0, Integer::sum) == sum;
     }
     
@@ -18,6 +18,6 @@ public class SumCache {
         numbers.add(value);
         // we forgot to update sum
         return;
-//      ^^^^^^ Error: could not prove postcondition on return    
+//      ^^^^^^ Error: could not prove invariant on return    
     }
 }

@@ -1,6 +1,8 @@
 # Example use-cases
 This section contains a number of small code examples that hopefully give you an idea of what types of bugs you can prevent by using JVerify.
 
+The code examples make use of various JVerify features that, unless you've read other parts of this guide, you won't be familiar with. However, most of what you'll see is intuitive so we hope you can follow along. If not, please consult the rest of the guide.
+
 #### Prevent dereferencing null
 Without instructions, JVerify will detect many common types of bugs. Here's some code that shows two `NullPointerException`s being detected by JVerify:
 
@@ -23,7 +25,7 @@ Here's an example that parses text into a list of `Range` objects. There is a co
 WARNING: this example does not work yet, since we don't support `JVerify.callIfAble` yet.
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/ValidRangesIfAble.java}}
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/ProcessRangesIfAble.java}}
 ```
 
 #### Safely interacting with reflective or generated code
@@ -58,9 +60,8 @@ Sometimes we have programs whose entire desired behavior can be specified with a
 ```
 
 #### Safely optimize code
-Sometimes we have an algorithm for computing some data, but there's a different algorithm that computes it faster, at the cost of being more complex. JVerify allows you to prove that the two algorithms returns the same result. Here's an example where that is done for the fibonacci sequence: 
+Sometimes we have an algorithm for computing some data, but there's a different algorithm that computes it faster, at the cost of being more complex. JVerify allows you to prove that the two algorithms return the same result, allowing you to safely use the fast one. Here's an example where that is done for the fibonacci sequence. `spec` is the slow but concise algorithm, while `implementation` is the fast one. 
 
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java}}
 ```
-
