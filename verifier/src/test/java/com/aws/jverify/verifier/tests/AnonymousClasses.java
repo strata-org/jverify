@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings("Convert2Lambda")
-@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 25, dafnyErrors = 3, verifyPrintedDafny = true)
 public class AnonymousClasses {
 
     public void useLambdas() {
@@ -53,9 +53,9 @@ public class AnonymousClasses {
             @Override
             public int doSomething(int x, int y) {
                 precondition(x >= y);
-                postcondition((Integer r) -> r == x - y);
+                postcondition((int r) -> r == x - y);
                 return x - y;
-//                 ^ Error: value does not satisfy the subset constraints of 'int32'
+//                     ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
             }
         };
         doSomethingWithSpecTwice(arg6);
@@ -154,7 +154,7 @@ public class AnonymousClasses {
             @Override
             public int doSomething(int x, int y) {
                 precondition(x >= y);
-                postcondition((Integer r) -> r == x - y);
+                postcondition((int r) -> r == x - y);
                 throw new ContractException();
             }
         }

@@ -112,7 +112,7 @@ public class NameCompiler {
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
         if (occurrenceCount == null || occurrenceCount > 1) {
-            return classSymbol.getQualifiedName().toString().replace(".", "_");
+            return encodeName(classSymbol.flatName().toString().replace(".", "_"));
         }
         return encodeName(classSymbol.name.toString());
     }
