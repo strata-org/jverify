@@ -48,7 +48,7 @@ class C {
     @Verify
     void foo() {
         bar(); // no error
-        zaz(); // error, no precondition was specified for `zazCallee`
+        zaz(); // error, no precondition was specified for `zaz`
         zoo(); // no error
     }
 

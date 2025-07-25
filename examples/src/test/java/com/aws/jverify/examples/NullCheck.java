@@ -7,7 +7,7 @@ public class NullCheck {
     @Nullable
     Fooer fooer;
     
-    void useCanBeNull() {
+    void useFooer() {
         modifies(this);
         fooer.foo();
 //      ^^^^^ Error: target object might be null

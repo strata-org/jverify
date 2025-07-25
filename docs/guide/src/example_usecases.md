@@ -11,22 +11,43 @@ Without instructions, JVerify will detect many common types of bugs. Here's some
 #### Keep a cache up to date
 We might store some data that is an aggregate of other data. With JVerify, we can check that the aggregate remains up to date. Here's an example:
 
+WARNING: this example does not work yet due to missing contracts for the SDK.
+
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/SumCache.java}}
 ```
 
-#### Validate runtime inputs
-Here's an example that uses the annotation `@CheckPreconditionsAtRuntime` to let contracts from JVerify be checked at runtime, which is useful when we're working with external data. In this example, we receive a list of ranges, and want to make sure the range are consecutive, and each individual range ends after it starts.
+#### Validating runtime inputs
+Here's an example that parses text into a list of `Range` objects. There is a constraint that needs to hold for each individual range, and a constraint on the list of range objects. Using the method `JVerify.callIfAble`, we can do a runtime check of JVerify contracts, which allows us to concisely enter the safe contractual world without having to repeat preconditions.
+
+WARNING: this example does not work yet, since we don't support `JVerify.callIfAble` yet.
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/ValidRanges.java}}
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/ValidRangesIfAble.java}}
 ```
+
+#### Safely interacting with reflective or generated code
+Here's an example that uses the annotation `@CheckPreconditionsAtRuntime` to let contracts from JVerify be checked at runtime, which is useful when code that we don't control calls our verified code. 
+
+In this example, we're using the Jackson library to deserialize JSON into a list of `Range` objects. The library is calling the constructor of `Range`. To make sure it's not constructing invalid `Range` objects, we've marked the record `Range` with `@CheckPreconditionsAtRuntime`, so its constructor checks whether its `@Invariant` holds at runtime.
+
+WARNING: this example does not work yet, since `@CheckPreconditionsAtRuntime` is only available on methods, not on types.
+
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/ValidRangesJackson.java}}
+```
+
+If we wanted the above error handling to be more granular, like in the "Validating runtime inputs" example, then we could have defined a custom deserializer for Range that calls the default one but handles the `PreconditionFailure`.
+
+When creating a verified library that will be called from unverified code, `@CheckPreconditionsAtRuntime` can be used to ensure calls are made correctly.
 
 #### Prove partial program properties
 In the following example, we're computing a discounted price. We don't know exactly what the discounted value should be, but we do want to make sure that the discounted price is at least 30% of the original price. 
 
+WARNING: this example does not work yet due to missing contracts for the SDK.
+
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/PositivePrice.java}}
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/MinimumPricePercentage.java}}
 ```
 
 #### Prove complete program properties
@@ -37,7 +58,7 @@ Sometimes we have programs whose entire desired behavior can be specified with a
 ```
 
 #### Safely optimize code
-Sometimes we have an algorithm for computing some data, but there's a different algorithm that computes it more quickly, at the cost of being more complex. JVerify allows you to prove that the more compliated algorithm behaves the same as the slower once. Here's an example where that is done for the fibonacci sequence: 
+Sometimes we have an algorithm for computing some data, but there's a different algorithm that computes it faster, at the cost of being more complex. JVerify allows you to prove that the two algorithms returns the same result. Here's an example where that is done for the fibonacci sequence: 
 
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java}}

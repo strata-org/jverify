@@ -1,5 +1,6 @@
 package com.aws.jverify;
 
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
@@ -66,6 +67,14 @@ public class JVerify {
     }
 
     public static void postcondition(IntPredicate predicate) {
+    }
+
+    public static <T> Optional<T> callIfAble(Supplier<T> supplier) {
+        throw new ContractException();
+    }
+
+    public static boolean callIfAble(Runnable action) {
+        throw new ContractException();
     }
 
     public static interface BooleanPredicate {
