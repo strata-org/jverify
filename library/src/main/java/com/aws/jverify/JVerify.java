@@ -1,7 +1,12 @@
 package com.aws.jverify;
 
 import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class JVerify {
@@ -36,23 +41,39 @@ public class JVerify {
      * also known as a lexicographical comparison.
      */
     public static void decreases(Object... values) {}
-    
+    public static void decreases(int value) {}
+    public static void decreases(int value1, int value2) {}
+
     public static void invariant(boolean condition) {
     }
     
-    public static <T> void postcondition(Function<T, Boolean> predicate) {
+    public static <T> void postcondition(Predicate<T> predicate) {
     }
 
     /**
      * The given function must evaluate to true after this method call
      */
-    public static <T> void postcondition(Supplier<Boolean> predicate) {
+    public static <T> void postcondition(BooleanSupplier predicate) {
     }
 
     /**
      * The given expression must evaluate to true after this method call
      */
     public static void postcondition(boolean predicate) {
+    }
+
+    public static void postcondition(BooleanPredicate predicate) {
+    }
+
+    public static void postcondition(IntPredicate predicate) {
+    }
+
+    public static interface BooleanPredicate {
+        boolean test(boolean value);
+    }
+
+    public static interface IntBiPredicate {
+        boolean test(int value1, int value2);
     }
 
     /**
@@ -76,6 +97,9 @@ public class JVerify {
     public static <T> T old(T value) {
         throw new ContractException();
     }
+    public static int old(int value) {
+        throw new ContractException();
+    }
 
     /**
      * Returns true if the given object were allocated during the current method call.
@@ -88,7 +112,23 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
-    public static <T1, T2> boolean forall(BiFunction<T1, T2, Boolean> predicate) {
+    public static <T1, T2> boolean forall(BiPredicate<T1, T2> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean forall(IntPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean forall(IntBiPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static <T> boolean exists(Function<T, Boolean> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean exists(IntPredicate predicate) {
         throw new VerificationMethodExecutedException();
     }
 
@@ -118,21 +158,21 @@ public class JVerify {
     /**
      * Same as {@link #sequence(Object[])}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array) {
+    public static IntSequence sequence(int[] array) {
         throw new VerificationMethodExecutedException();
     }
 
     /**
      * Same as {@link #sequence(Object[], int)}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array, int fromIndex) {
+    public static IntSequence sequence(int[] array, int fromIndex) {
         throw new VerificationMethodExecutedException();
     }
 
     /**
      * Same as {@link #sequence(Object[], int, int)}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array, int fromIndex, int toIndex) {
+    public static IntSequence sequence(int[] array, int fromIndex, int toIndex) {
         throw new VerificationMethodExecutedException();
     }
 
@@ -163,6 +203,37 @@ public class JVerify {
          * Returns {@code true} if this sequence contains the specified element.
          */
         default boolean contains(T element) {
+            throw new VerificationMethodExecutedException();
+        }
+    }
+
+    public interface IntSequence {
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        default IntSequence drop(int fromIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
+        default IntSequence take(int toIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
+         */
+        default IntSequence subsequence(int fromIndex, int toIndex) {
+            throw new VerificationMethodExecutedException();
+        }
+
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
+        default boolean contains(int element) {
             throw new VerificationMethodExecutedException();
         }
     }

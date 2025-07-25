@@ -33,16 +33,6 @@ public class Patterns {
                     "Expected switch statement or expression but got " + switchTree.getClass());
         };
 
-        // A switch block consists of either *switch rules* (label -> body)
-        // or *switch labeled statement groups* (label: {label:} stmts).
-        // Unlike switch rules, switch labeled statement groups automatically "fall through" without break statements,
-        // but Dafny's match statement/expression can't express that easily.
-        // So for now we only support switch blocks using switch rules.
-        if (cases.getFirst().getCaseKind().equals(JCTree.JCCase.STATEMENT)) {
-            compiler.reportError(switchTree, "notSupported", "switch labeled statement group");
-            return null;
-        }
-
         return cases.stream()
                 .map(cas -> new SwitchLabelPatternAndBody(cas, translateSwitchLabel(cas), cas.getBody()))
                 .toList();
@@ -52,6 +42,17 @@ public class Patterns {
      * Translates the given switch label into a pattern.
      */
     private ExtendedPattern translateSwitchLabel(JCTree.JCCase cas) {
+
+        // A switch block consists of either *switch rules* (label -> body)
+        // or *switch labeled statement groups* (label: {label:} stmts).
+        // Unlike switch rules, switch labeled statement groups automatically "fall through" without break statements,
+        // but Dafny's match statement/expression can't express that easily.
+        // So for now we only support switch blocks using switch rules.
+        if (cas.getCaseKind().equals(JCTree.JCCase.STATEMENT)) {
+            compiler.reportError(cas, "notSupported", "switch labeled statement group");
+            return makeWildPattern(compiler.toOrigin(cas));
+        }
+
         // Each case has a *switch label*, which is either a *default label* or a *case label*.
         // A *case label* consists of either:
         //  - a list of *case constants*

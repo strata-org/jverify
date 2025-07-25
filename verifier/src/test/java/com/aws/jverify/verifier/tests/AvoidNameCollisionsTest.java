@@ -3,27 +3,32 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import java.util.function.IntPredicate;
+
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0, avoidNameCollisions = true, verifyPrintedDafny = false)
+@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0, verifyPrintedDafny = true)
 public class AvoidNameCollisionsTest {
 
     void set(int set, int r_set) {}
+    void function(int function) {}
+    void set(int set) {}
+
+    class _test {}
+
+    class a_test {}
 
     void _test() {
         var _test = 3;
         var a_test = 4;
     }
-
-    class _test {}
-    class a_test {}
     
     public int differentReturnValueNames() {
-        postcondition(this::predicate);
-        postcondition((Integer result) -> result < 3);
+        postcondition((IntPredicate)this::predicate);
+        postcondition((int result) -> result < 3);
         int result;
         int g_result;
-        int _g_result;
+        boolean _g_result = this.map(3);
         return 2;
     }
     
@@ -31,6 +36,9 @@ public class AvoidNameCollisionsTest {
     boolean predicate(int r) {
         return true;
     }
+
+    @Pure
+    boolean map(int r) {return true;}
 
     public class Base {
         public Base() {

@@ -6,23 +6,22 @@ import static com.aws.jverify.JVerify.*;
 import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Pure;
 import static com.aws.jverify.JVerify.check;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.function.Consumer;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.SequencedCollection;
 
 @Contract(Comparable.class)
 class ComparableContract<T> {
-
 }
 
-@Contract(Number.class)
-interface NumberContract {
+@Contract(value = Number.class, immutable = true)
+class NumberContract {
     
 }
 
@@ -51,6 +50,16 @@ class ShortContract {
 class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
+
+    public static Integer valueOf(int i) {
+        postcondition((Integer b) -> b.intValue() == i);
+        throw new ContractException();
+    }
+
+    @Pure
+    public int intValue() {
+        throw new ContractException();
+    }
 }
 
 @Contract(Double.class)
@@ -61,6 +70,30 @@ class DoubleContract {
 class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
+
+    public static Long valueOf(long l) {
+        postcondition((Long b) -> b.longValue() == l);
+        throw new ContractException();
+    }
+
+    @Pure
+    public long longValue() {
+        throw new ContractException();
+    }
+}
+
+@Contract(Boolean.class)
+class BooleanContract {
+
+    public static Boolean valueOf(boolean b) {
+        postcondition((Boolean boxed) -> boxed.booleanValue() == b);
+        throw new ContractException();
+    }
+
+    @Pure
+    public boolean booleanValue() {
+        throw new ContractException();
+    }
 }
 
 @Contract
@@ -82,7 +115,7 @@ class HelperForBigIntegerContract {
     @Erased
     @Pure
     static boolean isAllDigits(String v) {
-        return forall((Integer i) -> !(0<=i && i<v.length()) || (v.charAt(i) >= '0' && v.charAt(i) <= '9'));
+        return forall((int i) -> !(0<=i && i<v.length()) || (v.charAt(i) >= '0' && v.charAt(i) <= '9'));
     }
 
     @Erased
@@ -113,7 +146,7 @@ class HelperForBigIntegerContract {
     }
 }
 
-@Contract(BigInteger.class)
+@Contract(value = BigInteger.class, immutable = true)
 class BigIntegerContract  {
     // Field holding the value of the BigInteger
     @Unbounded int intValue;
@@ -126,70 +159,67 @@ class BigIntegerContract  {
 
     @Pure
     int intValue() {
-        reads(this);
         precondition(intValue >= Integer.MIN_VALUE && intValue <= Integer.MAX_VALUE);
-        postcondition((Integer b) -> b == intValue);
+        postcondition((int b) -> b == intValue);
         throw new ContractException();
     }
 
     BigIntegerContract add(BigIntegerContract v) {
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == this.intValue + v.intValue);
+        postcondition((BigIntegerContract b) -> b.intValue == this.intValue + v.intValue);
         throw new ContractException();
     }
 
     BigIntegerContract subtract(BigIntegerContract v) {
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == this.intValue - v.intValue);
+        postcondition((BigIntegerContract b) -> b.intValue == this.intValue - v.intValue);
         throw new ContractException();
     }
 
     BigIntegerContract multiply(BigIntegerContract v) {
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == this.intValue * v.intValue);
+        postcondition((BigIntegerContract b) -> b.intValue == this.intValue * v.intValue);
         throw new ContractException();
     }
 
     BigIntegerContract divide(BigIntegerContract v) {
         precondition(v.intValue != 0);
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == this.intValue / v.intValue);
+        postcondition((BigIntegerContract b) -> b.intValue == this.intValue / v.intValue);
         throw new ContractException();
     }
 
     @Pure
     int compareTo(BigIntegerContract v) {
-        reads(this);
-        reads(v);
-        postcondition((Integer r) -> (r < 0 && this.intValue < v.intValue) || (r == 0 && this.intValue == v.intValue) || (r > 0 && this.intValue > v.intValue));
+        postcondition((int r) -> (r < 0 && this.intValue < v.intValue) || (r == 0 && this.intValue == v.intValue) || (r > 0 && this.intValue > v.intValue));
         throw new ContractException();
     }
 
     BigIntegerContract abs() {
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == (this.intValue < 0 ? -this.intValue : this.intValue));
+        postcondition((BigIntegerContract b) -> b.intValue == (this.intValue < 0 ? -this.intValue : this.intValue));
         throw new ContractException();
     }
 
     BigIntegerContract min(BigIntegerContract v) {
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == (this.intValue < v.intValue ? this.intValue : v.intValue));
+        postcondition((BigIntegerContract b) -> b.intValue == (this.intValue < v.intValue ? this.intValue : v.intValue));
         throw new ContractException();
     }
 
     BigIntegerContract max(BigIntegerContract v) {
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == (this.intValue > v.intValue ? this.intValue : v.intValue));
+        postcondition((BigIntegerContract b) -> b.intValue == (this.intValue > v.intValue ? this.intValue : v.intValue));
         throw new ContractException();
     }
 
     BigIntegerContract mod(BigIntegerContract v) {
         precondition(v.intValue != 0);
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == this.intValue % v.intValue);
+        postcondition((BigIntegerContract b) -> b.intValue == this.intValue % v.intValue);
         throw new ContractException();
     }
 
     BigIntegerContract negate() {
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == -this.intValue);
+        postcondition((BigIntegerContract b) -> b.intValue == -this.intValue);
         throw new ContractException();
     }
 
     BigIntegerContract pow(int exponent) {
         precondition(exponent >= 0);
-        postcondition((BigIntegerContract b) -> fresh(b) && b.intValue == HelperForBigIntegerContract.pow(intValue, exponent));
+        postcondition((BigIntegerContract b) -> b.intValue == HelperForBigIntegerContract.pow(intValue, exponent));
         throw new ContractException();
     }
 
@@ -200,8 +230,7 @@ class BigIntegerContract  {
 
     @Pure
     public int signum() {
-        reads(this);
-        postcondition((Integer b) -> b == (intValue < 0 ? -1 : intValue == 0 ? 0 : 1));
+        postcondition((int b) -> b == (intValue < 0 ? -1 : intValue == 0 ? 0 : 1));
         throw new ContractException();
     }
 

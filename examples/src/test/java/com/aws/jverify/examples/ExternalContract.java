@@ -14,7 +14,7 @@ public class ExternalContract implements Foo {
     
     public int foo(int x) {
         precondition(x > 0);
-        postcondition((Integer i) -> i >= i + 1);
+        postcondition((int i) -> i >= i + 1);
         throw new ContractException();
     }
     

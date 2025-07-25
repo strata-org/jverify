@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Immutable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -9,8 +8,8 @@ import static com.aws.jverify.JVerify.*;
 @JVerifyTest(dafnyVerified = 6, dafnyErrors = 0)
 public class PolymorphismWithoutBounds {
 
-    public static <T> void valueObjectIsTop(T value) {
-        @Immutable Object o = value;
+    public static <T> void objectIsTop(T value) {
+        Object o = value;
     }
     
     public static void root() {

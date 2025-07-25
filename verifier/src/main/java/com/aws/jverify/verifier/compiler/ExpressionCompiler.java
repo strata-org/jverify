@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.Immutable;
+import com.aws.jverify.Contract;
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
@@ -75,7 +76,10 @@ public class ExpressionCompiler {
             final Expression translatedBody;
 
             // A switch rule introduces either an expression, a block, or a throw statement.
-            if (body instanceof JCTree.JCExpression) {
+            if (body == null) {
+                // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
+                translatedBody = JavaToDafnyCompiler.getHole(origin);
+            } else if (body instanceof JCTree.JCExpression) {
                 translatedBody = toExpr(body);
             } else {
                 var bodyKind = body instanceof JCTree.JCBlock ? "block" : "throw statement";
@@ -153,7 +157,8 @@ public class ExpressionCompiler {
     }
 
     private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin) {
-        if (compiler.isRecord(newClass.type)) {
+        Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
+        if (compiler.useConstructorFunction(newClass, classSymbol)) {
             return RecordCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",
@@ -169,7 +174,8 @@ public class ExpressionCompiler {
 
     private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin) {
         var castExpr = toExpr(cast.getExpression());
-        var type = compiler.translateType(cast.getType());
+
+        var type = compiler.translateType(cast);
         return new ConversionExpr(origin, castExpr, type, "");
     }
 
@@ -230,14 +236,18 @@ public class ExpressionCompiler {
         return result;
     }
     
-    private Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
+    public Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
+        if (handleIdentifier == null) {
+            return translateIdentifierNoOverride(identifier, origin);
+        } else {
+            return handleIdentifier.apply(identifier, origin);
+        }
+    }
+    
+    public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
         if (identName.contentEquals("this")) {
-            if (handleIdentifier == null) {
-                return new ThisExpr(origin);
-            } else {
-                return handleIdentifier.apply(identifier, origin);
-            }
+            return new ThisExpr(origin);
         }
         return new NameSegment(origin, identName, null);
     }
@@ -262,7 +272,7 @@ public class ExpressionCompiler {
             List<Type> arguments;
             if (typeApply.getTypeArguments().isEmpty()) {
                 // Occurs when the type arguments were inferred
-                arguments = typeApply.type.getTypeArguments().stream().map(t -> compiler.translateType(null, t, origin)).toList();
+                arguments = typeApply.type.getTypeArguments().stream().map(t -> compiler.translateType(t, origin, null)).toList();
             } else {
                 arguments = typeApply.getTypeArguments().stream().map(compiler::translateType).toList();
             }
@@ -434,8 +444,8 @@ public class ExpressionCompiler {
         }
 
         var symtab = Symtab.instance(this.compiler.context);
-        if (type == symtab.objectType) {
-            return compiler.isAnnotated(type, Immutable.class);
+        if (type.baseType() == symtab.objectType) {
+            return !compiler.isAnnotated(type, Modifiable.class);
         }
 
         var types = Types.instance(this.compiler.context);

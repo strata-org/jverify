@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Immutable;
+import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -69,4 +69,10 @@ class RecordsErrors {
         boolean open();
         boolean close();
     }
+    
+    @Contract(value = WantsContract.class, immutable = true)
+//  ^ error: class 'WantsContract' must not have an externally defined contract because all its contracts can be defined internally
+    class WantsContractContract {}
+    
+    class WantsContract {}
 }

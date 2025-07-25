@@ -116,7 +116,10 @@ public class ContractCompiler {
                 header.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
             }
             case "postcondition" -> {
-                handlePostcondition(header, invocation);
+                if (invocation.args.size() != 1) {
+                    throw new JavaViolationException("A postcondition call may have only one argument");
+                }
+                handlePostcondition(header, invocation.getArguments().getFirst());
             }
             case "invariant" -> {
                 if (invocation.args.size() != 1) {
@@ -126,7 +129,12 @@ public class ContractCompiler {
             }
             case "decreases" -> {
                 for(var decrease : invocation.getArguments()) {
-                    header.decreases.add(compiler.expressionCompiler.toExpr(decrease));
+                    // The LOWER javac phase inserts an explicit NewArray for varargs
+                    if (decrease instanceof JCTree.JCNewArray newArray) {
+                        header.decreases.addAll(newArray.getInitializers().map(compiler.expressionCompiler::toExpr));
+                    } else {
+                        header.decreases.add(compiler.expressionCompiler.toExpr(decrease));
+                    }
                 }
             }
             case "reads" -> {
@@ -157,41 +165,40 @@ public class ContractCompiler {
         return true;
     }
 
-    private void handlePostcondition(MethodOrLoopContract header, JCTree.JCMethodInvocation invocation) {
-        if (invocation.args.size() != 1) {
-            throw new JavaViolationException("A postcondition call may have only one argument");
-        }
-        var first = invocation.getArguments().getFirst();
-        if (first instanceof JCTree.JCLambda lambda) {
+    private void handlePostcondition(MethodOrLoopContract header, JCTree.JCExpression expr) {
+        if (expr instanceof JCTree.JCLambda lambda) {
             if (lambda.getParameters().size() != 1) {
                 throw new JavaViolationException("A postcondition call lambda may take only one argument");
             }
             var parameter = lambda.params.getFirst();
             var origin = compiler.toOrigin(lambda);
             var paramName = parameter.getName().toString();
-            var type = compiler.translateType(null, parameter.type, compiler.toOrigin(parameter));
+            var type = compiler.translateType(parameter.type, compiler.toOrigin(parameter), null);
 
             var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
             var lhs = new CasePattern<>(origin, paramName, returnVar, null);
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
-                    : new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null);
+                    : new NameSegment(origin, compiler.nameCompiler.RETURN_VARIABLE_NAME, null);
             var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
             var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 
-        } else if (first instanceof JCTree.JCMemberReference memberReference) {
+        } else if (expr instanceof JCTree.JCMemberReference memberReference) {
             var origin = compiler.toOrigin(memberReference);
             var argBindings = List.of(new ActualBinding(null,
-                    new NameSegment(origin, compiler.nameCompiler.METHOD_RETURN_VARIABLE_NAME, null), false));
+                    new NameSegment(origin, compiler.nameCompiler.RETURN_VARIABLE_NAME, null), false));
             var callee = new ExprDotName(origin,
                     compiler.expressionCompiler.toExpr(memberReference.expr),
-                    compiler.getName(memberReference, memberReference.name), null);
+                    compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym)), null);
             var call = new ApplySuffix(origin, callee, null,
                     new ActualBindings(argBindings), null);
             header.postconditions.add(new AttributedExpression(call, null, null));
+        } else if (expr instanceof JCTree.JCTypeCast typeCast) {
+            // Casts like (IntPredicate) are sometimes necessary to disambiguate
+            handlePostcondition(header, typeCast.getExpression());
         } else {
-            var dafnyExpr = compiler.expressionCompiler.toExpr(first);
+            var dafnyExpr = compiler.expressionCompiler.toExpr(expr);
             header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
         }
     }
