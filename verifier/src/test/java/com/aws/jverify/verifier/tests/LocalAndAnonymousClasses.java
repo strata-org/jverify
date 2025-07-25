@@ -8,22 +8,24 @@ import static com.aws.jverify.JVerify.*;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@SuppressWarnings("Convert2Lambda")
+@SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef"})
 @JVerifyTest(exitCode = 4, dafnyVerified = 25, dafnyErrors = 3, verifyPrintedDafny = true)
-public class AnonymousClasses {
+public class LocalAndAnonymousClasses {
 
     public void useLambdas() {
-        SomethingDoer arg1 = new SomethingDoer() {
+        class LocalSomethingDoerClass implements SomethingDoer {
             @Override
             public int doSomething(int x, int y) {
                 return add(x, y);
             }
         };
+        var arg1 = new LocalSomethingDoerClass();
         doSomethingTwice(arg1);
+        
         SomethingDoer arg2 = new SomethingDoer() {
             @Override
             public int doSomething(int x, int y) {
-                return AnonymousClasses.this.add(x, y);
+                return LocalAndAnonymousClasses.this.add(x, y);
             }
         };
         doSomethingTwice(arg2);
@@ -37,7 +39,7 @@ public class AnonymousClasses {
         SomethingDoer arg4 = new SomethingDoer() {
             @Override
             public int doSomething(int x, int y) {
-                return AnonymousClasses.staticAdd(x, y);
+                return LocalAndAnonymousClasses.staticAdd(x, y);
             }
         };
         doSomethingTwice(arg4);
