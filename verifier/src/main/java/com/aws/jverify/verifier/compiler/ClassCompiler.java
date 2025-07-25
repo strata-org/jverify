@@ -7,7 +7,6 @@ import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompile
 import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.source.tree.Tree;
-import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;

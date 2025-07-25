@@ -8,16 +8,11 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
-import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
-
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isInterface;
 
 public class ClassesExtendingClassesCompiler {
     public static final String DAFNY_REFERENCE_BASE_TYPE = "object";
