@@ -158,28 +158,12 @@ public class ExpressionCompiler {
 
     private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin) {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
-        if (useConstructorFunction(compiler, newClass, classSymbol)) {
+        if (compiler.useConstructorFunction(newClass, classSymbol)) {
             return RecordCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",
                 "using 'new' in an expression to create an instance of a non-record class");
         return JavaToDafnyCompiler.getHole(origin);
-    }
-
-    public static boolean useConstructorFunction(JavaToDafnyCompiler compiler,  JCTree.JCNewClass newClass, Symbol.ClassSymbol classSymbol) {
-        return compiler.isRecord(newClass.type) || isImmutableClass(compiler, classSymbol);
-    }
-
-    private static boolean isImmutableClass(JavaToDafnyCompiler compiler, Symbol.ClassSymbol classSymbol) {
-        var decls = compiler.externalContractCompiler.declarationsForSymbolContract.get(classSymbol);
-        boolean immutableClass = false;
-        if (decls.size() == 1) {
-            var contract = decls.getFirst().sym.getAnnotation(Contract.class);
-            if (contract != null) {
-                immutableClass = contract.immutable();
-            }
-        }
-        return immutableClass;
     }
 
     private TypeTestExpr translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin) {
