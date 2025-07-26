@@ -12,7 +12,7 @@ import static com.aws.jverify.JVerify.precondition;
 @JVerifyTest(exitCode = 4, dafnyVerified = 25, dafnyErrors = 3, verifyPrintedDafny = true)
 public class LocalAndAnonymousClasses {
 
-    public void useLambdas() {
+    public void useAnonymousClasses() {
         class LocalSomethingDoerClass implements SomethingDoer {
             @Override
             public int doSomething(int x, int y) {
