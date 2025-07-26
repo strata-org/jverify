@@ -60,7 +60,7 @@ Sometimes we have programs whose entire desired behavior can be specified with a
 ```
 
 #### Safely optimize code
-Sometimes we have an algorithm for computing some data, but there's a different algorithm that computes it faster, at the cost of being more complex. JVerify allows you to prove that the two algorithms return the same result, allowing you to safely use the fast one. Here's an example where that is done for the fibonacci sequence. `spec` is the slow but concise algorithm, while `implementation` is the fast one. 
+Sometimes we have an algorithm for computing some data, but there's a different algorithm that computes it faster, at the cost of being more complex. JVerify allows you to prove that the two algorithms return the same result, allowing you to safely use the fast one. Here's an example where that is done for the Fibonacci sequence. `spec` is the slow but concise algorithm, while `implementation` is the fast one. 
 
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java}}
