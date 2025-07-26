@@ -14,7 +14,7 @@ To see examples of bugs that JVerify can detect, have a look at [this section](.
 #### Can I use JVerify right now?
 No, JVerify is not yet ready for production use. 
 
-However, you can use the [installation](./installation.md) and [Rrunning JVerify](./first_verification.md) sections in this guide to explore what it can currently do. Note that you will run into poor error messages, unsupported features and bugs - that are not yours ;-).
+However, you can use the [installation](./installation.md) and [Running JVerify](./first_verification.md) sections in this guide to explore what it can currently do. Note that you will run into poor error messages, unsupported features and bugs - that are not yours ;-).
 
 #### Does JVerify support the entire Java language?
 It will. You can find the list of currently supported features here: [supported Java features](./supported_java_features.md).
