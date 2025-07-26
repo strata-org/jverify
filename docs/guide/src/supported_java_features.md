@@ -31,6 +31,7 @@ JVerify intends to support the full Java language, but is currently being develo
   - Overriding `equals(Object)` or `hashCode()` is not allowed
 - `implements`
 - `extends`
+- Local and anonymous classes
 - Lambda expressions
 - Method references
 - Type parameters, including type parameter bounds
