@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
@@ -158,7 +157,7 @@ public class ExpressionCompiler {
 
     private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin) {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
-        if (compiler.useConstructorFunction(newClass, classSymbol)) {
+        if (compiler.isValueType(classSymbol)) {
             return RecordCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",

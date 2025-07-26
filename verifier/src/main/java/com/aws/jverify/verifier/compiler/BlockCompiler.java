@@ -351,7 +351,7 @@ public class BlockCompiler {
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-                if (compiler.useConstructorFunction(newClass, classSymbol)) {
+                if (compiler.isValueType(classSymbol)) {
                     var datatypeValue = RecordCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }

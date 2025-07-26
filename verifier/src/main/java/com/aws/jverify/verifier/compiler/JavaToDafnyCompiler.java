@@ -31,6 +31,7 @@ import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.traverse.TopologicalOrderIterator;
 
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.lang.annotation.Annotation;
@@ -641,9 +642,47 @@ public class JavaToDafnyCompiler {
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
 
-    public boolean useConstructorFunction(JCTree.JCNewClass newClass,
-                                                 Symbol.ClassSymbol classSymbol) {
-        return isRecord(newClass.type) || isImmutableClass(classSymbol);
+    public boolean isValueType(Symbol.ClassSymbol classSymbol) {
+        Symtab symtab = Symtab.instance(context);
+        if (classSymbol.type == symtab.objectType) {
+            return true;
+        }
+        if (JavaToDafnyCompiler.isInterface(classSymbol)
+                || isAnnotated(classSymbol.type, Modifiable.class)) {
+            return true;
+        }
+        boolean anonymousValueType = isAnonymousValueType(classSymbol);
+        if (anonymousValueType) {
+            return true;
+        }
+        return isRecord(classSymbol.type) || isImmutableClass(classSymbol);
+    }
+    
+    public boolean isAnonymousValueType(Symbol.ClassSymbol classSymbol) {
+        if (classSymbol.isAnonymous()) {
+            if (hasNonFinalFields(classSymbol)) {
+                return false;
+            }
+            com.sun.tools.javac.code.Type superclass = classSymbol.getSuperclass();
+            if (superclass != null) {
+                if (!isValueType((Symbol.ClassSymbol) superclass.tsym)) {
+                    return false;
+                }
+            }
+            return classSymbol.getInterfaces().stream().
+                    allMatch(it -> isValueType((Symbol.ClassSymbol) it.tsym));
+        }
+        return false;
+    }
+    
+    public boolean hasNonFinalFields(Symbol.ClassSymbol classSymbol) {
+        for (Symbol member : classSymbol.getEnclosedElements()) {
+            if (member.getKind() == ElementKind.FIELD &&
+                    (member.flags() & Flags.FINAL) == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
