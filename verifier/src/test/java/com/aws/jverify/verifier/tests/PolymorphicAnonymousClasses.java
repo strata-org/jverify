@@ -2,11 +2,11 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 4, dafnyErrors = 0,
+@JVerifyTest(exitCode = 0, dafnyVerified = 5, dafnyErrors = 0,
         verifyPrintedDafny = true)
 public class PolymorphicAnonymousClasses {
 
-    class Anything {}
+    static class Anything {}
     void lambdaForGenericInterfaces() {
         var fooArg = new MyConsumer<Anything>() {
             @Override
@@ -15,7 +15,7 @@ public class PolymorphicAnonymousClasses {
             }
         };
         foo(fooArg);
-        
+
         var barArg = new MyProducer<Anything>() {
             @Override
             public Anything produce() {
@@ -25,19 +25,19 @@ public class PolymorphicAnonymousClasses {
         bar(barArg);
     }
 
-//    <U> void lambdaForGenericMethod() {
-//        var zazArg = new MyConsumer<U>() {
-//            @Override
-//            public int consume(U value) {
-//                return 3;
-//            }
-//        };
-//        zaz(zazArg);
-//    }
+    <U> void lambdaForGenericMethod() {
+        var zazArg = new MyConsumer<U>() {
+            @Override
+            public int consume(U value) {
+                return 3;
+            }
+        };
+        zaz(zazArg);
+    }
 
     void foo(MyConsumer<Anything> f) {}
     void bar(MyProducer<Anything> f) {}
-    //<R> void zaz(MyConsumer<R> f) {}
+    <R> void zaz(MyConsumer<R> f) {}
 
 //    static class GenericClass<U> {
 //        void lambdaForGenericClass() {
