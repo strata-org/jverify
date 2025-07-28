@@ -128,8 +128,13 @@ public class RecordCompiler {
 
     private void translateConstructor(JCTree.JCClassDecl classDecl, IOrigin origin,
                                       JCTree.JCMethodDecl methodDecl, ArrayList<MemberDecl> members) {
-        if (isImplicitCanonicalConstructor(methodDecl)) {
+        if (isCanonicalRecordConstructor(methodDecl)) {
             return;
+        }
+        
+        if (classDecl.sym.isAnonymous()) {
+            // infer behavior for anonymous constructor
+            // keep the receiver argument even if there is no receiver field.
         }
         
         NameSegment resultReference = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
@@ -169,11 +174,15 @@ public class RecordCompiler {
     /**
      * Returns whether the declaration is a record's synthetic (implicit) canonical constructor.
      */
-    public static boolean isImplicitCanonicalConstructor(JCTree.JCMethodDecl methodDecl) {
+    public static boolean isCanonicalRecordConstructor(JCTree.JCMethodDecl methodDecl) {
         if (methodDecl == null) {
+            // TODO: Why this if again?
             return false;
         }
-        return (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0;
+        
+        return TreeInfo.isCanonicalConstructor(methodDecl) &&
+        // TODO: Is this part necessary?        
+                (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0;
     }
 
     /**
@@ -189,7 +198,7 @@ public class RecordCompiler {
         }
 
         JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.compiler.context);
-        boolean callDatatypeConstructor = isImplicitCanonicalConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
+        boolean callDatatypeConstructor = isCanonicalRecordConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
             
         var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
