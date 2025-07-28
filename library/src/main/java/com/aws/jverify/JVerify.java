@@ -1,5 +1,6 @@
 package com.aws.jverify;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
@@ -67,6 +68,9 @@ public class JVerify {
     }
 
     public static void postcondition(IntPredicate predicate) {
+    }
+
+    public static <T> void preconditionOf(T value) {
     }
 
     public static <T> Optional<T> callIfAble(Supplier<T> supplier) {

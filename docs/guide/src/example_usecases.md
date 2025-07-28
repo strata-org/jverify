@@ -13,7 +13,7 @@ Without instructions, JVerify will detect many common types of bugs. Here's some
 #### Keep a cache up to date
 We might store some data that is an aggregate of other data. With JVerify, we can check that the aggregate remains up to date. Here's an example:
 
-WARNING: this example does not work yet due to missing contracts for the SDK.
+WARNING: this example does not work yet due to missing contracts for the standard library.
 
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/SumCache.java}}
@@ -43,20 +43,22 @@ If we wanted the above error handling to be more granular, like in the "Validati
 
 When creating a verified library that will be called from unverified code, `@CheckPreconditionsAtRuntime` can be used to ensure calls are made correctly.
 
-#### Prove partial program properties
-In the following example, we're computing a discounted price. We don't know exactly what the discounted value should be, but we do want to make sure that the discounted price is at least 30% of the original price. 
-
-WARNING: this example does not work yet due to missing contracts for the SDK.
-
-```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/MinimumPricePercentage.java}}
-```
-
-#### Prove complete program properties
-Sometimes we have programs whose entire desired behavior can be specified with a property that's much simpler than the program itself. Here follows an example of a `findIndex` method that is implemented using binary search. Its desired behavior, to find the index of an element in an array if it exists, is specified in two lines, but the algorithm to compute that result is much more complicated.
+#### Prove implementation matches a much simpler specification
+Here follows an example of a `findIndex` method that is implemented using binary search. Its desired behavior, to find the index of an element in an array if it exists, is specified in two lines, but the algorithm to compute that result is much more complicated.
 
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java}}
+```
+
+#### Prove properties of a specification
+In many cases, you might be unsure that your specification does exactly what you want it to. Luckily, you can increase your confidence by proving properties of the specification.
+
+In the following example, we're computing a discounted price, but we're worried about discounting too much. To increase our confidence, we write a separate proof that the discounted price is at least 30% of the original price.
+
+WARNING: this example does not work yet due to missing contracts for the standard library.
+
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/MinimumPricePercentage.java}}
 ```
 
 #### Safely optimize code

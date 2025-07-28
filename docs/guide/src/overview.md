@@ -17,19 +17,23 @@ No, JVerify is not yet ready for production use.
 However, you can use the [installation](./installation.md) and [Rrunning JVerify](./first_verification.md) sections in this guide to explore what it can currently do. Note that you will run into poor error messages, unsupported features and bugs - that are not yours ;-).
 
 #### Does JVerify support the entire Java language?
-It will. You can find the list of currently supported features here: [supported Java features](./supported_java_features.md).
+Yes, it will support all Java language features. Note that we differentiate between Java the language, as documented in [its specification](https://docs.oracle.com/javase/specs/), and the Java standard library. More on JVerify's support for the latter is further down this FAQ.
+
+Despite JVerify supporting all Java language features, there may be edge-cases where despite sufficient verification hints by the programmer, JVerify can not prove the correctness of a correct program. In these cases, you can either skip verification, or otherwise you will have to modify the program, even though it's already correct. One class of these edge-cases is where verification depends on information from the type system, and needs a downcast where the type system does not require one.
+
+You can find the list of currently supported Java features here: [supported Java features](./supported_java_features.md), together with the known cases where JVerify can not verify a valid programs.
 
 #### Can I gradually adopt JVerify in an existing codebase?
 Yes, more about that is in [partially verifying a codebase](./partial_verification.md).
 
 #### Can I use JVerify when calling libraries that were developed without JVerify?
 Yes, more about that is in [adding contracts to third-party code](./external_contracts.md).
-For the Java standard library, JVerify provides contracts for the most commonly used part of it out of the box.
+For the Java standard library, JVerify provides contracts for the most commonly used part of it out of the box. You can find which part of the standard library is supported in the section [supported Java features](./supported_java_features.md).
 
 #### Which IDEs can I use with JVerify?
 You can use any Java IDE when working with JVerify.
 
-#### Will adding calls to the JVerify library slow down my program?
+#### Will adding calls to the JVerify library slow down the execution of my program?
 No, more about that is in [erasing verification code during compilation](./erase_verification.md). 
 
 # This guide
