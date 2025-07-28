@@ -43,22 +43,22 @@ If we wanted the above error handling to be more granular, like in the "Validati
 
 When creating a verified library that will be called from unverified code, `@CheckPreconditionsAtRuntime` can be used to ensure calls are made correctly.
 
-#### Prove implementation matches a much simpler specification
-Here follows an example of a `findIndex` method that is implemented using binary search. Its desired behavior, to find the index of an element in an array if it exists, is specified in two lines, but the algorithm to compute that result is much more complicated.
-
-```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java}}
-```
-
 #### Prove properties of a specification
-In many cases, you might be unsure that your specification does exactly what you want it to. Luckily, you can increase your confidence by proving properties of the specification.
+Let's define the specification of your program as the concisest description you can come up with for how it should behave. In many cases, even though the specification is concise, you might be unsure that it does exactly what you want. Luckily, you can increase your confidence by verifying properties of the specification.
 
-In the following example, we're computing a discounted price, but we're worried about discounting too much. To increase our confidence, we write a separate proof that the discounted price is at least 30% of the original price.
+In the following example, we're computing a discounted price, but we're worried that we may be discounting too much. To increase our confidence, we write a separate proof that the discounted price is at least 30% of the original price.
 
 WARNING: this example does not work yet due to missing contracts for the standard library.
 
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/MinimumPricePercentage.java}}
+```
+
+#### Prove implementation matches a specification
+Here follows an example of a `findIndex` method that is implemented using binary search. Its desired behavior, to find the index of an element in an array if it exists, is specified in two lines, but the algorithm to compute that result is much more complicated.
+
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java}}
 ```
 
 #### Safely optimize code
