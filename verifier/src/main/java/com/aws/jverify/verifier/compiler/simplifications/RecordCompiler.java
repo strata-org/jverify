@@ -135,6 +135,7 @@ public class RecordCompiler {
         if (classDecl.sym.isAnonymous()) {
             // infer behavior for anonymous constructor
             // keep the receiver argument even if there is no receiver field.
+            /
         }
         
         NameSegment resultReference = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
