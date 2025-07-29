@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 5, dafnyErrors = 0,
+@JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0,
         verifyPrintedDafny = true)
 public class PolymorphicAnonymousClasses {
 
@@ -39,13 +39,21 @@ public class PolymorphicAnonymousClasses {
     void bar(MyProducer<Anything> f) {}
     <R> void zaz(MyConsumer<R> f) {}
 
-//    static class GenericClass<U> {
-//        void lambdaForGenericClass() {
-//            tar((U e) -> 3);
-//        }
-//
-//        <R> void tar(MyConsumer<R> f) {}
-//    }
+    static class GenericClass<U> {
+        U u;
+        
+        void lambdaForGenericClass() {
+            var tarArg = new MyConsumer<U>() {
+                @Override
+                public int consume(U value) {
+                    return 3;
+                }
+            };
+            tar(tarArg);
+        }
+
+        <R> void tar(MyConsumer<R> f) {}
+    }
 
     interface MyConsumer<T> {
         int consume(T value);

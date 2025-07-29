@@ -9,6 +9,7 @@ import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
 
@@ -359,7 +360,15 @@ public class BlockCompiler {
                 Name ctorName = new Name(origin, ctorNameStr);
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
                 var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), baseType.getOptTypeArguments());
-                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
+
+                Stream<Type> typeArguments = Stream.of(); //newClass.type.getTypeArguments().map()
+//                if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
+//                    var typeParameters = compiler.getAllOwnerTypeParameters(newClass.type.tsym);
+//                    Stream<Type> ownerTypes = typeParameters.map(tp -> compiler.translateType(tp.type, compiler.toOrigin(tp)));
+//                    typeArguments = Stream.concat(ownerTypes, typeArguments); 
+//                }
+                var typeArgumentsList = typeArguments.toList();
+                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, typeArgumentsList.isEmpty() ? null : typeArgumentsList));
 
                 var argBindings = newClass.getArguments().stream()
                         .map(a -> new ActualBinding(

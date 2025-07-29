@@ -201,45 +201,10 @@ public class ClassCompiler {
                 }).
                 collect(Collectors.<Type>toList());
 
-        List<JCTree.JCTypeParameter> javaTypeParams = getAllOwnerTypeParameters(classDecl.sym).toList();
+        List<JCTree.JCTypeParameter> javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
         var typeParameters = translateTypeParameters(javaTypeParams);
         return new ClassDecl(origin, new Name(name.getOrigin(), name.getValue()), null,
                 typeParameters, members, superTraits, false);
-    }
-
-    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol symbol) {
-        if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-            return getAllOwnerTypeParameters(classSymbol);
-        } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
-            return getAllOwnerTypeParameters(methodSymbol);
-        } else if (symbol instanceof Symbol.PackageSymbol) {
-            return Stream.empty();
-        }
-        throw new RuntimeException();
-    }
-    
-    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.ClassSymbol classSymbol) {
-        var trees = JVerifyIndex.instance(compiler.context);
-        JCTree.JCClassDecl decl = (JCTree.JCClassDecl)trees.getTree(classSymbol);
-        if (decl == null) {
-            // ObjectContract
-            return Stream.empty();
-        }
-        var mine = decl.getTypeParameters().stream();
-        if (classSymbol.owner == null) {
-            return mine;
-        }
-        return Stream.concat(mine, getAllOwnerTypeParameters(classSymbol.owner));
-    }
-
-    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.MethodSymbol methodSymbol) {
-        var trees = JVerifyIndex.instance(compiler.context);
-        JCTree.JCMethodDecl decl = (JCTree.JCMethodDecl)trees.getTree(methodSymbol);
-        var mine = decl.getTypeParameters().stream();
-        if (methodSymbol.owner == null) {
-            return mine;
-        }
-        return Stream.concat(mine, getAllOwnerTypeParameters(methodSymbol.owner));
     }
 
     public List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
