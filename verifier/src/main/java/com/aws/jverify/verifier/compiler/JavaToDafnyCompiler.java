@@ -39,6 +39,7 @@ import java.util.*;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -515,8 +516,6 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
 
-
-
                 if (isRecord(classType) && isNullable) {
                     reportError(origin, "notSupported", "nullable record type");
                     return null;
@@ -524,11 +523,23 @@ public class JavaToDafnyCompiler {
 
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
-                var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null)).toList();
-                if (arguments.isEmpty()) {
-                    arguments = null;
+                if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
+                    // For instance and local types, the lower phase adds references to the owning type
+                    // But it does not add type arguments when doing so
+                    // We can recover the type arguments by traversing to the type symbol.
+                    classType = (com.sun.tools.javac.code.Type.ClassType)classType.tsym.type;
                 }
-                NameSegment nameSegment = new NameSegment(origin, compiledName, arguments);
+                var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
+                if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
+                    var ownerTypes = getAllOwnerTypeParameters(classType.tsym).toList();
+                    Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, toOrigin(tp)));
+                    typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
+                }
+                var typeArguments = typeArgumentsStream.toList();
+                if (typeArguments.isEmpty()) {
+                    typeArguments = null;
+                }
+                NameSegment nameSegment = new NameSegment(origin, compiledName, typeArguments);
                 if (isNullable) {
                     nameSegment = new NameSegment(nameSegment.getOrigin(), nameSegment.getName() + nullableSuffix, nameSegment.getOptTypeArguments());
                 }
@@ -685,6 +696,41 @@ public class JavaToDafnyCompiler {
         return false;
     }
 
+    public Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol symbol) {
+        if (symbol instanceof Symbol.ClassSymbol classSymbol) {
+            return getAllOwnerTypeParameters(classSymbol);
+        } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
+            return getAllOwnerTypeParameters(methodSymbol);
+        } else if (symbol instanceof Symbol.PackageSymbol) {
+            return Stream.empty();
+        }
+        throw new RuntimeException();
+    }
+
+    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.ClassSymbol classSymbol) {
+        var trees = JVerifyIndex.instance(context);
+        JCTree.JCClassDecl decl = (JCTree.JCClassDecl)trees.getTree(classSymbol);
+        if (decl == null) {
+            // ObjectContract
+            return Stream.empty();
+        }
+        var mine = decl.getTypeParameters().stream();
+        if (classSymbol.owner == null) {
+            return mine;
+        }
+        return Stream.concat(mine, getAllOwnerTypeParameters(classSymbol.owner));
+    }
+
+    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.MethodSymbol methodSymbol) {
+        var trees = JVerifyIndex.instance(context);
+        JCTree.JCMethodDecl decl = (JCTree.JCMethodDecl)trees.getTree(methodSymbol);
+        var mine = decl.getTypeParameters().stream();
+        if (methodSymbol.owner == null) {
+            return mine;
+        }
+        return Stream.concat(mine, getAllOwnerTypeParameters(methodSymbol.owner));
+    }
+    
     private boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
         var decls = externalContractCompiler.declarationsForSymbolContract.get(classSymbol);
         boolean immutableClass = false;

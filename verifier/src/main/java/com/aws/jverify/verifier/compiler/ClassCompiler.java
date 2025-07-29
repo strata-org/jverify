@@ -203,7 +203,11 @@ public class ClassCompiler {
                 }).
                 collect(Collectors.<Type>toList());
 
-        var typeParameters = translateTypeParameters(classDecl.typarams);
+        List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
+        if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
+            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+        }
+        var typeParameters = translateTypeParameters(javaTypeParams);
         return new ClassDecl(origin, new Name(name.getOrigin(), name.getValue()), null,
                 typeParameters, members, superTraits, false);
     }
