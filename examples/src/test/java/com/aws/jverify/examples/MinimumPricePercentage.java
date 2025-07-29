@@ -1,6 +1,6 @@
 package com.aws.jverify.examples;
 
-import com.aws.jverify.Proof;
+import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
 
 import java.math.BigDecimal;
@@ -29,19 +29,18 @@ public class MinimumPricePercentage {
     // Discounted price should be at least 30% of the original
     final static BigDecimal minimumRemainingPrice = BigDecimal.valueOf(3, 1);
     
-    @Proof
-    void discountKeepsThirtyPercentAtLeast(BigDecimal startingPrice,
+    @Erased
+    BigDecimal discountKeepsThirtyPercentAtLeast(BigDecimal startingPrice,
                                            BigDecimal flatDiscount,
                                            BigDecimal discountFactor) {
-        postcondition(() -> {
+        postcondition((BigDecimal result) -> {
 //      ^^^^^^^^^^^^^ Related: this is the postcondition that could not be proven
-            var result = computeDiscountedPrice(startingPrice, flatDiscount, discountFactor);
             return result.compareTo(startingPrice.multiply(minimumRemainingPrice)) >= 0;
         });
+
+        copyPrecondition(computeDiscountedPrice(startingPrice, flatDiscount, discountFactor));
         
-        preconditionOf(computeDiscountedPrice(startingPrice, flatDiscount, discountFactor));
-    
-        return;
+        return computeDiscountedPrice(startingPrice, flatDiscount, discountFactor);
 //      ^^^^^^ Error: could not prove postcondition on this return path
     }
 }
