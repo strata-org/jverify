@@ -21,21 +21,19 @@ public class LocalAndAnonymousClasses {
         };
         var arg1 = new LocalSomethingDoerClass();
         doSomethingTwice(arg1);
-        
-        SomethingDoer arg2 = new SomethingDoer() {
+
+        doSomethingTwice(new SomethingDoer() {
             @Override
             public int doSomething(int x, int y) {
                 return LocalAndAnonymousClasses.this.add(x, y);
             }
-        };
-        doSomethingTwice(arg2);
-        SomethingDoer arg3 = new SomethingDoer() {
+        });
+        doSomethingTwice(new SomethingDoer() {
             @Override
             public int doSomething(int x, int y) {
                 return x;
             }
-        };
-        doSomethingTwice(arg3);
+        });
         SomethingDoer arg4 = new SomethingDoer() {
             @Override
             public int doSomething(int x, int y) {
@@ -44,13 +42,12 @@ public class LocalAndAnonymousClasses {
         };
         doSomethingTwice(arg4);
         int z = 42;
-        SomethingDoer arg5 = new SomethingDoer() {
+        doSomethingTwice(new SomethingDoer() {
             @Override
             public int doSomething(int x, int y) {
                 return z;
             }
-        };
-        doSomethingTwice(arg5);
+        });
         SomethingDoerWithSpec arg6 = new SomethingDoerWithSpec() {
             @Override
             public int doSomething(int x, int y) {

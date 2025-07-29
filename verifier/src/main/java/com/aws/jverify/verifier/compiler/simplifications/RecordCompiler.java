@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.fasterxml.jackson.core.TreeNode;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -132,12 +133,6 @@ public class RecordCompiler {
             return;
         }
         
-        if (classDecl.sym.isAnonymous()) {
-            // infer behavior for anonymous constructor
-            // keep the receiver argument even if there is no receiver field.
-            /
-        }
-        
         NameSegment resultReference = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
 
         java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifierOverride = (identifier, innerOrigin) -> {
@@ -158,12 +153,31 @@ public class RecordCompiler {
                 () -> classCompiler.translateMember(methodDecl),
             handleIdentifierOverride);
         
-        if (dafnyMember instanceof Constructor constructor && (constructor.getBody() == null || !shouldVerify)) {
+        if (dafnyMember instanceof Constructor constructor && (classDecl.sym.isAnonymous() || constructor.getBody() == null || !shouldVerify)) {
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
+
+            List<AttributedExpression> ens = constructor.getEns();
+            if (classDecl.sym.isAnonymous()) {
+                // infer behavior for anonymous constructor
+                // keep the receiver argument even if there is no receiver field.
+                ens = classDecl.getMembers().stream().filter(m -> m instanceof JCTree.JCVariableDecl).map(member ->
+                {
+                    var field = (JCTree.JCVariableDecl)member;
+                    IOrigin fieldOrigin = compiler.toOrigin(field);
+                    var fieldName = new Name(fieldOrigin, compiler.nameCompiler.getCompiledName(field.sym));
+                    BinaryExpr e = new BinaryExpr(fieldOrigin, BinaryExprOpcode.Eq, 
+                            new ExprDotName(fieldOrigin, resultReference, fieldName, null),
+                            new NameSegment(fieldOrigin, fieldName.getValue(), null));
+                    return new AttributedExpression(e, null, null);
+                }).toList();
+            }
             var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
-                constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), constructor.getEns(), constructor.getReads(), constructor.getDecreases(),
+                constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
+
+
+
             members.add(staticFunction);
         } else {
             if (dafnyMember != null) {
