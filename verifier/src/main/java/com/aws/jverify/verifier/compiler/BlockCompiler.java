@@ -11,7 +11,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
+import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.*;
 
 public class BlockCompiler {
 
@@ -358,9 +358,19 @@ public class BlockCompiler {
                 }
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
-                var baseType = (UserDefinedType)compiler.translateType(newClass.type, compiler.toOrigin(newClass));
+                var type = newClass.type;
+                if (type == null) {
+                    // Workaround because we're still using the unlambda phase, which does not set newClass.type
+                    type = newClass.clazz.type;
+                }
+                var baseType = (UserDefinedType)compiler.translateType(type, compiler.toOrigin(newClass));
                 var baseNameSegment = (NameSegment)baseType.getNamePath();
-                var classBaseType = new NameSegment(baseNameSegment.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseNameSegment.getName(),
+                var baseName = baseNameSegment.getName();
+                if (baseName.contains(REFERENCE_OR_VALUE_OBJECT_NAME)) {
+                    // 'new Object' should always create a Dafny ModifiableObject
+                    baseName = REFERENCE_OBJECT_NAME;
+                }
+                var classBaseType = new NameSegment(baseNameSegment.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseName,
                         baseNameSegment.getOptTypeArguments());
                 
                 var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName,null));
