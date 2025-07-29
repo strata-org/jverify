@@ -523,7 +523,9 @@ public class JavaToDafnyCompiler {
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
                 if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
-                    // Try to deal with types removed by lower phase.
+                    // For instance and local types, the lower phase adds references to the owning type
+                    // But it does not add type arguments when doing so
+                    // We can recover the type arguments by traversing to the type symbol.
                     classType = (com.sun.tools.javac.code.Type.ClassType)classType.tsym.type;
                 }
                 var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));

@@ -40,7 +40,6 @@ public class PolymorphicAnonymousClasses {
     <R> void zaz(MyConsumer<R> f) {}
 
     static class GenericClass<U> {
-        U u;
         
         void lambdaForGenericClass() {
             var tarArg = new MyConsumer<U>() {

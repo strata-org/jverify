@@ -361,14 +361,7 @@ public class BlockCompiler {
                 var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
                 var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), baseType.getOptTypeArguments());
 
-                Stream<Type> typeArguments = Stream.of(); //newClass.type.getTypeArguments().map()
-//                if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
-//                    var typeParameters = compiler.getAllOwnerTypeParameters(newClass.type.tsym);
-//                    Stream<Type> ownerTypes = typeParameters.map(tp -> compiler.translateType(tp.type, compiler.toOrigin(tp)));
-//                    typeArguments = Stream.concat(ownerTypes, typeArguments); 
-//                }
-                var typeArgumentsList = typeArguments.toList();
-                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, typeArgumentsList.isEmpty() ? null : typeArgumentsList));
+                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
                 var argBindings = newClass.getArguments().stream()
                         .map(a -> new ActualBinding(
