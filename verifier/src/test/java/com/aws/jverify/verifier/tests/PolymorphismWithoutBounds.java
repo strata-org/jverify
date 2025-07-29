@@ -3,6 +3,8 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import javax.print.attribute.PrintJobAttribute;
+
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(dafnyVerified = 6, dafnyErrors = 0)
@@ -42,10 +44,15 @@ class Dummy extends DummySuper {}
 
 class GenericContainer<T> {
     private T value;
+    NestedGenericContainer<Dummy> nestedGenericContainer;
+    NestedGenericContainer<T> nestedGenericContainerT;
 
     public GenericContainer(T value) {
         postcondition(this.value == value);
         this.value = value;
+        var dummy = new Dummy();
+        nestedGenericContainer = new NestedGenericContainer<>(dummy);
+        nestedGenericContainerT = new NestedGenericContainer<>(value);
     }
 
     @Pure
