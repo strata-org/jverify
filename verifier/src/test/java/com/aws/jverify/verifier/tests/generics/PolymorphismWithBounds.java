@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests;
+package com.aws.jverify.verifier.tests.generics;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;

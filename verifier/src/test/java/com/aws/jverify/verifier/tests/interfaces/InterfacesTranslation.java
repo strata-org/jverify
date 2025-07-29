@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests;
+package com.aws.jverify.verifier.tests.interfaces;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
