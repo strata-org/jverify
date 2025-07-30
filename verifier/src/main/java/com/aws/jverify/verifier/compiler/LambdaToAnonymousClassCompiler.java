@@ -12,7 +12,6 @@ import com.sun.tools.javac.util.Names;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static com.sun.tools.javac.code.Flags.FINAL;
 import static com.sun.tools.javac.code.Flags.SYNTHETIC;
@@ -71,6 +70,16 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         this.context = context;
     }
 
+    @Override
+    public void visitApply(JCTree.JCMethodInvocation invocation) {
+        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        if (jverifyMethod == null) {
+            super.visitApply(invocation);
+        } else {
+            result = invocation;
+        }
+    }
+    
     @Override
     public void visitLambda(JCLambda lambda) {
         // Transform lambda expression into anonymous class instance creation
@@ -342,6 +351,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                     select.type = ident.type;
                     result = select;
                 } else {
+                    if (ident.sym.owner instanceof Symbol.MethodSymbol) {
+                        ident.sym.owner = methodSymbol;
+                    }
                     result = ident;
                 }
             }
@@ -356,6 +368,15 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         Set<Symbol> captured = new HashSet<>();
 
         TreeScanner captureScanner = new TreeScanner() {
+
+            @Override
+            public void visitApply(JCTree.JCMethodInvocation invocation) {
+                var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+                if (jverifyMethod == null) {
+                    super.visitApply(invocation);
+                }
+            }
+            
             @Override
             public void visitIdent(JCIdent ident) {
                 Symbol sym = ident.sym;
@@ -372,22 +393,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         return captured;
     }
 
-    private boolean isEffectivelyFinal(Symbol sym) {
-        // Check if variable is effectively final
-        // In a real implementation, this would track assignments
-        
-        return true;
-//        return sym.isFinal();
-//        (sym.flags() & Flags.FINAL) != 0 ||
-//                sym.kind == ElementKind.PARAMETER ||
-//                isLocalVariableNeverAssigned(sym);
-    }
-
-//    private boolean isLocalVariableNeverAssigned(Symbol sym) {
-//        // Placeholder - real implementation would track assignments
-//        return sym.kind == ElementKind.LOCAL_VARIABLE;
-//    }
-
     private boolean isFromEnclosingScope(Symbol sym, JCLambda lambda) {
         // Check if the symbol is from an enclosing scope rather than lambda parameters
         for (JCVariableDecl param : lambda.params) {
@@ -398,35 +403,3 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         return true; // From enclosing scope
     }
 }
-
-/**
- * Example usage of the transformation:
- *
- * Original lambda:
- *   list.forEach(s -> System.out.println(s));
- *
- * Transformed to:
- *   list.forEach(new Consumer<String>() {
- *       public void accept(String s) {
- *           System.out.println(s);
- *       }
- *   });
- *
- * With captured variables:
- *   String prefix = "Hello ";
- *   list.forEach(s -> System.out.println(prefix + s));
- *
- * Transformed to:
- *   String prefix = "Hello ";
- *   list.forEach(new Consumer<String>() {
- *       private final String prefix;
- *
- *       Consumer(String prefix) {
- *           this.prefix = prefix;
- *       }
- *
- *       public void accept(String s) {
- *           System.out.println(this.prefix + s);
- *       }
- *   });
- */

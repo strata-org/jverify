@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 // TODO move method references to separate test file
-@JVerifyTest(exitCode = 4, dafnyVerified = 33, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 21, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
     public void useLambdas() {
@@ -24,12 +24,12 @@ public class Lambdas {
         int z = 42;
         doSomethingTwice((x, y) -> z);
         
-//        doSomethingWithSpecTwice((x, y) -> {
-//            precondition(x >= y);
-//            postcondition((int r) -> r == x - y);
-//            return x - y;
-////                 ^ Error: value does not satisfy the subset constraints of 'int32'
-//        });
+        doSomethingWithSpecTwice((x, y) -> {
+            precondition(x >= y);
+            postcondition((int r) -> r == x - y);
+            return x - y;
+//                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
+        });
 
         SomethingDoer doer = (x, y) -> {
             return x;
