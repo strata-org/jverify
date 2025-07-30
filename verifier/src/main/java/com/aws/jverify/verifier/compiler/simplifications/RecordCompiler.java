@@ -153,7 +153,11 @@ public class RecordCompiler {
                 () -> classCompiler.translateMember(methodDecl),
             handleIdentifierOverride);
         
-        if (dafnyMember instanceof Constructor constructor && (JavaToDafnyCompiler.isSynthetic(classDecl.sym.flags()) || constructor.getBody() == null || !shouldVerify)) {
+        if (dafnyMember instanceof Constructor constructor && 
+                (classDecl.sym.isAnonymous() || 
+                        JavaToDafnyCompiler.isSynthetic(classDecl.sym.flags()) || 
+                        constructor.getBody() == null || 
+                        !shouldVerify)) {
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
 
