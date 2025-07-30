@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static com.sun.tools.javac.code.Flags.FINAL;
 import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 
 /**
@@ -46,24 +47,29 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
+        List<JCExpression> capturedArgs = createCapturedArguments(lambda);
         // Get the functional interface type
         Type functionalInterface = lambda.type;
         Symbol.MethodSymbol samMethod = findSAMMethod(functionalInterface);
 
         // Create captured variable parameters for constructor
 
-        JCModifiers modifiers = make.Modifiers(SYNTHETIC);
+        JCModifiers modifiers = make.Modifiers(SYNTHETIC | FINAL);
 
+        // TODO test for collisions
+        Name append = names.lambda.append(names.fromString(lambda.pos + ""));
+        
         // Create constructor if we have captured variables
-        var classSymbol = new Symbol.ClassSymbol(modifiers.flags, names.lambda, functionalInterface.tsym);
-        classSymbol.type = new Type.ClassType(functionalInterface.getEnclosingType(), List.nil(), classSymbol);
+        var classSymbol = new Symbol.ClassSymbol(modifiers.flags, append, functionalInterface.tsym);
+        Type.ClassType classType = new Type.ClassType(functionalInterface.getEnclosingType(), List.nil(), classSymbol);
+        classType.interfaces_field = List.of(functionalInterface);
+        classSymbol.type = classType;
         classSymbol.members_field = Scope.WriteableScope.create(classSymbol);
 
         // Create the method implementation
         JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda, samMethod);
 
         List<JCVariableDecl> capturedParams = createCapturedParameters(lambda, classSymbol);
-        List<JCExpression> capturedArgs = createCapturedArguments(lambda);
         JCMethodDecl constructor = createConstructor(classSymbol, capturedParams);
         //capturedParams.isEmpty() ? null : createConstructor(capturedParams);
 
@@ -77,6 +83,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             classBody.add(constructor);
         }
         classBody.add(implMethod);
+        classSymbol.members().enter(implMethod.sym);
+        classSymbol.members().enter(constructor.sym);
 
         // Create the anonymous class definition
         JCClassDecl classDef = make.ClassDef(
@@ -84,10 +92,11 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 names.lambda,
                 List.nil(),
                 null,
-                List.nil(),
+                List.of(make.Type(functionalInterface)),
                 List.from(classBody)
         );
         classDef.sym = classSymbol;
+        classDef.type = classSymbol.type;
 
         // Create the new class expression
         JCNewClass result = make.NewClass(
@@ -169,7 +178,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                     null
             );
             field.type = sym.type;
-            field.sym = new Symbol.VarSymbol(0, field.name, field.type, classSymbol);
+            field.sym = new Symbol.VarSymbol(FINAL, field.name, field.type, classSymbol);
             fields.add(field);
             classSymbol.members().enter(field.sym);
         }
@@ -188,13 +197,13 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         // Create assignment statements for captured variables
         java.util.List<JCStatement> assignments = new ArrayList<>();
 
-        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(0, names._this, classSymbol.type, methodSymbol);
+        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, methodSymbol);
         for (JCVariableDecl param : capturedParams) {
             // this.fieldName = paramName;
             JCIdent thisIdent = make.Ident(names._this);
             thisIdent.sym = thisSymbol;
             thisIdent.type = classSymbol.type;
-            Symbol.VarSymbol fieldSym = new Symbol.VarSymbol(0, param.name, param.type, methodSymbol);
+            Symbol.VarSymbol fieldSym = new Symbol.VarSymbol(FINAL, param.name, param.type, methodSymbol);
             JCFieldAccess fieldAccess = make.Select(thisIdent, param.name);
             fieldAccess.type = param.type;
             fieldAccess.sym = fieldSym;
@@ -227,7 +236,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, JCLambda lambda, Symbol.MethodSymbol samMethod) {
 
         JCModifiers modifiers = make.Modifiers(Flags.PUBLIC | SYNTHETIC);
-        Symbol.MethodSymbol methodSymbol = new Symbol.MethodSymbol(modifiers.flags, names.init, new Type.MethodType(
+        Symbol.MethodSymbol methodSymbol = new Symbol.MethodSymbol(modifiers.flags, samMethod.name, new Type.MethodType(
                 lambda.params.map(vd -> vd.type),
                 samMethod.type.getReturnType(),
                 List.nil(), classSymbol
@@ -249,7 +258,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
         JCMethodDecl result = make.MethodDef(
                 modifiers, // public method
-                samMethod.name, // method name
+                methodSymbol.name, // method name
                 make.Type(samMethod.getReturnType()), // return type
                 List.<JCTypeParameter>nil(), // no type parameters
                 lambda.params, // use lambda parameters directly
@@ -268,7 +277,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private JCTree transformLambdaBody(Symbol.ClassSymbol classSymbol,
                                        Symbol.MethodSymbol methodSymbol,
                                        JCTree body, Set<Symbol> capturedVars) {
-        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(0, names._this, classSymbol.type, methodSymbol);
+        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, methodSymbol);
         
         // Create a transformer that replaces captured variable references with field accesses
         TreeTranslator bodyTransformer = new TreeTranslator() {
@@ -279,9 +288,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                     JCIdent thisIdent = make.Ident(names._this);
                     thisIdent.sym = thisSymbol;
                     thisIdent.type = classSymbol.type;
-                    //ident.sym = new Symbol.VarSymbol(0, ident.name,  ident.type, classSymbol);
                     JCFieldAccess select = make.Select(thisIdent, ident.name);
-                    select.sym = new Symbol.VarSymbol(0, ident.name,  ident.type, classSymbol);
+                    select.sym = new Symbol.VarSymbol(FINAL, ident.name,  ident.type, classSymbol);
                     select.type = ident.type;
                     result = select;
                 } else {

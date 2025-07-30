@@ -354,6 +354,10 @@ public class JavaToDafnyCompiler {
         return methodNode.pos == containerPos;
     }
 
+    public static boolean isSynthetic(long flags) {
+        return (flags & Flags.SYNTHETIC) == Flags.SYNTHETIC;
+    }
+    
     public static boolean isStatic(JCTree.JCModifiers modifiers) {
         return (modifiers.flags & Flags.STATIC) == Flags.STATIC;
     }
@@ -662,20 +666,20 @@ public class JavaToDafnyCompiler {
                 || isAnnotated(classSymbol.type, Modifiable.class)) {
             return true;
         }
-        boolean anonymousValueType = isAnonymousValueType(classSymbol);
+        boolean anonymousValueType = isAnonymousOrFinalValueType(classSymbol);
         if (anonymousValueType) {
             return true;
         }
         return isRecord(classSymbol.type) || isImmutableClass(classSymbol);
     }
     
-    public boolean isAnonymousValueType(Symbol.ClassSymbol classSymbol) {
-        if (classSymbol.isAnonymous()) {
+    public boolean isAnonymousOrFinalValueType(Symbol.ClassSymbol classSymbol) {
+        if (classSymbol.isAnonymous() || classSymbol.isFinal()) {
             if (hasNonFinalFields(classSymbol)) {
                 return false;
             }
             com.sun.tools.javac.code.Type superclass = classSymbol.getSuperclass();
-            if (superclass != null) {
+            if (superclass != null && superclass.tsym != null) {
                 if (!isValueType((Symbol.ClassSymbol) superclass.tsym)) {
                     return false;
                 }
