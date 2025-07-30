@@ -16,10 +16,10 @@ class Unions {
         var left = new Left<Integer, String>(5);
         var right = new Right<Integer, String>("foobar");
 
-        var mapLeft = left.bifoldMap(intPredicate, strPredicate);
+        var mapLeft = left.test(intPredicate, strPredicate);
         check(!mapLeft);
 
-        var mapRight = right.bifoldMap(intPredicate, strPredicate);
+        var mapRight = right.test(intPredicate, strPredicate);
         check(mapRight);
     }
 
@@ -44,14 +44,14 @@ class Unions {
 @Union
 sealed interface Either<T, U> {
     @Pure
-    boolean bifoldMap(Predicate<T> applyLeft, Predicate<U> applyRight);
+    boolean test(Predicate<T> applyLeft, Predicate<U> applyRight);
 }
 
 @SuppressWarnings("unused")
 @Contract(Either.class)
 final class EitherContract<T, U> implements Either<T, U> {
     @Pure
-    public boolean bifoldMap(Predicate<T> applyLeft, Predicate<U> applyRight) {
+    public boolean test(Predicate<T> applyLeft, Predicate<U> applyRight) {
         throw new ContractException();
     }
 }
@@ -59,7 +59,7 @@ final class EitherContract<T, U> implements Either<T, U> {
 record Left<T, U>(T value) implements Either<T, U> {
     @Override
     @Pure
-    public boolean bifoldMap(Predicate<T> applyLeft, Predicate<U> applyRight) {
+    public boolean test(Predicate<T> applyLeft, Predicate<U> applyRight) {
         postcondition((boolean b) -> b == applyLeft.apply(this.value()));
         return applyLeft.apply(value);
     }
@@ -68,7 +68,7 @@ record Left<T, U>(T value) implements Either<T, U> {
 record Right<T, U>(U value) implements Either<T, U> {
     @Override
     @Pure
-    public boolean bifoldMap(Predicate<T> applyLeft, Predicate<U> applyRight) {
+    public boolean test(Predicate<T> applyLeft, Predicate<U> applyRight) {
         postcondition((boolean b) -> b == applyRight.apply(this.value()));
         return applyRight.apply(value);
     }
