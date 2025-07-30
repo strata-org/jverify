@@ -163,7 +163,7 @@ public class ExternalContractCompiler {
         }
 
         var arguments = JavaToDafnyCompiler.getArguments(contractAnnotation);
-        var symbol = JavaToDafnyCompiler.getClassSymbol(arguments.get("value"),null);
+        var symbol = JavaToDafnyCompiler.getClassSymbol(arguments.get("value"));
         if (symbol == null || symbol.getQualifiedName().contentEquals("com.aws.jverify.Contract")) {
             var superClass = classDecl.sym.getSuperclass();
             if (classDecl.extending != null && superClass != null) {

@@ -36,6 +36,7 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
+import java.util.Stack;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -186,25 +187,21 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    public static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument, com.sun.tools.javac.util.Name fieldName) {
+    public static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument) {
         if (valueArgument == null) {
             return null;
         }
         if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess) {
             if (fieldAccess.name.contentEquals("class")) {
-                return getClassSymbol(fieldAccess.selected, fieldName);
-            } else {
-                return getClassSymbol(fieldAccess.selected, fieldAccess.name);
+                return getClassSymbol(fieldAccess.selected);
+            }
+            if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
+                 return classSymbol;
             }
         }
         if (valueArgument instanceof JCTree.JCIdent ident &&
                 ident.sym instanceof Symbol.ClassSymbol classSymbol) {
-            if (fieldName == null) {
                 return classSymbol;
-            }
-            else {
-                return (Symbol.ClassSymbol) classSymbol.members().findFirst(fieldName);
-            }
         } else {
             throw new JavaViolationException();
         }
