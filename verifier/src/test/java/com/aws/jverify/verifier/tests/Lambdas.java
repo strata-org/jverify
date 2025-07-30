@@ -15,8 +15,8 @@ public class Lambdas {
     public void useLambdas() {
          // doSomethingTwice((x, y) -> add(x,y));
          doSomethingTwice((x, y) -> this.add(x,y));
-//
-//        doSomethingTwice((x, y) -> x);
+
+        doSomethingTwice((x, y) -> x);
 //        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
         int z = 42;
         doSomethingTwice((x, y) -> z);
