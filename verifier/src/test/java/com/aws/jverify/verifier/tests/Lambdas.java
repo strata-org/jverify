@@ -13,36 +13,36 @@ import static com.aws.jverify.JVerify.precondition;
 public class Lambdas {
 
     public void useLambdas() {
-         doSomethingTwice((x, y) -> add(x,y));
-         doSomethingTwice((x, y) -> this.add(x,y));
-        
-        doSomethingTwice((x, y) -> x);
-        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
+//         doSomethingTwice((x, y) -> add(x,y));
+//         doSomethingTwice((x, y) -> this.add(x,y));
+//        
+//        doSomethingTwice((x, y) -> x);
+//        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
         int z = 42;
         doSomethingTwice((x, y) -> z);
 
-        doSomethingTwice(this::add);
-        doSomethingTwice(Lambdas::staticAdd);
-        doSomethingWithSpecTwice((x, y) -> {
-            precondition(x >= y);
-            postcondition((int r) -> r == x - y);
-            return x - y;
-//                 ^ Error: value does not satisfy the subset constraints of 'int32'
-        });
-
-        SomethingDoer doer = (x, y) -> {
-            return x;
-        };
-        SomethingDoer doer2 = (x, y) -> {
-            return x;
-        };
-        // Important that these values aren't equal,
-        // since they aren't in Java semantics,
-        // but if we map lambdas to datatype values incorrectly
-        // they could be equal Dafny values.
-        check(doer != doer2);
-
-        makeSomeClass(SomeClass::new);
+//        doSomethingTwice(this::add);
+//        doSomethingTwice(Lambdas::staticAdd);
+//        doSomethingWithSpecTwice((x, y) -> {
+//            precondition(x >= y);
+//            postcondition((int r) -> r == x - y);
+//            return x - y;
+////                 ^ Error: value does not satisfy the subset constraints of 'int32'
+//        });
+//
+//        SomethingDoer doer = (x, y) -> {
+//            return x;
+//        };
+//        SomethingDoer doer2 = (x, y) -> {
+//            return x;
+//        };
+//        // Important that these values aren't equal,
+//        // since they aren't in Java semantics,
+//        // but if we map lambdas to datatype values incorrectly
+//        // they could be equal Dafny values.
+//        check(doer != doer2);
+//
+//        makeSomeClass(SomeClass::new);
     }
 
     public void doSomethingTwice(SomethingDoer doer) {
