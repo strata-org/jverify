@@ -1,8 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.generated.TypeParameterEqualitySupportValue;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
-import com.sun.source.util.ParameterNameProvider;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
@@ -11,15 +9,46 @@ import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 
-import javax.lang.model.element.ElementKind;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static com.sun.tools.javac.code.Flags.FINAL;
 import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 
+class QualifyLocalMethodReferences extends TreeTranslator {
+    private final TreeMaker make;
+    private final Names names;
+    
+
+    public QualifyLocalMethodReferences(Context context) {
+        this.make = TreeMaker.instance(context);
+        this.names = Names.instance(context);
+    }
+    
+    @Override
+    public void visitIdent(JCIdent tree) {
+        if (tree.sym instanceof Symbol.MethodSymbol methodSymbol) {
+            JCIdent thisIdent;
+            if (methodSymbol.isStatic()) {
+                Name name = methodSymbol.owner.name;
+                thisIdent = make.Ident(name);
+                thisIdent.sym = methodSymbol.owner;
+                thisIdent.type = thisIdent.sym.type;
+            } else {
+                Name name = names._this;
+                thisIdent = make.Ident(name);
+                thisIdent.sym = new Symbol.VarSymbol(0, name, methodSymbol.owner.type, methodSymbol.owner);
+                thisIdent.type = thisIdent.sym.type;
+            }
+            
+            result = make.Select(thisIdent, methodSymbol);
+        } else {
+            super.visitIdent(tree);
+        }
+    }
+}
 /**
  * Hypothetical transformation that converts JCTree.JCLambda nodes into 
  * anonymous class implementations. This represents the approach that was
@@ -31,6 +60,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private final Names names;
     private final Symtab syms;
     private final Types types;
+    private final Context context;
     private int lambdaCounter = 0;
 
     public LambdaToAnonymousClassCompiler(Context context) {
@@ -38,11 +68,13 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         this.names = Names.instance(context);
         this.syms = Symtab.instance(context);
         this.types = Types.instance(context);
+        this.context = context;
     }
 
     @Override
     public void visitLambda(JCLambda lambda) {
         // Transform lambda expression into anonymous class instance creation
+        new QualifyLocalMethodReferences(context).translate(lambda);
         JCNewClass anonymousClass = transformLambdaToAnonymousClass(lambda);
         result = anonymousClass;
     }
@@ -328,7 +360,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             public void visitIdent(JCIdent ident) {
                 Symbol sym = ident.sym;
                 if (sym != null && isFromEnclosingScope(sym, lambda)) {
-                    captured.add(sym);
+                    if (!(sym instanceof Symbol.ClassSymbol) || ident.name == ident.name.table.names._this) {
+                        captured.add(sym);
+                    }
                 }
                 super.visitIdent(ident);
             }

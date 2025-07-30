@@ -13,16 +13,16 @@ import static com.aws.jverify.JVerify.precondition;
 public class Lambdas {
 
     public void useLambdas() {
-         // doSomethingTwice((x, y) -> add(x,y));
-         doSomethingTwice((x, y) -> this.add(x,y));
-
         doSomethingTwice((x, y) -> x);
-//        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
+        
+        doSomethingTwice((x, y) -> add(x,y));
+        doSomethingTwice((x, y) -> staticAdd(x,y));
+        
+        doSomethingTwice((x, y) -> this.add(x,y));
+        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
+        
         int z = 42;
         doSomethingTwice((x, y) -> z);
-
-//        doSomethingTwice(this::add);
-//        doSomethingTwice(Lambdas::staticAdd);
         
 //        doSomethingWithSpecTwice((x, y) -> {
 //            precondition(x >= y);
@@ -42,7 +42,9 @@ public class Lambdas {
         // but if we map lambdas to datatype values incorrectly
         // they could be equal Dafny values.
         check(doer != doer2);
-
+        
+//        doSomethingTwice(this::add);
+//        doSomethingTwice(Lambdas::staticAdd);
 //        makeSomeClass(SomeClass::new);
     }
 
