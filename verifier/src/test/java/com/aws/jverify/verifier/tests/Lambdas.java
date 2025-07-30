@@ -31,18 +31,18 @@ public class Lambdas {
 ////                 ^ Error: value does not satisfy the subset constraints of 'int32'
 //        });
 
-//        SomethingDoer doer = (x, y) -> {
-//            return x;
-//        };
-//        SomethingDoer doer2 = (x, y) -> {
-//            return x;
-//        };
+        SomethingDoer doer = (x, y) -> {
+            return x;
+        };
+        SomethingDoer doer2 = (x, y) -> {
+            return x;
+        };
         // Important that these values aren't equal,
         // since they aren't in Java semantics,
         // but if we map lambdas to datatype values incorrectly
         // they could be equal Dafny values.
-//        check(doer != doer2);
-//
+        check(doer != doer2);
+
 //        makeSomeClass(SomeClass::new);
     }
 
