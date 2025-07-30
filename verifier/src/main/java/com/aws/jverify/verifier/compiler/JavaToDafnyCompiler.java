@@ -36,7 +36,6 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
-import java.util.Stack;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
