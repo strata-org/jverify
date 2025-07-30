@@ -3,7 +3,6 @@ package com.aws.jverify.verifier.compiler.simplifications.workaround;
 import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
-import com.aws.jverify.Union;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
@@ -22,7 +21,7 @@ public class ClassesExtendingClassesCompiler {
         this.classCompiler = classCompiler;
     }
 
-    public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
+    public List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
         if (clazz instanceof ClassDecl classDecl) {
             return buildTraitAndClassTwin(symbol, classDecl.getOrigin(),
                     classDecl.getNameNode(), classDecl.getMembers(), 
@@ -42,7 +41,6 @@ public class ClassesExtendingClassesCompiler {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
         var classNeeded = !JavaToDafnyCompiler.isInterfaceOrAbstract(classSymbol);
-        var unionSubsetNeeded = classCompiler.compiler.isAnnotated(classSymbol.type, Union.class);
 
         for(var member : members) {
             switch (member) {
@@ -108,12 +106,6 @@ public class ClassesExtendingClassesCompiler {
                     typeParameters, classMembers, List.of(traitType), false);
             decls.add(clazz);
         }
-        if (unionSubsetNeeded) {
-            var subset = buildUnionSubsetType(classSymbol, origin, name, typeParameters, traitType);
-            if (subset != null) {
-                decls.add(subset);
-            }
-        }
         return decls;
     }
 
@@ -137,51 +129,4 @@ public class ClassesExtendingClassesCompiler {
                 modClause,
                 false, List.of(), body, false);
     }
-
-    private @Nullable SubsetTypeDecl buildUnionSubsetType(
-            Symbol.ClassSymbol classSymbol, IOrigin origin, Name name,
-            List<TypeParameter> typeParameters, Type traitType) {
-        if (!isSealedInterface(classSymbol)) {
-            classCompiler.compiler.reportError(origin, "unionMustBeSealedInterface");
-            return null;
-        }
-
-        // Any @Contract class must implement the interface and so must appear in the permits clause,
-        // but shouldn't be translated to a datatype constructor.
-        var variantTypes = classSymbol.getPermittedSubclasses()
-                .stream()
-                .filter(type -> !classCompiler.compiler.isAnnotated(type, Contract.class))
-                .toList();
-        if (!variantTypes.stream().allMatch(classCompiler.compiler::isRecord)) {
-            classCompiler.compiler.reportError(origin, "unionMustPermitRecords");
-            return null;
-        }
-
-        var unionName = new Name(origin, classCompiler.compiler.nameCompiler.UNION_PREFIX + name.getValue());
-        var varName = new Name(origin, "u");
-        var subsetVar = new BoundVar(origin, varName, traitType, false);
-        var subsetVarExpr = new IdentifierExpr(subsetVar.getOrigin(), varName.getValue());
-        var subsetConstraint = variantTypes.stream()
-                .<Expression>map(variantType -> {
-                    var dafnyType = classCompiler.compiler.translateType(variantType, origin);
-                    return new TypeTestExpr(origin, subsetVarExpr, dafnyType);
-                })
-                .reduce((a, b) -> new BinaryExpr(origin, BinaryExprOpcode.Or, a, b))
-                .orElseThrow(JavaViolationException::new);
-
-        var typeParamCharacteristics = new TypeParameterCharacteristics(
-                TypeParameterEqualitySupportValue.Unspecified,
-                TypeAutoInitInfo.MaybeEmpty,
-                false
-        );
-        return new SubsetTypeDecl(origin, unionName, null,
-                typeParameters, typeParamCharacteristics,
-                subsetVar, subsetConstraint,
-                SubsetTypeDeclWKind.OptOut, null);
-    }
-
-    private static boolean isSealedInterface(Symbol.ClassSymbol classSymbol) {
-        return classSymbol.isInterface() && classSymbol.isSealed();
-    }
-
 }

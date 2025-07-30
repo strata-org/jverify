@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler;
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.UnionCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
@@ -26,9 +27,11 @@ public class ClassCompiler {
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
     private final ClassesExtendingClassesCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
+    private final UnionCompiler unionCompiler;
     
     public ClassCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
+        unionCompiler = new UnionCompiler(compiler);
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
@@ -100,7 +103,9 @@ public class ClassCompiler {
 
             List<TopLevelDecl> result = new ArrayList<>();
             if (intermediateResult != null) {
-                result.addAll(classDeclCompiler.compile(intermediateResult, classSymbol));
+                for (var decl : classDeclCompiler.compile(intermediateResult, classSymbol)) {
+                    result.addAll(unionCompiler.compile(decl, classSymbol));
+                }
             }
             
             typeForWhichCurrentClassIsDefiningContract = null;
@@ -565,4 +570,6 @@ public class ClassCompiler {
         var name = new Name(origin, compiler.nameCompiler.RETURN_VARIABLE_NAME);
         return new Formal(origin, name, syntacticType, false, false, null, null, false, false, false, null);
     }
+
+
 }
