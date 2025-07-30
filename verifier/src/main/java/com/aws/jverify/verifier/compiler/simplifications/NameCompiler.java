@@ -26,7 +26,7 @@ import java.util.Set;
  * allowing for name resolution in both directions.
  */
 public class NameCompiler {
-    static private final String sep = "?";
+    public static final String sep = "?";
     static private final String fieldPrefix = "F" + sep;
     static private final String methodPrefix = "Z" + sep;
     public String DEFAULT_CTOR_NAME = "ctor" + sep;
@@ -43,7 +43,7 @@ public class NameCompiler {
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
 
-    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate");
+    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     
     public NameCompiler(ExternalContractCompiler contractCompiler) {
         this.contractCompiler = contractCompiler;
@@ -118,7 +118,7 @@ public class NameCompiler {
     }
 
     private String getFieldName(Symbol.VarSymbol s) {
-        if (s.name.contentEquals("this")) {
+        if (s.name.contentEquals(s.name.table.names._this)) {
             return s.name.toString();
         }
         var classStats = getGetClassNameStats(s.enclClass(), s.name);

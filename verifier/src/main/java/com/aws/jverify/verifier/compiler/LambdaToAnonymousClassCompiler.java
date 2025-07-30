@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.TypeParameterEqualitySupportValue;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.source.util.ParameterNameProvider;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.tree.*;
@@ -47,7 +48,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
-        List<JCExpression> capturedArgs = createCapturedArguments(lambda);
+        
         // Get the functional interface type
         Type functionalInterface = lambda.type;
         Symbol.MethodSymbol samMethod = findSAMMethod(functionalInterface);
@@ -66,7 +67,12 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         classSymbol.type = classType;
         classSymbol.members_field = Scope.WriteableScope.create(classSymbol);
 
+        // Run these two before creating the implementation method, since that changes the lambda body
+        List<JCExpression> capturedArgs = createCapturedArguments(lambda);
+        List<JCVariableDecl> capturedFields = createCapturedFields(classSymbol, lambda);
+        
         // Create the method implementation
+        // TODO: see if we can prevent changes teh lambda body, since that is a source of confusion
         JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda, samMethod);
 
         List<JCVariableDecl> capturedParams = createCapturedParameters(lambda, classSymbol);
@@ -74,7 +80,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         //capturedParams.isEmpty() ? null : createConstructor(capturedParams);
 
         // Create field declarations for captured variables
-        List<JCVariableDecl> capturedFields = createCapturedFields(classSymbol, lambda);
 
         // Build the class body
         java.util.List<JCTree> classBody = new ArrayList<>();
@@ -170,10 +175,15 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         Set<Symbol> captured = findCapturedVariables(lambda);
 
         for (Symbol sym : captured) {
+            var name = sym.name;
+            if (name == sym.name.table.names._this) {
+                name = sym.name.table.names.fromString("captured" + NameCompiler.sep + "this");
+            }
+            
             // Create field with same name as captured variable
             JCVariableDecl field = make.VarDef(
                     make.Modifiers(Flags.PRIVATE | Flags.FINAL),
-                    sym.name,
+                    name,
                     make.Type(sym.type),
                     null
             );
@@ -193,11 +203,12 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 classSymbol.type,
                 List.nil(), classSymbol
         ), classSymbol);
+        methodSymbol.params = capturedParams.map(d -> new Symbol.VarSymbol(0, d.name, d.type, methodSymbol));
         
         // Create assignment statements for captured variables
         java.util.List<JCStatement> assignments = new ArrayList<>();
 
-        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, methodSymbol);
+        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, classSymbol);
         for (JCVariableDecl param : capturedParams) {
             // this.fieldName = paramName;
             JCIdent thisIdent = make.Ident(names._this);
@@ -241,6 +252,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 samMethod.type.getReturnType(),
                 List.nil(), classSymbol
         ), classSymbol);
+        methodSymbol.params = lambda.params.map(d -> d.sym);
         
         // Transform lambda body, replacing captured variable references with field accesses
         JCTree transformedBody = transformLambdaBody(classSymbol, methodSymbol, lambda.body, findCapturedVariables(lambda));
@@ -277,19 +289,24 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private JCTree transformLambdaBody(Symbol.ClassSymbol classSymbol,
                                        Symbol.MethodSymbol methodSymbol,
                                        JCTree body, Set<Symbol> capturedVars) {
-        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, methodSymbol);
+        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, classSymbol);
         
         // Create a transformer that replaces captured variable references with field accesses
         TreeTranslator bodyTransformer = new TreeTranslator() {
             @Override
             public void visitIdent(JCIdent ident) {
+                var name = ident.name;
+                if (name == ident.sym.name.table.names._this) {
+                    name = ident.sym.name.table.names.fromString("captured" + NameCompiler.sep + "this");
+                }
+                
                 if (capturedVars.contains(ident.sym)) {
                     // Replace captured variable reference with this.fieldName
                     JCIdent thisIdent = make.Ident(names._this);
                     thisIdent.sym = thisSymbol;
                     thisIdent.type = classSymbol.type;
-                    JCFieldAccess select = make.Select(thisIdent, ident.name);
-                    select.sym = new Symbol.VarSymbol(FINAL, ident.name,  ident.type, classSymbol);
+                    JCFieldAccess select = make.Select(thisIdent, name);
+                    select.sym = new Symbol.VarSymbol(FINAL, name,  ident.type, classSymbol);
                     select.type = ident.type;
                     result = select;
                 } else {
