@@ -67,18 +67,18 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         classSymbol.type = classType;
         classSymbol.members_field = Scope.WriteableScope.create(classSymbol);
 
-        // Run these two before creating the implementation method, since that changes the lambda body
+        // Run these three before creating the implementation method, since that changes the lambda body
         List<JCExpression> capturedArgs = createCapturedArguments(lambda);
         List<JCVariableDecl> capturedFields = createCapturedFields(classSymbol, lambda);
-        
-        // Create the method implementation
-        // TODO: see if we can prevent changes teh lambda body, since that is a source of confusion
-        JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda, samMethod);
-
         List<JCVariableDecl> capturedParams = createCapturedParameters(lambda, classSymbol);
+        
         JCMethodDecl constructor = createConstructor(classSymbol, capturedParams);
         //capturedParams.isEmpty() ? null : createConstructor(capturedParams);
 
+        // Create the method implementation
+        // TODO: see if we can prevent changes teh lambda body, since that is a source of confusion
+        JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda, samMethod);
+        
         // Create field declarations for captured variables
 
         // Build the class body
