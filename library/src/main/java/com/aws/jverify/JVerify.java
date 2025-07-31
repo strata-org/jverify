@@ -1,10 +1,9 @@
 package com.aws.jverify;
 
-import java.util.function.BiFunction;
+import java.util.Optional;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -66,6 +65,21 @@ public class JVerify {
     }
 
     public static void postcondition(IntPredicate predicate) {
+    }
+
+    /** 
+     * Takes the precondition of the given expression
+     * and applies that to the current method 
+     */
+    public static <T> void copyPrecondition(T value) {
+    }
+
+    public static <T> Optional<T> callIfAble(Supplier<T> supplier) {
+        throw new ContractException();
+    }
+
+    public static boolean callIfAble(Runnable action) {
+        throw new ContractException();
     }
 
     public static interface BooleanPredicate {

@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 public class PolymorphicAnonymousClasses {
 
     static class Anything {}
-    void lambdaForGenericInterfaces() {
+    void genericInterfaces() {
         var fooArg = new MyConsumer<Anything>() {
             @Override
             public int consume(Anything value) {
@@ -25,7 +25,7 @@ public class PolymorphicAnonymousClasses {
         bar(barArg);
     }
 
-    <U> void lambdaForGenericMethod() {
+    <U> void genericMethod() {
         var zazArg = new MyConsumer<U>() {
             @Override
             public int consume(U value) {
@@ -41,7 +41,7 @@ public class PolymorphicAnonymousClasses {
 
     static class GenericClass<U> {
         
-        void lambdaForGenericClass() {
+        void genericClass() {
             var tarArg = new MyConsumer<U>() {
                 @Override
                 public int consume(U value) {

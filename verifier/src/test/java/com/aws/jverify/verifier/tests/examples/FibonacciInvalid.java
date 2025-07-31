@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.tests.examples;
 
 import com.aws.jverify.Erased;
 import com.aws.jverify.Nat;
-import com.aws.jverify.Proof;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Unbounded;
 import com.aws.jverify.testengine.JVerifyTest;
@@ -46,7 +45,7 @@ class FibonacciInvalid {
         return result;
     }
 
-    @Proof
+    @Erased
     static void SpecIsIncreasing(@Unbounded @Nat int i, @Unbounded @Nat int j)
     {
         precondition(i <= j);
