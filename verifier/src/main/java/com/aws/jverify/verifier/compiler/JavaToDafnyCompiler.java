@@ -8,6 +8,7 @@ import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Kinds;
+import com.sun.tools.javac.util.Position;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
@@ -20,7 +21,7 @@ import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
-import com.sun.tools.javac.util.Position;
+import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
@@ -182,20 +183,26 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    public static Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument) {
+    public Symbol.ClassSymbol getClassSymbol(JCTree.JCExpression valueArgument) {
         if (valueArgument == null) {
             return null;
         }
-        
-        if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess &&
-            fieldAccess.selected instanceof JCTree.JCIdent ident &&
-            ident.sym instanceof Symbol.ClassSymbol classSymbol)
-        {
-            return classSymbol;
+        if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess) {
+            if (fieldAccess.name.contentEquals(Names.instance(context)._class)) {
+                return getClassSymbol(fieldAccess.selected);
+            }
+            if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
+                 return classSymbol;
+            }
+        }
+        if (valueArgument instanceof JCTree.JCIdent ident &&
+                ident.sym instanceof Symbol.ClassSymbol classSymbol) {
+                return classSymbol;
         } else {
             throw new JavaViolationException();
         }
     }
+
 
     public void reportError(IOrigin origin, String key, Object... args) {
         reportError(positionFromOrigin(origin), key, args);
