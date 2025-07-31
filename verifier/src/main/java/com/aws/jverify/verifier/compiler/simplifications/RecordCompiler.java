@@ -16,6 +16,7 @@ import com.sun.tools.javac.tree.TreeInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class RecordCompiler {
     final ClassCompiler classCompiler;
@@ -31,7 +32,11 @@ public class RecordCompiler {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
         }
 
-        var typeParams = classCompiler.translateTypeParameters(classDecl.typarams);
+        List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
+        if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
+            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+        }
+        var typeParams = classCompiler.translateTypeParameters(javaTypeParams);
 
         Symbol.ClassSymbol currentTypeSymbol = classCompiler.getCurrentTypeSymbol(classDecl);
         var traits = currentTypeSymbol
@@ -211,9 +216,20 @@ public class RecordCompiler {
     public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
         var argBindings = newClass.getArguments().stream()
                 .map(a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
-        com.sun.tools.javac.util.List<Type> typeArgs = newClass.typeargs.map(expressionCompiler.compiler::translateType);
+
+
+        JavaToDafnyCompiler compiler = expressionCompiler.compiler;
+        // TODO add tests for records and polymorphism
+        List<Type> typeArgs = new ArrayList<>();
+        if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
+            var ownerTypes = compiler.getAllOwnerTypeParameters(newClass.type.tsym);
+            typeArgs = compiler.getAllOwnerTypeParameters(newClass.type.tsym).map(
+                    tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
+        }
+        
+        typeArgs.addAll(newClass.typeargs.map(expressionCompiler.compiler::translateType));
         if (newClass.clazz instanceof JCTree.JCTypeApply typeApply) {
-            typeArgs = typeArgs.appendList(typeApply.arguments.map(expressionCompiler.compiler::translateType));
+            typeArgs.addAll(typeApply.arguments.map(expressionCompiler.compiler::translateType));
         }
 
         JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.compiler.context);
