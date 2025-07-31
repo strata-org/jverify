@@ -19,6 +19,7 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Names;
