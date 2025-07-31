@@ -299,15 +299,30 @@ type float = real
 type double = real
 
 
-trait List<T> extends Object, object {
+trait ImmutableList<T extends Object> extends ModifiableObject, object {
 
-  ghost const elements: seq<T>
+  const elements: seq<T>
+
+  ghost predicate valid()
+    reads This(), Repr()
+    decreases Repr(), 1
+  {
+    // forall i | 0 <= i < |elements| :: validComponent(elements[i] as Object)
+    true
+  }
 
   predicate equals(obj: Object)
     decreases Repr()
     ensures this as Object == obj ==> equals(obj)
     ensures equals(obj) <==>
-      && obj is List<T> 
-      && var other := obj as List<T>;
-      && elements == other.elements
+      && obj is ImmutableList<T> 
+      && var other := obj as ImmutableList<T>;
+      && equalsImmutableList(other)
+
+  predicate equalsImmutableList(other: ImmutableList<T>)
+    decreases Repr(), 0
+  {
+    && |elements| == |other.elements|
+    && forall i | 0 <= i < |elements| :: (elements[i] as Object).equals(other.elements[i]) // TODO
+  }
 }
