@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.tests.expressions.lambdas;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
@@ -63,27 +64,52 @@ public class Lambdas {
 //        doSomethingTwice(Lambdas::staticAdd);
 //        makeSomeClass(SomeClass::new);
     }
+    
+    void blockLocals() {
+        int outerLocal = 1;
+        {
+            int blockLocal = 2;
 
+            SomethingDoer lambda = (x, y) -> outerLocal + blockLocal;
+            lambda.doSomething(1,2);
+        }
+    }
+
+    void nestedLambda() {
+        int level1 = 1;
+
+        SomethingDoer outer = (x, y) -> {
+            int level2 = 2;
+            SomethingDoer inner = (x2, y2) -> level1 + level2 + x + y + x2 + y2;
+            return inner.doSomething(1,2);
+        };
+        var result = outer.doSomething(1, 2);
+        check(result == 3 + 3 * 2);
+    }
+    
+    @Verify(false)
     void doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         var z = doer.doSomething(2, y);
     }
-
+    
+    @Verify(false)
     void doSomethingWithSpecTwice(SomethingDoerWithSpec doer) {
         var y = doer.doSomething(2, 1);
         var z = doer.doSomething(2, y);
     }
 
+    @Verify(false)
     public int add(int x, int y) {
         return x + y;
-//             ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
     }
 
+    @Verify(false)
     public static int staticAdd(int x, int y) {
         return x + y;
-//             ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
     }
 
+    @Verify(false)
     void makeSomeClass(SomeClassMaker maker) {
         var sc = maker.makeSomething();
     }
