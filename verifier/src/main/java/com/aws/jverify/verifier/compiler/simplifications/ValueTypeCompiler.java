@@ -6,7 +6,6 @@ import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.fasterxml.jackson.core.TreeNode;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -16,13 +15,12 @@ import com.sun.tools.javac.tree.TreeInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class RecordCompiler {
+public class ValueTypeCompiler {
     final ClassCompiler classCompiler;
     final JavaToDafnyCompiler compiler;
 
-    public RecordCompiler(ClassCompiler classCompiler) {
+    public ValueTypeCompiler(ClassCompiler classCompiler) {
         this.classCompiler = classCompiler;
         this.compiler = classCompiler.compiler;
     }
@@ -168,8 +166,6 @@ public class RecordCompiler {
 
             List<AttributedExpression> ens = constructor.getEns();
             if (classDecl.sym.isAnonymous()) {
-                // infer behavior for anonymous constructor
-                // keep the receiver argument even if there is no receiver field.
                 ens = classDecl.getMembers().stream().filter(m -> m instanceof JCTree.JCVariableDecl).map(member ->
                 {
                     var field = (JCTree.JCVariableDecl)member;

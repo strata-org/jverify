@@ -352,7 +352,7 @@ public class BlockCompiler {
             case JCTree.JCNewClass newClass -> {
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
                 if (compiler.isValueType(classSymbol)) {
-                    var datatypeValue = RecordCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
+                    var datatypeValue = ValueTypeCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }
                 NameSegment classBaseType = new ModifiableObjectCompiler(compiler).getNewClassType(newClass);

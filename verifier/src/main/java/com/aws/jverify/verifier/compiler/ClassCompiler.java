@@ -5,7 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ValueTypeCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
@@ -90,7 +90,7 @@ public class ClassCompiler {
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
-                case RECORD -> new RecordCompiler(this).translateValueType(classSymbol, classDecl, origin, name);
+                case RECORD -> new ValueTypeCompiler(this).translateValueType(classSymbol, classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -135,12 +135,12 @@ public class ClassCompiler {
     private TopLevelDeclWithMembers translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
         if (compiler.isAnonymousOrFinalValueType(classDecl.sym)) {
-            return new RecordCompiler(this).translateValueType(classDecl.sym, classDecl, origin, name);
+            return new ValueTypeCompiler(this).translateValueType(classDecl.sym, classDecl, origin, name);
         }
         
         if (contractAnnotation != null && contractAnnotation.immutable()) {
             if (typeForWhichCurrentClassIsDefiningContract != null) {
-                return new RecordCompiler(this).translateValueType(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
+                return new ValueTypeCompiler(this).translateValueType(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
             } else {
                 compiler.reportError(classDecl, "immutableInternalContract");
                 return null;
