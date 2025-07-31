@@ -8,28 +8,43 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 21, dafnyErrors = 3, verifyPrintedDafny = true)
+@SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
+@JVerifyTest(exitCode = 4, dafnyVerified = 28, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
-    public void useLambdas() {
+    private static int STATIC_FIELD = 100;
+    private int instanceField = 50;
+    
+    void classCaptures() {
         doSomethingTwice((x, y) -> x);
         
-        doSomethingTwice((x, y) -> add(x,y));
-        doSomethingTwice((x, y) -> staticAdd(x,y));
+        doSomethingTwice((x, y) -> instanceField);
+        doSomethingTwice((x, y) -> STATIC_FIELD);
         
         doSomethingTwice((x, y) -> this.add(x,y));
         doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
-        
+
+        doSomethingTwice((x, y) -> add(x,y));
+        doSomethingTwice((x, y) -> staticAdd(x,y));
+    }
+    
+    void localCaptures() {
         int z = 42;
+        final int finalZ = 43;
         doSomethingTwice((x, y) -> z);
-        
+        doSomethingTwice((x, y) -> finalZ);
+    }
+    
+    void lambdaWithContract() {
         doSomethingWithSpecTwice((x, y) -> {
             precondition(x >= y);
             postcondition((int r) -> r == x - y);
             return x - y;
 //                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
         });
-
+    }
+    
+    void referenceEquality() {
         SomethingDoer doer = (x, y) -> {
             return x;
         };
@@ -41,18 +56,20 @@ public class Lambdas {
         // but if we map lambdas to datatype values incorrectly
         // they could be equal Dafny values.
         check(doer != doer2);
-        
+    }
+    
+    void methodReferences() {
 //        doSomethingTwice(this::add);
 //        doSomethingTwice(Lambdas::staticAdd);
 //        makeSomeClass(SomeClass::new);
     }
 
-    public void doSomethingTwice(SomethingDoer doer) {
+    void doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         var z = doer.doSomething(2, y);
     }
 
-    public void doSomethingWithSpecTwice(SomethingDoerWithSpec doer) {
+    void doSomethingWithSpecTwice(SomethingDoerWithSpec doer) {
         var y = doer.doSomething(2, 1);
         var z = doer.doSomething(2, y);
     }
@@ -67,7 +84,7 @@ public class Lambdas {
 //             ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
     }
 
-    public void makeSomeClass(SomeClassMaker maker) {
+    void makeSomeClass(SomeClassMaker maker) {
         var sc = maker.makeSomething();
     }
 }
