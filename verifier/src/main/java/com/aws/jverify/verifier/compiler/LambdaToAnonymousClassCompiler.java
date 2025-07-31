@@ -79,7 +79,14 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             result = invocation;
         }
     }
-    
+
+    JCMethodDecl currentMethod;
+    @Override
+    public void visitMethodDef(JCMethodDecl tree) {
+        currentMethod = tree;
+        super.visitMethodDef(tree);
+    }
+
     @Override
     public void visitLambda(JCLambda lambda) {
         // Transform lambda expression into anonymous class instance creation
@@ -89,22 +96,22 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
-        
-        // Get the functional interface type
-        Type functionalInterface = lambda.type;
-        Symbol.MethodSymbol samMethod = findSAMMethod(functionalInterface);
+        Type functionalInterfaceType = lambda.type;
 
-        // Create captured variable parameters for constructor
+        Symbol.MethodSymbol functionalMethod = (Symbol.MethodSymbol)
+                types.findDescriptorSymbol(functionalInterfaceType.tsym);
+
+        Type resolvedMethodType = types.memberType(functionalInterfaceType, functionalMethod);
 
         JCModifiers modifiers = make.Modifiers(SYNTHETIC | FINAL);
 
         // TODO test for collisions
         Name append = names.lambda.append(names.fromString(lambda.pos + ""));
-        
+
         // Create constructor if we have captured variables
-        var classSymbol = new Symbol.ClassSymbol(modifiers.flags, append, functionalInterface.tsym);
-        Type.ClassType classType = new Type.ClassType(functionalInterface.getEnclosingType(), List.nil(), classSymbol);
-        classType.interfaces_field = List.of(functionalInterface);
+        var classSymbol = new Symbol.ClassSymbol(modifiers.flags, append, currentMethod.sym);
+        Type.ClassType classType = new Type.ClassType(functionalInterfaceType.getEnclosingType(), List.nil(), classSymbol);
+        classType.interfaces_field = List.of(functionalInterfaceType);
         classSymbol.type = classType;
         classSymbol.members_field = Scope.WriteableScope.create(classSymbol);
 
@@ -118,7 +125,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
         // Create the method implementation
         // TODO: see if we can prevent changes teh lambda body, since that is a source of confusion
-        JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda, samMethod);
+        JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda, resolvedMethodType, functionalMethod);
         
         // Create field declarations for captured variables
 
@@ -138,7 +145,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 names.lambda,
                 List.nil(),
                 null,
-                List.of(make.Type(functionalInterface)),
+                List.of(make.Type(functionalInterfaceType)),
                 List.from(classBody)
         );
         classDef.sym = classSymbol;
@@ -148,29 +155,15 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         JCNewClass result = make.NewClass(
                 null, // enclosing
                 List.<JCExpression>nil(), // type args
-                make.Type(functionalInterface), // class type
+                make.Type(functionalInterfaceType), // class type
                 capturedArgs, // constructor args
                 classDef // class body
         );
-        result.type = functionalInterface;
+        result.type = classType;
         if (constructor != null) {
             result.constructor = constructor.sym;
         }
         return result;
-    }
-
-    private Symbol.MethodSymbol findSAMMethod(Type functionalInterface) {
-        // Find the single abstract method in the functional interface
-        for (Symbol member : functionalInterface.tsym.members().getSymbols()) {
-            if (member instanceof Symbol.MethodSymbol) {
-                Symbol.MethodSymbol method = (Symbol.MethodSymbol) member;
-                if ((method.flags() & Flags.ABSTRACT) != 0 &&
-                        !isObjectMethod(method)) {
-                    return method;
-                }
-            }
-        }
-        throw new AssertionError("No SAM method found in " + functionalInterface);
     }
 
     private boolean isObjectMethod(Symbol.MethodSymbol method) {
@@ -285,12 +278,15 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         return result;
     }
 
-    private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, JCLambda lambda, Symbol.MethodSymbol samMethod) {
+    private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, 
+                                                    JCLambda lambda, 
+                                                    Type methodType,
+                                                    Symbol.MethodSymbol samMethod) {
 
         JCModifiers modifiers = make.Modifiers(Flags.PUBLIC | SYNTHETIC);
         Symbol.MethodSymbol methodSymbol = new Symbol.MethodSymbol(modifiers.flags, samMethod.name, new Type.MethodType(
-                lambda.params.map(vd -> vd.type),
-                samMethod.type.getReturnType(),
+                methodType.getParameterTypes(),
+                methodType.getReturnType(),
                 List.nil(), classSymbol
         ), classSymbol);
         methodSymbol.params = lambda.params.map(d -> d.sym);
@@ -312,7 +308,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         JCMethodDecl result = make.MethodDef(
                 modifiers, // public method
                 methodSymbol.name, // method name
-                make.Type(samMethod.getReturnType()), // return type
+                make.Type(methodType.getReturnType()), // return type
                 List.<JCTypeParameter>nil(), // no type parameters
                 lambda.params, // use lambda parameters directly
                 List.<JCExpression>nil(), // no throws (should handle properly)

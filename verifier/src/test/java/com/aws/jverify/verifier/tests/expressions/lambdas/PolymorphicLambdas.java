@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
         useBuiltinContracts = false, verifyPrintedDafny = true)
 public class PolymorphicLambdas {
 
-    class Anything {}
+    static class Anything {} // TODO Making this an instance class caused a crash
     void lambdaForGenericInterfaces() {
         foo(i -> 3);
         //noinspection Convert2MethodRef
