@@ -138,12 +138,8 @@ public class JavaFrontEnd {
                     // including the comment "these method calls must be chained to avoid memory leaks"
                     envs.addAll(unsuspend(
                             lower(suspend(
-                            //unsubstitute(
                                     unlambda(
-                                    //substitute(
                                     compiler.flow(compiler.attribute(todo))
-                                    //)
-                            //)
                     )))));
                 }
             }
@@ -166,28 +162,7 @@ public class JavaFrontEnd {
         return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
     }
 
-    // Phase to replace erased code such as specifications with placeholders
-    // so future phases don't rewrite them.
-    private Queue<Env<AttrContext>> substitute(Queue<Env<AttrContext>> envs) {
-        var substituter = ErasedCodeSubstituter.instance(context);
-        for (Env<AttrContext> env: envs) {
-            env.tree = substituter.substitute(env.tree);
-        }
-        return envs;
-    }
-
-    // Phase to replace placeholders substituted by the earlier SUBSTITUTE phase
-    // with their original AST nodes.
-    private Queue<Env<AttrContext>> unsubstitute(Queue<Env<AttrContext>> envs) {
-        var substituter = ErasedCodeSubstituter.instance(context);
-        for (Env<AttrContext> env : envs) {
-            env.tree = substituter.unsubstitute(env.tree);
-        }
-        return envs;
-    }
-
-    private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {
-        TreeMaker localMake = TreeMaker.instance(context).at(Position.NOPOS);
+    private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {;
 
         // Note JavaCompiler.desugar has some additional logic to
         // scan for classes that have lambdas first,
