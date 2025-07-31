@@ -4,25 +4,23 @@
 trait Object {
 
   ghost predicate valid()
-    requires Repr.requires()
-    reads Repr.reads(), Repr()
+    reads This(), Repr()
     decreases Repr(), 1
 
+  ghost function This(): set<object> {
+    if this is ModifiableObject then {this as ModifiableObject} else {}
+  }
+
   ghost function Repr(): set<object> 
-    reads if this is ModifiableObject then {this as ModifiableObject} else {},
-          if this is ModifiableObject then (this as ModifiableObject).repr else {}
+    reads This()
   {
     if this is ModifiableObject then (this as ModifiableObject).repr else {}
   }
 
-  lemma ReprRequiresTrue()
-    ensures Repr.requires()
-  {}
-
   predicate equals(other: Object): (b: bool)
     requires valid()
     requires other.valid()
-    reads Repr.reads(), Repr(), other.Repr.reads, other.Repr()
+    reads This(), Repr(), other.This(), other.Repr()
     decreases Repr()
     ensures this as Object == other ==> b
 
@@ -76,8 +74,7 @@ trait MyPair extends ModifiableObject, object {
   }
 
   ghost predicate valid() 
-    requires Repr.requires()
-    reads Repr.reads(), Repr()
+    reads This(), Repr()
     decreases Repr(), 1
   {
     && this in Repr()
@@ -88,7 +85,7 @@ trait MyPair extends ModifiableObject, object {
   predicate equals(obj: Object): (b: bool)
     requires valid()
     requires obj.valid()
-    reads Repr.reads, Repr(), obj.Repr.reads, obj.Repr()
+    reads This(), Repr(), obj.This(), obj.Repr()
     ensures this as Object == obj ==> b
     decreases Repr()
   {
@@ -96,8 +93,13 @@ trait MyPair extends ModifiableObject, object {
       false
     else
       var other: MyPair := obj as MyPair;
+
+      assert other.valid();
       assert validComponent(a);
-      // assert other in (set _obj: object? /*{:_reads}*/ {:trigger Repr.reads in Repr.reads()} | Repr.reads in Repr.reads() :: Repr.reads) || other in Repr() || other in (set _obj: object? /*{:_reads}*/ {:trigger obj.Repr.reads in obj.Repr.reads()} | obj.Repr.reads in obj.Repr.reads() :: obj.Repr.reads) || other in obj.Repr();
+      assert other.validComponent(other.a);
+      assert validComponent(b);
+      assert other.validComponent(other.b);
+      
       var result? := a.equals(other.a) && b.equals(other.b);
       result?
   }
@@ -161,8 +163,7 @@ trait A extends ModifiableObject {
 class Constructable?A extends A {
 
   ghost predicate valid()
-    requires Repr.requires()
-    reads Repr.reads(), Repr()
+    reads This(), Repr()
     decreases Repr(), 0
 
   constructor ctor?(f: int32)
@@ -204,8 +205,7 @@ trait B extends A, object {
 
 class Constructable?B extends B {
   ghost predicate valid()
-    requires Repr.requires()
-    reads Repr.reads(), Repr()
+    reads This(), Repr()
     decreases Repr(), 1
 
   constructor ctor?(f: int32, g: int32)
@@ -226,8 +226,7 @@ class Constructable?B extends B {
 class Constructable?ModifiableObject extends ModifiableObject {
 
   ghost predicate valid()
-    requires Repr.requires()
-    reads Repr.reads(), Repr()
+    reads This(), Repr()
     decreases Repr(), 1
 
   constructor ctor?()
@@ -278,8 +277,7 @@ type char16 = i: int
 
 datatype DString extends Object = JS(elements: seq<char16>) {
   ghost predicate valid()
-    requires Repr.requires()
-    reads Repr.reads(), Repr()
+    reads This(), Repr()
     decreases Repr(), 1
 
   function indexOf_i(c: char16): (result: int32)
@@ -347,6 +345,8 @@ datatype DString extends Object = JS(elements: seq<char16>) {
 
 datatype DNull extends Object = DNull {
   ghost predicate valid()
+    reads This(), Repr()
+    decreases Repr(), 1
 
   predicate equals(other: Object): (b: bool)
     decreases Repr()
