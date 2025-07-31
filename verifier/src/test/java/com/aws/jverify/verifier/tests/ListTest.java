@@ -8,6 +8,7 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import java.util.List;
+import java.util.Objects;
 
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
@@ -47,6 +48,18 @@ abstract class ListContract<E> implements List<E> {
                 r.get(2) == e3);
         throw new ContractException();
     }
+
+//    @Override
+//    @Pure
+//    public boolean equals(Object o) {
+//        reads(this);
+//        postcondition((boolean r) -> {
+//            if (o == null || getClass() != o.getClass()) return false;
+//            ListContract<?> that = (ListContract<?>) o;
+//            return Objects.equals(elements, that.elements);
+//        });
+//        throw new ContractException();
+//    }
 
     @Override
     @Pure

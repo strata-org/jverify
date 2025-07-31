@@ -1,5 +1,5 @@
 trait Object {
-    function equals(other: Object): (b: bool)
+    predicate equals(other: Object)
 }
 
 type nat15 = x: int16 | x >= 0
