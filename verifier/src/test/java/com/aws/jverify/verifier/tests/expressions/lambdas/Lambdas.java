@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.tests.expressions.lambdas;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -137,6 +138,7 @@ interface SomeClassMaker {
 }
 
 interface SomethingDoer {
+    @Pure
     int doSomething(int x, int y);
 
     @Contract
@@ -150,6 +152,7 @@ interface SomethingDoer {
 }
 
 interface IntToInt {
+    @Pure
     int doSomething(int x);
 
     @Contract
