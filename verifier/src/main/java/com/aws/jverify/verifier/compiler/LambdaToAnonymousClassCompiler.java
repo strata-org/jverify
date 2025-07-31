@@ -165,7 +165,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 name = sym.name.table.names.fromString("captured" + NameCompiler.sep + "this");
             }
             
-            // Create field with same name as captured variable
             JCVariableDecl field = make.VarDef(
                     make.Modifiers(Flags.PRIVATE | Flags.FINAL),
                     name,
@@ -260,21 +259,22 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private JCBlock getMethodBody(Symbol.ClassSymbol classSymbol, JCLambda lambda, Symbol.MethodSymbol methodSymbol) {
-        return handleExpressionOrBlockBody(lambda, retargetCapturedVariables(classSymbol, methodSymbol, lambda));
+        retargetCapturedVariables(classSymbol, methodSymbol, lambda);
+        return handleExpressionOrBlockBody(lambda);
     }
 
-    private JCBlock handleExpressionOrBlockBody(JCLambda lambda, JCTree transformedBody) {
+    private JCBlock handleExpressionOrBlockBody(JCLambda lambda) {
         JCBlock methodBody;
         if (lambda.getBodyKind() == JCLambda.BodyKind.EXPRESSION) {
-            JCReturn returnStmt = make.Return((JCExpression) transformedBody);
+            JCReturn returnStmt = make.Return((JCExpression) lambda.body);
             methodBody = make.Block(0, List.of(returnStmt));
         } else {
-            methodBody = (JCBlock) transformedBody;
+            methodBody = (JCBlock) lambda.body;
         }
         return methodBody;
     }
 
-    private JCTree retargetCapturedVariables(Symbol.ClassSymbol classSymbol,
+    private void retargetCapturedVariables(Symbol.ClassSymbol classSymbol,
                                              Symbol.MethodSymbol methodSymbol,
                                              JCLambda lambda) {
         Set<Symbol> capturedVars = findCapturedVariables(lambda);
@@ -307,7 +307,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             }
         };
 
-        return bodyTransformer.translate(body);
+        lambda.body = bodyTransformer.translate(body);
     }
 
     private Set<Symbol> findCapturedVariables(JCLambda lambda) {
