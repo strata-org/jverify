@@ -16,7 +16,6 @@ import java.util.List;
  * this compiler splits such a trait into a trait and a class, moving the constructor to the class
  */
 public class TraitWithConstructorCompiler {
-    public static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     ClassCompiler classCompiler;
 
     public TraitWithConstructorCompiler(ClassCompiler classCompiler) {
@@ -24,10 +23,8 @@ public class TraitWithConstructorCompiler {
     }
 
     public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
-        if (clazz instanceof ClassDecl classDecl) {
-            return buildTraitAndClassTwin(symbol, classDecl.getOrigin(),
-                    classDecl.getNameNode(), classDecl.getMembers(), 
-                    classDecl.getTypeArgs(), classDecl.getTraits());
+        if (clazz instanceof TraitDecl traitDecl) {
+            return buildTraitAndClassTwin(traitDecl, symbol);
         }
         return List.of(clazz);
     }
@@ -35,16 +32,13 @@ public class TraitWithConstructorCompiler {
     /**
      * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
      */
-    private List<TopLevelDecl> buildTraitAndClassTwin(Symbol.ClassSymbol classSymbol,
-                                                       IOrigin origin, Name name,
-                                                       List<MemberDecl> members,
-                                                       List<TypeParameter> typeParameters,
-                                                       List<Type> superTraits) {
+    private List<TopLevelDecl> buildTraitAndClassTwin(TraitDecl traitDecl, 
+                                                      Symbol.ClassSymbol classSymbol) {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
         var classNeeded = !JavaToDafnyCompiler.isInterfaceOrAbstract(classSymbol);
 
-        for(var member : members) {
+        for(var member : traitDecl.getMembers()) {
             switch (member) {
                 case Method method when !method.getHasStaticKeyword() -> {
                     traitMembers.add(member);
@@ -67,7 +61,7 @@ public class TraitWithConstructorCompiler {
                 }
                 case Constructor constructor -> {
                     classNeeded = true;
-                    Method initMethod = constructorToInitMethod(name.getValue(), constructor);
+                    Method initMethod = constructorToInitMethod(traitDecl.getNameNode().getValue(), constructor);
                     if (initMethod != null) {
                         traitMembers.add(initMethod);
                     }
@@ -83,29 +77,23 @@ public class TraitWithConstructorCompiler {
             }
         }
 
-        Symtab symtab = Symtab.instance(classCompiler.compiler.context);
-        if (classSymbol == symtab.objectType.tsym || classSymbol == symtab.recordType.tsym) {
-            superTraits = new ArrayList<>();
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
-        }
-        
-        var mutable = !JavaToDafnyCompiler.isInterface(classSymbol)
-                || classCompiler.compiler.isAnnotated(classSymbol.type, Modifiable.class);
-        if (mutable) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
-        }
-
-        var trait = new TraitDecl(origin, name, null, typeParameters, traitMembers, superTraits, false);
-        List<Type> typeArgs = typeParameters.stream().map(
-                p -> (Type)new UserDefinedType(p.getOrigin(),
-                        new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
-
         if (classNeeded) {
-            var clazz = new ClassDecl(origin, new Name(name.getOrigin(), classCompiler.compiler.nameCompiler.CLASS_PREFIX + name.getValue()), null,
-                    typeParameters, classMembers, List.of(new UserDefinedType(origin, new NameSegment(origin, name.getValue(), typeArgs))), false);
+            List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
+            Name nameNode = traitDecl.getNameNode();
+            var trait = new TraitDecl(traitDecl.getOrigin(), nameNode, traitDecl.getAttributes(),
+                    typeParameters, traitMembers, traitDecl.getTraits(), false);
+
+            var typeArgs = typeParameters.stream().map(
+                    p -> (Type)new UserDefinedType(p.getOrigin(),
+                            new NameSegment(p.getOrigin(), p.getNameNode().getValue(), null))).toList();
+            var traitRef = new UserDefinedType(traitDecl.getOrigin(), 
+                    new NameSegment(traitDecl.getOrigin(), nameNode.getValue(), typeArgs));
+            var clazz = new ClassDecl(traitDecl.getOrigin(), new Name(nameNode.getOrigin(), 
+                    classCompiler.compiler.nameCompiler.CLASS_PREFIX + nameNode.getValue()), null,
+                    typeParameters, classMembers, List.of(traitRef), false);
             return List.of(trait, clazz);
         } else {
-            return List.of(trait);
+            return List.of(traitDecl);
         }
     }
 
