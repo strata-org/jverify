@@ -247,23 +247,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private JCBlock getMethodBody(Symbol.ClassSymbol classSymbol, JCLambda lambda, Symbol.MethodSymbol methodSymbol,
                                   Map<Symbol, JCExpression> captures) {
         retargetCapturedVariables(classSymbol, methodSymbol, lambda, captures);
-
-        TreeTranslator bodyTransformer = new TreeTranslator() {
-
-            @Override
-            public void visitIdent(JCIdent ident) {
-                var name = ident.name;
-                if (name == ident.sym.name.table.names._this) {
-                    name = ident.sym.name.table.names.fromString("captured" + NameCompiler.sep + "this");
-                }
-
-                // Not a captured variable, but might need owner adjustment
-                if (ident.sym.owner instanceof Symbol.MethodSymbol) {
-                    ident.sym.owner = methodSymbol;
-                }
-                result = ident;
-            }
-        };
         return handleExpressionOrBlockBody(lambda);
     }
 
@@ -298,7 +281,16 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 super.visitApply(invocation);
                 insideContract = false;
             }
-            
+
+            @Override
+            public void visitVarDef(JCVariableDecl tree) {
+                // TODO maybe move to a separate body transformer, so we don't need insideContract.
+                if (tree.sym.owner instanceof Symbol.MethodSymbol) {
+                    tree.sym.owner = methodSymbol;
+                }
+                super.visitVarDef(tree);
+            }
+
             @Override
             public void visitIdent(JCIdent ident) {
 
@@ -335,16 +327,11 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                     }
                 }
 
-                // Not a captured variable, but might need owner adjustment
-                if (ident.sym.owner instanceof Symbol.MethodSymbol) {
-                    ident.sym.owner = methodSymbol;
-                }
                 result = ident;
             }
         };
 
         lambda.body = bodyTransformer.translate(body);
-        var c = 3;
     }
 
     private JCVariableDecl createFieldDeclForSymbol(Symbol sym, Name fieldName, Symbol.ClassSymbol classSymbol) {
