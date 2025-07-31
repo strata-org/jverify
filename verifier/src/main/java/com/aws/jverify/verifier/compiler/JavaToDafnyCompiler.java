@@ -674,7 +674,15 @@ public class JavaToDafnyCompiler {
         }
         return isRecord(classSymbol.type) || isImmutableClass(classSymbol);
     }
-    
+
+    /**
+     * A prerequisite for value types is that they are not extended.
+     * Besides records, anonymous and final types guarantee this as well
+     * <p>
+     * However, to be value types,
+     * they must have only final fields
+     * and inherit from value types
+     */
     public boolean isAnonymousOrFinalValueType(Symbol.ClassSymbol classSymbol) {
         if (classSymbol.isAnonymous() || classSymbol.isFinal()) {
             if (hasNonFinalFields(classSymbol)) {
