@@ -50,29 +50,32 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     @Override
     public void visitLambda(JCLambda lambda) {
         new QualifyLocalMethodReferences(context).translate(lambda);
+        super.visitLambda(lambda);
         result = transformLambdaToAnonymousClass(lambda);
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
         var classSymbol = getClassSymbol(lambda);
         
-        // Needs to occur before calling 'createLocalClassDef'
-        var capturedArgs = createCapturedArguments(lambda);
+        var capturedArgs = createCapturedArguments(lambda); // Needs to occur before calling 'createLocalClassDef'
         var constructor = createConstructor(lambda, classSymbol);
         var classDef = createLocalClassDef(lambda, classSymbol, constructor);
 
-        return getNewClassExpression(lambda, capturedArgs, classDef, classSymbol, constructor);
+        return getNewClassExpression(lambda, capturedArgs, classDef, constructor);
     }
 
-    private JCNewClass getNewClassExpression(JCLambda lambda, List<JCExpression> capturedArgs, JCClassDecl classDef, Symbol.ClassSymbol classSymbol, JCMethodDecl constructor) {
+    private JCNewClass getNewClassExpression(JCLambda lambda, 
+                                             List<JCExpression> capturedArgs, 
+                                             JCClassDecl classDef,
+                                             JCMethodDecl constructor) {
         var result = make.NewClass(
                 null,
-                List.<JCExpression>nil(),
+                List.nil(),
                 make.Type(lambda.type),
                 capturedArgs,
                 classDef
         );
-        result.type = classSymbol.type;
+        result.type = classDef.type;
         result.constructor = constructor.sym;
         return result;
     }
@@ -97,9 +100,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
         var functionalMethod = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.type.tsym);
         var resolvedMethodType = types.memberType(lambda.type, functionalMethod);
-
-        // Needs to be called before 'createImplementationMethod'
-        var capturedFields = createCapturedFields(classSymbol, lambda);
+        
+        var capturedFields = createCapturedFields(classSymbol, lambda); // Needs to be called before 'createImplementationMethod'
 
         // TODO: see if we can prevent changes the lambda body, since that is a source of confusion
         JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda, resolvedMethodType, functionalMethod);
@@ -215,9 +217,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 modifiers,
                 names.init,
                 null,
-                List.<JCTypeParameter>nil(),
+                List.nil(),
                 capturedParams,
-                List.<JCExpression>nil(),
+                List.nil(),
                 body,
                 null
         );
@@ -243,9 +245,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 modifiers,
                 methodSymbol.name,
                 make.Type(methodType.getReturnType()),
-                List.<JCTypeParameter>nil(),
+                List.nil(),
                 lambda.params,
-                List.<JCExpression>nil(),
+                List.nil(),
                 methodBody,
                 null
         );
@@ -309,8 +311,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private Set<Symbol> findCapturedVariables(JCLambda lambda) {
-        // This is a simplified version - a real implementation would need
-        // to do proper scope analysis to find truly captured variables
         Set<Symbol> captured = new HashSet<>();
 
         TreeScanner captureScanner = new TreeScanner() {
@@ -327,7 +327,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             public void visitIdent(JCIdent ident) {
                 Symbol sym = ident.sym;
                 if (sym != null && isFromEnclosingScope(sym, lambda)) {
-                    if (!(sym instanceof Symbol.ClassSymbol) || ident.name == ident.name.table.names._this) {
+                    if (!(sym instanceof Symbol.ClassSymbol || sym instanceof Symbol.PackageSymbol) || ident.name == ident.name.table.names._this) {
                         captured.add(sym);
                     }
                 }
@@ -340,12 +340,11 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private boolean isFromEnclosingScope(Symbol sym, JCLambda lambda) {
-        // Check if the symbol is from an enclosing scope rather than lambda parameters
         for (JCVariableDecl param : lambda.params) {
             if (param.sym == sym) {
-                return false; // It's a lambda parameter
+                return false;
             }
         }
-        return true; // From enclosing scope
+        return true;
     }
 }
