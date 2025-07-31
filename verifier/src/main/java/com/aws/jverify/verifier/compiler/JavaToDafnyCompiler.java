@@ -4,13 +4,9 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
@@ -41,9 +37,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
-    public static final String JVERIFY_CLASS = JVerify.class.getName();
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
-    public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
+    public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -206,6 +201,10 @@ public class JavaToDafnyCompiler {
         reportError(positionFromOrigin(origin), key, args);
     }
 
+    public void reportDiagnostic(IOrigin origin, JCDiagnostic.DiagnosticType type,  String key, Object... args) {
+        reportDiagnostic(positionFromOrigin(origin), type, key, args);
+    }
+
     private JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
         return new DiagnosticPositionFromOrigin(originToRange(origin), compilationUnit.lineMap);
     }
@@ -227,10 +226,14 @@ public class JavaToDafnyCompiler {
     }
     
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
+        reportDiagnostic(position, JCDiagnostic.DiagnosticType.ERROR, key, args);
+    }
+
+    private void reportDiagnostic(JCDiagnostic.DiagnosticPosition position, JCDiagnostic.DiagnosticType type,  String key, Object... args) {
         if (this.skipDiagnostics) {
             return;
         }
-        this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+        this.diagnostics.report(diagnosticFactory.create(type,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
     }
@@ -321,7 +324,7 @@ public class JavaToDafnyCompiler {
     /**
      * Returns {@code true} if the given modifier tree contains an annotation of the given class.
      */
-    private boolean isAnnotated(JCTree.JCModifiers modifiers, Class<? extends Annotation> clazz) {
+    public boolean isAnnotated(JCTree.JCModifiers modifiers, Class<? extends Annotation> clazz) {
         return modifiers != null && modifiers.getAnnotations().stream().anyMatch(a ->
                 TreeInfo.symbol(a.getAnnotationType()) instanceof Symbol symbol
                         && symbol.flatName().contentEquals(clazz.getName()));
@@ -492,20 +495,12 @@ public class JavaToDafnyCompiler {
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
 
-                var mirrors = type.getAnnotationMirrors();
-                var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
                 
-                Symtab symtab = Symtab.instance(context);
-                if (modifiableAnnotation.isPresent() || isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
-                    if (classType.tsym == symtab.objectType.tsym) {
-                        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
-                    } else {
-                        reportError(origin, "notSupported", "@Modifiable on a type other than Object");
-                    }
+                Type remappedType = new ModifiableObjectCompiler(this).getRemappedType(classType, origin, additionalModifiers);
+                if (remappedType != null) {
+                    return remappedType;
                 }
-                if (classType.tsym == symtab.objectType.tsym) {
-                    return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
-                }
+                
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
                     if (!isNullable) {
@@ -559,7 +554,6 @@ public class JavaToDafnyCompiler {
                     }
                     return translateType(superBound, origin);
                 }
-                Symtab symtab = Symtab.instance(context);
                 return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
             }
             default -> {

@@ -1,27 +1,25 @@
 package com.aws.jverify.verifier.compiler.simplifications.workaround;
 
-import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.ClassCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
-import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isInterface;
-
-public class ClassesExtendingClassesCompiler {
+/**
+ * Since Dafny does not support traits with constructors,
+ * this compiler splits such a trait into a trait and a class, moving the constructor to the class
+ */
+public class TraitWithConstructorCompiler {
     public static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     ClassCompiler classCompiler;
 
-    public ClassesExtendingClassesCompiler(ClassCompiler classCompiler) {
+    public TraitWithConstructorCompiler(ClassCompiler classCompiler) {
         this.classCompiler = classCompiler;
     }
 

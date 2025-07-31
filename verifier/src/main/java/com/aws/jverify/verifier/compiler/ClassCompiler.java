@@ -3,8 +3,9 @@ package com.aws.jverify.verifier.compiler;
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
@@ -25,7 +26,7 @@ public class ClassCompiler {
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
-    private final ClassesExtendingClassesCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
+    private final TraitWithConstructorCompiler classDeclCompiler = new TraitWithConstructorCompiler(this);
     
     public ClassCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -193,7 +194,7 @@ public class ClassCompiler {
                 map((com.sun.tools.javac.code.Type type) -> {
                     if (type.baseType() == symtab.objectType) {
                         // A class that extends 'Object' will extend '@Modifiable Object' instead
-                        return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
+                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectCompiler.REFERENCE_OBJECT_NAME, null));
                     }
                     return compiler.translateType(type, origin, null);
                 }).
