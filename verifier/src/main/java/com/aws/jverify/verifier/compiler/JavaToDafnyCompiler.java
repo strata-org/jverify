@@ -665,7 +665,7 @@ public class JavaToDafnyCompiler {
             return true;
         }
         if (JavaToDafnyCompiler.isInterface(classSymbol)
-                || isAnnotated(classSymbol.type, Modifiable.class)) {
+                && !isAnnotated(classSymbol.type, Modifiable.class)) {
             return true;
         }
         boolean anonymousValueType = isAnonymousOrFinalValueType(classSymbol);
