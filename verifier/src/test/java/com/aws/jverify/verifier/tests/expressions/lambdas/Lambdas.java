@@ -11,7 +11,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 38, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 45, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
     private static int STATIC_FIELD = 100;
@@ -61,9 +61,9 @@ public class Lambdas {
     }
 
     void methodReferences() {
-//        doSomethingTwice(this::add);
-//        doSomethingTwice(Lambdas::staticAdd);
-//        makeSomeClass(SomeClass::new);
+        doSomethingTwice(this::add);
+        doSomethingTwice(Lambdas::staticAdd);
+        makeSomeClass(SomeClass::new);
     }
 
     void blockLocals() {

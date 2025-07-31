@@ -2,12 +2,11 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.*;
+import com.sun.tools.javac.comp.LambdaToMethod;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
-import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Name;
-import com.sun.tools.javac.util.Names;
 
 import java.util.*;
 
@@ -44,12 +43,134 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         currentMethod = tree;
         super.visitMethodDef(tree);
     }
+    
+    
 
     @Override
     public void visitLambda(JCLambda lambda) {
         super.visitLambda(lambda);
         new QualifyLocalMethodReferences(context).translate(lambda);
         result = transformLambdaToAnonymousClass(lambda);
+    }
+
+    @Override
+    public void visitReference(JCMemberReference tree) {
+        var lambda = referenceToLambda(tree);
+        visitLambda(lambda);
+    }
+    
+    private JCLambda referenceToLambda(JCMemberReference reference) {
+        // Get the functional interface type
+        Type functionalInterface = reference.type;
+
+        // Create parameter list for the lambda
+        ListBuffer<JCVariableDecl> params = new ListBuffer<>();
+        var paramTypes = types.findDescriptorType(functionalInterface).getParameterTypes();
+
+        for (int i = 0; i < paramTypes.size(); i++) {
+            Name paramName = names.fromString("x" + i);
+            JCVariableDecl param = make.VarDef(
+                    make.Modifiers(0),
+                    paramName,
+                    make.Type(paramTypes.get(i)),
+                    null
+            );
+            // Set the symbol for the parameter
+            param.sym = new Symbol.VarSymbol(0, paramName, paramTypes.get(i), null);
+            params.append(param);
+        }
+
+        // Create the method call expression
+        JCExpression methodCall;
+        if (reference.kind == JCMemberReference.ReferenceKind.STATIC) {
+            // Static method reference: Class::method -> (args) -> Class.method(args)
+            JCFieldAccess select = make.Select(reference.expr, reference.name);
+            select.sym = reference.sym; // Method symbol from the reference
+            select.type = reference.sym.type; // Method type
+
+            methodCall = make.Apply(
+                    null,
+                    select,
+                    makeIdentList(params.toList())
+            );
+            methodCall.type = reference.sym.type.getReturnType();
+
+        } else if (reference.kind == JCMemberReference.ReferenceKind.BOUND) {
+            // Bound instance method: obj::method -> (args) -> obj.method(args)
+            JCFieldAccess select = make.Select(reference.expr, reference.name);
+            select.sym = reference.sym; // Method symbol from the reference
+            select.type = reference.sym.type; // Method type
+
+            methodCall = make.Apply(
+                    null,
+                    select,
+                    makeIdentList(params.toList())
+            );
+            methodCall.type = reference.sym.type.getReturnType();
+
+        } else if (reference.kind == JCMemberReference.ReferenceKind.UNBOUND) {
+            // Unbound instance method: Class::method -> (obj, args) -> obj.method(args)
+            JCIdent receiver = make.Ident(params.toList().head.name);
+            receiver.sym = params.toList().head.sym;
+            receiver.type = paramTypes.head;
+
+            JCFieldAccess select = make.Select(receiver, reference.name);
+            select.sym = reference.sym; // Method symbol from the reference
+            select.type = reference.sym.type; // Method type
+
+            List<JCExpression> args = makeIdentList(params.toList().tail);
+            methodCall = make.Apply(
+                    null,
+                    select,
+                    args
+            );
+            methodCall.type = ((Type.MethodType) reference.sym.type).getReturnType();
+
+        } else if (reference.kind == JCMemberReference.ReferenceKind.IMPLICIT_INNER) {
+            // Constructor reference for inner class: Outer.Inner::new -> (args) -> new Inner(args)
+            JCNewClass newClass = make.NewClass(
+                    null, // enclosing expression
+                    null, // type arguments  
+                    reference.expr, // class identifier
+                    makeIdentList(params.toList()), // constructor arguments
+                    null  // class body
+            );
+            newClass.constructor = reference.sym; // Constructor symbol
+            newClass.type = reference.sym.owner.type; // Class type
+            methodCall = newClass;
+
+        } else {
+            // Constructor reference: Class::new -> (args) -> new Class(args)
+            JCNewClass newClass = make.NewClass(
+                    null, // enclosing expression
+                    null, // type arguments
+                    reference.expr, // class identifier  
+                    makeIdentList(params.toList()), // constructor arguments
+                    null  // class body
+            );
+            newClass.constructor = reference.sym; // Constructor symbol
+            newClass.type = reference.sym.owner.type; // Class type
+            methodCall = newClass;
+        }
+
+        make.pos = reference.pos;
+        JCLambda lambda = make.Lambda(params.toList(), methodCall);
+
+        lambda.type = functionalInterface;
+
+        return lambda;
+    }
+
+    // Helper method to convert parameter declarations to identifiers
+    private List<JCExpression> makeIdentList(List<JCVariableDecl> params) {
+        ListBuffer<JCExpression> idents = new ListBuffer<>();
+        for (JCVariableDecl param : params) {
+            JCIdent ident = make.Ident(param.name);
+            ident.sym = param.sym;
+            ident.type = param.sym.type;
+            idents.append(ident);
+        }
+        return idents.toList();
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
