@@ -47,8 +47,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
     @Override
     public void visitLambda(JCLambda lambda) {
-        new QualifyLocalMethodReferences(context).translate(lambda);
         super.visitLambda(lambda);
+        new QualifyLocalMethodReferences(context).translate(lambda);
         result = transformLambdaToAnonymousClass(lambda);
     }
 
@@ -259,7 +259,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             methodBody = (JCBlock) lambda.body;
         }
         return methodBody;
-    }private void retargetCapturedVariables(Symbol.ClassSymbol classSymbol,
+    }
+    
+    private void retargetCapturedVariables(Symbol.ClassSymbol classSymbol,
                                             Symbol.MethodSymbol methodSymbol,
                                             JCLambda lambda,
                                             Map<Symbol, JCExpression> capturedMap) {
@@ -283,9 +285,14 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             }
 
             @Override
+            public void visitClassDef(JCClassDecl tree) {
+                result = tree;
+            }
+
+            @Override
             public void visitVarDef(JCVariableDecl tree) {
                 // TODO maybe move to a separate body transformer, so we don't need insideContract.
-                if (tree.sym.owner instanceof Symbol.MethodSymbol) {
+                if (tree.sym.owner == currentMethod.sym) {
                     tree.sym.owner = methodSymbol;
                 }
                 super.visitVarDef(tree);

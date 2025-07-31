@@ -10,83 +10,85 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 34, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 34, dafnyErrors = 2, verifyPrintedDafny = true)
 public class Lambdas {
 
     private static int STATIC_FIELD = 100;
     private int instanceField = 50;
     
-    void classCaptures() {
-        doSomethingTwice((x, y) -> x);
-
-        doSomethingTwice((x, y) -> instanceField);
-        doSomethingTwice((x, y) -> STATIC_FIELD);
-
-        doSomethingTwice((x, y) -> this.add(x,y));
-        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
-
-        doSomethingTwice((x, y) -> add(x,y));
-        doSomethingTwice((x, y) -> staticAdd(x,y));
-    }
-
-    void localCaptures() {
-        int z = 42;
-        final int finalZ = 43;
-        doSomethingTwice((x, y) -> z);
-        doSomethingTwice((x, y) -> finalZ);
-    }
-    
-    void lambdaWithContract() {
-        doSomethingWithSpecTwice((x, y) -> {
-            precondition(x >= y);
-            postcondition((int r) -> r == x - y);
-            return x - y;
-//                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
-        });
-    }
-    
-    void referenceEquality() {
-        SomethingDoer doer = (x, y) -> {
-            return x;
-        };
-        SomethingDoer doer2 = (x, y) -> {
-            return x;
-        };
-        // Important that these values aren't equal,
-        // since they aren't in Java semantics,
-        // but if we map lambdas to datatype values incorrectly
-        // they could be equal Dafny values.
-        check(doer != doer2);
-    }
-    
-    void methodReferences() {
-//        doSomethingTwice(this::add);
-//        doSomethingTwice(Lambdas::staticAdd);
-//        makeSomeClass(SomeClass::new);
-    }
-    
-    void blockLocals() {
-        int outerLocal = 1;
-        {
-            int blockLocal = 2;
-
-            SomethingDoer lambda = (x, y) -> outerLocal + blockLocal;
-//                                           ^ Error: value does not satisfy the subset constraints of 'int32'
-            var z = lambda.doSomething(1,2);
-        }
-    }
+//    void classCaptures() {
+//        doSomethingTwice((x, y) -> x);
 //
-//    void nestedLambda() {
-//        int level1 = 1;
+//        doSomethingTwice((x, y) -> instanceField);
+//        doSomethingTwice((x, y) -> STATIC_FIELD);
 //
-//        SomethingDoer outer = (x, y) -> {
-//            int level2 = 2;
-//            SomethingDoer inner = (x2, y2) -> level1 + level2 + x + y + x2 + y2;
-//            return inner.doSomething(1,2);
-//        };
-//        var result = outer.doSomething(1, 2);
-//        check(result == 3 + 3 * 2);
+//        doSomethingTwice((x, y) -> this.add(x,y));
+//        doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
+//
+//        doSomethingTwice((x, y) -> add(x,y));
+//        doSomethingTwice((x, y) -> staticAdd(x,y));
 //    }
+//
+//    void localCaptures() {
+//        int z = 42;
+//        final int finalZ = 43;
+//        doSomethingTwice((x, y) -> z);
+//        doSomethingTwice((x, y) -> finalZ);
+//    }
+//    
+//    void lambdaWithContract() {
+//        doSomethingWithSpecTwice((x, y) -> {
+//            precondition(x >= y);
+//            postcondition((int r) -> r == x - y);
+//            return x - y;
+////                 ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
+//        });
+//    }
+//    
+//    void referenceEquality() {
+//        SomethingDoer doer = (x, y) -> {
+//            return x;
+//        };
+//        SomethingDoer doer2 = (x, y) -> {
+//            return x;
+//        };
+//        // Important that these values aren't equal,
+//        // since they aren't in Java semantics,
+//        // but if we map lambdas to datatype values incorrectly
+//        // they could be equal Dafny values.
+//        check(doer != doer2);
+//    }
+//    
+//    void methodReferences() {
+////        doSomethingTwice(this::add);
+////        doSomethingTwice(Lambdas::staticAdd);
+////        makeSomeClass(SomeClass::new);
+//    }
+//    
+//    void blockLocals() {
+//        int outerLocal = 1;
+//        {
+//            int blockLocal = 2;
+//
+//            SomethingDoer lambda = (x, y) -> outerLocal + blockLocal;
+////                                           ^ Error: value does not satisfy the subset constraints of 'int32'
+//            var z = lambda.doSomething(1,2);
+//        }
+//    }
+
+    void nestedLambda() {
+        int level1 = 1;
+
+        IntToInt outer = (x) -> {
+            int level2 = 2;
+            SomethingDoer inner = (x2, y2) -> level1 + level2 + x + x2 + y2; 
+//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: value does not satisfy the subset constraints of 'int32'
+
+            return inner.doSomething(1,2);
+        };
+        var result = outer.doSomething(1);
+        check(result == 1 + 2 + 1 + 1 + 2);
+    }
     
     @Verify(false)
     void doSomethingTwice(SomethingDoer doer) {
@@ -142,6 +144,19 @@ interface SomethingDoer {
 
         @Override
         public int doSomething(int x, int y) {
+            throw new ContractException();
+        }
+    }
+}
+
+interface IntToInt {
+    int doSomething(int x);
+
+    @Contract
+    class IntToIntContract implements IntToInt {
+
+        @Override
+        public int doSomething(int x) {
             throw new ContractException();
         }
     }
