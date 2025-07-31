@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 28, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 34, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
     private static int STATIC_FIELD = 100;
@@ -65,15 +65,16 @@ public class Lambdas {
 //        makeSomeClass(SomeClass::new);
     }
     
-//    void blockLocals() {
-//        int outerLocal = 1;
-//        {
-//            int blockLocal = 2;
-//
-//            SomethingDoer lambda = (x, y) -> outerLocal + blockLocal;
-//            lambda.doSomething(1,2);
-//        }
-//    }
+    void blockLocals() {
+        int outerLocal = 1;
+        {
+            int blockLocal = 2;
+
+            SomethingDoer lambda = (x, y) -> outerLocal + blockLocal;
+//                                           ^ Error: value does not satisfy the subset constraints of 'int32'
+            var z = lambda.doSomething(1,2);
+        }
+    }
 //
 //    void nestedLambda() {
 //        int level1 = 1;

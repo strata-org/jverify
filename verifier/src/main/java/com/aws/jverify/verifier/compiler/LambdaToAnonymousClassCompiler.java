@@ -259,21 +259,21 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             methodBody = (JCBlock) lambda.body;
         }
         return methodBody;
-    }
-    private void retargetCapturedVariables(Symbol.ClassSymbol classSymbol,
-                                                                        Symbol.MethodSymbol methodSymbol,
-                                                                        JCLambda lambda,
-                                                                        Map<Symbol, JCExpression> capturedMap) {
-        var body = lambda.body;
-        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, classSymbol);
+    }private void retargetCapturedVariables(Symbol.ClassSymbol classSymbol,
+                                            Symbol.MethodSymbol methodSymbol,
+                                            JCLambda lambda,
+                                            Map<Symbol, JCExpression> capturedMap) {
+        var thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, classSymbol);
+        Map<Symbol, Symbol.VarSymbol> symbolToFieldMap = new HashMap<>();
 
-        // Track already processed symbols to avoid duplicates
-        Map<Symbol, JCVariableDecl> symbolToFieldMap = new HashMap<>();
+        // Collect all local variables declared in the same block as the lambda
+        Set<Symbol> localVariables = new HashSet<>();
+        collectLocalVariables(lambda, localVariables);
 
         TreeTranslator bodyTransformer = new TreeTranslator() {
 
             boolean insideContract = false;
-            
+
             @Override
             public void visitApply(JCTree.JCMethodInvocation invocation) {
                 var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
@@ -295,7 +295,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             public void visitIdent(JCIdent ident) {
 
                 // Check if this is a captured variable (from enclosing scope)
-                if (!insideContract && ident.sym != null && isFromEnclosingScope(ident.sym, lambda)) {
+                if (!insideContract && ident.sym != null && isFromEnclosingScope(ident.sym, lambda, localVariables)) {
                     if (!(ident.sym instanceof Symbol.ClassSymbol || ident.sym instanceof Symbol.PackageSymbol) ||
                             ident.name == ident.name.table.names._this) {
 
@@ -303,24 +303,25 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                         if (name == ident.sym.name.table.names._this) {
                             name = ident.sym.name.table.names.fromString("captured" + NameCompiler.sep + "this");
                         }
-                        
+
                         // Create field declaration if not already present
                         final var finalName = name;
-                        JCVariableDecl fieldDecl = symbolToFieldMap.computeIfAbsent(ident.sym,
-                                sym -> createFieldDeclForSymbol(sym, finalName, classSymbol));
+                        Symbol.VarSymbol fieldSym = symbolToFieldMap.computeIfAbsent(ident.sym,
+                                sym -> new Symbol.VarSymbol(FINAL, finalName, sym.type, classSymbol));
 
                         // Only add to captured map if this is the first time we see this symbol
-                        if (!capturedMap.containsKey(fieldDecl.sym)) {
+                        if (!capturedMap.containsKey(fieldSym)) {
                             JCExpression constructorArg = make.Ident(ident.sym);
-                            capturedMap.put(fieldDecl.sym, constructorArg);
+                            capturedMap.put(fieldSym, constructorArg);
                         }
 
                         // Replace captured variable reference with this.fieldName
+                        make.pos = ident.pos;
                         JCIdent thisIdent = make.Ident(names._this);
                         thisIdent.sym = thisSymbol;
                         thisIdent.type = classSymbol.type;
                         JCFieldAccess select = make.Select(thisIdent, name);
-                        select.sym = fieldDecl.sym;
+                        select.sym = fieldSym;
                         select.type = ident.type;
                         result = select;
                         return;
@@ -331,27 +332,32 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             }
         };
 
-        lambda.body = bodyTransformer.translate(body);
+        lambda.body = bodyTransformer.translate(lambda.body);
     }
 
-    private JCVariableDecl createFieldDeclForSymbol(Symbol sym, Name fieldName, Symbol.ClassSymbol classSymbol) {
-        JCVariableDecl field = make.VarDef(
-                make.Modifiers(Flags.PRIVATE | Flags.FINAL),
-                fieldName,
-                make.Type(sym.type),
-                null
-        );
-        field.type = sym.type;
-        field.sym = new Symbol.VarSymbol(FINAL, field.name, field.type, classSymbol);
-        return field;
+    private void collectLocalVariables(JCLambda lambda, Set<Symbol> localVariables) {
+        TreeTranslator collector = new TreeTranslator() {
+            @Override
+            public void visitVarDef(JCVariableDecl tree) {
+                if (tree.sym != null && tree.sym.owner == currentMethod.sym) {
+                    localVariables.add(tree.sym);
+                }
+                super.visitVarDef(tree);
+            }
+        };
+
+        // We need to traverse the lambda body to find local variable declarations
+        collector.translate(lambda.body);
     }
 
-    private boolean isFromEnclosingScope(Symbol sym, JCLambda lambda) {
+    private boolean isFromEnclosingScope(Symbol sym, JCLambda lambda, Set<Symbol> localVariables) {
         for (JCVariableDecl param : lambda.params) {
             if (param.sym == sym) {
                 return false;
             }
         }
-        return true;
+
+        return !localVariables.contains(sym);
     }
+
 }
