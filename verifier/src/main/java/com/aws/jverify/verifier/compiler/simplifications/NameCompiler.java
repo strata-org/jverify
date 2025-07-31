@@ -110,7 +110,8 @@ public class NameCompiler {
             return uncachedGetCompiledName(newTarget);
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
-        if (classSymbol.isAnonymous() || occurrenceCount == null || occurrenceCount > 1) {
+        var hasEmptyDotName = classSymbol.isAnonymous();
+        if (hasEmptyDotName || occurrenceCount == null || occurrenceCount > 1) {
             return encodeName(classSymbol.flatName().toString().replace(".", "_"));
         }
         return encodeName(classSymbol.name.toString());
