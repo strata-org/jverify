@@ -2,10 +2,12 @@ package com.aws.jverify.verifier.tests.localClasses;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0,
+@JVerifyTest(exitCode = 0, dafnyVerified = 10, dafnyErrors = 0,
         verifyPrintedDafny = true)
 public class PolymorphicAnonymousClasses {
 
+    @SuppressWarnings("InnerClassMayBeStatic")
+    class InstanceAnything {}
     static class Anything {}
     void genericInterfaces() {
         var fooArg = new MyConsumer<Anything>() {
@@ -15,6 +17,13 @@ public class PolymorphicAnonymousClasses {
             }
         };
         foo(fooArg);
+        var fotArg = new MyConsumer<InstanceAnything>() {
+            @Override
+            public int consume(InstanceAnything value) {
+                return 3;
+            }
+        };
+        fot(fotArg);
 
         var barArg = new MyProducer<Anything>() {
             @Override
@@ -23,6 +32,13 @@ public class PolymorphicAnonymousClasses {
             }
         };
         bar(barArg);
+        var batArg = new MyProducer<InstanceAnything>() {
+            @Override
+            public InstanceAnything produce() {
+                return new InstanceAnything();
+            }
+        };
+        bat(batArg);
     }
 
     <U> void genericMethod() {
@@ -36,7 +52,9 @@ public class PolymorphicAnonymousClasses {
     }
 
     void foo(MyConsumer<Anything> f) {}
+    void fot(MyConsumer<InstanceAnything> f) {}
     void bar(MyProducer<Anything> f) {}
+    void bat(MyProducer<InstanceAnything> f) {}
     <R> void zaz(MyConsumer<R> f) {}
 
     static class GenericClass<U> {

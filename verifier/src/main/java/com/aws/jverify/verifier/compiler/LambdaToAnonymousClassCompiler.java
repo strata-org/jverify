@@ -110,7 +110,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
         // Create constructor if we have captured variables
         var classSymbol = new Symbol.ClassSymbol(modifiers.flags, append, currentMethod.sym);
-        Type.ClassType classType = new Type.ClassType(functionalInterfaceType.getEnclosingType(), List.nil(), classSymbol);
+        Type.ClassType classType = new Type.ClassType(currentMethod.sym.enclClass().type, List.nil(), classSymbol);
         classType.interfaces_field = List.of(functionalInterfaceType);
         classSymbol.type = classType;
         classSymbol.members_field = Scope.WriteableScope.create(classSymbol);
@@ -142,7 +142,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         // Create the anonymous class definition
         JCClassDecl classDef = make.ClassDef(
                 modifiers,
-                names.lambda,
+                classSymbol.name,
                 List.nil(),
                 null,
                 List.of(make.Type(functionalInterfaceType)),

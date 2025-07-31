@@ -218,7 +218,6 @@ public class ValueTypeCompiler {
         // TODO add tests for records and polymorphism
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
-            var ownerTypes = compiler.getAllOwnerTypeParameters(newClass.type.tsym);
             typeArgs = compiler.getAllOwnerTypeParameters(newClass.type.tsym).map(
                     tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
         }
