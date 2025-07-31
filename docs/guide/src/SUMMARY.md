@@ -1,10 +1,12 @@
 # Summary
 
 [JVerify Overview](./overview.md)
+[Example use-cases](./example_usecases.md)
 
 # Getting started
 
-- [Getting Started](./getting_started.md)
+- [Installation](./installation.md)
+- [Running JVerify](./first_verification.md)
 - [Supported Java features](./supported_java_features.md)
 
 # Fundamentals
@@ -25,6 +27,13 @@
 - [Working with Null](working_with_null.md)
 - [Class Invariants](class_invariants.md)
 - [Interfaces & Abstract Classes](interfaces.md)
+
+# Integration
+- [Partially verifying a codebase](./partial_verification.md)
+- [Testing unverified contracts](./testing_unverified_contracts.md)
+- [Adding contracts to third-party code](./external_contracts.md)
+- [Runtime checking of contracts](./runtime_checking.md)
+- [Erase verification code during compilation](./erase_verification.md)
 
 <!-- 
 There should be a section about the construction of composite types in pure contexts.
