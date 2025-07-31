@@ -26,18 +26,18 @@ trait Object {
     decreases Repr()
     ensures this as Object == other ==> b
 
-  lemma equalsSymmetric(other: Object)
-    requires valid()
-    requires other.valid()
-    requires equals(other)
-    ensures other.equals(this)
+  // lemma equalsSymmetric(other: Object)
+  //   requires valid()
+  //   requires other.valid()
+  //   requires equals(other)
+  //   ensures other.equals(this)
 
-  method equalsImpl(other: Object) returns (b: bool)
-    requires Repr.requires()
-    requires valid()
-    requires other.Repr.requires()
-    requires other.valid()
-    ensures b == equals(other)
+  // method equalsImpl(other: Object) returns (b: bool)
+  //   requires Repr.requires()
+  //   requires valid()
+  //   requires other.Repr.requires()
+  //   requires other.valid()
+  //   ensures b == equals(other)
 
   function getClass(): Class
 }
@@ -96,25 +96,27 @@ trait MyPair extends ModifiableObject, object {
       false
     else
       var other: MyPair := obj as MyPair;
+      assert validComponent(a);
+      // assert other in (set _obj: object? /*{:_reads}*/ {:trigger Repr.reads in Repr.reads()} | Repr.reads in Repr.reads() :: Repr.reads) || other in Repr() || other in (set _obj: object? /*{:_reads}*/ {:trigger obj.Repr.reads in obj.Repr.reads()} | obj.Repr.reads in obj.Repr.reads() :: obj.Repr.reads) || other in obj.Repr();
       var result? := a.equals(other.a) && b.equals(other.b);
       result?
   }
 
-  method equalsImpl(obj: Object) returns (result?: bool)
-    requires Repr.requires()
+  // method equalsImpl(obj: Object) returns (result?: bool)
+  //   requires Repr.requires()
     
-    requires valid()
-    requires obj.valid()
-    ensures result? == equals(obj)
-  {
-    if !(obj is MyPair) {
-      result? := false;
-      return;
-    }
-    var other: MyPair := obj as MyPair;
-    result? := a.equals(other.a) && b.equals(other.b);
-    return;
-  }
+  //   requires valid()
+  //   requires obj.valid()
+  //   ensures result? == equals(obj)
+  // {
+  //   if !(obj is MyPair) {
+  //     result? := false;
+  //     return;
+  //   }
+  //   var other: MyPair := obj as MyPair;
+  //   result? := a.equals(other.a) && b.equals(other.b);
+  //   return;
+  // }
 }
 
 class Constructable?MyPair extends MyPair {
@@ -124,12 +126,12 @@ class Constructable?MyPair extends MyPair {
   // predicate equals(other: Object): (b: bool)
   //   ensures this as Object == other ==> b
 
-  lemma equalsSymmetric(other: Object)
-    requires valid()
-    requires other.valid()
-    requires equals(other)
-    ensures other.equals(this)
-  {}
+  // lemma equalsSymmetric(other: Object)
+  //   requires valid()
+  //   requires other.valid()
+  //   requires equals(other)
+  //   ensures other.equals(this)
+  // {}
 
   function getClass(): Class
 }
@@ -143,17 +145,17 @@ trait A extends ModifiableObject {
     this.f := f;
   }
 
-  method equalsImpl(obj: Object) returns (result?: bool)
-    ensures result? == equals(obj)
-  {
-    if !(obj is A) {
-      result? := false;
-      return;
-    }
-    var other: A := obj as A;
-    result? := f == other.f;
-    return;
-  }
+  // method equalsImpl(obj: Object) returns (result?: bool)
+  //   ensures result? == equals(obj)
+  // {
+  //   if !(obj is A) {
+  //     result? := false;
+  //     return;
+  //   }
+  //   var other: A := obj as A;
+  //   result? := f == other.f;
+  //   return;
+  // }
 }
 
 class Constructable?A extends A {
@@ -169,10 +171,10 @@ class Constructable?A extends A {
     ensures this as Object == other ==> b
     decreases Repr()
 
-  lemma equalsSymmetric(other: Object)
-    requires equals(other)
-    ensures other.equals(this)
-  {}
+  // lemma equalsSymmetric(other: Object)
+  //   requires equals(other)
+  //   ensures other.equals(this)
+  // {}
 
   function getClass(): Class
 }
@@ -187,21 +189,24 @@ trait B extends A, object {
     this.g := g;
   }
 
-  method equalsImpl(obj: Object) returns (result?: bool)
-    ensures result? == equals(obj)
-  {
-    if !(obj is B) {
-      result? := false;
-      return;
-    }
-    var other: B := obj as B;
-    result? := f == other.f && g == other.g;
-    return;
-  }
+  // method equalsImpl(obj: Object) returns (result?: bool)
+  //   ensures result? == equals(obj)
+  // {
+  //   if !(obj is B) {
+  //     result? := false;
+  //     return;
+  //   }
+  //   var other: B := obj as B;
+  //   result? := f == other.f && g == other.g;
+  //   return;
+  // }
 }
 
 class Constructable?B extends B {
   ghost predicate valid()
+    requires Repr.requires()
+    reads Repr.reads(), Repr()
+    decreases Repr(), 1
 
   constructor ctor?(f: int32, g: int32)
 
@@ -210,10 +215,10 @@ class Constructable?B extends B {
     ensures this as Object == other ==> b
 
 
-  lemma equalsSymmetric(other: Object)
-    requires equals(other)
-    ensures other.equals(this)
-  {}
+  // lemma equalsSymmetric(other: Object)
+  //   requires equals(other)
+  //   ensures other.equals(this)
+  // {}
 
   function getClass(): Class
 }
@@ -221,6 +226,9 @@ class Constructable?B extends B {
 class Constructable?ModifiableObject extends ModifiableObject {
 
   ghost predicate valid()
+    requires Repr.requires()
+    reads Repr.reads(), Repr()
+    decreases Repr(), 1
 
   constructor ctor?()
 
@@ -232,15 +240,15 @@ class Constructable?ModifiableObject extends ModifiableObject {
   }
 
 
-  lemma equalsSymmetric(other: Object)
-    requires equals(other)
-    ensures other.equals(this)
-  {}
+  // lemma equalsSymmetric(other: Object)
+  //   requires equals(other)
+  //   ensures other.equals(this)
+  // {}
 
   function getClass(): Class
 
-  method equalsImpl(other: Object) returns (b: bool)
-    ensures b == equals(other)
+  // method equalsImpl(other: Object) returns (b: bool)
+  //   ensures b == equals(other)
 }
 
 trait Class extends ModifiableObject {
@@ -270,6 +278,9 @@ type char16 = i: int
 
 datatype DString extends Object = JS(elements: seq<char16>) {
   ghost predicate valid()
+    requires Repr.requires()
+    reads Repr.reads(), Repr()
+    decreases Repr(), 1
 
   function indexOf_i(c: char16): (result: int32)
     ensures -1 <= result < |this.elements|
@@ -317,10 +328,10 @@ datatype DString extends Object = JS(elements: seq<char16>) {
     this.elements == (other as DString).elements
   }
 
-  lemma equalsSymmetric(other: Object)
-    requires equals(other)
-    ensures other.equals(this)
-  {}
+  // lemma equalsSymmetric(other: Object)
+  //   requires equals(other)
+  //   ensures other.equals(this)
+  // {}
 
 
   function startsWith_Cjava_lang_String(other: DString): (b: bool)
@@ -330,8 +341,8 @@ datatype DString extends Object = JS(elements: seq<char16>) {
 
   function getClass(): Class
 
-  method equalsImpl(other: Object) returns (b: bool)
-    ensures b == equals(other)
+  // method equalsImpl(other: Object) returns (b: bool)
+  //   ensures b == equals(other)
 }
 
 datatype DNull extends Object = DNull {
@@ -345,13 +356,13 @@ datatype DNull extends Object = DNull {
   }
 
   function getClass(): Class
-  method equalsImpl(other: Object) returns (b: bool)
-    ensures b == equals(other)
+  // method equalsImpl(other: Object) returns (b: bool)
+  //   ensures b == equals(other)
 
-  lemma equalsSymmetric(other: Object)
-    requires equals(other)
-    ensures other.equals(this)
-  {}
+  // lemma equalsSymmetric(other: Object)
+  //   requires equals(other)
+  //   ensures other.equals(this)
+  // {}
 }
 
 type byte = x
