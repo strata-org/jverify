@@ -12,8 +12,17 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;
 
 /**
- * Object -> trait Object
- * @Modifiable Object -> trait ModifiableObject extends Object, object
+ * Verification types:
+ *   trait Object
+ *   trait ModifiableObject extends Object, object
+ * 
+ * General transformations:
+ *   Object -> Object
+ *   @Modifiable Object -> ModifiableObject
+ * 
+ * Exceptional transformations:
+ *   new Object -> new ModifiableObject
+ *   extends Object -> extends ModifiableObject
  * 
  * Ideally this would be a separate pass that updates types in the AST
  */
