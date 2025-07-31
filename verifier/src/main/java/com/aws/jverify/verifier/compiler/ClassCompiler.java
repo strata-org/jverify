@@ -52,7 +52,7 @@ public class ClassCompiler {
                     compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             } else {
-                var contractee = ExternalContractCompiler.getContractTarget(classDecl, contractAnnotation);
+                var contractee = compiler.externalContractCompiler.getContractTarget(classDecl, contractAnnotation);
                 if (contractee != null) {
 
                     if (compiler.typeHasSource(contractee)) {
