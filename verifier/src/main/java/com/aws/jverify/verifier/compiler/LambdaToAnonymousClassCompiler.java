@@ -66,7 +66,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         Map<Symbol, CapturedData> captures = new HashMap<>();
         var classSymbol = getClassSymbol(lambda);
 
-        JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda, captures);
+        JCMethodDecl implMethod = createImplementationMethod(classSymbol, lambda);
         var constructor = createConstructor(classSymbol, captures);
         var classDef = createLocalClassDef(lambda, classSymbol, constructor, implMethod, captures);
 
@@ -224,9 +224,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         return result;
     }
 
-    private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, 
-                                                    JCLambda lambda,
-                                                    Map<Symbol, CapturedData> captures) {
+    private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, JCLambda lambda) {
 
         var samMethod = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.type.tsym);
         var methodType = types.memberType(lambda.type, samMethod);
@@ -239,7 +237,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         ), classSymbol);
         methodSymbol.params = lambda.params.map(d -> d.sym);
 
-        JCBlock methodBody = getMethodBody(classSymbol, lambda, methodSymbol, captures);
+        JCBlock methodBody = getMethodBody(lambda, methodSymbol);
         JCMethodDecl result = make.MethodDef(
                 modifiers,
                 methodSymbol.name,
@@ -258,9 +256,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         return result;
     }
 
-    private JCBlock getMethodBody(Symbol.ClassSymbol classSymbol, JCLambda lambda, Symbol.MethodSymbol methodSymbol,
-                                  Map<Symbol, CapturedData> captures) {
-        retargetCapturedVariables(classSymbol, methodSymbol, lambda, captures);
+    private JCBlock getMethodBody(JCLambda lambda, Symbol.MethodSymbol methodSymbol) {
+        retargetCapturedVariables(methodSymbol, lambda);
         return handleExpressionOrBlockBody(lambda);
     }
 
@@ -277,25 +274,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     
     record CapturedData(Symbol.VarSymbol fieldSymbol, JCExpression constructorArgument) {}
     
-    private void retargetCapturedVariables(Symbol.ClassSymbol classSymbol,
-                                            Symbol.MethodSymbol methodSymbol,
-                                            JCLambda lambda,
-                                            Map<Symbol, CapturedData> capturedMap) {
-        var thisSymbol = new Symbol.VarSymbol(FINAL, names._this, classSymbol.type, classSymbol);
-
-        var localVariables = collectLocalVariables(lambda);
+    private void retargetCapturedVariables(Symbol.MethodSymbol methodSymbol, JCLambda lambda) {
 
         TreeTranslator bodyTransformer = new TreeTranslator() {
-
-            boolean insideContract = false;
-
-            @Override
-            public void visitApply(JCTree.JCMethodInvocation invocation) {
-                var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
-                insideContract = jverifyMethod != null;
-                super.visitApply(invocation);
-                insideContract = false;
-            }
 
             @Override
             public void visitClassDef(JCClassDecl tree) {
@@ -304,7 +285,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
             @Override
             public void visitVarDef(JCVariableDecl tree) {
-                // TODO maybe move to a separate body transformer, so we don't need insideContract.
                 if (tree.sym.owner == currentContainer) {
                     tree.sym.owner = methodSymbol;
                 }
@@ -327,70 +307,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 }
                 super.visitIdent(ident);
             }
-
-            //            @Override
-//            public void visitIdent(JCIdent ident) {
-//                boolean isCapturedVariable = 
-//                        insideContract || 
-//                        ident.sym == null || 
-//                        !isFromEnclosingScope(ident.sym, lambda, localVariables);
-//
-//                boolean isStatic = ident.sym instanceof Symbol.ClassSymbol || ident.sym instanceof Symbol.PackageSymbol;
-//                if (isCapturedVariable || isStatic) {
-//                    result = ident;
-//                    return;
-//                }
-//
-//                var capturedData = capturedMap.get(ident.sym);
-//                if (capturedData == null) {
-//                    JCExpression constructorArg = make.Ident(ident.sym);
-//                    Name fieldName = getCapturedVariableName(ident.sym);
-//                    Symbol.VarSymbol fieldSymbol = new Symbol.VarSymbol(FINAL, fieldName, ident.type, classSymbol);
-//                    capturedData = new CapturedData(fieldSymbol, constructorArg);
-//                    capturedMap.put(ident.sym, capturedData);
-//                }
-//
-//                // Replace captured variable reference with this.fieldName
-//                make.pos = ident.pos;
-//                JCIdent thisIdent = make.Ident(names._this);
-//                thisIdent.sym = thisSymbol;
-//                thisIdent.type = classSymbol.type;
-//                JCFieldAccess select = make.Select(thisIdent, capturedData.fieldSymbol.name);
-//                select.sym = capturedData.fieldSymbol;
-//                select.type = ident.type;
-//                result = select;
-//            }
         };
 
         lambda.body = bodyTransformer.translate(lambda.body);
     }
-
-    private Set<Symbol> collectLocalVariables(JCLambda lambda) {
-        var localVariables = new HashSet<Symbol>();
-        TreeTranslator collector = new TreeTranslator() {
-            @Override
-            public void visitVarDef(JCVariableDecl tree) {
-                if (tree.sym != null && tree.sym.owner == currentContainer) {
-                    localVariables.add(tree.sym);
-                }
-                super.visitVarDef(tree);
-            }
-        };
-
-        // We need to traverse the lambda body to find local variable declarations
-        collector.translate(lambda.body);
-        
-        return localVariables;
-    }
-
-    private boolean isFromEnclosingScope(Symbol sym, JCLambda lambda, Set<Symbol> localVariables) {
-        for (JCVariableDecl param : lambda.params) {
-            if (param.sym == sym) {
-                return false;
-            }
-        }
-
-        return !localVariables.contains(sym);
-    }
-
 }
