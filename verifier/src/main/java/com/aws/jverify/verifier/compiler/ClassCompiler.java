@@ -68,7 +68,6 @@ public class ClassCompiler {
                         return List.of();
                     }
 
-
                     typeForWhichCurrentClassIsDefiningContract = contractee;
                     name = compiler.getName(classDecl, typeForWhichCurrentClassIsDefiningContract);
                 }
@@ -165,6 +164,7 @@ public class ClassCompiler {
             }
         }
         var externalContract = compiler.externalContractCompiler.externalContracts.get(classDecl.sym);
+
         if (externalContract != null) {
             for (var ghostField : externalContract.ghostFields()) {
                 var dafnyMember = translateField(ghostField);
@@ -205,8 +205,13 @@ public class ClassCompiler {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
 
+        // If the class has a contract annotated with @Mutable, it must be considered as mutable itself
+        var contractMutable = typeForWhichCurrentClassIsDefiningContract != null
+                && compiler.isAnnotated(classDecl.type, Modifiable.class);
+
         var mutable = !JavaToDafnyCompiler.isInterface(definingSymbol)
-                || compiler.isAnnotated(definingSymbol.type, Modifiable.class);
+                || compiler.isAnnotated(definingSymbol.type, Modifiable.class)
+                || contractMutable;
         if (mutable) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
