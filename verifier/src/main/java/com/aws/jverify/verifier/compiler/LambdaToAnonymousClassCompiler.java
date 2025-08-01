@@ -15,18 +15,22 @@ import static com.sun.tools.javac.code.Flags.SYNTHETIC;
 
 public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
+    private final JCCompilationUnit compilationUnit;
     private final TreeMaker make;
     private final Names names;
     private final Types types;
     private final Context context;
 
-    public LambdaToAnonymousClassCompiler(Context context) {
+    public LambdaToAnonymousClassCompiler(JCCompilationUnit compilationUnit, Context context) {
+        this.compilationUnit = compilationUnit;
         this.make = TreeMaker.instance(context);
         this.names = Names.instance(context);
         this.types = Types.instance(context);
         this.context = context;
     }
 
+    
+    
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
         var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
@@ -85,8 +89,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private Symbol.ClassSymbol getClassSymbol(JCLambda lambda) {
-        // TODO test for collisions
-        Name append = names.lambda.append(names.fromString(lambda.pos + ""));
+        var line = compilationUnit.getLineMap().getLineNumber(lambda.pos);
+        var column = compilationUnit.getLineMap().getColumnNumber(lambda.pos);
+        Name append = names.lambda.append(names.fromString(line + "_" + column));
         
         var classSymbol = new Symbol.ClassSymbol(SYNTHETIC | FINAL, append, currentContainer);
         Type.ClassType classType = new Type.ClassType(currentContainer.enclClass().type, List.nil(), classSymbol);
