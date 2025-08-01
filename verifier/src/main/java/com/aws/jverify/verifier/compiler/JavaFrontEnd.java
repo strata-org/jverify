@@ -169,7 +169,7 @@ public class JavaFrontEnd {
         // to not waste time with these traversals.
         // We could do the same here to save time in the future.
         for (Env<AttrContext> env : envs) {
-            env.tree = new LambdaToAnonymousClassCompiler(context).translate(env.tree);
+            env.tree = new LambdaToAnonymousClassCompiler(env.toplevel, context).translate(env.tree);
         }
         return envs;
     }

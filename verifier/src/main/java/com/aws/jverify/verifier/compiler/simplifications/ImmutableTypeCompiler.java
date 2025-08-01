@@ -213,7 +213,6 @@ public class ImmutableTypeCompiler {
 
 
         JavaToDafnyCompiler compiler = expressionCompiler.compiler;
-        // TODO add tests for records and polymorphism
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
             typeArgs = compiler.getAllOwnerTypeParameters(newClass.type.tsym).map(

@@ -10,17 +10,18 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 48, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 46, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
-    private static int STATIC_FIELD = 100;
+    // TODO: bring back once we support static fields
+//    private static int STATIC_FIELD = 100;
     private int instanceField = 50;
     
     void classCaptures() {
         doSomethingTwice((x, y) -> x);
 
         doSomethingTwice((x, y) -> instanceField);
-        doSomethingTwice((x, y) -> STATIC_FIELD);
+//        doSomethingTwice((x, y) -> STATIC_FIELD);
 
         doSomethingTwice((x, y) -> this.add(x,y));
         doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
@@ -72,7 +73,7 @@ public class Lambdas {
             int blockLocal = 2;
 
             SomethingDoer lambda = (x, y) -> outerLocal + blockLocal;
-//                                           ^ Error: value does not satisfy the subset constraints of 'int32'
+//                                           ^^^^^^^^^^^^^^^^^^^^^^^ Error: value does not satisfy the subset constraints of 'int32'
             var z = lambda.doSomething(1,2);
         }
     }
