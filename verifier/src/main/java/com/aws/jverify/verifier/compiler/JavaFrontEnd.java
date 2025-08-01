@@ -136,10 +136,10 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    envs.addAll(unsuspend(
-                            lower(suspend(
+                    envs.addAll(
+                            unsuspend(lower(suspend(
                                     unlambda(
-                                    compiler.flow(compiler.attribute(todo))
+                                            compiler.flow(compiler.attribute(todo))
                     )))));
                 }
             }
