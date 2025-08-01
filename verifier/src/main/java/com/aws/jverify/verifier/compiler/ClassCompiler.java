@@ -2,9 +2,9 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.workaround.ClassesExtendingClassesCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
@@ -20,12 +20,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ClassCompiler {
+    private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
 
-    private final ClassesExtendingClassesCompiler classDeclCompiler = new ClassesExtendingClassesCompiler(this);
+    private final TraitWithConstructorCompiler traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
     
     public ClassCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -85,7 +86,7 @@ public class ClassCompiler {
             }
             compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
-            var classSymbol = typeForWhichCurrentClassIsDefiningContract == null ? classDecl.sym : typeForWhichCurrentClassIsDefiningContract;
+            var classSymbol = getCurrentTypeSymbol(classDecl);
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
@@ -100,7 +101,7 @@ public class ClassCompiler {
 
             List<TopLevelDecl> result = new ArrayList<>();
             if (intermediateResult != null) {
-                result.addAll(classDeclCompiler.compile(intermediateResult, classSymbol));
+                result.addAll(traitWithConstructorCompiler.compile(intermediateResult, classSymbol));
             }
             
             typeForWhichCurrentClassIsDefiningContract = null;
@@ -193,14 +194,29 @@ public class ClassCompiler {
                 map((com.sun.tools.javac.code.Type type) -> {
                     if (type.baseType() == symtab.objectType) {
                         // A class that extends 'Object' will extend '@Modifiable Object' instead
-                        return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OBJECT_NAME, null));
+                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectCompiler.REFERENCE_OBJECT_NAME, null));
                     }
                     return compiler.translateType(type, origin, null);
                 }).
                 collect(Collectors.<Type>toList());
 
-        var typeParameters = translateTypeParameters(classDecl.typarams);
-        return new ClassDecl(origin, new Name(name.getOrigin(), name.getValue()), null,
+        if (definingSymbol == symtab.objectType.tsym || definingSymbol == symtab.recordType.tsym) {
+            superTraits = new ArrayList<>();
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+        }
+
+        var mutable = !JavaToDafnyCompiler.isInterface(definingSymbol)
+                || compiler.isAnnotated(definingSymbol.type, Modifiable.class);
+        if (mutable) {
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
+        }
+
+        List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
+        if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
+            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+        }
+        var typeParameters = translateTypeParameters(javaTypeParams);
+        return new TraitDecl(origin, new Name(name.getOrigin(), name.getValue()), null,
                 typeParameters, members, superTraits, false);
     }
 

@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Symtab;
@@ -104,14 +103,15 @@ public class NameCompiler {
     private String getClassName(Symbol.ClassSymbol classSymbol) {
         var symtab = Symtab.instance(this.contractCompiler.compiler.context);
         if (classSymbol.type == symtab.objectType) {
-            return JavaToDafnyCompiler.REFERENCE_OBJECT_NAME;
+            return ModifiableObjectCompiler.REFERENCE_OBJECT_NAME;
         }
         var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
         if (newTarget != null) {
             return uncachedGetCompiledName(newTarget);
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
-        if (occurrenceCount == null || occurrenceCount > 1) {
+        var hasEmptyDotName = classSymbol.isAnonymous();
+        if (hasEmptyDotName || occurrenceCount == null || occurrenceCount > 1) {
             return encodeName(classSymbol.flatName().toString().replace(".", "_"));
         }
         return encodeName(classSymbol.name.toString());

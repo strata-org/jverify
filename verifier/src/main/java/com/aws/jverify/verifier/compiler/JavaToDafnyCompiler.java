@@ -4,13 +4,9 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.LambdaCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.util.Position;
 import com.sun.tools.javac.code.TypeMetadata;
@@ -39,11 +35,11 @@ import java.util.*;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
-    public static final String JVERIFY_CLASS = JVerify.class.getName();
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
-    public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
+    public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -212,6 +208,10 @@ public class JavaToDafnyCompiler {
         reportError(positionFromOrigin(origin), key, args);
     }
 
+    public void reportDiagnostic(IOrigin origin, JCDiagnostic.DiagnosticType type,  String key, Object... args) {
+        reportDiagnostic(positionFromOrigin(origin), type, key, args);
+    }
+
     private JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
         return new DiagnosticPositionFromOrigin(originToRange(origin), compilationUnit.lineMap);
     }
@@ -233,10 +233,14 @@ public class JavaToDafnyCompiler {
     }
     
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
+        reportDiagnostic(position, JCDiagnostic.DiagnosticType.ERROR, key, args);
+    }
+
+    private void reportDiagnostic(JCDiagnostic.DiagnosticPosition position, JCDiagnostic.DiagnosticType type,  String key, Object... args) {
         if (this.skipDiagnostics) {
             return;
         }
-        this.diagnostics.report(diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+        this.diagnostics.report(diagnosticFactory.create(type,
                 new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
     }
@@ -327,7 +331,7 @@ public class JavaToDafnyCompiler {
     /**
      * Returns {@code true} if the given modifier tree contains an annotation of the given class.
      */
-    private boolean isAnnotated(JCTree.JCModifiers modifiers, Class<? extends Annotation> clazz) {
+    public boolean isAnnotated(JCTree.JCModifiers modifiers, Class<? extends Annotation> clazz) {
         return modifiers != null && modifiers.getAnnotations().stream().anyMatch(a ->
                 TreeInfo.symbol(a.getAnnotationType()) instanceof Symbol symbol
                         && symbol.flatName().contentEquals(clazz.getName()));
@@ -498,20 +502,12 @@ public class JavaToDafnyCompiler {
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
 
-                var mirrors = type.getAnnotationMirrors();
-                var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
                 
-                Symtab symtab = Symtab.instance(context);
-                if (modifiableAnnotation.isPresent() || isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
-                    if (classType.tsym == symtab.objectType.tsym) {
-                        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
-                    } else {
-                        reportError(origin, "notSupported", "@Modifiable on a type other than Object");
-                    }
+                Type remappedType = new ModifiableObjectCompiler(this).getRemappedType(classType, origin, additionalModifiers);
+                if (remappedType != null) {
+                    return remappedType;
                 }
-                if (classType.tsym == symtab.objectType.tsym) {
-                    return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
-                }
+                
                 var className = classType.asElement().flatName();
                 if (className.toString().equals(String.class.getName())) {
                     if (!isNullable) {
@@ -521,8 +517,6 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
 
-
-
                 if (isRecord(classType) && isNullable) {
                     reportError(origin, "notSupported", "nullable record type");
                     return null;
@@ -530,11 +524,23 @@ public class JavaToDafnyCompiler {
 
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
-                var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null)).toList();
-                if (arguments.isEmpty()) {
-                    arguments = null;
+                if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
+                    // For instance and local types, the lower phase adds references to the owning type
+                    // But it does not add type arguments when doing so
+                    // We can recover the type arguments by traversing to the type symbol.
+                    classType = (com.sun.tools.javac.code.Type.ClassType)classType.tsym.type;
                 }
-                NameSegment nameSegment = new NameSegment(origin, compiledName, arguments);
+                var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
+                if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
+                    var ownerTypes = getAllOwnerTypeParameters(classType.tsym).toList();
+                    Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, toOrigin(tp)));
+                    typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
+                }
+                var typeArguments = typeArgumentsStream.toList();
+                if (typeArguments.isEmpty()) {
+                    typeArguments = null;
+                }
+                NameSegment nameSegment = new NameSegment(origin, compiledName, typeArguments);
                 if (isNullable) {
                     nameSegment = new NameSegment(nameSegment.getOrigin(), nameSegment.getName() + nullableSuffix, nameSegment.getOptTypeArguments());
                 }
@@ -555,7 +561,6 @@ public class JavaToDafnyCompiler {
                     }
                     return translateType(superBound, origin);
                 }
-                Symtab symtab = Symtab.instance(context);
                 return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
             }
             default -> {
@@ -653,6 +658,41 @@ public class JavaToDafnyCompiler {
         return isRecord(newClass.type) || isImmutableClass(classSymbol);
     }
 
+    public Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol symbol) {
+        if (symbol instanceof Symbol.ClassSymbol classSymbol) {
+            return getAllOwnerTypeParameters(classSymbol);
+        } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
+            return getAllOwnerTypeParameters(methodSymbol);
+        } else if (symbol instanceof Symbol.PackageSymbol) {
+            return Stream.empty();
+        }
+        throw new RuntimeException();
+    }
+
+    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.ClassSymbol classSymbol) {
+        var trees = JVerifyIndex.instance(context);
+        JCTree.JCClassDecl decl = (JCTree.JCClassDecl)trees.getTree(classSymbol);
+        if (decl == null) {
+            // ObjectContract
+            return Stream.empty();
+        }
+        var mine = decl.getTypeParameters().stream();
+        if (classSymbol.owner == null) {
+            return mine;
+        }
+        return Stream.concat(mine, getAllOwnerTypeParameters(classSymbol.owner));
+    }
+
+    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.MethodSymbol methodSymbol) {
+        var trees = JVerifyIndex.instance(context);
+        JCTree.JCMethodDecl decl = (JCTree.JCMethodDecl)trees.getTree(methodSymbol);
+        var mine = decl.getTypeParameters().stream();
+        if (methodSymbol.owner == null) {
+            return mine;
+        }
+        return Stream.concat(mine, getAllOwnerTypeParameters(methodSymbol.owner));
+    }
+    
     private boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
         var decls = externalContractCompiler.declarationsForSymbolContract.get(classSymbol);
         boolean immutableClass = false;

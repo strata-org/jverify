@@ -10,7 +10,7 @@ import com.sun.tools.javac.tree.TreeInfo;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
+import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.*;
 
 public class BlockCompiler {
 
@@ -355,11 +355,11 @@ public class BlockCompiler {
                     var datatypeValue = RecordCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }
+                NameSegment classBaseType = new ModifiableObjectCompiler(compiler).getNewClassType(newClass);
+
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);
-                var baseType = (NameSegment)compiler.expressionCompiler.toExpr(newClass.clazz);
-                var classBaseType = new NameSegment(baseType.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseType.getName(), baseType.getOptTypeArguments());
-                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
+                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName,null));
 
                 var argBindings = newClass.getArguments().stream()
                         .map(a -> new ActualBinding(
