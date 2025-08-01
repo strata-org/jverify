@@ -196,12 +196,10 @@ public class ValueTypeCompiler {
      */
     public static boolean isCanonicalRecordConstructor(JCTree.JCMethodDecl methodDecl) {
         if (methodDecl == null) {
-            // TODO: Why this if again?
             return false;
         }
         
         return TreeInfo.isCanonicalConstructor(methodDecl) &&
-        // TODO: Is this part necessary?        
                 (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0;
     }
 
