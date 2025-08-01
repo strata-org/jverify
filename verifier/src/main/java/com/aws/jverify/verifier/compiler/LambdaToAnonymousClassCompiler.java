@@ -28,8 +28,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         this.types = Types.instance(context);
         this.context = context;
     }
-
-    
     
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
@@ -207,6 +205,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
             @Override
             public void visitVarDef(JCVariableDecl tree) {
+                // Variables declared in a lambda are owned by the containing method, 
+                // but now they'll be owned by the impl method in the local class
                 if (tree.sym.owner == currentContainer) {
                     tree.sym.owner = methodSymbol;
                 }
@@ -215,13 +215,14 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
             @Override
             public void visitIdent(JCIdent ident) {
+                // "this" suddenly refers to the local class, so we need to qualify it with the outer class.
                 if (ident.name == names._this) {
                     make.pos = ident.pos;
                     Symbol.TypeSymbol thisClass = ident.sym.type.tsym;
-                    JCIdent thisIdent = make.Ident(thisClass.name);
-                    thisIdent.sym = thisClass;
-                    thisIdent.type = thisIdent.sym.type;
-                    JCFieldAccess select = make.Select(thisIdent, names._this);
+                    JCIdent outerClass = make.Ident(thisClass.name);
+                    outerClass.sym = thisClass;
+                    outerClass.type = outerClass.sym.type;
+                    JCFieldAccess select = make.Select(outerClass, names._this);
                     select.sym = thisClass;
                     select.type = select.sym.type;
                     result = select;
