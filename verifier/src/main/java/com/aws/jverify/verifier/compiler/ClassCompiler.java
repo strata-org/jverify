@@ -134,7 +134,7 @@ public class ClassCompiler {
 
     private TopLevelDeclWithMembers translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
-        if (compiler.isAnonymousOrFinalValueType(classDecl.sym)) {
+        if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
             return new ValueTypeCompiler(this).translateValueType(classDecl.sym, classDecl, origin, name);
         }
         

@@ -144,14 +144,10 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         java.util.List<JCVariableDecl> fields = new ArrayList<>();
 
         for (Symbol sym : lambda.keySet()) {
-            var name = sym.name;
-            if (name == sym.name.table.names._this) {
-                name = sym.name.table.names.fromString("captured" + NameCompiler.sep + "this");
-            }
-            
+
             JCVariableDecl field = make.VarDef(
                     make.Modifiers(Flags.PRIVATE | Flags.FINAL),
-                    name,
+                    getCapturedVariableName(sym.name, sym),
                     make.Type(sym.type),
                     null
             );
@@ -162,6 +158,14 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         }
 
         return List.from(fields);
+    }
+
+    private static Name getCapturedVariableName(Name sym, Symbol sym1) {
+        var name = sym;
+        if (name == sym1.name.table.names._this) {
+            name = sym1.name.table.names.fromString("captured" + NameCompiler.sep + "this");
+        }
+        return name;
     }
 
     private JCMethodDecl createConstructor(Symbol.ClassSymbol classSymbol, Map<Symbol, JCExpression> captures) {
@@ -300,42 +304,40 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
             @Override
             public void visitIdent(JCIdent ident) {
-
-                // Check if this is a captured variable (from enclosing scope)
-                if (!insideContract && ident.sym != null && isFromEnclosingScope(ident.sym, lambda, localVariables)) {
-                    if (!(ident.sym instanceof Symbol.ClassSymbol || ident.sym instanceof Symbol.PackageSymbol) ||
-                            ident.name == ident.name.table.names._this) {
-
-                        var name = ident.name;
-                        if (name == ident.sym.name.table.names._this) {
-                            name = ident.sym.name.table.names.fromString("captured" + NameCompiler.sep + "this");
-                        }
-
-                        // Create field declaration if not already present
-                        final var finalName = name;
-                        Symbol.VarSymbol fieldSym = symbolToFieldMap.computeIfAbsent(ident.sym,
-                                sym -> new Symbol.VarSymbol(FINAL, finalName, sym.type, classSymbol));
-
-                        // Only add to captured map if this is the first time we see this symbol
-                        if (!capturedMap.containsKey(fieldSym)) {
-                            JCExpression constructorArg = make.Ident(ident.sym);
-                            capturedMap.put(fieldSym, constructorArg);
-                        }
-
-                        // Replace captured variable reference with this.fieldName
-                        make.pos = ident.pos;
-                        JCIdent thisIdent = make.Ident(names._this);
-                        thisIdent.sym = thisSymbol;
-                        thisIdent.type = classSymbol.type;
-                        JCFieldAccess select = make.Select(thisIdent, name);
-                        select.sym = fieldSym;
-                        select.type = ident.type;
-                        result = select;
-                        return;
-                    }
+                boolean isCapturedVariable = 
+                        insideContract || 
+                        ident.sym == null || 
+                        !isFromEnclosingScope(ident.sym, lambda, localVariables);
+                
+                if (isCapturedVariable) {
+                    result = ident;
+                    return;
                 }
+                
+                if (!(ident.sym instanceof Symbol.ClassSymbol || ident.sym instanceof Symbol.PackageSymbol) ||
+                        ident.name == ident.name.table.names._this) {
 
-                result = ident;
+                    var name = getCapturedVariableName(ident.name, ident.sym);
+
+                    final var finalName = name;
+                    Symbol.VarSymbol fieldSym = symbolToFieldMap.computeIfAbsent(ident.sym,
+                            sym -> new Symbol.VarSymbol(FINAL, finalName, sym.type, classSymbol));
+
+                    if (!capturedMap.containsKey(fieldSym)) {
+                        JCExpression constructorArg = make.Ident(ident.sym);
+                        capturedMap.put(fieldSym, constructorArg);
+                    }
+
+                    // Replace captured variable reference with this.fieldName
+                    make.pos = ident.pos;
+                    JCIdent thisIdent = make.Ident(names._this);
+                    thisIdent.sym = thisSymbol;
+                    thisIdent.type = classSymbol.type;
+                    JCFieldAccess select = make.Select(thisIdent, fieldSym.name);
+                    select.sym = fieldSym;
+                    select.type = ident.type;
+                    result = select;
+                }
             }
         };
 

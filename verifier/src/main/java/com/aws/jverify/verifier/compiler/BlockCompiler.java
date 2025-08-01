@@ -353,7 +353,7 @@ public class BlockCompiler {
             case JCTree.JCNewClass newClass -> {
                 Symtab symtab = Symtab.instance(compiler.context);
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-                if (classSymbol.type != symtab.objectType && compiler.isValueType(classSymbol)) {
+                if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
                     var datatypeValue = ValueTypeCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }

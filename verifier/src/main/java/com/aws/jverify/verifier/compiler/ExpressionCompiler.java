@@ -157,7 +157,7 @@ public class ExpressionCompiler {
 
     private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin) {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
-        if (compiler.isValueType(classSymbol)) {
+        if (compiler.isImmutable(classSymbol)) {
             return ValueTypeCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",
