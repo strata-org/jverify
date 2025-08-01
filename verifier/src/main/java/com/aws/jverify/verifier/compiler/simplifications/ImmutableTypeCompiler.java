@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.ClassCompiler;
+import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
@@ -16,13 +16,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class ValueTypeCompiler {
-    final ClassCompiler classCompiler;
+public class ImmutableTypeCompiler {
+    final TypeDeclarationCompiler typeDeclarationCompiler;
     final JavaToDafnyCompiler compiler;
 
-    public ValueTypeCompiler(ClassCompiler classCompiler) {
-        this.classCompiler = classCompiler;
-        this.compiler = classCompiler.compiler;
+    public ImmutableTypeCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
+        this.typeDeclarationCompiler = typeDeclarationCompiler;
+        this.compiler = typeDeclarationCompiler.compiler;
     }
 
     public TopLevelDeclWithMembers translateValueType(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -34,9 +34,9 @@ public class ValueTypeCompiler {
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
             javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
         }
-        var typeParams = classCompiler.translateTypeParameters(javaTypeParams);
+        var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
-        Symbol.ClassSymbol currentTypeSymbol = classCompiler.getCurrentTypeSymbol(classDecl);
+        Symbol.ClassSymbol currentTypeSymbol = typeDeclarationCompiler.getCurrentTypeSymbol(classDecl);
         var traits = currentTypeSymbol
                 .getInterfaces().stream()
                 .filter(compiler::typeHasAContract)
@@ -45,7 +45,7 @@ public class ValueTypeCompiler {
         
         var superClass = currentTypeSymbol.getSuperclass();
         if (superClass != null) {
-            Symtab symtab = Symtab.instance(classCompiler.compiler.context);
+            Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym) {
                 traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             } else {
@@ -94,7 +94,7 @@ public class ValueTypeCompiler {
                 }
                 continue;
             } 
-            var dafnyMember = classCompiler.translateMember(member);
+            var dafnyMember = typeDeclarationCompiler.translateMember(member);
             if (dafnyMember != null) {
                 members.add(dafnyMember);
             }
@@ -110,7 +110,7 @@ public class ValueTypeCompiler {
 
     private DatatypeCtor getDatatypeCtor(JCTree.JCClassDecl classDecl, IOrigin origin, Name name, List<JCTree.JCVariableDecl> fields) {
         var ctorParams = fields.stream()
-                .map(classCompiler::translateField)
+                .map(typeDeclarationCompiler::translateField)
                 .map(field -> new Formal(
                         field.getOrigin(), field.getNameNode(),
                         field.getExplicitType(),
@@ -153,7 +153,7 @@ public class ValueTypeCompiler {
         var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify();
 
         var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(
-                () -> classCompiler.translateMember(methodDecl),
+                () -> typeDeclarationCompiler.translateMember(methodDecl),
             handleIdentifierOverride);
         
         if (dafnyMember instanceof Constructor constructor && 

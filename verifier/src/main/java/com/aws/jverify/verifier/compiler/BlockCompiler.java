@@ -354,7 +354,7 @@ public class BlockCompiler {
                 Symtab symtab = Symtab.instance(compiler.context);
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
                 if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
-                    var datatypeValue = ValueTypeCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
+                    var datatypeValue = ImmutableTypeCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }
                 NameSegment classBaseType = new ModifiableObjectCompiler(compiler).getNewClassType(newClass);

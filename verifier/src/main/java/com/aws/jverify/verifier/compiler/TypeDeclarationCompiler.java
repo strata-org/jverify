@@ -5,7 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.ValueTypeCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
@@ -19,7 +19,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ClassCompiler {
+public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
@@ -28,7 +28,7 @@ public class ClassCompiler {
 
     private final TraitWithConstructorCompiler traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
     
-    public ClassCompiler(JavaToDafnyCompiler compiler) {
+    public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
     }
 
@@ -90,7 +90,7 @@ public class ClassCompiler {
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
-                case RECORD -> new ValueTypeCompiler(this).translateValueType(classSymbol, classDecl, origin, name);
+                case RECORD -> new ImmutableTypeCompiler(this).translateValueType(classSymbol, classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -135,12 +135,12 @@ public class ClassCompiler {
     private TopLevelDeclWithMembers translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
         if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
-            return new ValueTypeCompiler(this).translateValueType(classDecl.sym, classDecl, origin, name);
+            return new ImmutableTypeCompiler(this).translateValueType(classDecl.sym, classDecl, origin, name);
         }
         
         if (contractAnnotation != null && contractAnnotation.immutable()) {
             if (typeForWhichCurrentClassIsDefiningContract != null) {
-                return new ValueTypeCompiler(this).translateValueType(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
+                return new ImmutableTypeCompiler(this).translateValueType(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
             } else {
                 compiler.reportError(classDecl, "immutableInternalContract");
                 return null;

@@ -164,7 +164,7 @@ public class JavaToDafnyCompiler {
                 }
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
-                var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
+                var dafnyDecls = new TypeDeclarationCompiler(this).translateTypeDeclaration(relatedDeclaration);
                 verifyAnnotationCompiler.shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }

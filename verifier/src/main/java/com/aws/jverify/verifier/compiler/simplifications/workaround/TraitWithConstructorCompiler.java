@@ -1,12 +1,10 @@
 package com.aws.jverify.verifier.compiler.simplifications.workaround;
 
-import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.ClassCompiler;
+import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Symtab;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,10 +14,10 @@ import java.util.List;
  * this compiler splits such a trait into a trait and a class, moving the constructor to the class
  */
 public class TraitWithConstructorCompiler {
-    ClassCompiler classCompiler;
+    TypeDeclarationCompiler typeDeclarationCompiler;
 
-    public TraitWithConstructorCompiler(ClassCompiler classCompiler) {
-        this.classCompiler = classCompiler;
+    public TraitWithConstructorCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
+        this.typeDeclarationCompiler = typeDeclarationCompiler;
     }
 
     public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
@@ -89,7 +87,7 @@ public class TraitWithConstructorCompiler {
             var traitRef = new UserDefinedType(traitDecl.getOrigin(), 
                     new NameSegment(traitDecl.getOrigin(), nameNode.getValue(), typeArgs));
             var clazz = new ClassDecl(traitDecl.getOrigin(), new Name(nameNode.getOrigin(), 
-                    classCompiler.compiler.nameCompiler.CLASS_PREFIX + nameNode.getValue()), null,
+                    typeDeclarationCompiler.compiler.nameCompiler.CLASS_PREFIX + nameNode.getValue()), null,
                     typeParameters, classMembers, List.of(traitRef), false);
             return List.of(trait, clazz);
         } else {
@@ -107,7 +105,7 @@ public class TraitWithConstructorCompiler {
         }
         BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(),
                 constructor.getBody().getBodyInit());
-        Name nameNode = new Name(constructor.getNameNode().getOrigin(), classCompiler.compiler.nameCompiler.getInitMethodName(className, constructor.getNameNode().getValue()));
+        Name nameNode = new Name(constructor.getNameNode().getOrigin(), typeDeclarationCompiler.compiler.nameCompiler.getInitMethodName(className, constructor.getNameNode().getValue()));
         var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
         var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
         frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));
