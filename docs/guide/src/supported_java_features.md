@@ -43,23 +43,26 @@ Nothing yet
 
 # Unsupported Java features
 
+#### Java 1-9
 - static fields
-- `throw`
-- `try`/`catch`/`finally`
-- Pattern matches in switch expressions and statements
-- Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
-- `yield` in switch expressions
+- `throw`/`try`/`catch`/`finally` and checked exception
+- Use of mutating operators such as `=` in a nested expression
+- Enhanced for loop: `for(var x : xs) { ... }`
 - Multi-dimensional array instantiation: `new [,]`
 - Array instantiation with initializers: `new int[] { 1, 2, 3 }`
-- Enhanced for loop: `for(var x : xs) { ... }`
-- Use of mutating operators such as `=` in a nested expression
 - Operators on `float` and `double`
-- `instanceof <pattern>`, only when using a pattern
-- String template: `STR."My name is \{name}"`
-- `checked exceptions` (ignored)
-- `synchronized`
-- Module declarations
 - Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to `C<Object>`.
-- `permits`
-- Verification of annotations
 - For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
+  - synchronized is ignored
+
+#### Java 14
+- `instanceof <pattern>`, only when using a pattern
+- Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
+- `yield` in switch expressions
+
+#### Java 17
+- Pattern matches in switch expressions and statements
+- `permits` clauses are ignored in verification
+
+#### Java 21
+- String template: `STR."My name is \{name}"`
