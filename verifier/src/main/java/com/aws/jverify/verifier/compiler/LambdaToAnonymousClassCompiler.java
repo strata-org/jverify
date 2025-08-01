@@ -46,8 +46,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         super.visitMethodDef(tree);
         currentContainer = previous;
     }
-    
-    
 
     @Override
     public void visitLambda(JCLambda lambda) {
