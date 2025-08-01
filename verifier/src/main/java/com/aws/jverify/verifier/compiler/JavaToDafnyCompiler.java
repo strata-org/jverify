@@ -164,7 +164,7 @@ public class JavaToDafnyCompiler {
                 }
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
-                var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
+                var dafnyDecls = new TypeDeclarationCompiler(this).translateTypeDeclaration(relatedDeclaration);
                 verifyAnnotationCompiler.shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
@@ -366,11 +366,11 @@ public class JavaToDafnyCompiler {
     }
 
     public static boolean isSynthetic(long flags) {
-        return (flags & Flags.SYNTHETIC) == Flags.SYNTHETIC;
+        return (flags & Flags.SYNTHETIC) != 0;
     }
     
     public static boolean isStatic(JCTree.JCModifiers modifiers) {
-        return (modifiers.flags & Flags.STATIC) == Flags.STATIC;
+        return (modifiers.flags & Flags.STATIC) != 0;
     }
 
     private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node, JCTree.JCCompilationUnit compilationUnit) {
@@ -659,43 +659,38 @@ public class JavaToDafnyCompiler {
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
 
-    public boolean isValueType(Symbol.ClassSymbol classSymbol) {
+    public boolean isImmutable(Symbol.ClassSymbol classSymbol) {
         Symtab symtab = Symtab.instance(context);
         if (classSymbol.type == symtab.objectType) {
             return true;
         }
-        if (JavaToDafnyCompiler.isInterface(classSymbol)
-                && !isAnnotated(classSymbol.type, Modifiable.class)) {
+        if (JavaToDafnyCompiler.isInterface(classSymbol) && !isAnnotated(classSymbol.type, Modifiable.class)) {
             return true;
         }
-        boolean anonymousValueType = isAnonymousOrFinalValueType(classSymbol);
-        if (anonymousValueType) {
+        boolean anonymousImmutableType = isAnonymousOrFinalImmutableType(classSymbol);
+        if (anonymousImmutableType) {
             return true;
         }
         return isRecord(classSymbol.type) || isImmutableClass(classSymbol);
     }
 
     /**
-     * A prerequisite for value types is that they are not extended.
-     * Besides records, anonymous and final types guarantee this as well
-     * <p>
-     * However, to be value types,
-     * they must have only final fields
-     * and inherit from value types
+     * Right now we implicitly consider anonymous and final types immutable,  
+     * if they only have final fields and inherit from immutable types
      */
-    public boolean isAnonymousOrFinalValueType(Symbol.ClassSymbol classSymbol) {
+    public boolean isAnonymousOrFinalImmutableType(Symbol.ClassSymbol classSymbol) {
         if (classSymbol.isAnonymous() || classSymbol.isFinal()) {
             if (hasNonFinalFields(classSymbol)) {
                 return false;
             }
             com.sun.tools.javac.code.Type superclass = classSymbol.getSuperclass();
             if (superclass != null && superclass.tsym != null) {
-                if (!isValueType((Symbol.ClassSymbol) superclass.tsym)) {
+                if (!isImmutable((Symbol.ClassSymbol) superclass.tsym)) {
                     return false;
                 }
             }
             return classSymbol.getInterfaces().stream().
-                    allMatch(it -> isValueType((Symbol.ClassSymbol) it.tsym));
+                    allMatch(it -> isImmutable((Symbol.ClassSymbol) it.tsym));
         }
         return false;
     }

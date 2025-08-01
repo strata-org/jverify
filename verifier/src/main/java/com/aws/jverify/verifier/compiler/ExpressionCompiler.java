@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.compiler;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.ValueTypeCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -157,8 +157,8 @@ public class ExpressionCompiler {
 
     private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin) {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
-        if (compiler.isValueType(classSymbol)) {
-            return ValueTypeCompiler.translateNewRecord(this, origin, newClass);
+        if (compiler.isImmutable(classSymbol)) {
+            return ImmutableTypeCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",
                 "using 'new' in an expression to create an instance of a non-record class");
