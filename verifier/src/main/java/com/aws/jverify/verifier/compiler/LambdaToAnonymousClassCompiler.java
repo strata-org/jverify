@@ -49,7 +49,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     @Override
     public void visitLambda(JCLambda lambda) {
         super.visitLambda(lambda);
-        new QualifyLocalMethodReferences(context).translate(lambda);
+//        new QualifyLocalMethodReferences(context).translate(lambda);
         result = transformLambdaToAnonymousClass(lambda);
     }
 
@@ -304,36 +304,53 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
             @Override
             public void visitIdent(JCIdent ident) {
-                boolean isCapturedVariable = 
-                        insideContract || 
-                        ident.sym == null || 
-                        !isFromEnclosingScope(ident.sym, lambda, localVariables);
-
-                boolean isStatic = ident.sym instanceof Symbol.ClassSymbol || ident.sym instanceof Symbol.PackageSymbol;
-                if (isCapturedVariable || isStatic) {
-                    result = ident;
+                if (ident.name == names._this) {
+                    make.pos = ident.pos;
+                    JCIdent thisIdent = make.Ident(names._this);
+                    Symbol.ClassSymbol thisClass = currentMethod.sym.enclClass();
+                    thisIdent.sym = thisClass;
+                    thisIdent.type = ident.type;
+                    JCFieldAccess select = make.Select(thisIdent, names._this);
+                    select.sym = thisClass;
+                    select.type = ident.type;
+                    result = select;
                     return;
                 }
-
-                var capturedData = capturedMap.get(ident.sym);
-                if (capturedData == null) {
-                    JCExpression constructorArg = make.Ident(ident.sym);
-                    Name fieldName = getCapturedVariableName(ident.sym);
-                    Symbol.VarSymbol fieldSymbol = new Symbol.VarSymbol(FINAL, fieldName, ident.type, classSymbol);
-                    capturedData = new CapturedData(fieldSymbol, constructorArg);
-                    capturedMap.put(ident.sym, capturedData);
-                }
-
-                // Replace captured variable reference with this.fieldName
-                make.pos = ident.pos;
-                JCIdent thisIdent = make.Ident(names._this);
-                thisIdent.sym = thisSymbol;
-                thisIdent.type = classSymbol.type;
-                JCFieldAccess select = make.Select(thisIdent, capturedData.fieldSymbol.name);
-                select.sym = capturedData.fieldSymbol;
-                select.type = ident.type;
-                result = select;
+                super.visitIdent(ident);
             }
+
+            //            @Override
+//            public void visitIdent(JCIdent ident) {
+//                boolean isCapturedVariable = 
+//                        insideContract || 
+//                        ident.sym == null || 
+//                        !isFromEnclosingScope(ident.sym, lambda, localVariables);
+//
+//                boolean isStatic = ident.sym instanceof Symbol.ClassSymbol || ident.sym instanceof Symbol.PackageSymbol;
+//                if (isCapturedVariable || isStatic) {
+//                    result = ident;
+//                    return;
+//                }
+//
+//                var capturedData = capturedMap.get(ident.sym);
+//                if (capturedData == null) {
+//                    JCExpression constructorArg = make.Ident(ident.sym);
+//                    Name fieldName = getCapturedVariableName(ident.sym);
+//                    Symbol.VarSymbol fieldSymbol = new Symbol.VarSymbol(FINAL, fieldName, ident.type, classSymbol);
+//                    capturedData = new CapturedData(fieldSymbol, constructorArg);
+//                    capturedMap.put(ident.sym, capturedData);
+//                }
+//
+//                // Replace captured variable reference with this.fieldName
+//                make.pos = ident.pos;
+//                JCIdent thisIdent = make.Ident(names._this);
+//                thisIdent.sym = thisSymbol;
+//                thisIdent.type = classSymbol.type;
+//                JCFieldAccess select = make.Select(thisIdent, capturedData.fieldSymbol.name);
+//                select.sym = capturedData.fieldSymbol;
+//                select.type = ident.type;
+//                result = select;
+//            }
         };
 
         lambda.body = bodyTransformer.translate(lambda.body);
