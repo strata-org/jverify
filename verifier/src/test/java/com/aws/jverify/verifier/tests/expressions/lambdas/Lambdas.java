@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.tests.expressions.lambdas;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -11,7 +10,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 45, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 48, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
     private static int STATIC_FIELD = 100;
@@ -64,6 +63,7 @@ public class Lambdas {
         doSomethingTwice(this::add);
         doSomethingTwice(Lambdas::staticAdd);
         makeSomeClass(SomeClass::new);
+        makeSomeInnerClass(SomeClass.SomeInnerClass::new);
     }
 
     void blockLocals() {
@@ -120,11 +120,32 @@ public class Lambdas {
     void makeSomeClass(SomeClassMaker maker) {
         var sc = maker.makeSomething();
     }
+    @Verify(false)
+    void makeSomeInnerClass(SomeInnerClassMaker maker) {
+        var sc = maker.makeSomething();
+    }
 }
 
 class SomeClass {
     public SomeClass() {
 
+    }
+    
+    public static class SomeInnerClass {
+        public SomeInnerClass() {
+        }
+    }
+}
+
+interface SomeInnerClassMaker {
+    SomeClass.SomeInnerClass makeSomething();
+
+    @Contract
+    class SomeInnerClassMakerContract implements SomeInnerClassMaker {
+        @Override
+        public SomeClass.SomeInnerClass makeSomething() {
+            throw new ContractException();
+        }
     }
 }
 
