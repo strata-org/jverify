@@ -10,7 +10,6 @@ import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static com.sun.tools.javac.code.Flags.FINAL;
 import static com.sun.tools.javac.code.Flags.SYNTHETIC;
@@ -39,18 +38,28 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         }
     }
 
-    JCMethodDecl currentMethod;
+    Symbol currentContainer;
     @Override
     public void visitMethodDef(JCMethodDecl tree) {
-        currentMethod = tree;
+        var previous = currentContainer;
+        currentContainer = tree.sym;
         super.visitMethodDef(tree);
+        currentContainer = previous;
     }
 
     @Override
     public void visitLambda(JCLambda lambda) {
-        super.visitLambda(lambda);
 //        new QualifyLocalMethodReferences(context).translate(lambda);
-        result = transformLambdaToAnonymousClass(lambda);
+        JCNewClass localClass = transformLambdaToAnonymousClass(lambda);
+        super.visitNewClass(localClass);
+    }
+
+    @Override
+    public void visitClassDef(JCClassDecl tree) {
+        var previous = currentContainer;
+        currentContainer = tree.sym;
+        super.visitClassDef(tree);
+        currentContainer = previous;
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
@@ -86,8 +95,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         // TODO test for collisions
         Name append = names.lambda.append(names.fromString(lambda.pos + ""));
         
-        var classSymbol = new Symbol.ClassSymbol(SYNTHETIC | FINAL, append, currentMethod.sym);
-        Type.ClassType classType = new Type.ClassType(currentMethod.sym.enclClass().type, List.nil(), classSymbol);
+        var classSymbol = new Symbol.ClassSymbol(SYNTHETIC | FINAL, append, currentContainer);
+        Type.ClassType classType = new Type.ClassType(currentContainer.enclClass().type, List.nil(), classSymbol);
         classType.interfaces_field = List.of(functionalInterfaceType);
         classSymbol.type = classType;
         classSymbol.members_field = Scope.WriteableScope.create(classSymbol);
@@ -296,7 +305,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             @Override
             public void visitVarDef(JCVariableDecl tree) {
                 // TODO maybe move to a separate body transformer, so we don't need insideContract.
-                if (tree.sym.owner == currentMethod.sym) {
+                if (tree.sym.owner == currentContainer) {
                     tree.sym.owner = methodSymbol;
                 }
                 super.visitVarDef(tree);
@@ -306,13 +315,13 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             public void visitIdent(JCIdent ident) {
                 if (ident.name == names._this) {
                     make.pos = ident.pos;
-                    JCIdent thisIdent = make.Ident(names._this);
-                    Symbol.ClassSymbol thisClass = currentMethod.sym.enclClass();
+                    Symbol.TypeSymbol thisClass = ident.sym.type.tsym;
+                    JCIdent thisIdent = make.Ident(thisClass.name);
                     thisIdent.sym = thisClass;
-                    thisIdent.type = ident.type;
+                    thisIdent.type = thisIdent.sym.type;
                     JCFieldAccess select = make.Select(thisIdent, names._this);
                     select.sym = thisClass;
-                    select.type = ident.type;
+                    select.type = select.sym.type;
                     result = select;
                     return;
                 }
@@ -361,7 +370,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         TreeTranslator collector = new TreeTranslator() {
             @Override
             public void visitVarDef(JCVariableDecl tree) {
-                if (tree.sym != null && tree.sym.owner == currentMethod.sym) {
+                if (tree.sym != null && tree.sym.owner == currentContainer) {
                     localVariables.add(tree.sym);
                 }
                 super.visitVarDef(tree);
