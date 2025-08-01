@@ -35,7 +35,7 @@ public class TypeDeclarationCompiler {
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
-            if (classDecl.name.toString().equals(classDecl.name.table.names.package_info)) {
+            if (classDecl.name.equals(classDecl.name.table.names.package_info)) {
                 return List.of();
             }
             var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
