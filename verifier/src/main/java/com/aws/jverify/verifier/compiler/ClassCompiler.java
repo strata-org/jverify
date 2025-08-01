@@ -205,7 +205,7 @@ public class ClassCompiler {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
 
-        // If the class has a contract annotated with @Mutable, it must be considered as mutable itself
+        // If the class has a contract annotated with @Modifiable, it must be considered as mutable itself
         var contractMutable = typeForWhichCurrentClassIsDefiningContract != null
                 && compiler.isAnnotated(classDecl.type, Modifiable.class);
 
