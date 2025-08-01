@@ -1,0 +1,81 @@
+package com.aws.jverify.examples;
+
+import com.aws.jverify.Contract;
+import com.aws.jverify.Modifiable;
+import com.aws.jverify.Pure;
+
+import static com.aws.jverify.JVerify.*;
+
+interface Immutable {
+    void increment();
+    int getX();
+    
+    @Contract
+    class MyContract implements Immutable {
+        int x;
+
+        public void increment() {
+            modifies(this); // error
+//                   ^^^^ Error: a modifies-clause expression must denote an object, a single field location like o`x or a`[i] of type (object, field)  (with `--referrers`), or a set/iset/multiset/seq of objects or single field locations (with `--referrers`) (instead got Immutable)
+            postcondition(x == old(x) + 1);
+        }
+        
+        @Pure
+        public int getX() {
+            return x;
+        }
+    }
+}
+
+@Modifiable
+interface Mutable {
+    void increment();
+    int getX();
+
+    @Contract
+    class MyContract implements Mutable {
+        int x;
+
+        public void increment() {
+            modifies(this);
+            postcondition(x == old(x) + 1);
+        }
+
+        @Pure
+        public int getX() { return x; }
+    }
+}
+
+record RecordsAreImmutable(int x) 
+        implements Mutable
+//                      ^^ Error: immutable extending a mutable is not allowed
+{
+    @Pure
+    static RecordsAreImmutable createR() {
+        return new RecordsAreImmutable(3); // legal
+    }
+    
+    @Pure
+    public boolean compare(RecordsAreImmutable other) {
+        return this == other;
+//                  ^^ Error: '==' not allowed on immutable types
+    }
+
+    @Override
+    public void increment() {
+        modifies(this);
+    }
+
+    @Override
+    public int getX() {
+        return x;
+    }
+}
+
+class ClassesAreMutable {
+    @Pure
+    ClassesAreMutable createC() {
+        return new ClassesAreMutable();
+//             ^ Error: can not create mutable type in pure context
+    }
+}

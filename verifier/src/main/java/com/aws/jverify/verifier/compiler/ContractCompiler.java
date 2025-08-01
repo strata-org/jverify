@@ -168,7 +168,7 @@ public class ContractCompiler {
     private void handlePostcondition(MethodOrLoopContract header, JCTree.JCExpression expr) {
         if (expr instanceof JCTree.JCLambda lambda) {
             if (lambda.getParameters().size() != 1) {
-                throw new JavaViolationException("A postcondition call lambda may take only one argument");
+                throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
             }
             var parameter = lambda.params.getFirst();
             var origin = compiler.toOrigin(lambda);

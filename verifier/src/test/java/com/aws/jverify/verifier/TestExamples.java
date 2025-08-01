@@ -8,6 +8,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class TestExamples {
+
+    @Test
+    public void testObjectRules() throws IOException {
+        var markedSourcePath = Path.of("ObjectRules.java");
+        verifyPath(markedSourcePath, 22, -1, -1);
+    }
+    
+    @Test
+    public void testImmutableTypes() throws IOException {
+        var markedSourcePath = Path.of("ImmutableTypes.java");
+        verifyPath(markedSourcePath, 4, 1, 2);
+    }
+    
     @Test
     public void testNullCheck() throws IOException {
         var markedSourcePath = Path.of("NullCheck.java");
