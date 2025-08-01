@@ -26,6 +26,17 @@ trait Object {
      {}
   }
 
+  ghost predicate validComponent(component: Object)
+    reads This(), Repr()
+    decreases Repr(), 0
+  {
+      && component.This() <= Repr()
+      // && component in Repr()
+      && component.Repr() < Repr()
+      // && this !in component.Repr()
+      && component.valid()
+  }
+
   predicate equals(obj: Object)
     requires valid()
     requires obj.valid()
@@ -41,6 +52,7 @@ trait Object {
     requires valid()
     requires obj.valid()
     requires equals(obj)
+    decreases Repr()
     ensures obj.equals(this)
 
   // Will also need a lemma for transitivity
@@ -54,8 +66,8 @@ trait ModifiableObject extends Object, object {
   // Can't be declared on Object (unless it's a const instead)
   var repr: set<object>
 
-  ghost predicate validComponent(component: ModifiableObject)
-    reads Repr.reads(), Repr()
+  ghost predicate validModifiableComponent(component: ModifiableObject)
+    reads This(), Repr()
     decreases Repr(), 0
   {
       && this in Repr()
@@ -78,8 +90,8 @@ trait MyPair extends ModifiableObject, object {
     decreases Repr(), 1
   {
     && this in Repr()
-    && validComponent(a)
-    && validComponent(b)
+    && validModifiableComponent(a)
+    && validModifiableComponent(b)
   }
 
   predicate equals(obj: Object)
@@ -94,10 +106,10 @@ trait MyPair extends ModifiableObject, object {
     else
       var other: MyPair := obj as MyPair;
 
-      assert validComponent(a);
-      assert other.validComponent(other.a);
-      assert validComponent(b);
-      assert other.validComponent(other.b);
+      assert validModifiableComponent(a);
+      assert other.validModifiableComponent(other.a);
+      assert validModifiableComponent(b);
+      assert other.validModifiableComponent(other.b);
       
       a.equals(other.a) && b.equals(other.b)
   }
@@ -106,9 +118,12 @@ trait MyPair extends ModifiableObject, object {
     requires valid()
     requires obj.valid()
     requires equals(obj)
+    decreases Repr()
     ensures obj.equals(this)
   {
-    // TODO
+    var other: MyPair := obj as MyPair;
+    a.equalsSymmetric(other.a);
+    b.equalsSymmetric(other.b);
   }
 }
 
@@ -133,10 +148,8 @@ class Constructable?A extends A {
     requires valid()
     requires obj.valid()
     requires equals(obj)
+    decreases Repr()
     ensures obj.equals(this)
-  {
-    // TODO
-  }
 }
 
 trait B extends A, object {
@@ -157,10 +170,8 @@ class Constructable?B extends B {
     requires valid()
     requires obj.valid()
     requires equals(obj)
+    decreases Repr()
     ensures obj.equals(this)
-  {
-    // TODO
-  }
 }
 
 class Constructable?ModifiableObject extends ModifiableObject {
@@ -184,6 +195,7 @@ class Constructable?ModifiableObject extends ModifiableObject {
     requires valid()
     requires obj.valid()
     requires equals(obj)
+    decreases Repr()
     ensures obj.equals(this)
   {
     assert obj as Object == this;
@@ -214,6 +226,7 @@ datatype DString extends Object = JS(elements: seq<char16>) {
     requires valid()
     requires other.valid()
     requires equals(other)
+    decreases Repr()
     ensures other.equals(this)
   {}
 }
@@ -264,6 +277,7 @@ datatype DList extends Object = Cons(head: int32, tail: DList) | Nil {
     requires valid()
     requires other.valid()
     requires equals(other)
+    decreases Repr()
     ensures other.equals(this)
   {
     assert other is DList;
@@ -287,6 +301,7 @@ datatype DNull extends Object = DNull {
     requires valid()
     requires obj.valid()
     requires equals(obj)
+    decreases Repr()
     ensures obj.equals(this)
   {}
 }
@@ -299,7 +314,7 @@ type float = real
 type double = real
 
 
-trait ImmutableList<T extends Object> extends ModifiableObject, object {
+trait ImmutableList<T extends Object> extends Object {
 
   const elements: seq<T>
 
@@ -307,11 +322,15 @@ trait ImmutableList<T extends Object> extends ModifiableObject, object {
     reads This(), Repr()
     decreases Repr(), 1
   {
-    // forall i | 0 <= i < |elements| :: validComponent(elements[i] as Object)
-    true
+    forall i | 0 <= i < |elements| :: 
+      var e := elements[i] as Object;
+      validComponent(e)
   }
 
   predicate equals(obj: Object)
+    requires valid()
+    requires obj.valid()
+    reads This(), Repr(), obj.This(), obj.Repr()
     decreases Repr()
     ensures this as Object == obj ==> equals(obj)
     ensures equals(obj) <==>
@@ -320,9 +339,17 @@ trait ImmutableList<T extends Object> extends ModifiableObject, object {
       && equalsImmutableList(other)
 
   predicate equalsImmutableList(other: ImmutableList<T>)
+    requires valid()
+    requires other.valid()
+    reads This(), Repr(), other.This(), other.Repr()
     decreases Repr(), 0
   {
     && |elements| == |other.elements|
-    && forall i | 0 <= i < |elements| :: (elements[i] as Object).equals(other.elements[i]) // TODO
+    && forall i | 0 <= i < |elements| :: 
+      var e := elements[i] as Object;
+      var e' := other.elements[i] as Object;
+      assert validComponent(e);
+      assert other.validComponent(e');
+      (elements[i] as Object).equals(other.elements[i])
   }
 }
