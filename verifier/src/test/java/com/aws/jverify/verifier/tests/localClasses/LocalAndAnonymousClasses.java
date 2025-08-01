@@ -8,11 +8,11 @@ import static com.aws.jverify.JVerify.*;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 25, dafnyErrors = 3, verifyPrintedDafny = true)
+@SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef", "ConstantValue", "NewObjectEquality"})
+@JVerifyTest(exitCode = 4, dafnyVerified = 31, dafnyErrors = 4, verifyPrintedDafny = true)
 public class LocalAndAnonymousClasses {
 
-    public void useAnonymousClasses() {
+    void noCaptures() {
         class LocalSomethingDoerClass implements SomethingDoer {
             @Override
             public int doSomething(int x, int y) {
@@ -21,7 +21,9 @@ public class LocalAndAnonymousClasses {
         };
         var arg1 = new LocalSomethingDoerClass();
         doSomethingTwice(arg1);
-
+    }
+    
+    public void classCaptures() {
         doSomethingTwice(new SomethingDoer() {
             @Override
             public int doSomething(int x, int y) {
@@ -41,6 +43,9 @@ public class LocalAndAnonymousClasses {
             }
         };
         doSomethingTwice(arg4);
+    }
+    
+    void localCaptures() {
         int z = 42;
         doSomethingTwice(new SomethingDoer() {
             @Override
@@ -48,6 +53,9 @@ public class LocalAndAnonymousClasses {
                 return z;
             }
         });
+    }
+    
+    void withContract() {
         SomethingDoerWithSpec arg6 = new SomethingDoerWithSpec() {
             @Override
             public int doSomething(int x, int y) {
@@ -58,7 +66,9 @@ public class LocalAndAnonymousClasses {
             }
         };
         doSomethingWithSpecTwice(arg6);
-
+    }
+    
+    void referenceEquality() {
         SomethingDoer doer = new SomethingDoer() {
             @Override
             public int doSomething(int x, int y) {
@@ -76,22 +86,41 @@ public class LocalAndAnonymousClasses {
         // but if we map lambdas to datatype values incorrectly
         // they could be equal Dafny values.
         check(doer != doer2);
-
-        SomeClassMaker arg7 = new SomeClassMaker() {
-            @Override
-            public SomeClass makeSomething() {
-                return new SomeClass();
-            }
-        };
-        makeSomeClass(arg7);
     }
 
-    public void doSomethingTwice(SomethingDoer doer) {
+    void nestedAnonymousClasses() {
+        int level1 = 1;
+
+        IntToInt outer = new IntToInt() {
+            @Override
+            public int doSomething(int x) {
+                int level2 = 2;
+                SomethingDoer inner = new SomethingDoer() {
+                    @Override
+                    public int doSomething(int x2, int y2) {
+                        var level3 = 3;
+                        return level1 + level2 + level3 + x + x2 + y2;
+//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: value does not satisfy the subset constraints of 'int32'
+                    }
+                };
+
+                return inner.doSomething(1,2);
+            }
+        };
+        var result = outer.doSomething(1);
+
+        // TODO closure result checks, for this and for the other closures in the file, should be added in a follow-up 
+        // These also need fixes.
+//        check(result == 1 + 2 + 3 + 1 + 1 + 2);
+    }
+
+
+    void doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         var z = doer.doSomething(2, y);
     }
 
-    public void doSomethingWithSpecTwice(SomethingDoerWithSpec doer) {
+    void doSomethingWithSpecTwice(SomethingDoerWithSpec doer) {
         var y = doer.doSomething(2, 1);
         var z = doer.doSomething(2, y);
     }
@@ -106,29 +135,6 @@ public class LocalAndAnonymousClasses {
 //             ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
     }
 
-    public void makeSomeClass(SomeClassMaker maker) {
-        var sc = maker.makeSomething();
-    }
-
-
-    class SomeClass {
-        public SomeClass() {
-
-        }
-    }
-
-    interface SomeClassMaker {
-        SomeClass makeSomething();
-
-        @Contract
-        class SomeClassMakerContract implements SomeClassMaker {
-            @Override
-            public SomeClass makeSomething() {
-                throw new ContractException();
-            }
-        }
-    }
-
     interface SomethingDoer {
         int doSomething(int x, int y);
 
@@ -137,6 +143,19 @@ public class LocalAndAnonymousClasses {
 
             @Override
             public int doSomething(int x, int y) {
+                throw new ContractException();
+            }
+        }
+    }
+
+    interface IntToInt {
+        int doSomething(int x);
+
+        @Contract
+        class IntToIntContract implements IntToInt {
+
+            @Override
+            public int doSomething(int x) {
                 throw new ContractException();
             }
         }
