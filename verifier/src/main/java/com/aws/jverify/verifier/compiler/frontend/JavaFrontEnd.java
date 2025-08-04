@@ -200,7 +200,6 @@ public class JavaFrontEnd {
 
     private Queue<Env<AttrContext>> lower(Queue<Env<AttrContext>> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
-
         var lower = Lower.instance(context);
         var log = Log.instance(context);
         var index = JVerifyIndex.instance(context);
