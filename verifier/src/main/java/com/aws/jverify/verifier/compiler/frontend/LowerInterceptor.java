@@ -26,7 +26,6 @@ public class LowerInterceptor {
         if (sym.kind == Kinds.Kind.TYP && tree instanceof JCTree.JCTypeApply typeApply) {
 
             Field makeField = lowerInstance.getClass().getDeclaredField("make");
-            //makeField.setAccessible(true);
             TreeMaker make = (TreeMaker) makeField.get(lowerInstance);
             
             make.pos = tree.pos;

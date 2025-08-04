@@ -2,7 +2,7 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Position;
 import com.aws.jverify.verifier.compiler.*;
-import com.aws.jverify.verifier.compiler.frontend.ByteBuddy;
+import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -47,7 +47,7 @@ public class Driver {
     ) throws IOException {
         var verificationResults = new VerificationResults();
         
-        ByteBuddy.installModification();
+        InstrumentLower.installModification();
 
         var context = new Context();
         TypesWithoutErasure.preRegister(context);
@@ -78,7 +78,7 @@ public class Driver {
         }
         return verificationResults;
     }
-    
+
     public static int verifyJavaFiles(
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions,
