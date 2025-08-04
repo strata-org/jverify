@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler;
+package com.aws.jverify.verifier.compiler.frontend;
 
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
@@ -52,7 +52,7 @@ public class JVerifyIndex extends JCTree.Visitor {
         enter = Enter.instance(context);
     }
 
-    void index(Env<AttrContext> env, JCTree tree) {
+    public void index(Env<AttrContext> env, JCTree tree) {
         this.currentEnv = env;
         tree.accept(this);
     }

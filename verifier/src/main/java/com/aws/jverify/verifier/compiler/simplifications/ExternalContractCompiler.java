@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
-import com.aws.jverify.verifier.compiler.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.OverrideFinder;

@@ -272,14 +272,29 @@ project(":javac-plugin-test") {
 
 project(":verifier") {
 
+    tasks.jar {
+        manifest {
+            attributes(
+                "Agent-Class" to "com.aws.jverify.verifier.compiler.LowerAgent151",
+                "Premain-Class" to "com.aws.jverify.verifier.compiler.LowerAgent151",
+                "Can-Retransform-Classes" to "true",
+                "Can-Redefine-Classes" to "true"
+            )
+        }
+    }
+    
     apply(plugin = "application")
     application {
         mainClass.set("com.aws.jverify.verifier.Main")  // For a file named main.kt
 
         applicationDefaultJvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
-
+    
     dependencies {
+        implementation("net.bytebuddy:byte-buddy:1.14.18")
+        // If you need the agent (for runtime instrumentation)
+        implementation("net.bytebuddy:byte-buddy-agent:1.14.18")
+        
         implementation(project(":common"))
         implementation(project(":library"))
 

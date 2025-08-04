@@ -1,6 +1,7 @@
-package com.aws.jverify.verifier.compiler;
+package com.aws.jverify.verifier.compiler.frontend;
 
 import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.compiler.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.ClientCodeWrapper;
@@ -21,6 +22,7 @@ import javax.tools.DiagnosticCollector;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaFileObject;
 import java.io.File;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -57,6 +59,8 @@ public class JavaFrontEnd {
         ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         context.put(DiagnosticListener.class, ccw.wrap(diagnostics));
+
+        //LowerWithoutErasure.preRegister(context);
         JavaCompiler compiler = JavaCompiler.instance(context);
         Arguments args = Arguments.instance(context);
         args.init("javac", javacOptions, List.of(), files);
@@ -197,6 +201,7 @@ public class JavaFrontEnd {
 
     private Queue<Env<AttrContext>> lower(Queue<Env<AttrContext>> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
+
         var lower = Lower.instance(context);
         var log = Log.instance(context);
         var index = JVerifyIndex.instance(context);
@@ -217,5 +222,20 @@ public class JavaFrontEnd {
             entry.getKey().defs = entry.getValue();
         }
         return envs;
+    }
+
+    private static URL[] getClasspathUrls() {
+        String classpath = System.getProperty("java.class.path");
+        String[] paths = classpath.split(System.getProperty("path.separator"));
+
+        URL[] urls = new URL[paths.length];
+        for (int i = 0; i < paths.length; i++) {
+            try {
+                urls[i] = new File(paths[i]).toURI().toURL();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to convert path to URL: " + paths[i], e);
+            }
+        }
+        return urls;
     }
 }

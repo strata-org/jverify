@@ -1,7 +1,9 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Position;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.frontend.ByteBuddy;
+import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -44,8 +46,12 @@ public class Driver {
             VerifierOptions verifierOptions
     ) throws IOException {
         var verificationResults = new VerificationResults();
+        
+        ByteBuddy.installModification();
 
         var context = new Context();
+        TypesWithoutErasure.preRegister(context);
+        
         var compiler = new JavaToDafnyCompiler(context, verifierOptions);
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
@@ -72,7 +78,7 @@ public class Driver {
         }
         return verificationResults;
     }
-
+    
     public static int verifyJavaFiles(
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions,

@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler;
+package com.aws.jverify.verifier.compiler.frontend;
 
 import com.sun.source.tree.CaseTree;
 import com.sun.tools.javac.code.Symbol;
