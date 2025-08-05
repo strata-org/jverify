@@ -115,76 +115,82 @@ datatype Class extends Object = Class(name: string) {
   }
 }
 
-// //
-// // Example reference type
-// //
-// trait MyPair extends ModifiableObject, object {
-//   var a: A
-//   var b: B
+//
+// Example reference type
+//
+trait MyPair extends ModifiableObject, object {
+  var a: A
+  var b: B
 
-//   ghost predicate valid() 
-//     reads This(), Repr()
-//     decreases Repr(), 1
-//   {
-//     && this in Repr()
-//     && validModifiableComponent(a)
-//     && validModifiableComponent(b)
-//   }
+  ghost predicate valid() 
+    reads This(), Repr()
+    decreases Repr(), 1
+  {
+    && this in Repr()
+    && validModifiableComponent(a)
+    && validModifiableComponent(b)
+  }
 
-//   predicate equals(obj: Object)
-//     requires valid()
-//     requires obj.valid()
-//     reads This(), Repr(), obj.This(), obj.Repr()
-//     ensures this as Object == obj ==> equals(obj)
-//     decreases Repr()
-//   {
-//     if !(obj is MyPair) then
-//       false
-//     else
-//       var other: MyPair := obj as MyPair;
+  predicate equals(obj: Object)
+    requires valid()
+    requires obj.valid()
+    reads This(), Repr(), obj.This(), obj.Repr()
+    ensures this as Object == obj ==> equals(obj)
+    decreases Repr()
+  {
+    if !(obj is MyPair) then
+      false
+    else
+      var other: MyPair := obj as MyPair;
 
-//       assert validModifiableComponent(a);
-//       assert other.validModifiableComponent(other.a);
-//       assert validModifiableComponent(b);
-//       assert other.validModifiableComponent(other.b);
+      assert validModifiableComponent(a);
+      assert other.validModifiableComponent(other.a);
+      assert validModifiableComponent(b);
+      assert other.validModifiableComponent(other.b);
       
-//       a.equals(other.a) && b.equals(other.b)
-//   }
+      a.equals(other.a) && b.equals(other.b)
+  }
 
-//   lemma equalsSymmetric(obj: Object)
-//     requires valid()
-//     requires obj.valid()
-//     requires equals(obj)
-//     decreases Repr()
-//     ensures obj.equals(this)
-//   {
-//     var other: MyPair := obj as MyPair;
-//     a.equalsSymmetric(other.a);
-//     b.equalsSymmetric(other.b);
-//   }
-// }
+  lemma equalsSymmetric(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    decreases Repr()
+    ensures obj.equals(this)
+  {
+    var other: MyPair := obj as MyPair;
+    a.equalsSymmetric(other.a);
+    b.equalsSymmetric(other.b);
+  }
+}
 
-// class Constructable?MyPair extends MyPair {
+class Constructable?MyPair extends MyPair {
 
-//   constructor init(a_: A, b_: B)
-//     requires a_.valid()
-//     requires b_.valid()
-//     ensures valid()
-//   {
-//     this.a := a_;
-//     this.b := b_;
-//     this.repr := {this, a_, b_} + a_.Repr() + b_.Repr();
-//     assert a_.valid();
-//     assert allocated(a_);
-//     label before:
-//     new;
-//     // assert this !in a.valid.reads();
-//     // assert old@before(a_.valid.reads()) == a_.valid.reads();
-//     assert old@before(a_.valid()) == a_.valid();
-//     assert a_.valid();
-//     assert b_.valid();
-//   }
-// }
+  constructor init(a_: A, b_: B)
+    requires a_.valid()
+    requires b_.valid()
+    ensures valid()
+  {
+    this.a := a_;
+    this.b := b_;
+    this.repr := {this, a_, b_} + a_.Repr() + b_.Repr();
+    label before:
+    new;
+    // Working around Dafny issue (TODO: cut GHI)
+    assert unchanged@before(a_.This());
+    assert unchanged@before(a_.Repr());
+    assert unchanged@before(b_.This());
+    assert unchanged@before(b_.Repr());
+  }
+
+  function getClass(): Class {
+    Class("MyPair")
+  }
+
+  static lemma {:axiom} classIdentity(obj: Object)
+    requires obj.getClass() == Class("MyPair")
+    ensures obj is Constructable?MyPair
+}
 
 type int32 = x: int
   | -2147483648 <= x && x <= 2147483647
@@ -241,7 +247,7 @@ class Constructable?A extends A {
     Class("A")
   }
 
-  static lemma classIdentity(obj: Object)
+  static lemma {:axiom} classIdentity(obj: Object)
     requires obj.getClass() == Class("A")
     ensures obj is Constructable?A
 }
@@ -299,7 +305,7 @@ class Constructable?B extends B {
     Class("A")
   }
 
-  static lemma classIdentity(obj: Object)
+  static lemma {:axiom} classIdentity(obj: Object)
     requires obj.getClass() == Class("B")
     ensures obj is Constructable?B
 }
@@ -348,7 +354,7 @@ class Constructable?ModifiableObject extends ModifiableObject {
     Class("A")
   }
 
-  static lemma classIdentity(obj: Object)
+  static lemma {:axiom} classIdentity(obj: Object)
     requires obj.getClass() == Class("java.lang.Object")
     ensures obj is Constructable?ModifiableObject
 }
@@ -385,7 +391,7 @@ datatype DString extends Object = JS(elements: seq<char16>) {
     Class("java.lang.String")
   }
 
-  static lemma classIdentity(obj: Object)
+  static lemma {:axiom} classIdentity(obj: Object)
     requires obj.getClass() == Class("java.lang.String")
     ensures obj is DString
 }
@@ -447,7 +453,7 @@ datatype DList extends Object = Cons(head: int32, tail: DList) | Nil {
     Class("java.lang.String")
   }
 
-  static lemma classIdentity(obj: Object)
+  static lemma {:axiom} classIdentity(obj: Object)
     requires obj.getClass() == Class("java.lang.String")
     ensures obj is DString
 }

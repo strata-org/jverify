@@ -52,9 +52,9 @@ public class TraitWithConstructorCompiler {
                 }
 
                 case Function function -> {
-                    if (name.getValue().equals("java_lang_Object") || !function.getNameNode().getValue().equals("equals")) {
-                        traitMembers.add(function);
-                    }
+//                    if (definingSymbol.name.equals("java_lang_Object") || !function.getNameNode().getValue().equals("equals")) {
+//                        traitMembers.add(function);
+//                    }
                     if (function.getBody() == null && !function.getHasStaticKeyword()) {
                         // A bodyless trait in Dafny is abstract.
                         // You can not declare an assumed member in traits in Dafny
@@ -81,6 +81,10 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
+            // TODO: Check for existing equals()
+            // TODO: Generalize to functions in general
+            classMembers.add(JavaToDafnyCompiler.equalsFunctionDeclaration(traitDecl.getOrigin()));
+
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();
             var trait = new TraitDecl(traitDecl.getOrigin(), nameNode, traitDecl.getAttributes(),

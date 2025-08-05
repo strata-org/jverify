@@ -86,7 +86,7 @@ public class ClassCompiler {
             }
             compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
-            var classSymbol = getCurrentTypeSymbol(classDecl);
+            var classSymbol = getCurrentTypeSymbol(classDecl.sym);
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
@@ -184,30 +184,26 @@ public class ClassCompiler {
             }
         }
 
-        // TODO: Check for existing equals()
-        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
-
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
         if (definingSymbol.getSuperclass() != null) {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
         }
 
-        var symtab = Symtab.instance(this.compiler.context);
-        var superTraits = baseTypes.
-                filter(compiler::typeHasAContract).
-                map((com.sun.tools.javac.code.Type type) -> {
-                    if (type.baseType() == symtab.objectType) {
-                        // A class that extends 'Object' will extend '@Modifiable Object' instead
-                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectCompiler.REFERENCE_OBJECT_NAME, null));
-                    }
-                    return compiler.translateType(type, origin, null);
-                }).
-                collect(Collectors.<Type>toList());
+        var superTraits = baseTypes
+                .filter(compiler::typeHasAContract)
+                .map((com.sun.tools.javac.code.Type type) ->
+                    compiler.translateType(type, origin, null)
+                )
+                .collect(Collectors.<Type>toList());
 
         if (compiler.isAnnotated(classDecl.type, Modifiable.class)) {
             superTraits = new ArrayList<>();
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
+
+        // TODO: Check for existing equals()
+        // TODO: Generalize to functions in general
+//        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
 
         var mutable = !JavaToDafnyCompiler.isInterface(definingSymbol)
                 || compiler.isAnnotated(definingSymbol.type, Modifiable.class);
