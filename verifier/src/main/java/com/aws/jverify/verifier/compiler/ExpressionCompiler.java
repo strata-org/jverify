@@ -161,7 +161,7 @@ public class ExpressionCompiler {
             return ImmutableTypeCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",
-                "using 'new' in an expression to create an instance of a non-record class");
+                "using 'new' in an expression to create an instance of a mutable type");
         return JavaToDafnyCompiler.getHole(origin);
     }
 
