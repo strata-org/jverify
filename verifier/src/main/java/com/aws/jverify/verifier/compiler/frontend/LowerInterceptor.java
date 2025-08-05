@@ -6,31 +6,30 @@ import com.sun.tools.javac.comp.Lower;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.List;
-import net.bytebuddy.implementation.bind.annotation.AllArguments;
-import net.bytebuddy.implementation.bind.annotation.Argument;
-import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import net.bytebuddy.implementation.bind.annotation.This;
+import net.bytebuddy.implementation.bind.annotation.*;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.Callable;
 
 public class LowerInterceptor {
+    static Field typesField;
+    
+    static {
+        try {
+            typesField = Lower.class.getDeclaredField("types");
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
         
-    public static List<JCTree.JCVariableDecl> interceptFreevarDefs(@SuperCall Callable<List<JCTree.JCVariableDecl>> original,
-                                                      @This Object lowerInstance,
-                                                      @Argument(0) int pos,
-                                                      @Argument(1) List<Symbol.VarSymbol> freevars,
-                                                      @Argument(2) Symbol owner,
-                                                      @Argument(3) long additionalFlags,
-                                                      @AllArguments Object[] args) throws Exception {
-        Field typesField = lowerInstance.getClass().getDeclaredField("types");
+    @RuntimeType
+    public static Object intercept(@SuperCall Callable<Object> original,
+                                   @This Object lowerInstance) throws Exception {
         TypesWithoutErasure types = (TypesWithoutErasure) typesField.get(lowerInstance);
-        
         var previous = types.eraseTypes;
         types.eraseTypes = false;
         var result = original.call();
         types.eraseTypes = previous;
-
         return result;
     }
     
@@ -47,9 +46,6 @@ public class LowerInterceptor {
 
             Field makeField = lowerInstance.getClass().getDeclaredField("make");
             TreeMaker make = (TreeMaker) makeField.get(lowerInstance);
-
-            Field typesField = lowerInstance.getClass().getDeclaredField("types");
-            TypesWithoutErasure types = (TypesWithoutErasure) typesField.get(lowerInstance);
             
             make.pos = tree.pos;
 

@@ -11,6 +11,13 @@ import java.lang.instrument.Instrumentation;
 
 import static net.bytebuddy.matcher.ElementMatchers.*;
 
+/**
+ * We override methods in Lower.java that create VarSymbol s
+ * so that they will not erase the assigned type.
+ * <p>
+ * We can not stop doing type erasure in Lower.java in general,
+ * because it depends on erasure for type comparisons and lookups.
+ */
 public class InstrumentLower {
 
     public static void installModification() {
@@ -30,6 +37,15 @@ public class InstrumentLower {
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))
                             .method(named("freevarDefs").
                                             and(takesArguments(int.class, List.class, Symbol.class, long.class)))
+                                    .intercept(MethodDelegation.to(LowerInterceptor.class))
+                            .method(named("visitTypeTest")
+                                    // The first call to types.erasure in visitEnumDef,
+                                    // part of assigning the variable 'e_class',
+                                    // should not be erased, because it's used as part of a type based lookup
+                                    // However, the other erasure might be good to skip
+                                    // We could intercept visitEnumDef and only skip the first erasure call
+                                    //.or(named("visitEnumDef"))
+                            )
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))
                     )
                     .installOn(instrumentation);
