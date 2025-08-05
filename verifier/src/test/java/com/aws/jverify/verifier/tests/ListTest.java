@@ -26,11 +26,23 @@ public class ListTest {
     }
 }
 
-@Contract
-@Modifiable
+@Contract(immutable = true)
 abstract class ListContract<E> implements List<E> {
 
     JVerify.Sequence<E> elements;
+
+    static <E> List<E> of() {
+        postcondition((List<E> r) ->
+                r.size() == 0);
+        throw new ContractException();
+    }
+
+    static <E> List<E> of(E e1) {
+        postcondition((List<E> r) ->
+                r.size() == 1 &&
+                r.get(0) == e1);
+        throw new ContractException();
+    }
 
     static <E> List<E> of(E e1, E e2) {
         postcondition((List<E> r) ->
@@ -49,22 +61,9 @@ abstract class ListContract<E> implements List<E> {
         throw new ContractException();
     }
 
-//    @Override
-//    @Pure
-//    public boolean equals(Object o) {
-//        reads(this);
-//        postcondition((boolean r) -> {
-//            if (o == null || getClass() != o.getClass()) return false;
-//            ListContract<?> that = (ListContract<?>) o;
-//            return Objects.equals(elements, that.elements);
-//        });
-//        throw new ContractException();
-//    }
-
     @Override
     @Pure
     public E get(int index) {
-        reads(this);
         precondition(0 <= index && index < size());
         postcondition((E e) -> e == elements.get(index));
         throw new ContractException();
@@ -73,15 +72,20 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public int size() {
-        reads(this);
         postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
 
     @Override
     @Pure
+    public boolean isEmpty() {
+        postcondition((boolean r) -> r == (elements.size() == 0));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
     public boolean contains(Object o) {
-        reads(this);
         postcondition((boolean r) ->
                 r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));

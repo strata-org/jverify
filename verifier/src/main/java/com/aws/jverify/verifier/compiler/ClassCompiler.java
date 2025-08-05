@@ -192,9 +192,13 @@ public class ClassCompiler {
         var symtab = Symtab.instance(this.compiler.context);
         var superTraits = baseTypes
                 .filter(compiler::typeHasAContract)
-                .map((com.sun.tools.javac.code.Type type) ->
-                    compiler.translateType(type, origin, null)
-                )
+                .map((com.sun.tools.javac.code.Type type) -> {
+                    if (type.baseType() == symtab.objectType) {
+                        // A class that extends 'Object' will extend '@Modifiable Object' instead
+                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectCompiler.REFERENCE_OBJECT_NAME, null));
+                    }
+                    return compiler.translateType(type, origin, null);
+                })
                 .collect(Collectors.<Type>toList());
 
         if (definingSymbol == symtab.objectType.tsym || definingSymbol == symtab.recordType.tsym) {

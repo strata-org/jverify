@@ -4,7 +4,6 @@ import static com.aws.jverify.JVerify.*;
 
 import com.aws.jverify.*;
 
-@Modifiable
 class UserProfile {
     public enum AccountType { Free, Premium }
     public enum Theme { Light, Dark }
@@ -48,7 +47,6 @@ class UserProfile {
         }
     }
 
-    @Modifiable
     static class PremiumFeatures {
         private Theme theme;
 
