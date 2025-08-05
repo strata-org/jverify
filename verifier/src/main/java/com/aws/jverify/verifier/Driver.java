@@ -48,7 +48,6 @@ public class Driver {
         var verificationResults = new VerificationResults();
         
         InstrumentLower.installModification();
-
         var context = new Context();
         TypesWithoutErasure.preRegister(context);
         

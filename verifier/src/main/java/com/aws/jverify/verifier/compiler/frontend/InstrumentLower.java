@@ -1,13 +1,15 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
+import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.util.List;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.description.modifier.Visibility;
 import net.bytebuddy.dynamic.Transformer;
 import net.bytebuddy.implementation.MethodDelegation;
 import java.lang.instrument.Instrumentation;
-import static net.bytebuddy.matcher.ElementMatchers.named;
-import static net.bytebuddy.matcher.ElementMatchers.takesArgument;
+
+import static net.bytebuddy.matcher.ElementMatchers.*;
 
 public class InstrumentLower {
 
@@ -21,8 +23,13 @@ public class InstrumentLower {
                             builder
                             .field(named("make"))
                                 .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
+                            .field(named("types"))
+                                .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
                             .method(named("access").
                                     and(takesArgument(0, named("com.sun.tools.javac.code.Symbol"))))
+                                    .intercept(MethodDelegation.to(LowerInterceptor.class))
+                            .method(named("freevarDefs").
+                                            and(takesArguments(int.class, List.class, Symbol.class, long.class)))
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))
                     )
                     .installOn(instrumentation);
