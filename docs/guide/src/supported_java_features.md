@@ -39,17 +39,17 @@ JVerify intends to support the full Java language, but is currently being develo
 
 # Supported Java standard library packages
 
-Nothing yet
+- (Partially) `java.math.BigInteger`
 
-# Unsupported Java features
+# Not yet supported Java features
 
 #### Java 1-9
-- static fields
-- `throw`/`try`/`catch`/`finally` and checked exception
 - Use of mutating operators such as `=` in a nested expression
 - Enhanced for loop: `for(var x : xs) { ... }`
+- static fields
 - Multi-dimensional array instantiation: `new [,]`
 - Array instantiation with initializers: `new int[] { 1, 2, 3 }`
+- `throw`/`try`/`catch`/`finally` and checked exceptions
 - Operators on `float` and `double`
 - Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to `C<Object>`.
 - For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
