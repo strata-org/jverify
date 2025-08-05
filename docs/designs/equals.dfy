@@ -31,9 +31,7 @@ trait Object {
     decreases Repr(), 0
   {
       && component.This() <= Repr()
-      // && component in Repr()
       && component.Repr() < Repr()
-      // && this !in component.Repr()
       && component.valid()
   }
 
@@ -56,6 +54,8 @@ trait Object {
     ensures obj.equals(this)
 
   // Will also need a lemma for transitivity
+
+  function getClass(): Class
 }
 
 //
@@ -64,7 +64,7 @@ trait Object {
 trait ModifiableObject extends Object, object { 
 
   // Can't be declared on Object (unless it's a const instead)
-  var repr: set<object>
+  ghost var repr: set<object>
 
   ghost predicate validModifiableComponent(component: ModifiableObject)
     reads This(), Repr()
@@ -78,20 +78,137 @@ trait ModifiableObject extends Object, object {
   }
 }
 
-//
-// Example reference type
-//
-trait MyPair extends ModifiableObject, object {
-  var a: A
-  var b: B
-
-  ghost predicate valid() 
+// TODO: Needs to include class loaders too
+datatype Class extends Object = Class(name: string) {
+  ghost predicate valid()
     reads This(), Repr()
     decreases Repr(), 1
   {
-    && this in Repr()
-    && validModifiableComponent(a)
-    && validModifiableComponent(b)
+    true
+  }
+
+  predicate equals(obj: Object)
+    requires valid()
+    requires obj.valid()
+    reads This(), Repr(), obj.This(), obj.Repr()
+    decreases Repr()
+    // Reflexivity
+    ensures this as Object == obj ==> equals(obj)
+  {
+    obj is Class && (obj as Class) == this
+  }
+
+  // Symmetry
+  // Can't be an intrinsic postcondition of equals
+  // because we can't quantify over reference types.
+  lemma equalsSymmetric(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    decreases Repr()
+    ensures obj.equals(this)
+  {}
+
+  function getClass(): Class
+  {
+    Class("java.lang.Class")
+  }
+}
+
+// //
+// // Example reference type
+// //
+// trait MyPair extends ModifiableObject, object {
+//   var a: A
+//   var b: B
+
+//   ghost predicate valid() 
+//     reads This(), Repr()
+//     decreases Repr(), 1
+//   {
+//     && this in Repr()
+//     && validModifiableComponent(a)
+//     && validModifiableComponent(b)
+//   }
+
+//   predicate equals(obj: Object)
+//     requires valid()
+//     requires obj.valid()
+//     reads This(), Repr(), obj.This(), obj.Repr()
+//     ensures this as Object == obj ==> equals(obj)
+//     decreases Repr()
+//   {
+//     if !(obj is MyPair) then
+//       false
+//     else
+//       var other: MyPair := obj as MyPair;
+
+//       assert validModifiableComponent(a);
+//       assert other.validModifiableComponent(other.a);
+//       assert validModifiableComponent(b);
+//       assert other.validModifiableComponent(other.b);
+      
+//       a.equals(other.a) && b.equals(other.b)
+//   }
+
+//   lemma equalsSymmetric(obj: Object)
+//     requires valid()
+//     requires obj.valid()
+//     requires equals(obj)
+//     decreases Repr()
+//     ensures obj.equals(this)
+//   {
+//     var other: MyPair := obj as MyPair;
+//     a.equalsSymmetric(other.a);
+//     b.equalsSymmetric(other.b);
+//   }
+// }
+
+// class Constructable?MyPair extends MyPair {
+
+//   constructor init(a_: A, b_: B)
+//     requires a_.valid()
+//     requires b_.valid()
+//     ensures valid()
+//   {
+//     this.a := a_;
+//     this.b := b_;
+//     this.repr := {this, a_, b_} + a_.Repr() + b_.Repr();
+//     assert a_.valid();
+//     assert allocated(a_);
+//     label before:
+//     new;
+//     // assert this !in a.valid.reads();
+//     // assert old@before(a_.valid.reads()) == a_.valid.reads();
+//     assert old@before(a_.valid()) == a_.valid();
+//     assert a_.valid();
+//     assert b_.valid();
+//   }
+// }
+
+type int32 = x: int
+  | -2147483648 <= x && x <= 2147483647
+
+trait A extends ModifiableObject {
+  var f: int32
+
+}
+
+class Constructable?A extends A {
+
+  constructor (f: int32) 
+    ensures valid()
+    ensures this.f == f
+  {
+    this.f := f;
+    this.repr := {this};
+  }
+
+  ghost predicate valid()
+    reads This(), Repr()
+    decreases Repr(), 0
+  {
+    repr == {this}
   }
 
   predicate equals(obj: Object)
@@ -101,17 +218,12 @@ trait MyPair extends ModifiableObject, object {
     ensures this as Object == obj ==> equals(obj)
     decreases Repr()
   {
-    if !(obj is MyPair) then
+    if !(obj.getClass() == Class("A")) then
       false
     else
-      var other: MyPair := obj as MyPair;
-
-      assert validModifiableComponent(a);
-      assert other.validModifiableComponent(other.a);
-      assert validModifiableComponent(b);
-      assert other.validModifiableComponent(other.b);
-      
-      a.equals(other.a) && b.equals(other.b)
+      classIdentity(obj);
+      var other: A := obj as A;
+      f == other.f
   }
 
   lemma equalsSymmetric(obj: Object)
@@ -121,50 +233,57 @@ trait MyPair extends ModifiableObject, object {
     decreases Repr()
     ensures obj.equals(this)
   {
-    var other: MyPair := obj as MyPair;
-    a.equalsSymmetric(other.a);
-    b.equalsSymmetric(other.b);
+    assert obj.getClass() == Class("A");
+    classIdentity(obj);
   }
+
+  function getClass(): Class {
+    Class("A")
+  }
+
+  static lemma classIdentity(obj: Object)
+    requires obj.getClass() == Class("A")
+    ensures obj is Constructable?A
 }
 
-type int32 = x: int
-  | -2147483648 <= x && x <= 2147483647
 
-trait A extends ModifiableObject {
-  var f: int32
-}
-
-class Constructable?A extends A {
-
-  ghost predicate valid()
-    reads This(), Repr()
-    decreases Repr(), 0
-
-  predicate equals(obj: Object)
-    ensures this as Object == obj ==> equals(obj)
-    decreases Repr()
-
-  lemma equalsSymmetric(obj: Object)
-    requires valid()
-    requires obj.valid()
-    requires equals(obj)
-    decreases Repr()
-    ensures obj.equals(this)
-}
 
 trait B extends A, object {
   var g: int32
 }
 
 class Constructable?B extends B {
+
+  constructor (f: int32, g: int32) 
+    ensures valid()
+    ensures this.f == f
+    ensures this.g == g
+  {
+    this.f := f;
+    this.g := g;
+    this.repr := {this};
+  }
+
   ghost predicate valid()
     reads This(), Repr()
     decreases Repr(), 1
+  {
+    repr == {this}
+  }
 
-  function equals(obj: Object): (b: bool)
+  predicate equals(obj: Object)
+    requires valid()
+    requires obj.valid()
+    reads This(), Repr(), obj.This(), obj.Repr()
+    ensures this as Object == obj ==> equals(obj)
     decreases Repr()
-    ensures (this as Object == obj) ==> equals(obj)
-
+  {
+    if !(obj is B) then
+      false
+    else
+      var other: B := obj as B;
+      f == other.f && g == other.g
+  }
 
   lemma equalsSymmetric(obj: Object)
     requires valid()
@@ -172,6 +291,30 @@ class Constructable?B extends B {
     requires equals(obj)
     decreases Repr()
     ensures obj.equals(this)
+  {
+    assert obj is B;
+  }
+
+    function getClass(): Class {
+    Class("A")
+  }
+
+  static lemma classIdentity(obj: Object)
+    requires obj.getClass() == Class("B")
+    ensures obj is Constructable?B
+}
+
+method WTF() {
+  var a: Constructable?A := new Constructable?A(1);
+  var b := new Constructable?B(1, 2);
+  assert b is A;
+  assert a.equals(b);
+  if !((a as Object) is B) {
+    assert !b.equals(a);
+    a.equalsSymmetric(b);
+    assert false;
+  }
+  
 }
 
 class Constructable?ModifiableObject extends ModifiableObject {
@@ -200,6 +343,14 @@ class Constructable?ModifiableObject extends ModifiableObject {
   {
     assert obj as Object == this;
   }
+
+  function getClass(): Class {
+    Class("A")
+  }
+
+  static lemma classIdentity(obj: Object)
+    requires obj.getClass() == Class("java.lang.Object")
+    ensures obj is Constructable?ModifiableObject
 }
 
 
@@ -229,6 +380,14 @@ datatype DString extends Object = JS(elements: seq<char16>) {
     decreases Repr()
     ensures other.equals(this)
   {}
+
+  function getClass(): Class {
+    Class("java.lang.String")
+  }
+
+  static lemma classIdentity(obj: Object)
+    requires obj.getClass() == Class("java.lang.String")
+    ensures obj is DString
 }
 
 //
@@ -283,9 +442,17 @@ datatype DList extends Object = Cons(head: int32, tail: DList) | Nil {
     assert other is DList;
     equalsDListSymmetric(other as DList);
   }
+
+  function getClass(): Class {
+    Class("java.lang.String")
+  }
+
+  static lemma classIdentity(obj: Object)
+    requires obj.getClass() == Class("java.lang.String")
+    ensures obj is DString
 }
 
-datatype DNull extends Object = DNull {
+datatype DNull extends Object = DNull(klass: Class) {
   ghost predicate valid()
     reads This(), Repr()
     decreases Repr(), 1
@@ -304,6 +471,12 @@ datatype DNull extends Object = DNull {
     decreases Repr()
     ensures obj.equals(this)
   {}
+
+  function getClass(): Class {
+    klass
+  }
+
+  // TODO: No classIdentity here, is that a problem?
 }
 
 type byte = x
@@ -350,6 +523,46 @@ trait ImmutableList<T extends Object> extends Object {
       var e' := other.elements[i] as Object;
       assert validComponent(e);
       assert other.validComponent(e');
-      (elements[i] as Object).equals(other.elements[i])
+      e.equals(e')
   }
+}
+
+trait SingletonList<T extends Object> extends ImmutableList<T> {
+
+  // const value: T
+
+  // ghost predicate valid()
+  //   reads This(), Repr()
+  //   decreases Repr(), 1
+  // {
+  //   forall i | 0 <= i < |elements| :: 
+  //     var e := elements[i] as Object;
+  //     validComponent(e)
+  // }
+
+  // predicate equals(obj: Object)
+  //   requires valid()
+  //   requires obj.valid()
+  //   reads This(), Repr(), obj.This(), obj.Repr()
+  //   decreases Repr()
+  //   ensures this as Object == obj ==> equals(obj)
+  //   ensures equals(obj) <==>
+  //     && obj is ImmutableList<T> 
+  //     && var other := obj as ImmutableList<T>;
+  //     && equalsImmutableList(other)
+
+  // predicate equalsImmutableList(other: ImmutableList<T>)
+  //   requires valid()
+  //   requires other.valid()
+  //   reads This(), Repr(), other.This(), other.Repr()
+  //   decreases Repr(), 0
+  // {
+  //   && |elements| == |other.elements|
+  //   && forall i | 0 <= i < |elements| :: 
+  //     var e := elements[i] as Object;
+  //     var e' := other.elements[i] as Object;
+  //     assert validComponent(e);
+  //     assert other.validComponent(e');
+  //     e.equals(e')
+  // }
 }
