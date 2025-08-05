@@ -271,14 +271,14 @@ project(":javac-plugin-test") {
 }
 
 project(":verifier") {
-    
+
     apply(plugin = "application")
     application {
         mainClass.set("com.aws.jverify.verifier.Main")  // For a file named main.kt
 
         applicationDefaultJvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
-    
+
     dependencies {
         implementation("net.bytebuddy:byte-buddy:1.14.18")
         implementation("net.bytebuddy:byte-buddy-agent:1.14.18")

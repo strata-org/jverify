@@ -46,7 +46,7 @@ public class Driver {
             VerifierOptions verifierOptions
     ) throws IOException {
         var verificationResults = new VerificationResults();
-        
+
         InstrumentLower.installModification();
         var context = new Context();
         TypesWithoutErasure.preRegister(context);
