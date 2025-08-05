@@ -189,6 +189,7 @@ public class ClassCompiler {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
         }
 
+        var symtab = Symtab.instance(this.compiler.context);
         var superTraits = baseTypes
                 .filter(compiler::typeHasAContract)
                 .map((com.sun.tools.javac.code.Type type) ->
@@ -196,7 +197,7 @@ public class ClassCompiler {
                 )
                 .collect(Collectors.<Type>toList());
 
-        if (compiler.isAnnotated(classDecl.type, Modifiable.class)) {
+        if (definingSymbol == symtab.objectType.tsym || definingSymbol == symtab.recordType.tsym) {
             superTraits = new ArrayList<>();
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }

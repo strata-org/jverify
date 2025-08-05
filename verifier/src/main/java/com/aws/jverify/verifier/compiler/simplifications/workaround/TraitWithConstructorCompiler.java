@@ -52,9 +52,7 @@ public class TraitWithConstructorCompiler {
                 }
 
                 case Function function -> {
-//                    if (definingSymbol.name.equals("java_lang_Object") || !function.getNameNode().getValue().equals("equals")) {
-//                        traitMembers.add(function);
-//                    }
+                    traitMembers.add(function);
                     if (function.getBody() == null && !function.getHasStaticKeyword()) {
                         // A bodyless trait in Dafny is abstract.
                         // You can not declare an assumed member in traits in Dafny
