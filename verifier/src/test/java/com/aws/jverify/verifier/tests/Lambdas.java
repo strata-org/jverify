@@ -8,10 +8,14 @@ import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 3, verifyPrintedDafny = true)
+// TODO move method references to separate test file
+@JVerifyTest(exitCode = 4, dafnyVerified = 33, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
     public void useLambdas() {
+         doSomethingTwice((x, y) -> add(x,y));
+         doSomethingTwice((x, y) -> this.add(x,y));
+        
         doSomethingTwice((x, y) -> x);
         doSomethingTwice((x, y) -> Lambdas.staticAdd(x, y));
         int z = 42;

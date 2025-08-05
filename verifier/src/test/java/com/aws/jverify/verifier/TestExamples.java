@@ -9,6 +9,12 @@ import java.nio.file.Path;
 
 public class TestExamples {
     @Test
+    public void testNullCheck() throws IOException {
+        var markedSourcePath = Path.of("NullCheck.java");
+        verifyPath(markedSourcePath, 4, 1, 2);
+    }
+    
+    @Test
     public void testFibonacci() throws IOException {
         var markedSourcePath = Path.of("Fibonacci.java");
         verifyPath(markedSourcePath, 0, 5, 0);
