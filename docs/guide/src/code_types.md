@@ -31,7 +31,7 @@ JVerify requires that expressions that occur in a nested context are pure. Neste
 The rules for pure code are as follows:
 - Only methods annotated with `@Pure` can be called.
 - Local variables or fields can not be updated, so assignment operators such as `=` can not be used.
-- `new` can only be used on records 
+- `new` can only be used on immutable types (like records). More information is in the section [Immutable types](immutable_types.md). 
 
 Code that occurs in a method annotated with `@Pure` must follow those  rules, and additionally:
 - Only the following statements can be used:
