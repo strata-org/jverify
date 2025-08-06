@@ -30,7 +30,7 @@ interface CollectionContract<E> {
 
 }
 
-@Contract(immutable = true)
+@Contract(value = List.class, immutable = true)
 abstract class ListContract<E> implements List<E> {
 
     JVerify.Sequence<E> elements;
