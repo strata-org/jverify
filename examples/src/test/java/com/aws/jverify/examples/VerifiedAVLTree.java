@@ -13,6 +13,8 @@ public class VerifiedAVLTree {
     private @Nullable Node root;
     
     public VerifiedAVLTree() {
+        postcondition(forall((int x) -> !contains(x)));
+        postcondition(valid());
         this.root = null;
     }
     
@@ -21,10 +23,9 @@ public class VerifiedAVLTree {
      */
     @Erased
     @Pure
-    @Invariant
     private boolean valid() {
         reads(this);
-        return isValidAVL(root) && isBinarySearchTree(root, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        return root == null || root.valid();
     }
     
     /**
@@ -32,8 +33,9 @@ public class VerifiedAVLTree {
      */
     public void insert(int value) {
         modifies(this);
-        postcondition(contains(value));
-        postcondition(forall((int x) -> !old(contains(x)) || contains(x))); // All old elements still present
+        precondition(this.valid());
+        postcondition(this.valid());
+        postcondition(forall((int x) -> x == value ? contains(x) : old(contains(x)) == contains(x)));
         
         root = insertHelper(root, value);
     }
@@ -60,10 +62,10 @@ public class VerifiedAVLTree {
      * Helper method for insertion with rebalancing
      */
     private @Nullable Node insertHelper(@Nullable Node node, int value) {
+        
         postcondition((@Nullable Node result) -> 
-            isValidAVL(result) && 
-            containsHelper(result, value) &&
-            forall((int x) -> !containsHelper(node, x) || containsHelper(result, x))
+            result.valid() && 
+            forall((int x) -> x == value ? containsHelper(result, x) : old(containsHelper(node, x)) == containsHelper(result, x))
         );
         modifies(node.left);
         modifies(node.right);
@@ -134,7 +136,7 @@ public class VerifiedAVLTree {
     @Pure
     @Erased
     @Unbounded
-    private int getHeightHelper(@Nullable Node node) 
+    private static int getHeightHelper(@Nullable Node node) 
     {
         reads(node);
         return node == null ? 0 : node.height;
@@ -146,7 +148,7 @@ public class VerifiedAVLTree {
     @Pure
     @Erased
     @Unbounded
-    private int getBalance(@Nullable Node node) {
+    private static int getBalance(@Nullable Node node) {
         reads(node);
         reads(node.left);
         reads(node.right);
@@ -216,7 +218,7 @@ public class VerifiedAVLTree {
      */
     @Pure
     @Erased
-    private boolean isValidAVL(@Nullable Node node) {
+    private static boolean isValidAVL(@Nullable Node node) {
         return node == null ? true : Math.abs(getBalance(node)) <= 1 &&
            isValidAVL(node.left) &&
            isValidAVL(node.right) &&
@@ -228,9 +230,9 @@ public class VerifiedAVLTree {
      */
     @Pure
     @Erased
-    private boolean isBinarySearchTree(@Nullable Node node, int minVal, int maxVal) {
+    private static boolean isBinarySearchTree(@Nullable Node node, int minVal, int maxVal) {
         decreases(node.height);
-        return node.validHeight() && node == null ? true : minVal < node.value && 
+        return node == null ? true : node.validHeight() && minVal < node.value && 
                node.value < maxVal &&
                isBinarySearchTree(node.left, minVal, node.value) &&
                isBinarySearchTree(node.right, node.value, maxVal);
@@ -272,6 +274,16 @@ public class VerifiedAVLTree {
                 right == null ? 0 : right.height
             );
         }
+    
+        /**
+         * Class invariant: the tree maintains AVL property and BST property
+         */
+        @Erased
+        @Pure
+        private boolean valid() {
+            reads(this);
+            return validHeight() && isValidAVL(this) && isBinarySearchTree(this, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        }
     }
     
     /**
@@ -281,6 +293,7 @@ public class VerifiedAVLTree {
         VerifiedAVLTree tree = new VerifiedAVLTree();
         
         // Insert some values
+        check(!tree.contains(10));
         tree.insert(10);
         check(tree.contains(10));
         check(tree.getHeight() == 1);
@@ -288,6 +301,8 @@ public class VerifiedAVLTree {
         tree.insert(20);
         check(tree.contains(20));
         check(tree.contains(10));
+        check(tree.contains(11));
+        check(!tree.contains(30));
         
         tree.insert(30);
         check(tree.contains(30));
