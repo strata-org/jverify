@@ -103,13 +103,12 @@ public class JavaToDafnyCompiler {
          */
         parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
-        var foundClassSymbols = new HashMap<Symbol.ClassSymbol, JCTree.JCCompilationUnit>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
+            externalContractCompiler.discoverTypesAndContractClasses(compilationUnit);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
-        for(var foundClassSymbol : foundClassSymbols.keySet()) {
+        for(var foundClassSymbol : externalContractCompiler.foundClasses.keySet()) {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
@@ -120,7 +119,7 @@ public class JavaToDafnyCompiler {
         var dummyToken = new Token(1, 1);
         contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
 
-        compileSymbolsTopologically(foundClassSymbols);
+        compileSymbolsTopologically(externalContractCompiler.foundClasses);
 
         contextOrigins.pop();
 

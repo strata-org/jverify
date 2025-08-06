@@ -181,8 +181,6 @@ public class ImmutableTypeCompiler {
                 constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
 
-
-
             members.add(staticFunction);
         } else {
             if (dafnyMember != null) {
