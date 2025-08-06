@@ -527,7 +527,7 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
 
-                if (className.toString().equals("com.aws.jverify.JVerify$Sequence")) {
+                if (className.equals(JVerify.Sequence.class.getName())) {
                     var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
                     return new SeqType(origin, arguments);
                 }
