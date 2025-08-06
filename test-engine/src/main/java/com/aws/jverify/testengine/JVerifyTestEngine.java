@@ -171,10 +171,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
-        
-        if (annotation.verifyPrintedDafny()) {
-            verifyPrintedDafny(verificationResults, options);
-        }
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
@@ -204,6 +200,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         verificationResults.getDafnyErrorCount(),
                         is(expectedDafnyErrorCount))
         );
+
+        if (annotation.verifyPrintedDafny()) {
+            verifyPrintedDafny(verificationResults, options);
+        }
     }
 
     private static void verifyPrintedDafny(VerificationResults previousResults, VerifierOptions verifierOptions) 

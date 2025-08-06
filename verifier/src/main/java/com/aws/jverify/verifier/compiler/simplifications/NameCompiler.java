@@ -25,14 +25,14 @@ import java.util.Set;
  * allowing for name resolution in both directions.
  */
 public class NameCompiler {
-    static private final String sep = "?";
+    public static final String sep = "?";
     static private final String fieldPrefix = "F" + sep;
     static private final String methodPrefix = "Z" + sep;
     public String DEFAULT_CTOR_NAME = "ctor" + sep;
     public static final String NON_DEFAULT_CTOR_NAME = "ctor" + sep;
     public static String RETURN_VARIABLE_NAME = "result" + sep;
     public String CLASS_PREFIX = "Constructable" + sep;
-    public String INIT_METHOD_PREFIX = "init" + sep;
+    public String INIT_METHOD_PREFIX = "init";
     public String LABEL_PREFIX = "g" + sep;
     public String UNDERSCORE_START_PREFIX = "a" + sep;
     public String RESERVED_PREFIX = "r" + sep;
@@ -42,7 +42,7 @@ public class NameCompiler {
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
 
-    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate");
+    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     
     public NameCompiler(ExternalContractCompiler contractCompiler) {
         this.contractCompiler = contractCompiler;
@@ -118,7 +118,7 @@ public class NameCompiler {
     }
 
     private String getFieldName(Symbol.VarSymbol s) {
-        if (s.name.contentEquals("this")) {
+        if (s.name.contentEquals(s.name.table.names._this)) {
             return s.name.toString();
         }
         var classStats = getGetClassNameStats(s.enclClass(), s.name);
@@ -132,9 +132,9 @@ public class NameCompiler {
         StringBuilder result = new StringBuilder();
                 
         ClassNameStats classStats = getGetClassNameStats(s.enclClass(), s.name);
-        boolean willSuffixWithArguments = classStats.methodsWithThisName() == 1;
+        boolean uniqueName = classStats.methodsWithThisName() <= 1;
         if (s.name.equals(s.name.table.names.init)) {
-            result.append(getConstructorName(willSuffixWithArguments));
+            result.append(getConstructorName(uniqueName));
         }
         else {
             if (classStats.sameNameFields()) {
@@ -142,7 +142,7 @@ public class NameCompiler {
             }
             result.append(encodeName(s.name.toString()));
         }
-        if (willSuffixWithArguments) {
+        if (uniqueName) {
             return result.toString();
         }
         addArgumentTypes(s, result);
@@ -236,6 +236,6 @@ public class NameCompiler {
     }
 
     public String getInitMethodName(String className, String constructorName) {
-        return constructorName.replace("ctor", INIT_METHOD_PREFIX) + "_" + className;
+        return constructorName.replace("ctor", INIT_METHOD_PREFIX) + className;
     }
 }

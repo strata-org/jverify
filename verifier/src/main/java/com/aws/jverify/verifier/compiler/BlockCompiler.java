@@ -4,6 +4,7 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -350,9 +351,10 @@ public class BlockCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
+                Symtab symtab = Symtab.instance(compiler.context);
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-                if (compiler.useConstructorFunction(newClass, classSymbol)) {
-                    var datatypeValue = RecordCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
+                if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
+                    var datatypeValue = ImmutableTypeCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }
                 NameSegment classBaseType = new ModifiableObjectCompiler(compiler).getNewClassType(newClass);

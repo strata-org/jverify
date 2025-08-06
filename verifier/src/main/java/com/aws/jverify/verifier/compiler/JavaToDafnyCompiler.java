@@ -19,6 +19,7 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Names;
@@ -28,6 +29,7 @@ import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.traverse.TopologicalOrderIterator;
 
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
 import javax.tools.*;
 import java.lang.annotation.Annotation;
@@ -101,13 +103,12 @@ public class JavaToDafnyCompiler {
          */
         parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
-        var foundClassSymbols = new HashMap<Symbol.ClassSymbol, JCTree.JCCompilationUnit>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
+            externalContractCompiler.discoverTypesAndContractClasses(compilationUnit);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
-        for(var foundClassSymbol : foundClassSymbols.keySet()) {
+        for(var foundClassSymbol : externalContractCompiler.foundClasses.keySet()) {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
@@ -118,7 +119,7 @@ public class JavaToDafnyCompiler {
         var dummyToken = new Token(1, 1);
         contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
 
-        compileSymbolsTopologically(foundClassSymbols);
+        compileSymbolsTopologically(externalContractCompiler.foundClasses);
 
         contextOrigins.pop();
 
@@ -162,7 +163,7 @@ public class JavaToDafnyCompiler {
                 }
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
-                var dafnyDecls = new ClassCompiler(this).translateTypeDeclaration(relatedDeclaration);
+                var dafnyDecls = new TypeDeclarationCompiler(this).translateTypeDeclaration(relatedDeclaration);
                 verifyAnnotationCompiler.shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
@@ -363,8 +364,12 @@ public class JavaToDafnyCompiler {
         return methodNode.pos == containerPos;
     }
 
+    public static boolean isSynthetic(long flags) {
+        return (flags & Flags.SYNTHETIC) != 0;
+    }
+    
     public static boolean isStatic(JCTree.JCModifiers modifiers) {
-        return (modifiers.flags & Flags.STATIC) == Flags.STATIC;
+        return (modifiers.flags & Flags.STATIC) != 0;
     }
 
     private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node, JCTree.JCCompilationUnit compilationUnit) {
@@ -653,9 +658,50 @@ public class JavaToDafnyCompiler {
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
 
-    public boolean useConstructorFunction(JCTree.JCNewClass newClass,
-                                                 Symbol.ClassSymbol classSymbol) {
-        return isRecord(newClass.type) || isImmutableClass(classSymbol);
+    public boolean isImmutable(Symbol.ClassSymbol classSymbol) {
+        Symtab symtab = Symtab.instance(context);
+        if (classSymbol.type == symtab.objectType) {
+            return true;
+        }
+        if (JavaToDafnyCompiler.isInterface(classSymbol) && !isAnnotated(classSymbol.type, Modifiable.class)) {
+            return true;
+        }
+        boolean anonymousImmutableType = isAnonymousOrFinalImmutableType(classSymbol);
+        if (anonymousImmutableType) {
+            return true;
+        }
+        return isRecord(classSymbol.type) || isImmutableClass(classSymbol);
+    }
+
+    /**
+     * Right now we implicitly consider anonymous and final types immutable,  
+     * if they only have final fields and inherit from immutable types
+     */
+    public boolean isAnonymousOrFinalImmutableType(Symbol.ClassSymbol classSymbol) {
+        if (classSymbol.isAnonymous() || classSymbol.isFinal()) {
+            if (hasNonFinalFields(classSymbol)) {
+                return false;
+            }
+            com.sun.tools.javac.code.Type superclass = classSymbol.getSuperclass();
+            if (superclass != null && superclass.tsym != null) {
+                if (!isImmutable((Symbol.ClassSymbol) superclass.tsym)) {
+                    return false;
+                }
+            }
+            return classSymbol.getInterfaces().stream().
+                    allMatch(it -> isImmutable((Symbol.ClassSymbol) it.tsym));
+        }
+        return false;
+    }
+    
+    public boolean hasNonFinalFields(Symbol.ClassSymbol classSymbol) {
+        for (Symbol member : classSymbol.getEnclosedElements()) {
+            if (member.getKind() == ElementKind.FIELD &&
+                    (member.flags() & Flags.FINAL) == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol symbol) {

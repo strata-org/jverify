@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.ClassCompiler;
+import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.sun.tools.javac.code.Symbol;
@@ -94,7 +94,7 @@ public class LambdaCompiler {
         var stmts = com.sun.tools.javac.util.List.of(returnStmt);
         var body = maker.Block(0, stmts);
         var contract = methodContracts.get(methodSymbol);
-        var methodDecl = new ClassCompiler(compiler).translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
+        var methodDecl = new TypeDeclarationCompiler(compiler).translateMethodOrLambda(source, maker.Modifiers(0), interfaceMethodSymbol, body, List.of(), contract);
 
         // Add a wrapper datatype with that method declaration to the outer scope
         var datatypeName = "Lambda" + compiler.declarationsForFile.get(compiler.compilationUnit).size();
