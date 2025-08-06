@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.types;
 import com.aws.jverify.Nat;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 1, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 3)
 class Types {
     public void foo(int s) {
         short x = 10;

@@ -1,21 +1,13 @@
+// ^ /builtin-contracts.java(71:36-71:50) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.ContractException;
-import com.aws.jverify.JVerify;
-import com.aws.jverify.Modifiable;
-import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import java.util.List;
-import java.util.Objects;
 
 import static com.aws.jverify.JVerify.check;
-import static com.aws.jverify.JVerify.postcondition;
-import static com.aws.jverify.JVerify.precondition;
-import static com.aws.jverify.JVerify.reads;
 
-@JVerifyTest(dafnyVerified = 8, dafnyErrors = 0)
+@JVerifyTest(exitCode = 4, dafnyVerified = 4, dafnyErrors = 2, useBuiltinContracts = true)
 public class ListTest {
 
     void verifying() {
@@ -28,9 +20,15 @@ public class ListTest {
         check(s2.isEmpty());
     }
 
-    void notVerifying() {
+    void checkFails() {
         var s = List.of("one", "two");
         check(s.size() ==  0);
+//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+    }
+
+    void preconditionFails() {
+        var s = List.of("one", "two");
         var x = s.get(2);
+//              ^^^^^^^^ Error: function precondition could not be proved
     }
 }
