@@ -6,7 +6,7 @@ trait Object {
     // that do not depend on mutable state.
     //
     // See also JavaToDafnyCompiler.equalsFunctionDeclaration
-    // for more on overridding pure methods
+    // for more on overridding pure methods.
     predicate equals(obj: Object)
 }
 
