@@ -192,7 +192,7 @@ public class JVerify {
 
     public interface Sequence<T> {
         /**
-         * Returns the elements at index {@code index}.
+         * Returns the element at index {@code index}.
          */
         default T get(int index) {
             throw new VerificationMethodExecutedException();

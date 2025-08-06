@@ -78,8 +78,6 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
-            // TODO: Check for existing equals()
-            // TODO: Generalize to functions in general
             classMembers.add(JavaToDafnyCompiler.equalsFunctionDeclaration(traitDecl.getOrigin()));
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();

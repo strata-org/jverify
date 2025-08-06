@@ -523,7 +523,6 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
 
-                // TODO: Better check. But watch out for getName() and $
                 if (className.toString().equals("com.aws.jverify.JVerify$Sequence")) {
                     var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
                     return new SeqType(origin, arguments);
@@ -660,8 +659,15 @@ public class JavaToDafnyCompiler {
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
 
+    /// The root Object type is currently defined directly in additional.dfy,
+    /// and includes the declaration of the `Object.equals` function.
+    /// But many Java types don't explicitly implement `equals`
+    /// because it has a default implementation based on reference equality.
+    /// Not having a class provide a body for a trait method isn't necessarily a problem in Dafny,
+    /// but it IS an error to not at least repeat the bodiless declaration.
+    /// Hence, this synthetic declaration we have to add to every constructable class.
     public static Function equalsFunctionDeclaration(IOrigin origin) {
-        var otherIn = new Formal(origin, new Name(origin, "other"), new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null)),
+        var otherIn = new Formal(origin, new Name(origin, "obj"), new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null)),
                 false, true, null, null, false, false, false, null);
         return new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
                 List.of(otherIn),
