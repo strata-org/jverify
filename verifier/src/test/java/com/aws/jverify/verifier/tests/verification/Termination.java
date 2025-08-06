@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.decreases;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 4, dafnyErrors = 1)
 class Termination {
     void Recursive(@Nat int x, @Nat int y) {
         decreases(y, x);
