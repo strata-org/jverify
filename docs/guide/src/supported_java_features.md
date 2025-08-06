@@ -1,4 +1,36 @@
-JVerify intends to support the full Java language, but is currently being developed and only supports a subset of Java constructs. The supported and not supported features are listed below. If you encounter unsupported features that are not in the unsupported list, please create a GitHub issue.
+JVerify intends to support the full Java language, but is currently being developed and only supports a subset of Java constructs. The not yet supported Java features are listed below. If you encounter unsupported features that are not in this list, please create a GitHub issue.
+
+# Currently unsupported Java features
+
+#### Java 1-9
+- Use of mutating operators such as `=` in a nested expression
+- Full verification of constructors
+- Enhanced for loop: `for(var x : xs) { ... }`
+- static fields
+- Multi-dimensional array instantiation: `new [,]`
+- Array instantiation with initializers: `new int[] { 1, 2, 3 }`
+- `throw`/`try`/`catch`/`finally` and checked exceptions
+- Operators on `float` and `double`
+- Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to `C<Object>`.
+- For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
+  - synchronized is ignored
+
+#### Java 14
+- `instanceof <pattern>`, only when using a pattern
+- Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
+- `yield` in switch expressions
+
+#### Java 17
+- Pattern matches in switch expressions and statements
+- `permits` clauses are ignored in verification
+- Explicit constructors on records
+- Explicit accessors on records
+- Support `null` value and comparison for record types
+- Using `==` on records. Note that doing so is generally not what you want.
+- Overriding `equals(Object)` or `hashCode()` on records is not supported. Note that doing so is generally not what you want.
+
+#### Java 21
+- String template: `STR."My name is \{name}"`
 
 # Supported Java features
 - All literals
@@ -40,29 +72,3 @@ JVerify intends to support the full Java language, but is currently being develo
 # Supported Java standard library packages
 
 - (Partially) `java.math.BigInteger`
-
-# Not yet supported Java features
-
-#### Java 1-9
-- Use of mutating operators such as `=` in a nested expression
-- Enhanced for loop: `for(var x : xs) { ... }`
-- static fields
-- Multi-dimensional array instantiation: `new [,]`
-- Array instantiation with initializers: `new int[] { 1, 2, 3 }`
-- `throw`/`try`/`catch`/`finally` and checked exceptions
-- Operators on `float` and `double`
-- Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to `C<Object>`.
-- For now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
-  - synchronized is ignored
-
-#### Java 14
-- `instanceof <pattern>`, only when using a pattern
-- Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
-- `yield` in switch expressions
-
-#### Java 17
-- Pattern matches in switch expressions and statements
-- `permits` clauses are ignored in verification
-
-#### Java 21
-- String template: `STR."My name is \{name}"`

@@ -85,6 +85,7 @@ class LongContract {
 @Contract(Boolean.class)
 class BooleanContract {
 
+    @Pure
     public static Boolean valueOf(boolean b) {
         postcondition((Boolean boxed) -> boxed.booleanValue() == b);
         throw new ContractException();

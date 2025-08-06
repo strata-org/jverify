@@ -17,7 +17,6 @@ import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
 import static com.sun.tools.javac.tree.JCTree.Tag.*;
-import static com.sun.tools.javac.tree.JCTree.Tag.MODULEIMPORT;
 
 public class ExternalContractCompiler {
     final JavaToDafnyCompiler compiler;
@@ -85,8 +84,7 @@ public class ExternalContractCompiler {
         for (typeDefs = defs; !typeDefs.isEmpty(); typeDefs = typeDefs.tail) {
             if (!typeDefs.head.hasTag(MODULEDEF)
                     && !typeDefs.head.hasTag(PACKAGEDEF)
-                    && !typeDefs.head.hasTag(IMPORT)
-                    && !typeDefs.head.hasTag(MODULEIMPORT)) {
+                    && !typeDefs.head.hasTag(IMPORT)) {
                 break;
             }
         }

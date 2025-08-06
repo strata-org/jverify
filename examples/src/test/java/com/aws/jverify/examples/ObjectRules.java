@@ -1,6 +1,7 @@
 package com.aws.jverify.examples;
 
 import com.aws.jverify.Modifiable;
+import com.aws.jverify.Pure;
 
 class ObjectRules {
     void mutableInheritsFromImmutableObject(Object immutableObject) {
@@ -17,5 +18,11 @@ class ObjectRules {
     
     void newObjectIsAlwaysModifiable() {
         @Modifiable Object o = new Object(); // no cast
+    }
+
+    @Pure
+    Object newObjectIsImpure() {
+        return new Object();
+//             ^ error: using 'new' in an expression to create an instance of a non-record class is not supported
     }
 }
