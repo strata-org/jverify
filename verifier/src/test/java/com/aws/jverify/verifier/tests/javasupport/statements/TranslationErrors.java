@@ -178,7 +178,7 @@ class TranslationErrors {
         check(new DummyRecord() != null);
 
         check(new DummyClass() != null);
-//            ^ error: using 'new' in an expression to create an instance of a non-record class is not supported
+//            ^ error: using 'new' in an expression to create an instance of a mutable type is not supported
     }
 
     void foo() {}

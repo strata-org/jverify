@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
+import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
@@ -18,13 +19,14 @@ import java.util.stream.StreamSupport;
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
 import static com.sun.tools.javac.tree.JCTree.Tag.*;
 
-public class ExternalContractCompiler {
+public class ExternalContractCompiler extends TreeScanner {
     final JavaToDafnyCompiler compiler;
     public final Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> declarationsForSymbolContract = new HashMap<>();
     public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
     public Map<com.sun.tools.javac.code.Type, com.sun.tools.javac.code.Type> contractClassTypeToContracteeType = new HashMap<>();
     public LinkedHashMap<Symbol.ClassSymbol, Symbol.ClassSymbol> contractClassToContractee = new LinkedHashMap<>();
-
+    public Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> foundClasses = new HashMap<>();
+    
     public ExternalContractCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
     }
@@ -32,51 +34,44 @@ public class ExternalContractCompiler {
     public record ExternalTypeContract(
             Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
             List<JCTree.JCVariableDecl> ghostFields) { }
-    
-    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit,
-                                                Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> foundClasses) {
-        compiler.compilationUnit = compilationUnit;
 
-        var typesToVisit = new LinkedList<>(getTypeDecls(compilationUnit.defs));
-        while(!typesToVisit.isEmpty()) {
-            var typeDecl = typesToVisit.poll();
-            if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
-                continue;
-            }
 
-            var classAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
-            var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
+    @Override
+    public void visitClassDef(JCTree.JCClassDecl classDecl) {
+        super.visitClassDef(classDecl);
 
-            for(var member : classDecl.getMembers()) {
-                if (member instanceof JCTree.JCClassDecl nestedClass) {
-                    typesToVisit.push(nestedClass);
-                }
-            }
-            if (contractAnnotation == null) {
-                var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
-                declsForSymbol.add(classDecl);
-                foundClasses.put(classDecl.sym, compilationUnit);
-                continue;
-            }
+        var classAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
+        var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
 
-            var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
-            if (contracteeSymbol == null) {
-                compiler.reportError(classDecl, "noContractTarget", classDecl.name.toString());
-                continue;
-            }
-
-            var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
+        if (contractAnnotation == null) {
+            var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
             declsForSymbol.add(classDecl);
-
-            foundClasses.put(contracteeSymbol, compilationUnit);
-            if (compiler.typeHasSource(contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
-                compiler.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
-                continue;
-            }
-
-            this.contractClassToContractee.put(classDecl.sym, contracteeSymbol);
-            this.contractClassTypeToContracteeType.put(classDecl.sym.type, contracteeSymbol.type);
+            foundClasses.put(classDecl.sym, compiler.compilationUnit);
+            return;
         }
+
+        var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
+        if (contracteeSymbol == null) {
+            compiler.reportError(classDecl, "noContractTarget", classDecl.name.toString());
+            return;
+        }
+
+        var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
+        declsForSymbol.add(classDecl);
+
+        foundClasses.put(contracteeSymbol, compiler.compilationUnit);
+        if (compiler.typeHasSource(contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
+            compiler.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
+            return;
+        }
+
+        this.contractClassToContractee.put(classDecl.sym, contracteeSymbol);
+        this.contractClassTypeToContracteeType.put(classDecl.sym.type, contracteeSymbol.type);
+    }
+
+    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit) {
+        compiler.compilationUnit = compilationUnit;
+        this.visitTopLevel(compilationUnit);
     }
 
     private com.sun.tools.javac.util.List<JCTree> getTypeDecls(com.sun.tools.javac.util.List<JCTree> defs) {
