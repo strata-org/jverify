@@ -1,7 +1,10 @@
-package com.aws.jverify.verifier.compiler;
+package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -11,10 +14,10 @@ import java.util.List;
 /*
 Extracts contracts from constructor, method or loop bodies
  */
-public class ContractCompiler {
+public class MethodOrLoopContractCompiler {
     public final JavaToDafnyCompiler compiler;
 
-    public ContractCompiler(JavaToDafnyCompiler compiler) {
+    public MethodOrLoopContractCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
     }
 

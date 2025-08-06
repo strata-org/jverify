@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.ClientCodeWrapper;
