@@ -42,7 +42,6 @@ public class ModifiableObjectCompiler {
         
         var mirrors = classType.getAnnotationMirrors();
         var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
-        
         if (modifiableAnnotation.isPresent() || compiler.isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
