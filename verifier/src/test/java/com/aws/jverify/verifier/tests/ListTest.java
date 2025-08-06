@@ -18,10 +18,19 @@ import static com.aws.jverify.JVerify.reads;
 @JVerifyTest(dafnyVerified = 8, dafnyErrors = 0)
 public class ListTest {
 
-    void Foo() {
-        var s  = List.of("one", "two", "three");
+    void verifying() {
+        var s = List.of("one", "two", "three");
         check(s.size() == 3);
         check(s.get(1).equals("two"));
         check(s.contains("two"));
+
+        var s2 = List.of();
+        check(s2.isEmpty());
+    }
+
+    void notVerifying() {
+        var s = List.of("one", "two");
+        check(s.size() ==  0);
+        var x = s.get(2);
     }
 }
