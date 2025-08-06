@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.localClasses;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 10, dafnyErrors = 0,
+@JVerifyTest(exitCode = 0, dafnyVerified = 22, dafnyErrors = 0,
         verifyPrintedDafny = true)
 public class PolymorphicAnonymousClasses {
 
