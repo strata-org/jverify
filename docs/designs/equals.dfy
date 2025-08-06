@@ -6,7 +6,7 @@ trait Object {
 
   ghost predicate valid()
     reads This(), Repr()
-    decreases Repr(), 1
+    decreases Decreases(), 1
 
   // Generalized "this" in the Valid()/Repr idiom,
   // allowing for value types as well.
@@ -17,18 +17,15 @@ trait Object {
       {}
   }
 
-  ghost function Repr(): set<object> 
+  ghost function Repr(): set<ModifiableObject> 
     reads This()
-  {
-    if this is ModifiableObject then
-     (this as ModifiableObject).repr
-    else
-     {}
-  }
 
+  ghost function Decreases(): set<Object>
+    reads This()
+  
   ghost predicate validComponent(component: Object)
     reads This(), Repr()
-    decreases Repr(), 0
+    decreases Decreases(), 0
   {
       && component.This() <= Repr()
       && component.Repr() < Repr()
@@ -39,7 +36,7 @@ trait Object {
     requires valid()
     requires obj.valid()
     reads This(), Repr(), obj.This(), obj.Repr()
-    decreases Repr()
+    decreases Decreases()
     // Reflexivity
     ensures this as Object == obj ==> equals(obj)
 
@@ -64,7 +61,24 @@ trait Object {
 trait ModifiableObject extends Object, object { 
 
   // Can't be declared on Object (unless it's a const instead)
-  ghost var repr: set<object>
+  ghost var repr: set<ModifiableObject>
+
+  ghost function Repr(): set<ModifiableObject> 
+    reads This()
+  {
+    if this is ModifiableObject then
+     (this as ModifiableObject).repr
+    else
+     {}
+  }
+
+  ghost function Decreases(): set<Object>
+    reads This()
+  {
+    set o <- Repr() :: o as Object
+  }
+
+  
 
   ghost predicate validModifiableComponent(component: ModifiableObject)
     reads This(), Repr()
@@ -85,6 +99,18 @@ datatype Class extends Object = Class(name: string) {
     decreases Repr(), 1
   {
     true
+  }
+
+  ghost function Repr(): set<ModifiableObject> 
+    reads This()
+  {
+    {}
+  }
+
+  ghost function Decreases(): set<Object> 
+    reads This()
+  {
+    {}
   }
 
   predicate equals(obj: Object)
@@ -370,6 +396,21 @@ datatype DString extends Object = JS(elements: seq<char16>) {
   ghost predicate valid()
     reads This(), Repr()
     decreases Repr(), 1
+  {
+    true
+  }
+
+  ghost function Repr(): set<ModifiableObject> 
+    reads This()
+  {
+    {}
+  }
+
+  ghost function Decreases(): set<Object> 
+    reads This()
+  {
+    {}
+  }
 
   predicate equals(other: Object): (b: bool)
     decreases Repr()
@@ -402,32 +443,58 @@ datatype DString extends Object = JS(elements: seq<char16>) {
 // Would be expressed in Java using record types
 // or classes with the JVerify @Immutable annotation.
 //
-datatype DList extends Object = Cons(head: int32, tail: DList) | Nil {
+datatype DList<+T extends Object> extends Object = Cons(head: T, tail: DList) | Nil {
   ghost predicate valid()
     reads This(), Repr()
     decreases Repr(), 1
 
-  predicate equals(other: Object): (b: bool)
-    decreases Repr()
-    ensures this as Object == other ==> b
+  ghost function Repr(): set<ModifiableObject> 
+    reads This()
   {
-    && other is DList
-    && equalsDList(other as DList)
+    {}
   }
 
-  predicate equalsDList(other: DList) 
+  ghost function Decreases(): set<Object> 
+    reads This()
+  {
+    match this {
+      case Cons(head, tail) => {this} + (head as Object).Decreases() + tail.Decreases()
+      case Nil => {this}
+    }
+  }
+
+  predicate equals(obj: Object): (b: bool)
+    requires valid()
+    requires obj.valid()
+    reads This(), Repr(), obj.This(), obj.Repr()
+    decreases Decreases()
+    ensures this as Object == obj ==> b
+  {
+    && obj.getClass() == Class("DList")
+    && (classIdentity(obj); equalsDList(obj as DList<Object>))
+  }
+
+  predicate equalsDList(other: DList<Object>) 
+    requires valid()
+    requires other.valid()
+    reads This(), Repr(), other.This(), other.Repr()
     ensures this as Object == other ==> equalsDList(other)
+    decreases Decreases(), 0
   {
     match (this, other)
     case (Nil, Nil) => true
     case (Cons(lhead, ltail), Cons(rhead, rtail)) =>
-      lhead == rhead && ltail.equalsDList(rtail)
+      // assert this decreases to ltail;
+      // assert this decreases to lhead;
+      (lhead as Object).equals(rhead as Object) && ltail.equalsDList(rtail)
     case (_, _) => false
   }
 
-  lemma equalsDListSymmetric(other: DList)
+  lemma equalsDListSymmetric(other: DList<Object>)
+    requires valid()
+    requires other.valid()
     requires equalsDList(other)
-    ensures other.equalsDList(this)
+    ensures other.equals(this)
   {
     match (this, other) {
       case (Nil, Nil) => {}
@@ -445,23 +512,36 @@ datatype DList extends Object = Cons(head: int32, tail: DList) | Nil {
     decreases Repr()
     ensures other.equals(this)
   {
-    assert other is DList;
+    classIdentity(other);
+    assert other is DList<Object>;
     equalsDListSymmetric(other as DList);
   }
 
   function getClass(): Class {
-    Class("java.lang.String")
+    Class("DList")
   }
 
   static lemma {:axiom} classIdentity(obj: Object)
-    requires obj.getClass() == Class("java.lang.String")
-    ensures obj is DString
+    requires obj.getClass() == Class("DList")
+    ensures obj is DList<Object>
 }
 
 datatype DNull extends Object = DNull(klass: Class) {
   ghost predicate valid()
     reads This(), Repr()
     decreases Repr(), 1
+
+  ghost function Repr(): set<ModifiableObject> 
+    reads This()
+  {
+    {}
+  }
+
+  ghost function Decreases(): set<Object> 
+    reads This()
+  {
+    {}
+  }
 
   predicate equals(obj: Object)
     decreases Repr()
