@@ -165,7 +165,6 @@ public class ClassCompiler {
             }
         }
 
-        var definingSymbol = getCurrentTypeSymbol(classDecl.sym);
         var externalContract = compiler.externalContractCompiler.externalContracts.get(classDecl.sym);
         if (externalContract != null) {
             for (var ghostField : externalContract.ghostFields()) {
@@ -183,6 +182,8 @@ public class ClassCompiler {
                 }
             }
         }
+
+        var definingSymbol = getCurrentTypeSymbol(classDecl.sym);
 
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
         if (definingSymbol.getSuperclass() != null) {
@@ -205,10 +206,6 @@ public class ClassCompiler {
             superTraits = new ArrayList<>();
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
-
-        // TODO: Check for existing equals()
-        // TODO: Generalize to functions in general
-//        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
 
         var mutable = !JavaToDafnyCompiler.isInterface(definingSymbol)
                 || compiler.isAnnotated(definingSymbol.type, Modifiable.class);

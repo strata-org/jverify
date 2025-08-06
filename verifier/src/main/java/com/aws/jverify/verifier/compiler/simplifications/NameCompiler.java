@@ -5,12 +5,9 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
-import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.Name;
 
 import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
@@ -41,7 +38,6 @@ public class NameCompiler {
     public String RESERVED_PREFIX = "r" + sep;
 
     private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
-    private final Set<Name> preludeReferencedClassNames = new HashSet<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
@@ -56,10 +52,6 @@ public class NameCompiler {
     
     public void registerClass(Symbol.ClassSymbol classSymbol) {
         classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
-    }
-
-    public void registerPreludeReferencedName(Name name) {
-        preludeReferencedClassNames.add(name);
     }
 
     public String safeGetOriginalName(String name) {

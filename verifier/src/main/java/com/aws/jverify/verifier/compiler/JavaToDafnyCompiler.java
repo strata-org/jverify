@@ -604,7 +604,6 @@ public class JavaToDafnyCompiler {
         return getName(tree, name, name.length());
     }
 
-    // TODO: Should be calling toOrigin() instead of duplicating the logic
     public Name getName(JCTree tree, String name, int length) {
         var positionCalculator = new PositionCalculator(compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);

@@ -36,7 +36,6 @@ public class TraitWithConstructorCompiler {
                                                       Symbol.ClassSymbol classSymbol) {
         var traitMembers = new ArrayList<MemberDecl>();
         var classMembers = new ArrayList<MemberDecl>();
-        var definingSymbol = classCompiler.getCurrentTypeSymbol(classSymbol);
         var classNeeded = !JavaToDafnyCompiler.isInterfaceOrAbstract(classSymbol);
 
         for(var member : traitDecl.getMembers()) {
