@@ -11,17 +11,27 @@ import net.bytebuddy.implementation.bind.annotation.*;
 import java.lang.reflect.Field;
 import java.util.concurrent.Callable;
 
+/*
+Contains several intercepting methods. 
+The lowercased suffix of the name of methods is used to determine what it is intercepting
+If the name does not match anything, then the method is used to intercept the remainder of what needs intercepting
+ */
 public class LowerInterceptor {
     static Field typesField;
+    static Field makeField;
     
     static {
         try {
+            makeField = Lower.class.getDeclaredField("make");
             typesField = Lower.class.getDeclaredField("types");
         } catch (NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
     }
         
+    /*
+    Turns off type erasure for whatever it is intercepting
+     */
     @RuntimeType
     public static Object intercept(@SuperCall Callable<Object> original,
                                    @This Object lowerInstance) throws Exception {
@@ -33,6 +43,9 @@ public class LowerInterceptor {
         return result;
     }
     
+    /*
+    Intercept the access method
+     */
     public static JCTree.JCExpression interceptAccess(@SuperCall Callable<JCTree.JCExpression> original,
                                                 @This Object lowerInstance,
                                                 @Argument(0) Symbol sym,
@@ -43,8 +56,7 @@ public class LowerInterceptor {
         JCTree.JCExpression result = original.call();
 
         if (sym.kind == Kinds.Kind.TYP && tree instanceof JCTree.JCTypeApply typeApply) {
-
-            Field makeField = lowerInstance.getClass().getDeclaredField("make");
+            // The regular access method deconstructs JCTypeApply and does not reconstruct it, so we will do that here.
             TreeMaker make = (TreeMaker) makeField.get(lowerInstance);
             
             make.pos = tree.pos;

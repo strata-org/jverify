@@ -8,10 +8,11 @@ import com.aws.jverify.testengine.JVerifyTest;
 @JVerifyTest(dafnyVerified = 29, dafnyErrors = 0, verifyPrintedDafny = true)
 public class PolymorphicAnonymousClasses {
 
-    void genTypeInsideAnonymous(MyConsumer<Anything> consumer, Anything anything) {
+    void capturedGenericType(MyConsumer<Anything> consumer, Anything anything) {
         var captureGeneric = new MyProducer<Anything>() {
             @Override
             public Anything produce() {
+                // The variable consumer, with a generic type, is captured
                 var i = consumer.consume(anything);
                 return anything;
             }
