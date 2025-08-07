@@ -5,8 +5,8 @@
 trait Object {
 
   ghost predicate valid()
-    reads This(), Repr()
-    decreases Decreases(), 1
+    reads This(), ReprObjects()
+    decreases Repr(), 1
 
   // Generalized "this" in the Valid()/Repr idiom,
   // allowing for value types as well.
@@ -17,17 +17,20 @@ trait Object {
       {}
   }
 
-  ghost function Repr(): set<ModifiableObject> 
+  ghost function Repr(): set<Object> 
     reads This()
 
-  ghost function Decreases(): set<Object>
+  ghost function ReprObjects(): set<object> 
     reads This()
+  {
+    set o <- Repr() | o is ModifiableObject :: o as ModifiableObject
+  }
   
   ghost predicate validComponent(component: Object)
-    reads This(), Repr()
-    decreases Decreases(), 0
+    reads This(), ReprObjects()
+    decreases Repr(), 0
   {
-      && component.This() <= Repr()
+      && component in Repr()
       && component.Repr() < Repr()
       && component.valid()
   }
@@ -35,8 +38,8 @@ trait Object {
   predicate equals(obj: Object)
     requires valid()
     requires obj.valid()
-    reads This(), Repr(), obj.This(), obj.Repr()
-    decreases Decreases()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
+    decreases Repr()
     // Reflexivity
     ensures this as Object == obj ==> equals(obj)
 
@@ -61,9 +64,9 @@ trait Object {
 trait ModifiableObject extends Object, object { 
 
   // Can't be declared on Object (unless it's a const instead)
-  ghost var repr: set<ModifiableObject>
+  ghost var repr: set<Object>
 
-  ghost function Repr(): set<ModifiableObject> 
+  ghost function Repr(): set<Object> 
     reads This()
   {
     if this is ModifiableObject then
@@ -72,16 +75,8 @@ trait ModifiableObject extends Object, object {
      {}
   }
 
-  ghost function Decreases(): set<Object>
-    reads This()
-  {
-    set o <- Repr() :: o as Object
-  }
-
-  
-
   ghost predicate validModifiableComponent(component: ModifiableObject)
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 0
   {
       && this in Repr()
@@ -95,19 +90,13 @@ trait ModifiableObject extends Object, object {
 // TODO: Needs to include class loaders too
 datatype Class extends Object = Class(name: string) {
   ghost predicate valid()
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 1
   {
     true
   }
 
-  ghost function Repr(): set<ModifiableObject> 
-    reads This()
-  {
-    {}
-  }
-
-  ghost function Decreases(): set<Object> 
+  ghost function Repr(): set<Object> 
     reads This()
   {
     {}
@@ -116,7 +105,7 @@ datatype Class extends Object = Class(name: string) {
   predicate equals(obj: Object)
     requires valid()
     requires obj.valid()
-    reads This(), Repr(), obj.This(), obj.Repr()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
     decreases Repr()
     // Reflexivity
     ensures this as Object == obj ==> equals(obj)
@@ -124,9 +113,6 @@ datatype Class extends Object = Class(name: string) {
     obj is Class && (obj as Class) == this
   }
 
-  // Symmetry
-  // Can't be an intrinsic postcondition of equals
-  // because we can't quantify over reference types.
   lemma equalsSymmetric(obj: Object)
     requires valid()
     requires obj.valid()
@@ -149,7 +135,7 @@ trait MyPair extends ModifiableObject, object {
   var b: B
 
   ghost predicate valid() 
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 1
   {
     && this in Repr()
@@ -160,7 +146,7 @@ trait MyPair extends ModifiableObject, object {
   predicate equals(obj: Object)
     requires valid()
     requires obj.valid()
-    reads This(), Repr(), obj.This(), obj.Repr()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
     ensures this as Object == obj ==> equals(obj)
     decreases Repr()
   {
@@ -204,9 +190,9 @@ class Constructable?MyPair extends MyPair {
     new;
     // Working around Dafny issue (TODO: cut GHI)
     assert unchanged@before(a_.This());
-    assert unchanged@before(a_.Repr());
+    assert unchanged@before(a_.ReprObjects());
     assert unchanged@before(b_.This());
-    assert unchanged@before(b_.Repr());
+    assert unchanged@before(b_.ReprObjects());
   }
 
   function getClass(): Class {
@@ -237,7 +223,7 @@ class Constructable?A extends A {
   }
 
   ghost predicate valid()
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 0
   {
     repr == {this}
@@ -246,7 +232,7 @@ class Constructable?A extends A {
   predicate equals(obj: Object)
     requires valid()
     requires obj.valid()
-    reads This(), Repr(), obj.This(), obj.Repr()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
     ensures this as Object == obj ==> equals(obj)
     decreases Repr()
   {
@@ -297,7 +283,7 @@ class Constructable?B extends B {
   }
 
   ghost predicate valid()
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 1
   {
     repr == {this}
@@ -306,7 +292,7 @@ class Constructable?B extends B {
   predicate equals(obj: Object)
     requires valid()
     requires obj.valid()
-    reads This(), Repr(), obj.This(), obj.Repr()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
     ensures this as Object == obj ==> equals(obj)
     decreases Repr()
   {
@@ -352,13 +338,13 @@ method WTF() {
 class Constructable?ModifiableObject extends ModifiableObject {
 
   ghost predicate valid()
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 1
 
   predicate equals(obj: Object)
     requires valid()
     requires obj.valid()
-    reads This(), Repr(), obj.This(), obj.Repr()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
     decreases Repr()
     ensures this as Object == obj ==> equals(obj)
   {
@@ -394,19 +380,13 @@ type char16 = i: int
 //
 datatype DString extends Object = JS(elements: seq<char16>) {
   ghost predicate valid()
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 1
   {
     true
   }
 
-  ghost function Repr(): set<ModifiableObject> 
-    reads This()
-  {
-    {}
-  }
-
-  ghost function Decreases(): set<Object> 
+  ghost function Repr(): set<Object> 
     reads This()
   {
     {}
@@ -443,31 +423,29 @@ datatype DString extends Object = JS(elements: seq<char16>) {
 // Would be expressed in Java using record types
 // or classes with the JVerify @Immutable annotation.
 //
-datatype DList<+T extends Object> extends Object = Cons(head: T, tail: DList) | Nil {
+datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, ghost repr: set<Object>) | Nil {
   ghost predicate valid()
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 1
-
-  ghost function Repr(): set<ModifiableObject> 
-    reads This()
   {
-    {}
+    match (this)
+    case Cons(head, tail, _) => validComponent(head as Object) && validComponent(tail as Object)
+    case Nil => true
   }
 
-  ghost function Decreases(): set<Object> 
+  ghost function Repr(): set<Object> 
     reads This()
   {
-    match this {
-      case Cons(head, tail) => {this} + (head as Object).Decreases() + tail.Decreases()
-      case Nil => {this}
-    }
+    match (this)
+    case Cons(_, _, repr) => repr
+    case Nil => {}
   }
 
   predicate equals(obj: Object): (b: bool)
     requires valid()
     requires obj.valid()
-    reads This(), Repr(), obj.This(), obj.Repr()
-    decreases Decreases()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
+    decreases Repr()
     ensures this as Object == obj ==> b
   {
     && obj.getClass() == Class("DList")
@@ -477,15 +455,17 @@ datatype DList<+T extends Object> extends Object = Cons(head: T, tail: DList) | 
   predicate equalsDList(other: DList<Object>) 
     requires valid()
     requires other.valid()
-    reads This(), Repr(), other.This(), other.Repr()
+    reads This(), ReprObjects(), other.This(), other.ReprObjects()
     ensures this as Object == other ==> equalsDList(other)
-    decreases Decreases(), 0
+    decreases Repr(), 0
   {
     match (this, other)
     case (Nil, Nil) => true
-    case (Cons(lhead, ltail), Cons(rhead, rtail)) =>
-      // assert this decreases to ltail;
-      // assert this decreases to lhead;
+    case (Cons(lhead, ltail, _), Cons(rhead, rtail, _)) =>
+      assert validComponent(lhead);
+      assert validComponent(ltail);
+      assert other.validComponent(rhead);
+      assert other.validComponent(rtail);
       (lhead as Object).equals(rhead as Object) && ltail.equalsDList(rtail)
     case (_, _) => false
   }
@@ -495,10 +475,14 @@ datatype DList<+T extends Object> extends Object = Cons(head: T, tail: DList) | 
     requires other.valid()
     requires equalsDList(other)
     ensures other.equals(this)
+    decreases Repr(), 0
   {
     match (this, other) {
       case (Nil, Nil) => {}
-      case (Cons(lhead, ltail), Cons(rhead, rtail)) => {
+      case (Cons(lhead, ltail, _), Cons(rhead, rtail, _)) => {
+        assert rtail.valid();
+        assert validComponent(lhead);
+        (lhead as Object).equalsSymmetric(rhead);
         ltail.equalsDListSymmetric(rtail);
       }
       case (_, _) => {}
@@ -526,59 +510,26 @@ datatype DList<+T extends Object> extends Object = Cons(head: T, tail: DList) | 
     ensures obj is DList<Object>
 }
 
-datatype DNull extends Object = DNull(klass: Class) {
-  ghost predicate valid()
-    reads This(), Repr()
-    decreases Repr(), 1
-
-  ghost function Repr(): set<ModifiableObject> 
-    reads This()
-  {
-    {}
-  }
-
-  ghost function Decreases(): set<Object> 
-    reads This()
-  {
-    {}
-  }
-
-  predicate equals(obj: Object)
-    decreases Repr()
-    ensures this as Object == obj ==> equals(obj)
-  {
-    obj is DNull
-  }
-
-  lemma equalsSymmetric(obj: Object)
-    requires valid()
-    requires obj.valid()
-    requires equals(obj)
-    decreases Repr()
-    ensures obj.equals(this)
-  {}
-
-  function getClass(): Class {
-    klass
-  }
-
-  // TODO: No classIdentity here, is that a problem?
+method DListTest() {
+  var a1 := new Constructable?A(42);
+  assert a1.valid();
+  var a2 := new Constructable?A(43);
+  assert a2.valid();
+  
+  var n: DList<A> := Nil;
+  assert n.valid();
+  var repr: set<Object> := {a1, n} + a1.Repr() + n.Repr();
+  var l := Cons(a1, n, repr);
+  assert n in l.Repr();
+  assert l.valid();
 }
-
-type byte = x
-  | 0 <= x < 256
-
-type float = real
-
-type double = real
-
 
 trait ImmutableList<T extends Object> extends Object {
 
-  const elements: seq<T>
+  ghost const elements: seq<T>
 
   ghost predicate valid()
-    reads This(), Repr()
+    reads This(), ReprObjects()
     decreases Repr(), 1
   {
     forall i | 0 <= i < |elements| :: 
@@ -589,7 +540,7 @@ trait ImmutableList<T extends Object> extends Object {
   predicate equals(obj: Object)
     requires valid()
     requires obj.valid()
-    reads This(), Repr(), obj.This(), obj.Repr()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
     decreases Repr()
     ensures this as Object == obj ==> equals(obj)
     ensures equals(obj) <==>
@@ -597,10 +548,10 @@ trait ImmutableList<T extends Object> extends Object {
       && var other := obj as ImmutableList<T>;
       && equalsImmutableList(other)
 
-  predicate equalsImmutableList(other: ImmutableList<T>)
+  ghost predicate equalsImmutableList(other: ImmutableList<T>)
     requires valid()
     requires other.valid()
-    reads This(), Repr(), other.This(), other.Repr()
+    reads This(), ReprObjects(), other.This(), other.ReprObjects()
     decreases Repr(), 0
   {
     && |elements| == |other.elements|
@@ -652,3 +603,6 @@ trait SingletonList<T extends Object> extends ImmutableList<T> {
   //     e.equals(e')
   // }
 }
+
+// TODO: function overloading in general
+//      design @MethodContract?
