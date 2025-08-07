@@ -1,24 +1,23 @@
 package com.aws.jverify.verifier.tests.contracts;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.Modifiable;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 
 @JVerifyTest(exitCode = 2)
-public class ExternalContractErrors {
-    abstract class Foo {
+public class InternalClassContractErrors {
+    static abstract class Foo {
         abstract void bar(int x);
     }
 
     @Contract
-    class HasNoTarget {}
-//  ^ error: could not find a target for @Contract class 'ExternalContractErrors$HasNoTarget'
+    static class HasNoTarget {}
+//         ^ error: could not find a target for @Contract class 'InternalClassContractErrors$HasNoTarget'
 
     @Contract
-    class FooContract1 extends Foo {
+    static class FooContract1 extends Foo {
         void bar(int x) {
             check(x > 0);
         }
@@ -36,28 +35,15 @@ public class ExternalContractErrors {
 
     @Contract(Foo.class)
 //  ^ error: class 'Foo' must not be referenced by more than one @Contract annotation
-    class FooContract2 extends Foo {
+    static class FooContract2 extends Foo {
         void bar(int x) {
             check(x < 0);
         }
     }
 
-    interface IErrors {}
-
-    @Contract
-    @Modifiable
-//  ^ error: annotation 'Modifiable' on @Contract class 'ExternalContractErrors$IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
-    class IllegalAnnotationContract implements IErrors {
-    }
-
-    class ConcreteClass {}
+    static class ConcreteClass {}
 
     @Contract(ConcreteClass.class)
 //  ^ error: class 'ConcreteClass' must not have an externally defined contract because all its contracts can be defined internally
-    class ConcreteClassContract {}
-
-    interface HasGenericArgument<Bar> {}
-    @Contract
-    class HasGenericArgumentContract<Foo> implements HasGenericArgument<Foo> {}
-//  ^ error: Contract class 'ExternalContractErrors$HasGenericArgumentContract' has different type parameters than the contractee 'HasGenericArgument'. The parameters must have the same names
+    static class ConcreteClassContract {}
 }

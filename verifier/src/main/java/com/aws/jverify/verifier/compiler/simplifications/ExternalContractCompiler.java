@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
+import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
@@ -17,8 +18,6 @@ import java.util.*;
 import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
-import static com.sun.tools.javac.tree.JCTree.Tag.*;
-import static com.sun.tools.javac.tree.JCTree.Tag.MODULEIMPORT;
 
 public class ExternalContractCompiler extends TreeScanner {
     final JavaToDafnyCompiler compiler;
@@ -90,19 +89,6 @@ public class ExternalContractCompiler extends TreeScanner {
         this.visitTopLevel(compilationUnit);
     }
 
-    private com.sun.tools.javac.util.List<JCTree> getTypeDecls(com.sun.tools.javac.util.List<JCTree> defs) {
-        com.sun.tools.javac.util.List<JCTree> typeDefs;
-        for (typeDefs = defs; !typeDefs.isEmpty(); typeDefs = typeDefs.tail) {
-            if (!typeDefs.head.hasTag(MODULEDEF)
-                    && !typeDefs.head.hasTag(PACKAGEDEF)
-                    && !typeDefs.head.hasTag(IMPORT)
-                    && !typeDefs.head.hasTag(MODULEIMPORT)) {
-                break;
-            }
-        }
-        return typeDefs;
-    }
-
     public void registerExternalContracts() {
         for(var entry : contractClassToContractee.entrySet()) {
             var externalContractDecl = (JCTree.JCClassDecl) JVerifyIndex.instance(compiler.context).getTree(entry.getKey());
@@ -137,12 +123,15 @@ public class ExternalContractCompiler extends TreeScanner {
                 continue;
             }
             var methodSymbol = methodDecl.sym;
-            var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(compiler.context));
+            if (compiler.isSynthetic(methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+                continue;
+            }
+            var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
                 var header = new BlockCompiler(compiler, methodSymbol).extractContract(methodDecl, true);
                 externalContracts.put(baseMethod, header);
                 compiler.lambdaCompiler.methodContracts.put(baseMethod, header);
-            } else if (!compiler.isSynthetic(methodDecl, methodSymbol)) {
+            } else {
                 // Check currently does not take into account overloading
                 // But this only makes it not detect some unused methods.
                 var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();

@@ -382,7 +382,9 @@ public class TypeDeclarationCompiler {
                     return null;
                 }
             } else {
-                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
+                // TODO Remove Symbol.DynamicMethodSymbol ??
+                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null
+                    && !JavaToDafnyCompiler.isConstructor(methodSymbol)) {
                     compiler.reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 if (contractOverride != null) {
