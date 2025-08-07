@@ -2,8 +2,7 @@ package com.aws.jverify.verifier.tests.localClasses;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 22, dafnyErrors = 0,
-        verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 0, dafnyVerified = 22, dafnyErrors = 0)
 public class PolymorphicAnonymousClasses {
 
     @SuppressWarnings("InnerClassMayBeStatic")

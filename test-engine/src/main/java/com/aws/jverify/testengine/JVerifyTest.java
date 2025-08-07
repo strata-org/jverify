@@ -53,5 +53,5 @@ public @interface JVerifyTest {
 
     String[] additionalFiles() default {};
     
-    boolean verifyPrintedDafny() default false;
+    boolean verifyPrintedDafny() default true;
 }
