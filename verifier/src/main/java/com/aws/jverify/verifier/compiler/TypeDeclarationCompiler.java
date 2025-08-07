@@ -416,16 +416,10 @@ public class TypeDeclarationCompiler {
                     return null;
                 }
             } else {
-                // TODO Remove Symbol.DynamicMethodSymbol ??
-                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null
-                    && !JavaToDafnyCompiler.isConstructor(methodSymbol)) {
+                if (externalContract != null && !JavaToDafnyCompiler.isConstructor(methodSymbol)) {
                     compiler.reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
-                if (contractOverride != null) {
-                    header = contractOverride;
-                } else {
-                    header = new MethodOrLoopContract(source, false);
-                }
+                header = Objects.requireNonNullElseGet(contractOverride, () -> new MethodOrLoopContract(source, false));
                 var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
                 List<JCTree.JCStatement> postHeader = new ContractCompiler(compiler).
                         translateHeader(((JCTree.JCBlock) sourceBody).stats, header, allowFooter, true);

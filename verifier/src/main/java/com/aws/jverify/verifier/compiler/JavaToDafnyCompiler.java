@@ -23,7 +23,6 @@ import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Names;
-import io.reactivex.rxjava3.disposables.Disposable;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
