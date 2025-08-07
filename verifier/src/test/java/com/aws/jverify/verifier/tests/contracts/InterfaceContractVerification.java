@@ -61,6 +61,7 @@ public class InterfaceContractVerification {
         var i = noImplements.foo();
         check(i > 4);
     }
+
     interface NoImplements {
         int foo();
     }
