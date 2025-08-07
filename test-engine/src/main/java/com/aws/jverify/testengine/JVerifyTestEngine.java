@@ -27,6 +27,8 @@ import org.junit.platform.engine.support.hierarchical.Node;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.URI;
@@ -35,7 +37,9 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -184,6 +188,13 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
                 .sorted()
                 .toList();
+
+        if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
+            if (verificationResults.getExitCode() == 0 || verificationResults.getExitCode() == 4) {
+                updateTestAnnotation(sourceFile, annotation, verificationResults);
+            }
+        }
+
         var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
@@ -206,7 +217,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }
     }
 
-    private static void verifyPrintedDafny(VerificationResults previousResults, VerifierOptions verifierOptions) 
+    private static void verifyPrintedDafny(VerificationResults previousResults, VerifierOptions verifierOptions)
             throws IOException {
         boolean jverifyCompilationFailed = previousResults.getExitCode() == 2;
         if (jverifyCompilationFailed) {
@@ -214,7 +225,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         } else if (verifierOptions.printDafny() == null) {
             throw new RuntimeException("");
         }
-        
+
         var processBuilder = new ProcessBuilder(
                 verifierOptions.dafnyPath().toString(),
                 "verify",
@@ -311,12 +322,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     public static JVerifyTest makeJVerifyTestAnnotation(int dafnyVerified, int dafnyErrors) {
         return makeJVerifyTestAnnotation(true, dafnyErrors > 0 ? 4 : 0, dafnyVerified, dafnyErrors, false, false, true);
     }
-    
+
     /**
      * For creating a JVerifyTest annotation without having it in source code.
      * Useful for testing things like examples where we don't want the explicit annotation.
      */
-    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, 
+    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
                                                         int dafnyVerified, int dafnyErrors,
                                                         boolean verifyPrintedDafny,
                                                         boolean avoidNameCollisions,
@@ -367,5 +378,35 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 return verifyPrintedDafny;
             }
         };
+    }
+
+    private static final Pattern JVERIFY_TEST_ANNOTATION_PATTERN = Pattern.compile("@JVerifyTest\\s*\\([^)]*\\)");
+
+    public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, VerificationResults verificationResults) throws IOException {
+        try (BufferedReader reader = new BufferedReader(sourceFile.openReader(false))) {
+            var allLines = reader.lines().toArray(String[]::new);
+            var maybeAnnotationIndex = IntStream.range(0, allLines.length)
+                    .filter(index -> JVERIFY_TEST_ANNOTATION_PATTERN.matcher(allLines[index]).matches())
+                    .findFirst();
+            if (maybeAnnotationIndex.isPresent()) {
+                allLines[maybeAnnotationIndex.getAsInt()] = "@JVerifyTest(exitCode = " +
+                        verificationResults.getExitCode() +
+                        ", dafnyVerified = " +
+                        verificationResults.getDafnyVerifiedCount() +
+                        ", dafnyErrors = " +
+                        verificationResults.getDafnyErrorCount() +
+                        ")";
+            }
+
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(sourceFile.toUri().getPath()))) {
+                for (String line : allLines) {
+                    writer.write(line);
+                    writer.newLine();
+                }
+                writer.flush();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
