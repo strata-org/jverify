@@ -10,6 +10,10 @@ import java.util.function.Supplier;
 
 public class JVerify {
 
+    public static <T> T contractOf(Object o) {
+        throw new ContractException();
+    }
+
     public static boolean implies(boolean antecedent, boolean consequent) {
         return !antecedent || consequent;
     }
@@ -215,7 +219,7 @@ public class JVerify {
         /**
          * Returns {@code true} if this sequence contains the specified element.
          */
-        boolean contains(Object element);
+        boolean contains(T element);
 
         /**
          * Returns the number of elements in this sequence.
@@ -244,6 +248,60 @@ public class JVerify {
          * Returns {@code true} if this sequence contains the specified element.
          */
         boolean contains(int element);
+    }
+
+    public interface Set<T> {
+        /**
+         * Returns {@code true} if this set contains the specified element.
+         */
+        boolean contains(T element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
+    }
+
+    public interface Map<K, V> {
+        /**
+         * Returns {@code true} if this map contains the specified key.
+         */
+        boolean contains(K element);
+
+        /**
+         * Returns the value mapped to the given {@code key},
+         * which must exist in the map.
+         */
+        V get(K key);
+
+        /**
+         * Returns the number of key/value pairs in this map.
+         */
+        @Unbounded int size();
+
+        Set<Tuple2<K, V>> entries();
+    }
+
+    public interface Tuple2<T0, T1> {
+
+        static <T0, T1> Tuple2<T0, T1> of(T0 x0, T1 x1) {
+            return new Tuple2<T0, T1>() {
+
+                @Override
+                public T0 get0() {
+                    return x0;
+                }
+
+                @Override
+                public T1 get1() {
+                    return x1;
+                }
+            };
+        }
+
+        T0 get0();
+
+        T1 get1();
     }
 
     public static class VerificationMethodExecutedException extends UnsupportedOperationException {

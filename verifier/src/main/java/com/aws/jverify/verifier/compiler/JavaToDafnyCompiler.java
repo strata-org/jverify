@@ -531,6 +531,14 @@ public class JavaToDafnyCompiler {
                     var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
                     return new SeqType(origin, arguments);
                 }
+                if (className.toString().equals(JVerify.Set.class.getName())) {
+                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
+                    return new SetType(origin, arguments, true);
+                }
+                if (className.toString().equals(JVerify.Map.class.getName())) {
+                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
+                    return new MapType(origin, arguments, true);
+                }
                 
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);

@@ -88,12 +88,16 @@ public class JVerifyGhostExpressionCompiler {
             }
             case "contains" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
-                var seq = expressionCompiler.toExpr(receiver);
-                return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, seq);
+                var collection = expressionCompiler.toExpr(receiver);
+                return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, collection);
             }
             case "size" -> {
-                var seq = expressionCompiler.toExpr(receiver);
-                return new UnaryOpExpr(compiler.toOrigin(invocation), seq, UnaryOpExprOpcode.Cardinality);
+                var collection = expressionCompiler.toExpr(receiver);
+                return new UnaryOpExpr(compiler.toOrigin(invocation), collection, UnaryOpExprOpcode.Cardinality);
+            }
+            case "entries" -> {
+                var collection = expressionCompiler.toExpr(receiver);
+                return new MemberSelectExpr(compiler.toOrigin(invocation), collection, new Name(origin, "Items"));
             }
             case "old" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
@@ -102,6 +106,9 @@ public class JVerifyGhostExpressionCompiler {
             case "fresh" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
                 return new FreshExpr(compiler.toOrigin(invocation), element, null);
+            }
+            case "contractOf" -> {
+                return expressionCompiler.toExpr(args.getFirst());
             }
         }
 
