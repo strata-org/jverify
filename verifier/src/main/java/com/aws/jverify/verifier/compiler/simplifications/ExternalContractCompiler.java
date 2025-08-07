@@ -57,6 +57,21 @@ public class ExternalContractCompiler extends TreeScanner {
             return;
         }
 
+        com.sun.tools.javac.util.List<Symbol.TypeVariableSymbol> typeParameters = contracteeSymbol.getTypeParameters();
+        if (typeParameters.size() != classDecl.sym.getTypeParameters().size()) {
+            compiler.reportError(classDecl, "contractDifferentTypeParameters", classDecl.name.toString(), contracteeSymbol.name.toString());
+            return;
+        }
+        
+        for (int i = 0; i < typeParameters.size(); i++) {
+            var originalTypeParameter = typeParameters.get(i);
+            var contractTypeParameter = classDecl.sym.getTypeParameters().get(i);
+            if (!originalTypeParameter.name.contentEquals(contractTypeParameter.name)) {
+                compiler.reportError(classDecl, "contractDifferentTypeParameters", classDecl.name.toString(), contracteeSymbol.name.toString());
+                return;
+            }
+        }
+
         var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
         declsForSymbol.add(classDecl);
 
