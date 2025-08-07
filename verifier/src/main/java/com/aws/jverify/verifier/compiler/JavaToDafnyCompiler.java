@@ -23,6 +23,7 @@ import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Names;
+import io.reactivex.rxjava3.disposables.Disposable;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
@@ -50,6 +51,7 @@ public class JavaToDafnyCompiler {
     public final NameCompiler nameCompiler;
     public final ExternalContractCompiler externalContractCompiler = new ExternalContractCompiler(this);
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
+    public final TypeDeclarationCompiler typeDeclarationCompiler;
     public final LambdaCompiler lambdaCompiler;
     public JCDiagnostic.Factory diagnosticFactory;
     public final VerifierOptions verifierOptions;
@@ -74,6 +76,7 @@ public class JavaToDafnyCompiler {
         nameCompiler = new NameCompiler(externalContractCompiler);
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
+        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
         lambdaCompiler = new LambdaCompiler(this);
     }
 
@@ -137,6 +140,8 @@ public class JavaToDafnyCompiler {
             }));
             filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
+        
+        typeDeclarationCompiler.addMissingTypeContracts(filesStarts);
 
         return new FilesContainer(filesStarts);
     }
@@ -163,7 +168,7 @@ public class JavaToDafnyCompiler {
                 }
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
-                var dafnyDecls = new TypeDeclarationCompiler(this).translateTypeDeclaration(relatedDeclaration);
+                var dafnyDecls = typeDeclarationCompiler.translateTypeDeclaration(relatedDeclaration);
                 verifyAnnotationCompiler.shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }

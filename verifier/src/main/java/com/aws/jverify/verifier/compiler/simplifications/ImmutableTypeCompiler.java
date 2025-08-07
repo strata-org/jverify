@@ -25,7 +25,7 @@ public class ImmutableTypeCompiler {
         this.compiler = typeDeclarationCompiler.compiler;
     }
 
-    public TopLevelDeclWithMembers translateValueType(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    public TopLevelDeclWithMembers translate(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
         }
@@ -102,15 +102,16 @@ public class ImmutableTypeCompiler {
 
         members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
 
+        compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
-                List.of(getDatatypeCtor(classDecl, origin, name, fields)), false);
+                List.of(getDatatypeCtor(origin, name, fields)), false);
     }
 
-    private DatatypeCtor getDatatypeCtor(JCTree.JCClassDecl classDecl, IOrigin origin, Name name, List<JCTree.JCVariableDecl> fields) {
+    private DatatypeCtor getDatatypeCtor(IOrigin origin, Name name, List<JCTree.JCVariableDecl> fields) {
         var ctorParams = fields.stream()
                 .map(typeDeclarationCompiler::translateField)
                 .map(field -> new Formal(

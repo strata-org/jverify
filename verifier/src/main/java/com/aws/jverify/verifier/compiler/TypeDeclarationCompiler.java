@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler;
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
@@ -25,11 +26,22 @@ public class TypeDeclarationCompiler {
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
+    public final Set<Symbol.ClassSymbol> createdContracts = new HashSet<>();
+    private final Set<Symbol.ClassSymbol> missingContracts = new HashSet<>();
 
     private final TraitWithConstructorCompiler traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
 
     public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
+
+        var _ = compiler.nameCompiler.foundSymbols().subscribe(symbol -> {
+            if (symbol instanceof Symbol.ClassSymbol cs) {
+                if (createdContracts.contains(cs)) {
+                    return;
+                }
+                missingContracts.add(cs);
+            }
+        });
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
@@ -89,8 +101,8 @@ public class TypeDeclarationCompiler {
             var classSymbol = getCurrentTypeSymbol(classDecl.sym);
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
-                case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
-                case RECORD -> new ImmutableTypeCompiler(this).translateValueType(classSymbol, classDecl, origin, name);
+                case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
+                case RECORD -> new ImmutableTypeCompiler(this).translate(classSymbol, classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -128,19 +140,20 @@ public class TypeDeclarationCompiler {
 
             }
         }
+        createdContracts.add(classDecl.sym);
         return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
     }
 
 
-    private TopLevelDeclWithMembers translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
         if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
-            return new ImmutableTypeCompiler(this).translateValueType(classDecl.sym, classDecl, origin, name);
+            return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
         }
         
         if (contractAnnotation != null && contractAnnotation.immutable()) {
             if (typeForWhichCurrentClassIsDefiningContract != null) {
-                return new ImmutableTypeCompiler(this).translateValueType(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
+                return new ImmutableTypeCompiler(this).translate(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
             } else {
                 compiler.reportError(classDecl, "immutableInternalContract");
                 return null;
@@ -189,6 +202,19 @@ public class TypeDeclarationCompiler {
 
         var definingSymbol = getCurrentTypeSymbol(classDecl.sym);
 
+        List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
+        if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
+            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+        }
+        var typeParameters = translateTypeParameters(javaTypeParams);
+
+        return getTraitDecl(origin, name, definingSymbol, typeParameters, members);
+    }
+
+    public TraitDecl getTraitDecl(IOrigin origin, Name name,
+                                  Symbol.ClassSymbol definingSymbol,
+                                  List<TypeParameter> typeParameters,
+                                  List<MemberDecl> members) {
         Stream<com.sun.tools.javac.code.Type> baseTypes = definingSymbol.getInterfaces().stream();
         if (definingSymbol.getSuperclass() != null) {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
@@ -196,7 +222,7 @@ public class TypeDeclarationCompiler {
 
         var symtab = Symtab.instance(this.compiler.context);
         var superTraits = baseTypes
-                .filter(compiler::typeHasAContract)
+                .filter(t -> t.tsym != null)
                 .map((com.sun.tools.javac.code.Type type) -> {
                     if (type.baseType() == symtab.objectType) {
                         // A class that extends 'Object' will extend '@Modifiable Object' instead
@@ -217,13 +243,31 @@ public class TypeDeclarationCompiler {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
 
-        List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
-        if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
-            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
-        }
-        var typeParameters = translateTypeParameters(javaTypeParams);
+        createdContracts.add(definingSymbol);
         return new TraitDecl(origin, new Name(name.getOrigin(), name.getValue()), null,
                 typeParameters, members, superTraits, false);
+    }
+
+    public List<TypeParameter> translateTypeParameters(IOrigin origin,  List<Symbol.TypeVariableSymbol> typarams) {
+        return typarams.stream().map(p -> {
+            var name = new Name(origin, compiler.nameCompiler.getCompiledName(p));
+            var bounds = p.getBounds().map(t -> compiler.translateType(t, origin));
+
+            return getTypeParameter(origin, bounds, name);
+        }).toList();
+    }
+
+    private static TypeParameter getTypeParameter(IOrigin origin, com.sun.tools.javac.util.List<@Nullable Type> bounds, Name name) {
+        bounds = bounds.append(new UserDefinedType(origin,
+                new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+        return new TypeParameter(origin,
+                name, null, TPVarianceSyntax.NonVariant_Strict,
+                new TypeParameterCharacteristics(
+                        TypeParameterEqualitySupportValue.Unspecified,
+                        TypeAutoInitInfo.MaybeEmpty,
+                        false
+                ),
+                bounds);
     }
 
     public List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
@@ -232,16 +276,7 @@ public class TypeDeclarationCompiler {
             var bounds = p.bounds.map(compiler::translateType);
 
             IOrigin origin = compiler.toOrigin(p);
-            bounds = bounds.append(new UserDefinedType(origin,
-                        new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
-            return new TypeParameter(origin,
-                    name, null, TPVarianceSyntax.NonVariant_Strict,
-                    new TypeParameterCharacteristics(
-                            TypeParameterEqualitySupportValue.Unspecified,
-                            TypeAutoInitInfo.MaybeEmpty,
-                            false
-                    ),
-                    bounds);
+            return getTypeParameter(origin, bounds, name);
         }).toList();
     }
 
@@ -276,7 +311,8 @@ public class TypeDeclarationCompiler {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
+        Type type = compiler.translateType(variableDecl.type, 
+                compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
@@ -380,7 +416,9 @@ public class TypeDeclarationCompiler {
                     return null;
                 }
             } else {
-                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
+                // TODO Remove Symbol.DynamicMethodSymbol ??
+                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null
+                    && !JavaToDafnyCompiler.isConstructor(methodSymbol)) {
                     compiler.reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 if (contractOverride != null) {
@@ -581,7 +619,27 @@ public class TypeDeclarationCompiler {
     }
 
     private Formal makeReturnFormal(IOrigin origin, Type syntacticType) {
-        var name = new Name(origin, compiler.nameCompiler.RETURN_VARIABLE_NAME);
+        var name = new Name(origin, NameCompiler.RETURN_VARIABLE_NAME);
         return new Formal(origin, name, syntacticType, false, false, null, null, false, false, false, null);
+    }
+
+    public void addMissingTypeContracts(List<FileHeader> filesStarts) {
+        var dummyToken = new Token(1, 1);
+        IOrigin dummyOrigin = new TokenRangeOrigin(dummyToken, dummyToken);
+        while(!missingContracts.isEmpty()) {
+            var classSymbol = missingContracts.stream().findFirst().get();
+            missingContracts.remove(classSymbol);
+            if (!createdContracts.add(classSymbol)) {
+                continue;
+            }
+            List<TypeParameter> typeParameters = translateTypeParameters(dummyOrigin, classSymbol.getTypeParameters());
+            TraitDecl trait = getTraitDecl(
+                    dummyOrigin,
+                    new Name(dummyOrigin, compiler.nameCompiler.getCompiledName(classSymbol)),
+                    classSymbol,
+                    typeParameters, List.of());
+
+            filesStarts.getFirst().getTopLevelDecls().add(trait);
+        }
     }
 }
