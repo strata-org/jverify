@@ -72,6 +72,11 @@ public class JVerifyGhostExpressionCompiler {
                 var toIndex = args.length() > 2 ? args.get(2) : null;
                 return toSubsequence(origin, array, fromIndex, toIndex);
             }
+            case "get" -> {
+                var seq = expressionCompiler.toExpr(receiver);
+                var index = expressionCompiler.toExpr(args.getFirst());
+                return new SeqSelectExpr(compiler.toOrigin(invocation), true, seq, index, null, null);
+            }
             case "drop" -> {
                 return toSubsequence(origin, receiver, args.getFirst(), null);
             }
@@ -85,6 +90,10 @@ public class JVerifyGhostExpressionCompiler {
                 var element = expressionCompiler.toExpr(args.getFirst());
                 var seq = expressionCompiler.toExpr(receiver);
                 return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, seq);
+            }
+            case "size" -> {
+                var seq = expressionCompiler.toExpr(receiver);
+                return new UnaryOpExpr(compiler.toOrigin(invocation), seq, UnaryOpExprOpcode.Cardinality);
             }
             case "old" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());

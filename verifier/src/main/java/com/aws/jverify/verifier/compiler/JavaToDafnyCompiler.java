@@ -105,13 +105,12 @@ public class JavaToDafnyCompiler {
          */
         parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
 
-        var foundClassSymbols = new HashMap<Symbol.ClassSymbol, JCTree.JCCompilationUnit>();
         for (var compilationUnit : parsed) {
-            externalContractCompiler.discoverTypesAndContractClasses(compilationUnit, foundClassSymbols);
+            externalContractCompiler.discoverTypesAndContractClasses(compilationUnit);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
         
-        for(var foundClassSymbol : foundClassSymbols.keySet()) {
+        for(var foundClassSymbol : externalContractCompiler.foundClasses.keySet()) {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
         }
@@ -122,7 +121,7 @@ public class JavaToDafnyCompiler {
         var dummyToken = new Token(1, 1);
         contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
 
-        compileSymbolsTopologically(foundClassSymbols);
+        compileSymbolsTopologically(externalContractCompiler.foundClasses);
 
         contextOrigins.pop();
 
@@ -530,6 +529,11 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
 
+                if (className.toString().equals(JVerify.Sequence.class.getName())) {
+                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
+                    return new SeqType(origin, arguments);
+                }
+                
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
                 if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
@@ -596,7 +600,7 @@ public class JavaToDafnyCompiler {
     public Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
         return getName(tree, name.toString());
     }
-    
+
     public Name getName(JCTree tree, Symbol symbol) {
         return getName(tree, nameCompiler.getCompiledName(symbol), symbol.name.length());
     }
@@ -659,6 +663,23 @@ public class JavaToDafnyCompiler {
     public static Symbol.MethodSymbol getJVerifyMethod(JCTree.JCMethodInvocation invocation) {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         return fromJVerify(methodSymbol) ? methodSymbol : null;
+    }
+
+    /// The root Object type is currently defined directly in additional.dfy,
+    /// and includes the declaration of the `Object.equals` function.
+    /// But many Java types don't explicitly implement `equals`
+    /// because it has a default implementation based on reference equality.
+    /// Not having a class provide a body for a trait method isn't necessarily a problem in Dafny,
+    /// but it IS an error to not at least repeat the bodiless declaration.
+    /// Hence, this synthetic declaration we have to add to every constructable class.
+    public static Function equalsFunctionDeclaration(IOrigin origin) {
+        var otherIn = new Formal(origin, new Name(origin, "obj"), new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null)),
+                false, true, null, null, false, false, false, null);
+        return new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
+                List.of(otherIn),
+                List.of(), List.of(), new Specification<>(List.of(), null),
+                new Specification<>(List.of(), null), false, false, null, new BoolType(origin),
+                null, null, null);
     }
 
     public boolean isImmutable(Symbol.ClassSymbol classSymbol) {

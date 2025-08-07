@@ -94,9 +94,12 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private Symbol.ClassSymbol getClassSymbol(JCLambda lambda) {
         var line = compilationUnit.getLineMap().getLineNumber(lambda.pos);
         var column = compilationUnit.getLineMap().getColumnNumber(lambda.pos);
-        Name append = names.lambda.append(names.fromString(line + "_" + column));
+        Name name = names.lambda.append(names.fromString(line + "_" + column));
         
-        var classSymbol = new Symbol.ClassSymbol(SYNTHETIC | FINAL, append, currentContainer);
+        var classSymbol = new Symbol.ClassSymbol(SYNTHETIC | FINAL, name, currentContainer);
+
+        // Flatname should be globally unique. Qualified class name plus line and column achieves that.
+        classSymbol.flatname = currentContainer.owner.flatName().append(name);
         Type.ClassType classType = new Type.ClassType(currentContainer.enclClass().type, List.nil(), classSymbol);
         classType.interfaces_field = List.of(lambda.type);
         classSymbol.type = classType;
