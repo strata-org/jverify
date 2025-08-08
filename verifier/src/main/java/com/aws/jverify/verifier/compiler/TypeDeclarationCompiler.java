@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
@@ -62,7 +63,6 @@ public class TypeDeclarationCompiler {
                     // Don't report errors when extracting this contract here,
                     // since the actual translation of the method will report them.
                     var header = new BlockCompiler(compiler, methodDecl.sym).extractContract(methodDecl, false);
-                    compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             } else {
                 var contractee = compiler.externalContractCompiler.getContractTarget(classDecl, contractAnnotation);

@@ -4,7 +4,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
-import com.aws.jverify.verifier.compiler.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
