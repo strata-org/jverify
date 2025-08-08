@@ -4,6 +4,8 @@
 //
 trait Object {
 
+  static const objectKlass := Class.Make("java.lang.Object", [])
+
   ghost predicate valid()
     reads This(), ReprObjects()
     decreases Repr(), 1
@@ -17,6 +19,14 @@ trait Object {
       {}
   }
 
+  // Generalized "Repr" in the Valid()/Repr idiom,
+  // allowing for value types as well.
+  // Only a function so that it can be delegated to
+  // either an object field or a datatype deconstructor,
+  // NOT so that it can be dynamically calculated
+  // (because most of the time proving termination becomes difficult,
+  // since Repr() is the common decreases clause
+  // and we can't use that to prove termination of Repr() itself).
   ghost function Repr(): set<Object> 
     reads This()
 
@@ -26,9 +36,12 @@ trait Object {
     set o <- Repr() | o is ModifiableObject :: o as ModifiableObject
   }
 
-  // lemma ReprObjectsAllocated()
-  //   ensures forall o <- This() :: allocated(o)
-  // {}
+  // Working around (TODO GHI)
+  static ghost function AllReads(objects: set<Object>): set<object>
+    reads set o <- objects | o is ModifiableObject :: o as ModifiableObject
+  {
+    set obj <- objects, o <- obj.ReprObjects() :: o
+  }
   
   ghost predicate validComponent(component: Object)
     reads This(), ReprObjects()
@@ -49,7 +62,7 @@ trait Object {
 
   // Symmetry
   // Can't be an intrinsic postcondition of equals
-  // because we can't quantify over reference types.
+  // because we can't quantify over possibly-reference types.
   lemma equalsSymmetric(obj: Object)
     requires valid()
     requires obj.valid()
@@ -57,7 +70,7 @@ trait Object {
     decreases Repr()
     ensures obj.equals(this)
 
-  // Will also need a lemma for transitivity
+  // (Will also need a lemma for transitivity)
 
   function getClass(): Class
 }
@@ -91,8 +104,56 @@ trait ModifiableObject extends Object, object {
   }
 }
 
+class Constructable?ModifiableObject extends ModifiableObject {
+ 
+  ghost predicate valid()
+    reads This(), ReprObjects()
+    decreases Repr(), 1
+
+  predicate equals(obj: Object)
+    requires valid()
+    requires obj.valid()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
+    decreases Repr()
+    ensures this as Object == obj ==> equals(obj)
+  {
+    obj is ModifiableObject && this == obj as ModifiableObject
+  }
+
+  lemma equalsSymmetric(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    decreases Repr()
+    ensures obj.equals(this)
+  {
+    assert obj as Object == this;
+  }
+
+  function getClass(): Class {
+    objectKlass
+  }
+
+  static lemma {:axiom} classIdentity(obj: Object)
+    requires objectKlass.isInstance(obj.getClass())
+    ensures obj is Constructable?ModifiableObject
+}
+
 // TODO: Needs to include class loaders too
-datatype Class extends Object = Class(name: string) {
+datatype Class extends Object = Class(name: string, superclasses: seq<Class>, allSupertypes: set<Class>) {
+
+  static function klass(): Class
+    ensures klass().valid()
+  {
+    Make("Class", [objectKlass])
+  }
+
+  static function Make(name: string, superclasses: seq<Class>): (result: Class)
+    ensures result.valid()
+  {
+    Class(name, superclasses, (set s <- superclasses) + (set s <- superclasses, o: Class <- s.allSupertypes :: o))
+  }
+
   ghost predicate valid()
     reads This(), ReprObjects()
     decreases Repr(), 1
@@ -114,7 +175,7 @@ datatype Class extends Object = Class(name: string) {
     // Reflexivity
     ensures this as Object == obj ==> equals(obj)
   {
-    obj is Class && (obj as Class) == this
+    obj is Class && (obj as Class).name == name
   }
 
   lemma equalsSymmetric(obj: Object)
@@ -127,7 +188,19 @@ datatype Class extends Object = Class(name: string) {
 
   function getClass(): Class
   {
-    Class("java.lang.Class")
+    klass()
+  }
+
+  predicate isAssignableFrom(cls: Class)
+    ensures this == cls ==> isAssignableFrom(cls)
+  {
+    this == cls || this in cls.allSupertypes
+  }
+
+  predicate isInstance(obj: Object)
+    ensures this == obj.getClass() ==> isInstance(obj)
+  {
+    isAssignableFrom(obj.getClass())
   }
 }
 
@@ -135,6 +208,7 @@ datatype Class extends Object = Class(name: string) {
 // Example reference type
 //
 trait MyPair extends ModifiableObject, object {
+
   var a: A
   var b: B
 
@@ -182,31 +256,36 @@ trait MyPair extends ModifiableObject, object {
 
 class Constructable?MyPair extends MyPair {
 
+  static const klass := Class.Make("MyPair", [objectKlass])
+
   constructor init(a_: A, b_: B)
     requires a_.valid()
     requires b_.valid()
     ensures valid()
   {
+    // Working around https://github.com/dafny-lang/dafny/issues/6324
     assert allocated(a_.ReprObjects());
     assert allocated(b_.ReprObjects());
+
     this.a := a_;
     this.b := b_;
     this.repr := {this, a_, b_} + a_.Repr() + b_.Repr();
-    label before:
+    
+    // label before:
     new;
-    // Working around Dafny issue (TODO: cut GHI)
-    assert unchanged@before(a_.This());
-    assert unchanged@before(a_.ReprObjects());
-    assert unchanged@before(b_.This());
-    assert unchanged@before(b_.ReprObjects());
+    // Working around https://github.com/dafny-lang/dafny/issues/6324
+    assert unchanged(a_.This());
+    assert unchanged(a_.ReprObjects());
+    assert unchanged(b_.This());
+    assert unchanged(b_.ReprObjects());
   }
 
   function getClass(): Class {
-    Class("MyPair")
+    klass
   }
 
   static lemma {:axiom} classIdentity(obj: Object)
-    requires obj.getClass() == Class("MyPair")
+    requires klass.isInstance(obj.getClass())
     ensures obj is Constructable?MyPair
 }
 
@@ -215,10 +294,11 @@ type int32 = x: int
 
 trait A extends ModifiableObject {
   var f: int32
-
 }
 
 class Constructable?A extends A {
+
+  static const klass := Class.Make("A", [objectKlass])
 
   constructor (f: int32) 
     ensures valid()
@@ -242,7 +322,7 @@ class Constructable?A extends A {
     ensures this as Object == obj ==> equals(obj)
     decreases Repr()
   {
-    if !(obj.getClass() == Class("A")) then
+    if obj.getClass() != klass then
       false
     else
       classIdentity(obj);
@@ -257,22 +337,24 @@ class Constructable?A extends A {
     decreases Repr()
     ensures obj.equals(this)
   {
-    assert obj.getClass() == Class("A");
+    assert obj.getClass() == klass;
     classIdentity(obj);
   }
 
   function getClass(): Class {
-    Class("A")
+    klass
   }
 
   static lemma {:axiom} classIdentity(obj: Object)
-    requires obj.getClass() == Class("A")
+    requires klass.isInstance(obj)
     ensures obj is Constructable?A
 }
 
 
-
 trait B extends A, object {
+
+  static const klass := Class.Make("B", [objectKlass, Constructable?A.klass])
+
   var g: int32
 }
 
@@ -319,63 +401,16 @@ class Constructable?B extends B {
     assert obj is B;
   }
 
-    function getClass(): Class {
-    Class("A")
+  function getClass(): Class {
+    klass
   }
 
   static lemma {:axiom} classIdentity(obj: Object)
-    requires obj.getClass() == Class("B")
+    requires obj.getClass() == klass
     ensures obj is Constructable?B
 }
 
-method WTF() {
-  var a: Constructable?A := new Constructable?A(1);
-  var b := new Constructable?B(1, 2);
-  assert b is A;
-  assert a.equals(b);
-  if !((a as Object) is B) {
-    assert !b.equals(a);
-    a.equalsSymmetric(b);
-    assert false;
-  }
-  
-}
 
-class Constructable?ModifiableObject extends ModifiableObject {
-
-  ghost predicate valid()
-    reads This(), ReprObjects()
-    decreases Repr(), 1
-
-  predicate equals(obj: Object)
-    requires valid()
-    requires obj.valid()
-    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
-    decreases Repr()
-    ensures this as Object == obj ==> equals(obj)
-  {
-    obj is ModifiableObject && this == obj as ModifiableObject
-  }
-
-
-  lemma equalsSymmetric(obj: Object)
-    requires valid()
-    requires obj.valid()
-    requires equals(obj)
-    decreases Repr()
-    ensures obj.equals(this)
-  {
-    assert obj as Object == this;
-  }
-
-  function getClass(): Class {
-    Class("A")
-  }
-
-  static lemma {:axiom} classIdentity(obj: Object)
-    requires obj.getClass() == Class("java.lang.Object")
-    ensures obj is Constructable?ModifiableObject
-}
 
 
 type char16 = i: int
@@ -385,6 +420,9 @@ type char16 = i: int
 // Equivalent of java.lang.String
 //
 datatype DString extends Object = JS(elements: seq<char16>) {
+
+  static const klass := Class.Make("DString", [objectKlass])
+
   ghost predicate valid()
     reads This(), ReprObjects()
     decreases Repr(), 1
@@ -415,11 +453,11 @@ datatype DString extends Object = JS(elements: seq<char16>) {
   {}
 
   function getClass(): Class {
-    Class("java.lang.String")
+    klass
   }
 
   static lemma {:axiom} classIdentity(obj: Object)
-    requires obj.getClass() == Class("java.lang.String")
+    requires obj.getClass() == klass
     ensures obj is DString
 }
 
@@ -430,6 +468,9 @@ datatype DString extends Object = JS(elements: seq<char16>) {
 // or classes with the JVerify @Immutable annotation.
 //
 datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, ghost repr: set<Object>) | Nil {
+
+  static const klass := Class.Make("DList", [objectKlass])
+
   ghost predicate valid()
     reads This(), ReprObjects()
     decreases Repr(), 1
@@ -454,7 +495,7 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
     decreases Repr()
     ensures this as Object == obj ==> b
   {
-    && obj.getClass() == Class("DList")
+    && obj.getClass() == klass
     && (classIdentity(obj); equalsDList(obj as DList<Object>))
   }
 
@@ -508,11 +549,11 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
   }
 
   function getClass(): Class {
-    Class("DList")
+    klass
   }
 
   static lemma {:axiom} classIdentity(obj: Object)
-    requires obj.getClass() == Class("DList")
+    requires obj.getClass() == klass
     ensures obj is DList<Object>
 }
 
@@ -537,11 +578,21 @@ trait ImmutableList<T extends Object> extends Object {
   ghost predicate valid()
     reads This(), ReprObjects()
     decreases Repr(), 1
-  {
-    forall i | 0 <= i < |elements| :: 
-      var e := elements[i] as Object;
-      validComponent(e)
-  }
+    ensures valid() ==>
+      forall i | 0 <= i < |elements| :: 
+        var e := elements[i] as Object;
+        validComponent(e)
+
+  function size(): int
+    requires valid()
+    reads This(), ReprObjects()
+    ensures size() == |elements|
+
+  function get(index: int): T
+    requires valid()
+    requires 0 <= index < size()
+    reads This(), ReprObjects()
+    ensures get(index) == elements[index]
 
   predicate equals(obj: Object)
     requires valid()
@@ -550,11 +601,11 @@ trait ImmutableList<T extends Object> extends Object {
     decreases Repr()
     ensures this as Object == obj ==> equals(obj)
     ensures equals(obj) <==>
-      && obj is ImmutableList<T> 
-      && var other := obj as ImmutableList<T>;
+      && ImmutableList<Object>.isInstance?(obj)
+      && var other := obj as ImmutableList<Object>;
       && equalsImmutableList(other)
 
-  ghost predicate equalsImmutableList(other: ImmutableList<T>)
+  ghost predicate equalsImmutableList(other: ImmutableList<Object>)
     requires valid()
     requires other.valid()
     reads This(), ReprObjects(), other.This(), other.ReprObjects()
@@ -568,46 +619,95 @@ trait ImmutableList<T extends Object> extends Object {
       assert other.validComponent(e');
       e.equals(e')
   }
+
+  // TODO: Convenient to generate this for every class
+  static predicate {:axiom} isInstance?(obj: Object)
+    ensures isInstance?(obj) == Constructable?ImmutableList.klass.isInstance(obj)
+    ensures isInstance?(obj) ==> obj is ImmutableList<Object>
 }
 
-trait SingletonList<T extends Object> extends ImmutableList<T> {
+class Constructable?ImmutableList {
+  static const klass := Class.Make("ImmutableList", [Object.objectKlass])
+}
 
-  // const value: T
+datatype SingletonList<T extends Object> extends ImmutableList<T> = SingletonList(value: T, ghost repr: set<Object>) {
 
-  // ghost predicate valid()
-  //   reads This(), Repr()
-  //   decreases Repr(), 1
-  // {
-  //   forall i | 0 <= i < |elements| :: 
-  //     var e := elements[i] as Object;
-  //     validComponent(e)
-  // }
+  static const klass := Class.Make("SingletonList", [objectKlass, Constructable?ImmutableList.klass])
 
-  // predicate equals(obj: Object)
-  //   requires valid()
-  //   requires obj.valid()
-  //   reads This(), Repr(), obj.This(), obj.Repr()
-  //   decreases Repr()
-  //   ensures this as Object == obj ==> equals(obj)
-  //   ensures equals(obj) <==>
-  //     && obj is ImmutableList<T> 
-  //     && var other := obj as ImmutableList<T>;
-  //     && equalsImmutableList(other)
+  ghost predicate valid()
+    reads This(), ReprObjects()
+    decreases Repr(), 1
+    ensures valid() ==>
+      forall i | 0 <= i < |elements| :: 
+        var e := elements[i] as Object;
+        validComponent(e)
+  {
+    && elements == [value]
+    && validComponent(value)
+  }
 
-  // predicate equalsImmutableList(other: ImmutableList<T>)
-  //   requires valid()
-  //   requires other.valid()
-  //   reads This(), Repr(), other.This(), other.Repr()
-  //   decreases Repr(), 0
-  // {
-  //   && |elements| == |other.elements|
-  //   && forall i | 0 <= i < |elements| :: 
-  //     var e := elements[i] as Object;
-  //     var e' := other.elements[i] as Object;
-  //     assert validComponent(e);
-  //     assert other.validComponent(e');
-  //     e.equals(e')
-  // }
+  ghost function Repr(): set<Object> 
+    reads This()
+  {
+    repr
+  }
+  
+  function size(): int
+    requires valid()
+    reads This(), ReprObjects()
+    ensures size() == |elements|
+  {
+    1
+  }
+
+  function get(index: int): T
+    requires valid()
+    requires 0 <= index < size()
+    reads This(), ReprObjects()
+    ensures get(index) == elements[index]
+  {
+    value
+  }
+
+  predicate equals(obj: Object)
+    requires valid()
+    requires obj.valid()
+    reads This(), ReprObjects(), obj.This(), obj.ReprObjects()
+    decreases Repr()
+    ensures this as Object == obj ==> equals(obj)
+    ensures equals(obj) <==>
+      && ImmutableList<Object>.isInstance?(obj)
+      && var other := obj as ImmutableList<Object>;
+      && equalsImmutableList(other)
+  {
+    if !ImmutableList<Object>.isInstance?(obj) then
+      false
+    else
+      var other := obj as ImmutableList<Object>;
+      if other.size() != 1 then
+        false
+      else
+        assert validComponent(value);
+        (value as Object).equals(other.get(0))
+  }
+
+  lemma equalsSymmetric(other: Object)
+    requires valid()
+    requires other.valid()
+    requires equals(other)
+    decreases Repr()
+    ensures other.equals(this)
+  {
+  }
+
+  function getClass(): Class
+  {
+    klass
+  }
+
+  static lemma {:axiom} classIdentity(obj: Object)
+    requires obj.getClass() == klass
+    ensures obj is SingletonList<Object>
 }
 
 // TODO: function overloading in general

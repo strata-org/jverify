@@ -1,11 +1,22 @@
 package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
+import com.aws.jverify.JVerify;
 import com.aws.jverify.MethodContract;
 import com.aws.jverify.Pure;
+import com.aws.jverify.Unbounded;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import java.util.List;
+import java.util.Objects;
+
 import static com.aws.jverify.JVerify.check;
+import static com.aws.jverify.JVerify.forall;
+import static com.aws.jverify.JVerify.implies;
+import static com.aws.jverify.JVerify.postcondition;
+import static com.aws.jverify.JVerify.precondition;
+import static com.aws.jverify.JVerify.returns;
 
 @JVerifyTest(dafnyVerified = 8, dafnyErrors = 0)
 public class EqualsAndHashCode {
@@ -94,4 +105,52 @@ class WhyItDoesNotWork {
         // Oops, equals is not symmetrical ==> not an equivalence relation
     }
 
+}
+
+interface ImmutableList<T> {
+    T get(int index);
+
+    @Unbounded int size();
+
+    boolean equals(Object obj);
+
+    @MethodContract("equals")
+    static <T> boolean equalsContract(ImmutableList<T> thiz, Object obj) {
+        returns((obj instanceof ImmutableList<?> other)
+                && (thiz.size() == other.size())
+                && forall((int i) ->
+                implies(0 <= i && i < thiz.size(),
+                        Objects.equals(thiz.get(i), other.get(i)))));
+        throw new ContractException();
+    }
+}
+
+class SingletonList<T> implements ImmutableList<T> {
+
+    final T value;
+
+    public SingletonList(T value) {
+        this.value = value;
+    }
+
+    public T get(int index) {
+        if (index == 0) {
+            return value;
+        } else {
+            throw new IndexOutOfBoundsException();
+        }
+    }
+
+    public @Unbounded int size() {
+        return 1;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof SingletonList<?>)) {
+            return false;
+        }
+        var other = (ImmutableList<?>) obj;
+        return other.size() == 1 && value.equals(other.get(1));
+    }
 }

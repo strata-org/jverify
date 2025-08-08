@@ -74,6 +74,10 @@ public class JVerify {
     public static <T> void copyPrecondition(T value) {
     }
 
+    // Short for postcondition((boolean r) -> r == result)
+    public static void returns(boolean result) {
+    }
+
     public static <T> Optional<T> callIfAble(Supplier<T> supplier) {
         throw new ContractException();
     }
