@@ -187,12 +187,12 @@ class Constructable?MyPair extends MyPair {
     requires b_.valid()
     ensures valid()
   {
-    assert forall o <- a_.ReprObjects() :: allocated(o);
+    assert allocated(a_.ReprObjects());
+    assert allocated(b_.ReprObjects());
     this.a := a_;
     this.b := b_;
     this.repr := {this, a_, b_} + a_.Repr() + b_.Repr();
     label before:
-    assert forall o <- a_.ReprObjects() :: allocated(o);
     new;
     // Working around Dafny issue (TODO: cut GHI)
     assert unchanged@before(a_.This());
