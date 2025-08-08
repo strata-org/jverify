@@ -509,6 +509,9 @@ public class JavaToDafnyCompiler {
                 }
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
+            case com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType -> {
+                return null;
+            }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
 
                 
@@ -532,8 +535,11 @@ public class JavaToDafnyCompiler {
                 }
 
                 if (className.toString().equals(JVerify.Sequence.class.getName())) {
-                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
-                    return new SeqType(origin, arguments);
+                    var typeArguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
+                    if (typeArguments.stream().anyMatch(Objects::isNull)) {
+                        return null;
+                    }
+                    return new SeqType(origin, typeArguments);
                 }
                 
                 // Remove the name qualification because we do not support that yet
@@ -551,6 +557,9 @@ public class JavaToDafnyCompiler {
                     typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
                 }
                 var typeArguments = typeArgumentsStream.toList();
+                if (typeArguments.stream().anyMatch(Objects::isNull)) {
+                    return null;
+                }
                 if (typeArguments.isEmpty()) {
                     typeArguments = null;
                 }
