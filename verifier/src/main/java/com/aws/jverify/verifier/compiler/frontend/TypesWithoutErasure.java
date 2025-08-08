@@ -9,20 +9,8 @@ public class TypesWithoutErasure extends Types {
 
     public boolean eraseTypes = true;
     
-    public <T> T withErased(Supplier<T> supplier) {
-        var previous = eraseTypes;
-        eraseTypes = false;
-        var result = supplier.get();
-        eraseTypes = previous;
-        return result;
-    }
-    
     public static void preRegister(Context context) {
-        context.put(typesKey, new Context.Factory<Types>() {
-            public Types make(Context c) {
-                return new TypesWithoutErasure(c);
-            }
-        });
+        context.put(typesKey, (Context.Factory<Types>) TypesWithoutErasure::new);
     }
     
     public TypesWithoutErasure(Context context) {
