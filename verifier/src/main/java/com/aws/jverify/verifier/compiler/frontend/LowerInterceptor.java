@@ -12,9 +12,10 @@ import java.lang.reflect.Field;
 import java.util.concurrent.Callable;
 
 /*
-Contains several intercepting methods. 
-The lowercased suffix of the name of methods is used to determine what it is intercepting
-If the name does not match anything, then the method is used to intercept the remainder of what needs intercepting
+ * Contains several intercepting methods. 
+ * The lowercased suffix of the name of methods is used to determine what it is intercepting
+ * If the name does not match anything, then the method is used to intercept the remainder of what needs
+ * intercepting
  */
 public class LowerInterceptor {
     static Field typesField;
