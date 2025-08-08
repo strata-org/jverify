@@ -626,10 +626,15 @@ public class TypeDeclarationCompiler {
             if (!createdContracts.add(classSymbol)) {
                 continue;
             }
+            String compiledName = compiler.nameCompiler.getCompiledName(classSymbol);
+            if (compiledName.isEmpty()) {
+                // Defensive programming. Some types like intersection types have no name, although they should not occur here
+                continue;
+            }
             List<TypeParameter> typeParameters = translateTypeParameters(dummyOrigin, classSymbol.getTypeParameters());
             TraitDecl trait = getTraitDecl(
                     dummyOrigin,
-                    new Name(dummyOrigin, compiler.nameCompiler.getCompiledName(classSymbol)),
+                    new Name(dummyOrigin, compiledName),
                     classSymbol,
                     typeParameters, List.of());
 
