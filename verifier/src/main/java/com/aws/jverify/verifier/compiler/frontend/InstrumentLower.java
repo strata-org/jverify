@@ -25,7 +25,7 @@ public class InstrumentLower {
             Instrumentation instrumentation = ByteBuddyAgent.install();
 
             new AgentBuilder.Default()
-                    .type(named("com.sun.tools.javac.comp.Lower"))
+                    .type(is(Lower.class))
                     .transform((builder, typeDescription, classLoader, module, _) ->
                             builder
                             .field(named("make"))
