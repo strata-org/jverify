@@ -280,6 +280,9 @@ project(":verifier") {
     }
 
     dependencies {
+        implementation("net.bytebuddy:byte-buddy:1.14.18")
+        implementation("net.bytebuddy:byte-buddy-agent:1.14.18")
+        
         implementation(project(":common"))
         implementation(project(":library"))
 

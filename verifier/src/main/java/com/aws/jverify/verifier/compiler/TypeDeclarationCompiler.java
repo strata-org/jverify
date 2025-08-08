@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
@@ -50,7 +51,6 @@ public class TypeDeclarationCompiler {
                     // Don't report errors when extracting this contract here,
                     // since the actual translation of the method will report them.
                     var header = new BlockCompiler(compiler, methodDecl.sym).extractContract(methodDecl, false);
-                    compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             } else {
                 var contractee = compiler.externalContractCompiler.getContractTarget(classDecl, contractAnnotation);
@@ -89,8 +89,8 @@ public class TypeDeclarationCompiler {
             var classSymbol = getCurrentTypeSymbol(classDecl.sym);
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
-                case INTERFACE, CLASS -> translateClass(classDecl, origin, name);
-                case RECORD -> new ImmutableTypeCompiler(this).translateValueType(classSymbol, classDecl, origin, name);
+                case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
+                case RECORD -> new ImmutableTypeCompiler(this).translate(classSymbol, classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -132,15 +132,15 @@ public class TypeDeclarationCompiler {
     }
 
 
-    private TopLevelDeclWithMembers translateClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
         if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
-            return new ImmutableTypeCompiler(this).translateValueType(classDecl.sym, classDecl, origin, name);
+            return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
         }
         
         if (contractAnnotation != null && contractAnnotation.immutable()) {
             if (typeForWhichCurrentClassIsDefiningContract != null) {
-                return new ImmutableTypeCompiler(this).translateValueType(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
+                return new ImmutableTypeCompiler(this).translate(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
             } else {
                 compiler.reportError(classDecl, "immutableInternalContract");
                 return null;
@@ -276,7 +276,8 @@ public class TypeDeclarationCompiler {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
+        Type type = compiler.translateType(variableDecl.type, 
+                compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
@@ -380,7 +381,7 @@ public class TypeDeclarationCompiler {
                     return null;
                 }
             } else {
-                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null) {
+                if (externalContract != null && !JavaToDafnyCompiler.isConstructor(methodSymbol)) {
                     compiler.reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 if (contractOverride != null) {
