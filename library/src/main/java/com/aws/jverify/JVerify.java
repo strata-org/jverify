@@ -260,6 +260,10 @@ public class JVerify {
          * Returns the number of elements in this sequence.
          */
         @Unbounded int size();
+
+        static <T, R> Set<R> all(Predicate<T> filter, Function<T, R> mapping) {
+            throw new ContractException();
+        }
     }
 
     public interface Map<K, V> {

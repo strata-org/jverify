@@ -204,10 +204,19 @@ abstract class MapContract<K, V> implements Map<K, V> {
 
     @Override
     @Pure
-    public boolean containsKey(Object o) {
+    public boolean containsKey(Object key) {
         postcondition((boolean r) ->
                 r == JVerify.exists((K other) ->
-                        elements.contains(other) && other.equals(o)));
+                        elements.contains(other) && other.equals(key)));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public V get(Object key) {
+        precondition(containsKey(key));
+        // TODO: postcondition needs something like :| to get a hold of the key
+        // that actually exists in the map according to containsKey
         throw new ContractException();
     }
 
@@ -227,7 +236,24 @@ abstract class MapContract<K, V> implements Map<K, V> {
 
     @Override
     public Set<Entry<K, V>> entrySet() {
+        // TODO: type mismatch, needs to be:
+        // (set e: Entry <- r.elements :: (e.getKey(), e.getValue())) == elements.Items
         postcondition((Set<Entry<K, V>> r) -> JVerify.<SetContract<K>>contractOf(r).elements == elements.entries());
+        throw new ContractException();
+    }
+}
+
+@Contract(value = Map.Entry.class, immutable = true)
+abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
+    @Override
+    @Pure
+    public K getKey() {
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public V getValue() {
         throw new ContractException();
     }
 }

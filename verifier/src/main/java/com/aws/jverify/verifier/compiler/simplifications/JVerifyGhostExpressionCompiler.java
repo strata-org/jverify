@@ -97,7 +97,7 @@ public class JVerifyGhostExpressionCompiler {
             }
             case "entries" -> {
                 var collection = expressionCompiler.toExpr(receiver);
-                return new MemberSelectExpr(compiler.toOrigin(invocation), collection, new Name(origin, "Items"));
+                return new ExprDotName(compiler.toOrigin(invocation), collection, new Name(origin, "Items"), null);
             }
             case "old" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
