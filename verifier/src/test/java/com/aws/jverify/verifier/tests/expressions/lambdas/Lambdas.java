@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 51, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 54, dafnyErrors = 3, verifyPrintedDafny = true)
 
 public class Lambdas {
 
