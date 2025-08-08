@@ -10,7 +10,8 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 51, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 54, dafnyErrors = 3, verifyPrintedDafny = true)
+
 public class Lambdas {
 
     // TODO: bring back once we support static fields
@@ -63,6 +64,7 @@ public class Lambdas {
     void methodReferences() {
         doSomethingTwice(this::add);
         doSomethingTwice(Lambdas::staticAdd);
+        doSomethingTwiceWithLambdas(Lambdas::add);
         makeSomeClass(SomeClass::new);
         makeSomeInnerClass(SomeClass.SomeInnerClass::new);
     }
@@ -99,6 +101,11 @@ public class Lambdas {
     void doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         var z = doer.doSomething(2, y);
+    }
+    @Verify(false)
+    void doSomethingTwiceWithLambdas(SomethingDoerWithLambdas doer) {
+        var y = doer.doSomething(this, 1, 2);
+        var z = doer.doSomething(this, 2, y);
     }
     
     @Verify(false)
@@ -157,6 +164,19 @@ interface SomeClassMaker {
     class SomeClassMakerContract implements SomeClassMaker {
         @Override
         public SomeClass makeSomething() {
+            throw new ContractException();
+        }
+    }
+}
+
+interface SomethingDoerWithLambdas {
+    int doSomething(Lambdas lambdas, int x, int y);
+
+    @Contract
+    class SomethingDoerWithLambdasContract implements SomethingDoerWithLambdas {
+
+        @Override
+        public int doSomething(Lambdas lambdas, int x, int y) {
             throw new ContractException();
         }
     }
