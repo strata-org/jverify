@@ -1,12 +1,11 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.sun.tools.javac.code.*;
+import com.sun.tools.javac.comp.LambdaToMethod;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
-import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Name;
-import com.sun.tools.javac.util.Names;
 
 import java.util.*;
 
@@ -60,6 +59,12 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         currentContainer = tree.sym;
         super.visitClassDef(tree);
         currentContainer = previous;
+    }
+
+    @Override
+    public void visitReference(JCMemberReference tree) {
+        var lambda = new MethodReferenceToLambdaCompiler(context).referenceToLambda(tree);
+        visitLambda(lambda);
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
