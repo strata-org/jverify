@@ -130,7 +130,6 @@ public class ExternalContractCompiler extends TreeScanner {
             if (baseMethod != null) {
                 var header = new BlockCompiler(compiler, methodSymbol).extractContract(methodDecl, true);
                 externalContracts.put(baseMethod, header);
-                compiler.lambdaCompiler.methodContracts.put(baseMethod, header);
             } else {
                 // Check currently does not take into account overloading
                 // But this only makes it not detect some unused methods.

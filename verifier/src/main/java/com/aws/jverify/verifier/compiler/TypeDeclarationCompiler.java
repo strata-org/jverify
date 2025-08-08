@@ -51,7 +51,6 @@ public class TypeDeclarationCompiler {
                     // Don't report errors when extracting this contract here,
                     // since the actual translation of the method will report them.
                     var header = new BlockCompiler(compiler, methodDecl.sym).extractContract(methodDecl, false);
-                    compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             } else {
                 var contractee = compiler.externalContractCompiler.getContractTarget(classDecl, contractAnnotation);
@@ -382,9 +381,7 @@ public class TypeDeclarationCompiler {
                     return null;
                 }
             } else {
-                // TODO Remove Symbol.DynamicMethodSymbol ??
-                if (!(source instanceof JCTree.JCFieldAccess fa && fa.sym instanceof Symbol.DynamicMethodSymbol) && externalContract != null
-                    && !JavaToDafnyCompiler.isConstructor(methodSymbol)) {
+                if (externalContract != null && !JavaToDafnyCompiler.isConstructor(methodSymbol)) {
                     compiler.reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 if (contractOverride != null) {

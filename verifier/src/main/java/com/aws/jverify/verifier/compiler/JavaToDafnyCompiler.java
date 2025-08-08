@@ -52,7 +52,6 @@ public class JavaToDafnyCompiler {
     public final NameCompiler nameCompiler;
     public final ExternalContractCompiler externalContractCompiler = new ExternalContractCompiler(this);
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
-    public final LambdaCompiler lambdaCompiler;
     public JCDiagnostic.Factory diagnosticFactory;
     public final VerifierOptions verifierOptions;
 
@@ -76,7 +75,6 @@ public class JavaToDafnyCompiler {
         nameCompiler = new NameCompiler(externalContractCompiler);
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
-        lambdaCompiler = new LambdaCompiler(this);
     }
 
     public NameCompiler getNameCompiler() {

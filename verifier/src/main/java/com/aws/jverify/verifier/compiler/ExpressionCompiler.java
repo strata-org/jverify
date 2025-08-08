@@ -284,9 +284,6 @@ public class ExpressionCompiler {
         if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
             return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
         }
-        if (fieldAccess.sym instanceof Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
-            return compiler.lambdaCompiler.translateDynamicMethod(origin, fieldAccess, dynamicMethodSymbol);
-        }
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {

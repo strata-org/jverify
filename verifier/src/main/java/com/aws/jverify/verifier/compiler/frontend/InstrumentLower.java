@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.comp.Lower;
 import com.sun.tools.javac.util.List;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
