@@ -47,7 +47,7 @@ public class InstrumentLower {
                                     and(takesArgument(0, is(Symbol.class))))
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))
                             .method(named("freevarDefs").
-                                            and(takesArguments(int.class, List.class, Symbol.class, long.class)))
+                                    and(takesArguments(int.class, List.class, Symbol.class, long.class)))
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))
                             .method(named("visitTypeTest")
                                     // The first call to types.erasure in visitEnumDef,
