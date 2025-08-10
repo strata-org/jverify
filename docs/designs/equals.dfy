@@ -564,20 +564,16 @@ method DListTest() {
   assert l.valid();
 }
 
-trait ImmutableList<T extends Object> extends Object, ImmutableList_Object {
+trait ImmutableList extends Object {
 
-  ghost const elements: seq<T>
-
-  ghost function elementsFn(): seq<Object> {
-    elements
-  }
+  ghost const elements: seq<Object>
 
   ghost predicate valid()
     reads This(), Reads()
     decreases Repr(), 1
     ensures valid() ==>
       forall i | 0 <= i < |elements| :: 
-        var e := elements[i] as Object;
+        var e := elements[i];
         validComponent(e)
 
   function size(): int
@@ -585,20 +581,11 @@ trait ImmutableList<T extends Object> extends Object, ImmutableList_Object {
     reads This(), Reads()
     ensures size() == |elements|
 
-  function get(index: int): T
+  function get(index: int): Object
     requires valid()
     requires 0 <= index < size()
     reads This(), Reads()
     ensures get(index) == elements[index]
-
-  function get_Object(index: int): Object
-    requires valid()
-    requires 0 <= index < size()
-    reads This(), Reads()
-    ensures get_Object(index) == elements[index]
-  {
-    get(index)
-  }
 
   predicate equals(obj: Object)
     requires valid()
@@ -607,11 +594,11 @@ trait ImmutableList<T extends Object> extends Object, ImmutableList_Object {
     decreases Repr()
     ensures this as Object == obj ==> equals(obj)
     ensures equals(obj) <==>
-      && ImmutableList<Object>.isInstance?(obj)
-      && var other := obj as ImmutableList<Object>;
+      && ImmutableList.isInstance?(obj)
+      && var other := obj as ImmutableList;
       && equalsImmutableList(other)
 
-  ghost predicate equalsImmutableList(other: ImmutableList<Object>)
+  ghost predicate equalsImmutableList(other: ImmutableList)
     requires valid()
     requires other.valid()
     reads This(), Reads(), other.This(), other.Reads()
@@ -620,40 +607,35 @@ trait ImmutableList<T extends Object> extends Object, ImmutableList_Object {
     && |elements| == |other.elements|
     && forall i | 0 <= i < |elements| :: 
       var e := elements[i] as Object;
-      var e' := other.elements[i] as Object;
+      var e' := other.elements[i];
       assert validComponent(e);
       assert other.validComponent(e');
       e.equals(e')
   }
 
+  lemma equalsImmutableListSymmetric(other: ImmutableList)
+    requires valid()
+    requires other.valid()
+    requires equalsImmutableList(other)
+    decreases Repr(), 0
+    ensures other.equalsImmutableList(this)
+  {
+    forall i | 0 <= i < |elements| ensures other.elements[i].equals(elements[i]) {
+      elements[i].equalsSymmetric(other.elements[i]);
+    }
+  }
+
   // TODO: Convenient to generate this for every class
   static predicate {:axiom} isInstance?(obj: Object)
     ensures isInstance?(obj) == Constructable?ImmutableList.klass.isInstance(obj)
-    ensures isInstance?(obj) ==> obj is ImmutableList<Object>
-}
-
-// Monomorphization to work around the lack of existential types in Dafny
-trait ImmutableList_Object extends Object {
-
-  ghost function elementsFn(): seq<Object>
-
-  function size(): int
-    requires valid()
-    reads This(), Reads()
-    ensures size() == |elementsFn()|
-
-  function get_Object(index: int): Object
-    requires valid()
-    requires 0 <= index < size()
-    reads This(), Reads()
-    ensures get_Object(index) == elementsFn()[index]
+    ensures isInstance?(obj) ==> obj is ImmutableList
 }
 
 class Constructable?ImmutableList {
   static const klass := Class.Make("ImmutableList", [Object.objectKlass])
 }
 
-datatype SingletonList<T extends Object> extends ImmutableList<T> = SingletonList(value: T, ghost repr: set<Object>) {
+datatype SingletonList<T extends Object> extends ImmutableList = SingletonList(value: T, ghost repr: set<Object>) {
 
   static const klass := Class.Make("SingletonList", [objectKlass, Constructable?ImmutableList.klass])
 
@@ -683,7 +665,7 @@ datatype SingletonList<T extends Object> extends ImmutableList<T> = SingletonLis
     1
   }
 
-  function get(index: int): T
+  function get(index: int): Object
     requires valid()
     requires 0 <= index < size()
     reads This(), Reads()
@@ -699,28 +681,33 @@ datatype SingletonList<T extends Object> extends ImmutableList<T> = SingletonLis
     decreases Repr()
     ensures this as Object == obj ==> equals(obj)
     ensures equals(obj) <==>
-      && ImmutableList<Object>.isInstance?(obj)
-      && var other := obj as ImmutableList<Object>;
+      && ImmutableList.isInstance?(obj)
+      && var other := obj as ImmutableList;
       && equalsImmutableList(other)
   {
-    if !ImmutableList<Object>.isInstance?(obj) then
+    if !ImmutableList.isInstance?(obj) then
       false
     else
-      var other := obj as ImmutableList_Object;
+      var other := obj as ImmutableList;
       if other.size() != 1 then
         false
       else
         assert validComponent(value);
-        (value as Object).equals(other.get_Object(0))
+        (value as Object).equals(other.get(0))
   }
 
-  lemma equalsSymmetric(other: Object)
+  lemma equalsSymmetric(obj: Object)
     requires valid()
-    requires other.valid()
-    requires equals(other)
+    requires obj.valid()
+    requires equals(obj)
     decreases Repr()
-    ensures other.equals(this)
+    ensures obj.equals(this)
   {
+    if !ImmutableList.isInstance?(obj) {
+    } else {
+      var other := obj as ImmutableList;
+      equalsImmutableListSymmetric(other);
+    }
   }
 
   function getClass(): Class
