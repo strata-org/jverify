@@ -24,7 +24,7 @@ interface Immutable {
         public int getX() {
             return x;
         }
-    }
+    }   
 }
 
 @Modifiable
@@ -46,8 +46,8 @@ interface Mutable {
     }
 }
 
-record RecordsAreImmutable(int x) 
-//     ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
+   record RecordsAreImmutable(int x) 
+// ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
         implements Mutable
 {
     @Pure

@@ -21,8 +21,9 @@ class ObjectRules {
     }
 
     @Pure
+    @Modifiable
     Object newObjectIsImpure() {
         return new Object();
-//             ^ error: using 'new' in an expression to create an instance of a non-record class is not supported
+//             ^ error: using 'new' in an expression to create an instance of a mutable type is not supported
     }
 }

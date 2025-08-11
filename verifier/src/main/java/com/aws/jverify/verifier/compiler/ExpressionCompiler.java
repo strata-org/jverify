@@ -163,7 +163,7 @@ public class ExpressionCompiler {
         }
         compiler.reportError(expr, "notSupported",
                 "using 'new' in an expression to create an instance of a mutable type");
-        return JavaToDafnyCompiler.getHole(origin);
+        return JavaToDafnyCompiler.getReferenceHole(origin);
     }
 
     private TypeTestExpr translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin) {
