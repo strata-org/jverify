@@ -1,11 +1,24 @@
 package com.aws.jverify.verifier.tests.javasupport.localClasses;
 
+import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 22, dafnyErrors = 0,
-        verifyPrintedDafny = true)
+@SuppressWarnings("Convert2Lambda")
+@JVerifyTest(dafnyVerified = 29, dafnyErrors = 0, verifyPrintedDafny = true)
 public class PolymorphicAnonymousClasses {
 
+    void capturedGenericType(MyConsumer<Anything> consumer, Anything anything) {
+        var captureGeneric = new MyProducer<Anything>() {
+            @Override
+            public Anything produce() {
+                // The variable consumer, with a generic type, is captured
+                var i = consumer.consume(anything);
+                return anything;
+            }
+        };
+    }
+    
     @SuppressWarnings("InnerClassMayBeStatic")
     class InstanceAnything {}
     static class Anything {}
@@ -74,6 +87,14 @@ public class PolymorphicAnonymousClasses {
 
     interface MyConsumer<T> {
         int consume(T value);
+        
+        @Contract
+        class MyContract<T> implements MyConsumer<T> {
+            @Override
+            public int consume(T value) {
+                throw new ContractException();
+            }
+        }
     }
 
     interface MyProducer<T> {

@@ -39,7 +39,7 @@ interface GenericI<T> {
     void foo();
 
     @Contract
-    class GenericIContract<U> implements GenericI<U> {
+    class GenericIContract<T> implements GenericI<T> {
         @Override
         public void foo() {
             

@@ -1,7 +1,8 @@
-package com.aws.jverify.verifier.compiler;
+package com.aws.jverify.verifier.compiler.frontend;
 
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
+import com.aws.jverify.verifier.compiler.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.ClientCodeWrapper;
@@ -58,6 +59,7 @@ public class JavaFrontEnd {
         ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         context.put(DiagnosticListener.class, ccw.wrap(diagnostics));
+
         JavaCompiler compiler = JavaCompiler.instance(context);
         Arguments args = Arguments.instance(context);
         args.init("javac", javacOptions, List.of(), files);

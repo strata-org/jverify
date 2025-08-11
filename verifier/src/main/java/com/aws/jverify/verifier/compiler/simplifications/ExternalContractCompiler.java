@@ -2,10 +2,11 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.verifier.compiler.BlockCompiler;
-import com.aws.jverify.verifier.compiler.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
+import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
@@ -56,6 +57,21 @@ public class ExternalContractCompiler extends TreeScanner {
             return;
         }
 
+        com.sun.tools.javac.util.List<Symbol.TypeVariableSymbol> typeParameters = contracteeSymbol.getTypeParameters();
+        if (typeParameters.size() != classDecl.sym.getTypeParameters().size()) {
+            compiler.reportError(classDecl, "contractDifferentTypeParameters", classDecl.name.toString(), contracteeSymbol.name.toString());
+            return;
+        }
+        
+        for (int i = 0; i < typeParameters.size(); i++) {
+            var originalTypeParameter = typeParameters.get(i);
+            var contractTypeParameter = classDecl.sym.getTypeParameters().get(i);
+            if (!originalTypeParameter.name.contentEquals(contractTypeParameter.name)) {
+                compiler.reportError(classDecl, "contractDifferentTypeParameters", classDecl.name.toString(), contracteeSymbol.name.toString());
+                return;
+            }
+        }
+
         var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
         declsForSymbol.add(classDecl);
 
@@ -72,18 +88,6 @@ public class ExternalContractCompiler extends TreeScanner {
     public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit) {
         compiler.compilationUnit = compilationUnit;
         this.visitTopLevel(compilationUnit);
-    }
-
-    private com.sun.tools.javac.util.List<JCTree> getTypeDecls(com.sun.tools.javac.util.List<JCTree> defs) {
-        com.sun.tools.javac.util.List<JCTree> typeDefs;
-        for (typeDefs = defs; !typeDefs.isEmpty(); typeDefs = typeDefs.tail) {
-            if (!typeDefs.head.hasTag(MODULEDEF)
-                    && !typeDefs.head.hasTag(PACKAGEDEF)
-                    && !typeDefs.head.hasTag(IMPORT)) {
-                break;
-            }
-        }
-        return typeDefs;
     }
 
     public void registerExternalContracts() {
@@ -120,11 +124,14 @@ public class ExternalContractCompiler extends TreeScanner {
                 continue;
             }
             var methodSymbol = methodDecl.sym;
-            var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(compiler.context));
+            if (compiler.isSynthetic(methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+                continue;
+            }
+            var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
                 var header = new BlockCompiler(compiler, methodSymbol).extractContract(methodDecl, true);
                 externalContracts.put(baseMethod, header);
-            } else if (!compiler.isSynthetic(methodDecl, methodSymbol)) {
+            } else {
                 // Check currently does not take into account overloading
                 // But this only makes it not detect some unused methods.
                 var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();

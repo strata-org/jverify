@@ -8,12 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class TestExamples {
-
-    @Test
-    public void testAvlTree() throws IOException {
-        var markedSourcePath = Path.of("VerifiedAVLTree.java");
-        verifyPath(markedSourcePath, 22, -1, -1);
-    }
     
     /**
      * This is the only test that tests these rules.

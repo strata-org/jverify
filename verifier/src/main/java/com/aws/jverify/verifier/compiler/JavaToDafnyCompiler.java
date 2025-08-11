@@ -4,6 +4,8 @@ import com.aws.jverify.*;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.frontend.JavaFrontEnd;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
