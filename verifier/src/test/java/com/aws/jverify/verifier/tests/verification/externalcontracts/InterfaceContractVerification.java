@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests.contracts;
+package com.aws.jverify.verifier.tests.verification.externalcontracts;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
