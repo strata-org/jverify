@@ -21,6 +21,7 @@ trait Object {
 
   // Generalized "Repr" in the Valid()/Repr idiom,
   // allowing for value types as well.
+  //
   // Only a function so that it can be delegated to
   // either an object field or a datatype deconstructor,
   // NOT so that it can be dynamically calculated
@@ -30,6 +31,7 @@ trait Object {
   ghost function Repr(): set<Object> 
     reads This()
 
+  // The Repr() set restricted to heap objects.
   ghost function Reads(): set<object> 
     reads This()
   {
@@ -54,8 +56,6 @@ trait Object {
     ensures this as Object == obj ==> equals(obj)
 
   // Symmetry
-  // Can't be an intrinsic postcondition of equals
-  // because we can't quantify over possibly-reference types.
   lemma equalsSymmetric(obj: Object)
     requires valid()
     requires obj.valid()
@@ -79,10 +79,7 @@ trait ModifiableObject extends Object, object {
   ghost function Repr(): set<Object> 
     reads This()
   {
-    if this is ModifiableObject then
-     (this as ModifiableObject).repr
-    else
-     {}
+    repr
   }
 
   ghost predicate validModifiableComponent(component: ModifiableObject)
@@ -132,6 +129,9 @@ class Constructable?ModifiableObject extends ModifiableObject {
     ensures obj is Constructable?ModifiableObject
 }
 
+// allSupertypes is precalculated to avoid making isAssignableFrom recursive,
+// which would pull in a lot of complexity around proving termination.
+//
 // TODO: Needs to include class loaders too
 datatype Class extends Object = Class(name: string, superclasses: seq<Class>, allSupertypes: set<Class>) {
 
@@ -403,9 +403,6 @@ class Constructable?B extends B {
     ensures obj is Constructable?B
 }
 
-
-
-
 type char16 = i: int
   | 0 <= i <= 65535
 
@@ -510,6 +507,18 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
     case (_, _) => false
   }
 
+  lemma equalsSymmetric(other: Object)
+    requires valid()
+    requires other.valid()
+    requires equals(other)
+    decreases Repr()
+    ensures other.equals(this)
+  {
+    classIdentity(other);
+    assert other is DList<Object>;
+    equalsDListSymmetric(other as DList);
+  }
+
   lemma equalsDListSymmetric(other: DList<Object>)
     requires valid()
     requires other.valid()
@@ -527,18 +536,6 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
       }
       case (_, _) => {}
     }
-  }
-
-  lemma equalsSymmetric(other: Object)
-    requires valid()
-    requires other.valid()
-    requires equals(other)
-    decreases Repr()
-    ensures other.equals(this)
-  {
-    classIdentity(other);
-    assert other is DList<Object>;
-    equalsDListSymmetric(other as DList);
   }
 
   function getClass(): Class {
