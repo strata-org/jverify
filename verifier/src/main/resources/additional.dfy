@@ -1,4 +1,14 @@
-trait Object {}
+trait Object {
+    // This should have a non-empty reads clause,
+    // but that will require something like the
+    // Valid()/Repr idiom extended to allow non-reference types.
+    // For now we only support equality definitions
+    // that do not depend on mutable state.
+    //
+    // See also JavaToDafnyCompiler.equalsFunctionDeclaration
+    // for more on overridding pure methods.
+    predicate equals(obj: Object)
+}
 
 type nat15 = x: int16 | x >= 0
 type int16 = x: int | -0x8000 <= x <= 0x7fff
@@ -11,7 +21,7 @@ type int64 = x: int | -0x8000_0000_0000_0000 <= x <= 0x7fff_ffff_ffff_ffff
 
 // Base type is int and not char, because Java's char allows surrogates and Dafny's char does not
 type char16 = i: int | 0x0000 <= i <= 0xffff
-datatype DString = JS(elements: seq<char16>) {
+datatype DString extends Object = JS(elements: seq<char16>) {
     function indexOf_i(c: char16) : (result:int32)
         ensures -1 <= result < |this.elements|
         ensures (result == -1 <==> forall i | 0 <= i < |this.elements| :: this.elements[i] != c)
@@ -42,9 +52,9 @@ datatype DString = JS(elements: seq<char16>) {
     {
       JS(this.elements[start..end])
     }
-    function equals(other: DString) : (b: bool)
+    function equals(other: Object) : (b: bool)
     {
-      this.elements == other.elements
+      other is DString && this.elements == (other as DString).elements
     }
 
     function startsWith_Cjava_lang_String(other : DString) : (b : bool)

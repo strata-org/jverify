@@ -76,6 +76,8 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
+            classMembers.add(JavaToDafnyCompiler.equalsFunctionDeclaration(traitDecl.getOrigin()));
+
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();
             var trait = new TraitDecl(traitDecl.getOrigin(), nameNode, traitDecl.getAttributes(),

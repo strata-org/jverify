@@ -186,64 +186,58 @@ public class JVerify {
 
     public interface Sequence<T> {
         /**
+         * Returns the element at index {@code index}.
+         */
+        T get(int index);
+
+        /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
          */
-        default Sequence<T> drop(int fromIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        Sequence<T> drop(int fromIndex);
 
         /**
          * Returns the subsequence ending at {@code toIndex}, inclusive.
          */
-        default Sequence<T> take(int toIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        Sequence<T> take(int toIndex);
 
         /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive,
          * and ending at {@code toIndex}, exclusive.
          */
-        default Sequence<T> subsequence(int fromIndex, int toIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        Sequence<T> subsequence(int fromIndex, int toIndex);
 
         /**
          * Returns {@code true} if this sequence contains the specified element.
          */
-        default boolean contains(T element) {
-            throw new VerificationMethodExecutedException();
-        }
+        boolean contains(Object element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
     }
 
     public interface IntSequence {
         /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
          */
-        default IntSequence drop(int fromIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        IntSequence drop(int fromIndex);
 
         /**
          * Returns the subsequence ending at {@code toIndex}, inclusive.
          */
-        default IntSequence take(int toIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        IntSequence take(int toIndex);
 
         /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive,
          * and ending at {@code toIndex}, exclusive.
          */
-        default IntSequence subsequence(int fromIndex, int toIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        IntSequence subsequence(int fromIndex, int toIndex);
 
         /**
          * Returns {@code true} if this sequence contains the specified element.
          */
-        default boolean contains(int element) {
-            throw new VerificationMethodExecutedException();
-        }
+        boolean contains(int element);
     }
 
     public static class VerificationMethodExecutedException extends UnsupportedOperationException {

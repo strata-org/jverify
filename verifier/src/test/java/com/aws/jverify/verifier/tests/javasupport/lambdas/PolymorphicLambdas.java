@@ -4,7 +4,7 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("Convert2MethodRef")
-@JVerifyTest(dafnyVerified = 9, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(dafnyVerified = 17, dafnyErrors = 0, verifyPrintedDafny = true)
 public class PolymorphicLambdas {
 
     static class Anything {}
@@ -19,6 +19,11 @@ public class PolymorphicLambdas {
 
     <U> void lambdaForGenericMethod() {
         zaz((U e) -> 3);
+        zaz(this::uToThree);
+    }
+    
+    <T> int uToThree(T value) {
+        return 3;
     }
 
     void foo(MyConsumer<Anything> f) {}

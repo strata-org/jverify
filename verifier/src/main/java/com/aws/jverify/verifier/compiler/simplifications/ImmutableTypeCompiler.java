@@ -36,7 +36,7 @@ public class ImmutableTypeCompiler {
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
-        Symbol.ClassSymbol currentTypeSymbol = typeDeclarationCompiler.getCurrentTypeSymbol(classDecl);
+        Symbol.ClassSymbol currentTypeSymbol = typeDeclarationCompiler.getCurrentTypeSymbol(classDecl.sym);
         var traits = currentTypeSymbol
                 .getInterfaces().stream()
                 .filter(compiler::typeHasAContract)
@@ -99,6 +99,8 @@ public class ImmutableTypeCompiler {
                 members.add(dafnyMember);
             }
         }
+
+        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
 
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);

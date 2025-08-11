@@ -22,24 +22,23 @@ public class MethodReferenceToLambdaCompiler {
         var paramTypes = types.findDescriptorType(reference.type).getParameterTypes();
         var params = getParameters(paramTypes).toList();
 
-        JCTree.JCExpression methodCall;
-        if (reference.kind == JCTree.JCMemberReference.ReferenceKind.STATIC) {
-            // Static method reference: Class::method -> (args) -> Class.method(args)
-            methodCall = replaceColonsWithDot(reference, params);
-
-        } else if (reference.kind == JCTree.JCMemberReference.ReferenceKind.BOUND) {
-            // Bound instance method: obj::method -> (args) -> obj.method(args)
-            methodCall = replaceColonsWithDot(reference, params);
-        } else if (reference.kind == JCTree.JCMemberReference.ReferenceKind.UNBOUND) {
-            // Unbound instance method: Class::method -> (obj, args) -> obj.method(args)
-            methodCall = addImplicitReceiverArgument(reference, params);
-        } else if (reference.kind == JCTree.JCMemberReference.ReferenceKind.IMPLICIT_INNER) {
-            // Constructor reference for inner class: Outer.Inner::new -> (args) -> new Outer.Inner(args)
-            methodCall = useLhsToConstructNewClass(reference, params);
-        } else {
-            // Constructor reference: Class::new -> (args) -> new Class(args)
-            methodCall = useLhsToConstructNewClass(reference, params);
-        }
+        JCTree.JCExpression methodCall = switch (reference.kind) {
+            case STATIC ->
+                // Static method reference: Class::method -> (args) -> Class.method(args)
+                    replaceColonsWithDot(reference, params);
+            case BOUND ->
+                // Bound instance method: obj::method -> (args) -> obj.method(args)
+                    replaceColonsWithDot(reference, params);
+            case UNBOUND ->
+                // Unbound instance method: Class::method -> (obj, args) -> obj.method(args)
+                    addImplicitReceiverArgument(reference, params);
+            case IMPLICIT_INNER ->
+                // Constructor reference for inner class: Outer.Inner::new -> (args) -> new Outer.Inner(args)
+                    useLhsToConstructNewClass(reference, params);
+            default ->
+                // Constructor reference: Class::new -> (args) -> new Class(args)
+                    useLhsToConstructNewClass(reference, params);
+        };
 
         make.pos = reference.pos;
         var lambda = make.Lambda(params, methodCall);
@@ -76,6 +75,7 @@ public class MethodReferenceToLambdaCompiler {
                 select,
                 args
         );
+        
         methodCall.type = reference.sym.type.getReturnType();
         return methodCall;
     }

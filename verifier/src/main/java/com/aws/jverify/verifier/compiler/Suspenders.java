@@ -25,6 +25,7 @@ import static com.sun.tools.javac.code.Flags.RECORD;
 /// A reversible rewriting phase that prevents features like
 /// records and switch statements/expressions from being lowered by the LOWER phase.
 /// (get it? :)
+///
 /// Currently, it applies two different transformations to avoid undesirable lowerings:
 ///
 ///   - Records are translated into normal classes with extra synthetic declarations.

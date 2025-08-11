@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.javasupport;
 import com.aws.jverify.Nat;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 0, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 3)
 class PrimitiveTypes {
     public void foo(int s) {
         short x = 10;
