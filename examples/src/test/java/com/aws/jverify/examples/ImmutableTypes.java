@@ -47,8 +47,8 @@ interface Mutable {
 }
 
 record RecordsAreImmutable(int x) 
+//     ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
         implements Mutable
-//                      ^^ Error: immutable extending a mutable is not allowed
 {
     @Pure
     static RecordsAreImmutable createR() {
@@ -58,7 +58,7 @@ record RecordsAreImmutable(int x)
     @Pure
     public boolean compare(RecordsAreImmutable other) {
         return this == other;
-//                  ^^ Error: '==' not allowed on immutable types
+//                  ^ error: '==' is only allowed when at least one operand's type is mutable
     }
 
     @Override
@@ -76,6 +76,6 @@ class ClassesAreMutable {
     @Pure
     ClassesAreMutable createC() {
         return new ClassesAreMutable();
-//             ^ Error: can not create mutable type in pure context
+//             ^ error: using 'new' in an expression to create an instance of a mutable type is not supported
     }
 }

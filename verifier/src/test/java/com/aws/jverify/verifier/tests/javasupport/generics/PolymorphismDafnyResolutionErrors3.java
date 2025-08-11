@@ -7,6 +7,6 @@ public class PolymorphismDafnyResolutionErrors3 {
     
     public static void valueObjectHasNoEqualityBoth(Object a, Object b) {
         var c = a == b;
-//                ^ error: '==' is only allowed when at least one operand's type is @Modifiable
+//                ^ error: '==' is only allowed when at least one operand's type is mutable
     }
 }
