@@ -7,7 +7,6 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.*;
-import jdk.dynalink.NoSuchDynamicMethodException;
 
 public class MethodReferenceToLambdaCompiler extends TreeTranslator {
     private final TreeMaker make;
