@@ -660,7 +660,9 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
     requires obj.valid()
     requires equals(obj)
     ensures hashCode() == obj.hashCode()
-  {}
+  {
+    classIdentity(obj);
+  }
 
   function getClass(): Class {
     klass
@@ -745,7 +747,6 @@ trait ImmutableList extends Object {
     }
   }
 
-  // TODO: Convenient to generate this for every class
   static predicate {:axiom} isInstance?(obj: Object)
     ensures isInstance?(obj) == Constructable?ImmutableList.klass.isInstance(obj)
     ensures isInstance?(obj) ==> obj is ImmutableList
