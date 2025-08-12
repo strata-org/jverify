@@ -204,7 +204,7 @@ public class TypeDeclarationCompiler {
 
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
-            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+            javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParameters = translateTypeParameters(javaTypeParams);
 

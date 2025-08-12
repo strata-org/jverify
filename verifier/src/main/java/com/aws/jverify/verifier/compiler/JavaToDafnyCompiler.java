@@ -552,7 +552,7 @@ public class JavaToDafnyCompiler {
                 }
                 var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
                 if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
-                    var ownerTypes = getAllOwnerTypeParameters(classType.tsym).toList();
+                    var ownerTypes = getOwnAndEnclosedTypeParameters(classType.tsym).toList();
                     Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, toOrigin(tp)));
                     typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
                 }
@@ -739,18 +739,18 @@ public class JavaToDafnyCompiler {
         return false;
     }
 
-    public Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol symbol) {
+    public Stream<JCTree.JCTypeParameter> getOwnAndEnclosedTypeParameters(Symbol symbol) {
         if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-            return getAllOwnerTypeParameters(classSymbol);
+            return getOwnAndEnclosedTypeParameters(classSymbol);
         } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
-            return getAllOwnerTypeParameters(methodSymbol);
+            return getOwnAndEnclosedTypeParameters(methodSymbol);
         } else if (symbol instanceof Symbol.PackageSymbol) {
             return Stream.empty();
         }
         throw new RuntimeException();
     }
 
-    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.ClassSymbol classSymbol) {
+    Stream<JCTree.JCTypeParameter> getOwnAndEnclosedTypeParameters(Symbol.ClassSymbol classSymbol) {
         var trees = JVerifyIndex.instance(context);
         JCTree.JCClassDecl decl = (JCTree.JCClassDecl)trees.getTree(classSymbol);
         if (decl == null) {
@@ -761,17 +761,17 @@ public class JavaToDafnyCompiler {
         if (classSymbol.owner == null) {
             return mine;
         }
-        return Stream.concat(mine, getAllOwnerTypeParameters(classSymbol.owner));
+        return Stream.concat(mine, getOwnAndEnclosedTypeParameters(classSymbol.owner));
     }
 
-    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.MethodSymbol methodSymbol) {
+    Stream<JCTree.JCTypeParameter> getOwnAndEnclosedTypeParameters(Symbol.MethodSymbol methodSymbol) {
         var trees = JVerifyIndex.instance(context);
         JCTree.JCMethodDecl decl = (JCTree.JCMethodDecl)trees.getTree(methodSymbol);
         var mine = decl.getTypeParameters().stream();
         if (methodSymbol.owner == null) {
             return mine;
         }
-        return Stream.concat(mine, getAllOwnerTypeParameters(methodSymbol.owner));
+        return Stream.concat(mine, getOwnAndEnclosedTypeParameters(methodSymbol.owner));
     }
     
     private boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {

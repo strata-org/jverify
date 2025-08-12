@@ -32,7 +32,7 @@ public class ImmutableTypeCompiler {
 
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
-            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+            javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
@@ -216,7 +216,7 @@ public class ImmutableTypeCompiler {
         JavaToDafnyCompiler compiler = expressionCompiler.compiler;
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
-            typeArgs = compiler.getAllOwnerTypeParameters(newClass.type.tsym).map(
+            typeArgs = compiler.getOwnAndEnclosedTypeParameters(newClass.type.tsym).map(
                     tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
         }
         
