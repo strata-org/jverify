@@ -38,7 +38,7 @@ trait Object {
     set o <- Repr() | o is ModifiableObject :: o as ModifiableObject
   }
 
-  ghost predicate validComponent(component: Object)
+  ghost predicate ValidComponent(component: Object)
     reads This(), Reads()
     decreases Repr(), 0
   {
@@ -82,7 +82,7 @@ trait ModifiableObject extends Object, object {
     repr
   }
 
-  ghost predicate validModifiableComponent(component: ModifiableObject)
+  ghost predicate ValidModifiableComponent(component: ModifiableObject)
     reads This(), Reads()
     decreases Repr(), 0
   {
@@ -184,15 +184,11 @@ datatype Class extends Object = Class(name: string, superclasses: seq<Class>, al
     klass()
   }
 
-  predicate isAssignableFrom(cls: Class)
-    ensures this == cls ==> isAssignableFrom(cls)
-  {
+  predicate isAssignableFrom(cls: Class) {
     this == cls || this in cls.allSupertypes
   }
 
-  predicate isInstance(obj: Object)
-    ensures this == obj.getClass() ==> isInstance(obj)
-  {
+  predicate isInstance(obj: Object) {
     isAssignableFrom(obj.getClass())
   }
 }
@@ -210,8 +206,8 @@ trait MyPair extends ModifiableObject, object {
     decreases Repr(), 1
   {
     && this in Repr()
-    && validModifiableComponent(a)
-    && validModifiableComponent(b)
+    && ValidModifiableComponent(a)
+    && ValidModifiableComponent(b)
   }
 
   predicate equals(obj: Object)
@@ -226,10 +222,10 @@ trait MyPair extends ModifiableObject, object {
     else
       var other: MyPair := obj as MyPair;
 
-      assert validModifiableComponent(a);
-      assert other.validModifiableComponent(other.a);
-      assert validModifiableComponent(b);
-      assert other.validModifiableComponent(other.b);
+      assert ValidModifiableComponent(a);
+      assert other.ValidModifiableComponent(other.a);
+      assert ValidModifiableComponent(b);
+      assert other.ValidModifiableComponent(other.b);
       
       a.equals(other.a) && b.equals(other.b)
   }
@@ -264,8 +260,8 @@ class Constructable?MyPair extends MyPair {
     this.b := b_;
     this.repr := {this, a_, b_} + a_.Repr() + b_.Repr();
     
-    // label before:
     new;
+
     // Working around https://github.com/dafny-lang/dafny/issues/6324
     assert unchanged(a_.This());
     assert unchanged(a_.Reads());
@@ -466,7 +462,7 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
     decreases Repr(), 1
   {
     match (this)
-    case Cons(head, tail, _) => validComponent(head as Object) && validComponent(tail as Object)
+    case Cons(head, tail, _) => ValidComponent(head as Object) && ValidComponent(tail as Object)
     case Nil => true
   }
 
@@ -499,10 +495,10 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
     match (this, other)
     case (Nil, Nil) => true
     case (Cons(lhead, ltail, _), Cons(rhead, rtail, _)) =>
-      assert validComponent(lhead);
-      assert validComponent(ltail);
-      assert other.validComponent(rhead);
-      assert other.validComponent(rtail);
+      assert ValidComponent(lhead);
+      assert ValidComponent(ltail);
+      assert other.ValidComponent(rhead);
+      assert other.ValidComponent(rtail);
       (lhead as Object).equals(rhead as Object) && ltail.equalsDList(rtail)
     case (_, _) => false
   }
@@ -530,7 +526,7 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
       case (Nil, Nil) => {}
       case (Cons(lhead, ltail, _), Cons(rhead, rtail, _)) => {
         assert rtail.valid();
-        assert validComponent(lhead);
+        assert ValidComponent(lhead);
         (lhead as Object).equalsSymmetric(rhead);
         ltail.equalsDListSymmetric(rtail);
       }
@@ -571,7 +567,7 @@ trait ImmutableList extends Object {
     ensures valid() ==>
       forall i | 0 <= i < |elements| :: 
         var e := elements[i];
-        validComponent(e)
+        ValidComponent(e)
 
   function size(): int
     requires valid()
@@ -605,8 +601,8 @@ trait ImmutableList extends Object {
     && forall i | 0 <= i < |elements| :: 
       var e := elements[i] as Object;
       var e' := other.elements[i];
-      assert validComponent(e);
-      assert other.validComponent(e');
+      assert ValidComponent(e);
+      assert other.ValidComponent(e');
       e.equals(e')
   }
 
@@ -642,10 +638,10 @@ datatype SingletonList<T extends Object> extends ImmutableList = SingletonList(v
     ensures valid() ==>
       forall i | 0 <= i < |elements| :: 
         var e := elements[i] as Object;
-        validComponent(e)
+        ValidComponent(e)
   {
     && elements == [value]
-    && validComponent(value)
+    && ValidComponent(value)
   }
 
   ghost function Repr(): set<Object> 
@@ -689,7 +685,7 @@ datatype SingletonList<T extends Object> extends ImmutableList = SingletonList(v
       if other.size() != 1 then
         false
       else
-        assert validComponent(value);
+        assert ValidComponent(value);
         (value as Object).equals(other.get(0))
   }
 
