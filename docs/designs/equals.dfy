@@ -32,7 +32,7 @@ trait Object {
     reads This()
 
   // The Repr() set restricted to heap objects.
-  ghost function Reads(): set<object> 
+  ghost function Reads(): set<object>
     reads This()
   {
     set o <- Repr() | o is ModifiableObject :: o as ModifiableObject
@@ -548,7 +548,6 @@ method DListTest() {
   assert a1.valid();
   var a2 := new Constructable?A(43);
   assert a2.valid();
-  
   var n: DList<A> := Nil;
   assert n.valid();
   var repr: set<Object> := {a1, n} + a1.Repr() + n.Repr();
@@ -713,5 +712,3 @@ datatype SingletonList<T extends Object> extends ImmutableList = SingletonList(v
     ensures obj is SingletonList<Object>
 }
 
-// TODO: function overloading in general
-//      design @MethodContract?
