@@ -56,6 +56,8 @@ trait Object {
     ensures this as Object == obj ==> equals(obj)
 
   // Symmetry
+  // Not included as a postcondition on equals
+  // because then it becomes challenging to prove termination.
   lemma equalsSymmetric(obj: Object)
     requires valid()
     requires obj.valid()
@@ -64,6 +66,17 @@ trait Object {
     ensures obj.equals(this)
 
   // (Will also need a lemma for transitivity)
+
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
 
   function getClass(): Class
 }
@@ -92,6 +105,8 @@ trait ModifiableObject extends Object, object {
       && this !in component.Repr()
       && component.valid()
   }
+
+  static function {:axiom} defaultHashCode(thiz: Object): int32
 }
 
 class Constructable?ModifiableObject extends ModifiableObject {
@@ -119,6 +134,21 @@ class Constructable?ModifiableObject extends ModifiableObject {
   {
     assert obj as Object == this;
   }
+
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+  {
+    defaultHashCode(this)
+  }
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
+  {}
 
   function getClass(): Class {
     objectKlass
@@ -184,6 +214,21 @@ datatype Class extends Object = Class(name: string, superclasses: seq<Class>, al
     klass()
   }
 
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+  {
+    0
+  }
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
+  {}
+
   predicate isAssignableFrom(cls: Class) {
     this == cls || this in cls.allSupertypes
   }
@@ -241,6 +286,21 @@ trait MyPair extends ModifiableObject, object {
     a.equalsSymmetric(other.a);
     b.equalsSymmetric(other.b);
   }
+
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+  {
+    0
+  }
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
+  {}
 }
 
 class Constructable?MyPair extends MyPair {
@@ -330,6 +390,23 @@ class Constructable?A extends A {
     classIdentity(obj);
   }
 
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+  {
+    0
+  }
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
+  {
+    classIdentity(obj);
+  }
+
   function getClass(): Class {
     klass
   }
@@ -373,9 +450,13 @@ class Constructable?B extends B {
     ensures this as Object == obj ==> equals(obj)
     decreases Repr()
   {
-    if !(obj is B) then
+    // TODO: !(obj is B) verifies here as well,
+    // but ideally it wouldn't, because it will fail as soon as
+    // any other class that extends B appears.
+    if !(obj.getClass() == B.klass) then
       false
     else
+      classIdentity(obj);
       var other: B := obj as B;
       f == other.f && g == other.g
   }
@@ -387,7 +468,24 @@ class Constructable?B extends B {
     decreases Repr()
     ensures obj.equals(this)
   {
-    assert obj is B;
+    classIdentity(obj);
+  }
+
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+  {
+    0
+  }
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
+  {
+    classIdentity(obj);
   }
 
   function getClass(): Class {
@@ -436,6 +534,21 @@ datatype DString extends Object = JS(elements: seq<char16>) {
     requires equals(other)
     decreases Repr()
     ensures other.equals(this)
+  {}
+
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+  {
+    0
+  }
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
   {}
 
   function getClass(): Class {
@@ -533,6 +646,21 @@ datatype DList<T extends Object> extends Object = Cons(head: T, tail: DList, gho
       case (_, _) => {}
     }
   }
+
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+  {
+    0
+  }
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
+  {}
 
   function getClass(): Class {
     klass
@@ -701,6 +829,21 @@ datatype SingletonList<T extends Object> extends ImmutableList = SingletonList(v
       equalsImmutableListSymmetric(other);
     }
   }
+
+  function hashCode(): int32
+    requires valid()
+    reads This(), Reads()
+    decreases Repr()
+  {
+    0
+  }
+    
+  lemma hashCodeConsistent(obj: Object)
+    requires valid()
+    requires obj.valid()
+    requires equals(obj)
+    ensures hashCode() == obj.hashCode()
+  {}
 
   function getClass(): Class
   {
