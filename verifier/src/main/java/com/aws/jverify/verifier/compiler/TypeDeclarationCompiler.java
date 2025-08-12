@@ -621,7 +621,7 @@ public class TypeDeclarationCompiler {
         var dummyToken = new Token(1, 1);
         IOrigin dummyOrigin = new TokenRangeOrigin(dummyToken, dummyToken);
         while(!missingContracts.isEmpty()) {
-            var classSymbol = missingContracts.stream().findFirst().get();
+            var classSymbol = missingContracts.iterator().next();
             missingContracts.remove(classSymbol);
             if (!createdContracts.add(classSymbol)) {
                 continue;
