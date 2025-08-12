@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static com.aws.jverify.testengine.JVerifyTestEngine.testMarkedSource;
@@ -15,7 +16,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
-
+    
     @Test
     public void verifyFibonacci() {
         var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();

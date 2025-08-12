@@ -538,13 +538,13 @@ public class TypeDeclarationCompiler {
                 var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
                 var postHeader = new ContractCompiler(compiler).
                         translateHeader((JCTree.JCBlock) sourceBody, header, allowFooter, true);
-                if (postHeader.size() != 1) {
-                    compiler.reportError(source, "pureMethodMultipleStatements");
-                    return null;
-                }
 
-                var statement = postHeader.getFirst();
                 if (shouldVerify) {
+                    if (postHeader.size() != 1) {
+                        compiler.reportError(source, "pureMethodMultipleStatements");
+                        return null;
+                    }
+                    var statement = postHeader.getFirst();
                     if (statement instanceof JCTree.JCReturn returnStatement) {
                         body = compiler.expressionCompiler.toExpr(returnStatement.expr);
                     } else {

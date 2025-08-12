@@ -19,6 +19,7 @@ class Arrays {
         }
         check(a[0]==0);
     }
+    
     static void nullablePointArrayOfSize10() {
         @Nullable Point [] a = new @Nullable Point[10];
         a[0]=new Point(1,2);
@@ -73,22 +74,22 @@ class Arrays {
         check(i==n);
 //      ^^^^^^^^^^^ Error: assertion might not hold
     }
-}
 
-class Point {
-    private int a;
-    private int b;
+    static class Point {
+        private int a;
+        private int b;
 
-    public Point(int a_, int b_) {
-        postcondition(this.a == a_);
-        postcondition(this.b == b_);
-        this.a = a_;
-        this.b = b_;
-    }
+        public Point(int a_, int b_) {
+            postcondition(this.a == a_);
+            postcondition(this.b == b_);
+            this.a = a_;
+            this.b = b_;
+        }
 
-    @Pure
-    public int getA() {
-        reads(this);
-        return a;
+        @Pure
+        public int getA() {
+            reads(this);
+            return a;
+        }
     }
 }

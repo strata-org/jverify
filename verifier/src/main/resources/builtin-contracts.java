@@ -4,16 +4,21 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 import java.math.BigInteger;
+import java.math.BigDecimal;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
-import static com.aws.jverify.JVerify.check;
+
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.function.Consumer;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.SequencedCollection;
 
 @Contract(Comparable.class)
@@ -26,8 +31,11 @@ class NumberContract {
 }
 
 @Contract(Collection.class)
-interface CollectionContract<E> {
-
+abstract class CollectionContract<E> {
+    @Pure
+    int size() {
+        throw new ContractException();
+    }
 }
 
 @Contract(value = List.class, immutable = true)
@@ -111,6 +119,7 @@ class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
 
+    @Pure
     public static Integer valueOf(int i) {
         postcondition((Integer b) -> b.intValue() == i);
         throw new ContractException();
@@ -131,6 +140,7 @@ class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
 
+    @Pure
     public static Long valueOf(long l) {
         postcondition((Long b) -> b.longValue() == l);
         throw new ContractException();
@@ -145,6 +155,7 @@ class LongContract {
 @Contract(Boolean.class)
 class BooleanContract {
 
+    @Pure
     public static Boolean valueOf(boolean b) {
         postcondition((Boolean boxed) -> boxed.booleanValue() == b);
         throw new ContractException();
@@ -180,11 +191,12 @@ class HelperForBigIntegerContract {
 
     @Erased
     @Pure
-     static boolean isValidString(String v) {
+    static boolean isValidString(String v) {
         return (v.length() == 0 ||
                 ((v.charAt(0) == '+' || v.charAt(0) == '-') && isAllDigits(v.substring(1))) ||
                 isAllDigits(v));
     }
+
     @Erased
     @Pure
     static @Unbounded int stringToInt(String v) {
@@ -283,6 +295,7 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+    @Pure
     static BigIntegerContract valueOf(long val) {
         postcondition((BigIntegerContract b) -> b.intValue == val);
         throw new ContractException();
@@ -294,4 +307,36 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+}
+
+@Contract
+abstract class ConsumerContract<T> implements Consumer<T> {
+}
+
+@Contract
+abstract class FunctionContract<T, R> implements Function<T, R> {
+}
+
+@Contract(Optional.class)
+abstract class OptionalContract<T> {
+}
+
+@Contract
+abstract class SetContract<E> implements Set<E> {
+}
+
+@Contract
+abstract class MapContract<K, V> implements Map<K, V> {
+}
+
+@Contract
+abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
+}
+
+@Contract(HashMap.class)
+abstract class HashMapContract<K, V> {
+}
+
+@Contract(BigDecimal.class)
+abstract class BigDecimalContract {
 }

@@ -57,10 +57,6 @@ public class ModifiableObjectCompiler {
 
     public NameSegment getNewClassType(JCTree.JCNewClass newClass) {
         var type = newClass.type;
-        if (type == null) {
-            // Workaround because we're still using the unlambda phase, which does not set newClass.type
-            type = newClass.clazz.type;
-        }
         var baseType = (UserDefinedType)compiler.translateType(type, compiler.toOrigin(newClass));
         var baseNameSegment = (NameSegment)baseType.getNamePath();
         var baseName = baseNameSegment.getName();

@@ -11,7 +11,7 @@ public class MethodOrLoopContract {
     /**
      * indicates the code is deterministic and does not modify the heap nor do IO
      */
-    boolean isPure;
+    public boolean isPure;
     List<AttributedExpression> preconditions;
     List<AttributedExpression> postconditions;
     List<AttributedExpression> invariants;

@@ -44,7 +44,7 @@ public class NameCompiler {
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
     private final PublishSubject<Symbol> subject = PublishSubject.create();
-    
+
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     
     public NameCompiler(ExternalContractCompiler contractCompiler) {
@@ -58,7 +58,7 @@ public class NameCompiler {
     }
     
     public void registerClass(Symbol.ClassSymbol classSymbol) {
-        classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
+        getCompiledName(classSymbol);
     }
 
     public String safeGetOriginalName(String name) {
@@ -112,13 +112,14 @@ public class NameCompiler {
     }
 
     private String getClassName(Symbol.ClassSymbol classSymbol) {
+        classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
         var symtab = Symtab.instance(this.contractCompiler.compiler.context);
         if (classSymbol.type == symtab.objectType) {
             return ModifiableObjectCompiler.REFERENCE_OBJECT_NAME;
         }
         var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
         if (newTarget != null) {
-            return uncachedGetCompiledName(newTarget);
+            return getCompiledName(newTarget);
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
         var hasEmptyDotName = classSymbol.isAnonymous();

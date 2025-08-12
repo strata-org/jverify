@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
+import com.aws.jverify.generated.Method;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.*;
 import com.sun.source.util.TaskEvent;
@@ -101,9 +102,8 @@ public class JavaFrontEnd {
          * PROCESS(3),
          * ATTR(4),
          * FLOW(5),
-         * SUBSTITUTE,
-         * UNLAMBDA(8),
-         * UNSUBSTITUTE
+         * Method references to lambdas,
+         * Lambda to local classes,
          * SUSPEND,
          * LOWER(9),
          * UNSUSPEND
@@ -171,6 +171,7 @@ public class JavaFrontEnd {
         // to not waste time with these traversals.
         // We could do the same here to save time in the future.
         for (Env<AttrContext> env : envs) {
+            env.tree = new MethodReferenceToLambdaCompiler(context).translate(env.tree);
             env.tree = new LambdaToAnonymousClassCompiler(env.toplevel, context).translate(env.tree);
         }
         return envs;

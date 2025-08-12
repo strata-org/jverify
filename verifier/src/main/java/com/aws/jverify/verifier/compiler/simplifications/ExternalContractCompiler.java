@@ -128,7 +128,15 @@ public class ExternalContractCompiler extends TreeScanner {
             }
             var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
-                var header = new BlockCompiler(compiler, methodSymbol).extractContract(methodDecl, true);
+                BlockCompiler blockCompiler = new BlockCompiler(compiler, methodSymbol);
+                var header = blockCompiler.extractContract(methodDecl, true);
+                var baseMethodDecl = (JCTree.JCMethodDecl) JVerifyIndex.instance(compiler.context).getTree(baseMethod);
+                if (baseMethodDecl != null) {
+                    var baseHeader= blockCompiler.extractContract(baseMethodDecl, true);
+                    if (baseHeader.isPure) {
+                        compiler.reportError(baseMethodDecl, "pureOnContractedMethod", baseMethod.name.toString());
+                    }
+                } 
                 externalContracts.put(baseMethod, header);
             } else {
                 // Check currently does not take into account overloading
