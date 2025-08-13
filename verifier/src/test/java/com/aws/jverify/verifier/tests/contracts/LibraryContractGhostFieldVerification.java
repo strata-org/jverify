@@ -24,19 +24,19 @@ class DummyBigIntegerContract {
     
     @Unbounded
     int value;
-    
+
+    // specifies a pure body using the contract class
     @Pure
     int intValue() {
         reads(this);
         //noinspection ConstantValue
         precondition(value >= -10 && value <= 10);
-        // try specifying a pure body using the contract class
         return value;
     }
 
+    // does not specify a pure body
     DummyBigIntegerContract add(DummyBigIntegerContract delta) {
         postcondition((DummyBigIntegerContract b) -> b.value == this.value + delta.value);
-        // try not specifying a pure body using the contract class
         throw new ContractException();
     }
 

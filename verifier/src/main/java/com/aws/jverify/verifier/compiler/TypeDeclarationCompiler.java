@@ -323,7 +323,7 @@ public class TypeDeclarationCompiler {
             remainingStatements = null;
         } else {
             remainingStatements = new ContractCompiler(compiler).
-                    extractContract(declToUse.body, contract, allowFooter, true, typeForWhichCurrentClassIsDefiningContract != null);
+                    extractContract(declToUse.body, contract, allowFooter);
             if (externalDecl == declToUse) {
                 remainingStatements = null;
             }

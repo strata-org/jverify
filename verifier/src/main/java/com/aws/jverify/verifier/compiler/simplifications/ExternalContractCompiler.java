@@ -147,7 +147,7 @@ public class ExternalContractCompiler extends TreeScanner {
         if (methodDecl.getBody() != null) {
             var allowFooter = isConstructor(methodDecl.sym);
             new ContractCompiler(compiler).
-                    extractContract(methodDecl.getBody(), contract, allowFooter, true, true);
+                    extractContract(methodDecl.getBody(), contract, allowFooter);
         }
 
         return contract;

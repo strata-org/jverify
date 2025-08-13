@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.Pure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
@@ -10,8 +9,6 @@ import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.*;
 import java.util.stream.Collectors;
-
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.*;
 
 public class BlockCompiler {
 
@@ -171,7 +168,7 @@ public class BlockCompiler {
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = new ContractCompiler(compiler).extractContract(body, header, false, true, false);
+        var postHeader = new ContractCompiler(compiler).extractContract(body, header, false);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 

@@ -22,29 +22,25 @@ public class ContractCompiler {
     
     public List<JCTree.JCStatement> extractContract(JCTree.JCStatement statement,
                                                     MethodOrLoopContract contract,
-                                                    boolean allowFooter,
-                                                    boolean reportErrors,
-                                                    boolean libraryContract) {
+                                                    boolean allowFooter) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return extractContract(statements, contract, allowFooter, reportErrors, libraryContract);
+        return extractContract(statements, contract, allowFooter);
     }
     
     public List<JCTree.JCStatement> extractContract(List<JCTree.JCStatement> statements,
                                                     MethodOrLoopContract contract,
-                                                    boolean allowFooter,
-                                                    boolean reportErrors,
-                                                    boolean libraryContract) {
+                                                    boolean allowFooter) {
         var superOrThis = getSuperOrThis(statements);
         
         var remainingStatements = statements;
         if (superOrThis != null) {
             remainingStatements = remainingStatements.subList(1, statements.size());
         }
-        remainingStatements = addHeaderContracts(remainingStatements, contract, reportErrors);
+        remainingStatements = addHeaderContracts(remainingStatements, contract);
         if (allowFooter) {
-            remainingStatements = addFooterContracts(remainingStatements, contract, reportErrors);
+            remainingStatements = addFooterContracts(remainingStatements, contract);
         }
         var result = new ArrayList<>(remainingStatements);
         if (superOrThis != null) {
@@ -84,13 +80,12 @@ public class ContractCompiler {
     }
 
     private List<JCTree.JCStatement> addHeaderContracts(List<JCTree.JCStatement> statements,
-                                                        MethodOrLoopContract contract,
-                                                        boolean reportErrors) {
+                                                        MethodOrLoopContract contract) {
         int headerContracts;
         int i;
         for (i = 0; i < statements.size(); i++) {
             var statement = statements.get(i);
-            boolean foundHeader = handleStatement(statement, contract, reportErrors);
+            boolean foundHeader = handleStatement(statement, contract);
             if (!foundHeader) {
                 break;
             }
@@ -100,12 +95,11 @@ public class ContractCompiler {
     }
 
     private List<JCTree.JCStatement> addFooterContracts(List<JCTree.JCStatement> statements, 
-                                                        MethodOrLoopContract contract,
-                                                        boolean reportErrors) {
+                                                        MethodOrLoopContract contract) {
         int i;
         for (i = statements.size() - 1; i > 0; i--) {
             var statement = statements.get(i);
-            boolean foundHeader = handleStatement(statement, contract, reportErrors);
+            boolean foundHeader = handleStatement(statement, contract);
             if (!foundHeader) {
                 break;
             }
@@ -114,7 +108,7 @@ public class ContractCompiler {
         return statements.subList(0, footerContracts);
     }
 
-    private boolean handleStatement(JCTree.JCStatement statement, MethodOrLoopContract header, boolean reportErrors) {
+    private boolean handleStatement(JCTree.JCStatement statement, MethodOrLoopContract header) {
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
@@ -176,9 +170,7 @@ public class ContractCompiler {
                 header.modifies.add(new FrameExpression(origin, expr, null));
             }
             default -> {
-                if (reportErrors) {
-                    compiler.reportError(invocation, "notSupported", methodName);
-                }
+                compiler.reportError(invocation, "notSupported", methodName);
                 return false;
             }
         }
