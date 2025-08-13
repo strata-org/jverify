@@ -7,7 +7,10 @@ import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.List;
 
 public class JVerifyGhostExpressionCompiler {
     final ExpressionCompiler expressionCompiler;
@@ -109,6 +112,27 @@ public class JVerifyGhostExpressionCompiler {
             }
             case "contractOf" -> {
                 return expressionCompiler.toExpr(args.getFirst());
+            }
+            case "all", "map" -> {
+                if (args.size() != 1) {
+                    throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
+                }
+                if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
+                    compiler.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+                    return null;
+                }
+                var parameter = lambda.params.getFirst();
+                var paramName = parameter.getName().toString();
+                var type = compiler.translateType(parameter.type, compiler.toOrigin(parameter), null);
+                var boundVar = new BoundVar(origin, new Name(origin, paramName), type, false);
+                var body = compiler.expressionCompiler.toExpr(lambda.getBody());
+                if ("all".equals(methodName)) {
+                    return new SetComprehension(origin, List.of(boundVar), body, new IdentifierExpr(origin, paramName), null, true);
+                } else {
+                    var source = compiler.expressionCompiler.toExpr(receiver);
+                    var range = new BinaryExpr(origin, BinaryExprOpcode.In, new IdentifierExpr(origin, paramName), source);
+                    return new SetComprehension(origin, List.of(boundVar), range, body, null, true);
+                }
             }
         }
 

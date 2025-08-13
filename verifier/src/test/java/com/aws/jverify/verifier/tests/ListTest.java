@@ -235,10 +235,18 @@ abstract class MapContract<K, V> implements Map<K, V> {
     }
 
     @Override
+    @Pure
     public Set<Entry<K, V>> entrySet() {
-        // TODO: type mismatch, needs to be:
-        // (set e: Entry <- r.elements :: (e.getKey(), e.getValue())) == elements.Items
-        postcondition((Set<Entry<K, V>> r) -> JVerify.<SetContract<K>>contractOf(r).elements == elements.entries());
+        postcondition((Set<Entry<K, V>> r) ->
+                JVerify.<SetContract<K>>contractOf(r).elements ==
+                        JVerify.Set.all((K k) -> elements.contains(k))
+                                   .map((K k) -> Map.<K, V>entry(k, elements.get(k))));
+        throw new ContractException();
+    }
+
+    @Pure
+    public static <K, V> Entry<K, V> entry(K key, V value) {
+        postcondition((Entry<K, V> r) -> r.getKey() == key && r.getValue() == value);
         throw new ContractException();
     }
 }

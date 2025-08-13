@@ -261,9 +261,11 @@ public class JVerify {
          */
         @Unbounded int size();
 
-        static <T, R> Set<R> all(Predicate<T> filter, Function<T, R> mapping) {
+        static <T> Set<T> all(Predicate<T> filter) {
             throw new ContractException();
         }
+
+        <R> Set<R> map(Function<T, R> mapping);
     }
 
     public interface Map<K, V> {
@@ -282,30 +284,6 @@ public class JVerify {
          * Returns the number of key/value pairs in this map.
          */
         @Unbounded int size();
-
-        Set<Tuple2<K, V>> entries();
-    }
-
-    public interface Tuple2<T0, T1> {
-
-        static <T0, T1> Tuple2<T0, T1> of(T0 x0, T1 x1) {
-            return new Tuple2<T0, T1>() {
-
-                @Override
-                public T0 get0() {
-                    return x0;
-                }
-
-                @Override
-                public T1 get1() {
-                    return x1;
-                }
-            };
-        }
-
-        T0 get0();
-
-        T1 get1();
     }
 
     public static class VerificationMethodExecutedException extends UnsupportedOperationException {
