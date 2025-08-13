@@ -51,7 +51,7 @@ Summary table:
 
 JVerify guarantees that a `@Pure` method is deterministic, meaning that given the same  it returns the same output. To use this property however, we need to know what the input is. In a language with references like Java, it's not enough to know what the method arguments are. 
 
-JVerify requires that a method marked with `@Pure` is explicit about which objects it reads non-final fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple `object` arguments. Example:
+JVerify requires that a method marked with `@Pure` is explicit about which objects it reads non-final fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple `Object` arguments. Example:
 
 ```java
 class Engine {
