@@ -7,7 +7,7 @@ import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 2, useBuiltinContracts = true)
 public class ListTest {
 
     void verifying() {

@@ -15,7 +15,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
-    
+
     @Test
     public void verifyFibonacci() {
         var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
