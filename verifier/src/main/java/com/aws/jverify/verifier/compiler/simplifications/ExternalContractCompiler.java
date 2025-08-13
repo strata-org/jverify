@@ -1,11 +1,9 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.Pure;
+import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
-import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.code.Symbol;
@@ -128,7 +126,7 @@ public class ExternalContractCompiler extends TreeScanner {
             }
             var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
-                var header = new BlockCompiler(compiler, methodSymbol).extractContract(methodDecl, true);
+                var header = extractContract(methodDecl);
                 externalContracts.put(baseMethod, header);
             } else {
                 // Check currently does not take into account overloading
@@ -142,6 +140,20 @@ public class ExternalContractCompiler extends TreeScanner {
         return new ExternalTypeContract(externalContracts, ghostFields);
     }
 
+    private MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl) {
+        var methodAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(methodDecl.getModifiers());
+
+        var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
+        var contract = new MethodOrLoopContract(methodDecl, isPure);
+        if (methodDecl.getBody() != null) {
+            var allowFooter = isConstructor(methodDecl.sym);
+            new ContractCompiler(compiler).
+                    extractContract(methodDecl.getBody(), contract, allowFooter, true, true);
+        }
+
+        return contract;
+    }
+    
     private String methodToString(JCTree tree) {
         if (tree instanceof JCTree.JCMethodDecl methodDecl){
             if (isConstructor(methodDecl.sym)) {

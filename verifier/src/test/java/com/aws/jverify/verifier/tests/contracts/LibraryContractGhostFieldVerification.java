@@ -10,8 +10,8 @@ import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 11, dafnyErrors = 0)
-public class ExternalContractGhostField {
+@JVerifyTest(dafnyVerified = 9, dafnyErrors = 0)
+public class LibraryContractGhostFieldVerification {
     static void test(DummyBigIntegerContract v) {
         precondition(v.value == 1);
         var b = v.add(v);
@@ -30,15 +30,15 @@ class DummyBigIntegerContract {
         reads(this);
         //noinspection ConstantValue
         precondition(value >= -10 && value <= 10);
-        postcondition((int r) -> r == value);
-        throw new ContractException();
+        // try specifying a pure body using the contract class
+        return value;
     }
 
     DummyBigIntegerContract add(DummyBigIntegerContract delta) {
         postcondition((DummyBigIntegerContract b) -> b.value == this.value + delta.value);
+        // try not specifying a pure body using the contract class
         throw new ContractException();
     }
-
 
     // Test static pure bodyless method
     @Pure

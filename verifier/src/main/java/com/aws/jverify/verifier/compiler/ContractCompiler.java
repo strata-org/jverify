@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.ContractException;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.tree.JCTree;
@@ -18,20 +19,23 @@ public class ContractCompiler {
         this.compiler = compiler;
     }
 
-    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, 
+    
+    public List<JCTree.JCStatement> extractContract(JCTree.JCStatement statement,
                                                     MethodOrLoopContract contract,
                                                     boolean allowFooter,
-                                                    boolean reportErrors) {
+                                                    boolean reportErrors,
+                                                    boolean libraryContract) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return translateHeader(statements, contract, allowFooter, reportErrors);
+        return extractContract(statements, contract, allowFooter, reportErrors, libraryContract);
     }
     
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements,
+    public List<JCTree.JCStatement> extractContract(List<JCTree.JCStatement> statements,
                                                     MethodOrLoopContract contract,
                                                     boolean allowFooter,
-                                                    boolean reportErrors) {
+                                                    boolean reportErrors,
+                                                    boolean libraryContract) {
         var superOrThis = getSuperOrThis(statements);
         
         var remainingStatements = statements;
@@ -45,6 +49,22 @@ public class ContractCompiler {
         var result = new ArrayList<>(remainingStatements);
         if (superOrThis != null) {
             result.addFirst(superOrThis);
+        }
+
+        if (contract.isPure) {
+            if (result.size() != 1) {
+                compiler.reportError(contract.treeOrigin, "pureMethodMultipleStatements");
+            } else {
+                var statement = result.getFirst();
+                if (statement instanceof JCTree.JCReturn returnStatement) {
+                    contract.pureBody = compiler.expressionCompiler.toExpr(returnStatement.expr);
+                } else {
+                    if (!((libraryContract && statement instanceof JCTree.JCThrow throwStatement &&
+                            throwStatement.expr.type.tsym.getQualifiedName().contentEquals(ContractException.class.getCanonicalName())))) {
+                        compiler.reportError(contract.treeOrigin, "pureMethodNeedsReturnStatement");
+                    }
+                }
+            }
         }
         return result;
     }

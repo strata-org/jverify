@@ -43,16 +43,7 @@ public class TypeDeclarationCompiler {
 
             Name name = null;
             var contractAnnotation = annotationsByName.get(Contract.class.getName());
-            if (contractAnnotation == null) {
-                for (var member : classDecl.getMembers()) {
-                    if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
-                        continue;
-                    }
-                    // Don't report errors when extracting this contract here,
-                    // since the actual translation of the method will report them.
-                    var header = new BlockCompiler(compiler, methodDecl.sym).extractContract(methodDecl, false);
-                }
-            } else {
+            if (contractAnnotation != null) {
                 var contractee = compiler.externalContractCompiler.getContractTarget(classDecl, contractAnnotation);
                 if (contractee != null) {
 
@@ -391,7 +382,7 @@ public class TypeDeclarationCompiler {
                 }
                 var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
                 List<JCTree.JCStatement> postHeader = new ContractCompiler(compiler).
-                        translateHeader(((JCTree.JCBlock) sourceBody).stats, header, allowFooter, true);
+                        extractContract(((JCTree.JCBlock) sourceBody).stats, header, allowFooter, true, typeForWhichCurrentClassIsDefiningContract != null);
                 if (shouldVerify) {
                     bodyStatements = blockCompiler.translateStatements(postHeader);
                 }
@@ -466,33 +457,34 @@ public class TypeDeclarationCompiler {
         var origin = compiler.declToOrigin(source, name);
         var isStatic = JavaToDafnyCompiler.isStatic(modifiers);
         List<Formal> ins = getIns(methodSymbol, shouldVerify, bodyOrigin);
-        Expression body = null;
-        MethodOrLoopContract header;
+        MethodOrLoopContract contract;
         var returnType = compiler.translateMethodSignatureType(methodSymbol.type.getReturnType(), bodyOrigin, shouldVerify);
         if (returnType == null) {
             compiler.reportError(source, "pureMethodsNeedsReturnType");
             return null;
         }
         if (sourceBody instanceof JCTree.JCExpression) {
-            if (shouldVerify) {
-                body = compiler.expressionCompiler.toExpr((JCTree.JCExpression) sourceBody);
-            }
-
-            header = externalContract;
+            
+            contract = externalContract;
             if (contractOverride != null) {
-                header = contractOverride;
+                contract = contractOverride;
             }
-            if (header == null) {
-                header = new MethodOrLoopContract(source, true);
+            if (contract == null) {
+                contract = new MethodOrLoopContract(source, true);
             }
+            var body = compiler.expressionCompiler.toExpr((JCTree.JCExpression) sourceBody);
+            if (contract.pureBody != null) {
+                throw new RuntimeException("not yet implemented");
+            }
+            contract.pureBody = body;
         } else {
             if (sourceBody == null) {
-                header = externalContract;
+                contract = externalContract;
                 if (contractOverride != null) {
-                    header = contractOverride;
+                    contract = contractOverride;
                 }
-                if (header == null) {
-                    header = new MethodOrLoopContract(source, false);
+                if (contract == null) {
+                    contract = new MethodOrLoopContract(source, true);
                     compiler.reportError(source, "bodylessMethodWithoutContract", methodSymbol.name.toString());
                 }
             } else {
@@ -500,36 +492,22 @@ public class TypeDeclarationCompiler {
                     compiler.reportError(externalContract.treeOrigin, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                 }
                 if (contractOverride != null) {
-                    header = contractOverride;
+                    contract = contractOverride;
                 } else {
-                    header = new MethodOrLoopContract(source, true);
+                    contract = new MethodOrLoopContract(source, true);
                 }
                 var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
-                var postHeader = new ContractCompiler(compiler).
-                        translateHeader((JCTree.JCBlock) sourceBody, header, allowFooter, true);
-                if (postHeader.size() != 1) {
-                    compiler.reportError(source, "pureMethodMultipleStatements");
-                    return null;
-                }
-
-                var statement = postHeader.getFirst();
-                if (shouldVerify) {
-                    if (statement instanceof JCTree.JCReturn returnStatement) {
-                        body = compiler.expressionCompiler.toExpr(returnStatement.expr);
-                    } else {
-                        compiler.reportError(source, "pureMethodNeedsReturnStatement");
-                        return null;
-                    }
-                }
+                var _ = new ContractCompiler(compiler).
+                        extractContract((JCTree.JCBlock) sourceBody, contract, allowFooter, true, typeForWhichCurrentClassIsDefiningContract != null);
             }
         }
-        applyInvariants(sourceBody, modifiers, methodSymbol, header);
+        applyInvariants(sourceBody, modifiers, methodSymbol, contract);
 
         var dafnyTypeParameters = translateTypeParameters(typeParameters);
         return new Function(origin, name, null, false, null, dafnyTypeParameters,
-                ins, header.preconditions, header.postconditions, header.getReads(),
-                header.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
-                returnType, body, null, null);
+                ins, contract.preconditions, contract.postconditions, contract.getReads(),
+                contract.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
+                returnType, contract.pureBody, null, null);
     }
 
     private void applyInvariants(JCTree source, JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopContract header) {

@@ -171,7 +171,7 @@ public class BlockCompiler {
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = new ContractCompiler(compiler).translateHeader(body, header, false, true);
+        var postHeader = new ContractCompiler(compiler).extractContract(body, header, false, true, false);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -388,19 +388,5 @@ public class BlockCompiler {
         }
         var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
-    }
-
-    public MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl, boolean reportErrors) {
-        var methodAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(methodDecl.getModifiers());
-
-        var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
-        var header = new MethodOrLoopContract(methodDecl, isPure);
-        if (methodDecl.getBody() != null) {
-            var allowFooter = isConstructor(methodDecl.sym);
-            new ContractCompiler(compiler).
-                    translateHeader(methodDecl.getBody(), header, allowFooter, reportErrors);
-        }
-
-        return header;
     }
 }
