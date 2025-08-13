@@ -99,33 +99,40 @@ abstract class ListContract<E> implements List<E> {
     }
 }
 
-@Contract
-class ArrayListContract<E> extends ArrayList<E> {
+@Contract(ArrayList.class)
+abstract class ArrayListContract<E> extends ListContract<E> {
+    
     public ArrayListContract(Collection<? extends E> c) {
-        super(c);
     }
 
     @Pure
     @Override
     public boolean isEmpty() {
+        postcondition((boolean r) -> r == (elements.size() == 0));
         throw new ContractException();
     }
 
     @Pure
     @Override
     public E get(int index) {
+        precondition(0 <= index && index < size());
+        postcondition((E e) -> e == elements.get(index));
         throw new ContractException();
     }
 
     @Pure
     @Override
     public int size() {
+        postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
 
     @Pure
     @Override
     public boolean contains(Object o) {
+        postcondition((boolean r) ->
+                r == JVerify.exists((int i) ->
+                        0 <= i && i < elements.size() && elements.get(i).equals(o)));
         throw new ContractException();
     }
 }
