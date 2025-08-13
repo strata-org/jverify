@@ -389,13 +389,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                     .filter(index -> JVERIFY_TEST_ANNOTATION_PATTERN.matcher(allLines[index]).matches())
                     .findFirst();
             if (maybeAnnotationIndex.isPresent()) {
-                allLines[maybeAnnotationIndex.getAsInt()] = "@JVerifyTest(exitCode = " +
-                        verificationResults.getExitCode() +
-                        ", dafnyVerified = " +
-                        verificationResults.getDafnyVerifiedCount() +
-                        ", dafnyErrors = " +
-                        verificationResults.getDafnyErrorCount() +
-                        ")";
+                int annotationIndex = maybeAnnotationIndex.getAsInt();
+                var newLine = allLines[annotationIndex].
+                        replaceFirst("exitCode = \\d", "exitCode = " + verificationResults.getExitCode()).
+                        replaceFirst("dafnyVerified = \\d+", "dafnyVerified = " + verificationResults.getDafnyVerifiedCount()).
+                        replaceFirst("dafnyErrors = \\d+", "dafnyErrors = " + verificationResults.getDafnyErrorCount());
+                allLines[annotationIndex] = newLine;
             }
 
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(sourceFile.toUri().getPath()))) {
