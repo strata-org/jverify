@@ -100,13 +100,12 @@ public class ImmutableTypeCompiler {
             }
         }
 
-        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
-
         compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
+        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }

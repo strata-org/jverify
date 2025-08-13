@@ -104,6 +104,30 @@ class ArrayListContract<E> extends ArrayList<E> {
     public ArrayListContract(Collection<? extends E> c) {
         super(c);
     }
+
+    @Pure
+    @Override
+    public boolean isEmpty() {
+        throw new ContractException();
+    }
+
+    @Pure
+    @Override
+    public E get(int index) {
+        throw new ContractException();
+    }
+
+    @Pure
+    @Override
+    public int size() {
+        throw new ContractException();
+    }
+
+    @Pure
+    @Override
+    public boolean contains(Object o) {
+        throw new ContractException();
+    }
 }
 
 @Contract(SequencedCollection.class)
