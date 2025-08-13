@@ -32,10 +32,10 @@ public class LibraryContractGhostFieldErrors {
 
         @Pure
         DummyBigIntegerContract add(DummyBigIntegerContract delta) {
-//                              ^ error: pure method statement should be a return
             postcondition((DummyBigIntegerContract b) -> b.value == this.value + delta.value);
             // try not specifying a pure body using the contract class
             throw new RuntimeException();
+//          ^ error: pure method statement should be a return
         }
     }
 }
