@@ -1,9 +1,9 @@
 # Immutable types
 
 JVerify divides all types into two categories: mutable and immutable. Compared to immutable types, mutable ones have these properties:
-- Can have non-final fields
-- Can use reference equality `==`
-- Can _not_ be instantiated in a pure context
+- They can have non-final fields
+- They can use reference equality `==`
+- They _cannot_ be instantiated in a pure context
 
 Immutable types are more reusable than mutable ones, since they can be instantiated in pure contexts. Mutable types are useful when they are used to improve performance, which their mutable fields and reference equality can enable.
 
