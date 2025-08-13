@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.tests.expressions.lambdas;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -11,7 +10,8 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 40, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 54, dafnyErrors = 3, verifyPrintedDafny = true)
+
 public class Lambdas {
 
     // TODO: bring back once we support static fields
@@ -62,9 +62,11 @@ public class Lambdas {
     }
 
     void methodReferences() {
-//        doSomethingTwice(this::add);
-//        doSomethingTwice(Lambdas::staticAdd);
-//        makeSomeClass(SomeClass::new);
+        doSomethingTwice(this::add);
+        doSomethingTwice(Lambdas::staticAdd);
+        doSomethingTwiceWithLambdas(Lambdas::add);
+        makeSomeClass(SomeClass::new);
+        makeSomeInnerClass(SomeClass.SomeInnerClass::new);
     }
 
     void blockLocals() {
@@ -100,6 +102,11 @@ public class Lambdas {
         var y = doer.doSomething(1, 2);
         var z = doer.doSomething(2, y);
     }
+    @Verify(false)
+    void doSomethingTwiceWithLambdas(SomethingDoerWithLambdas doer) {
+        var y = doer.doSomething(this, 1, 2);
+        var z = doer.doSomething(this, 2, y);
+    }
     
     @Verify(false)
     void doSomethingWithSpecTwice(SomethingDoerWithSpec doer) {
@@ -121,11 +128,32 @@ public class Lambdas {
     void makeSomeClass(SomeClassMaker maker) {
         var sc = maker.makeSomething();
     }
+    @Verify(false)
+    void makeSomeInnerClass(SomeInnerClassMaker maker) {
+        var sc = maker.makeSomething();
+    }
 }
 
 class SomeClass {
     public SomeClass() {
 
+    }
+    
+    public static class SomeInnerClass {
+        public SomeInnerClass() {
+        }
+    }
+}
+
+interface SomeInnerClassMaker {
+    SomeClass.SomeInnerClass makeSomething();
+
+    @Contract
+    class SomeInnerClassMakerContract implements SomeInnerClassMaker {
+        @Override
+        public SomeClass.SomeInnerClass makeSomething() {
+            throw new ContractException();
+        }
     }
 }
 
@@ -136,6 +164,19 @@ interface SomeClassMaker {
     class SomeClassMakerContract implements SomeClassMaker {
         @Override
         public SomeClass makeSomething() {
+            throw new ContractException();
+        }
+    }
+}
+
+interface SomethingDoerWithLambdas {
+    int doSomething(Lambdas lambdas, int x, int y);
+
+    @Contract
+    class SomethingDoerWithLambdasContract implements SomethingDoerWithLambdas {
+
+        @Override
+        public int doSomething(Lambdas lambdas, int x, int y) {
             throw new ContractException();
         }
     }

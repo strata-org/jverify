@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
@@ -81,7 +82,6 @@ public class TypeDeclarationCompiler {
                     // Don't report errors when extracting this contract here,
                     // since the actual translation of the method will report them.
                     var header = new BlockCompiler(compiler, methodDecl.sym).extractContract(methodDecl, false);
-                    compiler.lambdaCompiler.methodContracts.put(methodDecl.sym, header);
                 }
             } else {
                 var contractee = compiler.externalContractCompiler.getContractTarget(classDecl, contractAnnotation);
@@ -223,7 +223,7 @@ public class TypeDeclarationCompiler {
 
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
-            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+            javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParameters = translateTypeParameters(javaTypeParams);
 
@@ -640,15 +640,23 @@ public class TypeDeclarationCompiler {
         var dummyToken = new Token(1, 1);
         IOrigin dummyOrigin = new TokenRangeOrigin(dummyToken, dummyToken);
         while(!missingContracts.isEmpty()) {
-            var classSymbol = missingContracts.stream().findFirst().get();
+            // Because inheritance can mean that adding missing contracts introduces new missing contracts
+            // We need to loop
+            
+            var classSymbol = missingContracts.iterator().next();
             missingContracts.remove(classSymbol);
             if (!createdContracts.add(classSymbol)) {
+                continue;
+            }
+            String compiledName = compiler.nameCompiler.getCompiledName(classSymbol);
+            if (compiledName.isEmpty()) {
+                // Defensive programming. Some types like intersection types have no name, although they should not occur here
                 continue;
             }
             List<TypeParameter> typeParameters = translateTypeParameters(dummyOrigin, classSymbol.getTypeParameters());
             TraitDecl trait = getTraitDecl(
                     dummyOrigin,
-                    new Name(dummyOrigin, compiler.nameCompiler.getCompiledName(classSymbol)),
+                    new Name(dummyOrigin, compiledName),
                     classSymbol,
                     typeParameters, List.of());
 

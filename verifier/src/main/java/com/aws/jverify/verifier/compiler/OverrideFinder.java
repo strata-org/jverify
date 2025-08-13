@@ -11,15 +11,18 @@ import java.util.Set;
 
 public class OverrideFinder 
 {
-    public static Symbol.MethodSymbol findOverriddenMethod(Symbol.MethodSymbol method, Types types) {
-        Symbol.ClassSymbol owner = (Symbol.ClassSymbol) method.owner;
+    public static Symbol.MethodSymbol findOverriddenMethod(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
+        Symbol.MethodSymbol candidate = getCandidateForType(contractee, method, types);
+        if (candidate != null) {
+            return candidate;
+        }
 
-        Symbol.MethodSymbol result = findInSuperClasses(method, owner, types);
+        Symbol.MethodSymbol result = findInSuperClasses(method, contractee, types);
         if (result != null) {
             return result;
         }
 
-        return findInInterfaces(method, owner, types);
+        return findInInterfaces(method, contractee, types);
     }
 
     private static Symbol.MethodSymbol findInSuperClasses(Symbol.MethodSymbol method, Symbol.ClassSymbol owner, Types types) {
@@ -27,12 +30,9 @@ public class OverrideFinder
 
         while (currentType != null && currentType.tsym instanceof Symbol.ClassSymbol currentClass) {
 
-            for (Symbol member : currentClass.members().getSymbolsByName(method.name)) {
-                if (member instanceof Symbol.MethodSymbol candidate) {
-                    if (method.overrides(candidate, owner, types, true)) {
-                        return candidate;
-                    }
-                }
+            Symbol.MethodSymbol candidate = getCandidateForType(currentClass, method, types);
+            if (candidate != null) {
+                return candidate;
             }
 
             currentType = currentClass.getSuperclass();
@@ -46,13 +46,10 @@ public class OverrideFinder
             if (!(interfaceType.tsym instanceof Symbol.ClassSymbol interfaceClass)) {
                 continue;
             }
-            
-            for (Symbol member : interfaceClass.members().getSymbolsByName(method.name)) {
-                if (member instanceof Symbol.MethodSymbol candidate) {
-                    if (method.overrides(candidate, owner, types, true)) {
-                        return candidate;
-                    }
-                }
+
+            Symbol.MethodSymbol candidate = getCandidateForType(interfaceClass, method, types);
+            if (candidate != null) {
+                return candidate;
             }
         }
 
@@ -77,5 +74,16 @@ public class OverrideFinder
 
             collectInterfaces(clazz.getSuperclass(), result, visited, types);
         }
+    }
+
+    private static Symbol.MethodSymbol getCandidateForType(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
+        for (Symbol member : contractee.members().getSymbolsByName(method.name)) {
+            if (member instanceof Symbol.MethodSymbol candidate) {
+                if (types.isSubSignature(types.erasure(member.type), types.erasure(method.type))) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 }
