@@ -25,7 +25,7 @@ In Java an important type is `java.lang.Object`. JVerify distinguishes between t
 
 Records, immutable interfaces and type parameters always inherit from `Object`. Classes and mutable interfaces always inherit from `@Modifiable Object`.
 
-Only `@Modifiable Object` can be instantiated directly, so `new Object` is always interpreted as `new @Modifiable Object`.
+`Object` cannot be instantiated directly, so `new Object` is always interpreted as `new @Modifiable Object`.
 
 Here is an example showing the rules for Object types:
 
