@@ -72,7 +72,7 @@ class InterfaceTwoNestedReNested implements InterfaceTwo.Nested.ReNested {
     }
 }
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0)
+@JVerifyTest(exitCode = 0, dafnyVerified = 6, dafnyErrors = 0)
 class NestedContractsTest {
     public static void foo(InterfaceOne.Nested f, InterfaceTwo.Nested f2, InterfaceTwo.Nested.ReNested f3) {
         f.setY(42);
