@@ -70,6 +70,9 @@ class MapTest {
         check(s.size() == 2);
         check(s.containsKey("three"));
 
+        var entrySet = s.entrySet();
+        check(entrySet.size() == 2);
+
         var s2 = Map.of();
         check(s2.isEmpty());
     }
@@ -140,26 +143,6 @@ abstract class SetContract<E> implements Set<E> {
     }
 }
 
-
-//class HelperForMapContract {
-//
-//    static <K, V> boolean matchingKeyExists(JVerify.Map<Object, V> map, Object o) {
-//        postcondition((boolean r) ->
-//                r == JVerify.exists((K other) ->
-//                        map.contains(other) && other.equals(o)));
-//    }
-//
-//    static <K, V> K matchingKey(JVerify.Map<Object, V> map, Object o) {
-//        precondition(matchingKeyExists(map, o));
-//        postcondition((K other) ->
-//                map.contains(other) && other.equals(o));
-//    }
-//}
-//
-//interface HelperForMap<K, V> {
-//    boolean matchingKeyExists(JVerify.Map<Object, V> map, Object o);
-//    K matchingKey(JVerify.Map<Object, V> map, Object o);
-//}
 
 @Contract(value = Map.class, immutable = true)
 abstract class MapContract<K, V> implements Map<K, V> {
@@ -238,6 +221,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
     @Pure
     public Set<Entry<K, V>> entrySet() {
         postcondition((Set<Entry<K, V>> r) ->
+                size() == r.size() &&
                 JVerify.<SetContract<K>>contractOf(r).elements ==
                         JVerify.Set.all((K k) -> elements.contains(k))
                                    .map((K k) -> Map.<K, V>entry(k, elements.get(k))));

@@ -252,6 +252,13 @@ public class JVerify {
 
     public interface Set<T> {
         /**
+         * Returns the set of all {@code T} values that satisfy the given predicate.
+         */
+        static <T> Set<T> all(Predicate<T> filter) {
+            throw new ContractException();
+        }
+
+        /**
          * Returns {@code true} if this set contains the specified element.
          */
         boolean contains(T element);
@@ -261,10 +268,9 @@ public class JVerify {
          */
         @Unbounded int size();
 
-        static <T> Set<T> all(Predicate<T> filter) {
-            throw new ContractException();
-        }
-
+        /**
+         * Returns the set found by applying the given mapping to every element.
+         */
         <R> Set<R> map(Function<T, R> mapping);
     }
 

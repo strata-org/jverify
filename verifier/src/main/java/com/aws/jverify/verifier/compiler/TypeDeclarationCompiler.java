@@ -206,8 +206,7 @@ public class TypeDeclarationCompiler {
                 })
                 .collect(Collectors.<Type>toList());
 
-        if (definingSymbol == symtab.objectType.tsym || definingSymbol == symtab.recordType.tsym) {
-            superTraits = new ArrayList<>();
+        if (superTraits.isEmpty()) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
 
