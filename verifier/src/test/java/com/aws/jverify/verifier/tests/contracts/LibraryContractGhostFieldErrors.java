@@ -10,7 +10,7 @@ import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0)
+@JVerifyTest(exitCode = 2)
 public class LibraryContractGhostFieldErrors {
 
     @Contract(BigInteger.class)

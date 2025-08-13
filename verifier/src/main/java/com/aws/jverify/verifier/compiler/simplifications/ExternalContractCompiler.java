@@ -30,7 +30,7 @@ public class ExternalContractCompiler extends TreeScanner {
     }
     
     public record ExternalTypeContract(
-            Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
+            Map<Symbol.MethodSymbol, JCTree.JCMethodDecl> methodContracts,
             List<JCTree.JCVariableDecl> ghostFields) { }
 
 
@@ -109,7 +109,7 @@ public class ExternalContractCompiler extends TreeScanner {
     }
 
     private ExternalTypeContract getExternalTypeContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-        Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
+        Map<Symbol.MethodSymbol, JCTree.JCMethodDecl> externalContracts = new HashMap<>();
         List<JCTree.JCVariableDecl> ghostFields = new ArrayList<>();
         for(var member : classDecl.getMembers()) {
 
@@ -126,8 +126,7 @@ public class ExternalContractCompiler extends TreeScanner {
             }
             var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
-                var header = extractContract(methodDecl);
-                externalContracts.put(baseMethod, header);
+                externalContracts.put(baseMethod, methodDecl);
             } else {
                 // Check currently does not take into account overloading
                 // But this only makes it not detect some unused methods.
