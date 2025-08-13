@@ -108,7 +108,7 @@ public class ContractCompiler {
         return statements.subList(0, footerContracts);
     }
 
-    private boolean handleStatement(JCTree.JCStatement statement, MethodOrLoopContract header) {
+    private boolean handleStatement(JCTree.JCStatement statement, MethodOrLoopContract contract) {
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
@@ -127,27 +127,27 @@ public class ContractCompiler {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A precondition call may have only one argument");
                 }
-                header.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
             }
             case "postcondition" -> {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A postcondition call may have only one argument");
                 }
-                handlePostcondition(header, invocation.getArguments().getFirst());
+                handlePostcondition(contract, invocation.getArguments().getFirst());
             }
             case "invariant" -> {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("invariant should have a single argument");
                 }
-                header.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
             }
             case "decreases" -> {
                 for(var decrease : invocation.getArguments()) {
                     // The LOWER javac phase inserts an explicit NewArray for varargs
                     if (decrease instanceof JCTree.JCNewArray newArray) {
-                        header.decreases.addAll(newArray.getInitializers().map(compiler.expressionCompiler::toExpr));
+                        contract.decreases.addAll(newArray.getInitializers().map(compiler.expressionCompiler::toExpr));
                     } else {
-                        header.decreases.add(compiler.expressionCompiler.toExpr(decrease));
+                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease));
                     }
                 }
             }
@@ -158,7 +158,7 @@ public class ContractCompiler {
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
                 var expr = compiler.expressionCompiler.toExpr(origExpr);
-                header.reads.add(new FrameExpression(origin, expr, null));
+                contract.reads.add(new FrameExpression(origin, expr, null));
             }
             case "modifies" -> {
                 if (invocation.args.size() != 1) {
@@ -167,7 +167,7 @@ public class ContractCompiler {
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
                 var expr = compiler.expressionCompiler.toExpr(origExpr);
-                header.modifies.add(new FrameExpression(origin, expr, null));
+                contract.modifies.add(new FrameExpression(origin, expr, null));
             }
             default -> {
                 compiler.reportError(invocation, "notSupported", methodName);
