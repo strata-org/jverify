@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 import java.io.*;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static com.aws.jverify.testengine.JVerifyTestEngine.testMarkedSource;

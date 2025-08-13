@@ -9,17 +9,11 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 
+import java.util.*;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.function.Consumer;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.SequencedCollection;
 
 @Contract(Comparable.class)
 class ComparableContract<T> {
@@ -102,6 +96,13 @@ abstract class ListContract<E> implements List<E> {
                 r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));
         throw new ContractException();
+    }
+}
+
+@Contract
+class ArrayListContract<E> extends ArrayList<E> {
+    public ArrayListContract(Collection<? extends E> c) {
+        super(c);
     }
 }
 
