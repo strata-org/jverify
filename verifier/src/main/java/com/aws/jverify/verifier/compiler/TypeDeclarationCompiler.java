@@ -293,8 +293,12 @@ public class TypeDeclarationCompiler {
         
         var externalDecl = findExternalContract(methodSymbol);
         var declToUse = externalDecl == null ? method : externalDecl;
-        if (externalDecl != null && method.body != null && !JavaToDafnyCompiler.isConstructor(declToUse.sym)) {
-            compiler.reportError(declToUse, "internalAndExternalContractForMethod", methodSymbol.name.toString());
+        if (externalDecl != null && method.body != null) {
+            if (JavaToDafnyCompiler.isConstructor(declToUse.sym)) {
+                declToUse = method;
+            } else {
+                compiler.reportError(declToUse, "internalAndExternalContractForMethod", methodSymbol.name.toString());
+            }
         }
         
         var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(declToUse.mods);
@@ -315,11 +319,14 @@ public class TypeDeclarationCompiler {
         var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
         List<JCTree.JCStatement> remainingStatements;
         if (declToUse.body == null) {
-            compiler.reportError(method, "bodylessMethodWithoutContract", methodSymbol.name.toString());
-            remainingStatements = List.of();
+            // compiler.reportError(method, "bodylessMethodWithoutContract", methodSymbol.name.toString());
+            remainingStatements = null;
         } else {
             remainingStatements = new ContractCompiler(compiler).
                     extractContract(declToUse.body, contract, allowFooter, true, typeForWhichCurrentClassIsDefiningContract != null);
+            if (externalDecl == declToUse) {
+                remainingStatements = null;
+            }
         }
         
         if (contract.isPure) {
@@ -332,7 +339,7 @@ public class TypeDeclarationCompiler {
     private MethodOrConstructor translateImpureMethod(JCTree.JCMethodDecl method,
                                                       boolean shouldVerify,
                                                       MethodOrLoopContract contract,
-                                                      List<JCTree.JCStatement> postHeader) {
+                                                      @Nullable List<JCTree.JCStatement> postHeader) {
         var methodOrigin = compiler.toOrigin(method);
 
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
@@ -345,14 +352,14 @@ public class TypeDeclarationCompiler {
 
         List<Statement> bodyStatements = null;
 
-        if (shouldVerify) {
+        if (shouldVerify && postHeader != null) {
             bodyStatements = blockCompiler.translateStatements(postHeader);
         }
         applyInvariants(method.mods, method.sym, contract);
         blockCompiler.checkEmptyExpressions(method, contract.invariants, "invariants", "method");
 
         var outs = new ArrayList<Formal>();
-        if (method.type.getReturnType() != null) {
+        if (method.sym.type.getReturnType() != null) {
             JVerifyIndex index = JVerifyIndex.instance(compiler.context);
             var methodDecl = (JCTree.JCMethodDecl) index.getTree(method.sym);
             IOrigin returnOrigin;
@@ -362,7 +369,7 @@ public class TypeDeclarationCompiler {
                 var returnTypeDecl = methodDecl.getReturnType();
                 returnOrigin = compiler.toOrigin(returnTypeDecl);
             }
-            var returnType = compiler.translateMethodSignatureType(method.type.getReturnType(), returnOrigin, shouldVerify);
+            var returnType = compiler.translateMethodSignatureType(method.sym.type.getReturnType(), returnOrigin, shouldVerify);
             if (returnType != null) {
                 outs.add(makeReturnFormal(origin, returnType));
             }

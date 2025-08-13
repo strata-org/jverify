@@ -59,9 +59,9 @@ public class ContractCompiler {
                 if (statement instanceof JCTree.JCReturn returnStatement) {
                     contract.pureBody = compiler.expressionCompiler.toExpr(returnStatement.expr);
                 } else {
-                    if (!((libraryContract && statement instanceof JCTree.JCThrow throwStatement &&
+                    if (!((statement instanceof JCTree.JCThrow throwStatement &&
                             throwStatement.expr.type.tsym.getQualifiedName().contentEquals(ContractException.class.getCanonicalName())))) {
-                        compiler.reportError(contract.treeOrigin, "pureMethodNeedsReturnStatement");
+                        compiler.reportError(statement, "pureMethodNeedsReturnStatement");
                     }
                 }
             }
