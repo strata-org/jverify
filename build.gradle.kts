@@ -284,7 +284,6 @@ project(":verifier") {
         implementation(project(":library"))
 
         implementation("org.jgrapht:jgrapht-core:1.5.2")
-        implementation("io.reactivex.rxjava3:rxjava:3.1.8")
 
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")

@@ -17,6 +17,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
 import java.util.*;
+import java.util.concurrent.Flow;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,12 +35,30 @@ public class TypeDeclarationCompiler {
     public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
 
-        var _ = compiler.nameCompiler.foundSymbols().subscribe(symbol -> {
-            if (symbol instanceof Symbol.ClassSymbol cs) {
-                if (createdContracts.contains(cs)) {
-                    return;
+        compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<Symbol>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                // Never emitted
+            }
+
+            @Override
+            public void onNext(Symbol symbol) {
+                if (symbol instanceof Symbol.ClassSymbol cs) {
+                    if (createdContracts.contains(cs)) {
+                        return;
+                    }
+                    missingContracts.add(cs);
                 }
-                missingContracts.add(cs);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                // Never emitted
+            }
+
+            @Override
+            public void onComplete() {
+                // Never emitted
             }
         });
     }
