@@ -13,55 +13,57 @@ import static com.aws.jverify.JVerify.check;
         "./b/WillVerify.java", 
         "./b/package-info.java" }
 )
-public class ShouldVerify {}
+public class ShouldVerify {
 
-@Verify(value = true, overrideChildren = true)
-class ShouldVerify1 {
-    
-    @Verify(false)
-    public ShouldVerify1() {
-        check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
-    }
-    
-    @Verify(false)
-    void foo1() {
-        check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
-    }
-}
+    @Verify(value = true, overrideChildren = true)
+    static class ShouldVerify1 {
 
-@Verify(value = false, overrideChildren = true)
-class ShouldVerify2 {
-    @Verify(true)
-    void foo2() {
-        check(false);
-    }
-}
+        @Verify(false)
+        public ShouldVerify1() {
+            check(false);
+//          ^^^^^^^^^^^^ Error: assertion might not hold
+        }
 
-@Verify(value = false, overrideChildren = false)
-class ShouldVerify3 {
-    @Verify(true)
-    void foo3() {
-        check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
-    }
-    
-    void foo4() {
-        check(false);
-    }
-}
-
-@Verify(value = true, overrideChildren = false)
-class ShouldVerify4 {
-    @Verify(true)
-    void foo5() {
-        check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+        @Verify(false)
+        void foo1() {
+            check(false);
+//          ^^^^^^^^^^^^ Error: assertion might not hold
+        }
     }
 
-    void foo6() {
-        check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+    @Verify(value = false, overrideChildren = true)
+    static class ShouldVerify2 {
+        @Verify(true)
+        void foo2() {
+            check(false);
+        }
     }
+
+    @Verify(value = false, overrideChildren = false)
+    static class ShouldVerify3 {
+        @Verify(true)
+        void foo3() {
+            check(false);
+//          ^^^^^^^^^^^^ Error: assertion might not hold
+        }
+
+        void foo4() {
+            check(false);
+        }
+    }
+
+    @Verify(value = true, overrideChildren = false)
+    static class ShouldVerify4 {
+        @Verify(true)
+        void foo5() {
+            check(false);
+//          ^^^^^^^^^^^^ Error: assertion might not hold
+        }
+
+        void foo6() {
+            check(false);
+//          ^^^^^^^^^^^^ Error: assertion might not hold
+        }
+    }
+
 }

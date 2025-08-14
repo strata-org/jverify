@@ -52,6 +52,7 @@ public class JavaToDafnyCompiler {
     public final NameCompiler nameCompiler;
     public final ExternalContractCompiler externalContractCompiler = new ExternalContractCompiler(this);
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
+    public final TypeDeclarationCompiler typeDeclarationCompiler;
     public JCDiagnostic.Factory diagnosticFactory;
     public final VerifierOptions verifierOptions;
 
@@ -75,6 +76,7 @@ public class JavaToDafnyCompiler {
         nameCompiler = new NameCompiler(externalContractCompiler);
         diagnosticFactory = JCDiagnostic.Factory.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
+        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
     }
 
     public NameCompiler getNameCompiler() {
@@ -137,6 +139,8 @@ public class JavaToDafnyCompiler {
             }));
             filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
+        
+        typeDeclarationCompiler.addMissingTypeContracts(filesStarts);
 
         return new FilesContainer(filesStarts);
     }
@@ -163,7 +167,7 @@ public class JavaToDafnyCompiler {
                 }
                 var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
-                var dafnyDecls = new TypeDeclarationCompiler(this).translateTypeDeclaration(relatedDeclaration);
+                var dafnyDecls = typeDeclarationCompiler.translateTypeDeclaration(relatedDeclaration);
                 verifyAnnotationCompiler.shouldVerifies.pop();
                 declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
@@ -505,6 +509,9 @@ public class JavaToDafnyCompiler {
                 }
                 return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
             }
+            case com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType -> {
+                return null;
+            }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
 
                 
@@ -528,8 +535,11 @@ public class JavaToDafnyCompiler {
                 }
 
                 if (className.toString().equals(JVerify.Sequence.class.getName())) {
-                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
-                    return new SeqType(origin, arguments);
+                    var typeArguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
+                    if (typeArguments.stream().anyMatch(Objects::isNull)) {
+                        return null;
+                    }
+                    return new SeqType(origin, typeArguments);
                 }
                 
                 // Remove the name qualification because we do not support that yet
@@ -542,11 +552,14 @@ public class JavaToDafnyCompiler {
                 }
                 var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
                 if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
-                    var ownerTypes = getAllOwnerTypeParameters(classType.tsym).toList();
+                    var ownerTypes = getOwnAndEnclosedTypeParameters(classType.tsym).toList();
                     Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, toOrigin(tp)));
                     typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
                 }
                 var typeArguments = typeArgumentsStream.toList();
+                if (typeArguments.stream().anyMatch(Objects::isNull)) {
+                    return null;
+                }
                 if (typeArguments.isEmpty()) {
                     typeArguments = null;
                 }
@@ -726,18 +739,18 @@ public class JavaToDafnyCompiler {
         return false;
     }
 
-    public Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol symbol) {
+    public Stream<JCTree.JCTypeParameter> getOwnAndEnclosedTypeParameters(Symbol symbol) {
         if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-            return getAllOwnerTypeParameters(classSymbol);
+            return getOwnAndEnclosedTypeParameters(classSymbol);
         } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
-            return getAllOwnerTypeParameters(methodSymbol);
+            return getOwnAndEnclosedTypeParameters(methodSymbol);
         } else if (symbol instanceof Symbol.PackageSymbol) {
             return Stream.empty();
         }
         throw new RuntimeException();
     }
 
-    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.ClassSymbol classSymbol) {
+    Stream<JCTree.JCTypeParameter> getOwnAndEnclosedTypeParameters(Symbol.ClassSymbol classSymbol) {
         var trees = JVerifyIndex.instance(context);
         JCTree.JCClassDecl decl = (JCTree.JCClassDecl)trees.getTree(classSymbol);
         if (decl == null) {
@@ -748,17 +761,17 @@ public class JavaToDafnyCompiler {
         if (classSymbol.owner == null) {
             return mine;
         }
-        return Stream.concat(mine, getAllOwnerTypeParameters(classSymbol.owner));
+        return Stream.concat(mine, getOwnAndEnclosedTypeParameters(classSymbol.owner));
     }
 
-    Stream<JCTree.JCTypeParameter> getAllOwnerTypeParameters(Symbol.MethodSymbol methodSymbol) {
+    Stream<JCTree.JCTypeParameter> getOwnAndEnclosedTypeParameters(Symbol.MethodSymbol methodSymbol) {
         var trees = JVerifyIndex.instance(context);
         JCTree.JCMethodDecl decl = (JCTree.JCMethodDecl)trees.getTree(methodSymbol);
         var mine = decl.getTypeParameters().stream();
         if (methodSymbol.owner == null) {
             return mine;
         }
-        return Stream.concat(mine, getAllOwnerTypeParameters(methodSymbol.owner));
+        return Stream.concat(mine, getOwnAndEnclosedTypeParameters(methodSymbol.owner));
     }
     
     private boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
