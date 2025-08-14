@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.ContractException;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.tree.JCTree;
@@ -18,33 +19,48 @@ public class ContractCompiler {
         this.compiler = compiler;
     }
 
-    public List<JCTree.JCStatement> translateHeader(JCTree.JCStatement statement, 
+    
+    public List<JCTree.JCStatement> extractContract(JCTree.JCStatement statement,
                                                     MethodOrLoopContract contract,
-                                                    boolean allowFooter,
-                                                    boolean reportErrors) {
+                                                    boolean allowFooter) {
         var statements = statement instanceof JCTree.JCBlock block
                 ? block.getStatements()
                 : List.of(statement);
-        return translateHeader(statements, contract, allowFooter, reportErrors);
+        return extractContract(statements, contract, allowFooter);
     }
     
-    public List<JCTree.JCStatement> translateHeader(List<JCTree.JCStatement> statements,
+    public List<JCTree.JCStatement> extractContract(List<JCTree.JCStatement> statements,
                                                     MethodOrLoopContract contract,
-                                                    boolean allowFooter,
-                                                    boolean reportErrors) {
+                                                    boolean allowFooter) {
         var superOrThis = getSuperOrThis(statements);
         
         var remainingStatements = statements;
         if (superOrThis != null) {
             remainingStatements = remainingStatements.subList(1, statements.size());
         }
-        remainingStatements = addHeaderContracts(remainingStatements, contract, reportErrors);
+        remainingStatements = addHeaderContracts(remainingStatements, contract);
         if (allowFooter) {
-            remainingStatements = addFooterContracts(remainingStatements, contract, reportErrors);
+            remainingStatements = addFooterContracts(remainingStatements, contract);
         }
         var result = new ArrayList<>(remainingStatements);
         if (superOrThis != null) {
             result.addFirst(superOrThis);
+        }
+
+        if (contract.isPure) {
+            if (result.size() != 1) {
+                compiler.reportError(contract.treeOrigin, "pureMethodMultipleStatements");
+            } else {
+                var statement = result.getFirst();
+                if (statement instanceof JCTree.JCReturn returnStatement) {
+                    contract.pureBody = compiler.expressionCompiler.toExpr(returnStatement.expr);
+                } else {
+                    if (!((statement instanceof JCTree.JCThrow throwStatement &&
+                            throwStatement.expr.type.tsym.getQualifiedName().contentEquals(ContractException.class.getCanonicalName())))) {
+                        compiler.reportError(statement, "pureMethodNeedsReturnStatement");
+                    }
+                }
+            }
         }
         return result;
     }
@@ -64,13 +80,12 @@ public class ContractCompiler {
     }
 
     private List<JCTree.JCStatement> addHeaderContracts(List<JCTree.JCStatement> statements,
-                                                        MethodOrLoopContract contract,
-                                                        boolean reportErrors) {
+                                                        MethodOrLoopContract contract) {
         int headerContracts;
         int i;
         for (i = 0; i < statements.size(); i++) {
             var statement = statements.get(i);
-            boolean foundHeader = handleStatement(statement, contract, reportErrors);
+            boolean foundHeader = handleStatement(statement, contract);
             if (!foundHeader) {
                 break;
             }
@@ -80,12 +95,11 @@ public class ContractCompiler {
     }
 
     private List<JCTree.JCStatement> addFooterContracts(List<JCTree.JCStatement> statements, 
-                                                        MethodOrLoopContract contract,
-                                                        boolean reportErrors) {
+                                                        MethodOrLoopContract contract) {
         int i;
         for (i = statements.size() - 1; i > 0; i--) {
             var statement = statements.get(i);
-            boolean foundHeader = handleStatement(statement, contract, reportErrors);
+            boolean foundHeader = handleStatement(statement, contract);
             if (!foundHeader) {
                 break;
             }
@@ -94,7 +108,7 @@ public class ContractCompiler {
         return statements.subList(0, footerContracts);
     }
 
-    private boolean handleStatement(JCTree.JCStatement statement, MethodOrLoopContract header, boolean reportErrors) {
+    private boolean handleStatement(JCTree.JCStatement statement, MethodOrLoopContract contract) {
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
@@ -113,27 +127,27 @@ public class ContractCompiler {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A precondition call may have only one argument");
                 }
-                header.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
             }
             case "postcondition" -> {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A postcondition call may have only one argument");
                 }
-                handlePostcondition(header, invocation.getArguments().getFirst());
+                handlePostcondition(contract, invocation.getArguments().getFirst());
             }
             case "invariant" -> {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("invariant should have a single argument");
                 }
-                header.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
             }
             case "decreases" -> {
                 for(var decrease : invocation.getArguments()) {
                     // The LOWER javac phase inserts an explicit NewArray for varargs
                     if (decrease instanceof JCTree.JCNewArray newArray) {
-                        header.decreases.addAll(newArray.getInitializers().map(compiler.expressionCompiler::toExpr));
+                        contract.decreases.addAll(newArray.getInitializers().map(compiler.expressionCompiler::toExpr));
                     } else {
-                        header.decreases.add(compiler.expressionCompiler.toExpr(decrease));
+                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease));
                     }
                 }
             }
@@ -144,7 +158,7 @@ public class ContractCompiler {
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
                 var expr = compiler.expressionCompiler.toExpr(origExpr);
-                header.reads.add(new FrameExpression(origin, expr, null));
+                contract.reads.add(new FrameExpression(origin, expr, null));
             }
             case "modifies" -> {
                 if (invocation.args.size() != 1) {
@@ -153,12 +167,10 @@ public class ContractCompiler {
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
                 var expr = compiler.expressionCompiler.toExpr(origExpr);
-                header.modifies.add(new FrameExpression(origin, expr, null));
+                contract.modifies.add(new FrameExpression(origin, expr, null));
             }
             default -> {
-                if (reportErrors) {
-                    compiler.reportError(invocation, "notSupported", methodName);
-                }
+                compiler.reportError(invocation, "notSupported", methodName);
                 return false;
             }
         }

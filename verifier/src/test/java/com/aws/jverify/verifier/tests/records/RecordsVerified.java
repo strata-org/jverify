@@ -168,6 +168,16 @@ class Foobar {
 
 interface ICoefficient {
     @Unbounded int times(int i);
+    
+    @Contract
+    class CoefficientContract implements ICoefficient {
+
+        @Pure
+        @Override
+        public @Unbounded int times(int i) {
+            throw new ContractException();
+        }
+    }
 }
 
 @Verify(false)

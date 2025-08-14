@@ -1,11 +1,9 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.Pure;
+import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
-import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.code.Symbol;
@@ -32,7 +30,7 @@ public class ExternalContractCompiler extends TreeScanner {
     }
     
     public record ExternalTypeContract(
-            Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
+            Map<Symbol.MethodSymbol, JCTree.JCMethodDecl> methodContracts,
             List<JCTree.JCVariableDecl> ghostFields) { }
 
 
@@ -111,7 +109,7 @@ public class ExternalContractCompiler extends TreeScanner {
     }
 
     private ExternalTypeContract getExternalTypeContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-        Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
+        Map<Symbol.MethodSymbol, JCTree.JCMethodDecl> externalContracts = new HashMap<>();
         List<JCTree.JCVariableDecl> ghostFields = new ArrayList<>();
         for(var member : classDecl.getMembers()) {
 
@@ -128,16 +126,7 @@ public class ExternalContractCompiler extends TreeScanner {
             }
             var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, Types.instance(compiler.context));
             if (baseMethod != null) {
-                BlockCompiler blockCompiler = new BlockCompiler(compiler, methodSymbol);
-                var header = blockCompiler.extractContract(methodDecl, true);
-                var baseMethodDecl = (JCTree.JCMethodDecl) JVerifyIndex.instance(compiler.context).getTree(baseMethod);
-                if (baseMethodDecl != null) {
-                    var baseHeader= blockCompiler.extractContract(baseMethodDecl, true);
-                    if (baseHeader.isPure) {
-                        compiler.reportError(baseMethodDecl, "pureOnContractedMethod", baseMethod.name.toString());
-                    }
-                } 
-                externalContracts.put(baseMethod, header);
+                externalContracts.put(baseMethod, methodDecl);
             } else {
                 // Check currently does not take into account overloading
                 // But this only makes it not detect some unused methods.
@@ -150,6 +139,20 @@ public class ExternalContractCompiler extends TreeScanner {
         return new ExternalTypeContract(externalContracts, ghostFields);
     }
 
+    private MethodOrLoopContract extractContract(JCTree.JCMethodDecl methodDecl) {
+        var methodAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(methodDecl.getModifiers());
+
+        var isPure = methodAnnotationsByName.containsKey(Pure.class.getName());
+        var contract = new MethodOrLoopContract(methodDecl, isPure);
+        if (methodDecl.getBody() != null) {
+            var allowFooter = isConstructor(methodDecl.sym);
+            new ContractCompiler(compiler).
+                    extractContract(methodDecl.getBody(), contract, allowFooter);
+        }
+
+        return contract;
+    }
+    
     private String methodToString(JCTree tree) {
         if (tree instanceof JCTree.JCMethodDecl methodDecl){
             if (isConstructor(methodDecl.sym)) {

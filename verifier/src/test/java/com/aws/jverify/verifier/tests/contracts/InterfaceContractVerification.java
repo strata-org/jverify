@@ -10,8 +10,9 @@ import static com.aws.jverify.JVerify.postcondition;
 
 @JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 1)
 public class InterfaceContractVerification {
+    @SuppressWarnings("UnnecessaryLocalVariable")
     public void root() {
-        IExtender extender = new IExtender();
+        IImplementer extender = new IImplementer();
         var i = extender.internalContract();
         check(i > 2);
         var e = extender.externalContract(3);
@@ -44,7 +45,7 @@ public class InterfaceContractVerification {
         }
     }
 
-    static class IExtender implements I {
+    static class IImplementer implements I {
         @Override
         public int externalContract(int x) {
             postcondition((int r) -> r > 5);
