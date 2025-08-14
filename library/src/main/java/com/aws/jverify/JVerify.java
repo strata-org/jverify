@@ -148,7 +148,7 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
-    public static <T> boolean exists(Function<T, Boolean> predicate) {
+    public static <T> boolean exists(Predicate<T> predicate) {
         throw new VerificationMethodExecutedException();
     }
 
