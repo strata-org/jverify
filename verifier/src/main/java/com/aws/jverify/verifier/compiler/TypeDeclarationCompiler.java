@@ -302,7 +302,6 @@ public class TypeDeclarationCompiler {
         }
         
         var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(declToUse.mods);
-
         boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
         
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
@@ -319,7 +318,6 @@ public class TypeDeclarationCompiler {
         var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
         List<JCTree.JCStatement> remainingStatements;
         if (declToUse.body == null) {
-            // compiler.reportError(method, "bodylessMethodWithoutContract", methodSymbol.name.toString());
             remainingStatements = null;
         } else {
             remainingStatements = new ContractCompiler(compiler).
