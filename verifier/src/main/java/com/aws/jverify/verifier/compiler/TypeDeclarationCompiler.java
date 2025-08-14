@@ -15,6 +15,7 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.util.JCDiagnostic;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
@@ -556,10 +557,13 @@ public class TypeDeclarationCompiler {
         var missingNonTypes = new HashSet<Symbol>();
         for(var symbol : missingContracts) {
             if (!(symbol instanceof Symbol.ClassSymbol)) {
-                missingContracts.remove(symbol);
                 missingNonTypes.add(symbol);
             }
         }
+        for(var nonType : missingNonTypes) {
+            missingContracts.remove(nonType);
+        }
+        
         while(!missingContracts.isEmpty()) {
             // Because inheritance can mean that adding missing contracts introduces new missing contracts
             // We need to loop
@@ -613,10 +617,12 @@ public class TypeDeclarationCompiler {
                 } else {
                     callable = new Function(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
                             typeParameters, getIns(methodSymbol, false, dummyOrigin),
-                            List.of(new AttributedExpression(new LiteralExpr(dummyOrigin, false), null, null)), List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
+                            List.of(), List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
                             methodSymbol.isStatic(), false, null, compiler.translateType(returnType, dummyOrigin),
                             null, null, null);
                 }
+                compiler.reportDiagnostic(dummyOrigin, JCDiagnostic.DiagnosticType.WARNING, "missingContract", 
+                        methodSymbol.getQualifiedName(), clazz.getQualifiedName());
                 clazzDecl.getMembers().add(callable);
             }
         }
