@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.ContractException;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -92,6 +94,46 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
+    public Expression toExpr(List<JCTree.JCStatement> statements) {
+        var last = statements.getLast();
+        var result = toExpr(last);
+        for(int index = statements.size() - 2; index >= 0; index--) {
+            var statement = statements.get(index);
+            if (statement instanceof JCTree.JCVariableDecl variableDecl) {
+                if (variableDecl.init == null) {
+                    compiler.reportError(statement, "pureAssignmentNeedsInitializer", variableDecl.name.toString());
+                    return result;
+                }
+                var origin = compiler.toOrigin(statement);
+                var type = compiler.translateType(variableDecl.type, compiler.toOrigin(variableDecl));
+                String name = compiler.nameCompiler.getCompiledName(variableDecl.sym);
+                var returnVar = new BoundVar(origin, new Name(origin, name), type, false);
+                var lhs = new CasePattern<>(origin, name, returnVar, null);
+                result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init)), result, true, null); 
+            } else {
+                compiler.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
+                return result;
+            }
+        }
+        return result;
+    }
+
+    private Expression toExpr(JCTree.JCStatement statement) {
+        IOrigin origin = compiler.toOrigin(statement);
+        return switch (statement) {
+            case JCTree.JCBlock block -> toExpr(block.getStatements());
+            case JCTree.JCIf ifStatement -> new ITEExpr(origin, false,
+                    toExpr(ifStatement.getCondition()),
+                    toExpr(ifStatement.getThenStatement()),
+                    toExpr(ifStatement.getElseStatement()));
+            case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr);
+            default -> {
+                compiler.reportError(statement, "pureMethodLastStatement");
+                yield JavaToDafnyCompiler.getHole(origin);
+            }
+        };
+    }
+    
     public Expression toExpr(JCTree.JCExpression expr) {
         return toExpr(expr, null);
     }
@@ -223,10 +265,10 @@ public class ExpressionCompiler {
                 operator, left, right);
     }
     
-    private java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
+    private BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
 
     public <T> T withOverrideTranslateIdentifier(Supplier<T> supplier, 
-                                                 java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> override) 
+                                                 BiFunction<JCTree.JCIdent, IOrigin, Expression> override) 
     {
         var previous = handleIdentifier;
         handleIdentifier = override;
