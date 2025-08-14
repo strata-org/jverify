@@ -11,7 +11,6 @@ module com.aws.jverify.verifier {
     requires com.fasterxml.jackson.databind;
     requires org.jgrapht.core;
     requires java.naming;
-    requires io.reactivex.rxjava3;
     requires net.bytebuddy;
     requires java.instrument;
     requires net.bytebuddy.agent;

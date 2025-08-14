@@ -18,6 +18,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
 import java.util.*;
+import java.util.concurrent.Flow;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,17 +36,36 @@ public class TypeDeclarationCompiler {
     public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
 
-        var _ = compiler.nameCompiler.foundSymbols().subscribe(symbol -> {
-            if (symbol instanceof Symbol.ClassSymbol cs) {
-                if (createdContracts.contains(cs)) {
-                    return;
+        compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<Symbol>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                // Never emitted
+            }
+
+            @Override
+            public void onNext(Symbol symbol) {
+                if (symbol instanceof Symbol.ClassSymbol cs) {
+                    if (createdContracts.contains(cs)) {
+                        return;
+                    }
+                    missingContracts.add(cs);
                 }
-                missingContracts.add(cs);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                // Never emitted
+            }
+
+            @Override
+            public void onComplete() {
+                // Never emitted
             }
         });
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
+        invariants.clear();
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
             if (classDecl.name.equals(classDecl.name.table.names.package_info)) {
@@ -137,11 +157,12 @@ public class TypeDeclarationCompiler {
 
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+        
         var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
         if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
             return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
         }
-        
+
         if (contractAnnotation != null && contractAnnotation.immutable()) {
             if (typeForWhichCurrentClassIsDefiningContract != null) {
                 return new ImmutableTypeCompiler(this).translate(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
@@ -150,8 +171,6 @@ public class TypeDeclarationCompiler {
                 return null;
             }
         }
-
-        invariants.clear();
 
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
