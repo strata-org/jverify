@@ -29,7 +29,7 @@ public class ImmutableTypeCompiler {
 
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
-            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+            javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
@@ -104,15 +104,16 @@ public class ImmutableTypeCompiler {
             return null;
         }
         
+        compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
-                List.of(getDatatypeCtor(classDecl, origin, name, fields)), false);
+                List.of(getDatatypeCtor(origin, name, fields)), false);
     }
 
-    private DatatypeCtor getDatatypeCtor(JCTree.JCClassDecl classDecl, IOrigin origin, Name name, List<JCTree.JCVariableDecl> fields) {
+    private DatatypeCtor getDatatypeCtor(IOrigin origin, Name name, List<JCTree.JCVariableDecl> fields) {
         var ctorParams = fields.stream()
                 .map(typeDeclarationCompiler::translateField)
                 .map(field -> new Formal(
@@ -217,7 +218,7 @@ public class ImmutableTypeCompiler {
         JavaToDafnyCompiler compiler = expressionCompiler.compiler;
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
-            typeArgs = compiler.getAllOwnerTypeParameters(newClass.type.tsym).map(
+            typeArgs = compiler.getOwnAndEnclosedTypeParameters(newClass.type.tsym).map(
                     tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
         }
         

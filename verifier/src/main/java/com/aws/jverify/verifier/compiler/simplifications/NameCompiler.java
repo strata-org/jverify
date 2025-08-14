@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Flow;
 
 /**
  * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness at the Dafny level.
@@ -41,13 +42,18 @@ public class NameCompiler {
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
-
+    private final SimpleSynchronousPublisher<Symbol> subject = new SimpleSynchronousPublisher();
+    
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     
     public NameCompiler(ExternalContractCompiler contractCompiler) {
         this.contractCompiler = contractCompiler;
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
+    }
+    
+    public Flow.Publisher<Symbol> foundSymbols() {
+        return subject;    
     }
     
     public void registerClass(Symbol.ClassSymbol classSymbol) {
@@ -67,6 +73,10 @@ public class NameCompiler {
         }
         var compiledName = uncachedGetCompiledName(s);
         symbolStringMap.put(s, compiledName);
+        var contractee = contractCompiler.contractClassToContractee.get(s);
+        if (contractee == null) {
+            subject.submit(s);
+        }
         reverseSymbolStringMap.put(compiledName, s);
         return compiledName;
     }
