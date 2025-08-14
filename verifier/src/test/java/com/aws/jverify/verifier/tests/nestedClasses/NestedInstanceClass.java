@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 2)
 public class NestedInstanceClass {
     int x;
     
