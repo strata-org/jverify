@@ -65,6 +65,7 @@ public class TypeDeclarationCompiler {
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
+        invariants.clear();
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
             if (classDecl.name.equals(classDecl.name.table.names.package_info)) {
@@ -165,11 +166,12 @@ public class TypeDeclarationCompiler {
 
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+        
         var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
         if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
             return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
         }
-        
+
         if (contractAnnotation != null && contractAnnotation.immutable()) {
             if (typeForWhichCurrentClassIsDefiningContract != null) {
                 return new ImmutableTypeCompiler(this).translate(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
@@ -178,8 +180,6 @@ public class TypeDeclarationCompiler {
                 return null;
             }
         }
-
-        invariants.clear();
 
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCMethodDecl methodDecl) {
