@@ -77,7 +77,8 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public int size() {
-        return elements.size();
+        postcondition((int r) -> r == elements.size());
+        throw new ContractException();
     }
 
     @Override
@@ -98,6 +99,13 @@ abstract class ListContract<E> implements List<E> {
 abstract class ArrayListContract<E> extends ListContract<E> {
     
     public ArrayListContract(Collection<? extends E> c) {
+    }
+
+    @Override
+    @Pure
+    public int size() {
+        postcondition((int r) -> r == elements.size());
+        throw new ContractException();
     }
 }
 
