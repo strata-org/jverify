@@ -336,7 +336,7 @@ public class TypeDeclarationCompiler {
             }
         }
         if (declToUse != method) {
-            var baseAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(declToUse.mods);
+            var baseAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
             var baseIsPure = baseAnnotationsByName.containsKey(Pure.class.getName());
 
             if (baseIsPure) {
