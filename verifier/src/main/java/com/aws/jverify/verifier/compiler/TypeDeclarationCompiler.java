@@ -411,7 +411,6 @@ public class TypeDeclarationCompiler {
         List<Formal> ins = getIns(method.sym, shouldVerify, methodOrigin);
 
         List<Statement> bodyStatements = null;
-
         if (shouldVerify && postHeader != null) {
             bodyStatements = blockCompiler.translateStatements(postHeader);
         }
