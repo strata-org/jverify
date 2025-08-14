@@ -253,8 +253,10 @@ abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
     }
 }
 
-// Workaround for not being able to use Map.entry(key, value) directly
-// TODO: cut Dafny issue
+// It would be better to use Map.entry(key, value) directly,
+// but that currently doesn't work because we end up with <K, V> type parameters
+// on both Map and Map.entry, and while Java ignores the outer type parameters
+// for static methods, Dafny gets confused and doesn't resolve.
 record MapEntry<K, V>(K key, V value) implements Map.Entry<K, V> {
     @Override
     @Pure

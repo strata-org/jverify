@@ -513,20 +513,14 @@ public class JavaToDafnyCompiler {
                 return null;
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
-
-                
                 Type remappedType = new ModifiableObjectCompiler(this).getRemappedType(classType, origin, additionalModifiers);
                 if (remappedType != null) {
                     return remappedType;
                 }
-                
-                var className = classType.asElement().flatName();
-                if (className.toString().equals(String.class.getName())) {
-                    if (!isNullable) {
-                        return new UserDefinedType(origin, new NameSegment(origin, "DString", null));
-                    }
-                    reportError(origin, "notSupported", "nullable String type");
-                    return null;
+
+                var builtinType = new JVerifyGhostExpressionCompiler(expressionCompiler).translateClassType(classType, origin, isNullable);
+                if (builtinType != null) {
+                    return builtinType;
                 }
 
                 if (isRecord(classType) && isNullable) {
@@ -534,22 +528,6 @@ public class JavaToDafnyCompiler {
                     return null;
                 }
 
-                if (className.toString().equals(JVerify.Sequence.class.getName())) {
-                    var typeArguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
-                    if (typeArguments.stream().anyMatch(Objects::isNull)) {
-                        return null;
-                    }
-                    return new SeqType(origin, typeArguments);
-                }
-                if (className.toString().equals(JVerify.Set.class.getName())) {
-                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
-                    return new SetType(origin, arguments, true);
-                }
-                if (className.toString().equals(JVerify.Map.class.getName())) {
-                    var arguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
-                    return new MapType(origin, arguments, true);
-                }
-                
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
                 if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
