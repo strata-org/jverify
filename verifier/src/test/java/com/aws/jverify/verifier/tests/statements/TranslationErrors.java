@@ -19,6 +19,7 @@ class TranslationErrors {
     void pureWithoutReturn() {        
 //       ^ error: pure method should have a return type
         var x = 3;
+//          ^ error: pure method statement should be a return
     }
     
     void quantifierNeedsLambdaArgument() {
