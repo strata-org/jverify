@@ -71,31 +71,26 @@ abstract class ListContract<E> implements List<E> {
     @Pure
     public E get(int index) {
         precondition(0 <= index && index < size());
-        postcondition((E e) -> e == elements.get(index));
-        throw new ContractException();
+        return elements.get(index);
     }
 
     @Override
     @Pure
     public int size() {
-        postcondition((int s) -> s == elements.size());
-        throw new ContractException();
+        return elements.size();
     }
 
     @Override
     @Pure
     public boolean isEmpty() {
-        postcondition((boolean r) -> r == (elements.size() == 0));
-        throw new ContractException();
+        return elements.size() == 0;
     }
 
     @Override
     @Pure
     public boolean contains(Object o) {
-        postcondition((boolean r) ->
-                r == JVerify.exists((int i) ->
-                        0 <= i && i < elements.size() && elements.get(i).equals(o)));
-        throw new ContractException();
+        return JVerify.exists((int i) ->
+                0 <= i && i < elements.size() && elements.get(i).equals(o));
     }
 }
 
@@ -103,37 +98,6 @@ abstract class ListContract<E> implements List<E> {
 abstract class ArrayListContract<E> extends ListContract<E> {
     
     public ArrayListContract(Collection<? extends E> c) {
-    }
-
-    @Pure
-    @Override
-    public boolean isEmpty() {
-        postcondition((boolean r) -> r == (elements.size() == 0));
-        throw new ContractException();
-    }
-
-    @Pure
-    @Override
-    public E get(int index) {
-        precondition(0 <= index && index < size());
-        postcondition((E e) -> e == elements.get(index));
-        throw new ContractException();
-    }
-
-    @Pure
-    @Override
-    public int size() {
-        postcondition((int s) -> s == elements.size());
-        throw new ContractException();
-    }
-
-    @Pure
-    @Override
-    public boolean contains(Object o) {
-        postcondition((boolean r) ->
-                r == JVerify.exists((int i) ->
-                        0 <= i && i < elements.size() && elements.get(i).equals(o)));
-        throw new ContractException();
     }
 }
 

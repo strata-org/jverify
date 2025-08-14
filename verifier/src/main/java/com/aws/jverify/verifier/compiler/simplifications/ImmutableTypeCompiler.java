@@ -90,7 +90,7 @@ public class ImmutableTypeCompiler {
                     Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
                     var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
                     Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
-                    members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
+                    members.add(new ConstantField(fieldOrigin, fieldName, null, false, type, null, false, false));
                 }
                 continue;
             } 
