@@ -1,8 +1,10 @@
 ## Reading and Modifying Objects
 
-#### Reads
+When defining pure methods, JVerify requires explicitly stating which objects are read by that functions. When defining impure methods, JVerify requires explicitly stating which objects are modified by that method.
 
-JVerify guarantees that a `@Pure` method is deterministic, meaning that given the same  it returns the same output. To use this property however, we need to know what the input is. In a language with references like Java, it's not enough to know what the method arguments are.
+Having these two pieces of information allows JVerify to determine which impure method calls can change the result of which pure methods calls, which turns out is often useful when thinking about programs.
+
+#### Reads
 
 JVerify requires that a method marked with `@Pure` is explicit about which objects it reads fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple `object` arguments. Example:
 
@@ -22,7 +24,7 @@ class Car {
 
 #### Modifies
 
-JVerify requires that methods are explicit about which objects they modify, which can be specified using `modifies` calls. The `modifies` method takes one or multiple objects, and allows the remainder of the calling method to modify these.
+JVerify requires that methods without `@Pure` are explicit about which objects they modify, which can be specified using `modifies` calls. The `modifies` method takes one or multiple objects, and allows the remainder of the calling method to modify these.
 
 Example:
 
