@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.VerificationResults;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -300,6 +301,7 @@ public class TypeDeclarationCompiler {
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
+                createdContracts.add(method.sym);
                 return translateMethodDecl(method);
             }
             case JCTree.JCVariableDecl variableDecl -> {
@@ -551,11 +553,17 @@ public class TypeDeclarationCompiler {
                 topLevelDecls.put(topLevelDecl.getNameNode().getValue(), (TopLevelDeclWithMembers)topLevelDecl);
             }
         }
-        
+        var missingNonTypes = new HashSet<Symbol>();
+        for(var symbol : missingContracts) {
+            if (!(symbol instanceof Symbol.ClassSymbol)) {
+                missingContracts.remove(symbol);
+                missingNonTypes.add(symbol);
+            }
+        }
         while(!missingContracts.isEmpty()) {
             // Because inheritance can mean that adding missing contracts introduces new missing contracts
             // We need to loop
-            
+
             var symbol = missingContracts.iterator().next();
             missingContracts.remove(symbol);
             if (!createdContracts.add(symbol)) {
@@ -572,12 +580,25 @@ public class TypeDeclarationCompiler {
                         dummyOrigin,
                         new Name(dummyOrigin, compiledName),
                         classSymbol,
-                        typeParameters, List.of());
+                        typeParameters, new ArrayList<>());
 
+                topLevelDecls.put(compiledName, trait);
                 filesStarts.getFirst().getTopLevelDecls().add(trait);
-            } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
+            }
+        }
+        
+        while(!missingNonTypes.isEmpty()) {
+            // TODO change while into enhanced for
+            
+            var symbol = missingNonTypes.iterator().next();
+            missingNonTypes.remove(symbol);
+            if (!createdContracts.add(symbol)) {
+                continue;
+            }
+            if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
                 var clazz = (Symbol.ClassSymbol)methodSymbol.getEnclosingElement();
-                var clazzDecl = topLevelDecls.get(compiler.nameCompiler.getCompiledName(clazz));
+                String clazzName = compiler.nameCompiler.getCompiledName(clazz);
+                var clazzDecl = topLevelDecls.get(clazzName);
                 var name = compiler.nameCompiler.getCompiledName(methodSymbol);
                 var typeParameters = translateTypeParameters(dummyOrigin, methodSymbol.getTypeParameters());
                 com.sun.tools.javac.code.Type returnType = methodSymbol.getReturnType();
