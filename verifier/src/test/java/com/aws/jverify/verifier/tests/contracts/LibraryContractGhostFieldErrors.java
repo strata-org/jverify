@@ -21,12 +21,12 @@ public class LibraryContractGhostFieldErrors {
 
         @Pure
         int intValue() {
-//          ^ error: pure method should have only one statement
             reads(this);
             //noinspection ConstantValue
             precondition(value >= -10 && value <= 10);
             
-            var createError = 3;
+            int createError;
+//              ^ error: variable declaration of 'createError' must have an initializer because it is in a pure context
             return value;
         }
 
@@ -35,7 +35,7 @@ public class LibraryContractGhostFieldErrors {
             postcondition((DummyBigIntegerContract b) -> b.value == this.value + delta.value);
             // try not specifying a pure body using the contract class
             throw new RuntimeException();
-//          ^ error: pure method statement should be a return
+//          ^ error: a pure block must end in a return or if-else statement
         }
     }
 }
