@@ -42,7 +42,7 @@ public class NameCompiler {
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
-    private final SimpleSynchronousPublisher<Symbol> subject = new SimpleSynchronousPublisher();
+    private final SimpleSynchronousPublisher<Symbol> subject = new SimpleSynchronousPublisher<>();
     
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     

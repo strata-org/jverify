@@ -28,8 +28,8 @@ public class TypeDeclarationCompiler {
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
-    public final Set<Symbol.ClassSymbol> createdContracts = new HashSet<>();
-    private final Set<Symbol.ClassSymbol> missingContracts = new HashSet<>();
+    public final Set<Symbol> createdContracts = new HashSet<>();
+    private final Set<Symbol> missingContracts = new HashSet<>();
 
     private final TraitWithConstructorCompiler traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
 
@@ -44,11 +44,11 @@ public class TypeDeclarationCompiler {
 
             @Override
             public void onNext(Symbol symbol) {
-                if (symbol instanceof Symbol.ClassSymbol cs) {
-                    if (createdContracts.contains(cs)) {
-                        return;
-                    }
-                    missingContracts.add(cs);
+                if (createdContracts.contains(symbol)) {
+                    return;
+                }
+                if (symbol instanceof Symbol.ClassSymbol || symbol instanceof Symbol.MethodSymbol) {
+                    missingContracts.add(symbol);
                 }
             }
 
@@ -639,28 +639,60 @@ public class TypeDeclarationCompiler {
     public void addMissingTypeContracts(List<FileHeader> filesStarts) {
         var dummyToken = new Token(1, 1);
         IOrigin dummyOrigin = new TokenRangeOrigin(dummyToken, dummyToken);
+        
+        Map<String, TopLevelDeclWithMembers> topLevelDecls = new HashMap<>();
+        for(var fileHeader : filesStarts) {
+            for(var topLevelDecl : fileHeader.getTopLevelDecls()) {
+                topLevelDecls.put(topLevelDecl.getNameNode().getValue(), (TopLevelDeclWithMembers)topLevelDecl);
+            }
+        }
+        
         while(!missingContracts.isEmpty()) {
             // Because inheritance can mean that adding missing contracts introduces new missing contracts
             // We need to loop
             
-            var classSymbol = missingContracts.iterator().next();
-            missingContracts.remove(classSymbol);
-            if (!createdContracts.add(classSymbol)) {
+            var symbol = missingContracts.iterator().next();
+            missingContracts.remove(symbol);
+            if (!createdContracts.add(symbol)) {
                 continue;
             }
-            String compiledName = compiler.nameCompiler.getCompiledName(classSymbol);
+            String compiledName = compiler.nameCompiler.getCompiledName(symbol);
             if (compiledName.isEmpty()) {
                 // Defensive programming. Some types like intersection types have no name, although they should not occur here
                 continue;
             }
-            List<TypeParameter> typeParameters = translateTypeParameters(dummyOrigin, classSymbol.getTypeParameters());
-            TraitDecl trait = getTraitDecl(
-                    dummyOrigin,
-                    new Name(dummyOrigin, compiledName),
-                    classSymbol,
-                    typeParameters, List.of());
+            if (symbol instanceof Symbol.ClassSymbol classSymbol) {
+                List<TypeParameter> typeParameters = translateTypeParameters(dummyOrigin, symbol.getTypeParameters());
+                TraitDecl trait = getTraitDecl(
+                        dummyOrigin,
+                        new Name(dummyOrigin, compiledName),
+                        classSymbol,
+                        typeParameters, List.of());
 
-            filesStarts.getFirst().getTopLevelDecls().add(trait);
+                filesStarts.getFirst().getTopLevelDecls().add(trait);
+            } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
+                var clazz = (Symbol.ClassSymbol)methodSymbol.getEnclosingElement();
+                var clazzDecl = topLevelDecls.get(compiler.nameCompiler.getCompiledName(clazz));
+                var name = compiler.nameCompiler.getCompiledName(methodSymbol);
+                var typeParameters = translateTypeParameters(dummyOrigin, methodSymbol.getTypeParameters());
+                com.sun.tools.javac.code.Type returnType = methodSymbol.getReturnType();
+                MethodOrFunction callable;
+                if (returnType.isPrimitiveOrVoid() && !returnType.isPrimitive()) {
+                    callable = new Method(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
+                            typeParameters, getIns(methodSymbol, false, dummyOrigin),
+                            List.of(new AttributedExpression(new LiteralExpr(dummyOrigin, false), null, null)),
+                            List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
+                            new Specification<>(List.of(), null),
+                            methodSymbol.isStatic(), List.of(), null,false);
+                } else {
+                    callable = new Function(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
+                            typeParameters, getIns(methodSymbol, false, dummyOrigin),
+                            List.of(new AttributedExpression(new LiteralExpr(dummyOrigin, false), null, null)), List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
+                            methodSymbol.isStatic(), false, null, compiler.translateType(returnType, dummyOrigin),
+                            null, null, null);
+                }
+                clazzDecl.getMembers().add(callable);
+            }
         }
     }
 }
