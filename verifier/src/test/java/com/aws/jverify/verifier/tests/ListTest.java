@@ -4,20 +4,19 @@ package com.aws.jverify.verifier.tests;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.JVerify;
-import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 3, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 21, dafnyErrors = 4, useBuiltinContracts = true)
 public class ListTest {
 
     void verifying() {
@@ -83,6 +82,10 @@ class MapTest {
 //      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
     }
 }
+
+// TODO: Move the contracts back to builtin-contracts.java
+// They are here because they are easier to develop
+// in source files with proper build/IDE support.
 
 @Contract(value = Set.class, immutable = true)
 abstract class SetContract<E> implements Set<E> {
@@ -224,7 +227,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
                 size() == r.size() &&
                 JVerify.<SetContract<K>>contractOf(r).elements ==
                         JVerify.Set.all((K k) -> elements.contains(k))
-                                   .map((K k) -> Map.<K, V>entry(k, elements.get(k))));
+                                   .map((K k) -> new MapEntry<K, V>(k, elements.get(k))));
         throw new ContractException();
     }
 
@@ -235,7 +238,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
     }
 }
 
-@Contract(value = Map.Entry.class, immutable = true)
+@Contract(immutable = true)
 abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
     @Override
     @Pure
@@ -247,5 +250,27 @@ abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
     @Pure
     public V getValue() {
         throw new ContractException();
+    }
+}
+
+// Workaround for not being able to use Map.entry(key, value) directly
+// TODO: cut Dafny issue
+record MapEntry<K, V>(K key, V value) implements Map.Entry<K, V> {
+    @Override
+    @Pure
+    public K getKey() {
+        return key;
+    }
+
+    @Override
+    @Pure
+    public V getValue() {
+        return value;
+    }
+
+    @Override
+    @Verify(false)
+    public V setValue(V value) {
+        throw new UnsupportedOperationException();
     }
 }
