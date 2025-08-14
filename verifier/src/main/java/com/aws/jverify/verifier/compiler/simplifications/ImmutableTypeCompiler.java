@@ -4,7 +4,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
-import com.aws.jverify.verifier.compiler.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
@@ -26,14 +26,14 @@ public class ImmutableTypeCompiler {
         this.compiler = typeDeclarationCompiler.compiler;
     }
 
-    public TopLevelDeclWithMembers translateValueType(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    public TopLevelDeclWithMembers translate(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
         }
 
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
-            javaTypeParams = compiler.getAllOwnerTypeParameters(classDecl.sym).toList();
+            javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
@@ -103,6 +103,8 @@ public class ImmutableTypeCompiler {
             }
         }
 
+        compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
+
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
@@ -110,10 +112,10 @@ public class ImmutableTypeCompiler {
         members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
 
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
-                List.of(getDatatypeCtor(classDecl, origin, name, fields)), false);
+                List.of(getDatatypeCtor(origin, name, fields)), false);
     }
 
-    private DatatypeCtor getDatatypeCtor(JCTree.JCClassDecl classDecl, IOrigin origin, Name name, List<JCTree.JCVariableDecl> fields) {
+    private DatatypeCtor getDatatypeCtor(IOrigin origin, Name name, List<JCTree.JCVariableDecl> fields) {
         var ctorParams = fields.stream()
                 .map(typeDeclarationCompiler::translateField)
                 .map(field -> new Formal(
@@ -186,8 +188,6 @@ public class ImmutableTypeCompiler {
                 constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
 
-
-
             members.add(staticFunction);
         } else {
             if (dafnyMember != null) {
@@ -220,7 +220,7 @@ public class ImmutableTypeCompiler {
         JavaToDafnyCompiler compiler = expressionCompiler.compiler;
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
-            typeArgs = compiler.getAllOwnerTypeParameters(newClass.type.tsym).map(
+            typeArgs = compiler.getOwnAndEnclosedTypeParameters(newClass.type.tsym).map(
                     tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
         }
         

@@ -161,7 +161,7 @@ public class ExpressionCompiler {
             return ImmutableTypeCompiler.translateNewRecord(this, origin, newClass);
         }
         compiler.reportError(expr, "notSupported",
-                "using 'new' in an expression to create an instance of a non-record class");
+                "using 'new' in an expression to create an instance of a mutable type");
         return JavaToDafnyCompiler.getHole(origin);
     }
 
@@ -283,9 +283,6 @@ public class ExpressionCompiler {
     private Expression translateFieldAccess(JCTree.JCFieldAccess fieldAccess, IOrigin origin) {
         if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
             return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
-        }
-        if (fieldAccess.sym instanceof Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
-            return compiler.lambdaCompiler.translateDynamicMethod(origin, fieldAccess, dynamicMethodSymbol);
         }
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
