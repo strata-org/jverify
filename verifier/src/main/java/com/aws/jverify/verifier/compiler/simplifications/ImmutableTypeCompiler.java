@@ -100,6 +100,10 @@ public class ImmutableTypeCompiler {
             }
         }
 
+        if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
+            compiler.reportError(origin, "modifiableForbidden", "a record class");
+            return null;
+        }
         compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
 
         if (isAbstract) {
