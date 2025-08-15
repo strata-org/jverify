@@ -89,6 +89,11 @@ public class JVerify {
      * This is only necessary within {@link Pure} methods, which otherwise cannot read the object or its fields.
      */
     public static void reads(Object object) { }
+
+    /**
+     * Can be used as an argument in reads and modifies clauses, 
+     * to indicate that all objects can be read or modified
+     */
     public static Object all() { 
         throw new ContractException();
     }
