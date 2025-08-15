@@ -6,7 +6,7 @@ Having these two pieces of information allows JVerify to determine which impure 
 
 #### Reads
 
-JVerify requires that a method marked with `@Pure` is explicit about which objects it reads fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple `object` arguments. Example:
+JVerify requires that a method marked with `@Pure` is explicit about which objects it reads non-final fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple Object arguments. Example:
 
 ```java
 class Engine {
