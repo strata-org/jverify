@@ -7,22 +7,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MethodOrLoopContract {
-    JCTree treeOrigin;
+    public JCTree treeOrigin;
+    
     /**
      * indicates the code is deterministic and does not modify the heap nor do IO
      */
-    boolean isPure;
-    List<AttributedExpression> preconditions;
-    List<AttributedExpression> postconditions;
-    List<AttributedExpression> invariants;
-    List<Expression> decreases;
-    List<FrameExpression> reads;
-    List<FrameExpression> modifies;
+    public boolean isPure;
+    public Expression pureBody;
+    public List<AttributedExpression> preconditions;
+    public List<AttributedExpression> postconditions;
+    public List<AttributedExpression> invariants;
+    public List<Expression> decreases;
+    public List<FrameExpression> reads;
+    public List<FrameExpression> modifies;
 
-    MethodOrLoopContract(JCTree treeOrigin, boolean isPure) {
+    public MethodOrLoopContract(JCTree treeOrigin, boolean isPure) {
         this.treeOrigin = treeOrigin;
         this.isPure = isPure;
-        
+
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
         invariants = new ArrayList<>();

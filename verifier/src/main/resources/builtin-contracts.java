@@ -243,7 +243,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
                 size() == r.size() &&
                         r.elements ==
                                 JVerify.Set.all((K k) -> elements.contains(k))
-                                        .map((K k) -> new MapEntry<K, V>(k, elements.get(k))));
+                                        .map((K k) -> (java.util.Map.Entry<K,V>)new MapEntry<K, V>(k, elements.get(k))));
         throw new ContractException();
     }
 
@@ -338,6 +338,7 @@ class LongContract {
 @Contract(Boolean.class)
 class BooleanContract {
 
+    @Pure
     public static Boolean valueOf(boolean b) {
         postcondition((Boolean boxed) -> boxed.booleanValue() == b);
         throw new ContractException();

@@ -50,12 +50,6 @@ public class JVerify {
     }
 
     /**
-     * The given function must evaluate to true after this method call
-     */
-    public static <T> void postcondition(BooleanSupplier predicate) {
-    }
-
-    /**
      * The given expression must evaluate to true after this method call
      */
     public static void postcondition(boolean predicate) {

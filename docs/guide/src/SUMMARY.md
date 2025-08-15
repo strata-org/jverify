@@ -22,11 +22,12 @@
 
 # Working with objects
 
-- [Modifying Fields](modifies.md)
+- [Reading and Modifying](reads_and_modifies.md)
 - [Time Traveling](time_traveling.md)
 - [Working with Null](working_with_null.md)
 - [Class Invariants](class_invariants.md)
 - [Interfaces & Abstract Classes](interfaces.md)
+- [Immutable types](immutable_types.md)
 
 # Integration
 - [Partially verifying a codebase](./partial_verification.md)
