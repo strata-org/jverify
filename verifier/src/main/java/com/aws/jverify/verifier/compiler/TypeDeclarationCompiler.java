@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -163,7 +164,6 @@ public class TypeDeclarationCompiler {
         createdContracts.add(classDecl.sym);
         return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
     }
-
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         
@@ -440,7 +440,7 @@ public class TypeDeclarationCompiler {
                 }
                 header = Objects.requireNonNullElseGet(contractOverride, () -> new MethodOrLoopContract(source, false));
                 var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
-                List<JCTree.JCStatement> postHeader = new ContractCompiler(compiler).
+                List<JCTree.JCStatement> postHeader = new MethodOrLoopContractCompiler(compiler).
                         translateHeader(((JCTree.JCBlock) sourceBody).stats, header, allowFooter, true);
                 if (shouldVerify) {
                     bodyStatements = blockCompiler.translateStatements(postHeader);
@@ -555,7 +555,7 @@ public class TypeDeclarationCompiler {
                     header = new MethodOrLoopContract(source, true);
                 }
                 var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
-                var postHeader = new ContractCompiler(compiler).
+                var postHeader = new MethodOrLoopContractCompiler(compiler).
                         translateHeader((JCTree.JCBlock) sourceBody, header, allowFooter, true);
                 if (postHeader.size() != 1) {
                     compiler.reportError(source, "pureMethodMultipleStatements");

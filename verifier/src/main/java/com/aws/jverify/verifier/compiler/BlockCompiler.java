@@ -172,7 +172,7 @@ public class BlockCompiler {
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = new ContractCompiler(compiler).translateHeader(body, header, false, true);
+        var postHeader = new MethodOrLoopContractCompiler(compiler).translateHeader(body, header, false, true);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -398,7 +398,7 @@ public class BlockCompiler {
         var header = new MethodOrLoopContract(methodDecl, isPure);
         if (methodDecl.getBody() != null) {
             var allowFooter = isConstructor(methodDecl.sym);
-            new ContractCompiler(compiler).
+            new MethodOrLoopContractCompiler(compiler).
                     translateHeader(methodDecl.getBody(), header, allowFooter, reportErrors);
         }
 

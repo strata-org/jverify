@@ -70,7 +70,6 @@ function JString(s: string): DString
   JS(seq(|s|, i requires 0 <= i < |s| => s[i] as char16))
 }
 
-
 type byte = x | 0 <= x < 256
 
 type float = real
