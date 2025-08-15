@@ -22,23 +22,21 @@ boolean sorted(int[] arr)
 Note that this uses three new concepts, `@Pure`, `@Erased` and `reads`. These are needed for JVerify to accept the code. The following two sub-sections discuss why we need these concepts and how they work.
 
 ## Pure code
-We say code is pure if it does not have side effects and is deterministic (produces the same result if provided with the same inputs).
+We say code is pure if it does not have side effects and is deterministic (meaning it produces the same result if provided with the same inputs).
 
-JVerify requires that expressions that occur in a nested context are pure. Nested contexts are:
-- Arguments to method calls
-- Expressions that are part of statements, such as the guards of `if` and `loop` statements. Return statements are the exception: their expression may not be pure.
+JVerify requires that code that occurs in contracts, such as calls to `precondition`, `postcondition` and `check`, is pure.
 
-The rules for pure code are as follows:
+Code is considered pure if it follows these rules:
 - Only methods annotated with `@Pure` can be called.
-- Local variables or fields can not be updated, so assignment operators such as `=` can not be used.
-- `new` can only be used on records 
+- Local variables or fields can not be updated, so assignment operators such as `=` can not be used unless they're initializing the variable.
+- `new` can only be used on immutable types (like records). More information is in the section [Immutable types](immutable_types.md). 
 
-Code that occurs in a method annotated with `@Pure` must follow those  rules, and additionally:
+Code that occurs in a method annotated with `@Pure` must follow the rules for pure code, and additionally:
 - Only the following statements can be used:
   - variable declaration statements,
   - calls to `precondition`, `postcondition`, `reads`, and `check`
   - a single `return <expr>` statement at the end, in which other pure methods may be called
-- If any fields of a reference are read, that reference must occur in a `reads` call. We'll explain what reads calls are below. 
+- If any non-final fields of a reference are read, that reference must occur in a `reads` call. We'll explain what reads calls are below. 
 
 Summary table:
 
@@ -53,7 +51,7 @@ Summary table:
 
 JVerify guarantees that a `@Pure` method is deterministic, meaning that given the same  it returns the same output. To use this property however, we need to know what the input is. In a language with references like Java, it's not enough to know what the method arguments are. 
 
-JVerify requires that a method marked with `@Pure` is explicit about which objects it reads fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple `object` arguments. Example:
+JVerify requires that a method marked with `@Pure` is explicit about which objects it reads non-final fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple `Object` arguments. Example:
 
 ```java
 class Engine {

@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -154,7 +155,6 @@ public class TypeDeclarationCompiler {
         createdContracts.add(classDecl.sym);
         return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
     }
-
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         
@@ -374,7 +374,7 @@ public class TypeDeclarationCompiler {
         if (declToUse.body == null) {
             remainingStatements = null;
         } else {
-            remainingStatements = new ContractCompiler(compiler).
+            remainingStatements = new MethodOrLoopContractCompiler(compiler).
                     extractContract(declToUse.body, contract, allowFooter);
             if (externalDecl == declToUse) {
                 remainingStatements = null;

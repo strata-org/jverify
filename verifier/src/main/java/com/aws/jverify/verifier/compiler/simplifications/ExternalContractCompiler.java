@@ -16,6 +16,7 @@ import java.util.*;
 import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
+import static com.sun.tools.javac.tree.JCTree.Tag.*;
 
 public class ExternalContractCompiler extends TreeScanner {
     final JavaToDafnyCompiler compiler;
@@ -146,7 +147,7 @@ public class ExternalContractCompiler extends TreeScanner {
         var contract = new MethodOrLoopContract(methodDecl, isPure);
         if (methodDecl.getBody() != null) {
             var allowFooter = isConstructor(methodDecl.sym);
-            new ContractCompiler(compiler).
+            new MethodOrLoopContractCompiler(compiler).
                     extractContract(methodDecl.getBody(), contract, allowFooter);
         }
 
