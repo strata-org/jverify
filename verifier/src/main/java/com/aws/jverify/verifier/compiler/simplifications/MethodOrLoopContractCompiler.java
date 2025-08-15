@@ -51,17 +51,19 @@ public class MethodOrLoopContractCompiler {
         }
 
         if (contract.isPure) {
-            if (result.size() == 1) {
+            if (result.size() != 1) {
+                compiler.reportError(contract.treeOrigin, "pureMethodMultipleStatements");
+            } else {
                 var statement = result.getFirst();
-                var bodyless = statement instanceof JCTree.JCThrow throwStatement &&
-                        throwStatement.expr.type.tsym.getQualifiedName().contentEquals(ContractException.class.getCanonicalName());
-                if (bodyless) {
-                    return result;
+                if (statement instanceof JCTree.JCReturn returnStatement) {
+                    contract.pureBody = compiler.expressionCompiler.toExpr(returnStatement.expr);
+                } else {
+                    if (!((statement instanceof JCTree.JCThrow throwStatement &&
+                            throwStatement.expr.type.tsym.getQualifiedName().contentEquals(ContractException.class.getCanonicalName())))) {
+                        compiler.reportError(statement, "pureMethodNeedsReturnStatement");
+                    }
                 }
             }
-
-            contract.pureBody = compiler.expressionCompiler.toExpr(remainingStatements);
-            return List.of();
         }
         return result;
     }

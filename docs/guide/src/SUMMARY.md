@@ -22,7 +22,7 @@
 
 # Working with objects
 
-- [Reading and Modifying](reads_and_modifies.md)
+- [Modifying Fields](modifies.md)
 - [Time Traveling](time_traveling.md)
 - [Working with Null](working_with_null.md)
 - [Class Invariants](class_invariants.md)
