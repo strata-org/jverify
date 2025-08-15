@@ -17,17 +17,19 @@ public class MissingContracts {
 //        return missingContract.assumedPure();
 //    }
 
-//    record Value() {}
-//    @SuppressWarnings("DataFlowIssue")
-//    @Pure
-//    List<Value> pureUser2(List<Value> values) {
-//        var result = List.of(new Value());
-//        // var b = result.add(new Value());
-//        return result;
-//    }
 
     @SuppressWarnings("UnnecessaryBoxing")
     Integer pureUser3() {
         return Integer.valueOf(3);
     }
+    
+    @Pure
+    List<Value> pureUser2(List<Value> values) {
+        return List.of(new Value());
+    }
+    
+    void impureUser(List<Value> values) {
+        values.addFirst(new Value());
+    }
+    record Value() {}
 }
