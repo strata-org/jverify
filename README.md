@@ -1,5 +1,5 @@
 ## Getting started
-Please refer to the [user guide](https://glowing-carnival-e22opg5.pages.github.io/getting_started.html) to get started
+Please refer to the [user guide](https://glowing-carnival-e22opg5.pages.github.io/) to get started
 
 ## Security
 
