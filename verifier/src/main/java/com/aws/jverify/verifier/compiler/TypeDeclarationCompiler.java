@@ -366,9 +366,8 @@ public class TypeDeclarationCompiler {
             compiler.reportError(declToUse, "notSupported", "@InheritContract");
             return null;
         }
-        
-        var isPure = annotationsByName.containsKey(Pure.class.getName());
-        var contract = new MethodOrLoopContract(declToUse, isPure);
+
+        var contract = new MethodOrLoopContract(declToUse, annotationsByName.containsKey(Pure.class.getName()));
         var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
         List<JCTree.JCStatement> remainingStatements;
         if (declToUse.body == null) {
