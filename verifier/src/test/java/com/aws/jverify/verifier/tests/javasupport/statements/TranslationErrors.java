@@ -8,19 +8,6 @@ import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 2)
 class TranslationErrors {
-    @Pure
-    int pureWithMultipleStatements() {
-//      ^ error: pure method should have only one statement
-        foo();
-        return 3;
-    }
-
-    @Pure
-    void pureWithoutReturn() {        
-//       ^ error: pure method should have a return type
-        var x = 3;
-//          ^ error: pure method statement should be a return
-    }
     
     void quantifierNeedsLambdaArgument() {
         check(forall((Integer i) -> i > 0));

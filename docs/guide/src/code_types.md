@@ -24,48 +24,26 @@ Note that this uses three new concepts, `@Pure`, `@Erased` and `reads`. These ar
 ## Pure code
 We say code is pure if it does not have side effects and is deterministic (meaning it produces the same result if provided with the same inputs).
 
-JVerify requires that code that occurs in contracts, such as calls to `precondition`, `postcondition` and `check`, is pure.
+JVerify requires that expressions that occur in a nested context are pure. Nested contexts are:
+- Arguments to method calls
+- Expressions that are part of statements, such as the guards of `if` and `loop` statements. Return statements are the exception: their expression may be not pure.
 
-Code is considered pure if it follows these rules:
+The rules for pure expressions are as follows:
 - Only methods annotated with `@Pure` can be called.
-- Local variables or fields can not be updated, so assignment operators such as `=` can not be used unless they're initializing the variable.
-- `new` can only be used on immutable types (like records). More information is in the section [Immutable types](immutable_types.md). 
+- Assignment expressions are not allowed
+- `new` can only be used on records 
 
-Code that occurs in a method annotated with `@Pure` must follow the rules for pure code, and additionally:
-- Only the following statements can be used:
-  - variable declaration statements,
-  - calls to `precondition`, `postcondition`, `reads`, and `check`
-  - a single `return <expr>` statement at the end, in which other pure methods may be called
-- If any non-final fields of a reference are read, that reference must occur in a `reads` call. We'll explain what reads calls are below. 
+The rules for pure blocks are:
+- The last statement of the block must be either a return or an if-else statement.
+- Any statements before the last one and after the contract, must be variable declarations with an initializer.
 
 Summary table:
 
-| | **@Pure method** | **impure method** |
-|---|---|---|
-| **Can be called inside a contract** | yes | no |
-| **Restricted use of statements** | yes | no |
-| **Needs reads calls** | yes | no |
-| **Can update variables** | no | yes |
-
-### Reads calls
-
-JVerify guarantees that a `@Pure` method is deterministic, meaning that given the same  it returns the same output. To use this property however, we need to know what the input is. In a language with references like Java, it's not enough to know what the method arguments are. 
-
-JVerify requires that a method marked with `@Pure` is explicit about which objects it reads non-final fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple `Object` arguments. Example:
-
-```java
-class Engine {
-    int horsePower;
-}
-class Car {
-    Engine engine;
-    
-    public int readHorsePower() {
-        reads(this, engine); // without this line, the next line would emit an error
-        return this.engine.horsePower;
-    }
-}
-``` 
+| | **@Pure code** | **impure code** |
+|---|----------------|-----------------|
+| **Can be called inside a contract** | yes            | no              |
+| **Restricted use of statements** | yes            | no              |
+| **Can update variables** | no             | yes             |
 
 ## Erased code
 Since Java 5.0, it has had a feature called generics, which enables the programmer to give the type system additional information, through which it can find bugs it otherwise would not be able to. However, to prevent impacting runtime performance, the Java compiler removes any usage of the generics feature during compilation: a process called _type erasure_.
