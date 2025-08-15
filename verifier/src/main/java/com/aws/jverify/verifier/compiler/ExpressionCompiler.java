@@ -1,7 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.ContractException;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Reference;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
@@ -484,7 +483,7 @@ public class ExpressionCompiler {
 
         var symtab = Symtab.instance(this.compiler.context);
         if (type.baseType() == symtab.objectType) {
-            return !compiler.isAnnotated(type, Modifiable.class);
+            return !compiler.isAnnotated(type, Reference.class);
         }
 
         var types = Types.instance(this.compiler.context);

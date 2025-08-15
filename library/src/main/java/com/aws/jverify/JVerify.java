@@ -88,7 +88,9 @@ public class JVerify {
      * Specifies that the given heap object(s) (and its fields) may be read in the current context.
      * This is only necessary within {@link Pure} methods, which otherwise cannot read the object or its fields.
      */
-    public static void reads(Object object) {
+    public static void reads(Object object) { }
+    public static Object all() { 
+        throw new ContractException();
     }
 
     /**

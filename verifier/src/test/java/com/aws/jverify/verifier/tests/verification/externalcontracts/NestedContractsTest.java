@@ -15,22 +15,22 @@ class NestedContractsTest {
         check(f3.getV() == 42);
     }
 
-    @Modifiable
+    @Reference
     interface InterfaceOne {
-        @Modifiable
+        @Reference
         interface Nested {
             void setY(int x);
             int getY();
         }
     }
 
-    @Modifiable
+    @Reference
     interface InterfaceTwo {
-        @Modifiable
+        @Reference
         interface Nested {
             void setY(int x);
             int getY();
-            @Modifiable
+            @Reference
             interface ReNested {
                 void setV(int x);
                 int getV();

@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Reference;
 import com.aws.jverify.generated.IOrigin;
 import com.aws.jverify.generated.NameSegment;
 import com.aws.jverify.generated.Type;
@@ -41,8 +41,8 @@ public class ModifiableObjectCompiler {
         Symtab symtab = Symtab.instance(context);
         
         var mirrors = classType.getAnnotationMirrors();
-        var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
-        if (modifiableAnnotation.isPresent() || compiler.isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
+        var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Reference.class.getName())).findFirst();
+        if (modifiableAnnotation.isPresent() || compiler.isAnnotated(additionalModifiers, Reference.class)) {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
             } else {

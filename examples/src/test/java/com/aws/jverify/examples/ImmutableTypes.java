@@ -1,81 +1,80 @@
 package com.aws.jverify.examples;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.Modifiable;
-import com.aws.jverify.Pure;
+import com.aws.jverify.*;
 
 import static com.aws.jverify.JVerify.*;
 
-interface Immutable {
-    void increment();
-    int getX();
+interface Container<T> {
+    T get();
     
     @Contract
-    class MyContract implements Immutable {
-        int x;
-
-        public void increment() {
-            modifies(this); // error
-//                   ^^^^ Error: a modifies-clause expression must denote an object, a single field location like o`x or a`[i] of type (object, field)  (with `--referrers`), or a set/iset/multiset/seq of objects or single field locations (with `--referrers`) (instead got Immutable)
-            postcondition(x == old(x) + 1);
-        }
-        
+    class ContainerContract<T> implements Container<T> {
         @Pure
-        public int getX() {
-            return x;
+        @Override
+        public T get() {
+            reads(all()); // we use readsAll so implementing methods can still decide whether to be mutable or not
+            decreases(0);
+            throw new ContractException();
         }
-    }   
-}
-
-@Modifiable
-interface Mutable {
-    void increment();
-    int getX();
-
-    @Contract
-    class MyContract implements Mutable {
-        int x;
-
-        public void increment() {
-            modifies(this);
-            postcondition(x == old(x) + 1);
-        }
-
-        @Pure
-        public int getX() { return x; }
     }
 }
 
-   record RecordsAreImmutable(int x) 
-// ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
-        implements Mutable
-{
-    @Pure
-    static RecordsAreImmutable createR() {
-        return new RecordsAreImmutable(3); // legal
+/**
+ * Since an interface can not be instantiated in any context, 
+ * JVerify does not care whether it's mutable or not.
+ */
+interface ImmutableContainer<T> extends Container<T> {
+    @Contract
+    class ImmutableContainerContract<T> implements ImmutableContainer<T> {
+        @Pure
+        @Override
+        public T get() {
+            // no reads clause - means its empty
+            throw new ContractException();
+        }
     }
-    
-    @Pure
-    public boolean compare(RecordsAreImmutable other) {
-        return this == other;
-//                  ^ error: '==' is only allowed when at least one operand's type is mutable
-    }
+}
 
+/**
+ * Immutable so it can be instantiated in a pure context
+ */
+record ImmutableContainerImpl<T>(T value) implements ImmutableContainer<T> {
+    @Pure
     @Override
-    public void increment() {
+    public T get() {
+        decreases(0);
+        // no reads clause - means its empty
+        return value;
+    }
+    
+    @Pure
+    public static <T> ImmutableContainerImpl<T> createMe(T value) {
+        return new ImmutableContainerImpl<T>(value);
+    }
+}
+
+/**
+ * Mutable so it can not be instantiated in a pure context
+ */
+class MutableContainer<T> implements Container<T> {
+    T value;
+
+    @Pure
+    @Override
+    public T get() {
+        decreases(0);
+        reads(this); // refines the inherited reads clause from 'all' to 'this'
+        return value;
+    }
+    
+    public void set(T value) {
         modifies(this);
+        this.value = value;
     }
-
-    @Override
-    public int getX() {
-        return x;
-    }
-}
-
-class ClassesAreMutable {
+    
     @Pure
-    ClassesAreMutable createC() {
-        return new ClassesAreMutable();
+    public static <T> MutableContainer<T> createMe() {
+        return new MutableContainer<T>();
 //             ^ error: using 'new' in an expression to create an instance of a mutable type is not supported
     }
 }

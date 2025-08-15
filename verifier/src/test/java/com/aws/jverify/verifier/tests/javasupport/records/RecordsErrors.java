@@ -1,8 +1,11 @@
 package com.aws.jverify.verifier.tests.javasupport.records;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Reference;
+import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
+
+import static com.aws.jverify.JVerify.modifies;
 
 @JVerifyTest(exitCode = 2)
 @SuppressWarnings({"RedundantRecordConstructor", "unused"})
@@ -64,7 +67,7 @@ class RecordsErrors {
         @Override public boolean close() { return false; }
     }
 
-    @Modifiable
+    @Reference
     interface IDoor {
         boolean open();
         boolean close();
@@ -74,5 +77,33 @@ class RecordsErrors {
 //  ^ error: class 'WantsContract' must not have an externally defined contract because all its contracts can be defined internally
     class WantsContractContract {}
     
-    class WantsContract {}
+    static class WantsContract {}
+
+    @Reference
+    interface Mutable {}
+
+    record RecordsAreImmutable(int x)
+//  ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
+            implements Mutable
+    {
+        @Pure
+        static RecordsAreImmutable createR() {
+            return new RecordsAreImmutable(3); // legal
+        }
+
+        @Pure
+        public boolean compare(RecordsAreImmutable other) {
+            return this == other;
+//                      ^ error: '==' is only allowed when at least one operand's type is mutable
+        }
+
+        public void increment() {
+            modifies(this);
+        }
+
+        public int getX() {
+            return x;
+        }
+    }
 }
+

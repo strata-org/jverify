@@ -2,7 +2,7 @@ package com.aws.jverify.examples;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Reference;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
@@ -33,7 +33,7 @@ class User {
     }
 }
 
-@Modifiable
+@Reference
 interface Foo {
     public final static int c = 42;
 

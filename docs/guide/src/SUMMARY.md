@@ -27,7 +27,7 @@
 - [Working with Null](working_with_null.md)
 - [Class Invariants](class_invariants.md)
 - [Interfaces & Abstract Classes](interfaces.md)
-- [Immutable types](immutable_types.md)
+- [Using 'new' in pure code](immutable_types.md)
 
 # Integration
 - [Partially verifying a codebase](./partial_verification.md)

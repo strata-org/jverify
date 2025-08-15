@@ -15,7 +15,7 @@ class InterfacesVerification {
     }
 }
 
-@Modifiable
+@Reference
 interface I {
     int f(int x);
     int m();

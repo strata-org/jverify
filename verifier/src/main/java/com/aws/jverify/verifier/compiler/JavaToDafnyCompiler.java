@@ -702,7 +702,7 @@ public class JavaToDafnyCompiler {
         if (classSymbol.type == symtab.objectType) {
             return true;
         }
-        if (JavaToDafnyCompiler.isInterface(classSymbol) && !isAnnotated(classSymbol.type, Modifiable.class)) {
+        if (JavaToDafnyCompiler.isInterface(classSymbol) && !isAnnotated(classSymbol.type, Reference.class)) {
             return true;
         }
         boolean anonymousImmutableType = isAnonymousOrFinalImmutableType(classSymbol);

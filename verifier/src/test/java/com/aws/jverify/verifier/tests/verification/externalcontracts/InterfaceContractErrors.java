@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.verification.externalcontracts;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Reference;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.postcondition;
@@ -30,7 +30,7 @@ public class InterfaceContractErrors {
     interface IllegalAnnotationInterface {}
 
     @Contract
-    @Modifiable
+    @Reference
 //  ^ error: annotation 'Modifiable' on @Contract class 'InterfaceContractErrors$IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
     static class IllegalAnnotationContract implements IllegalAnnotationInterface {
     }

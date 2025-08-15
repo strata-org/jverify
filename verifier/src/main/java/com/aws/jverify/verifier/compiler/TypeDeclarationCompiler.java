@@ -85,9 +85,9 @@ public class TypeDeclarationCompiler {
                         // And we do not need to traverse the contracter.
                         // The contractee will lookup contracts in the contractor
                         // for bodyless members
-                        var modifiableAnnotation = annotationsByName.get(Modifiable.class.getName());
+                        var modifiableAnnotation = annotationsByName.get(Reference.class.getName());
                         if (modifiableAnnotation != null) {
-                            compiler.reportError(modifiableAnnotation, "annotationOnSourceContractClass", Modifiable.class.getSimpleName(), classDecl.name.toString());
+                            compiler.reportError(modifiableAnnotation, "annotationOnSourceContractClass", Reference.class.getSimpleName(), classDecl.name.toString());
                         }
                         return List.of();
                     }
@@ -248,7 +248,7 @@ public class TypeDeclarationCompiler {
         }
 
         var mutable = !JavaToDafnyCompiler.isInterface(definingSymbol)
-                || compiler.isAnnotated(definingSymbol.type, Modifiable.class);
+                || compiler.isAnnotated(definingSymbol.type, Reference.class);
         if (mutable) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }

@@ -75,7 +75,7 @@ public class JVerifyGhostExpressionCompiler {
             case "get" -> {
                 var seq = expressionCompiler.toExpr(receiver);
                 var index = expressionCompiler.toExpr(args.getFirst());
-                return new SeqSelectExpr(compiler.toOrigin(invocation), true, seq, index, null, null);
+                return new SeqSelectExpr(origin, true, seq, index, null, null);
             }
             case "drop" -> {
                 return toSubsequence(origin, receiver, args.getFirst(), null);
@@ -89,19 +89,22 @@ public class JVerifyGhostExpressionCompiler {
             case "contains" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
                 var seq = expressionCompiler.toExpr(receiver);
-                return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, seq);
+                return new BinaryExpr(origin, BinaryExprOpcode.In, element, seq);
             }
             case "size" -> {
                 var seq = expressionCompiler.toExpr(receiver);
-                return new UnaryOpExpr(compiler.toOrigin(invocation), seq, UnaryOpExprOpcode.Cardinality);
+                return new UnaryOpExpr(origin, seq, UnaryOpExprOpcode.Cardinality);
             }
             case "old" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
-                return new OldExpr(compiler.toOrigin(invocation), element, null);
+                return new OldExpr(origin, element, null);
             }
             case "fresh" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
-                return new FreshExpr(compiler.toOrigin(invocation), element, null);
+                return new FreshExpr(origin, element, null);
+            }
+            case "all" -> {
+                return new WildcardExpr(origin);
             }
         }
 

@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Reference;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.ExpressionCompiler;
@@ -99,7 +99,7 @@ public class ImmutableTypeCompiler {
 
         members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
 
-        if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
+        if (compiler.isAnnotatedRecursive(classDecl.type, Reference.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
             return null;
         }
