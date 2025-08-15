@@ -22,7 +22,7 @@ boolean sorted(int[] arr)
 Note that this uses three new concepts, `@Pure`, `@Erased` and `reads`. These are needed for JVerify to accept the code. The following two sub-sections discuss why we need these concepts and how they work.
 
 ## Pure code
-We say code is pure if it does not have side effects and is deterministic (produces the same result if provided with the same inputs).
+We say code is pure if it does not have side effects and is deterministic (meaning it produces the same result if provided with the same inputs).
 
 JVerify requires that expressions that occur in a nested context are pure. Nested contexts are:
 - Arguments to method calls

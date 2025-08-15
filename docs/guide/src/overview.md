@@ -28,7 +28,7 @@ Yes, more about that is in [partially verifying a codebase](./partial_verificati
 
 #### Can I use JVerify when calling libraries that were developed without JVerify?
 Yes, more about that is in [adding contracts to third-party code](./external_contracts.md).
-For the Java standard library, JVerify provides contracts for the most commonly used part of it out of the box. You can find which part of the standard library is supported in the section [supported Java features](./supported_java_features.md).
+For the Java standard library, JVerify provides contracts for the most commonly used part of it out of the box. It will support most types from `java.lang`, `java.math` and `java.util`. You can find which part of the standard library is currently supported in the section [supported Java features](./supported_java_features.md).
 
 #### Which IDEs can I use with JVerify?
 You can use any Java IDE when working with JVerify.

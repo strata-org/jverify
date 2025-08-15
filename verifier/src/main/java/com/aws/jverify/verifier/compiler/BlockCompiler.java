@@ -169,7 +169,7 @@ public class BlockCompiler {
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = new ContractCompiler(compiler).extractContract(body, header, false);
+        var postHeader = new MethodOrLoopContractCompiler(compiler).extractContract(body, header, false);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
