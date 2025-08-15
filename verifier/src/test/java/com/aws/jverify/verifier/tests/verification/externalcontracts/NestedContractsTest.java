@@ -4,74 +4,6 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@Modifiable
-interface InterfaceOne {
-    @Modifiable
-    interface Nested {
-        void setY(int x);
-        int getY();
-    }
-}
-
-@Modifiable
-interface InterfaceTwo {
-    @Modifiable
-    interface Nested {
-        void setY(int x);
-        int getY();
-        @Modifiable
-        interface ReNested {
-            void setV(int x);
-            int getV();
-        }
-    }
-}
-
-@Contract(InterfaceOne.Nested.class)
-class InterfaceOneContract implements InterfaceOne.Nested {
-    int value;
-    public void setY(int x) {
-        postcondition(this.value == x);
-        throw new ContractException();
-    }
-    @Pure
-    public int getY() {
-        reads(this);
-        postcondition((int i) -> i == value);
-        throw new ContractException();
-    }
-}
-
-@Contract(InterfaceTwo.Nested.class)
-class InterfaceTwoNestedContract implements InterfaceTwo.Nested {
-    int value;
-    public void setY(int x) {
-        postcondition(this.value == x);
-        throw new ContractException();
-    }
-    @Pure
-    public int getY() {
-        reads(this);
-        postcondition((int i) -> i == value+1);
-        throw new ContractException();
-    }
-}
-
-@Contract(InterfaceTwo.Nested.ReNested.class)
-class InterfaceTwoNestedReNested implements InterfaceTwo.Nested.ReNested {
-    int value;
-    public void setV(int x) {
-        postcondition(this.value == x);
-        throw new ContractException();
-    }
-    @Pure
-    public int getV() {
-        reads(this);
-        postcondition((int i) -> i == value);
-        throw new ContractException();
-    }
-}
-
 @JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0)
 class NestedContractsTest {
     public static void foo(InterfaceOne.Nested f, InterfaceTwo.Nested f2, InterfaceTwo.Nested.ReNested f3) {
@@ -81,5 +13,73 @@ class NestedContractsTest {
         check(f2.getY() == 43);
         f3.setV(42);
         check(f3.getV() == 42);
+    }
+
+    @Modifiable
+    interface InterfaceOne {
+        @Modifiable
+        interface Nested {
+            void setY(int x);
+            int getY();
+        }
+    }
+
+    @Modifiable
+    interface InterfaceTwo {
+        @Modifiable
+        interface Nested {
+            void setY(int x);
+            int getY();
+            @Modifiable
+            interface ReNested {
+                void setV(int x);
+                int getV();
+            }
+        }
+    }
+
+    @Contract(InterfaceOne.Nested.class)
+    class InterfaceOneContract implements InterfaceOne.Nested {
+        int value;
+        public void setY(int x) {
+            postcondition(this.value == x);
+            throw new ContractException();
+        }
+        @Pure
+        public int getY() {
+            reads(this);
+            postcondition((int i) -> i == value);
+            throw new ContractException();
+        }
+    }
+
+    @Contract(InterfaceTwo.Nested.class)
+    class InterfaceTwoNestedContract implements InterfaceTwo.Nested {
+        int value;
+        public void setY(int x) {
+            postcondition(this.value == x);
+            throw new ContractException();
+        }
+        @Pure
+        public int getY() {
+            reads(this);
+            postcondition((int i) -> i == value+1);
+            throw new ContractException();
+        }
+    }
+
+    @Contract(InterfaceTwo.Nested.ReNested.class)
+    class InterfaceTwoNestedReNested implements InterfaceTwo.Nested.ReNested {
+        int value;
+        public void setV(int x) {
+            postcondition(this.value == x);
+            throw new ContractException();
+        }
+        @Pure
+        public int getV() {
+            reads(this);
+            postcondition((int i) -> i == value);
+            throw new ContractException();
+        }
     }
 }

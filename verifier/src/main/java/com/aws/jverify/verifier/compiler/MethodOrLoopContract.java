@@ -8,10 +8,12 @@ import java.util.List;
 
 public class MethodOrLoopContract {
     public JCTree treeOrigin;
+    
     /**
      * indicates the code is deterministic and does not modify the heap nor do IO
      */
     public boolean isPure;
+    public Expression pureBody;
     public List<AttributedExpression> preconditions;
     public List<AttributedExpression> postconditions;
     public List<AttributedExpression> invariants;
@@ -19,10 +21,10 @@ public class MethodOrLoopContract {
     public List<FrameExpression> reads;
     public List<FrameExpression> modifies;
 
-    MethodOrLoopContract(JCTree treeOrigin, boolean isPure) {
+    public MethodOrLoopContract(JCTree treeOrigin, boolean isPure) {
         this.treeOrigin = treeOrigin;
         this.isPure = isPure;
-        
+
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
         invariants = new ArrayList<>();
