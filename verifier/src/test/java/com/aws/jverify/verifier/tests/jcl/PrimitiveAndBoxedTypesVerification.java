@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 
 @JVerifyTest(exitCode = 4, dafnyVerified = 4, dafnyErrors = 1, useBuiltinContracts = true)
-class PrimitiveAndBoxedTypes {
+class PrimitiveAndBoxedTypesVerification {
     @Pure
     static boolean boxedIsZero(Integer i) {
         return i == 0;
