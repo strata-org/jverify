@@ -5,13 +5,19 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 19, dafnyErrors = 5)
+@JVerifyTest(exitCode = 4, dafnyVerified = 18, dafnyErrors = 5)
 class InterfacesVerification {
     public void root(I i) {
         var a = i.f(1);
 //              ^^^^^^ Error: function precondition could not be proved
         var b = i.m();
         check(b > 2);
+    }
+
+    // Ensure various types extend Object in the encoding
+    public void extendsObject(I i, INotModifiable inm) {
+        Object x = i;
+        Object y = inm;
     }
 }
 
@@ -119,3 +125,5 @@ class CInvalidImplementation implements I {
         return 3;
     }
 }
+
+interface INotModifiable {}

@@ -4,7 +4,7 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("Convert2MethodRef")
-@JVerifyTest(dafnyVerified = 24, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(dafnyVerified = 30, dafnyErrors = 0, verifyPrintedDafny = true)
 public class PolymorphicLambdas {
 
     static class Anything {}

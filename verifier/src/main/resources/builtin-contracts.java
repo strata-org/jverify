@@ -8,6 +8,9 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import static com.aws.jverify.JVerify.check;
+
+import java.util.Map;
+import java.util.Set;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Function;
@@ -29,6 +32,9 @@ class NumberContract {
 interface CollectionContract<E> {
 
 }
+
+@Contract(SequencedCollection.class)
+interface SequencedCollectionContract<E> extends Collection<E> { }
 
 @Contract(value = List.class, immutable = true)
 abstract class ListContract<E> implements List<E> {
@@ -97,8 +103,195 @@ abstract class ListContract<E> implements List<E> {
     }
 }
 
-@Contract(SequencedCollection.class)
-interface SequencedCollectionContract<E> extends Collection<E> { }
+@Contract(value = Set.class, immutable = true)
+abstract class SetContract<E> implements Set<E> {
+
+    JVerify.Set<E> elements;
+
+    static <E> Set<E> of() {
+        postcondition((Set<E> r) ->
+                r.size() == 0);
+        throw new ContractException();
+    }
+
+    static <E> Set<E> of(E e1) {
+        postcondition((Set<E> r) ->
+                r.size() == 1 &&
+                        r.contains(e1));
+        throw new ContractException();
+    }
+
+    static <E> Set<E> of(E e1, E e2) {
+        postcondition((Set<E> r) ->
+                r.size() == 2 &&
+                        r.contains(e1) &&
+                        r.contains(e2));
+        throw new ContractException();
+    }
+
+    static <E> Set<E> of(E e1, E e2, E e3) {
+        postcondition((Set<E> r) ->
+                r.size() == 3 &&
+                        r.contains(e1) &&
+                        r.contains(e2) &&
+                        r.contains(e3));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean contains(Object o) {
+        postcondition((boolean r) ->
+                r == JVerify.exists((E other) ->
+                        elements.contains(other) && other.equals(o)));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public int size() {
+        postcondition((int s) -> s == elements.size());
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean isEmpty() {
+        postcondition((boolean r) -> r == (elements.size() == 0));
+        throw new ContractException();
+    }
+}
+
+
+@Contract(value = Map.class, immutable = true)
+abstract class MapContract<K, V> implements Map<K, V> {
+
+    JVerify.Map<Object, V> elements;
+
+    static <K, V> Map<K, V> of() {
+        postcondition((Map<K, V> r) ->
+                r.size() == 0);
+        throw new ContractException();
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1) {
+        postcondition((Map<K, V> r) ->
+                r.size() == 1 &&
+                        r.containsKey(k1) &&
+                        r.get(k1) == v1);
+        throw new ContractException();
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2) {
+        postcondition((Map<K, V> r) ->
+                r.size() == 2 &&
+                        r.containsKey(k1) &&
+                        r.get(k1) == v1 &&
+                        r.containsKey(k2) &&
+                        r.get(k2) == v2);
+        throw new ContractException();
+    }
+
+    static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3) {
+        postcondition((Map<K, V> r) ->
+                r.size() == 2 &&
+                        r.containsKey(k1) &&
+                        r.get(k1) == v1 &&
+                        r.containsKey(k2) &&
+                        r.get(k2) == v2 &&
+                        r.containsKey(k3) &&
+                        r.get(k3) == v3);
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean containsKey(Object key) {
+        postcondition((boolean r) ->
+                r == JVerify.exists((K other) ->
+                        elements.contains(other) && other.equals(key)));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public V get(Object key) {
+        precondition(containsKey(key));
+        // TODO: postcondition needs something like :| to get a hold of the key
+        // that actually exists in the map according to containsKey
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public int size() {
+        postcondition((int s) -> s == elements.size());
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean isEmpty() {
+        postcondition((boolean r) -> r == (elements.size() == 0));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public Set<Entry<K, V>> entrySet() {
+        postcondition((SetContract<Entry<K, V>> r) ->
+                size() == r.size() &&
+                        r.elements ==
+                                JVerify.Set.all((K k) -> elements.contains(k))
+                                        .map((K k) -> (java.util.Map.Entry<K,V>)new MapEntry<K, V>(k, elements.get(k))));
+        throw new ContractException();
+    }
+
+    @Pure
+    public static <K, V> Entry<K, V> entry(K key, V value) {
+        postcondition((Entry<K, V> r) -> r.getKey() == key && r.getValue() == value);
+        throw new ContractException();
+    }
+}
+
+@Contract(immutable = true)
+abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
+    @Override
+    @Pure
+    public K getKey() {
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public V getValue() {
+        throw new ContractException();
+    }
+}
+
+// It would be better to use Map.entry(key, value) directly,
+// but that currently doesn't work because we end up with <K, V> type parameters
+// on both Map and Map.entry, and while Java ignores the outer type parameters
+// for static methods, Dafny gets confused and doesn't resolve.
+record MapEntry<K, V>(K key, V value) implements Map.Entry<K, V> {
+    @Override
+    @Pure
+    public K getKey() {
+        return key;
+    }
+
+    @Override
+    @Pure
+    public V getValue() {
+        return value;
+    }
+
+    @Override
+    @Verify(false)
+    public V setValue(V value) {
+        throw new UnsupportedOperationException();
+    }
+}
 
 @Contract(Short.class)
 class ShortContract {
