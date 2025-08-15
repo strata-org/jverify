@@ -30,7 +30,7 @@ JVerify requires that expressions that occur in a nested context are pure. Neste
 
 The rules for pure expressions are as follows:
 - Only methods annotated with `@Pure` can be called.
-- Assignment expression are not allowed
+- Assignment expressions are not allowed
 - `new` can only be used on records 
 
 The rules for pure blocks are:
