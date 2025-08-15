@@ -10,16 +10,6 @@ import java.util.function.Supplier;
 
 public class JVerify {
 
-    /**
-     * Returns the instance of the @Contract-annotated type for the given object.
-     * Will produce an error if the type parameter is not actually the contract type for the given
-     * object's type.
-     * This is useful when a contract needs to refer to the erased fields of a contract type.
-     */
-    public static <T> T contractOf(Object o) {
-        throw new ContractException();
-    }
-
     public static boolean implies(boolean antecedent, boolean consequent) {
         return !antecedent || consequent;
     }

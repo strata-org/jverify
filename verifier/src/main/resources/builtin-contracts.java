@@ -239,9 +239,9 @@ abstract class MapContract<K, V> implements Map<K, V> {
     @Override
     @Pure
     public Set<Entry<K, V>> entrySet() {
-        postcondition((Set<Entry<K, V>> r) ->
+        postcondition((SetContract<Entry<K, V>> r) ->
                 size() == r.size() &&
-                        JVerify.<SetContract<K>>contractOf(r).elements ==
+                        r.elements ==
                                 JVerify.Set.all((K k) -> elements.contains(k))
                                         .map((K k) -> new MapEntry<K, V>(k, elements.get(k))));
         throw new ContractException();

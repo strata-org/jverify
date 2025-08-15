@@ -111,11 +111,6 @@ public class JVerifyGhostExpressionCompiler {
                 var element = expressionCompiler.toExpr(args.getFirst());
                 return new FreshExpr(compiler.toOrigin(invocation), element, null);
             }
-            case "contractOf" -> {
-                // This is a no-op for the translation to Dafny,
-                // only provided so that the contracts resolve at the Java level.
-                return expressionCompiler.toExpr(args.getFirst());
-            }
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
             }
