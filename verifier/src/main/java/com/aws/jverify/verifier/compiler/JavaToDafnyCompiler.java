@@ -519,7 +519,7 @@ public class JavaToDafnyCompiler {
             case com.sun.tools.javac.code.Type.ClassType classType -> {
 
                 
-                Type remappedType = new ModifiableObjectCompiler(this).getRemappedType(classType, origin, additionalModifiers);
+                Type remappedType = new ReferenceObjectCompiler(this).getRemappedType(classType, origin, additionalModifiers);
                 if (remappedType != null) {
                     return remappedType;
                 }

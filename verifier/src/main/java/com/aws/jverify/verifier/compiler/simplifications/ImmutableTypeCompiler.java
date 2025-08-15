@@ -100,7 +100,7 @@ public class ImmutableTypeCompiler {
         members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
 
         if (compiler.isAnnotatedRecursive(classDecl.type, Reference.class)) {
-            compiler.reportError(origin, "modifiableForbidden", "a record class");
+            compiler.reportError(origin, "referenceForbidden", "a record class");
             return null;
         }
         

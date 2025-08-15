@@ -113,7 +113,7 @@ public class NameCompiler {
     private String getClassName(Symbol.ClassSymbol classSymbol) {
         var symtab = Symtab.instance(this.contractCompiler.compiler.context);
         if (classSymbol.type == symtab.objectType) {
-            return ModifiableObjectCompiler.REFERENCE_OBJECT_NAME;
+            return ReferenceObjectCompiler.REFERENCE_OBJECT_NAME;
         }
         var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
         if (newTarget != null) {

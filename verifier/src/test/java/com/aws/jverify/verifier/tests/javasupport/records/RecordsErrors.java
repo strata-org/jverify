@@ -62,7 +62,7 @@ class RecordsErrors {
     }
 
     record DoorStuck() implements IDoor {
-//  ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
+//  ^ error: a record class may not be annotated with @Reference, or extend or implement a type annotated with @Reference
         @Override public boolean open() { return false; }
         @Override public boolean close() { return false; }
     }
@@ -83,7 +83,7 @@ class RecordsErrors {
     interface Mutable {}
 
     record RecordsAreImmutable(int x)
-//  ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
+//  ^ error: a record class may not be annotated with @Reference, or extend or implement a type annotated with @Reference
             implements Mutable
     {
         @Pure

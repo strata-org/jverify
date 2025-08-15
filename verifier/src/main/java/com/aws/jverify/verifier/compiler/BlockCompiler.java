@@ -355,7 +355,7 @@ public class BlockCompiler {
                     var datatypeValue = ImmutableTypeCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }
-                NameSegment classBaseType = new ModifiableObjectCompiler(compiler).getNewClassType(newClass);
+                NameSegment classBaseType = new ReferenceObjectCompiler(compiler).getNewClassType(newClass);
 
                 String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
                 Name ctorName = new Name(origin, ctorNameStr);

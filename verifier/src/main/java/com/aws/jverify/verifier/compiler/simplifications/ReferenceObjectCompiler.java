@@ -18,21 +18,21 @@ import com.sun.tools.javac.util.JCDiagnostic;
  * 
  * General transformations:
  *   Object -> Object
- *   @Modifiable Object -> ModifiableObject
+ *   @Reference Object -> ReferenceObject
  * 
  * Exceptional transformations:
- *   new Object -> new ModifiableObject
- *   extends Object -> extends ModifiableObject
+ *   new Object -> new ReferenceObject
+ *   extends Object -> extends ReferenceObject
  * 
  * Ideally this would be a separate pass that updates types in the AST
  */
-public class ModifiableObjectCompiler {
-    public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
+public class ReferenceObjectCompiler {
+    public static final String REFERENCE_OBJECT_NAME = "ReferenceObject";
     
     JavaToDafnyCompiler compiler;
     public final Context context;
 
-    public ModifiableObjectCompiler(JavaToDafnyCompiler compiler) {
+    public ReferenceObjectCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
         context = compiler.context;
     }
@@ -41,8 +41,8 @@ public class ModifiableObjectCompiler {
         Symtab symtab = Symtab.instance(context);
         
         var mirrors = classType.getAnnotationMirrors();
-        var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Reference.class.getName())).findFirst();
-        if (modifiableAnnotation.isPresent() || compiler.isAnnotated(additionalModifiers, Reference.class)) {
+        var referenceAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Reference.class.getName())).findFirst();
+        if (referenceAnnotation.isPresent() || compiler.isAnnotated(additionalModifiers, Reference.class)) {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
             } else {
@@ -65,7 +65,7 @@ public class ModifiableObjectCompiler {
         var baseNameSegment = (NameSegment)baseType.getNamePath();
         var baseName = baseNameSegment.getName();
         if (baseName.contains(JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME)) {
-            // 'new Object' should always create a Dafny ModifiableObject
+            // 'new Object' should always create a Dafny ReferenceObject
             baseName = REFERENCE_OBJECT_NAME;
         }
         return new NameSegment(baseNameSegment.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseName,

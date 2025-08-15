@@ -4,7 +4,7 @@ import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ReferenceObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
@@ -85,9 +85,9 @@ public class TypeDeclarationCompiler {
                         // And we do not need to traverse the contracter.
                         // The contractee will lookup contracts in the contractor
                         // for bodyless members
-                        var modifiableAnnotation = annotationsByName.get(Reference.class.getName());
-                        if (modifiableAnnotation != null) {
-                            compiler.reportError(modifiableAnnotation, "annotationOnSourceContractClass", Reference.class.getSimpleName(), classDecl.name.toString());
+                        var referenceAnnotation = annotationsByName.get(Reference.class.getName());
+                        if (referenceAnnotation != null) {
+                            compiler.reportError(referenceAnnotation, "annotationOnSourceContractClass", Reference.class.getSimpleName(), classDecl.name.toString());
                         }
                         return List.of();
                     }
@@ -235,8 +235,8 @@ public class TypeDeclarationCompiler {
                 .filter(t -> t.tsym != null)
                 .map((com.sun.tools.javac.code.Type type) -> {
                     if (type.baseType() == symtab.objectType) {
-                        // A class that extends 'Object' will extend '@Modifiable Object' instead
-                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectCompiler.REFERENCE_OBJECT_NAME, null));
+                        // A class that extends 'Object' will extend '@Reference Object' instead
+                        return new UserDefinedType(origin, new NameSegment(origin, ReferenceObjectCompiler.REFERENCE_OBJECT_NAME, null));
                     }
                     return compiler.translateType(type, origin, null);
                 })

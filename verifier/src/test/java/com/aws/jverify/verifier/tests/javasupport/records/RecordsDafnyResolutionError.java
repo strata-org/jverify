@@ -8,8 +8,8 @@ import static com.aws.jverify.JVerify.postcondition;
 @JVerifyTest(exitCode = 22)
 class RecordsDafnyResolutionError {
     record Foo() {}
-    static void assignRecordToModifiableObject() {
+    static void assignRecordToReferenceObject() {
         @Reference Object o = new Foo();
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Foo) not assignable to LHS (of type ModifiableObject)
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Foo) not assignable to LHS (of type ReferenceObject)
     }
 }

@@ -31,7 +31,7 @@ public class InterfaceContractErrors {
 
     @Contract
     @Reference
-//  ^ error: annotation 'Modifiable' on @Contract class 'InterfaceContractErrors$IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
+//  ^ error: annotation 'Reference' on @Contract class 'InterfaceContractErrors$IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
     static class IllegalAnnotationContract implements IllegalAnnotationInterface {
     }
 
