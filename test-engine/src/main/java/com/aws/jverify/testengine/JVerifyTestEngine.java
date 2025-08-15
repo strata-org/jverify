@@ -306,7 +306,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         "--use-basename-for-filename",
                         //"--wait-for-debugger",
                 },
-                annotation.verifyByDefault()
+                annotation.verifyByDefault(),
+                annotation.continueOnErrors()
         );
     }
 
@@ -330,7 +331,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
                                                         int dafnyVerified, int dafnyErrors,
                                                         boolean verifyPrintedDafny,
-                                                        boolean avoidNameCollisions,
+                                                        boolean continueOnErrors,
                                                         boolean useBuiltinContracts) {
         return new JVerifyTest() {
             @Override
@@ -351,6 +352,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             @Override
             public boolean useBuiltinContracts() {
                 return useBuiltinContracts;
+            }
+
+            @Override
+            public boolean continueOnErrors() {
+                return continueOnErrors;
             }
 
             @Override

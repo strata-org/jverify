@@ -44,6 +44,8 @@ public @interface JVerifyTest {
     boolean verifyByDefault() default true;
 
     boolean useBuiltinContracts() default false;
+    
+    boolean continueOnErrors() default false;
 
     int exitCode() default 0;
 

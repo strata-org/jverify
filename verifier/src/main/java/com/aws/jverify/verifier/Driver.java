@@ -63,7 +63,7 @@ public class Driver {
                 hasErrors = true;
             }
         }
-        if (dafnyEquivalent == null || hasErrors) {
+        if (dafnyEquivalent == null || (hasErrors && !verifierOptions.continueOnErrors())) {
             verificationResults.setExitCode(CommandLine.ExitCode.USAGE);
         } else {
             var programBuilder = new StringBuilder();
