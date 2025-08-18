@@ -9,8 +9,9 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import static com.aws.jverify.JVerify.check;
-import java.util.Map;
+import java.util.*;
 import java.util.Set;
+import java.util.Map;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Function;
@@ -116,7 +117,7 @@ abstract class ArrayListContract<E> extends ListContract<E> {
 @Contract(value = Set.class, immutable = true)
 abstract class SetContract<E> implements Set<E> {
 
-    JVerify.Set<E> elements;
+    JVerify.Sequence<E> elements;
 
     static <E> Set<E> of() {
         postcondition((Set<E> r) ->
@@ -176,7 +177,7 @@ abstract class SetContract<E> implements Set<E> {
 @Contract(value = Map.class, immutable = true)
 abstract class MapContract<K, V> implements Map<K, V> {
 
-    JVerify.Map<Object, V> elements;
+    JVerify.Sequence<Entry<K,V>> elements;
 
     static <K, V> Map<K, V> of() {
         postcondition((Map<K, V> r) ->
@@ -218,8 +219,8 @@ abstract class MapContract<K, V> implements Map<K, V> {
     @Pure
     public boolean containsKey(Object key) {
         postcondition((boolean r) ->
-                r == JVerify.exists((K other) ->
-                        elements.contains(other) && other.equals(key)));
+                r == JVerify.exists((MapEntry<K,V> other) ->
+                        elements.contains(other) && other.key().equals(key)));
         throw new ContractException();
     }
 
@@ -251,9 +252,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
     public Set<Entry<K, V>> entrySet() {
         postcondition((SetContract<Entry<K, V>> r) ->
                 size() == r.size() &&
-                        r.elements ==
-                                JVerify.Set.all((K k) -> elements.contains(k))
-                                        .map((K k) -> (java.util.Map.Entry<K,V>)new MapEntry<K, V>(k, elements.get(k))));
+                        r.elements == elements);
         throw new ContractException();
     }
 
@@ -514,22 +513,6 @@ abstract class FunctionContract<T, R> implements Function<T, R> {
 
 @Contract(Optional.class)
 abstract class OptionalContract<T> {
-}
-
-@Contract
-abstract class SetContract<E> implements Set<E> {
-}
-
-@Contract
-abstract class MapContract<K, V> implements Map<K, V> {
-}
-
-@Contract
-abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
-}
-
-@Contract(HashMap.class)
-abstract class HashMapContract<K, V> {
 }
 
 @Contract(BigDecimal.class)
