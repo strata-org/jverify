@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(dafnyVerified = 7, dafnyErrors = 0)
+@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 1)
 public class PolymorphicStaticsVerification {
     record R() {}
     static class Generic<T> {
@@ -14,7 +14,7 @@ public class PolymorphicStaticsVerification {
         @Pure
         public static <T2> int someStatic(T2 value, boolean valid) {
             precondition(valid);
-//          ^ Related location: this proposition could not be proved
+//                       ^^^^^ Related location: this proposition could not be proved
             return 3;  
         }
     }
