@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.frontend;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.simplifications.MoveStaticMethodsToStaticType;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.ClientCodeWrapper;
@@ -116,6 +117,7 @@ public class JavaFrontEnd {
          */
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
         final Queue<Env<AttrContext>> envs = new LinkedList<>();
+        Set<JCTree.JCCompilationUnit> units = new HashSet<>();
         MultiTaskListener mtl = MultiTaskListener.instance(context);
         mtl.add(new TaskListener() {
             @Override
@@ -139,11 +141,14 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    envs.addAll(
-                            unsuspend(lower(suspend(
-                                    unlambda(
-                                            compiler.flow(compiler.attribute(todo))
-                    )))));
+                    
+                    var staticMover = new MoveStaticMethodsToStaticType(context);
+                    units.addAll(
+                            staticMover.translate(
+                                unsuspend(lower(suspend(
+                                        unlambda(
+                                                compiler.flow(compiler.attribute(todo))
+                    ))))));
                 }
             }
         });
@@ -162,7 +167,7 @@ public class JavaFrontEnd {
             }
         }
 
-        return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
+        return hasErrors ? null : units;
     }
 
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {;
@@ -190,15 +195,15 @@ public class JavaFrontEnd {
     }
 
     // Phase to undo the effects of suspend().
-    private Queue<Env<AttrContext>> unsuspend(Queue<Env<AttrContext>> envs) {
+    private Set<JCTree.JCCompilationUnit> unsuspend(Set<JCTree.JCCompilationUnit> envs) {
         var hider = Suspenders.instance(context);
-        envs.stream().map(env -> env.toplevel).distinct().forEach(topLevel -> {
+        envs.forEach(topLevel -> {
             topLevel.defs = topLevel.defs.map(hider::unsuspend);
         });
         return envs;
     }
 
-    private Queue<Env<AttrContext>> lower(Queue<Env<AttrContext>> envs) {
+    private Set<JCTree.JCCompilationUnit> lower(Queue<Env<AttrContext>> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
         var lower = Lower.instance(context);
         var log = Log.instance(context);
@@ -219,6 +224,6 @@ public class JavaFrontEnd {
         for(var entry : newDecls.entrySet()) {
             entry.getKey().defs = entry.getValue();
         }
-        return envs;
+        return new HashSet<>(newDecls.keySet());
     }
 }

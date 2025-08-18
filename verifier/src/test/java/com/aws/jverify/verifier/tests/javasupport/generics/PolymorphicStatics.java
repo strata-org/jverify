@@ -5,10 +5,11 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(dafnyVerified = 4, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 2, dafnyErrors = 0)
 public class PolymorphicStatics {
     record R() {}
     static class Generic<T> {
+        
         @Pure
         public static <T2> int someStatic(T2 value) {
           return 3;  
