@@ -4,20 +4,18 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 import java.math.BigInteger;
+import java.math.BigDecimal;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import static com.aws.jverify.JVerify.check;
-
-import java.util.Map;
+import java.util.*;
 import java.util.Set;
+import java.util.Map;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.function.Consumer;
-import java.util.Collection;
-import java.util.List;
-import java.util.SequencedCollection;
 
 @Contract(Comparable.class)
 class ComparableContract<T> {
@@ -29,8 +27,11 @@ class NumberContract {
 }
 
 @Contract(Collection.class)
-interface CollectionContract<E> {
-
+abstract class CollectionContract<E> {
+    @Pure
+    int size() {
+        throw new ContractException();
+    }
 }
 
 @Contract(SequencedCollection.class)
@@ -75,30 +76,40 @@ abstract class ListContract<E> implements List<E> {
     @Pure
     public E get(int index) {
         precondition(0 <= index && index < size());
-        postcondition((E e) -> e == elements.get(index));
-        throw new ContractException();
+        return elements.get(index);
     }
 
     @Override
     @Pure
     public int size() {
-        postcondition((int s) -> s == elements.size());
+        postcondition((int r) -> r == elements.size());
         throw new ContractException();
     }
 
     @Override
     @Pure
     public boolean isEmpty() {
-        postcondition((boolean r) -> r == (elements.size() == 0));
-        throw new ContractException();
+        return elements.size() == 0;
     }
 
     @Override
     @Pure
     public boolean contains(Object o) {
-        postcondition((boolean r) ->
-                r == JVerify.exists((int i) ->
-                        0 <= i && i < elements.size() && elements.get(i).equals(o)));
+        return JVerify.exists((int i) ->
+                0 <= i && i < elements.size() && elements.get(i).equals(o));
+    }
+}
+
+@Contract(ArrayList.class)
+abstract class ArrayListContract<E> extends ListContract<E> {
+    
+    public ArrayListContract(Collection<? extends E> c) {
+    }
+
+    @Override
+    @Pure
+    public int size() {
+        postcondition((int r) -> r == elements.size());
         throw new ContractException();
     }
 }
@@ -106,7 +117,7 @@ abstract class ListContract<E> implements List<E> {
 @Contract(value = Set.class, immutable = true)
 abstract class SetContract<E> implements Set<E> {
 
-    JVerify.Set<E> elements;
+    JVerify.Sequence<E> elements;
 
     static <E> Set<E> of() {
         postcondition((Set<E> r) ->
@@ -166,7 +177,7 @@ abstract class SetContract<E> implements Set<E> {
 @Contract(value = Map.class, immutable = true)
 abstract class MapContract<K, V> implements Map<K, V> {
 
-    JVerify.Map<Object, V> elements;
+    JVerify.Sequence<Entry<K,V>> elements;
 
     static <K, V> Map<K, V> of() {
         postcondition((Map<K, V> r) ->
@@ -208,8 +219,8 @@ abstract class MapContract<K, V> implements Map<K, V> {
     @Pure
     public boolean containsKey(Object key) {
         postcondition((boolean r) ->
-                r == JVerify.exists((K other) ->
-                        elements.contains(other) && other.equals(key)));
+                r == JVerify.exists((MapEntry<K,V> other) ->
+                        elements.contains(other) && other.key().equals(key)));
         throw new ContractException();
     }
 
@@ -241,9 +252,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
     public Set<Entry<K, V>> entrySet() {
         postcondition((SetContract<Entry<K, V>> r) ->
                 size() == r.size() &&
-                        r.elements ==
-                                JVerify.Set.all((K k) -> elements.contains(k))
-                                        .map((K k) -> (java.util.Map.Entry<K,V>)new MapEntry<K, V>(k, elements.get(k))));
+                        r.elements == elements);
         throw new ContractException();
     }
 
@@ -304,6 +313,7 @@ class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
 
+    @Pure
     public static Integer valueOf(int i) {
         postcondition((Integer b) -> b.intValue() == i);
         throw new ContractException();
@@ -324,6 +334,7 @@ class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
 
+    @Pure
     public static Long valueOf(long l) {
         postcondition((Long b) -> b.longValue() == l);
         throw new ContractException();
@@ -379,6 +390,7 @@ class HelperForBigIntegerContract {
                 ((v.charAt(0) == '+' || v.charAt(0) == '-') && isAllDigits(v.substring(1))) ||
                 isAllDigits(v));
     }
+
     @Erased
     @Pure
     static @Unbounded int stringToInt(String v) {
@@ -477,6 +489,7 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+    @Pure
     static BigIntegerContract valueOf(long val) {
         postcondition((BigIntegerContract b) -> b.intValue == val);
         throw new ContractException();
@@ -487,5 +500,4 @@ class BigIntegerContract  {
         postcondition((int b) -> b == (intValue < 0 ? -1 : intValue == 0 ? 0 : 1));
         throw new ContractException();
     }
-
 }
