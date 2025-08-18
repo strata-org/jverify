@@ -12,7 +12,7 @@ interface Container<T> {
         @Pure
         @Override
         public T get() {
-            reads(all()); // we use readsAll so implementing methods can still decide whether to be mutable or not
+            reads(everything()); // we use reads(everything()) so implementing methods can still decide whether to be mutable or not
             decreases(0);
             throw new ContractException();
         }

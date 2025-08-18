@@ -2,7 +2,6 @@ package com.aws.jverify;
 
 import java.util.Optional;
 import java.util.function.BiPredicate;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
@@ -94,7 +93,7 @@ public class JVerify {
      * Can be used as an argument in reads and modifies clauses, 
      * to indicate that all objects can be read or modified
      */
-    public static Object all() { 
+    public static Object everything() { 
         throw new ContractException();
     }
 
@@ -139,7 +138,7 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
-    public static <T> boolean exists(Function<T, Boolean> predicate) {
+    public static <T> boolean exists(Predicate<T> predicate) {
         throw new VerificationMethodExecutedException();
     }
 
@@ -216,7 +215,7 @@ public class JVerify {
         /**
          * Returns {@code true} if this sequence contains the specified element.
          */
-        boolean contains(Object element);
+        boolean contains(T element);
 
         /**
          * Returns the number of elements in this sequence.
@@ -245,6 +244,48 @@ public class JVerify {
          * Returns {@code true} if this sequence contains the specified element.
          */
         boolean contains(int element);
+    }
+
+    public interface Set<T> {
+        /**
+         * Returns the set of all {@code T} values that satisfy the given predicate.
+         */
+        static <T> Set<T> all(Predicate<T> filter) {
+            throw new ContractException();
+        }
+
+        /**
+         * Returns {@code true} if this set contains the specified element.
+         */
+        boolean contains(T element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
+
+        /**
+         * Returns the set found by applying the given mapping to every element.
+         */
+        <R> Set<R> map(Function<T, R> mapping);
+    }
+
+    public interface Map<K, V> {
+        /**
+         * Returns {@code true} if this map contains the specified key.
+         */
+        boolean contains(K element);
+
+        /**
+         * Returns the value mapped to the given {@code key},
+         * which must exist in the map.
+         */
+        V get(K key);
+
+        /**
+         * Returns the number of key/value pairs in this map.
+         */
+        @Unbounded int size();
     }
 
     public static class VerificationMethodExecutedException extends UnsupportedOperationException {
