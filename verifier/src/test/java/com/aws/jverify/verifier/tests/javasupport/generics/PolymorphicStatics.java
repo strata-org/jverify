@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(dafnyVerified = 2, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 7, dafnyErrors = 0)
 public class PolymorphicStatics {
     record R() {}
     static class Generic<T> {

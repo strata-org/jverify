@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.sun.tools.javac.code.Scope;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -10,31 +11,35 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Names;
 
-import javax.tools.JavaFileObject;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
+import java.sql.Types;
+import java.util.*;
 
 public class MoveStaticMethodsToStaticType {
+    Map<JCTree, JCTree.JCCompilationUnit> originalCompilationUnit = new HashMap<>();
+    
     Names names;
     Symbol.ClassSymbol staticClassSymbol;
     TreeMaker maker;
+    Symtab syms;
     Set<Symbol.MethodSymbol> staticMethodSymbols = new HashSet<>();
 
     public MoveStaticMethodsToStaticType(Context context) {
         this.names = Names.instance(context);
         maker = TreeMaker.instance(context);
+        syms = Symtab.instance(context);
     }
 
     public Set<JCTree.JCCompilationUnit> translate(Set<JCTree.JCCompilationUnit> compilationUnits) {
-        var first = compilationUnits.stream().findFirst();
-        JCTree.JCCompilationUnit theftSource = first.get();
-        Symbol.PackageSymbol theftPackage = theftSource.packge;
+        JCTree.JCCompilationUnit receiver = compilationUnits.iterator().next();
+        Symbol.PackageSymbol theftPackage = receiver.packge;
         
         var methodCollector = new StaticMethodCollector();
         staticClassSymbol = new Symbol.ClassSymbol(0, names.fromString("staticClass"), theftPackage);
-        staticClassSymbol.members_field = Scope.WriteableScope.create(staticClassSymbol); 
-        staticClassSymbol.type = new Type.ClassType(null, com.sun.tools.javac.util.List.nil(), staticClassSymbol);
+        staticClassSymbol.members_field = Scope.WriteableScope.create(staticClassSymbol);
+        Type.ClassType classType = new Type.ClassType(Type.noType, com.sun.tools.javac.util.List.nil(), staticClassSymbol);
+        classType.supertype_field = syms.objectType;
+        
+        staticClassSymbol.type = classType;
         for(var unit : compilationUnits) {
             methodCollector.translate(unit);
         }
@@ -47,18 +52,21 @@ public class MoveStaticMethodsToStaticType {
                 com.sun.tools.javac.util.List.from(methodCollector.staticMethods));
         staticClass.sym = staticClassSymbol;
 
-        var newUnit = maker.TopLevel(List.of(staticClass));
-        newUnit.sourcefile = theftSource.sourcefile; // TODO fix
-        newUnit.lineMap = theftSource.lineMap;
-        newUnit.packge = theftPackage;
-        compilationUnits.add(newUnit);
-        return Set.of(newUnit);
+        receiver.defs = receiver.defs.append(staticClass);
+        return compilationUnits;
     }
 
     class StaticMethodCollector extends TreeTranslator {
 
         List<JCTree.JCMethodDecl> staticMethods = List.nil();
-        
+        JCTree.JCCompilationUnit currentUnit;
+
+        @Override
+        public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+            currentUnit = tree;
+            super.visitTopLevel(tree);
+        }
+
         @Override
         public void visitClassDef(JCTree.JCClassDecl tree) {
             var members = tree.getMembers();
@@ -71,6 +79,7 @@ public class MoveStaticMethodsToStaticType {
                         staticMethods = staticMethods.append(methodDecl);
                         var sym = methodDecl.sym;
                         staticMethodSymbols.add(sym);
+                        originalCompilationUnit.put(methodDecl, currentUnit);
                         staticClassSymbol.members().enter(sym);
                         sym.owner = staticClassSymbol;
                         sym.name = tree.sym.fullname.append('.', sym.name);
