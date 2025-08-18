@@ -13,7 +13,7 @@ import com.sun.tools.javac.util.Names;
 import java.util.*;
 
 public class MoveStaticMethodsToStaticType {
-    Map<JCTree, JCTree.JCCompilationUnit> originalCompilationUnit = new HashMap<>();
+    public final Map<JCTree, JCTree.JCCompilationUnit> originalCompilationUnit = new HashMap<>();
     
     Names names;
     Symbol.ClassSymbol staticClassSymbol;

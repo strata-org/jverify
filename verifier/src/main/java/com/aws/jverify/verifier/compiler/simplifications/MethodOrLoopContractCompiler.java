@@ -128,7 +128,8 @@ public class MethodOrLoopContractCompiler {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A precondition call may have only one argument");
                 }
-                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                AttributedExpression e = new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null);
+                contract.preconditions.add(e);
             }
             case "postcondition" -> {
                 if (invocation.args.size() != 1) {

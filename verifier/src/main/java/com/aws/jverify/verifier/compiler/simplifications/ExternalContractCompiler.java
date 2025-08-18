@@ -16,7 +16,6 @@ import java.util.*;
 import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
-import static com.sun.tools.javac.tree.JCTree.Tag.*;
 
 public class ExternalContractCompiler extends TreeScanner {
     final JavaToDafnyCompiler compiler;
@@ -45,7 +44,7 @@ public class ExternalContractCompiler extends TreeScanner {
         if (contractAnnotation == null) {
             var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
             declsForSymbol.add(classDecl);
-            foundClasses.put(classDecl.sym, compiler.compilationUnit);
+            foundClasses.put(classDecl.sym, compiler.compilationUnits.peek());
             return;
         }
 
@@ -73,7 +72,7 @@ public class ExternalContractCompiler extends TreeScanner {
         var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
         declsForSymbol.add(classDecl);
 
-        foundClasses.put(contracteeSymbol, compiler.compilationUnit);
+        foundClasses.put(contracteeSymbol, compiler.compilationUnits.peek());
         if (compiler.typeHasSource(contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
             compiler.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
             return;
@@ -84,8 +83,9 @@ public class ExternalContractCompiler extends TreeScanner {
     }
 
     public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit) {
-        compiler.compilationUnit = compilationUnit;
+        compiler.compilationUnits.push(compilationUnit);
         this.visitTopLevel(compilationUnit);
+        compiler.compilationUnits.pop();
     }
 
     public void registerExternalContracts() {
@@ -94,9 +94,7 @@ public class ExternalContractCompiler extends TreeScanner {
 
             JVerifyIndex index = JVerifyIndex.instance(compiler.context);
             Env<AttrContext> env = index.getEnv(externalContractDecl.sym);
-            if (env != null) {
-                compiler.compilationUnit = env.toplevel;
-            }
+            compiler.compilationUnits.push(env.toplevel);
             Symbol.ClassSymbol contractee = entry.getValue();
             var externalContract = getExternalTypeContract(externalContractDecl, contractee);
             if (externalContracts.containsKey(contractee)) {
@@ -106,6 +104,7 @@ public class ExternalContractCompiler extends TreeScanner {
                 continue;
             }
             this.externalContracts.put(contractee, externalContract);
+            compiler.compilationUnits.pop();
         }
     }
 

@@ -14,7 +14,7 @@ public class PolymorphicStaticsVerification {
         @Pure
         public static <T2> int someStatic(T2 value, boolean valid) {
             precondition(valid);
-//          ^ Related location: this proposition could not be proved
+//                       ^^^^^ Related location: this proposition could not be proved
             return 3;  
         }
     }

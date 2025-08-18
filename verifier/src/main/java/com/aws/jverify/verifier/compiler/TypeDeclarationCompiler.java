@@ -299,7 +299,10 @@ public class TypeDeclarationCompiler {
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
-                return translateMethodDecl(method);
+                compiler.compilationUnits.push(compiler.getCompilationUnit(method));
+                MethodOrFunction result = translateMethodDecl(method);
+                compiler.compilationUnits.pop();
+                return result;
             }
             case JCTree.JCVariableDecl variableDecl -> {
                 return translateField(variableDecl);
