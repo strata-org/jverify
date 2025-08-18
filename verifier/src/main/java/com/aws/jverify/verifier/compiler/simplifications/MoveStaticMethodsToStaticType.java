@@ -10,8 +10,6 @@ import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Names;
-
-import java.sql.Types;
 import java.util.*;
 
 public class MoveStaticMethodsToStaticType {
