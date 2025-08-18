@@ -20,6 +20,7 @@ class DoubleOperators {
         var multiplication = l * r;
         var division = l / r;
         var remainder = l % 2d;
+//                        ^ error: modulo operator (%) with floating-point types is not supported
 
         var addition = l + r;
         var subtraction = l - r;
@@ -34,5 +35,6 @@ class DoubleOperators {
         l *= r;
         l /= r;
         l %= 2;
+//        ^ error: modulo operator (%) with floating-point types is not supported
     }
 }

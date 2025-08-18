@@ -6,9 +6,9 @@ import com.aws.jverify.testengine.JVerifyTest;
 @SuppressWarnings("ConstantValue")
 class FloatOperators {
     public void foo() {
-        var l = 3f; // error: float type is not supported
+        var l = 3f;
 //              ^ error: float literals are not supported. Use double instead
-        var r = 3f; // error: float type is not supported
+        var r = 3f;
 //              ^ error: float literals are not supported. Use double instead
 
         var equals = l == r;
@@ -23,18 +23,18 @@ class FloatOperators {
         --l;
         //check(l == 3f);
 
-        var multiplication = l * r; // error: float type is not supported
+        var multiplication = l * r;
         //check(multiplication == 9f);
-        var division = l / r; // error: float type is not supported
+        var division = l / r;
         //check(division == 1f);
-        var remainder = l % 2f; // error: float type is not supported
+        var remainder = l % 2f;
 //                        ^ error: modulo operator (%) with floating-point types is not supported
 //                          ^ error: float literals are not supported. Use double instead
         //check(remainder == 1f);
 
-        var addition = l + r; // error: float type is not supported
+        var addition = l + r;
         //check(addition == 6f);
-        var subtraction = l - r; // error: float type is not supported
+        var subtraction = l - r;
         //check(subtraction == 0);
 
         var lessThan = l < r;
@@ -54,7 +54,7 @@ class FloatOperators {
         //check(l == 9f);
         l /= r;
         //check(l == 3f);
-        l %= 2; // error: modulo operator (%) with floating-point types is not supported
+        l %= 2;
         //check(l == 1f);
     }
 }
