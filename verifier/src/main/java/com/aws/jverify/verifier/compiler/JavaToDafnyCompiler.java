@@ -63,14 +63,13 @@ public class JavaToDafnyCompiler {
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
-    public Stack<JCTree.JCCompilationUnit> compilationUnits = new Stack<>();
+    public JCTree.JCCompilationUnit compilationUnit;
     private boolean translatingVerifiedMethodSignature;
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
     private boolean skipDiagnostics;
-    private JavaFrontEnd javaFrontEnd;
-
+    
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
@@ -92,8 +91,7 @@ public class JavaToDafnyCompiler {
         var contractSource = new SourceFile(JavaToDafnyCompiler.objectFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
         files.add(contractSource);
         
-        javaFrontEnd = new JavaFrontEnd(this); 
-        Set<JCTree.JCCompilationUnit> parsedSet = javaFrontEnd.parseResolveAndDesugarJava(options, files);
+        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
@@ -160,23 +158,19 @@ public class JavaToDafnyCompiler {
             if (relatedDeclarations == null) {
                 continue;
             }
-            compilationUnits.push(symbolToCompilationUnit.get(currentTypeSymbol));
+            compilationUnit = symbolToCompilationUnit.get(currentTypeSymbol);
             for(var relatedDeclaration : relatedDeclarations) {
                 JVerifyIndex index = JVerifyIndex.instance(context);
                 Env<AttrContext> env = index.getEnv(relatedDeclaration.sym);
                 if (env != null) {
-                    compilationUnits.push(env.toplevel);
+                    compilationUnit = env.toplevel;
                 }
-                var verifyAnnotation = compilationUnits.peek().packge.getAnnotation(Verify.class);
+                var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
                 verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
                 var dafnyDecls = typeDeclarationCompiler.translateTypeDeclaration(relatedDeclaration);
                 verifyAnnotationCompiler.shouldVerifies.pop();
-                declarationsForFile.get(compilationUnits.peek()).addAll(dafnyDecls);
-                if (env != null) {
-                    compilationUnits.pop();
-                }
+                declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
             }
-            compilationUnits.pop();
         }
     }
 
@@ -224,11 +218,11 @@ public class JavaToDafnyCompiler {
     }
 
     private JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
-        return new DiagnosticPositionFromOrigin(originToRange(origin), compilationUnits.peek().lineMap);
+        return new DiagnosticPositionFromOrigin(originToRange(origin), compilationUnit.lineMap);
     }
 
     public void reportError(JCTree tree, String key, Object... args) {
-        reportError(positionFromNode(tree, compilationUnits.peek()), key, args);
+        reportError(positionFromNode(tree, compilationUnit), key, args);
     }
 
     /**
@@ -252,7 +246,7 @@ public class JavaToDafnyCompiler {
             return;
         }
         this.diagnostics.report(diagnosticFactory.create(type,
-                new DiagnosticSource(compilationUnits.peek().getSourceFile(), null), position, key,
+                new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
     }
 
@@ -617,7 +611,7 @@ public class JavaToDafnyCompiler {
     }
 
     public Name getName(JCTree tree, String name, int length) {
-        var positionCalculator = new PositionCalculator(compilationUnits.peek());
+        var positionCalculator = new PositionCalculator(compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);
         var startToken = positionCalculator.toToken(startPos);
         var endToken = positionCalculator.toToken(startPos + length);
@@ -634,13 +628,8 @@ public class JavaToDafnyCompiler {
         return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
     }
     
-    public JCTree.JCCompilationUnit getCompilationUnit(JCTree tree) {
-        var newUnit = javaFrontEnd.moveStaticMethodsToStaticType.originalCompilationUnit.get(tree);
-        return newUnit == null ? compilationUnits.peek() : newUnit;
-    }
-    
     public IOrigin toOrigin(JCTree node) {
-        var positionCalculator = new PositionCalculator(compilationUnits.peek());
+        var positionCalculator = new PositionCalculator(compilationUnit);
         var startToken = positionCalculator.toToken(TreeInfo.getStartPos(node));
         if (startToken == null) {
             return contextOrigins.peek();

@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 public class JavaFrontEnd {
     public final Context context;
     private final JavaToDafnyCompiler compiler;
-    public MoveStaticMethodsToStaticType moveStaticMethodsToStaticType;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
         this.compiler = javaToDafnyCompiler;
@@ -44,7 +43,6 @@ public class JavaFrontEnd {
      * resolve, and partially rewrite some features away.
      */
     public Set<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
-        
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
 
@@ -143,10 +141,10 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-
-                    moveStaticMethodsToStaticType = new MoveStaticMethodsToStaticType(context);
+                    
+                    var staticMover = new MoveStaticMethodsToStaticType(context);
                     units.addAll(
-                            moveStaticMethodsToStaticType.translate(
+                            staticMover.translate(
                                 unsuspend(lower(suspend(
                                         unlambda(
                                                 compiler.flow(compiler.attribute(todo))
