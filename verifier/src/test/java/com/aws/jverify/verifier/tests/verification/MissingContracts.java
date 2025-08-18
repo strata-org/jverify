@@ -21,15 +21,18 @@ public class MissingContracts {
     @SuppressWarnings("UnnecessaryBoxing")
     Integer pureUser3() {
         return Integer.valueOf(3);
+//                     ^ warning: missing contract for method 'valueOf' in class 'java.lang.Integer'
     }
     
     @Pure
     List<Value> pureUser2(List<Value> values) {
         return List.of(new Value());
+//                  ^ warning: missing contract for method 'of' in class 'java.util.List'
     }
     
     void impureUser(List<Value> values) {
         values.addFirst(new Value());
+//             ^ warning: missing contract for method 'addFirst' in class 'java.util.List'
     }
     record Value() {}
 }
