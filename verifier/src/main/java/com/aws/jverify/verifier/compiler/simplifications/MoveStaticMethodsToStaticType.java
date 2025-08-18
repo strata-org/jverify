@@ -14,6 +14,10 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.*;
 
+/**
+ * In Java, static methods ignore the type parameters of any enclosing types
+ * We compile this behavior by moving static methods to a separate type that does not have type parameters 
+ */
 public class MoveStaticMethodsToStaticType {
     
     Names names;
