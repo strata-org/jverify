@@ -13,6 +13,12 @@ class InterfacesVerification {
         var b = i.m();
         check(b > 2);
     }
+
+    // Ensure various types extend Object in the encoding
+    public void extendsObject(I i, INotModifiable inm) {
+        Object x = i;
+        Object y = inm;
+    }
 }
 
 @Modifiable
@@ -119,3 +125,5 @@ class CInvalidImplementation implements I {
         return 3;
     }
 }
+
+interface INotModifiable {}

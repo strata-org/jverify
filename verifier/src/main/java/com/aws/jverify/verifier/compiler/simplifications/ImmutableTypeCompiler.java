@@ -12,6 +12,7 @@ import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
+import javax.lang.model.type.TypeKind;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -43,13 +44,15 @@ public class ImmutableTypeCompiler {
         var superClass = currentTypeSymbol.getSuperclass();
         if (superClass != null) {
             Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
-            if (superClass.tsym == symtab.objectType.tsym) {
+            if (superClass.tsym == symtab.objectType.tsym || superClass.getKind() == TypeKind.NONE) {
                 traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             } else {
                 if (compiler.typeHasAContract(superClass)) {
                     traits.addFirst(compiler.translateType(superClass, origin, null));
                 }
             }
+        } else {
+            traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
 
         var comps = TreeInfo.recordFields(classDecl);
@@ -101,8 +104,8 @@ public class ImmutableTypeCompiler {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
             return null;
         }
-        
         compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
+
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }

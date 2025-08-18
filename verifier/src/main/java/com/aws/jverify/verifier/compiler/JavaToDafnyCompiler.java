@@ -575,13 +575,9 @@ public class JavaToDafnyCompiler {
             return remappedType;
         }
 
-        var className = classType.asElement().flatName();
-        if (className.toString().equals(String.class.getName())) {
-            if (!isNullable) {
-                return new UserDefinedType(origin, new NameSegment(origin, "DString", null));
-            }
-            reportError(origin, "notSupported", "nullable String type");
-            return null;
+        var builtinType = new JVerifyGhostExpressionCompiler(expressionCompiler).translateClassType(classType, origin, isNullable);
+        if (builtinType != null) {
+            return builtinType;
         }
 
         if (isRecord(classType) && isNullable) {
@@ -589,24 +585,8 @@ public class JavaToDafnyCompiler {
             return null;
         }
 
-        if (className.toString().equals(JVerify.Sequence.class.getName())) {
-            var typeArguments = classType.getTypeArguments().stream().map(a -> translateType(a, origin)).toList();
-            if (typeArguments.stream().anyMatch(Objects::isNull)) {
-                return null;
-            }
-            return new SeqType(origin, typeArguments);
-        }
-
         // Remove the name qualification because we do not support that yet
         var compiledName = nameCompiler.getCompiledName(classType.tsym);
-
-//        if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
-//            // For instance and local types, the lower phase adds references to the owning type
-//            // But it does not add type arguments when doing so
-//            // We can recover the type arguments by traversing to the type symbol.
-//            classType = (com.sun.tools.javac.code.Type.ClassType) classType.tsym.type;
-//        }
-
         var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
         if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
             var ownerTypes = getOwnAndEnclosedTypeParameters(classType.tsym).toList();
@@ -624,17 +604,17 @@ public class JavaToDafnyCompiler {
                 // TODO needs a test. Something like the following
                 // The Map.Entry[]::new introduces a member reference with a 
                 // raw type that's not replaced with Object during type resolution
-                /*
-                
-    interface IT {}
-    record Outer(List<IT> years) {
-        public Map<String, IT> asMap(List<String> mapKeys) {
-            var size = 10;
-            Stream<Map.Entry<String, IT>> entries = IntStream.range(0, size).mapToObj(i -> Map.entry(mapKeys.get(i), years.get(i)));
-            return Map.ofEntries(entries.toArray(Map.Entry[]::new));
-        }
-    }
-                 */
+                        /*
+                        
+            interface IT {}
+            record Outer(List<IT> years) {
+                public Map<String, IT> asMap(List<String> mapKeys) {
+                    var size = 10;
+                    Stream<Map.Entry<String, IT>> entries = IntStream.range(0, size).mapToObj(i -> Map.entry(mapKeys.get(i), years.get(i)));
+                    return Map.ofEntries(entries.toArray(Map.Entry[]::new));
+                }
+            }
+                        */
 
                 // unresolved raw type
                 var objectType = translateType(Symtab.instance(context).objectType, origin);
