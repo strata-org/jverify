@@ -4,6 +4,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 
@@ -49,7 +50,7 @@ public class BlockCompiler {
                 return result;
             }
         }
-        
+
         switch (statement) {
             case JCTree.JCExpressionStatement expressionStatement -> {
                 return translateExpressionStatement(expressionStatement, originOverride);
@@ -153,7 +154,20 @@ public class BlockCompiler {
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
-            var rhs = toAssignmentRhs(variableDecl.getInitializer());
+            var initExpr = variableDecl.getInitializer();
+
+            var initType = initExpr.type;
+            var targetType = variableDecl.getType().type;
+
+            AssignmentRhs rhs;
+            if (targetType.hasTag(TypeTag.DOUBLE) && isIntegralType(initType)) {
+                var expr = compiler.expressionCompiler.toExpr(initExpr);
+                var promotedExpr = compiler.expressionCompiler.promoteToFp64(initExpr, expr, origin);
+                rhs = new ExprRhs(origin, null, promotedExpr);
+            } else {
+                rhs = toAssignmentRhs(initExpr);
+            }
+
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
             dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
@@ -210,7 +224,20 @@ public class BlockCompiler {
     private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(assign));
         List<Expression> lhss = List.of(compiler.expressionCompiler.toExpr(assign.getVariable(), originOverride));
-        List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride));
+
+        var lhsType = assign.getVariable().type;
+        var rhsType = assign.getExpression().type;
+
+        AssignmentRhs rhs;
+        if (lhsType != null && lhsType.hasTag(TypeTag.DOUBLE) && isIntegralType(rhsType)) {
+            var expr = compiler.expressionCompiler.toExpr(assign.getExpression(), originOverride);
+            var promotedExpr = compiler.expressionCompiler.promoteToFp64(assign.getExpression(), expr, origin);
+            rhs = new ExprRhs(origin, null, promotedExpr);
+        } else {
+            rhs = toAssignmentRhs(assign.getExpression(), originOverride);
+        }
+
+        List<AssignmentRhs> rhss = List.of(rhs);
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
 
@@ -229,7 +256,61 @@ public class BlockCompiler {
             if (invocation.args.size() != 1) {
                 throw new JavaViolationException("Check should have a single argument");
             }
-            return List.of(new AssertStmt(compiler.toOrigin(invocation), null,
+
+            var arg = invocation.args.getFirst();
+            var origin = compiler.toOrigin(invocation);
+
+            // Special handling for Double.isNaN/isInfinite/isFinite with literal arguments
+            if (arg instanceof JCTree.JCUnary unary && unary.getTag() == JCTree.Tag.NOT) {
+                arg = unary.getExpression();
+            }
+
+            if (arg instanceof JCTree.JCMethodInvocation methodCall) {
+                var methodSym = TreeInfo.symbol(methodCall.getMethodSelect());
+                if (methodSym instanceof Symbol.MethodSymbol methodSymbol) {
+                    var className = methodSymbol.owner.getQualifiedName().toString();
+                    var methodName = methodSymbol.name.toString();
+
+                    if (className.equals("java.lang.Double") &&
+                        (methodName.equals("isNaN") || methodName.equals("isInfinite") || methodName.equals("isFinite")) &&
+                        methodSymbol.isStatic() && !methodCall.args.isEmpty()) {
+
+                        var methodArg = methodCall.args.getFirst();
+                        if (methodArg instanceof JCTree.JCLiteral literal &&
+                            literal.typetag == TypeTag.DOUBLE) {
+
+                            String tempVarName = compiler.nameCompiler.generateTempName("fp64_tmp");
+                            var varType = new UserDefinedType(origin, new NameSegment(origin, "fp64", null));
+                            var localVar = new LocalVariable(origin, tempVarName, varType, false);
+                            var initExpr = compiler.expressionCompiler.toExpr(methodArg);
+                            var varDecl = new VarDeclStmt(origin, null, List.of(localVar),
+                                new AssignStatement(origin, null,
+                                    List.of(new IdentifierExpr(origin, tempVarName)),
+                                    List.of(new ExprRhs(origin, null, initExpr)), false));
+
+                            var tempVarExpr = new NameSegment(origin, tempVarName, null);
+                            var propertyName = switch(methodName) {
+                                case "isNaN" -> "IsNaN";
+                                case "isInfinite" -> "IsInfinite";
+                                case "isFinite" -> "IsFinite";
+                                default -> throw new IllegalStateException("Unexpected method: " + methodName);
+                            };
+                            var propertyAccess = new ExprDotName(origin, tempVarExpr, new Name(origin, propertyName), null);
+
+                            Expression assertExpr = propertyAccess;
+                            if (invocation.args.getFirst() instanceof JCTree.JCUnary unary &&
+                                unary.getTag() == JCTree.Tag.NOT) {
+                                assertExpr = new UnaryOpExpr(origin, assertExpr, UnaryOpExprOpcode.Not);
+                            }
+
+                            return List.of(varDecl, new AssertStmt(origin, null, assertExpr, null));
+                        }
+                    }
+                }
+            }
+
+            // Default case: just translate normally
+            return List.of(new AssertStmt(origin, null,
                     compiler.expressionCompiler.toExpr(invocation.args.getFirst()), null));
         } else {
             if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
@@ -386,5 +467,11 @@ public class BlockCompiler {
         }
         var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
+    }
+
+    private static boolean isIntegralType(com.sun.tools.javac.code.Type type) {
+        return type != null &&
+            (type.hasTag(TypeTag.INT) || type.hasTag(TypeTag.LONG) ||
+             type.hasTag(TypeTag.SHORT) || type.hasTag(TypeTag.BYTE));
     }
 }

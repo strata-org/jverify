@@ -16,6 +16,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,7 +41,7 @@ public class ExpressionCompiler {
         compiler.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
         return JavaToDafnyCompiler.getHole(compiler.toOrigin(tree));
     }
-    
+
     @Nullable
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
         return switch (operator.name.toString()) {
@@ -214,9 +215,35 @@ public class ExpressionCompiler {
         return new TypeTestExpr(origin, expression, jcType);
     }
 
-    private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin) {
+    private Expression translateCast(JCTree.JCTypeCast cast, IOrigin origin) {
         var castExpr = toExpr(cast.getExpression());
+        var targetType = cast.type;
+        var sourceType = cast.getExpression().type;
 
+        if (targetType.getTag() == TypeTag.DOUBLE) {
+            if (isIntegralType(sourceType)) {
+                var realCast = new ConversionExpr(origin, castExpr, new RealType(origin), "");
+                var fromRealMethod = fp64Method(origin, "FromReal");
+                return new ApplySuffix(origin, fromRealMethod, null,
+                        new ActualBindings(List.of(new ActualBinding(null, realCast, false))), null);
+            }
+            else if (sourceType.getTag() == TypeTag.DOUBLE) {
+                return castExpr;
+            }
+        } else if (isIntegralType(targetType) && sourceType.getTag() == TypeTag.DOUBLE) {
+            var toIntMethod = fp64Method(origin, "ToInt");
+            var intResult = new ApplySuffix(origin, toIntMethod, null,
+                    new ActualBindings(List.of(new ActualBinding(null, castExpr, false))), null);
+
+            // If target is a bounded int type (int32, etc.), add appropriate cast
+            var type = compiler.translateType(cast);
+            if (!type.equals(new IntType(origin))) {
+                return new ConversionExpr(origin, intResult, type, "");
+            }
+            return intResult;
+        }
+
+        // Default case for other conversions
         var type = compiler.translateType(cast);
         return new ConversionExpr(origin, castExpr, type, "");
     }
@@ -277,7 +304,7 @@ public class ExpressionCompiler {
         handleIdentifier = previous;
         return result;
     }
-    
+
     public Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
         if (handleIdentifier == null) {
             return translateIdentifierNoOverride(identifier, origin);
@@ -285,7 +312,7 @@ public class ExpressionCompiler {
             return handleIdentifier.apply(identifier, origin);
         }
     }
-    
+
     public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
         if (identName.contentEquals("this")) {
@@ -302,10 +329,59 @@ public class ExpressionCompiler {
             var intValue = Integer.valueOf((char) literal.getValue());
             return new LiteralExpr(compiler.toOrigin(literal), intValue);
         }
+        if (literal.typetag == TypeTag.DOUBLE) {
+            return translateFp64Literal(compiler.toOrigin(literal), ((Number) literal.getValue()).doubleValue());
+        }
+        if (literal.typetag == TypeTag.FLOAT) {
+            compiler.reportError(expr, "floatNotSupported");
+            return JavaToDafnyCompiler.getHole(origin);
+        }
         if (expr.getKind().equals(Tree.Kind.STRING_LITERAL)) {
             return translateStringLiteral(compiler.toOrigin(literal), literal);
         }
         return new LiteralExpr(origin, literal.getValue());
+    }
+
+    /**
+     * Promotes an integer expression to fp64.
+     * For integer literals, converts directly to fp64 literal.
+     * For other integer expressions, uses fp64.FromReal().
+     */
+    public Expression promoteToFp64(JCTree.@Nullable JCExpression javaExpr, Expression dafnyExpr, IOrigin origin) {
+        if (javaExpr instanceof JCTree.JCLiteral literal &&
+            (literal.typetag == TypeTag.INT || literal.typetag == TypeTag.LONG)) {
+            double doubleValue = ((Number) literal.getValue()).doubleValue();
+            return translateFp64Literal(origin, doubleValue);
+        }
+
+        var toReal = new ConversionExpr(origin, dafnyExpr, new RealType(origin), "");
+        var fromRealCall = fp64Method(origin, "FromReal");
+        var args = List.of(new ActualBinding(null, toReal, false));
+        return new ApplySuffix(origin, fromRealCall, null, new ActualBindings(args), null);
+    }
+
+    public Expression translateFp64Literal(IOrigin origin, double value) {
+        if (Double.isNaN(value)) {
+            return fp64Method(origin, "NaN");
+        }
+        if (value == Double.POSITIVE_INFINITY) {
+            return fp64Method(origin, "PositiveInfinity");
+        }
+        if (value == Double.NEGATIVE_INFINITY) {
+            return fp64Method(origin, "NegativeInfinity");
+        }
+
+        if (value == Double.MAX_VALUE) {
+            return fp64Method(origin, "MaxValue");
+        }
+        if (value == Double.MIN_VALUE) {
+            return fp64Method(origin, "MinSubnormal");
+        }
+        if (value == Double.MIN_NORMAL) {
+            return fp64Method(origin, "MinNormal");
+        }
+
+        return new LiteralExpr(origin, value);
     }
 
     private NameSegment translateTypeApplication(JCTree.JCTypeApply typeApply, IOrigin origin) {
@@ -327,6 +403,24 @@ public class ExpressionCompiler {
         if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
             return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
         }
+
+        if (fieldAccess.selected.type != null &&
+            fieldAccess.selected.type.toString().equals(Double.class.getName())) {
+            var fieldNameStr = fieldAccess.name.toString();
+            return switch (fieldNameStr) {
+                case "NaN" -> fp64Method(origin, "NaN");
+                case "POSITIVE_INFINITY" -> fp64Method(origin, "PositiveInfinity");
+                case "NEGATIVE_INFINITY" -> fp64Method(origin, "NegativeInfinity");
+                case "MAX_VALUE" -> fp64Method(origin, "MaxValue");
+                case "MIN_VALUE" -> fp64Method(origin, "MinSubnormal");
+                case "MIN_NORMAL" -> fp64Method(origin, "MinNormal");
+                default -> {
+                    compiler.reportError(fieldAccess, "notSupported", "Double field " + fieldNameStr);
+                    yield JavaToDafnyCompiler.getHole(origin);
+                }
+            };
+        }
+
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
@@ -385,6 +479,139 @@ public class ExpressionCompiler {
         }
 
         if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
+                && ownerClass.fullname.contentEquals(Math.class.getName())) {
+            var methodName = methodSymbol.name.toString();
+
+            switch (methodName) {
+                case "abs" -> {
+                    if (!argBindings.isEmpty()) {
+                        var arg = argBindings.get(0).getActual();
+                        if (invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
+                            var fp64Segment = fp64Segment(origin);
+                            var absMethod = new ExprDotName(origin, fp64Segment, new Name(origin, "Abs"), null);
+                            return new ApplySuffix(origin, absMethod, null,
+                                    new ActualBindings(List.of(new ActualBinding(null, arg, false))), null);
+                        }
+                        compiler.reportError(origin, "notSupported", "Math.abs for integers - needs library support");
+                        return JavaToDafnyCompiler.getHole(origin);
+                    }
+                }
+                case "sqrt" -> {
+                    if (!argBindings.isEmpty()) {
+                        var arg = argBindings.get(0).getActual();
+                        var sqrtMethod = fp64Method(origin, "Sqrt");
+                        return new ApplySuffix(origin, sqrtMethod, null,
+                                new ActualBindings(List.of(new ActualBinding(null, arg, false))), null);
+                    }
+                }
+                case "min" -> {
+                    if (argBindings.size() == 2) {
+                        var arg1 = argBindings.get(0).getActual();
+                        var arg2 = argBindings.get(1).getActual();
+                        if (invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
+                            var minMethod = fp64Method(origin, "Min");
+                            return new ApplySuffix(origin, minMethod, null,
+                                    new ActualBindings(List.of(
+                                        new ActualBinding(null, arg1, false),
+                                        new ActualBinding(null, arg2, false))), null);
+                        }
+                        // For integers, use conditional expression: if a < b then a else b
+                        var comparison = new BinaryExpr(origin, BinaryExprOpcode.Lt, arg1, arg2);
+                        return new ITEExpr(origin, false, comparison, arg1, arg2);
+                    }
+                }
+                case "max" -> {
+                    if (argBindings.size() == 2) {
+                        var arg1 = argBindings.get(0).getActual();
+                        var arg2 = argBindings.get(1).getActual();
+                        if (invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
+                            var maxMethod = fp64Method(origin, "Max");
+                            return new ApplySuffix(origin, maxMethod, null,
+                                    new ActualBindings(List.of(
+                                        new ActualBinding(null, arg1, false),
+                                        new ActualBinding(null, arg2, false))), null);
+                        }
+                        // For integers, use conditional expression: if a > b then a else b
+                        var comparison = new BinaryExpr(origin, BinaryExprOpcode.Gt, arg1, arg2);
+                        return new ITEExpr(origin, false, comparison, arg1, arg2);
+                    }
+                }
+            }
+
+            compiler.reportError(invocation, "notSupported", "Math method " + methodName);
+            return compiler.getHole(origin);
+        }
+
+        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
+                && ownerClass.fullname.contentEquals(Double.class.getName())) {
+            var methodName = methodSymbol.name.toString();
+
+            if (methodSymbol.isStatic()) {
+                switch (methodName) {
+                    case "isNaN" -> {
+                        if (!argBindings.isEmpty()) {
+                            var arg = argBindings.get(0).getActual();
+                            if (arg instanceof LiteralExpr) {
+                                arg = new ParensExpression(origin, arg);
+                            }
+                            return new ExprDotName(origin, arg, new Name(origin, "IsNaN"), null);
+                        }
+                    }
+                    case "isInfinite" -> {
+                        if (!argBindings.isEmpty()) {
+                            var arg = argBindings.get(0).getActual();
+                            if (arg instanceof LiteralExpr) {
+                                arg = new ParensExpression(origin, arg);
+                            }
+                            return new ExprDotName(origin, arg, new Name(origin, "IsInfinite"), null);
+                        }
+                    }
+                    case "isFinite" -> {
+                        if (!argBindings.isEmpty()) {
+                            var arg = argBindings.get(0).getActual();
+                            if (arg instanceof LiteralExpr) {
+                                arg = new ParensExpression(origin, arg);
+                            }
+                            return new ExprDotName(origin, arg, new Name(origin, "IsFinite"), null);
+                        }
+                    }
+                    case "valueOf" -> {
+                        // valueOf(double) just returns the double, so pass through the argument
+                        if (!argBindings.isEmpty()) {
+                            return argBindings.get(0).getActual();
+                        }
+                    }
+                }
+            }
+            // Instance methods
+            else {
+                switch (methodName) {
+                    case "doubleValue", "floatValue" -> {
+                        // Unboxing - just return the receiver
+                        if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                            return toExpr(fieldAccess.selected);
+                        }
+                    }
+                    case "isNaN" -> {
+                        if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                            var receiver = toExpr(fieldAccess.selected);
+                            return new ExprDotName(origin, receiver, new Name(origin, "IsNaN"), null);
+                        }
+                    }
+                    case "isInfinite" -> {
+                        if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                            var receiver = toExpr(fieldAccess.selected);
+                            return new ExprDotName(origin, receiver, new Name(origin, "IsInfinite"), null);
+                        }
+                    }
+                }
+            }
+
+            compiler.reportError(invocation, "notSupported", "Double method " + methodName);
+            return compiler.getHole(origin);
+        }
+
+        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                 && ownerClass.fullname.contentEquals(String.class.getName())) {
                  if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
                     compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
@@ -411,9 +638,6 @@ public class ExpressionCompiler {
             Expression right) {
         var origin = compiler.toOrigin(node);
         var opName = operator.name.toString();
-        if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
-            compiler.reportError(node, "notSupported", "operator " + operator);
-        }
 
         if (opName.equals("+") && leftType.toString().contentEquals(String.class.getName())) {
             var callee = new ExprDotName(origin, left, new Name(origin, "concat"), null);
@@ -466,6 +690,39 @@ public class ExpressionCompiler {
             compiler.reportError(node, "notSupported", "operator " + operator);
             return JavaToDafnyCompiler.getHole(origin);
         }
+        if (leftType.getTag() == TypeTag.DOUBLE && rightType != null && rightType.getTag() != TypeTag.DOUBLE) {
+            if (rightType.isPrimitive() && rightType.getTag() != TypeTag.BOOLEAN) {
+                JCTree.JCExpression rightOperand = (node instanceof JCTree.JCBinary binary)
+                    ? binary.getRightOperand() : null;
+                right = promoteToFp64(rightOperand, right, origin);
+            }
+        } else if (rightType != null && rightType.getTag() == TypeTag.DOUBLE && leftType.getTag() != TypeTag.DOUBLE) {
+            if (leftType.isPrimitive() && leftType.getTag() != TypeTag.BOOLEAN) {
+                JCTree.JCExpression leftOperand = (node instanceof JCTree.JCBinary binary)
+                    ? binary.getLeftOperand() : null;
+                left = promoteToFp64(leftOperand, left, origin);
+            }
+        }
+
+        if ((opName.equals("==") || opName.equals("!=")) &&
+            leftType.getTag() == TypeTag.DOUBLE) {
+            var equalMethod = fp64Method(origin, "Equal");
+            var args = List.of(new ActualBinding(null, left, false),
+                              new ActualBinding(null, right, false));
+            var equalCall = new ApplySuffix(origin, equalMethod, null,
+                                           new ActualBindings(args), null);
+
+            if (opName.equals("!=")) {
+                return new UnaryOpExpr(origin, equalCall, UnaryOpExprOpcode.Not);
+            }
+            return equalCall;
+        }
+
+        if (opName.equals("%") && (leftType.getTag() == TypeTag.DOUBLE || leftType.getTag() == TypeTag.FLOAT)) {
+            compiler.reportError(node, "notSupported", "modulo operator (%) with floating-point types");
+            return JavaToDafnyCompiler.getHole(origin);
+        }
+
         BinaryExprOpcode dafnyOperator = toDafny(operator);
         if (dafnyOperator == null) {
             compiler.reportError(node, "notSupported", "operator " + operator);
@@ -553,4 +810,18 @@ public class ExpressionCompiler {
             '\r', "\\r",
             '\t', "\\t"
     );
+
+    private static boolean isIntegralType(com.sun.tools.javac.code.Type type) {
+        return type != null && type.isPrimitive() &&
+            (type.getTag() == TypeTag.INT || type.getTag() == TypeTag.LONG ||
+             type.getTag() == TypeTag.SHORT || type.getTag() == TypeTag.BYTE);
+    }
+
+    private static NameSegment fp64Segment(IOrigin origin) {
+        return new NameSegment(origin, "fp64", null);
+    }
+
+    private static Expression fp64Method(IOrigin origin, String methodName) {
+        return new ExprDotName(origin, fp64Segment(origin), new Name(origin, methodName), null);
+    }
 }

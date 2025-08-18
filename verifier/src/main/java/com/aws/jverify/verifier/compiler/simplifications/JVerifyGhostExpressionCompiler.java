@@ -162,6 +162,17 @@ public class JVerifyGhostExpressionCompiler {
             compiler.reportError(origin, "notSupported", "nullable String type");
             return null;
         }
+        if (className.toString().equals(Double.class.getName())) {
+            if (!isNullable) {
+                return new Fp64Type(origin);
+            }
+            compiler.reportError(origin, "notSupported", "nullable Double type");
+            return null;
+        }
+        if (className.toString().equals(Float.class.getName())) {
+            compiler.reportError(origin, "notSupported", "Float wrapper type");
+            return null;
+        }
         if (className.toString().equals(JVerify.Sequence.class.getName())) {
             var typeArguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
             if (typeArguments.stream().anyMatch(Objects::isNull)) {

@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(exitCode = 2)  // Mutation operators in expressions and float literal not supported
 class ResolutionErrorsNumericOperators {
     public void foo() {
         var l = 3;

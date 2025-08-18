@@ -39,23 +39,25 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
         var tag = unary.getTag();
         switch (tag) {
             case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
-                if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
-                    blockCompiler.compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                    return List.of();
-                } else {
-                    Expression target = blockCompiler.compiler.expressionCompiler.toExpr(unary.getExpression());
-                    List<Expression> lhss = List.of(target);
+                Expression target = blockCompiler.compiler.expressionCompiler.toExpr(unary.getExpression());
+                List<Expression> lhss = List.of(target);
 
-                    var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
-                            ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
-                    var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
-                    List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
-                    return List.of(new AssignStatement(origin, null, lhss, rhss, false));
+                var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
+                        ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
+
+                Expression incrementValue;
+                if (unary.type.getTag() == TypeTag.DOUBLE) {
+                    incrementValue = blockCompiler.compiler.expressionCompiler.translateFp64Literal(origin, 1.0);
+                } else {
+                    incrementValue = new LiteralExpr(origin, 1);
                 }
+
+                var incremented = new BinaryExpr(origin, opCode, target, incrementValue);
+                List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
+                return List.of(new AssignStatement(origin, null, lhss, rhss, false));
 
             }
             default -> {
-                // non-mutating unary expressions are not valid Java statements
                 throw new JavaViolationException();
             }
         }

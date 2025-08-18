@@ -62,14 +62,14 @@ public class JavaToDafnyCompiler {
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
-    
+
     public JCTree.JCCompilationUnit compilationUnit;
     private boolean translatingVerifiedMethodSignature;
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
     private boolean skipDiagnostics;
-    
+
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
@@ -82,7 +82,7 @@ public class JavaToDafnyCompiler {
     public NameCompiler getNameCompiler() {
         return nameCompiler;
     }
-    
+
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
         if (options.includeBuiltinContracts()) {
             builtinSource = new SourceFile(JavaToDafnyCompiler.builtinFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
@@ -90,7 +90,7 @@ public class JavaToDafnyCompiler {
         }
         var contractSource = new SourceFile(JavaToDafnyCompiler.objectFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
         files.add(contractSource);
-        
+
         Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
@@ -100,7 +100,7 @@ public class JavaToDafnyCompiler {
 
         /*
          * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
-         * To work around this bug, the built-in contracts file must be serialized after 
+         * To work around this bug, the built-in contracts file must be serialized after
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
         parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
@@ -109,7 +109,7 @@ public class JavaToDafnyCompiler {
             externalContractCompiler.discoverTypesAndContractClasses(compilationUnit);
             declarationsForFile.put(compilationUnit, new ArrayList<>());
         }
-        
+
         for(var foundClassSymbol : externalContractCompiler.foundClasses.keySet()) {
             addHierarchyForSymbol(foundClassSymbol);
             nameCompiler.registerClass(foundClassSymbol);
@@ -236,7 +236,7 @@ public class JavaToDafnyCompiler {
         this.skipDiagnostics = previous;
         return result;
     }
-    
+
     private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
         reportDiagnostic(position, JCDiagnostic.DiagnosticType.ERROR, key, args);
     }
@@ -256,7 +256,7 @@ public class JavaToDafnyCompiler {
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
                 a -> a));
     }
-    
+
     public static Map<String, JCTree.JCExpression> getArguments(JCTree.JCAnnotation annotation) {
         var result = new HashMap<String, JCTree.JCExpression>();
         for(var argument : annotation.getArguments()) {
@@ -349,7 +349,7 @@ public class JavaToDafnyCompiler {
         var types = Types.instance(context);
         return types.closure(type).stream().anyMatch(t -> isAnnotated(t, clazz));
     }
-    
+
     /**
      * Returns {@code true} if the given type is annotated with the given annotation class.
      */
@@ -371,7 +371,7 @@ public class JavaToDafnyCompiler {
     public static boolean isSynthetic(long flags) {
         return (flags & Flags.SYNTHETIC) != 0;
     }
-    
+
     public static boolean isStatic(JCTree.JCModifiers modifiers) {
         return (modifiers.flags & Flags.STATIC) != 0;
     }
@@ -418,7 +418,7 @@ public class JavaToDafnyCompiler {
         }
         return false;
     }
-    
+
     public @Nullable Type translateType(JCTree tree) {
         return translateType(tree.type, toOrigin(tree), null);
     }
@@ -429,7 +429,7 @@ public class JavaToDafnyCompiler {
         translatingVerifiedMethodSignature = false;
         return result;
     }
-    
+
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
         return translateType(type, origin, null);
     }
@@ -492,10 +492,11 @@ public class JavaToDafnyCompiler {
                     return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
                 }
                 case FLOAT -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "float", null));
+                    reportError(origin, "notSupported", "float type");
+                    return null;
                 }
                 case DOUBLE -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "double", null));
+                    return new Fp64Type(origin);
                 }
             }
 
@@ -531,7 +532,6 @@ public class JavaToDafnyCompiler {
                     reportError(origin, "notSupported", "nullable record type");
                     return null;
                 }
-
                 // Remove the name qualification because we do not support that yet
                 var compiledName = nameCompiler.getCompiledName(classType.tsym);
                 if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
@@ -627,7 +627,7 @@ public class JavaToDafnyCompiler {
         var entireRange = toOrigin(node);
         return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
     }
-    
+
     public IOrigin toOrigin(JCTree node) {
         var positionCalculator = new PositionCalculator(compilationUnit);
         var startToken = positionCalculator.toToken(TreeInfo.getStartPos(node));
@@ -635,8 +635,8 @@ public class JavaToDafnyCompiler {
             return contextOrigins.peek();
         }
         int endPos = positionCalculator.getEndPos(node);
-        var endToken = endPos == Position.NOPOS 
-                ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1) 
+        var endToken = endPos == Position.NOPOS
+                ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1)
                 : positionCalculator.toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
     }
@@ -699,7 +699,7 @@ public class JavaToDafnyCompiler {
     }
 
     /**
-     * Right now we implicitly consider anonymous and final types immutable,  
+     * Right now we implicitly consider anonymous and final types immutable,
      * if they only have final fields and inherit from immutable types
      */
     public boolean isAnonymousOrFinalImmutableType(Symbol.ClassSymbol classSymbol) {
@@ -718,7 +718,7 @@ public class JavaToDafnyCompiler {
         }
         return false;
     }
-    
+
     public boolean hasNonFinalFields(Symbol.ClassSymbol classSymbol) {
         for (Symbol member : classSymbol.getEnclosedElements()) {
             if (member.getKind() == ElementKind.FIELD &&
@@ -763,7 +763,7 @@ public class JavaToDafnyCompiler {
         }
         return Stream.concat(mine, getOwnAndEnclosedTypeParameters(methodSymbol.owner));
     }
-    
+
     private boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
         var decls = externalContractCompiler.declarationsForSymbolContract.get(classSymbol);
         boolean immutableClass = false;

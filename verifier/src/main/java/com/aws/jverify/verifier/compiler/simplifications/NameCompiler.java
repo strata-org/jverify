@@ -21,7 +21,7 @@ import java.util.concurrent.Flow;
  *   - For constructors: prefix "_ctor_" followed by the class name is used
  *   - For overloaded methods: a suffix encoding parameter types is added (e.g. "_iCjava_lang_String")
  *   - For classes with name collisions: fully qualified name with dots replaced by underscores
- * 
+ *
  * This class maintains bidirectional mappings between original and compiled names,
  * allowing for name resolution in both directions.
  */
@@ -43,9 +43,10 @@ public class NameCompiler {
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final ExternalContractCompiler contractCompiler;
     private final SimpleSynchronousPublisher<Symbol> subject = new SimpleSynchronousPublisher();
+    private int tempVarCounter = 0;
     
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
-    
+
     public NameCompiler(ExternalContractCompiler contractCompiler) {
         this.contractCompiler = contractCompiler;
         this.symbolStringMap = new HashMap<>();
@@ -56,6 +57,9 @@ public class NameCompiler {
         return subject;    
     }
     
+    public String generateTempName(String prefix) {
+        return prefix + "_" + (tempVarCounter++);
+    }
     public void registerClass(Symbol.ClassSymbol classSymbol) {
         classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
     }
@@ -66,7 +70,7 @@ public class NameCompiler {
         }
         return name;
     }
-    
+
     public String getCompiledName(Symbol s) {
         if (symbolStringMap.containsKey(s)) {
             return symbolStringMap.get(s);
@@ -80,7 +84,7 @@ public class NameCompiler {
         reverseSymbolStringMap.put(compiledName, s);
         return compiledName;
     }
-    
+
     private String uncachedGetCompiledName(Symbol s) {
         switch (s) {
             case Symbol.ClassSymbol classSymbol -> {
@@ -140,7 +144,7 @@ public class NameCompiler {
 
     private String getMethodName(Symbol.MethodSymbol s) {
         StringBuilder result = new StringBuilder();
-                
+
         ClassNameStats classStats = getGetClassNameStats(s.enclClass(), s.name);
         boolean uniqueName = classStats.methodsWithThisName() <= 1;
         if (s.name.equals(s.name.table.names.init)) {
@@ -168,7 +172,7 @@ public class NameCompiler {
         }
         return name.replace('$', '_');
     }
-    
+
     private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {
         List<Type> argTypes;
         if (method.type instanceof MethodType m) {

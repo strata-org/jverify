@@ -315,9 +315,17 @@ class IntegerContract {
     }
 }
 
-@Contract(Double.class)
+@Contract(value = Double.class, immutable = true)
 class DoubleContract {
+    // Note: Double implements Comparable<Double> in Java, but fp64 is a value type in Dafny
+    // and can't satisfy the Object bound required by Comparable<T>
+    // TODO: Handle boxed vs unboxed types properly
 }
+
+// Float support is not implemented - waiting for fp32 support in Dafny
+// @Contract(value = Float.class, immutable = true)
+// class FloatContract {
+// }
 
 @Contract(Long.class)
 class LongContract {
