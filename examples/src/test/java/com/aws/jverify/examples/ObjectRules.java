@@ -6,14 +6,14 @@ import com.aws.jverify.Pure;
 class ObjectRules {
     void referenceObjectInheritsFromObject(Object object) {
         @Reference Object referenceObject = object;
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Object) not assignable to LHS (of type ModifiableObject)
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Object) not assignable to LHS (of type ReferenceObject)
         Object regularObject = referenceObject; // upcast is legal
     }
     
     <T> void typeParameterExtendsImmutableObject(T t) {
         Object object = t; // upcast is legal
         @Reference Object referenceObject = t;
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type T) not assignable to LHS (of type ModifiableObject)
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type T) not assignable to LHS (of type ReferenceObject)
     }
     
     void newObjectIsAlwaysReference() {

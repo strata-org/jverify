@@ -11,7 +11,7 @@ class InterfaceResolutionErrors {
     @Contract(I2.class)
     static class I2Contract {
         public I2Contract(int x) {
-//         ^ error: constructor is part of a @Contract class, but its signature does not match any method from the contractee
+//             ^ error: constructor is part of a @Contract class, but its signature does not match any method from the contractee
         }
     }
 }

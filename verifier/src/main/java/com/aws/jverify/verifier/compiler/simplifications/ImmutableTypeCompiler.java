@@ -101,7 +101,7 @@ public class ImmutableTypeCompiler {
         }
 
         if (compiler.isAnnotatedRecursive(classDecl.type, Reference.class)) {
-            compiler.reportError(origin, "modifiableForbidden", "a record class");
+            compiler.reportError(origin, "referenceForbidden", "a record class");
             return null;
         }
         compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
