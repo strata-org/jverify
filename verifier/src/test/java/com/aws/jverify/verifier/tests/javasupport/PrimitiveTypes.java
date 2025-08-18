@@ -27,7 +27,7 @@ class PrimitiveTypes {
         
         char c = 'q';
         byte b = 10;
-        float f;
+        float f; // error: float type is not supported
         double d;
     }
 }

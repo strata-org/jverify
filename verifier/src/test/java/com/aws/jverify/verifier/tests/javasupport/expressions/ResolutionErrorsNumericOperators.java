@@ -26,6 +26,7 @@ class ResolutionErrorsNumericOperators {
 //                            ^ error: since ++ performs mutation, it may only be used where a statement is allowed
         check(incrementPrefix == 4);
         check(l == 4f);
+//                 ^ error: float literals are not supported. Use double instead
         var decrementPrefix = --l;
 //                            ^ error: since -- performs mutation, it may only be used where a statement is allowed
         check(decrementPrefix == 3);
