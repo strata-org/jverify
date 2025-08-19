@@ -527,6 +527,12 @@ class OptionalContract<T> {
         throw new ContractException();
     }
 
+    @Pure
+    T orElse(T val) {
+        postcondition((T b) -> isPresent()? b == this.value : b == val);
+        throw new ContractException();
+    }
+
     // Throws a NoSuchElementException if this is an empty object
     @Pure
     T get() {

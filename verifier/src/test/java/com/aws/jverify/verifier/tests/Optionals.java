@@ -1,5 +1,5 @@
-// ^ /builtin-contracts.java(533:22-533:27) Related location: this proposition could not be proved
-package com.aws.jverify.verifier.tests.jcl;
+// ^ /builtin-contracts.java(539:22-539:27) Related location: this proposition could not be proved
+package com.aws.jverify.verifier.tests;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -16,6 +16,8 @@ public class Optionals {
         check(!opt.isPresent());
         var res = opt.get();
 //                ^^^^^^^^^ Error: function precondition could not be proved
+        var res1 = opt.orElse("Hello");
+        check(res1.equals("Hello"));
     }
 
     void testOf() {
@@ -24,6 +26,8 @@ public class Optionals {
         check(opt.isEmpty());
 //      ^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
         check(opt.isPresent());
+        var res = opt.orElse("World");
+        check(res.equals("Hello"));
     }
 
     void testOfNullable() {
