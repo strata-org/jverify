@@ -9,7 +9,6 @@ trait Object {
     // for more on overridding pure methods.
     predicate equals(obj: Object)
 }
-trait ModifiableObject extends Object, object {}
 
 type nat15 = x: int16 | x >= 0
 type int16 = x: int | -0x8000 <= x <= 0x7fff

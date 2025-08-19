@@ -160,13 +160,10 @@ public class NewExternalContractCompiler {
         }
 
         private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-            if (contracteeSymbol == symtab.objectType.tsym) {
-                return;
-            }
             var oldSymbol = classDecl.sym;
             oldSymbol.name = contracteeSymbol.name;
-//            classDecl.type.tsym = contracteeSymbol;
-//            classDecl.sym = contracteeSymbol;
+            classDecl.type.tsym = contracteeSymbol;
+            classDecl.sym = contracteeSymbol;
             classDecl.name = classDecl.sym.name;
 
             classDecl.mods.annotations = classDecl.mods.annotations.append(getVerifyFalseAnnotation());
