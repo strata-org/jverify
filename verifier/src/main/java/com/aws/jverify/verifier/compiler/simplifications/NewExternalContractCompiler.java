@@ -1,9 +1,11 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.frontend.JavaFrontEnd;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -11,12 +13,14 @@ import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.comp.Env;
+import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Names;
 
-import javax.swing.plaf.synth.SynthRadioButtonMenuItemUI;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaFileObject;
 import java.util.*;
@@ -29,14 +33,18 @@ public class NewExternalContractCompiler {
     private final JVerifyIndex index;
     private final Enter enter;
     private final Types types;
+    private final TreeMaker maker;
     private final Symtab symtab;
     private final DiagnosticListener<JavaFileObject> listener;
     public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
+    private final JavacElements elements;
 
     public NewExternalContractCompiler(Context context) {
         this.names = Names.instance(context);
         this.enter = Enter.instance(context);
         this.types = Types.instance(context);
+        this.maker = TreeMaker.instance(context);
+        this.elements = JavacElements.instance(context);
         this.symtab =  Symtab.instance(context);
         this.index = JVerifyIndex.instance(context);
         this.listener = (DiagnosticListener<JavaFileObject>)context.get(DiagnosticListener.class);
@@ -89,6 +97,10 @@ public class NewExternalContractCompiler {
             classDecl.type.tsym = contracteeSymbol;
             classDecl.sym = contracteeSymbol;
             classDecl.name = classDecl.sym.name;
+
+            var verifySymbol = elements.getTypeElement(Verify.class.getCanonicalName());
+            classDecl.mods.annotations = classDecl.mods.annotations.append(maker.Annotation(maker.Ident(verifySymbol), List.of(
+                    maker.Assign(maker.Ident(names.fromString("value")), maker.Literal(false)))));
             
             // TODO move annotations to contracteeSymbol
             var x = oldSymbol.getDeclarationAttributes();
@@ -102,7 +114,9 @@ public class NewExternalContractCompiler {
                     var methodSymbol = methodDecl.sym;
                     var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
                     if (baseMethod != null) {
-                        methodDecl.sym = baseMethod;
+                        // If we update the sym, then we need to be careful with parameter names
+                        // methodDecl.sym = baseMethod;
+                        var d = 3;
                     } else {
                         // Check currently does not take into account overloading
                         // But this only makes it not detect some unused methods.
@@ -159,7 +173,7 @@ public class NewExternalContractCompiler {
 
     private ExternalTypeContract getExternalTypeContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
         Map<Symbol.MethodSymbol, JCTree.JCMethodDecl> externalContracts = new HashMap<>();
-        List<JCTree.JCVariableDecl> ghostFields = new ArrayList<>();
+        var ghostFields = new ArrayList<JCTree.JCVariableDecl>();
         for(var member : classDecl.getMembers()) {
 
             if (member instanceof JCTree.JCVariableDecl field) {

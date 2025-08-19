@@ -401,7 +401,7 @@ public class TypeDeclarationCompiler {
         var name = compiler.getName(method, method.sym);
         var origin = compiler.declToOrigin(method, name);
         var isStatic = JavaToDafnyCompiler.isStatic(method.mods);
-        List<Formal> ins = getIns(method.sym, shouldVerify, methodOrigin);
+        List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         List<Statement> bodyStatements = null;
         if (shouldVerify && postHeader != null) {
@@ -473,7 +473,7 @@ public class TypeDeclarationCompiler {
         var name = compiler.getName(method, method.sym);
         var origin = compiler.declToOrigin(method, name);
         var isStatic = JavaToDafnyCompiler.isStatic(method.mods);
-        List<Formal> ins = getIns(method.sym, shouldVerify, sourceOrigin);
+        List<Formal> ins = getIns(method, shouldVerify, sourceOrigin);
         var returnType = compiler.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, shouldVerify);
         if (returnType == null) {
             compiler.reportError(method, "pureMethodsNeedsReturnType");
@@ -518,23 +518,30 @@ public class TypeDeclarationCompiler {
 //        return null;
 //    }
 
-    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, boolean shouldVerify, IOrigin bodyOrigin) {
-        return methodSymbol.extraParams.
-                appendList(methodSymbol.getParameters()).
-                appendList(methodSymbol.capturedLocals).map(jvd -> {
-                    var index = JVerifyIndex.instance(compiler.context);
-                    var parameter = index.getTree(jvd);
-                    IOrigin parameterOrigin;
-                    if (parameter == null) {
-                        parameterOrigin = bodyOrigin;
-                    } else {
-                        parameterOrigin = compiler.toOrigin(parameter);
-                    }
-                    Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd));
-                    var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, shouldVerify);
-                    return new Formal(parameterOrigin, formalName, syntacticType, false, true,
-                            null, null, false, false, false, null);
-                });
+    private List<Formal> getIns(JCTree.JCMethodDecl method, boolean shouldVerify, IOrigin bodyOrigin) {
+        return method.getParameters().map(parameter -> {
+            IOrigin parameterOrigin = compiler.toOrigin(parameter);
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym));
+            var syntacticType = compiler.translateMethodSignatureType(parameter.type, parameterOrigin, shouldVerify);
+            return new Formal(parameterOrigin, formalName, syntacticType, false, true,
+                    null, null, false, false, false, null);
+        });
+//        return methodSymbol.extraParams.
+//                appendList(methodSymbol.getParameters()).
+//                appendList(methodSymbol.capturedLocals).map(jvd -> {
+//                    var index = JVerifyIndex.instance(compiler.context);
+//                    var parameter = index.getTree(jvd);
+//                    IOrigin parameterOrigin;
+//                    if (parameter == null) {
+//                        parameterOrigin = bodyOrigin;
+//                    } else {
+//                        parameterOrigin = compiler.toOrigin(parameter);
+//                    }
+//                    Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd));
+//                    var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, shouldVerify);
+//                    return new Formal(parameterOrigin, formalName, syntacticType, false, true,
+//                            null, null, false, false, false, null);
+//                });
     }
 
     private Formal makeReturnFormal(IOrigin origin, Type syntacticType) {
