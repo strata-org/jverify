@@ -36,6 +36,7 @@ public class NewExternalContractCompiler {
     private final Symtab symtab;
     private final DiagnosticListener<JavaFileObject> listener;
     private final JavacElements elements;
+    private final Set<Symbol.ClassSymbol> contracts = new HashSet<>();
 
     public NewExternalContractCompiler(Context context) {
         this.names = Names.instance(context);
@@ -52,7 +53,8 @@ public class NewExternalContractCompiler {
         for(var unit :  compilationUnits) {
             MoveSourceContracts moveSourceContracts = new MoveSourceContracts();
             moveSourceContracts.visitTopLevel(unit);
-            unit.defs = List.from(unit.defs.stream().filter(d -> !moveSourceContracts.classesToRemove.contains(d)).toList());
+            java.util.List<JCTree> list = unit.defs.stream().filter(d -> d != null && !moveSourceContracts.classesToRemove.contains(d)).toList();
+            unit.defs = List.from(list);
         }
         return compilationUnits;
     }
@@ -75,6 +77,17 @@ public class NewExternalContractCompiler {
             var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
                 var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
+                if (contracteeSymbol == null) {
+                    reportError(classDecl, "noContractTarget", classDecl.name.toString());
+                    classesToRemove.add(classDecl);
+                    return;
+                }
+                
+                if (!contracts.add(contracteeSymbol)) {
+                    reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
+                    return;
+                }
+                
                 var contracteeSource = (JCTree.JCClassDecl)index.getTree(contracteeSymbol);
                 if (contracteeSource == null) {
                     handleLibraryContract(classDecl, contracteeSymbol);
@@ -96,12 +109,12 @@ public class NewExternalContractCompiler {
                                 var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
                                 baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
                                 if (baseSource.getBody() != null) {
-                                    throw new RuntimeException("not allowed");
+                                    reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                                 } else {
                                     baseSource.body = methodDecl.body;
                                 }
                             } else {
-                                throw new RuntimeException();
+                                reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                             }
                         }
                     }
@@ -179,7 +192,7 @@ public class NewExternalContractCompiler {
                 maker.Assign(maker.Ident(names.fromString("value")), maker.Literal(false))));
     }
 
-    private void reportError(JCTree.JCMethodDecl methodDecl, String key, String... arguments) {
+    private void reportError(JCTree tree, String key, Object... arguments) {
         
     }
 
