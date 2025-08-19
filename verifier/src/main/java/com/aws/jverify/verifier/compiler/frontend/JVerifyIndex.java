@@ -45,6 +45,10 @@ public class JVerifyIndex extends JCTree.Visitor {
             instance = new JVerifyIndex(context);
         return instance;
     }
+    
+    public void put(Symbol symbol, Env<AttrContext> env) {
+        envs.put(symbol, env);
+    }
 
     protected JVerifyIndex(Context context) {
         context.put(JVerifyIndex.class, this);
