@@ -21,6 +21,7 @@ import javax.lang.model.element.Modifier;
 import java.util.*;
 import java.util.concurrent.Flow;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class TypeDeclarationCompiler {
@@ -508,13 +509,19 @@ public class TypeDeclarationCompiler {
 //    }
 
     private List<Formal> getIns(JCTree.JCMethodDecl method, boolean shouldVerify, IOrigin bodyOrigin) {
-        return method.getParameters().map(parameter -> {
+        var methodSymbol = method.sym;
+        var parameterSymbols = methodSymbol.extraParams.
+                appendList(methodSymbol.getParameters()).
+                appendList(methodSymbol.capturedLocals);
+        return IntStream.range(0, method.getParameters().size()).mapToObj(index -> {
+            var parameter = method.getParameters().get(index);
+            var parameterSymbol = parameterSymbols.get(index);
             IOrigin parameterOrigin = compiler.toOrigin(parameter);
-            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym));
-            var syntacticType = compiler.translateMethodSignatureType(parameter.type, parameterOrigin, shouldVerify);
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameterSymbol));
+            var syntacticType = compiler.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
-        });
+        }).toList();
 //        return methodSymbol.extraParams.
 //                appendList(methodSymbol.getParameters()).
 //                appendList(methodSymbol.capturedLocals).map(jvd -> {
