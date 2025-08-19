@@ -649,7 +649,7 @@ public class JavaToDafnyCompiler {
      * if they only have final fields and inherit from immutable types
      */
     public boolean isAnonymousOrFinalImmutableType(Symbol.ClassSymbol classSymbol) {
-        if (classSymbol.isAnonymous() || classSymbol.isFinal()) {
+        if (classSymbol.isAnonymous() /*|| classSymbol.isFinal()*/) { // Caused Integer to become immutable even though it's not annotated as such
             if (hasNonFinalFields(classSymbol)) {
                 return false;
             }
@@ -710,7 +710,7 @@ public class JavaToDafnyCompiler {
         return Stream.concat(mine, getOwnAndEnclosedTypeParameters(methodSymbol.owner));
     }
     
-    private boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
+    public boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
         var decl = (JCTree.JCClassDecl)index.getTree(classSymbol);
         boolean immutableClass = false;
         if (decl != null) {

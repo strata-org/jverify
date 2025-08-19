@@ -160,7 +160,7 @@ public class TypeDeclarationCompiler {
     }
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
+        if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym) || compiler.isImmutableClass(classDecl.sym)) {
             return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
         }
 
