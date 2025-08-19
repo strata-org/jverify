@@ -41,8 +41,9 @@ public class JVerifyIndex extends JCTree.Visitor {
 
     public static JVerifyIndex instance(Context context) {
         JVerifyIndex instance = context.get(JVerifyIndex.class);
-        if (instance == null)
+        if (instance == null) {
             instance = new JVerifyIndex(context);
+        }
         return instance;
     }
     

@@ -57,7 +57,7 @@ public class Driver {
 
         var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles);
         var hasErrors = false;
-        for (var diagnostic : compiler.diagnostics.getDiagnostics()) {
+        for (var diagnostic : compiler.reporter.diagnostics.getDiagnostics()) {
             verificationResults.getJverifyDiagnostics().add(diagnostic);
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 hasErrors = true;

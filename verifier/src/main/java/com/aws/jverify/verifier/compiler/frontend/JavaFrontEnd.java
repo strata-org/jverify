@@ -32,10 +32,12 @@ import java.util.stream.Collectors;
 public class JavaFrontEnd {
     public final Context context;
     private final JavaToDafnyCompiler compiler;
+    Reporter reporter;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
         this.compiler = javaToDafnyCompiler;
         this.context = javaToDafnyCompiler.context;
+        reporter = Reporter.instance(context);
     }
 
     /**
@@ -158,7 +160,7 @@ public class JavaFrontEnd {
         for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
-                this.compiler.diagnostics.report(this.compiler.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+                reporter.diagnostics.report(reporter.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                         new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
                         diagnostic.getMessage(Locale.ENGLISH)));
 

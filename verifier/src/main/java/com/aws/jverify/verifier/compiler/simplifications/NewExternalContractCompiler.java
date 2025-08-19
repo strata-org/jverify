@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.Verify;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
@@ -16,12 +17,9 @@ import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
-import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Names;
 
-import javax.tools.DiagnosticListener;
-import javax.tools.JavaFileObject;
 import java.util.*;
 import java.util.stream.StreamSupport;
 
@@ -34,7 +32,7 @@ public class NewExternalContractCompiler {
     private final Types types;
     private final TreeMaker maker;
     private final Symtab symtab;
-    private final DiagnosticListener<JavaFileObject> listener;
+    private final Reporter reporter;
     private final JavacElements elements;
     private final Set<Symbol.ClassSymbol> contracts = new HashSet<>();
 
@@ -46,7 +44,7 @@ public class NewExternalContractCompiler {
         this.elements = JavacElements.instance(context);
         this.symtab =  Symtab.instance(context);
         this.index = JVerifyIndex.instance(context);
-        this.listener = (DiagnosticListener<JavaFileObject>)context.get(DiagnosticListener.class);
+        this.reporter = Reporter.instance(context);
     }
     
     public Collection<JCTree.JCCompilationUnit> apply(Collection<JCTree.JCCompilationUnit> compilationUnits) {
@@ -68,6 +66,7 @@ public class NewExternalContractCompiler {
         @Override
         public void visitTopLevel(JCTree.JCCompilationUnit tree) {
             topLevelEnv = enter.getTopLevelEnv(tree);
+            reporter.compilationUnit = tree;
             super.visitTopLevel(tree);
         }
 
@@ -78,13 +77,13 @@ public class NewExternalContractCompiler {
             if (contractAnnotation != null) {
                 var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
                 if (contracteeSymbol == null) {
-                    reportError(classDecl, "noContractTarget", classDecl.name.toString());
+                    reporter.reportError(classDecl, "noContractTarget", classDecl.name.toString());
                     classesToRemove.add(classDecl);
                     return;
                 }
                 
                 if (!contracts.add(contracteeSymbol)) {
-                    reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
+                    reporter.reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                     return;
                 }
                 
@@ -92,6 +91,11 @@ public class NewExternalContractCompiler {
                 if (contracteeSource == null) {
                     handleLibraryContract(classDecl, contracteeSymbol);
                 } else {
+                    if (JavaToDafnyCompiler.typeHasSource(index, contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
+                        reporter.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
+                        return;
+                    }
+                    
                     classesToRemove.add(classDecl);
                     // TODO see if I can move the external contract into the source class
                     // We'll have to add a body to bodyless members
@@ -109,12 +113,12 @@ public class NewExternalContractCompiler {
                                 var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
                                 baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
                                 if (baseSource.getBody() != null) {
-                                    reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
+                                    reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                                 } else {
                                     baseSource.body = methodDecl.body;
                                 }
                             } else {
-                                reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                                reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                             }
                         }
                     }
@@ -154,7 +158,7 @@ public class NewExternalContractCompiler {
                         // But this only makes it not detect some unused methods.
                         var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();
                         if (contractee.isEmpty()) {
-                            reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                            reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                         }
                         // TODO shouldn't we always throw an error here?
                         // TODO remove the method ?
@@ -190,10 +194,6 @@ public class NewExternalContractCompiler {
         var verifySymbol = elements.getTypeElement(Verify.class.getCanonicalName());
         return maker.Annotation(maker.Ident(verifySymbol), List.of(
                 maker.Assign(maker.Ident(names.fromString("value")), maker.Literal(false))));
-    }
-
-    private void reportError(JCTree tree, String key, Object... arguments) {
-        
     }
 
     private String methodToString(JCTree tree) {
@@ -233,7 +233,7 @@ public class NewExternalContractCompiler {
                 // But this only makes it not detect some unused methods.
                 var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();
                 if (contractee.isEmpty()) {
-                    reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                    reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                 }
             }
         }

@@ -16,15 +16,12 @@ import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Env;
-import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 
 import com.sun.tools.javac.tree.TreeInfo;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.code.Symtab;
-import com.sun.tools.javac.util.DiagnosticSource;
-import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jgrapht.Graph;
@@ -38,7 +35,6 @@ import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -49,11 +45,10 @@ public class JavaToDafnyCompiler {
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
     public final Stack<IOrigin> contextOrigins = new Stack<>();
-    public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public NameCompiler nameCompiler;
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
     public TypeDeclarationCompiler typeDeclarationCompiler;
-    public JCDiagnostic.Factory diagnosticFactory;
+    public final Reporter reporter;
     public final VerifierOptions verifierOptions;
     JVerifyIndex index;
 
@@ -63,19 +58,17 @@ public class JavaToDafnyCompiler {
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
-    NewExternalContractCompiler newExternalContractCompiler;
     
-    public JCTree.JCCompilationUnit compilationUnit;
+    //public JCTree.JCCompilationUnit compilationUnit;
     private boolean translatingVerifiedMethodSignature;
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
-    private boolean skipDiagnostics;
     
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
-        diagnosticFactory = JCDiagnostic.Factory.instance(context);
+        reporter = Reporter.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
     }
 
@@ -168,7 +161,7 @@ public class JavaToDafnyCompiler {
             if (relatedDeclaration == null) {
                 continue;
             }
-            compilationUnit = symbolToCompilationUnit.get(currentTypeSymbol);
+            var compilationUnit = symbolToCompilationUnit.get(currentTypeSymbol);
             
             JVerifyIndex index = JVerifyIndex.instance(context);
             Env<AttrContext> env = index.getEnv(currentTypeSymbol);
@@ -176,6 +169,7 @@ public class JavaToDafnyCompiler {
                 // TODO simplify
                 compilationUnit = env.toplevel;
             }
+            reporter.compilationUnit = compilationUnit;
             var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
             verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
             var dafnyDecls = typeDeclarationCompiler.translateTypeDeclaration(relatedDeclaration);
@@ -216,48 +210,6 @@ public class JavaToDafnyCompiler {
         } else {
             throw new JavaViolationException();
         }
-    }
-
-
-    public void reportError(IOrigin origin, String key, Object... args) {
-        reportError(positionFromOrigin(origin), key, args);
-    }
-
-    public void reportDiagnostic(IOrigin origin, JCDiagnostic.DiagnosticType type,  String key, Object... args) {
-        reportDiagnostic(positionFromOrigin(origin), type, key, args);
-    }
-
-    private JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
-        return new DiagnosticPositionFromOrigin(originToRange(origin), compilationUnit.lineMap);
-    }
-
-    public void reportError(JCTree tree, String key, Object... args) {
-        reportError(positionFromNode(tree, compilationUnit), key, args);
-    }
-
-    /**
-     * In case of synthetic program nodes, which may occur nodes that are copies of source nodes that occur elsewhere in the program,
-     * this method can be used not to generate diagnostics when processing the synthetic node.
-     */
-    public <T> T withSkipDiagnostics(Supplier<T> supplier, boolean skipDiagnostics) {
-        var previous = this.skipDiagnostics;
-        this.skipDiagnostics = skipDiagnostics;
-        var result = supplier.get();
-        this.skipDiagnostics = previous;
-        return result;
-    }
-    
-    private void reportError(JCDiagnostic.DiagnosticPosition position, String key, Object... args) {
-        reportDiagnostic(position, JCDiagnostic.DiagnosticType.ERROR, key, args);
-    }
-
-    private void reportDiagnostic(JCDiagnostic.DiagnosticPosition position, JCDiagnostic.DiagnosticType type,  String key, Object... args) {
-        if (this.skipDiagnostics) {
-            return;
-        }
-        this.diagnostics.report(diagnosticFactory.create(type,
-                new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
-                args));
     }
 
     public static Map<String, JCTree.JCAnnotation> getAnnotationsByName(JCTree.JCModifiers modifiers) {
@@ -310,11 +262,10 @@ public class JavaToDafnyCompiler {
 
     public boolean typeHasAContract(com.sun.tools.javac.code.Type type) {
         // TODO simplify
-        return index.getTree(type.tsym) != null || typeHasSource(type.tsym);
+        return index.getTree(type.tsym) != null || typeHasSource(index, type.tsym);
     }
 
-    public boolean typeHasSource(Symbol.TypeSymbol typeSymbol) {
-        var index = JVerifyIndex.instance(context);
+    public static boolean typeHasSource(JVerifyIndex index, Symbol.TypeSymbol typeSymbol) {
         return index.getTree(typeSymbol) != null;
     }
 
@@ -385,31 +336,6 @@ public class JavaToDafnyCompiler {
     
     public static boolean isStatic(JCTree.JCModifiers modifiers) {
         return (modifiers.flags & Flags.STATIC) != 0;
-    }
-
-    private JCDiagnostic.DiagnosticPosition positionFromNode(JCTree node, JCTree.JCCompilationUnit compilationUnit) {
-        Objects.requireNonNull(node);
-        return new JCDiagnostic.DiagnosticPosition() {
-            @Override
-            public JCTree getTree() {
-                return node;
-            }
-
-            @Override
-            public int getStartPosition() {
-                return node.getStartPosition();
-            }
-
-            @Override
-            public int getPreferredPosition() {
-                return node.getPreferredPosition();
-            }
-
-            @Override
-            public int getEndPosition(EndPosTable endPosTable) {
-                return node.getEndPosition(compilationUnit.endPositions);
-            }
-        };
     }
 
     public static LiteralExpr getReferenceHole(IOrigin origin) {
@@ -594,6 +520,14 @@ public class JavaToDafnyCompiler {
         return null;
     }
 
+    public void reportError(JCTree tree, String key, Object... args) {
+        reporter.reportError(tree, key, args);
+    }
+    
+    public void reportError(IOrigin origin, String key, Object... args) {
+        reporter.reportError(origin, key, args);
+    }
+
     /**
      * If the specified tree represents a primitive type,
      * returns the corresponding {@link TypeKind},
@@ -622,7 +556,7 @@ public class JavaToDafnyCompiler {
     }
 
     public Name getName(JCTree tree, String name, int length) {
-        var positionCalculator = new PositionCalculator(compilationUnit);
+        var positionCalculator = new PositionCalculator(reporter.compilationUnit);
         int startPos = positionCalculator.getStartPos(tree);
         var startToken = positionCalculator.toToken(startPos);
         var endToken = positionCalculator.toToken(startPos + length);
@@ -638,9 +572,20 @@ public class JavaToDafnyCompiler {
         var entireRange = toOrigin(node);
         return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
     }
+
+    public static TokenRange originToRange(IOrigin tokenRangeOrigin) {
+        if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
+            return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
+        } else if (tokenRangeOrigin instanceof TokenRangeOrigin trOrigin) {
+            return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
+        } else {
+            throw new JavaToDafnyCompiler.NotImplementedException(tokenRangeOrigin.getClass().getName());
+        }
+    }
     
+    // TODO move to reporter?
     public IOrigin toOrigin(JCTree node) {
-        var positionCalculator = new PositionCalculator(compilationUnit);
+        var positionCalculator = new PositionCalculator(reporter.compilationUnit);
         var startToken = positionCalculator.toToken(TreeInfo.getStartPos(node));
         if (startToken == null) {
             return contextOrigins.peek();
@@ -650,16 +595,6 @@ public class JavaToDafnyCompiler {
                 ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1) 
                 : positionCalculator.toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
-    }
-
-    private TokenRange originToRange(IOrigin tokenRangeOrigin) {
-        if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
-            return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
-        } else if (tokenRangeOrigin instanceof TokenRangeOrigin trOrigin) {
-            return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
-        } else {
-            throw new NotImplementedException(tokenRangeOrigin.getClass().getName());
-        }
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
