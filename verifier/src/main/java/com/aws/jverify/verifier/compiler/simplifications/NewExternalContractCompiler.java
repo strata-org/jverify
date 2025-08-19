@@ -111,43 +111,46 @@ public class NewExternalContractCompiler {
                         reporter.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
                         return;
                     }
-
-                    var modifiableAnnotation = classAnnotationsByName.get(Modifiable.class.getName());
-                    if (modifiableAnnotation != null) {
-                        reporter.reportError(modifiableAnnotation, "annotationOnSourceContractClass", 
-                                Modifiable.class.getSimpleName(), classDecl.name.toString());
-                    }
-                    
-                    classesToRemove.add(classDecl);
-                    // TODO see if I can move the external contract into the source class
-                    // We'll have to add a body to bodyless members
-                    for(var member : classDecl.getMembers()) {
-                        if (member instanceof JCTree.JCVariableDecl field) {
-                            contracteeSource.defs = contracteeSource.defs.append(field);
-                            contracteeSource.sym.members().enter(field.sym);
-                        } else if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                            var methodSymbol = methodDecl.sym;
-                            if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
-                                continue;
-                            }
-                            var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
-                            if (baseMethod != null) {
-                                var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
-                                baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
-                                if (baseSource.getBody() != null) {
-                                    reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
-                                } else {
-                                    baseSource.body = methodDecl.body;
-                                }
-                            } else {
-                                reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
-                            }
-                        }
-                    }
+                    handleSourceContract(classDecl, classAnnotationsByName, contracteeSource, contracteeSymbol);
                 }
             }
             
             super.visitClassDef(classDecl);
+        }
+
+        private void handleSourceContract(JCTree.JCClassDecl classDecl, Map<String, JCTree.JCAnnotation> classAnnotationsByName, JCTree.JCClassDecl contracteeSource, Symbol.ClassSymbol contracteeSymbol) {
+            var modifiableAnnotation = classAnnotationsByName.get(Modifiable.class.getName());
+            if (modifiableAnnotation != null) {
+                reporter.reportError(modifiableAnnotation, "annotationOnSourceContractClass", 
+                        Modifiable.class.getSimpleName(), classDecl.name.toString());
+            }
+
+            classesToRemove.add(classDecl);
+            // TODO see if I can move the external contract into the source class
+            // We'll have to add a body to bodyless members
+            for(var member : classDecl.getMembers()) {
+                if (member instanceof JCTree.JCVariableDecl field) {
+                    contracteeSource.defs = contracteeSource.defs.append(field);
+                    contracteeSource.sym.members().enter(field.sym);
+                } else if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                    var methodSymbol = methodDecl.sym;
+                    if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+                        continue;
+                    }
+                    var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
+                    if (baseMethod != null) {
+                        var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
+                        baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
+                        if (baseSource.getBody() != null) {
+                            reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
+                        } else {
+                            baseSource.body = methodDecl.body;
+                        }
+                    } else {
+                        reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                    }
+                }
+            }
         }
 
         private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
