@@ -50,7 +50,9 @@ public class NewExternalContractCompiler {
     
     public Collection<JCTree.JCCompilationUnit> apply(Collection<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit :  compilationUnits) {
-            new MoveSourceContracts().visitTopLevel(unit);
+            MoveSourceContracts moveSourceContracts = new MoveSourceContracts();
+            moveSourceContracts.visitTopLevel(unit);
+            unit.defs = List.from(unit.defs.stream().filter(d -> !moveSourceContracts.classesToRemove.contains(d)).toList());
         }
         return compilationUnits;
     }
@@ -92,6 +94,7 @@ public class NewExternalContractCompiler {
                             var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
                             if (baseMethod != null) {
                                 var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
+                                baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
                                 if (baseSource.getBody() != null) {
                                     throw new RuntimeException("not allowed");
                                 } else {
@@ -117,9 +120,7 @@ public class NewExternalContractCompiler {
             classDecl.sym = contracteeSymbol;
             classDecl.name = classDecl.sym.name;
 
-            var verifySymbol = elements.getTypeElement(Verify.class.getCanonicalName());
-            classDecl.mods.annotations = classDecl.mods.annotations.append(maker.Annotation(maker.Ident(verifySymbol), List.of(
-                    maker.Assign(maker.Ident(names.fromString("value")), maker.Literal(false)))));
+            classDecl.mods.annotations = classDecl.mods.annotations.append(getVerifyFalseAnnotation());
             
             // TODO move annotations to contracteeSymbol
             var x = oldSymbol.getDeclarationAttributes();
@@ -170,6 +171,12 @@ public class NewExternalContractCompiler {
             }
             return symbol;
         }
+    }
+
+    private JCTree.JCAnnotation getVerifyFalseAnnotation() {
+        var verifySymbol = elements.getTypeElement(Verify.class.getCanonicalName());
+        return maker.Annotation(maker.Ident(verifySymbol), List.of(
+                maker.Assign(maker.Ident(names.fromString("value")), maker.Literal(false))));
     }
 
     private void reportError(JCTree.JCMethodDecl methodDecl, String key, String... arguments) {
