@@ -5,7 +5,6 @@ import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.frontend.JavaFrontEnd;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -36,7 +35,6 @@ public class NewExternalContractCompiler {
     private final TreeMaker maker;
     private final Symtab symtab;
     private final DiagnosticListener<JavaFileObject> listener;
-    public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
     private final JavacElements elements;
 
     public NewExternalContractCompiler(Context context) {
@@ -81,8 +79,29 @@ public class NewExternalContractCompiler {
                 } else {
                     classesToRemove.add(classDecl);
                     // TODO see if I can move the external contract into the source class
-                    var externalContract = getExternalTypeContract(classDecl, contracteeSymbol);
-                    externalContracts.put(contracteeSymbol, externalContract);
+                    // We'll have to add a body to bodyless members
+                    for(var member : classDecl.getMembers()) {
+                        if (member instanceof JCTree.JCVariableDecl field) {
+                            contracteeSource.defs = contracteeSource.defs.append(field);
+                            contracteeSource.sym.members().enter(field.sym);
+                        } else if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                            var methodSymbol = methodDecl.sym;
+                            if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+                                continue;
+                            }
+                            var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
+                            if (baseMethod != null) {
+                                var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
+                                if (baseSource.getBody() != null) {
+                                    throw new RuntimeException("not allowed");
+                                } else {
+                                    baseSource.body = methodDecl.body;
+                                }
+                            } else {
+                                throw new RuntimeException();
+                            }
+                        }
+                    }
                 }
             }
             
@@ -116,7 +135,6 @@ public class NewExternalContractCompiler {
                     if (baseMethod != null) {
                         // If we update the sym, then we need to be careful with parameter names
                         // methodDecl.sym = baseMethod;
-                        var d = 3;
                     } else {
                         // Check currently does not take into account overloading
                         // But this only makes it not detect some unused methods.
