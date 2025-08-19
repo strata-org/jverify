@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Enter;
@@ -15,6 +16,7 @@ import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Names;
 
+import javax.swing.plaf.synth.SynthRadioButtonMenuItemUI;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaFileObject;
 import java.util.*;
@@ -27,6 +29,7 @@ public class NewExternalContractCompiler {
     private final JVerifyIndex index;
     private final Enter enter;
     private final Types types;
+    private final Symtab symtab;
     private final DiagnosticListener<JavaFileObject> listener;
     public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
 
@@ -34,6 +37,7 @@ public class NewExternalContractCompiler {
         this.names = Names.instance(context);
         this.enter = Enter.instance(context);
         this.types = Types.instance(context);
+        this.symtab =  Symtab.instance(context);
         this.index = JVerifyIndex.instance(context);
         this.listener = (DiagnosticListener<JavaFileObject>)context.get(DiagnosticListener.class);
     }
@@ -78,6 +82,9 @@ public class NewExternalContractCompiler {
         }
 
         private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
+            if (contracteeSymbol == symtab.objectType.tsym) {
+                return;
+            }
             var oldSymbol = classDecl.sym;
             classDecl.type.tsym = contracteeSymbol;
             classDecl.sym = contracteeSymbol;

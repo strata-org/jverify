@@ -14,6 +14,7 @@ module com.aws.jverify.verifier {
     requires net.bytebuddy;
     requires java.instrument;
     requires net.bytebuddy.agent;
+    requires java.desktop;
 
     opens com.aws.jverify.verifier to info.picocli;
     opens com.aws.jverify.verifier.compiler.simplifications to info.picocli;
