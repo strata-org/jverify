@@ -125,6 +125,11 @@ public class NewExternalContractCompiler {
                         Modifiable.class.getSimpleName(), classDecl.name.toString());
             }
 
+            var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
+            if (contractAnnotation != null && contractAnnotation.immutable()) {
+                reporter.reportError(classDecl, "immutableInternalContract");
+            }
+
             classesToRemove.add(classDecl);
             // TODO see if I can move the external contract into the source class
             // We'll have to add a body to bodyless members
@@ -145,6 +150,7 @@ public class NewExternalContractCompiler {
                             reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                         } else {
                             baseSource.body = methodDecl.body;
+                            baseSource.mods.annotations = baseSource.mods.annotations.appendList(methodDecl.mods.annotations);
                         }
                     } else {
                         reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
@@ -158,8 +164,9 @@ public class NewExternalContractCompiler {
                 return;
             }
             var oldSymbol = classDecl.sym;
-            classDecl.type.tsym = contracteeSymbol;
-            classDecl.sym = contracteeSymbol;
+            oldSymbol.name = contracteeSymbol.name;
+//            classDecl.type.tsym = contracteeSymbol;
+//            classDecl.sym = contracteeSymbol;
             classDecl.name = classDecl.sym.name;
 
             classDecl.mods.annotations = classDecl.mods.annotations.append(getVerifyFalseAnnotation());

@@ -159,19 +159,8 @@ public class TypeDeclarationCompiler {
     }
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        
-        var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
         if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
             return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
-        }
-
-        if (contractAnnotation != null && contractAnnotation.immutable()) {
-            if (typeForWhichCurrentClassIsDefiningContract != null) {
-                return new ImmutableTypeCompiler(this).translate(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
-            } else {
-                compiler.reportError(classDecl, "immutableInternalContract");
-                return null;
-            }
         }
 
         for (var member : classDecl.getMembers()) {
