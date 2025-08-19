@@ -19,6 +19,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.SequencedCollection;
 
+import java.util.Optional;
+
 @Contract(Comparable.class)
 class ComparableContract<T> {
 }
@@ -488,4 +490,48 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+}
+
+@Contract(value = Optional.class, immutable = true)
+class OptionalContract<T> {
+
+    private T value;
+    private boolean isSet;
+
+    //Throws a NullPointerException if the val is null
+    static <T> OptionalContract<T> of(T val) {
+        postcondition((OptionalContract<T> o) -> o.value == val && o.isSet);
+        throw new ContractException();
+    }
+
+    static <T> OptionalContract<T> empty() {
+        postcondition((OptionalContract<T> o) -> !o.isSet);
+        throw new ContractException();
+    }
+
+    //Currently the same as of because we are not able to handle null cases
+    static <T> OptionalContract<T> ofNullable(T val) {
+        postcondition((OptionalContract<T> o) -> o.isSet && o.value == val);
+        throw new ContractException();
+    }
+
+    @Pure
+    boolean isEmpty() {
+        postcondition((boolean r) -> r == !isSet);
+        throw new ContractException();
+    }
+
+    @Pure
+    boolean isPresent() {
+        postcondition((boolean r) -> r == isSet);
+        throw new ContractException();
+    }
+
+    // Throws a NoSuchElementException if this is an empty object
+    @Pure
+    T get() {
+        precondition(isSet);
+        postcondition((T b) -> b == this.value);
+        throw new ContractException();
+    }
 }
