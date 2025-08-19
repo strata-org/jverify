@@ -39,7 +39,7 @@ class NestedContractsTest {
     }
 
     @Contract(InterfaceOne.Nested.class)
-    class InterfaceOneContract implements InterfaceOne.Nested {
+    static class InterfaceOneContract implements InterfaceOne.Nested {
         int value;
         public void setY(int x) {
             postcondition(this.value == x);
@@ -54,7 +54,7 @@ class NestedContractsTest {
     }
 
     @Contract(InterfaceTwo.Nested.class)
-    class InterfaceTwoNestedContract implements InterfaceTwo.Nested {
+    static class InterfaceTwoNestedContract implements InterfaceTwo.Nested {
         int value;
         public void setY(int x) {
             postcondition(this.value == x);

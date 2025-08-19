@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
@@ -86,6 +87,21 @@ public class NewExternalContractCompiler {
                     reporter.reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                     return;
                 }
+
+                com.sun.tools.javac.util.List<Symbol.TypeVariableSymbol> typeParameters = contracteeSymbol.getTypeParameters();
+                if (typeParameters.size() != classDecl.sym.getTypeParameters().size()) {
+                    reporter.reportError(classDecl, "contractDifferentTypeParameters", classDecl.name.toString(), contracteeSymbol.name.toString());
+                    return;
+                }
+        
+                for (int i = 0; i < typeParameters.size(); i++) {
+                    var originalTypeParameter = typeParameters.get(i);
+                    var contractTypeParameter = classDecl.sym.getTypeParameters().get(i);
+                    if (!originalTypeParameter.name.contentEquals(contractTypeParameter.name)) {
+                        reporter.reportError(classDecl, "contractDifferentTypeParameters", classDecl.name.toString(), contracteeSymbol.name.toString());
+                        return;
+                    }
+                }
                 
                 var contracteeSource = (JCTree.JCClassDecl)index.getTree(contracteeSymbol);
                 if (contracteeSource == null) {
@@ -94,6 +110,12 @@ public class NewExternalContractCompiler {
                     if (JavaToDafnyCompiler.typeHasSource(index, contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
                         reporter.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
                         return;
+                    }
+
+                    var modifiableAnnotation = classAnnotationsByName.get(Modifiable.class.getName());
+                    if (modifiableAnnotation != null) {
+                        reporter.reportError(modifiableAnnotation, "annotationOnSourceContractClass", 
+                                Modifiable.class.getSimpleName(), classDecl.name.toString());
                     }
                     
                     classesToRemove.add(classDecl);
