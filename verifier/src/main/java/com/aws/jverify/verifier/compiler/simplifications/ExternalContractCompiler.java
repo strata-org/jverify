@@ -23,6 +23,19 @@ import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
 
+/**
+ * Handles @Contract annotations, so that further passes can be agnostic to them.
+ * Some remnants of the @Contract classes remain
+ * <p>
+ * For library contracts, the @Contract annotation is moved to the contractee symbol,
+ * so that the immutable field can be found.
+ * <p>
+ * Also, while the header of the contract class is assigned the symbol of the contractee
+ * The tree node itself is left unmodified since doing so was not necessary, and this might make debugging easier.
+ * <p>
+ * For source contracts, the contract definitions are moved to the contractee class,
+ * and the contract class is deleted.
+ */
 public class ExternalContractCompiler {
     private final Names names;
     private final JVerifyIndex index;
