@@ -51,7 +51,7 @@ public class JavaToDafnyCompiler {
     public final Reporter reporter;
     public Names names;
     public final VerifierOptions verifierOptions;
-    JVerifyIndex index;
+    public JVerifyIndex index;
 
     /**
      * Edges are from child to parent types, similar to the references in the code
@@ -60,7 +60,6 @@ public class JavaToDafnyCompiler {
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
-    //public JCTree.JCCompilationUnit compilationUnit;
     private boolean translatingVerifiedMethodSignature;
     public SourceFile builtinSource;
     public static final String builtinFile = "/builtin-contracts.java";
@@ -168,7 +167,6 @@ public class JavaToDafnyCompiler {
             JVerifyIndex index = JVerifyIndex.instance(context);
             Env<AttrContext> env = index.getEnv(currentTypeSymbol);
             if (env != null) {
-                // TODO simplify
                 compilationUnit = env.toplevel;
             }
             reporter.compilationUnit = compilationUnit;
@@ -260,11 +258,6 @@ public class JavaToDafnyCompiler {
         }
 
         return false;
-    }
-
-    public boolean typeHasAContract(com.sun.tools.javac.code.Type type) {
-        // TODO simplify
-        return index.getTree(type.tsym) != null || typeHasSource(index, type.tsym);
     }
 
     public static boolean typeHasSource(JVerifyIndex index, Symbol.TypeSymbol typeSymbol) {

@@ -23,25 +23,23 @@ import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
 
-public class NewExternalContractCompiler {
+public class ExternalContractCompiler {
     private final Names names;
     private final JVerifyIndex index;
     private final Enter enter;
     private final Types types;
     private final TreeMaker maker;
-    private final Symtab symtab;
     private final Reporter reporter;
     private final JavacElements elements;
     private final Set<Symbol.ClassSymbol> symbolsWithContracts = new HashSet<>();
     private final Map<Symbol.ClassSymbol, Symbol.ClassSymbol> contractSymbolToContractee = new HashMap<>();
 
-    public NewExternalContractCompiler(Context context) {
+    public ExternalContractCompiler(Context context) {
         this.names = Names.instance(context);
         this.enter = Enter.instance(context);
         this.types = Types.instance(context);
         this.maker = TreeMaker.instance(context);
         this.elements = JavacElements.instance(context);
-        this.symtab =  Symtab.instance(context);
         this.index = JVerifyIndex.instance(context);
         this.reporter = Reporter.instance(context);
     }
@@ -174,8 +172,6 @@ public class NewExternalContractCompiler {
         }
 
         private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-
-             
             classDecl.type.tsym = contracteeSymbol; // Required before calling 'findOverriddenMethod'
             
             var newMembers =  new ArrayList<JCTree>();

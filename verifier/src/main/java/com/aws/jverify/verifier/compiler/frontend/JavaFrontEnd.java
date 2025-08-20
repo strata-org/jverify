@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.compiler.frontend;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.aws.jverify.verifier.compiler.*;
-import com.aws.jverify.verifier.compiler.simplifications.NewExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.ClientCodeWrapper;
@@ -143,7 +143,7 @@ public class JavaFrontEnd {
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
                     
-                    var contractCompiler = new NewExternalContractCompiler(context);
+                    var contractCompiler = new ExternalContractCompiler(context);
                     envs.addAll(
                             contractCompiler.apply(
                             unsuspend(lower(suspend(
