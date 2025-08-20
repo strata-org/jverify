@@ -193,8 +193,8 @@ public class ExternalContractCompiler {
                     var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
                     if (baseMethod != null) {
                         newMembers.add(methodDecl);
-                        methodDecl.sym = baseMethod;
                         contractSymbolToContractee.put(methodDecl.sym, baseMethod);
+                        methodDecl.sym = baseMethod;
                     } else {
                         reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                     }
