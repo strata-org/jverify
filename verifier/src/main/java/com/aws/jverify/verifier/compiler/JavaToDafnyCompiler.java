@@ -149,7 +149,6 @@ public class JavaToDafnyCompiler {
 
         return new FilesContainer(filesStarts);
     }
-    
 
     private boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
         return compilationUnit.getSourceFile() == builtinSource;
@@ -569,18 +568,7 @@ public class JavaToDafnyCompiler {
         var entireRange = toOrigin(node);
         return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
     }
-
-    public static TokenRange originToRange(IOrigin tokenRangeOrigin) {
-        if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
-            return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
-        } else if (tokenRangeOrigin instanceof TokenRangeOrigin trOrigin) {
-            return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
-        } else {
-            throw new JavaToDafnyCompiler.NotImplementedException(tokenRangeOrigin.getClass().getName());
-        }
-    }
     
-    // TODO move to reporter?
     public IOrigin toOrigin(JCTree node) {
         var positionCalculator = new PositionCalculator(reporter.compilationUnit);
         var startToken = positionCalculator.toToken(TreeInfo.getStartPos(node));
@@ -592,6 +580,16 @@ public class JavaToDafnyCompiler {
                 ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1) 
                 : positionCalculator.toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
+    }
+
+    public static TokenRange originToRange(IOrigin tokenRangeOrigin) {
+        if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
+            return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
+        } else if (tokenRangeOrigin instanceof TokenRangeOrigin trOrigin) {
+            return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
+        } else {
+            throw new JavaToDafnyCompiler.NotImplementedException(tokenRangeOrigin.getClass().getName());
+        }
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {

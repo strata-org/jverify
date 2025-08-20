@@ -37,7 +37,7 @@ public class ImmutableTypeCompiler {
         Symbol.ClassSymbol currentTypeSymbol = typeDeclarationCompiler.getCurrentTypeSymbol(classDecl.sym);
         var traits = currentTypeSymbol
                 .getInterfaces().stream()
-                .filter(type1 -> JavaToDafnyCompiler.typeHasSource(compiler.index, type1.tsym))
+                .filter(type -> JavaToDafnyCompiler.typeHasSource(compiler.index, type.tsym))
                 .map(baseType -> compiler.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
