@@ -7,7 +7,7 @@ import java.util.function.IntPredicate;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 0, dafnyVerified = 6, dafnyErrors = 0, verifyPrintedDafny = true)
 public class MethodContractsVerification {
     
     public int methodReferencePostCondition() {

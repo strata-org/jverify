@@ -3,9 +3,10 @@ package com.aws.jverify.verifier.compiler.frontend;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.simplifications.MoveStaticMethodsToStaticType;
+import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
-import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.comp.*;
 import com.sun.tools.javac.main.Arguments;
@@ -30,11 +31,11 @@ import java.util.stream.Collectors;
 
 public class JavaFrontEnd {
     public final Context context;
-    private final JavaToDafnyCompiler compiler;
+    Reporter reporter;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
-        this.compiler = javaToDafnyCompiler;
         this.context = javaToDafnyCompiler.context;
+        reporter = Reporter.instance(context);
     }
 
     /**
@@ -55,10 +56,6 @@ public class JavaFrontEnd {
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator));
         var javacOptions = List.of("-cp", classpath);
-
-        ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        context.put(DiagnosticListener.class, ccw.wrap(diagnostics));
 
         JavaCompiler compiler = JavaCompiler.instance(context);
         Arguments args = Arguments.instance(context);
@@ -115,7 +112,7 @@ public class JavaFrontEnd {
          * and the Todo instance in the context).
          */
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
-        final Queue<Env<AttrContext>> envs = new LinkedList<>();
+        Set<JCTree.JCCompilationUnit> units = new HashSet<>();
         MultiTaskListener mtl = MultiTaskListener.instance(context);
         mtl.add(new TaskListener() {
             @Override
@@ -139,22 +136,29 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    envs.addAll(
-                            unsuspend(lower(suspend(
-                                    unlambda(
-                                            compiler.flow(compiler.attribute(todo))
-                    )))));
+                    
+                    var staticMover = new MoveStaticMethodsToStaticType(context);
+                    var contractCompiler = new ExternalContractCompiler(context);
+                    units.addAll(
+                            staticMover.translate(
+                            contractCompiler.apply(
+                                unsuspend(lower(suspend(
+                                        unlambda(
+                                                compiler.flow(compiler.attribute(todo))
+                    )))))));
                 }
             }
         });
-        // Applies the first half of our pipeline.
+        // Applies the Java to Java part of our pipeline
         compiler.compile(files, List.of(), null, List.of());
 
+        var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
+        
         var hasErrors = false;
-        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+        for (Diagnostic<? extends JavaFileObject> diagnostic : javaFrontendDiagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
-                this.compiler.diagnostics.report(this.compiler.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+                reporter.diagnostics.report(reporter.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                         new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
                         diagnostic.getMessage(Locale.ENGLISH)));
 
@@ -162,7 +166,7 @@ public class JavaFrontEnd {
             }
         }
 
-        return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
+        return hasErrors ? null : units;
     }
 
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {;
@@ -190,15 +194,15 @@ public class JavaFrontEnd {
     }
 
     // Phase to undo the effects of suspend().
-    private Queue<Env<AttrContext>> unsuspend(Queue<Env<AttrContext>> envs) {
+    private Set<JCTree.JCCompilationUnit> unsuspend(Set<JCTree.JCCompilationUnit> units) {
         var hider = Suspenders.instance(context);
-        envs.stream().map(env -> env.toplevel).distinct().forEach(topLevel -> {
+        units.forEach(topLevel -> {
             topLevel.defs = topLevel.defs.map(hider::unsuspend);
         });
-        return envs;
+        return units;
     }
 
-    private Queue<Env<AttrContext>> lower(Queue<Env<AttrContext>> envs) {
+    private Set<JCTree.JCCompilationUnit> lower(Queue<Env<AttrContext>> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
         var lower = Lower.instance(context);
         var log = Log.instance(context);
@@ -219,6 +223,6 @@ public class JavaFrontEnd {
         for(var entry : newDecls.entrySet()) {
             entry.getKey().defs = entry.getValue();
         }
-        return envs;
+        return new HashSet<>(newDecls.keySet());
     }
 }

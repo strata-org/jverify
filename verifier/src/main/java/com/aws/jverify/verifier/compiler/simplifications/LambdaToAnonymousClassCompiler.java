@@ -80,6 +80,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private JCNewClass getNewClassExpression(JCLambda lambda,
                                              JCClassDecl classDef,
                                              JCMethodDecl constructor) {
+        make.pos = lambda.pos;
         var result = make.NewClass(
                 null,
                 List.nil(),

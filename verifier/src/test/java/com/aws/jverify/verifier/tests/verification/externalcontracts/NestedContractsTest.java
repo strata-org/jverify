@@ -4,7 +4,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 7, dafnyErrors = 0)
+@JVerifyTest(exitCode = 0, dafnyVerified = 6, dafnyErrors = 0)
 class NestedContractsTest {
     public static void foo(InterfaceOne.Nested f, InterfaceTwo.Nested f2, InterfaceTwo.Nested.ReNested f3) {
         f.setY(42);
@@ -39,7 +39,7 @@ class NestedContractsTest {
     }
 
     @Contract(InterfaceOne.Nested.class)
-    class InterfaceOneContract implements InterfaceOne.Nested {
+    static class InterfaceOneContract implements InterfaceOne.Nested {
         int value;
         public void setY(int x) {
             postcondition(this.value == x);
@@ -54,7 +54,7 @@ class NestedContractsTest {
     }
 
     @Contract(InterfaceTwo.Nested.class)
-    class InterfaceTwoNestedContract implements InterfaceTwo.Nested {
+    static class InterfaceTwoNestedContract implements InterfaceTwo.Nested {
         int value;
         public void setY(int x) {
             postcondition(this.value == x);
