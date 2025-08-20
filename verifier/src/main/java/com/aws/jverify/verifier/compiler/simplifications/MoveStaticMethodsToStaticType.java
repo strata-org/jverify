@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.frontend.JavaFrontEnd;
 import com.sun.tools.javac.code.Scope;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -15,12 +12,10 @@ import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.util.Elements;
-import java.lang.annotation.Annotation;
 import java.util.*;
 
 /**
@@ -48,7 +43,7 @@ public class MoveStaticMethodsToStaticType {
 
     public Set<JCTree.JCCompilationUnit> translate(Set<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit : compilationUnits) {
-            updateUnit(unit);
+            moveStaticMethodsToSeparateClass(unit);
         }
         var referenceUpdater = new ReferenceUpdater();
         for(var unit : compilationUnits) {
@@ -57,7 +52,7 @@ public class MoveStaticMethodsToStaticType {
         return compilationUnits;
     }
 
-    private void updateUnit(JCTree.JCCompilationUnit unit) {
+    private void moveStaticMethodsToSeparateClass(JCTree.JCCompilationUnit unit) {
         List<JCTree> remainingDefs = unit.defs;
         while(!remainingDefs.isEmpty()) {
             var type = remainingDefs.head;
