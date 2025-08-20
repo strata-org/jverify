@@ -140,8 +140,8 @@ public class JavaFrontEnd {
                     var staticMover = new MoveStaticMethodsToStaticType(context);
                     var contractCompiler = new ExternalContractCompiler(context);
                     units.addAll(
-                            contractCompiler.apply(
                             staticMover.translate(
+                            contractCompiler.apply(
                                 unsuspend(lower(suspend(
                                         unlambda(
                                                 compiler.flow(compiler.attribute(todo))

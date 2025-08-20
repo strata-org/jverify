@@ -61,8 +61,7 @@ public class MoveStaticMethodsToStaticType {
                 var methodCollector = new StaticMethodCollector(classDecl);
                 methodCollector.translate(type);
                 if (!methodCollector.staticMethods.isEmpty()) {
-                    List<JCTree.JCAnnotation> annotations = List.nil();
-                    JCTree.JCClassDecl staticClass = maker.ClassDef(maker.Modifiers(0, annotations), methodCollector.staticClassSymbol.name,
+                    JCTree.JCClassDecl staticClass = maker.ClassDef(classDecl.mods, methodCollector.staticClassSymbol.name,
                             List.nil(), null, List.nil(),
                             List.from(methodCollector.staticMethods));
                     staticClass.sym = methodCollector.staticClassSymbol;

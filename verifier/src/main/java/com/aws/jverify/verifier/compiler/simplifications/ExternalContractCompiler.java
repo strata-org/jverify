@@ -57,7 +57,7 @@ public class ExternalContractCompiler {
         this.reporter = Reporter.instance(context);
     }
     
-    public Collection<JCTree.JCCompilationUnit> apply(Collection<JCTree.JCCompilationUnit> compilationUnits) {
+    public Set<JCTree.JCCompilationUnit> apply(Set<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit : compilationUnits) {
             MoveSourceContracts moveSourceContracts = new MoveSourceContracts();
             moveSourceContracts.visitTopLevel(unit);
