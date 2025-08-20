@@ -142,9 +142,16 @@ public class NewExternalContractCompiler {
                     contracteeSource.sym.members().enter(field.sym);
                 } else if (member instanceof JCTree.JCMethodDecl methodDecl) {
                     var methodSymbol = methodDecl.sym;
+                    if (methodSymbol.isConstructor()) {
+                        // source contract constructor are only to please the Java compiler.
+                        continue;
+                    }
+                    
+                    // TODO can the next line be removed?
                     if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
                         continue;
                     }
+                    
                     var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
                     if (baseMethod != null) {
                         var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
@@ -153,7 +160,11 @@ public class NewExternalContractCompiler {
                             reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                         } else {
                             baseSource.body = methodDecl.body;
-                            baseSource.mods.annotations = baseSource.mods.annotations.appendList(methodDecl.mods.annotations);
+                            baseSource.mods.annotations = methodDecl.mods.annotations;
+                            // If we add this back, we need to filter to prevent duplicates
+                            // Or error on duplicates
+//                            baseSource.mods.annotations = baseSource.mods.annotations.appendList(
+//                                    methodDecl.mods.annotations);
                         }
                     } else {
                         reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
