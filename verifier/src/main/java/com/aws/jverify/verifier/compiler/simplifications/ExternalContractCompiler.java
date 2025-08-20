@@ -189,6 +189,7 @@ public class ExternalContractCompiler {
                         if (contractee.isEmpty()) {
                             reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                         }
+                        
                         // TODO shouldn't we always throw an error here?
                         // TODO remove the method ?
                     }

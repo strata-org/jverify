@@ -59,10 +59,6 @@ public class JavaFrontEnd {
                 .collect(Collectors.joining(File.pathSeparator));
         var javacOptions = List.of("-cp", classpath);
 
-        ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        context.put(DiagnosticListener.class, ccw.wrap(diagnostics));
-
         JavaCompiler compiler = JavaCompiler.instance(context);
         Arguments args = Arguments.instance(context);
         args.init("javac", javacOptions, List.of(), files);
@@ -153,11 +149,13 @@ public class JavaFrontEnd {
                 }
             }
         });
-        // Applies the first half of our pipeline.
+        // Applies the Java to Java part of our pipeline
         compiler.compile(files, List.of(), null, List.of());
 
+        var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
+        
         var hasErrors = false;
-        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+        for (Diagnostic<? extends JavaFileObject> diagnostic : javaFrontendDiagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
                 reporter.diagnostics.report(reporter.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,

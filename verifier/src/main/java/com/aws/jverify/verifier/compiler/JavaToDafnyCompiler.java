@@ -7,6 +7,7 @@ import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.frontend.JavaFrontEnd;
 import com.aws.jverify.verifier.compiler.simplifications.*;
+import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Kinds;
@@ -69,6 +70,9 @@ public class JavaToDafnyCompiler {
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
+
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        context.put(DiagnosticListener.class, diagnostics);
         
         JavacFileManager.preRegister(context);
         
