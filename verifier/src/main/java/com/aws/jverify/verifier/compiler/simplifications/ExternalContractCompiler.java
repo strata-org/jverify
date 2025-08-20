@@ -194,9 +194,6 @@ public class ExternalContractCompiler {
             oldSymbol.name = contracteeSymbol.name;
             classDecl.sym = contracteeSymbol;
             classDecl.type = contracteeSymbol.type;
-            
-            // TODO dont change this, but use the sym name later on
-            classDecl.name = classDecl.sym.name;
 
             classDecl.mods.annotations = classDecl.mods.annotations.append(getVerifyFalseAnnotation());
 
