@@ -132,8 +132,6 @@ public class ExternalContractCompiler {
             }
 
             classesToRemove.add(classDecl);
-            // TODO see if I can move the external contract into the source class
-            // We'll have to add a body to bodyless members
             for(var member : classDecl.getMembers()) {
                 if (member instanceof JCTree.JCVariableDecl field) {
                     contracteeSource.defs = contracteeSource.defs.append(field);
@@ -158,12 +156,8 @@ public class ExternalContractCompiler {
                         } else {
                             baseSource.body = methodDecl.body;
                             baseSource.mods.annotations = methodDecl.mods.annotations;
-                            // If we add this back, we need to filter to prevent duplicates
-                            // Or error on duplicates
-//                            baseSource.mods.annotations = baseSource.mods.annotations.appendList(
-//                                    methodDecl.mods.annotations);
+                            baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
                         }
-                        baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
                     } else {
                         reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                     }
