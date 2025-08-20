@@ -103,7 +103,6 @@ public class MoveStaticMethodsToStaticType {
                         staticMethods = staticMethods.append(methodDecl);
                         var sym = methodDecl.sym;
                         
-                        // TODO does not work for contract methods
                         staticMethodSymbols.add(sym);
                         sym.name = tree.sym.fullname.append('.', sym.name);
                         sym.owner = staticClassSymbol;
