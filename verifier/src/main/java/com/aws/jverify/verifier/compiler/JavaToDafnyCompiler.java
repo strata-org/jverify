@@ -10,6 +10,7 @@ import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Kinds;
+import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Position;
 import com.sun.tools.javac.code.TypeMetadata;
@@ -45,13 +46,13 @@ public class JavaToDafnyCompiler {
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
     public final Stack<IOrigin> contextOrigins = new Stack<>();
-    public NameCompiler nameCompiler;
+    public final NameCompiler nameCompiler;
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
-    public TypeDeclarationCompiler typeDeclarationCompiler;
+    public final TypeDeclarationCompiler typeDeclarationCompiler;
     public final Reporter reporter;
-    public Names names;
+    public final Names names;
     public final VerifierOptions verifierOptions;
-    public JVerifyIndex index;
+    public final JVerifyIndex index;
 
     /**
      * Edges are from child to parent types, similar to the references in the code
@@ -68,8 +69,15 @@ public class JavaToDafnyCompiler {
     public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
         this.context = context;
         this.verifierOptions = verifierOptions;
+        
+        JavacFileManager.preRegister(context);
+        
         reporter = Reporter.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
+        nameCompiler = new NameCompiler(context);
+        index = JVerifyIndex.instance(context);
+        names = Names.instance(context);
+        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
     }
 
     public NameCompiler getNameCompiler() {
@@ -88,12 +96,6 @@ public class JavaToDafnyCompiler {
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
-
-        // TODO fix order issue
-        nameCompiler = new NameCompiler(context);
-        index = JVerifyIndex.instance(context);
-        names = Names.instance(context);
-        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
         
         var parsed = new ArrayList<>(parsedSet);
 
