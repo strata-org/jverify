@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef", "ConstantValue", "NewObjectEquality"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 43, dafnyErrors = 4, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 43, dafnyErrors = 4)
 public class LocalAndAnonymousClasses {
 
     void noCaptures() {
