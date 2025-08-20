@@ -102,11 +102,14 @@ public class TraitWithConstructorCompiler {
      * The Dafny class constructor then calls the init method of the related trait, and of the trait of its parent type.
      */
     private Method constructorToInitMethod(String className, Constructor constructor) {
+        BlockStmt body;
         if (constructor.getBody() == null) {
-            return null;
+            body = new BlockStmt(constructor.getOrigin(), null, List.of(),
+                    List.of(/*new AssumeStmt()*/));
+        } else {
+            body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(),
+                    constructor.getBody().getBodyInit());
         }
-        BlockStmt body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(),
-                constructor.getBody().getBodyInit());
         Name nameNode = new Name(constructor.getNameNode().getOrigin(), typeDeclarationCompiler.compiler.nameCompiler.getInitMethodName(className, constructor.getNameNode().getValue()));
         var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
         var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());

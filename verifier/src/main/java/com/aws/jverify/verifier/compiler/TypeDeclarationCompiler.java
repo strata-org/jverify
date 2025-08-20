@@ -460,7 +460,8 @@ public class TypeDeclarationCompiler {
             var parameter = method.getParameters().get(index);
             var parameterSymbol = parameterSymbols.get(index);
             IOrigin parameterOrigin = compiler.toOrigin(parameter);
-            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameterSymbol));
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym));
+            // TODO use parameter.sym.type ?
             var syntacticType = compiler.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
