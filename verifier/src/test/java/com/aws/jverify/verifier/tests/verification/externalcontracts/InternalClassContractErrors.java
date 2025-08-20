@@ -3,8 +3,7 @@ package com.aws.jverify.verifier.tests.verification.externalcontracts;
 import com.aws.jverify.Contract;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import static com.aws.jverify.JVerify.check;
-import static com.aws.jverify.JVerify.postcondition;
+import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 2)
 public class InternalClassContractErrors {
@@ -19,7 +18,7 @@ public class InternalClassContractErrors {
     @Contract
     static class FooContract1 extends Foo {
         void bar(int x) {
-            check(x > 0);
+            precondition(x > 0);
         }
 
         void unusedExternalContract() {
@@ -37,7 +36,7 @@ public class InternalClassContractErrors {
 //  ^ error: class 'Foo' must not be referenced by more than one @Contract annotation
     static class FooContract2 extends Foo {
         void bar(int x) {
-            check(x < 0);
+            precondition(x < 0);
         }
     }
 
