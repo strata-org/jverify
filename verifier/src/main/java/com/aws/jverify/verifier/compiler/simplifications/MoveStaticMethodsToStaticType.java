@@ -147,15 +147,36 @@ public class MoveStaticMethodsToStaticType {
         }
 
         @Override
-        public void visitIdent(JCTree.JCIdent tree) {
-            if (staticContext) {
-                var newSym = classMap.get(tree.sym);
-                if (newSym != null) {
-                    tree.sym = newSym;
-                    tree.name = tree.sym.name;
-                }
+        public void visitReference(JCTree.JCMemberReference tree) {
+            if (staticSymbols.contains(tree.sym)) {
+                var previous = staticContext;
+                staticContext = true;
+                super.visitReference(tree);
+                staticContext = previous;
+                tree.name = tree.sym.name;
+            } else {
+                super.visitReference(tree);
             }
-            super.visitIdent(tree);
+        }
+
+        @Override
+        public void visitIdent(JCTree.JCIdent tree) {
+            if (staticSymbols.contains(tree.sym)) {
+                // reference to same class static, qualify with new type
+                var select = maker.Select(maker.Ident(tree.sym.owner), tree.name);
+                select.sym = tree.sym;
+                select.type = tree.type;
+                result = select;
+            } else {
+                if (staticContext) {
+                    var newSym = classMap.get(tree.sym);
+                    if (newSym != null) {
+                        tree.sym = newSym;
+                        tree.name = tree.sym.name;
+                    }
+                }
+                super.visitIdent(tree);
+            }
         }
     }
 }
