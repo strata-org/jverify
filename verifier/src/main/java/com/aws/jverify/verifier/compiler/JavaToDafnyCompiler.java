@@ -49,6 +49,7 @@ public class JavaToDafnyCompiler {
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
     public TypeDeclarationCompiler typeDeclarationCompiler;
     public final Reporter reporter;
+    public Names names;
     public final VerifierOptions verifierOptions;
     JVerifyIndex index;
 
@@ -92,6 +93,7 @@ public class JavaToDafnyCompiler {
         // TODO fix order issue
         nameCompiler = new NameCompiler(context);
         index = JVerifyIndex.instance(context);
+        names = Names.instance(context);
         typeDeclarationCompiler = new TypeDeclarationCompiler(this);
         
         var parsed = new ArrayList<>(parsedSet);
@@ -649,7 +651,7 @@ public class JavaToDafnyCompiler {
      * if they only have final fields and inherit from immutable types
      */
     public boolean isAnonymousOrFinalImmutableType(Symbol.ClassSymbol classSymbol) {
-        if (classSymbol.isAnonymous() /*|| classSymbol.isFinal()*/) { // Caused Integer to become immutable even though it's not annotated as such
+        if (classSymbol.isAnonymous() || (classSymbol.isFinal() && classSymbol.name.startsWith(names.lambda))) {
             if (hasNonFinalFields(classSymbol)) {
                 return false;
             }

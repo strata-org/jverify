@@ -274,9 +274,11 @@ public class NewExternalContractCompiler {
         @Override
         public void visitVarDef(JCTree.JCVariableDecl tree) {
             updateOwner(tree.sym);
-            var updatedSymbol = contractSymbolToContractee.get(tree.type.tsym);
-            if (updatedSymbol != null) {
-                tree.type.tsym = updatedSymbol;
+            if (tree.type != null) {
+                var updatedSymbol = contractSymbolToContractee.get(tree.type.tsym);
+                if (updatedSymbol != null) {
+                    tree.type.tsym = updatedSymbol;
+                }
             }
             super.visitVarDef(tree);
         }
