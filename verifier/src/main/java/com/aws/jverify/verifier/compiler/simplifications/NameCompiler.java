@@ -8,6 +8,7 @@ import com.sun.tools.javac.code.Type.*;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Name;
 
 import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
@@ -41,7 +42,7 @@ public class NameCompiler extends TreeScanner {
     public String UNDERSCORE_START_PREFIX = "a" + sep;
     public String RESERVED_PREFIX = "r" + sep;
 
-    private final Map<Symbol.ClassSymbol, Integer> classNameOccurrenceCounts = new HashMap<>();
+    private final Map<Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final Symtab symtab;
@@ -57,7 +58,7 @@ public class NameCompiler extends TreeScanner {
 
     @Override
     public void visitClassDef(JCTree.JCClassDecl tree) {
-        classNameOccurrenceCounts.merge(tree.sym, 1, (a, b) -> a + 1);
+        classNameOccurrenceCounts.merge(tree.sym.name, 1, (a, b) -> a + 1);
         super.visitClassDef(tree);
     }
 
@@ -116,7 +117,7 @@ public class NameCompiler extends TreeScanner {
         if (classSymbol.type == symtab.objectType) {
             return ModifiableObjectCompiler.REFERENCE_OBJECT_NAME;
         }
-        var occurrenceCount = classNameOccurrenceCounts.get(classSymbol);
+        var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
         var hasEmptyDotName = classSymbol.isAnonymous();
         if (hasEmptyDotName || occurrenceCount == null || occurrenceCount > 1) {
             return encodeName(classSymbol.flatName().toString().replace(".", "_"));

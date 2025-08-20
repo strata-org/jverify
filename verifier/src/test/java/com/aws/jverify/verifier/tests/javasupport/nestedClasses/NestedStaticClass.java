@@ -9,6 +9,7 @@ import static com.aws.jverify.JVerify.check;
 public class NestedStaticClass {
     @Nullable
     StaticNestee nestee;
+    
     public static class StaticNestee {
         void checkFalse() {
             check(false);

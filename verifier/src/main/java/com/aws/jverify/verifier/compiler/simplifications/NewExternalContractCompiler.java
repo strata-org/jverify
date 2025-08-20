@@ -155,7 +155,6 @@ public class NewExternalContractCompiler {
                     var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
                     if (baseMethod != null) {
                         var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
-                        baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
                         if (baseSource.getBody() != null) {
                             reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                         } else {
@@ -166,6 +165,7 @@ public class NewExternalContractCompiler {
 //                            baseSource.mods.annotations = baseSource.mods.annotations.appendList(
 //                                    methodDecl.mods.annotations);
                         }
+                        baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
                     } else {
                         reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                     }
