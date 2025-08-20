@@ -26,9 +26,6 @@ public class ImmutableTypeCompiler {
     }
 
     public TopLevelDeclWithMembers translate(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
-            compiler.reportError(origin, "modifiableForbidden", "a record class");
-        }
 
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
@@ -102,6 +99,11 @@ public class ImmutableTypeCompiler {
 
         members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
 
+        if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
+            compiler.reportError(origin, "modifiableForbidden", "a record class");
+            return null;
+        }
+        
         compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);

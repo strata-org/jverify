@@ -401,6 +401,10 @@ public class JavaToDafnyCompiler {
         };
     }
 
+    public static LiteralExpr getReferenceHole(IOrigin origin) {
+        // TODO should be a typeless 'hole' expression, but Dafny does not have that.
+        return new LiteralExpr(origin, null);
+    }
     public static LiteralExpr getHole(IOrigin origin) {
         // TODO should be a typeless 'hole' expression, but Dafny does not have that.
         return new LiteralExpr(origin, true);

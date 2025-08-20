@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.VerificationResults;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -156,7 +156,6 @@ public class TypeDeclarationCompiler {
         createdContracts.add(classDecl.sym);
         return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
     }
-
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         
@@ -369,15 +368,14 @@ public class TypeDeclarationCompiler {
             compiler.reportError(declToUse, "notSupported", "@InheritContract");
             return null;
         }
-        
-        var isPure = annotationsByName.containsKey(Pure.class.getName());
-        var contract = new MethodOrLoopContract(declToUse, isPure);
+
+        var contract = new MethodOrLoopContract(declToUse, annotationsByName.containsKey(Pure.class.getName()));
         var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
         List<JCTree.JCStatement> remainingStatements;
         if (declToUse.body == null) {
             remainingStatements = null;
         } else {
-            remainingStatements = new ContractCompiler(compiler).
+            remainingStatements = new MethodOrLoopContractCompiler(compiler).
                     extractContract(declToUse.body, contract, allowFooter);
             if (externalDecl == declToUse) {
                 remainingStatements = null;
