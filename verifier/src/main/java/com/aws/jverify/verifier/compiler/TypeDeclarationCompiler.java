@@ -346,9 +346,6 @@ public class TypeDeclarationCompiler {
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         List<Statement> bodyStatements = null;
-        if (shouldVerify && postHeader != null) {
-            bodyStatements = blockCompiler.translateStatements(postHeader);
-        }
         applyInvariants(method.mods, method.sym, contract);
         blockCompiler.checkEmptyExpressions(method, contract.invariants, "invariants", "method");
 
@@ -371,17 +368,24 @@ public class TypeDeclarationCompiler {
 
         if (JavaToDafnyCompiler.isConstructor(method.sym)) {
             DividedBlockStmt body;
-            if (shouldVerify) {
+            if (shouldVerify && postHeader != null) {
                 var treeMaker = TreeMaker.instance(compiler.context);
 
-                var newBodyStatements = new ArrayList<Statement>();
+                bodyStatements = new ArrayList<>();
+                if (!postHeader.isEmpty()) {
+                    var first = postHeader.getFirst();
+                    if (first instanceof JCTree.JCExpressionStatement expressionStatement 
+                            && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation methodInvocation && BlockCompiler.getSuperIdent(methodInvocation) != null) {
+                        bodyStatements.addAll(blockCompiler.translateStatement(first));
+                        postHeader.removeFirst();
+                    }
+                }
                 for (JCTree.JCVariableDecl variableDecl : initializers) {
                     var rhs = variableDecl.getInitializer();
                     var assignStmt = treeMaker.Assignment(variableDecl.sym, rhs);
-                    newBodyStatements.addAll(blockCompiler.translateStatement(assignStmt, methodOrigin));
+                    bodyStatements.addAll(blockCompiler.translateStatement(assignStmt, methodOrigin));
                 }
-                newBodyStatements.addAll(bodyStatements);
-                bodyStatements = newBodyStatements;
+                bodyStatements.addAll(blockCompiler.translateStatements(postHeader));
 
                 body = new DividedBlockStmt(methodOrigin, null, List.of(), bodyStatements, null, List.of());
             } else {
@@ -394,6 +398,9 @@ public class TypeDeclarationCompiler {
                     body);
         } else {
             BlockStmt body;
+            if (shouldVerify && postHeader != null) {
+                bodyStatements = blockCompiler.translateStatements(postHeader);
+            }
             if (bodyStatements != null) {
                 body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
             } else {

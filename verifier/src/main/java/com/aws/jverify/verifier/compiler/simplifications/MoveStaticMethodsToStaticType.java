@@ -66,6 +66,7 @@ public class MoveStaticMethodsToStaticType {
                             List.nil(), null, List.nil(),
                             List.from(methodCollector.staticMembers));
                     staticClass.sym = methodCollector.staticClassSymbol;
+                    staticClass.type = new Type.ClassType(Type.noType, List.nil(), staticClass.sym, List.nil());
                     unit.defs = unit.defs.append(staticClass);
                     index.put(staticClass.sym, enter.classEnv(staticClass, enter.getTopLevelEnv(unit)));
                 }
@@ -89,6 +90,11 @@ public class MoveStaticMethodsToStaticType {
 
         @Override
         public void visitClassDef(JCTree.JCClassDecl tree) {
+            if (tree.sym.isEnum()) {
+                super.visitClassDef(tree);
+                return;
+            }
+            
             var members = tree.getMembers();
             var newMembers = new ArrayList<JCTree>();
             while(!members.isEmpty()) {

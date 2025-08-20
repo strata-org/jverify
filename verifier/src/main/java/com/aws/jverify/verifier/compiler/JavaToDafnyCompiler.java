@@ -257,14 +257,6 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private boolean isNestedClass(JCTree.JCClassDecl classDecl) {
-        if (classDecl.sym != null && classDecl.sym.owner != null) {
-            return classDecl.sym.owner.kind == Kinds.Kind.TYP;
-        }
-
-        return false;
-    }
-
     public static boolean typeHasSource(JVerifyIndex index, Symbol.TypeSymbol typeSymbol) {
         return index.getTree(typeSymbol) != null;
     }
