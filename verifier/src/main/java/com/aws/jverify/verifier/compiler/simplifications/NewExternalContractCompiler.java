@@ -163,8 +163,10 @@ public class NewExternalContractCompiler {
         }
 
         private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-            // TODO traverse classDecl and update references from old sym to new sym
 
+             
+            classDecl.type.tsym = contracteeSymbol; // Required before calling 'findOverriddenMethod'
+            
             var newMembers =  new ArrayList<JCTree>();
             for(var member : classDecl.getMembers()) {
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
@@ -198,7 +200,6 @@ public class NewExternalContractCompiler {
 
             var oldSymbol = classDecl.sym;
             oldSymbol.name = contracteeSymbol.name;
-            classDecl.type.tsym = contracteeSymbol;
             classDecl.sym = contracteeSymbol;
             classDecl.type = contracteeSymbol.type;
             
