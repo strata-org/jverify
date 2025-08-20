@@ -179,19 +179,9 @@ public class ExternalContractCompiler {
                     
                     var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
                     if (baseMethod != null) {
-                        // If we update the sym, then we need to be careful with parameter names
-                        // methodDecl.sym = baseMethod;
                         newMembers.add(member);
                     } else {
-                        // Check currently does not take into account overloading
-                        // But this only makes it not detect some unused methods.
-                        var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();
-                        if (contractee.isEmpty()) {
-                            reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
-                        }
-                        
-                        // TODO shouldn't we always throw an error here?
-                        // TODO remove the method ?
+                        reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                     }
                 } else {
                     newMembers.add(member);
