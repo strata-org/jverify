@@ -2,11 +2,13 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.Verify;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.frontend.JavaFrontEnd;
 import com.sun.tools.javac.code.Scope;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
+import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -31,46 +33,49 @@ public class MoveStaticMethodsToStaticType {
     TreeMaker maker;
     Symtab syms;
     Elements elements;
+    JVerifyIndex index;
+    Enter enter;
     Set<Symbol.MethodSymbol> staticMethodSymbols = new HashSet<>();
 
     public MoveStaticMethodsToStaticType(Context context) {
         this.names = Names.instance(context);
         maker = TreeMaker.instance(context);
         syms = Symtab.instance(context);
+        enter = Enter.instance(context);
+        index = JVerifyIndex.instance(context);
         elements = JavacElements.instance(context);
     }
 
     public Set<JCTree.JCCompilationUnit> translate(Set<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit : compilationUnits) {
-            List<JCTree> remainingDefs = unit.defs;
-            while(!remainingDefs.isEmpty()) {
-                var type = remainingDefs.head;
-                remainingDefs = remainingDefs.tail;
-                if (type instanceof JCTree.JCClassDecl classDecl) {
-                    var methodCollector = new StaticMethodCollector(classDecl);
-                    methodCollector.translate(type);
-                    if (!methodCollector.staticMethods.isEmpty()) {
-                        List<JCTree.JCAnnotation> annotations = List.nil();
-                        if (classDecl.sym.getAnnotation(Contract.class) != null) {
-                            var classTypeElement = elements.getTypeElement(Verify.class.getCanonicalName());
-                            JCTree ident = maker.Ident((Symbol.ClassSymbol)classTypeElement);
-                            annotations = annotations.append(maker.Annotation(ident,
-                                    List.of(maker.Assign(maker.Ident(names.fromString("value")), maker.Literal(false)))));
-                        }
-                        JCTree.JCClassDecl staticClass = maker.ClassDef(maker.Modifiers(0, annotations), methodCollector.staticClassSymbol.name,
-                                List.nil(), null, com.sun.tools.javac.util.List.nil(),
-                                com.sun.tools.javac.util.List.from(methodCollector.staticMethods));
-                        staticClass.sym = methodCollector.staticClassSymbol;
-                        unit.defs = unit.defs.append(staticClass);
-                    }
-                }
-            }
+            updateUnit(unit);
         }
         var referenceUpdater = new ReferenceUpdater();
         for(var unit : compilationUnits) {
             referenceUpdater.translate(unit);
         }
         return compilationUnits;
+    }
+
+    private void updateUnit(JCTree.JCCompilationUnit unit) {
+        List<JCTree> remainingDefs = unit.defs;
+        while(!remainingDefs.isEmpty()) {
+            var type = remainingDefs.head;
+            remainingDefs = remainingDefs.tail;
+            if (type instanceof JCTree.JCClassDecl classDecl) {
+                var methodCollector = new StaticMethodCollector(classDecl);
+                methodCollector.translate(type);
+                if (!methodCollector.staticMethods.isEmpty()) {
+                    List<JCTree.JCAnnotation> annotations = List.nil();
+                    JCTree.JCClassDecl staticClass = maker.ClassDef(maker.Modifiers(0, annotations), methodCollector.staticClassSymbol.name,
+                            List.nil(), null, List.nil(),
+                            List.from(methodCollector.staticMethods));
+                    staticClass.sym = methodCollector.staticClassSymbol;
+                    unit.defs = unit.defs.append(staticClass);
+                    index.put(staticClass.sym, enter.classEnv(staticClass, enter.getTopLevelEnv(unit)));
+                }
+            }
+        }
     }
 
     class StaticMethodCollector extends TreeTranslator {
