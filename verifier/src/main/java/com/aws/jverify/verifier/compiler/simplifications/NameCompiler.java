@@ -114,7 +114,6 @@ public class NameCompiler extends TreeScanner {
     }
 
     private String getClassName(Symbol.ClassSymbol classSymbol) {
-        classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
         if (classSymbol.type == symtab.objectType) {
             return ModifiableObjectCompiler.REFERENCE_OBJECT_NAME;
         }
