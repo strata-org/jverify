@@ -34,13 +34,12 @@ public class ImmutableTypeCompiler {
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
-        Symbol.ClassSymbol currentTypeSymbol = classDecl.sym;
-        var traits = currentTypeSymbol
+        var traits = classDecl.sym
                 .getInterfaces().stream()
                 .map(baseType -> compiler.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
-        var superClass = currentTypeSymbol.getSuperclass();
+        var superClass = classDecl.sym.getSuperclass();
         if (superClass != null) {
             Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym || superClass.getKind() == TypeKind.NONE) {
@@ -103,7 +102,7 @@ public class ImmutableTypeCompiler {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
             traits.clear();
         }
-        compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
+        compiler.typeDeclarationCompiler.createdContracts.add(classDecl.sym);
 
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);

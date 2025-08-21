@@ -140,15 +140,13 @@ public class TypeDeclarationCompiler {
             }
         }
 
-        var definingSymbol = classDecl.sym;
-
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
             javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParameters = translateTypeParameters(javaTypeParams);
 
-        return getTraitDecl(origin, name, definingSymbol, typeParameters, members);
+        return getTraitDecl(origin, name, classDecl.sym, typeParameters, members);
     }
 
     public TraitDecl getTraitDecl(IOrigin origin, Name name,

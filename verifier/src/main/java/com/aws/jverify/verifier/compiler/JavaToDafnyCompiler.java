@@ -617,8 +617,7 @@ public class JavaToDafnyCompiler {
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return !(methodSymbol instanceof Symbol.DynamicMethodSymbol) // TODO can we remove this DynamicMethodSymbol line?
-                && methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
+        return methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
     }
 
     /**

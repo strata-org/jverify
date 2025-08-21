@@ -138,7 +138,6 @@ public class MoveStaticMethodsToStaticType {
         if (classSymbol.outermostClass().fullname.contentEquals(JVERIFY_CLASS)) {
             return classSymbol;
         }
-        // TODO consider checking whether the class has (inherited?) type parameters
         
         var result = classMap.get(classSymbol);
         if (result == null) {
