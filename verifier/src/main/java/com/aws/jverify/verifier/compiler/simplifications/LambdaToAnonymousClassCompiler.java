@@ -63,6 +63,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
+        make.pos = lambda.pos;
+        
         var classSymbol = getClassSymbol(lambda);
         var implMethod = createImplementationMethod(classSymbol, lambda);
         var constructor = createConstructor(classSymbol);
@@ -74,6 +76,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private JCNewClass getNewClassExpression(JCLambda lambda,
                                              JCClassDecl classDef,
                                              JCMethodDecl constructor) {
+        make.pos = lambda.pos;
         var result = make.NewClass(
                 null,
                 List.nil(),

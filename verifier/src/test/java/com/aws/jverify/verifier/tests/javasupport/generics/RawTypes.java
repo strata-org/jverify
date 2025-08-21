@@ -1,25 +1,21 @@
 package com.aws.jverify.verifier.tests.javasupport.generics;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.ContractException;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import java.util.Map;
-import java.util.function.IntFunction;
-import java.util.stream.Stream;
+import java.util.HashMap;
+import java.util.function.Supplier;
 
-@JVerifyTest(dafnyVerified = 11, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 6, dafnyErrors = 0)
 public class RawTypes {
-    interface IT {}
+    interface T {}
 
-    Map.Entry<Object, Object>[] asMap(Stream<Map.Entry<String, IT>> entries) {
-        return entries.<Map.Entry<Object, Object>>toArray(Map.Entry[]::new);
+    Supplier<HashMap<T, T>> asMap() {
+        return HashMap::new;
     }
     
-    @Contract(Stream.class)
-    class StreamContract<T> {
-        public <A> A[] toArray(IntFunction<A[]> generator) {
-            throw new ContractException();
-        }
-    }
+    @Contract(HashMap.class)
+    static abstract class HashMapContract<K, V> {
+        public HashMapContract() {}
+    } 
 }

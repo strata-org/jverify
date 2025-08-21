@@ -3,11 +3,24 @@ package com.aws.jverify.verifier.tests.javasupport;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import com.aws.jverify.*;
+
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 3)
 class Arrays {
+    
+    interface SupplyArray {
+        int[] supply(int x);
+    }
+
+    SupplyArray arrayConstructorReference() {
+        return int[]::new;
+//             ^ Error: array size might be negative
+    }
 
     static void intArrayOfSize10() {
         int[] a = new int[10];

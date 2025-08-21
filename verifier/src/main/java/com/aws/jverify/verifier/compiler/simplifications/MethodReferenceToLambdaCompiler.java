@@ -34,6 +34,8 @@ public class MethodReferenceToLambdaCompiler extends TreeTranslator {
     }
     
     public JCTree.JCLambda referenceToLambda(JCTree.JCMemberReference reference) {
+        make.pos = reference.pos;
+        
         var paramTypes = types.findDescriptorType(reference.type).getParameterTypes();
         var params = getParameters(paramTypes).toList();
 
