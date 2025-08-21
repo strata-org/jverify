@@ -23,20 +23,20 @@ public class TestUserProfileEdits {
         var first = keepAnnotations(outputParts);
 
         var path = Path.of("/AnnotatedUserProfile.java"); 
-        var firstTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(7, 1);
+        var firstTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(8, 1);
         JVerifyTestEngine.verifyFile(new SourceFile(path, first), firstTestAnnotation, List.of(TestMarkup.findHatAnnotationRanges(first).get(0)));
         
         var second = keepAnnotations(outputParts, 0);
-        var secondTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(7, 1);
+        var secondTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(8, 1);
         JVerifyTestEngine.verifyFile(new SourceFile(path, second), secondTestAnnotation, List.of(TestMarkup.findHatAnnotationRanges(second).get(2)));
         
         var third = keepAnnotations(outputParts, 0, 1);
-        var thirdTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(8, 1);
+        var thirdTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(9, 1);
         List<AnnotatedRange> hatAnnotationRanges = TestMarkup.findHatAnnotationRanges(third);
         JVerifyTestEngine.verifyFile(new SourceFile(path, third), thirdTestAnnotation, List.of(hatAnnotationRanges.get(2), hatAnnotationRanges.get(1), hatAnnotationRanges.get(3)));
         
         var fourth = keepAnnotations(outputParts, 0, 1, 2);
-        var fourthTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(9, 0);
+        var fourthTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(10, 0);
         JVerifyTestEngine.verifyFile(new SourceFile(path, fourth), fourthTestAnnotation, List.of());
     }
     

@@ -74,6 +74,7 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("./src/main/resources/builtin-contracts.java").toString(),
                 "--dafny=" + dafnyPath,
+                "--print-dafny=../build/temp.dfy",
                 "--builtin-contracts=false");
         Assertions.assertEquals(0, exitCode, out.toString());
     }
@@ -101,7 +102,7 @@ public class TestVerifier {
             exitCode = process.waitFor();
         }
         var output = canonicalizeNewlines(writer.toString());
-        assertThat(output, containsString("Dafny program verifier finished with 6 verified, 0 errors"));
+        assertThat(output, containsString("Dafny program verifier finished with 7 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
     }
 

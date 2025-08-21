@@ -1,5 +1,5 @@
 // ^ /builtin-contracts.java(77:36-77:50) Related location: this proposition could not be proved
-package com.aws.jverify.verifier.tests;
+package com.aws.jverify.verifier.tests.jcl;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -9,7 +9,7 @@ import java.util.Set;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 5, dafnyErrors = 4, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 4, useBuiltinContracts = true)
 public class CollectionsTest {
 
     void listVerifying() {

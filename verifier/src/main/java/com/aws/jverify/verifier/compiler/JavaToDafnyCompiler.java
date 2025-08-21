@@ -38,6 +38,7 @@ import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
@@ -375,136 +376,24 @@ public class JavaToDafnyCompiler {
 
         var primitiveTypeKind = toPrimitiveType(type);
         if (primitiveTypeKind != null) {
-            if (isNullable) {
-                reportError(origin, "notSupported", "nullable primitive type");
-            }
-            switch (primitiveTypeKind) {
-                case VOID -> {
-                    return null;
-                }
-                case BOOLEAN -> {
-                    return new BoolType(origin);
-                }
-                case INT, SHORT, LONG -> {
-                    var mirrors = type.getAnnotationMirrors();
-                    var natAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Nat.class.getName())).findFirst();
-                    var isNat = natAnnotation.isPresent();
-                    var boundedAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Unbounded.class.getName())).findFirst();
-                    var isBounded = boundedAnnotation.isEmpty();
-                    if (isBounded) {
-                        var number = switch (primitiveTypeKind) {
-                            case SHORT -> 16;
-                            case INT -> 32;
-                            case LONG -> 64;
-                            default -> throw new IllegalStateException("Unexpected value: " + primitiveTypeKind);
-                        };
-                        if (isNat) {
-                            number = number - 1;
-                            return new UserDefinedType(origin, new NameSegment(origin, "nat" + number, null));
-                        } else {
-                            return new UserDefinedType(origin, new NameSegment(origin, "int" + number, null));
-                        }
-                    } else {
-                        if (primitiveTypeKind != TypeKind.INT) {
-                            reportError(origin, "unboundedNonInt", type.toString());
-                        }
-                        if (isNat) {
-                            return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
-                        } else {
-                            return new IntType(origin);
-                        }
-                    }
-                }
-                case BYTE -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "byte", null));
-                }
-                case CHAR -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
-                }
-                case FLOAT -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "float", null));
-                }
-                case DOUBLE -> {
-                    return new UserDefinedType(origin, new NameSegment(origin, "double", null));
-                }
-            }
-
-            reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
-            return null;
+            return translatePrimitiveType(type, origin, isNullable, primitiveTypeKind);
         }
 
         switch (type) {
             case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
-                // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
-                var elemType = translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
-                if (elemType == null) {
-                    // should be unreachable
-                    throw new IllegalArgumentException("Array type without element type");
-                }
-                return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
+                return translateArrayType(origin, additionalModifiers, arrayTypeTree, nullableSuffix);
             }
-            case com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType -> {
+            case com.sun.tools.javac.code.Type.IntersectionClassType _ -> {
                 return null;
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
-                Type remappedType = new ModifiableObjectCompiler(this).getRemappedType(classType, origin, additionalModifiers);
-                if (remappedType != null) {
-                    return remappedType;
-                }
-
-                var builtinType = new JVerifyGhostExpressionCompiler(expressionCompiler).translateClassType(classType, origin, isNullable);
-                if (builtinType != null) {
-                    return builtinType;
-                }
-
-                if (isRecord(classType) && isNullable) {
-                    reportError(origin, "notSupported", "nullable record type");
-                    return null;
-                }
-
-                // Remove the name qualification because we do not support that yet
-                var compiledName = nameCompiler.getCompiledName(classType.tsym, origin);
-                if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
-                    // For instance and local types, the lower phase adds references to the owning type
-                    // But it does not add type arguments when doing so
-                    // We can recover the type arguments by traversing to the type symbol.
-                    classType = (com.sun.tools.javac.code.Type.ClassType)classType.tsym.type;
-                }
-                var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
-                if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
-                    var ownerTypes = getOwnAndEnclosedTypeParameters(classType.tsym).toList();
-                    Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, toOrigin(tp)));
-                    typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
-                }
-                var typeArguments = typeArgumentsStream.toList();
-                if (typeArguments.stream().anyMatch(Objects::isNull)) {
-                    return null;
-                }
-                if (typeArguments.isEmpty()) {
-                    typeArguments = null;
-                }
-                NameSegment nameSegment = new NameSegment(origin, compiledName, typeArguments);
-                if (isNullable) {
-                    nameSegment = new NameSegment(nameSegment.getOrigin(), nameSegment.getName() + nullableSuffix, nameSegment.getOptTypeArguments());
-                }
-                return new UserDefinedType(origin, nameSegment);
+                return translateClassType(origin, additionalModifiers, classType, isNullable, nullableSuffix);
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym, origin), null));
             }
             case com.sun.tools.javac.code.Type.WildcardType wildcardType -> {
-                var extendsBound = wildcardType.getExtendsBound();
-                if (extendsBound != null) {
-                    return translateType(extendsBound, origin);
-                }
-                var superBound = wildcardType.getSuperBound();
-                if (superBound != null) {
-                    if (translatingVerifiedMethodSignature) {
-                        reportError(origin, "notSupported", "keyword 'super' in method signature");
-                    }
-                    return translateType(superBound, origin);
-                }
-                return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
+                return translateWildcardType(origin, wildcardType);
             }
             default -> {
             }
@@ -519,6 +408,162 @@ public class JavaToDafnyCompiler {
     
     public void reportError(IOrigin origin, String key, Object... args) {
         reporter.reportError(origin, key, args);
+    }
+    private UserDefinedType translateArrayType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ArrayType arrayTypeTree, String nullableSuffix) {
+        // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
+        var elemType = translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
+        if (elemType == null) {
+            // should be unreachable
+            throw new IllegalArgumentException("Array type without element type");
+        }
+        return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
+    }
+
+    private NonProxyType translatePrimitiveType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean isNullable, TypeKind primitiveTypeKind) {
+        if (isNullable) {
+            reportError(origin, "notSupported", "nullable primitive type");
+        }
+        switch (primitiveTypeKind) {
+            case VOID -> {
+                return null;
+            }
+            case BOOLEAN -> {
+                return new BoolType(origin);
+            }
+            case INT, SHORT, LONG -> {
+                var mirrors = type.getAnnotationMirrors();
+                var natAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Nat.class.getName())).findFirst();
+                var isNat = natAnnotation.isPresent();
+                var boundedAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Unbounded.class.getName())).findFirst();
+                var isBounded = boundedAnnotation.isEmpty();
+                if (isBounded) {
+                    var number = switch (primitiveTypeKind) {
+                        case SHORT -> 16;
+                        case INT -> 32;
+                        case LONG -> 64;
+                        default -> throw new IllegalStateException("Unexpected value: " + primitiveTypeKind);
+                    };
+                    if (isNat) {
+                        number = number - 1;
+                        return new UserDefinedType(origin, new NameSegment(origin, "nat" + number, null));
+                    } else {
+                        return new UserDefinedType(origin, new NameSegment(origin, "int" + number, null));
+                    }
+                } else {
+                    if (primitiveTypeKind != TypeKind.INT) {
+                        reportError(origin, "unboundedNonInt", type.toString());
+                    }
+                    if (isNat) {
+                        return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
+                    } else {
+                        return new IntType(origin);
+                    }
+                }
+            }
+            case BYTE -> {
+                return new UserDefinedType(origin, new NameSegment(origin, "byte", null));
+            }
+            case CHAR -> {
+                return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
+            }
+            case FLOAT -> {
+                return new UserDefinedType(origin, new NameSegment(origin, "float", null));
+            }
+            case DOUBLE -> {
+                return new UserDefinedType(origin, new NameSegment(origin, "double", null));
+            }
+        }
+
+        reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
+        return null;
+    }
+
+    private Type translateWildcardType(IOrigin origin, com.sun.tools.javac.code.Type.WildcardType wildcardType) {
+        var extendsBound = wildcardType.getExtendsBound();
+        if (extendsBound != null) {
+            if (extendsBound instanceof com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType) {
+                // TODO add test
+                return translateType(intersectionClassType.getComponents().getFirst(), origin);
+            }
+            return translateType(extendsBound, origin);
+        }
+        var superBound = wildcardType.getSuperBound();
+        if (superBound != null) {
+            if (translatingVerifiedMethodSignature) {
+                reportError(origin, "notSupported", "keyword 'super' in method signature");
+            }
+            if (superBound instanceof com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType) {
+                // TODO add test
+                return translateType(intersectionClassType.getComponents().getFirst(), origin);
+            }
+            return translateType(superBound, origin);
+        }
+        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
+    }
+
+    private Type translateClassType(IOrigin origin, 
+                                    JCTree.JCModifiers additionalModifiers, 
+                                    com.sun.tools.javac.code.Type.ClassType classType, 
+                                    boolean isNullable, 
+                                    String nullableSuffix) {
+
+        Type remappedType = new ModifiableObjectCompiler(this).getRemappedType(classType, origin, additionalModifiers);
+        if (remappedType != null) {
+            return remappedType;
+        }
+
+        var builtinType = new JVerifyGhostExpressionCompiler(expressionCompiler).translateClassType(classType, origin, isNullable);
+        if (builtinType != null) {
+            return builtinType;
+        }
+
+        if (isRecord(classType) && isNullable) {
+            reportError(origin, "notSupported", "nullable record type");
+            return null;
+        }
+
+        // Remove the name qualification because we do not support that yet
+        var compiledName = nameCompiler.getCompiledName(classType.tsym, origin);
+        var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
+        if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
+            var ownerTypes = getOwnAndEnclosedTypeParameters(classType.tsym).toList();
+            Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, toOrigin(tp)));
+            typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
+        }
+        var typeArguments = typeArgumentsStream.toList();
+        if (typeArguments.stream().anyMatch(Objects::isNull)) {
+            return null;
+        }
+        if (typeArguments.isEmpty()) {
+            if (classType.tsym.getTypeParameters().isEmpty()) {
+                typeArguments = null;
+            } else {
+                // TODO needs a test. Something like the following
+                // The Map.Entry[]::new introduces a member reference with a 
+                // raw type that's not replaced with Object during type resolution
+                        /*
+                        
+            interface IT {}
+            record Outer(List<IT> years) {
+                public Map<String, IT> asMap(List<String> mapKeys) {
+                    var size = 10;
+                    Stream<Map.Entry<String, IT>> entries = IntStream.range(0, size).mapToObj(i -> Map.entry(mapKeys.get(i), years.get(i)));
+                    return Map.ofEntries(entries.toArray(Map.Entry[]::new));
+                }
+            }
+                        */
+
+                // unresolved raw type
+                var objectType = translateType(Symtab.instance(context).objectType, origin);
+                typeArguments = IntStream.range(0, classType.tsym.getTypeParameters().size()).
+                        mapToObj(_ -> objectType).toList();
+            }
+        }
+        NameSegment nameSegment = new NameSegment(origin, compiledName, typeArguments);
+        if (isNullable) {
+            nameSegment = new NameSegment(nameSegment.getOrigin(), nameSegment.getName() + nullableSuffix, nameSegment.getOptTypeArguments());
+        }
+        return new UserDefinedType(origin, nameSegment);
     }
 
     /**

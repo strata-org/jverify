@@ -229,8 +229,10 @@ public class TypeDeclarationCompiler {
     }
 
     private static TypeParameter getTypeParameter(IOrigin origin, com.sun.tools.javac.util.List<@Nullable Type> bounds, Name name) {
-        bounds = bounds.append(new UserDefinedType(origin,
-                new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+        if (bounds.isEmpty()) {
+            bounds = bounds.append(new UserDefinedType(origin,
+                    new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+        }
         return new TypeParameter(origin,
                 name, null, TPVarianceSyntax.NonVariant_Strict,
                 new TypeParameterCharacteristics(
@@ -306,7 +308,6 @@ public class TypeDeclarationCompiler {
             return null;
         }
         compiler.symbolsWithAContract.add(methodSymbol);
-
         var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
         boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
         
