@@ -11,7 +11,6 @@ import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
 @JVerifyTest(exitCode = 4, dafnyVerified = 72, dafnyErrors = 3, verifyPrintedDafny = true)
-
 public class Lambdas {
 
     // TODO: bring back once we support static fields
