@@ -11,14 +11,14 @@ public class MissingContracts {
         void cantBePure();
     }
     
-//    @Pure
-//    int pureUser(MissingContract missingContract) {
-//        // missingContract.cantBePure();
-//        return missingContract.assumedPure();
-//    }
-
+    @Pure
+    int pureUser(MissingContract missingContract) {
+        return missingContract.assumedPure();
+//             ^ warning: missing contract for method 'assumedPure' in class 'com.aws.jverify.verifier.tests.verification.MissingContracts.MissingContract'
+    }
 
     @SuppressWarnings("UnnecessaryBoxing")
+    @Pure
     Integer pureUser3() {
         return Integer.valueOf(3);
 //             ^ warning: missing contract for method 'valueOf' in class 'java.lang.Integer'

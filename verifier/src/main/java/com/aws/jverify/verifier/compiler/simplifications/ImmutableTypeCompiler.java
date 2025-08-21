@@ -34,7 +34,7 @@ public class ImmutableTypeCompiler {
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
-        Symbol.ClassSymbol currentTypeSymbol = typeDeclarationCompiler.getCurrentTypeSymbol(classDecl.sym);
+        Symbol.ClassSymbol currentTypeSymbol = classDecl.sym;
         var traits = currentTypeSymbol
                 .getInterfaces().stream()
                 .map(baseType -> compiler.translateType(baseType, origin, null))

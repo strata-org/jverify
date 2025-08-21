@@ -6,7 +6,6 @@ import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCom
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
 import com.sun.source.tree.Tree;
@@ -28,7 +27,6 @@ public class TypeDeclarationCompiler {
     public final JavaToDafnyCompiler compiler;
     final Reporter reporter;
     JVerifyIndex index;
-    private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     public final Set<Symbol> createdContracts = new HashSet<>();
@@ -56,12 +54,9 @@ public class TypeDeclarationCompiler {
             reporter.contextOrigins.push(origin);
 
             var mode = compiler.verifyAnnotationCompiler.getShouldVerifyMode(annotationsByName);
-            if (typeForWhichCurrentClassIsDefiningContract != null) {
-                mode = VerifyAnnotationCompiler.ShouldVerifyMode.AlwaysNo;
-            }
             compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
-            var classSymbol = getCurrentTypeSymbol(classDecl.sym);
+            var classSymbol = classDecl.sym;
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
@@ -79,7 +74,6 @@ public class TypeDeclarationCompiler {
                 result.addAll(traitWithConstructorCompiler.compile(intermediateResult, classSymbol));
             }
 
-            typeForWhichCurrentClassIsDefiningContract = null;
             reporter.contextOrigins.pop();
             compiler.verifyAnnotationCompiler.shouldVerifies.pop();
             return result;
@@ -142,7 +136,7 @@ public class TypeDeclarationCompiler {
             }
         }
 
-        var definingSymbol = getCurrentTypeSymbol(classDecl.sym);
+        var definingSymbol = classDecl.sym;
 
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
@@ -223,17 +217,12 @@ public class TypeDeclarationCompiler {
         }).toList();
     }
 
-    public Symbol.ClassSymbol getCurrentTypeSymbol(Symbol.ClassSymbol classSymbol) {
-        return typeForWhichCurrentClassIsDefiningContract == null ? classSymbol : typeForWhichCurrentClassIsDefiningContract;
-    }
-
     public MemberDecl translateMember(JCTree member) {
         switch (member) {
             case JCTree.JCClassDecl _ -> {
                 return null;
             }
             case JCTree.JCMethodDecl method -> {
-                createdContracts.add(method.sym);
                 return translateMethodDecl(method);
             }
             case JCTree.JCVariableDecl variableDecl -> {
@@ -274,9 +263,6 @@ public class TypeDeclarationCompiler {
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         var methodSymbol = method.sym;
-        if (typeForWhichCurrentClassIsDefiningContract != null && JavaToDafnyCompiler.isSynthetic(index, method, methodSymbol)) {
-            return null;
-        }
         compiler.symbolsWithAContract.add(methodSymbol);
         var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
         boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
@@ -292,14 +278,13 @@ public class TypeDeclarationCompiler {
 
         var contract = new MethodOrLoopContract(method, annotationsByName.containsKey(Pure.class.getName()));
         var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
-        List<JCTree.JCStatement> remainingStatements;
         if (method.body == null) {
-            remainingStatements = null;
-        } else {
-            remainingStatements = new MethodOrLoopContractCompiler(compiler).
-                    extractContract(method.body, contract, allowFooter);
+            return null;
         }
-        
+        var remainingStatements = new MethodOrLoopContractCompiler(compiler).
+                extractContract(method.body, contract, allowFooter);
+        createdContracts.add(method.sym);
+
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
         } else {
