@@ -4,8 +4,16 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 import java.util.List;
 
-@JVerifyTest(dafnyVerified = 6, dafnyErrors = 0)
+import static com.aws.jverify.JVerify.check;
+
+@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 1)
 public class MissingContracts {
+    
+    void checkFalse() {
+        check(false);
+//      ^^^^^^^^^^^^ Error: assertion might not hold
+    }
+    
     interface MissingContract {
         int assumedPure();
         void cantBePure();
