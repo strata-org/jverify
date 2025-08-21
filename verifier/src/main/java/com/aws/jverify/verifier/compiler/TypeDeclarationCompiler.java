@@ -547,14 +547,14 @@ public class TypeDeclarationCompiler {
                 MethodOrFunction callable;
                 if (returnType.isPrimitiveOrVoid() && !returnType.isPrimitive()) {
                     callable = new Method(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
-                            typeParameters, getIns(methodSymbol, false, dummyOrigin),
+                            typeParameters, getIns(methodSymbol, dummyOrigin),
                             List.of(new AttributedExpression(new LiteralExpr(dummyOrigin, false), null, null)),
                             List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
                             new Specification<>(List.of(), null),
                             methodSymbol.isStatic(), List.of(), null,false);
                 } else {
                     callable = new Function(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
-                            typeParameters, getIns(methodSymbol, false, dummyOrigin),
+                            typeParameters, getIns(methodSymbol, dummyOrigin),
                             List.of(), List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
                             methodSymbol.isStatic(), false, null, compiler.translateType(returnType, dummyOrigin),
                             null, null, null);
@@ -564,5 +564,24 @@ public class TypeDeclarationCompiler {
                 clazzDecl.getMembers().add(callable);
             }
         }
+    }
+
+    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, IOrigin bodyOrigin) {
+        return methodSymbol.extraParams.
+                appendList(methodSymbol.getParameters()).
+                appendList(methodSymbol.capturedLocals).map(jvd -> {
+                    var index = JVerifyIndex.instance(compiler.context);
+                    var parameter = index.getTree(jvd);
+                    IOrigin parameterOrigin;
+                    if (parameter == null) {
+                        parameterOrigin = bodyOrigin;
+                    } else {
+                        parameterOrigin = compiler.toOrigin(parameter);
+                    }
+                    Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd));
+                    var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, false);
+                    return new Formal(parameterOrigin, formalName, syntacticType, false, true,
+                            null, null, false, false, false, null);
+                });
     }
 }
