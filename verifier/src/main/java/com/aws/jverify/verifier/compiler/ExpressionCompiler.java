@@ -106,7 +106,7 @@ public class ExpressionCompiler {
                 }
                 var origin = compiler.toOrigin(statement);
                 var type = compiler.translateType(variableDecl.type, compiler.toOrigin(variableDecl));
-                String name = compiler.nameCompiler.getCompiledName(variableDecl.sym);
+                String name = compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
                 var returnVar = new BoundVar(origin, new Name(origin, name), type, false);
                 var lhs = new CasePattern<>(origin, name, returnVar, null);
                 result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init)), result, true, null); 
@@ -287,7 +287,7 @@ public class ExpressionCompiler {
     }
     
     public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
-        var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
+        var identName = compiler.nameCompiler.getCompiledName(identifier.sym, identifier);
         if (identName.contentEquals("this")) {
             return new ThisExpr(origin);
         }
@@ -326,7 +326,7 @@ public class ExpressionCompiler {
     private Expression translateFieldAccess(JCTree.JCFieldAccess fieldAccess, IOrigin origin) {
         if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
             // Ignore package qualification
-            return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
+            return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol, origin), List.of());
         }
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
@@ -334,7 +334,7 @@ public class ExpressionCompiler {
             return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
         }
 
-        var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym);
+        var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);
         if (compiler.isEnum(fieldAccess.selected)) {
             return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                     null, new ActualBindings(List.of()), null);
@@ -379,7 +379,7 @@ public class ExpressionCompiler {
                 } else {
                     receiver = JavaToDafnyCompiler.getHole(origin);
                 }
-                var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get());
+                var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get(), origin);
                 var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
             }

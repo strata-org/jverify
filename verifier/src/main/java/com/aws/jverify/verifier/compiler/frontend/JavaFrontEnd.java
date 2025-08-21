@@ -152,7 +152,7 @@ public class JavaFrontEnd {
         // Applies the Java to Java part of our pipeline
         compiler.compile(files, List.of(), null, List.of());
 
-        var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
+        @SuppressWarnings("unchecked") var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
         
         var hasErrors = false;
         for (Diagnostic<? extends JavaFileObject> diagnostic : javaFrontendDiagnostics.getDiagnostics()) {

@@ -46,7 +46,6 @@ public class JavaToDafnyCompiler {
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
-    public final Stack<IOrigin> contextOrigins = new Stack<>();
     public final NameCompiler nameCompiler;
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
     public final TypeDeclarationCompiler typeDeclarationCompiler;
@@ -128,11 +127,11 @@ public class JavaToDafnyCompiler {
 
         // Add a default origin to fallback to
         var dummyToken = new Token(1, 1);
-        contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
+        reporter.contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
 
         compileSymbolsTopologically(symbolToCompilationUnit);
 
-        contextOrigins.pop();
+        reporter.contextOrigins.pop();
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
@@ -464,7 +463,7 @@ public class JavaToDafnyCompiler {
                 }
 
                 // Remove the name qualification because we do not support that yet
-                var compiledName = nameCompiler.getCompiledName(classType.tsym);
+                var compiledName = nameCompiler.getCompiledName(classType.tsym, origin);
                 if (classType.getTypeArguments().size() != classType.tsym.type.getTypeArguments().size()) {
                     // For instance and local types, the lower phase adds references to the owning type
                     // But it does not add type arguments when doing so
@@ -491,7 +490,7 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, nameSegment);
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
-                return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym), null));
+                return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym, origin), null));
             }
             case com.sun.tools.javac.code.Type.WildcardType wildcardType -> {
                 var extendsBound = wildcardType.getExtendsBound();
@@ -542,7 +541,7 @@ public class JavaToDafnyCompiler {
     }
 
     public Name getName(JCTree tree, Symbol symbol) {
-        return getName(tree, nameCompiler.getCompiledName(symbol), symbol.name.length());
+        return getName(tree, nameCompiler.getCompiledName(symbol, tree), symbol.name.length());
     }
 
     public Name getName(JCTree tree, String name) {
@@ -554,7 +553,7 @@ public class JavaToDafnyCompiler {
         int startPos = positionCalculator.getStartPos(tree);
         var startToken = positionCalculator.toToken(startPos);
         var endToken = positionCalculator.toToken(startPos + length);
-        var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
+        var origin = startToken == null ? reporter.contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
         return new Name(origin, name);
     }
 
@@ -568,16 +567,7 @@ public class JavaToDafnyCompiler {
     }
     
     public IOrigin toOrigin(JCTree node) {
-        var positionCalculator = new PositionCalculator(reporter.compilationUnit);
-        var startToken = positionCalculator.toToken(TreeInfo.getStartPos(node));
-        if (startToken == null) {
-            return contextOrigins.peek();
-        }
-        int endPos = positionCalculator.getEndPos(node);
-        var endToken = endPos == Position.NOPOS 
-                ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1) 
-                : positionCalculator.toToken(endPos);
-        return new TokenRangeOrigin(startToken, endToken);
+        return reporter.toOrigin(node);
     }
 
     public static TokenRange originToRange(IOrigin tokenRangeOrigin) {

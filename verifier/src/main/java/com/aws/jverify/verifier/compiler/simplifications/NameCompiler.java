@@ -1,5 +1,8 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.generated.IOrigin;
+import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Symtab;
@@ -9,8 +12,10 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Name;
+import net.bytebuddy.asm.AsmVisitorWrapper;
 
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.util.Elements;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -45,14 +50,18 @@ public class NameCompiler extends TreeScanner {
     private final Map<Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
-    private final SimpleSynchronousPublisher<Symbol> subject = new SimpleSynchronousPublisher<>();
+    private final SimpleSynchronousPublisher<FoundSymbol> subject = new SimpleSynchronousPublisher<>();
     private final Symtab symtab;
+    final Reporter reporter;
+    
+    public record FoundSymbol(Symbol symbol, IOrigin origin) {}
     
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     
     public NameCompiler(Context context) {
         this.symtab = Symtab.instance(context);
         this.symbolStringMap = new HashMap<>();
+        reporter = Reporter.instance(context);
         this.reverseSymbolStringMap = new HashMap<>();
     }
 
@@ -62,7 +71,7 @@ public class NameCompiler extends TreeScanner {
         super.visitClassDef(tree);
     }
 
-    public Flow.Publisher<Symbol> foundSymbols() {
+    public Flow.Publisher<FoundSymbol> foundSymbols() {
         return subject;    
     }
 
@@ -73,14 +82,18 @@ public class NameCompiler extends TreeScanner {
         return name;
     }
     
-    public String getCompiledName(Symbol s) {
-        if (symbolStringMap.containsKey(s)) {
-            return symbolStringMap.get(s);
+    public String getCompiledName(Symbol symbol, JCTree node) {
+        return getCompiledName(symbol, reporter.toOrigin(node));
+    }
+    
+    public String getCompiledName(Symbol symbol, IOrigin origin) {
+        if (symbolStringMap.containsKey(symbol)) {
+            return symbolStringMap.get(symbol);
         }
-        var compiledName = uncachedGetCompiledName(s);
-        symbolStringMap.put(s, compiledName);
-        subject.submit(s);
-        reverseSymbolStringMap.put(compiledName, s);
+        var compiledName = uncachedGetCompiledName(symbol);
+        symbolStringMap.put(symbol, compiledName);
+        subject.submit(new FoundSymbol(symbol, origin));
+        reverseSymbolStringMap.put(compiledName, symbol);
         return compiledName;
     }
     

@@ -28,32 +28,35 @@ import java.util.stream.Stream;
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
+    final Reporter reporter;
     JVerifyIndex index;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     public final Set<Symbol> createdContracts = new HashSet<>();
-    private final Set<Symbol> missingContracts = new HashSet<>();
+    private final Map<Symbol, IOrigin> missingContracts = new HashMap<>();
 
     private final TraitWithConstructorCompiler traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
 
     public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
         index = JVerifyIndex.instance(compiler.context);
+        reporter = Reporter.instance(compiler.context);
 
-        compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<Symbol>() {
+        compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<NameCompiler.FoundSymbol>() {
             @Override
             public void onSubscribe(Flow.Subscription subscription) {
                 // Never emitted
             }
 
             @Override
-            public void onNext(Symbol symbol) {
+            public void onNext(NameCompiler.FoundSymbol foundSymbol) {
+                var symbol = foundSymbol.symbol();
                 if (createdContracts.contains(symbol)) {
                     return;
                 }
                 if (symbol instanceof Symbol.ClassSymbol || symbol instanceof Symbol.MethodSymbol) {
-                    missingContracts.add(symbol);
+                    missingContracts.put(symbol, foundSymbol.origin());
                 }
             }
 
@@ -80,7 +83,7 @@ public class TypeDeclarationCompiler {
 
             Name name = compiler.getName(classDecl, classDecl.sym);
             var origin = compiler.declToOrigin(classDecl, name);
-            compiler.contextOrigins.push(origin);
+            reporter.contextOrigins.push(origin);
 
             var mode = compiler.verifyAnnotationCompiler.getShouldVerifyMode(annotationsByName);
             if (typeForWhichCurrentClassIsDefiningContract != null) {
@@ -107,7 +110,7 @@ public class TypeDeclarationCompiler {
             }
 
             typeForWhichCurrentClassIsDefiningContract = null;
-            compiler.contextOrigins.pop();
+            reporter.contextOrigins.pop();
             compiler.verifyAnnotationCompiler.shouldVerifies.pop();
             return result;
         }
@@ -123,7 +126,7 @@ public class TypeDeclarationCompiler {
         List<DatatypeCtor> constructors = new ArrayList<>();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                var variableName = compiler.nameCompiler.getCompiledName(variableDecl.sym);
+                var variableName = compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
                 Name constructorName = compiler.getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(compiler.declToOrigin(variableDecl, constructorName), constructorName,
                         null, false, List.of()));
@@ -218,7 +221,7 @@ public class TypeDeclarationCompiler {
 
     public List<TypeParameter> translateTypeParameters(IOrigin origin,  List<Symbol.TypeVariableSymbol> typarams) {
         return typarams.stream().map(p -> {
-            var name = new Name(origin, compiler.nameCompiler.getCompiledName(p));
+            var name = new Name(origin, compiler.nameCompiler.getCompiledName(p, origin));
             var bounds = p.getBounds().map(t -> compiler.translateType(t, origin));
 
             return getTypeParameter(origin, bounds, name);
@@ -446,7 +449,7 @@ public class TypeDeclarationCompiler {
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {
             for (var invariant : invariants) {
-                var memberName = compiler.nameCompiler.getCompiledName(invariant.sym);
+                var memberName = compiler.nameCompiler.getCompiledName(invariant.sym, invariant);
                 var invariantName = compiler.getName(invariant, invariant.getName());
                 var invariantOrigin = compiler.declToOrigin(invariant, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
@@ -469,7 +472,7 @@ public class TypeDeclarationCompiler {
             var parameter = method.getParameters().get(index);
             var parameterSymbol = parameterSymbols.get(index);
             IOrigin parameterOrigin = compiler.toOrigin(parameter);
-            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym));
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym, parameter));
             // TODO use parameter.sym.type ?
             var syntacticType = compiler.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
@@ -492,13 +495,13 @@ public class TypeDeclarationCompiler {
                 topLevelDecls.put(topLevelDecl.getNameNode().getValue(), (TopLevelDeclWithMembers)topLevelDecl);
             }
         }
-        var missingNonTypes = new HashSet<Symbol>();
-        for(var symbol : missingContracts) {
-            if (!(symbol instanceof Symbol.ClassSymbol)) {
-                missingNonTypes.add(symbol);
+        var missingNonTypes = new HashMap<Symbol, IOrigin>();
+        for(var entry : missingContracts.entrySet()) {
+            if (!(entry.getKey() instanceof Symbol.ClassSymbol)) {
+                missingNonTypes.put(entry.getKey(), entry.getValue());
             }
         }
-        for(var nonType : missingNonTypes) {
+        for(var nonType : missingNonTypes.keySet()) {
             missingContracts.remove(nonType);
         }
         
@@ -506,12 +509,13 @@ public class TypeDeclarationCompiler {
             // Because inheritance can mean that adding missing contracts introduces new missing contracts
             // We need to loop
 
-            var symbol = missingContracts.iterator().next();
+            var entry = missingContracts.entrySet().iterator().next();
+            var symbol = entry.getKey();
             missingContracts.remove(symbol);
             if (!createdContracts.add(symbol)) {
                 continue;
             }
-            String compiledName = compiler.nameCompiler.getCompiledName(symbol);
+            String compiledName = compiler.nameCompiler.getCompiledName(symbol, entry.getValue());
             if (compiledName.isEmpty()) {
                 // Defensive programming. Some types like intersection types have no name, although they should not occur here
                 continue;
@@ -532,16 +536,18 @@ public class TypeDeclarationCompiler {
         while(!missingNonTypes.isEmpty()) {
             // TODO change while into enhanced for
             
-            var symbol = missingNonTypes.iterator().next();
+            var entry = missingNonTypes.entrySet().iterator().next();
+            var symbol = entry.getKey();
+            var origin = entry.getValue();
             missingNonTypes.remove(symbol);
             if (!createdContracts.add(symbol)) {
                 continue;
             }
             if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
                 var clazz = (Symbol.ClassSymbol)methodSymbol.getEnclosingElement();
-                String clazzName = compiler.nameCompiler.getCompiledName(clazz);
+                String clazzName = compiler.nameCompiler.getCompiledName(clazz, origin);
                 var clazzDecl = topLevelDecls.get(clazzName);
-                var name = compiler.nameCompiler.getCompiledName(methodSymbol);
+                var name = compiler.nameCompiler.getCompiledName(methodSymbol, origin);
                 var typeParameters = translateTypeParameters(dummyOrigin, methodSymbol.getTypeParameters());
                 com.sun.tools.javac.code.Type returnType = methodSymbol.getReturnType();
                 MethodOrFunction callable;
@@ -559,7 +565,7 @@ public class TypeDeclarationCompiler {
                             methodSymbol.isStatic(), false, null, compiler.translateType(returnType, dummyOrigin),
                             null, null, null);
                 }
-                compiler.reporter.reportDiagnostic(dummyOrigin, JCDiagnostic.DiagnosticType.WARNING, "missingContract", 
+                compiler.reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "missingContract", 
                         methodSymbol.getQualifiedName(), clazz.getQualifiedName());
                 clazzDecl.getMembers().add(callable);
             }
@@ -578,7 +584,7 @@ public class TypeDeclarationCompiler {
                     } else {
                         parameterOrigin = compiler.toOrigin(parameter);
                     }
-                    Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd));
+                    Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd, parameterOrigin));
                     var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, false);
                     return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                             null, null, false, false, false, null);

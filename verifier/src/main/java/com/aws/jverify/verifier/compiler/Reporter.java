@@ -1,20 +1,25 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.IOrigin;
+import com.aws.jverify.generated.TokenRangeOrigin;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.Position;
 
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaFileObject;
 import java.util.Objects;
+import java.util.Stack;
 
 public class Reporter {
     public final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
     public JCDiagnostic.Factory diagnosticFactory;
     public JCTree.JCCompilationUnit compilationUnit;
+    public final Stack<IOrigin> contextOrigins = new Stack<>();
 
     public static Reporter instance(Context context) {
         Reporter instance = context.get(Reporter.class);
@@ -80,5 +85,18 @@ public class Reporter {
                 return node.getEndPosition(compilationUnit.endPositions);
             }
         };
+    }
+
+    public IOrigin toOrigin(JCTree node) {
+        var positionCalculator = new PositionCalculator(compilationUnit);
+        var startToken = positionCalculator.toToken(TreeInfo.getStartPos(node));
+        if (startToken == null) {
+            return contextOrigins.peek();
+        }
+        int endPos = positionCalculator.getEndPos(node);
+        var endToken = endPos == Position.NOPOS
+                ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1)
+                : positionCalculator.toToken(endPos);
+        return new TokenRangeOrigin(startToken, endToken);
     }
 }
