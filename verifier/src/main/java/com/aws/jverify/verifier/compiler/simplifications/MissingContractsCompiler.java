@@ -19,7 +19,7 @@ public class MissingContractsCompiler {
         this.compiler = compiler;
         typeDeclarationCompiler = compiler.typeDeclarationCompiler;
 
-        compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<NameCompiler.FoundSymbol>() {
+        compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<>() {
             @Override
             public void onSubscribe(Flow.Subscription subscription) {
                 // Never emitted
@@ -117,7 +117,7 @@ public class MissingContractsCompiler {
                 if (returnType.isPrimitiveOrVoid() && !returnType.isPrimitive()) {
                     callable = new Method(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
                             typeParameters, getIns(methodSymbol, dummyOrigin),
-                            List.of(new AttributedExpression(new LiteralExpr(dummyOrigin, false), null, null)),
+                            List.of(),
                             List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
                             new Specification<>(List.of(), null),
                             methodSymbol.isStatic(), List.of(), null,false);

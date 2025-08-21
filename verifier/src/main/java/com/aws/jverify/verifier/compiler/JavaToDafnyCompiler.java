@@ -59,6 +59,7 @@ public class JavaToDafnyCompiler {
      * Edges are from child to parent types, similar to the references in the code
      */
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
+    private final MissingContractsCompiler missingContractsCompiler;
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
@@ -79,9 +80,10 @@ public class JavaToDafnyCompiler {
         reporter = Reporter.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
         nameCompiler = new NameCompiler(context);
+        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
+        missingContractsCompiler = new MissingContractsCompiler(this);
         index = JVerifyIndex.instance(context);
         names = Names.instance(context);
-        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
     }
 
     public NameCompiler getNameCompiler() {
@@ -149,7 +151,7 @@ public class JavaToDafnyCompiler {
             filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
         
-        new MissingContractsCompiler(this).addMissingTypeContracts(filesStarts);
+        missingContractsCompiler.addMissingTypeContracts(filesStarts);
 
         return new FilesContainer(filesStarts);
     }

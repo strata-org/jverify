@@ -13,6 +13,7 @@ import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
+import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 
 import javax.lang.model.util.Elements;
@@ -31,6 +32,7 @@ public class MoveStaticMethodsToStaticType {
     JVerifyIndex index;
     Enter enter;
     Set<Symbol> staticSymbols = new HashSet<>();
+    Set<Symbol.TypeSymbol> containsStaticSymbols = new HashSet<>();
     Map<Symbol.ClassSymbol, Symbol.ClassSymbol> classMap = new HashMap<>();
 
     public MoveStaticMethodsToStaticType(Context context) {
@@ -43,12 +45,12 @@ public class MoveStaticMethodsToStaticType {
     }
 
     public Set<JCTree.JCCompilationUnit> translate(Set<JCTree.JCCompilationUnit> compilationUnits) {
-        for(var unit : compilationUnits) {
-            moveStaticMethodsToSeparateClass(unit);
-        }
         var referenceUpdater = new ReferenceUpdater();
         for(var unit : compilationUnits) {
             referenceUpdater.translate(unit);
+        }
+        for(var unit : compilationUnits) {
+            moveStaticMethodsToSeparateClass(unit);
         }
         return compilationUnits;
     }
@@ -59,6 +61,9 @@ public class MoveStaticMethodsToStaticType {
             var type = remainingDefs.head;
             remainingDefs = remainingDefs.tail;
             if (type instanceof JCTree.JCClassDecl classDecl) {
+                if (!classMap.containsKey(classDecl.sym)) {
+                    continue;
+                }
                 var methodCollector = new StaticMethodCollector(classDecl);
                 methodCollector.translate(type);
                 if (!methodCollector.staticMembers.isEmpty()) {
@@ -80,12 +85,7 @@ public class MoveStaticMethodsToStaticType {
         Symbol.ClassSymbol staticClassSymbol;
 
         public StaticMethodCollector(JCTree.JCClassDecl classDecl) {
-            staticClassSymbol = new Symbol.ClassSymbol(0, classDecl.sym.name.append(NameCompiler.sep, names.fromString("static")), classDecl.sym.packge());
-            staticClassSymbol.members_field = Scope.WriteableScope.create(staticClassSymbol);
-            Type.ClassType classType = new Type.ClassType(Type.noType, com.sun.tools.javac.util.List.nil(), staticClassSymbol);
-            classType.supertype_field = Type.noType; //syms.objectType;
-            staticClassSymbol.type = classType;
-            classMap.put(classDecl.sym, staticClassSymbol);
+            staticClassSymbol = classMap.get(classDecl.sym);
         }
 
         @Override
@@ -129,17 +129,40 @@ public class MoveStaticMethodsToStaticType {
         
     }
 
+    Symbol.ClassSymbol registerStaticClass(Symbol.ClassSymbol classSymbol) {
+        var result = classMap.get(classSymbol);
+        if (result == null) {
+            Name staticName = classSymbol.name.append(NameCompiler.sep, names.fromString("static"));
+            var staticClassSymbol = new Symbol.ClassSymbol(0, staticName, classSymbol.packge());
+            staticClassSymbol.members_field = Scope.WriteableScope.create(staticClassSymbol);
+            Type.ClassType classType = new Type.ClassType(Type.noType, com.sun.tools.javac.util.List.nil(), staticClassSymbol);
+            classType.supertype_field = Type.noType;
+            staticClassSymbol.type = classType;
+            classMap.put(classSymbol, staticClassSymbol);
+            return staticClassSymbol;
+        } 
+        return result;
+    }
+    
+    boolean registerStatic(Symbol classMemberSymbol) {
+        if (classMemberSymbol.owner instanceof Symbol.ClassSymbol classSymbol) {
+            classMemberSymbol.owner = registerStaticClass(classSymbol);
+            return true;
+        }
+        return false;
+    }
+
     class ReferenceUpdater extends TreeTranslator {
         boolean staticContext = false;
         
         @Override
         public void visitSelect(JCTree.JCFieldAccess tree) {
-            if (staticSymbols.contains(tree.sym)) { 
+            if (tree.sym.isStatic()) {
+                
                 var previous = staticContext;
-                staticContext = true;
+                staticContext = registerStatic(tree.sym);
                 super.visitSelect(tree);
                 staticContext = previous;
-                tree.name = tree.sym.name;
             } else {
                 if (staticContext) {
                     var newSym = classMap.get(tree.sym);
@@ -154,9 +177,9 @@ public class MoveStaticMethodsToStaticType {
 
         @Override
         public void visitReference(JCTree.JCMemberReference tree) {
-            if (staticSymbols.contains(tree.sym)) {
+            if (tree.sym.isStatic()) {
                 var previous = staticContext;
-                staticContext = true;
+                staticContext = registerStatic(tree.sym);
                 super.visitReference(tree);
                 staticContext = previous;
                 tree.name = tree.sym.name;
@@ -167,7 +190,9 @@ public class MoveStaticMethodsToStaticType {
 
         @Override
         public void visitIdent(JCTree.JCIdent tree) {
-            if (staticSymbols.contains(tree.sym)) {
+            if (tree.sym.isStatic()) {
+                registerStatic(tree.sym);
+                
                 // reference to same class static, qualify with new type
                 var select = maker.Select(maker.Ident(tree.sym.owner), tree.name);
                 select.sym = tree.sym;

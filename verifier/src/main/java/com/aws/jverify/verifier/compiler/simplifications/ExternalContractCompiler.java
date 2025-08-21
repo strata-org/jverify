@@ -42,6 +42,7 @@ public class ExternalContractCompiler {
     private final Enter enter;
     private final Types types;
     private final TreeMaker maker;
+    private final Symtab symtab;
     private final Reporter reporter;
     private final JavacElements elements;
     private final Set<Symbol.ClassSymbol> symbolsWithContracts = new HashSet<>();
@@ -51,6 +52,7 @@ public class ExternalContractCompiler {
         this.names = Names.instance(context);
         this.enter = Enter.instance(context);
         this.types = Types.instance(context);
+        this.symtab = Symtab.instance(context);
         this.maker = TreeMaker.instance(context);
         this.elements = JavacElements.instance(context);
         this.index = JVerifyIndex.instance(context);
@@ -256,8 +258,10 @@ public class ExternalContractCompiler {
 
     private JCTree.JCAnnotation getVerifyFalseAnnotation() {
         var verifySymbol = elements.getTypeElement(Verify.class.getCanonicalName());
+        JCTree.JCIdent value = maker.Ident(names.fromString("value"));
+        value.sym = symtab.booleanType.tsym;
         return maker.Annotation(maker.Ident(verifySymbol), List.of(
-                maker.Assign(maker.Ident(names.fromString("value")), maker.Literal(false))));
+                maker.Assign(value, maker.Literal(false))));
     }
 
     private String methodToString(JCTree tree) {
