@@ -114,6 +114,7 @@ public class NameCompiler extends TreeScanner {
     }
 
     private String getClassName(Symbol.ClassSymbol classSymbol) {
+        classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
         if (classSymbol.type == symtab.objectType) {
             return ModifiableObjectCompiler.REFERENCE_OBJECT_NAME;
         }
@@ -145,9 +146,6 @@ public class NameCompiler extends TreeScanner {
             result.append(getConstructorName(uniqueName));
         }
         else {
-            if (classStats.sameNameFields()) {
-                result.append(methodPrefix);
-            }
             result.append(encodeName(s.name.toString()));
         }
         if (uniqueName) {
