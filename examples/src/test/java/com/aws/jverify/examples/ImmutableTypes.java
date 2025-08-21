@@ -64,6 +64,7 @@ interface Mutable {
     @Override
     public void increment() {
         modifies(this);
+//               ^^^^ Error: a modifies-clause expression must denote an object, a single field location like o`x or a`[i] of type (object, field)  (with `--referrers`), or a set/iset/multiset/seq of objects or single field locations (with `--referrers`) (instead got RecordsAreImmutable)
     }
 
     @Override

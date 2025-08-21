@@ -18,8 +18,8 @@ import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.List;
 
+import javax.lang.model.element.ElementKind;
 import java.util.*;
-import java.util.stream.StreamSupport;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
 
@@ -45,7 +45,7 @@ public class ExternalContractCompiler {
     private final Reporter reporter;
     private final JavacElements elements;
     private final Set<Symbol.ClassSymbol> symbolsWithContracts = new HashSet<>();
-    private final Map<Symbol.ClassSymbol, Symbol.ClassSymbol> contractSymbolToContractee = new HashMap<>();
+    private final Map<Symbol, Symbol> contractSymbolToContractee = new HashMap<>();
 
     public ExternalContractCompiler(Context context) {
         this.names = Names.instance(context);
@@ -192,10 +192,20 @@ public class ExternalContractCompiler {
                     
                     var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
                     if (baseMethod != null) {
-                        newMembers.add(member);
+                        newMembers.add(methodDecl);
+                        contractSymbolToContractee.put(methodDecl.sym, baseMethod);
+                        methodDecl.sym = baseMethod;
                     } else {
                         reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                     }
+                } else if (member instanceof JCTree.JCVariableDecl field) {
+                    var baseField = contracteeSymbol.members().getSymbolsByName(field.name, s -> s.getKind() == ElementKind.FIELD).iterator();
+                    if (baseField.hasNext()) {
+                        Symbol.VarSymbol contractedFieldSymbol = (Symbol.VarSymbol) baseField.next();
+                        contractSymbolToContractee.put(field.sym, contractedFieldSymbol);
+                        field.sym = contractedFieldSymbol;
+                    }
+                    newMembers.add(member);
                 } else {
                     newMembers.add(member);
                 }
@@ -272,12 +282,20 @@ public class ExternalContractCompiler {
             super.visitIdent(tree);
         }
 
+        @Override
+        public void visitSelect(JCTree.JCFieldAccess tree) {
+            var updatedSymbol = contractSymbolToContractee.get(tree.sym);
+            if (updatedSymbol != null) {
+                tree.sym = updatedSymbol;
+            }
+            super.visitSelect(tree);
+        }
 
         @Override
         public void visitVarDef(JCTree.JCVariableDecl tree) {
             updateOwner(tree.sym);
             if (tree.type != null) {
-                var updatedSymbol = contractSymbolToContractee.get(tree.type.tsym);
+                var updatedSymbol = (Symbol.ClassSymbol)contractSymbolToContractee.get(tree.type.tsym);
                 if (updatedSymbol != null) {
                     tree.type.tsym = updatedSymbol;
                 }

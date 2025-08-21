@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.Scope;
 import com.sun.tools.javac.code.Symbol;
@@ -13,7 +14,6 @@ import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Names;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.util.Elements;
 import java.util.*;
@@ -30,7 +30,8 @@ public class MoveStaticMethodsToStaticType {
     Elements elements;
     JVerifyIndex index;
     Enter enter;
-    Set<Symbol.MethodSymbol> staticMethodSymbols = new HashSet<>();
+    Set<Symbol> staticSymbols = new HashSet<>();
+    Map<Symbol.ClassSymbol, Symbol.ClassSymbol> classMap = new HashMap<>();
 
     public MoveStaticMethodsToStaticType(Context context) {
         this.names = Names.instance(context);
@@ -60,11 +61,12 @@ public class MoveStaticMethodsToStaticType {
             if (type instanceof JCTree.JCClassDecl classDecl) {
                 var methodCollector = new StaticMethodCollector(classDecl);
                 methodCollector.translate(type);
-                if (!methodCollector.staticMethods.isEmpty()) {
+                if (!methodCollector.staticMembers.isEmpty()) {
                     JCTree.JCClassDecl staticClass = maker.ClassDef(classDecl.mods, methodCollector.staticClassSymbol.name,
                             List.nil(), null, List.nil(),
-                            List.from(methodCollector.staticMethods));
+                            List.from(methodCollector.staticMembers));
                     staticClass.sym = methodCollector.staticClassSymbol;
+                    staticClass.type = new Type.ClassType(Type.noType, List.nil(), staticClass.sym, List.nil());
                     unit.defs = unit.defs.append(staticClass);
                     index.put(staticClass.sym, enter.classEnv(staticClass, enter.getTopLevelEnv(unit)));
                 }
@@ -74,19 +76,25 @@ public class MoveStaticMethodsToStaticType {
 
     class StaticMethodCollector extends TreeTranslator {
 
-        List<JCTree.JCMethodDecl> staticMethods = List.nil();
+        List<JCTree> staticMembers = List.nil();
         Symbol.ClassSymbol staticClassSymbol;
 
         public StaticMethodCollector(JCTree.JCClassDecl classDecl) {
-            staticClassSymbol = new Symbol.ClassSymbol(0, classDecl.name.append('.', names.fromString("static")), classDecl.sym.packge());
+            staticClassSymbol = new Symbol.ClassSymbol(0, classDecl.sym.name.append(NameCompiler.sep, names.fromString("static")), classDecl.sym.packge());
             staticClassSymbol.members_field = Scope.WriteableScope.create(staticClassSymbol);
             Type.ClassType classType = new Type.ClassType(Type.noType, com.sun.tools.javac.util.List.nil(), staticClassSymbol);
-            classType.supertype_field = syms.objectType;
+            classType.supertype_field = Type.noType; //syms.objectType;
             staticClassSymbol.type = classType;
+            classMap.put(classDecl.sym, staticClassSymbol);
         }
 
         @Override
         public void visitClassDef(JCTree.JCClassDecl tree) {
+            if (tree.sym.isEnum()) {
+                super.visitClassDef(tree);
+                return;
+            }
+            
             var members = tree.getMembers();
             var newMembers = new ArrayList<JCTree>();
             while(!members.isEmpty()) {
@@ -94,13 +102,22 @@ public class MoveStaticMethodsToStaticType {
                 members = members.tail;
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
                     if (methodDecl.sym.isStatic()) {
-                        staticMethods = staticMethods.append(methodDecl);
-                        var sym = methodDecl.sym;
+                        staticMembers = staticMembers.append(methodDecl);
+                        var methodSymbol = methodDecl.sym;
                         
-                        staticMethodSymbols.add(sym);
-                        sym.name = tree.sym.fullname.append('.', sym.name);
-                        sym.owner = staticClassSymbol;
-                        staticClassSymbol.members().enter(sym);
+                        staticSymbols.add(methodSymbol);
+                        methodSymbol.owner = staticClassSymbol;
+                        staticClassSymbol.members().enter(methodSymbol);
+                        continue;
+                    }
+                } else if (member instanceof JCTree.JCVariableDecl varDecl) {
+                    if (JavaToDafnyCompiler.isStatic(varDecl.mods)) {
+                        staticMembers = staticMembers.append(varDecl);
+                        var varSymbol = varDecl.sym;
+
+                        staticSymbols.add(varSymbol);
+                        varSymbol.owner = staticClassSymbol;
+                        staticClassSymbol.members().enter(varSymbol);
                         continue;
                     }
                 }
@@ -113,28 +130,59 @@ public class MoveStaticMethodsToStaticType {
     }
 
     class ReferenceUpdater extends TreeTranslator {
-        Symbol.@Nullable ClassSymbol staticContext = null;
+        boolean staticContext = false;
         
         @Override
         public void visitSelect(JCTree.JCFieldAccess tree) {
-            if (tree.sym instanceof Symbol.MethodSymbol methodSymbol && staticMethodSymbols.contains(methodSymbol)) {
+            if (staticSymbols.contains(tree.sym)) { 
                 var previous = staticContext;
-                staticContext = (Symbol.ClassSymbol)methodSymbol.owner;
+                staticContext = true;
                 super.visitSelect(tree);
                 staticContext = previous;
                 tree.name = tree.sym.name;
             } else {
+                if (staticContext) {
+                    var newSym = classMap.get(tree.sym);
+                    if (newSym != null) {
+                        tree.sym = newSym;
+                        tree.name = tree.sym.name;
+                    }
+                }
                 super.visitSelect(tree);
             }
         }
 
         @Override
-        public void visitIdent(JCTree.JCIdent tree) {
-            if (staticContext != null && tree.sym instanceof Symbol.ClassSymbol) {
-                tree.sym = staticContext;
+        public void visitReference(JCTree.JCMemberReference tree) {
+            if (staticSymbols.contains(tree.sym)) {
+                var previous = staticContext;
+                staticContext = true;
+                super.visitReference(tree);
+                staticContext = previous;
                 tree.name = tree.sym.name;
+            } else {
+                super.visitReference(tree);
             }
-            super.visitIdent(tree);
+        }
+
+        @Override
+        public void visitIdent(JCTree.JCIdent tree) {
+            if (staticSymbols.contains(tree.sym)) {
+                // reference to same class static, qualify with new type
+                var select = maker.Select(maker.Ident(tree.sym.owner), tree.name);
+                select.sym = tree.sym;
+                select.type = tree.type;
+                result = select;
+            } else {
+                if (staticContext) {
+                    var newSym = classMap.get(tree.sym);
+                    if (newSym != null) {
+                        tree.sym = newSym;
+                        tree.name = tree.sym.name;
+                    }
+                }
+                super.visitIdent(tree);
+            }
         }
     }
 }

@@ -10,6 +10,8 @@ import static com.aws.jverify.JVerify.precondition;
 public class PolymorphicStaticsVerification {
     record R() {}
     static class Generic<T> {
+        // TODO add when we support static fields
+        //static int staticFieldsAreNeverGeneric = 3;
         
         @Pure
         public static <T2> int someStatic(T2 value, boolean valid) {
@@ -24,5 +26,7 @@ public class PolymorphicStaticsVerification {
         check(x == 3);
         var y = Generic.someStatic(new R(), false);
 //              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: function precondition could not be proved
+        // TODO add when we support static fields
+        // check(Generic.staticFieldsAreNeverGeneric == 3);
     }
 }

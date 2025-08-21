@@ -257,21 +257,15 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private boolean isNestedClass(JCTree.JCClassDecl classDecl) {
-        if (classDecl.sym != null && classDecl.sym.owner != null) {
-            return classDecl.sym.owner.kind == Kinds.Kind.TYP;
-        }
-
-        return false;
-    }
-
     public static boolean typeHasSource(JVerifyIndex index, Symbol.TypeSymbol typeSymbol) {
         return index.getTree(typeSymbol) != null;
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
-            return classType.supertype_field != null && ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
+            return classType.supertype_field != null && 
+                    classType.supertype_field.tsym instanceof Symbol.ClassSymbol classSymbol &&
+                    classSymbol.fullname.contentEquals("java.lang.Enum");
         }
         return false;
     }

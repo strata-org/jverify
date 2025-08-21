@@ -30,7 +30,7 @@ import java.util.concurrent.Flow;
  * allowing for name resolution in both directions.
  */
 public class NameCompiler extends TreeScanner {
-    public static final String sep = "?";
+    public static final char sep = '?';
     static private final String fieldPrefix = "F" + sep;
     static private final String methodPrefix = "Z" + sep;
     public String DEFAULT_CTOR_NAME = "ctor" + sep;
