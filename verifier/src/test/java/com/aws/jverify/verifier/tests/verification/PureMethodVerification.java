@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.verification;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 4, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 4, dafnyErrors = 0)
 public class PureMethodVerification {
 
     @Pure
