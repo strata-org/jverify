@@ -149,7 +149,7 @@ public class JavaToDafnyCompiler {
             filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
         
-        typeDeclarationCompiler.addMissingTypeContracts(filesStarts);
+        new MissingContractsCompiler(this).addMissingTypeContracts(filesStarts);
 
         return new FilesContainer(filesStarts);
     }
