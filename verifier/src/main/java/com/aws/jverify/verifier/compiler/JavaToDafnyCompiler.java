@@ -79,7 +79,7 @@ public class JavaToDafnyCompiler {
         
         reporter = Reporter.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
-        nameCompiler = new NameCompiler(context);
+        nameCompiler = NameCompiler.instance(context);
         typeDeclarationCompiler = new TypeDeclarationCompiler(this);
         missingContractsCompiler = new MissingContractsCompiler(this);
         index = JVerifyIndex.instance(context);

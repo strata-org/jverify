@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.Scope;
 import com.sun.tools.javac.code.Symbol;
@@ -32,8 +33,8 @@ public class MoveStaticMethodsToStaticType {
     JVerifyIndex index;
     Enter enter;
     Set<Symbol> staticSymbols = new HashSet<>();
-    Set<Symbol.TypeSymbol> containsStaticSymbols = new HashSet<>();
     Map<Symbol.ClassSymbol, Symbol.ClassSymbol> classMap = new HashMap<>();
+    private Reporter reporter;
 
     public MoveStaticMethodsToStaticType(Context context) {
         this.names = Names.instance(context);
@@ -42,6 +43,7 @@ public class MoveStaticMethodsToStaticType {
         enter = Enter.instance(context);
         index = JVerifyIndex.instance(context);
         elements = JavacElements.instance(context);
+        reporter = Reporter.instance(context);
     }
 
     public Set<JCTree.JCCompilationUnit> translate(Set<JCTree.JCCompilationUnit> compilationUnits) {
@@ -138,6 +140,7 @@ public class MoveStaticMethodsToStaticType {
             Type.ClassType classType = new Type.ClassType(Type.noType, com.sun.tools.javac.util.List.nil(), staticClassSymbol);
             classType.supertype_field = Type.noType;
             staticClassSymbol.type = classType;
+            reporter.mapSymbol(classSymbol, staticClassSymbol);
             classMap.put(classSymbol, staticClassSymbol);
             return staticClassSymbol;
         } 

@@ -1,7 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.generated.IOrigin;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.sun.tools.javac.code.Symbol;
 
@@ -12,10 +11,8 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Name;
-import net.bytebuddy.asm.AsmVisitorWrapper;
 
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.util.Elements;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -58,7 +55,16 @@ public class NameCompiler extends TreeScanner {
     
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     
-    public NameCompiler(Context context) {
+    protected static final Context.Key<NameCompiler> myKey = new Context.Key<>();
+    public static NameCompiler instance(Context context) {
+        NameCompiler instance = context.get(myKey);
+        if (instance == null)
+            instance = new NameCompiler(context);
+        return instance;
+    }
+    
+    private NameCompiler(Context context) {
+        context.put(myKey, this);
         this.symtab = Symtab.instance(context);
         this.symbolStringMap = new HashMap<>();
         reporter = Reporter.instance(context);
@@ -74,7 +80,7 @@ public class NameCompiler extends TreeScanner {
     public Flow.Publisher<FoundSymbol> foundSymbols() {
         return subject;    
     }
-
+    
     public String safeGetOriginalName(String name) {
         if (reverseSymbolStringMap.containsKey(name)) {
             return reverseSymbolStringMap.get(name).name.toString();

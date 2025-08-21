@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.Symbol;
@@ -14,9 +15,11 @@ public class MissingContractsCompiler {
     JavaToDafnyCompiler compiler;
     TypeDeclarationCompiler  typeDeclarationCompiler;
     private final Map<Symbol, IOrigin> missingContracts = new HashMap<>();
+    private final Reporter reporter;
 
     public MissingContractsCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
+        reporter = Reporter.instance(compiler.context);
         typeDeclarationCompiler = compiler.typeDeclarationCompiler;
 
         compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<>() {
@@ -128,8 +131,8 @@ public class MissingContractsCompiler {
                             methodSymbol.isStatic(), false, null, compiler.translateType(returnType, dummyOrigin),
                             null, null, null);
                 }
-                compiler.reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "missingContract",
-                        methodSymbol.getQualifiedName(), clazz.getQualifiedName());
+                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "missingContract",
+                        methodSymbol.getQualifiedName(), reporter.getOriginal(clazz).getQualifiedName());
                 clazzDecl.getMembers().add(callable);
             }
         }

@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.IOrigin;
 import com.aws.jverify.generated.TokenRangeOrigin;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -12,6 +13,8 @@ import com.sun.tools.javac.util.Position;
 
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaFileObject;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Stack;
 
@@ -20,6 +23,15 @@ public class Reporter {
     public JCDiagnostic.Factory diagnosticFactory;
     public JCTree.JCCompilationUnit compilationUnit;
     public final Stack<IOrigin> contextOrigins = new Stack<>();
+    private final Map<Symbol, Symbol> mappedSymbols = new HashMap<>();
+    
+    public Symbol getOriginal(Symbol symbol) {
+        return mappedSymbols.getOrDefault(symbol, symbol);
+    }
+    
+    public void mapSymbol(Symbol original, Symbol neww) {
+        mappedSymbols.put(neww, original);
+    }
 
     public static Reporter instance(Context context) {
         Reporter instance = context.get(Reporter.class);
