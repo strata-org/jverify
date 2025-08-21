@@ -334,6 +334,10 @@ public class JavaToDafnyCompiler {
         return (modifiers.flags & Flags.STATIC) != 0;
     }
 
+    public static boolean isStatic(Symbol symbol) {
+        return (symbol.flags() & Flags.STATIC) != 0;
+    }
+
     public static LiteralExpr getReferenceHole(IOrigin origin) {
         // TODO should be a typeless 'hole' expression, but Dafny does not have that.
         return new LiteralExpr(origin, null);

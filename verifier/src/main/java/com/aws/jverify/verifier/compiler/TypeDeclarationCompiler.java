@@ -14,6 +14,7 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
@@ -37,6 +38,9 @@ public class TypeDeclarationCompiler {
         this.compiler = compiler;
         index = JVerifyIndex.instance(compiler.context);
         reporter = Reporter.instance(compiler.context);
+        var names = Names.instance(compiler.context);
+        var symtab = Symtab.instance(compiler.context);
+        createdContracts.add(symtab.objectType.tsym.members().findFirst(names.fromString("equals")));
 
     }
 

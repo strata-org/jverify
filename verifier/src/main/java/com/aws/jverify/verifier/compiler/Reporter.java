@@ -50,7 +50,7 @@ public class Reporter {
         reportError(positionFromOrigin(origin), key, args);
     }
 
-    private JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
+    public JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
         return new DiagnosticPositionFromOrigin(JavaToDafnyCompiler.originToRange(origin), compilationUnit.lineMap);
     }
     

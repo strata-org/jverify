@@ -14,7 +14,7 @@ import java.util.concurrent.Flow;
 public class MissingContractsCompiler {
     JavaToDafnyCompiler compiler;
     TypeDeclarationCompiler  typeDeclarationCompiler;
-    private final Map<Symbol, IOrigin> missingContracts = new HashMap<>();
+    private final Map<Symbol, JCDiagnostic.DiagnosticPosition> missingContracts = new HashMap<>();
     private final Reporter reporter;
 
     public MissingContractsCompiler(JavaToDafnyCompiler compiler) {
@@ -35,7 +35,7 @@ public class MissingContractsCompiler {
                     return;
                 }
                 if (symbol instanceof Symbol.ClassSymbol || symbol instanceof Symbol.MethodSymbol) {
-                    missingContracts.put(symbol, foundSymbol.origin());
+                    missingContracts.put(symbol, reporter.positionFromOrigin(foundSymbol.origin()));
                 }
             }
 
@@ -61,7 +61,7 @@ public class MissingContractsCompiler {
                 topLevelDecls.put(topLevelDecl.getNameNode().getValue(), (TopLevelDeclWithMembers)topLevelDecl);
             }
         }
-        var missingNonTypes = new HashMap<Symbol, IOrigin>();
+        var missingNonTypes = new HashMap<Symbol, JCDiagnostic.DiagnosticPosition>();
         for(var entry : missingContracts.entrySet()) {
             if (!(entry.getKey() instanceof Symbol.ClassSymbol)) {
                 missingNonTypes.put(entry.getKey(), entry.getValue());
@@ -81,7 +81,7 @@ public class MissingContractsCompiler {
             if (!typeDeclarationCompiler.createdContracts.add(symbol)) {
                 continue;
             }
-            String compiledName = compiler.nameCompiler.getCompiledName(symbol, entry.getValue());
+            String compiledName = compiler.nameCompiler.getCompiledName(symbol, dummyOrigin);
             if (compiledName.isEmpty()) {
                 // Defensive programming. Some types like intersection types have no name, although they should not occur here
                 continue;
@@ -111,9 +111,9 @@ public class MissingContractsCompiler {
             }
             if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
                 var clazz = (Symbol.ClassSymbol)methodSymbol.getEnclosingElement();
-                String clazzName = compiler.nameCompiler.getCompiledName(clazz, origin);
+                String clazzName = compiler.nameCompiler.getCompiledName(clazz, dummyOrigin);
                 var clazzDecl = topLevelDecls.get(clazzName);
-                var name = compiler.nameCompiler.getCompiledName(methodSymbol, origin);
+                var name = compiler.nameCompiler.getCompiledName(methodSymbol, dummyOrigin);
                 var typeParameters = typeDeclarationCompiler.translateTypeParameters(dummyOrigin, methodSymbol.getTypeParameters());
                 com.sun.tools.javac.code.Type returnType = methodSymbol.getReturnType();
                 MethodOrFunction callable;

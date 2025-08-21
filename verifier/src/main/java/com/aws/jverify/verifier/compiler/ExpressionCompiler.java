@@ -5,6 +5,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
+import com.sun.jdi.event.ThreadStartEvent;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -25,9 +26,8 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
-     public final JavaToDafnyCompiler compiler;
-
-     private static final Set<String> supportedStringMethods = Set.of("equals", "concat", "startsWith", "substring", "isEmpty", "charAt", "length", "indexOf");
+    public final JavaToDafnyCompiler compiler;
+    private static final Set<String> supportedStringMethods = Set.of("equals", "concat", "startsWith", "substring", "isEmpty", "charAt", "length", "indexOf");
 
     public ExpressionCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -334,6 +334,17 @@ public class ExpressionCompiler {
             return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
         }
 
+
+        if (fieldAccess.sym.owner instanceof Symbol.ClassSymbol ownerClass
+                && ownerClass.fullname.contentEquals(String.class.getName())) {
+            if (!supportedStringMethods.contains(fieldAccess.sym.name.toString())) {
+                compiler.reportError(fieldAccess, "notSupported", "String method " + fieldAccess.sym);
+                return JavaToDafnyCompiler.getHole(origin);
+            } else {
+                this.compiler.typeDeclarationCompiler.createdContracts.add(fieldAccess.sym);
+            }
+        }
+        
         var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);
         if (compiler.isEnum(fieldAccess.selected)) {
             return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
@@ -383,14 +394,6 @@ public class ExpressionCompiler {
                 var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
             }
-        }
-
-        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
-                && ownerClass.fullname.contentEquals(String.class.getName())) {
-                 if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
-                    compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
-                    return compiler.getHole(origin);
-                }
         }
 
         var target = toExpr(invocation.getMethodSelect());

@@ -42,7 +42,8 @@ public class TestVerifier {
 
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java").toString(),
-                "--dafny=" + dafnyPath);
+                "--dafny=" + dafnyPath,
+                "--print-dafny=../build/temp.dfy");
         Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
     }
 

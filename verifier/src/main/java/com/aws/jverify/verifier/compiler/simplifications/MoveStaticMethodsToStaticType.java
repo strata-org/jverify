@@ -93,12 +93,7 @@ public class MoveStaticMethodsToStaticType {
         }
 
         @Override
-        public void visitClassDef(JCTree.JCClassDecl tree) {
-            if (tree.sym.isEnum()) {
-                super.visitClassDef(tree);
-                return;
-            }
-            
+        public void visitClassDef(JCTree.JCClassDecl tree) {            
             var members = tree.getMembers();
             var newMembers = new ArrayList<JCTree>();
             while(!members.isEmpty()) {
@@ -136,9 +131,14 @@ public class MoveStaticMethodsToStaticType {
             return classSymbol;
         }
         
+        if (classSymbol.isEnum()) {
+            return classSymbol;
+        }
+        
         if (classSymbol.outermostClass().fullname.contentEquals(JVERIFY_CLASS)) {
             return classSymbol;
         }
+        // TODO consider checking whether the class has (inherited?) type parameters
         
         var result = classMap.get(classSymbol);
         if (result == null) {
@@ -161,7 +161,7 @@ public class MoveStaticMethodsToStaticType {
                 classMemberSymbol instanceof Symbol.VarSymbol) {
             if (classMemberSymbol.owner instanceof Symbol.ClassSymbol classSymbol) {
                 classMemberSymbol.owner = registerStaticClass(classSymbol);
-                return classMemberSymbol.owner != classSymbol;
+                return staticClasses.contains(classMemberSymbol.owner);
             }
         }
         return false;
@@ -169,10 +169,10 @@ public class MoveStaticMethodsToStaticType {
 
     class ReferenceUpdater extends TreeTranslator {
         boolean staticContext = false;
-        
+
         @Override
         public void visitSelect(JCTree.JCFieldAccess tree) {
-            if (tree.sym.isStatic()) {
+            if (JavaToDafnyCompiler.isStatic(tree.sym)) {
                 
                 var previous = staticContext;
                 staticContext = registerStatic(tree.sym);
@@ -192,12 +192,11 @@ public class MoveStaticMethodsToStaticType {
 
         @Override
         public void visitReference(JCTree.JCMemberReference tree) {
-            if (tree.sym.isStatic()) {
+            if (JavaToDafnyCompiler.isStatic(tree.sym)) {
                 var previous = staticContext;
                 staticContext = registerStatic(tree.sym);
                 super.visitReference(tree);
                 staticContext = previous;
-                tree.name = tree.sym.name;
             } else {
                 super.visitReference(tree);
             }
@@ -205,22 +204,23 @@ public class MoveStaticMethodsToStaticType {
 
         @Override
         public void visitIdent(JCTree.JCIdent tree) {
-            if (tree.sym.isStatic()) {
+            if (staticContext) {
+                var newSym = classMap.get(tree.sym);
+                if (newSym != null) {
+                    tree.sym = newSym;
+                    tree.name = tree.sym.name;
+                }
+                super.visitIdent(tree);
+            } else if (JavaToDafnyCompiler.isStatic(tree.sym)) {
                 registerStatic(tree.sym);
-                
+
+                maker.pos = tree.pos;
                 // reference to same class static, qualify with new type
                 var select = maker.Select(maker.Ident(tree.sym.owner), tree.name);
                 select.sym = tree.sym;
                 select.type = tree.type;
                 result = select;
             } else {
-                if (staticContext) {
-                    var newSym = classMap.get(tree.sym);
-                    if (newSym != null) {
-                        tree.sym = newSym;
-                        tree.name = tree.sym.name;
-                    }
-                }
                 super.visitIdent(tree);
             }
         }
