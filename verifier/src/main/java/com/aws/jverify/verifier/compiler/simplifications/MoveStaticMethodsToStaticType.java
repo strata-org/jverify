@@ -20,6 +20,8 @@ import com.sun.tools.javac.util.Names;
 import javax.lang.model.util.Elements;
 import java.util.*;
 
+import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_CLASS;
+
 /**
  * In Java, static methods ignore the type parameters of any enclosing types
  * We compile this behavior by moving static methods to a separate type that does not have type parameters 
@@ -32,8 +34,8 @@ public class MoveStaticMethodsToStaticType {
     Elements elements;
     JVerifyIndex index;
     Enter enter;
-    Set<Symbol> staticSymbols = new HashSet<>();
     Map<Symbol.ClassSymbol, Symbol.ClassSymbol> classMap = new HashMap<>();
+    Set<Symbol.ClassSymbol> staticClasses = new HashSet<>();
     private Reporter reporter;
 
     public MoveStaticMethodsToStaticType(Context context) {
@@ -107,7 +109,6 @@ public class MoveStaticMethodsToStaticType {
                         staticMembers = staticMembers.append(methodDecl);
                         var methodSymbol = methodDecl.sym;
                         
-                        staticSymbols.add(methodSymbol);
                         methodSymbol.owner = staticClassSymbol;
                         staticClassSymbol.members().enter(methodSymbol);
                         continue;
@@ -117,7 +118,6 @@ public class MoveStaticMethodsToStaticType {
                         staticMembers = staticMembers.append(varDecl);
                         var varSymbol = varDecl.sym;
 
-                        staticSymbols.add(varSymbol);
                         varSymbol.owner = staticClassSymbol;
                         staticClassSymbol.members().enter(varSymbol);
                         continue;
@@ -132,6 +132,14 @@ public class MoveStaticMethodsToStaticType {
     }
 
     Symbol.ClassSymbol registerStaticClass(Symbol.ClassSymbol classSymbol) {
+        if (staticClasses.contains(classSymbol)) {
+            return classSymbol;
+        }
+        
+        if (classSymbol.outermostClass().fullname.contentEquals(JVERIFY_CLASS)) {
+            return classSymbol;
+        }
+        
         var result = classMap.get(classSymbol);
         if (result == null) {
             Name staticName = classSymbol.name.append(NameCompiler.sep, names.fromString("static"));
@@ -142,15 +150,19 @@ public class MoveStaticMethodsToStaticType {
             staticClassSymbol.type = classType;
             reporter.mapSymbol(classSymbol, staticClassSymbol);
             classMap.put(classSymbol, staticClassSymbol);
+            staticClasses.add(staticClassSymbol);
             return staticClassSymbol;
         } 
         return result;
     }
     
     boolean registerStatic(Symbol classMemberSymbol) {
-        if (classMemberSymbol.owner instanceof Symbol.ClassSymbol classSymbol) {
-            classMemberSymbol.owner = registerStaticClass(classSymbol);
-            return true;
+        if (classMemberSymbol instanceof Symbol.MethodSymbol || 
+                classMemberSymbol instanceof Symbol.VarSymbol) {
+            if (classMemberSymbol.owner instanceof Symbol.ClassSymbol classSymbol) {
+                classMemberSymbol.owner = registerStaticClass(classSymbol);
+                return classMemberSymbol.owner != classSymbol;
+            }
         }
         return false;
     }
