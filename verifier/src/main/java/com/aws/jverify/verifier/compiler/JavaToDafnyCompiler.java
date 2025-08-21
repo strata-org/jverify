@@ -540,21 +540,6 @@ public class JavaToDafnyCompiler {
             if (classType.tsym.getTypeParameters().isEmpty()) {
                 typeArguments = null;
             } else {
-                // TODO needs a test. Something like the following
-                // The Map.Entry[]::new introduces a member reference with a 
-                // raw type that's not replaced with Object during type resolution
-                        /*
-                        
-            interface IT {}
-            record Outer(List<IT> years) {
-                public Map<String, IT> asMap(List<String> mapKeys) {
-                    var size = 10;
-                    Stream<Map.Entry<String, IT>> entries = IntStream.range(0, size).mapToObj(i -> Map.entry(mapKeys.get(i), years.get(i)));
-                    return Map.ofEntries(entries.toArray(Map.Entry[]::new));
-                }
-            }
-                        */
-
                 // unresolved raw type
                 var objectType = translateType(Symtab.instance(context).objectType, origin);
                 typeArguments = IntStream.range(0, classType.tsym.getTypeParameters().size()).
