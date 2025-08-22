@@ -46,7 +46,7 @@ public class ImmutableTypeCompiler {
             if (superClass.tsym == symtab.objectType.tsym || superClass.getKind() == TypeKind.NONE) {
                 traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             } else {
-                if (compiler.typeHasAContract(superClass)) {
+                if (JavaToDafnyCompiler.typeHasSource(compiler.index, superClass.tsym)) {
                     traits.addFirst(compiler.translateType(superClass, origin, null));
                 }
             }

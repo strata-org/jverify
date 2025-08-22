@@ -21,11 +21,13 @@ import javax.lang.model.element.Modifier;
 import java.util.*;
 import java.util.concurrent.Flow;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
+    JVerifyIndex index;
     private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
@@ -36,6 +38,7 @@ public class TypeDeclarationCompiler {
 
     public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
+        index = JVerifyIndex.instance(compiler.context);
 
         compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<Symbol>() {
             @Override
@@ -74,33 +77,7 @@ public class TypeDeclarationCompiler {
             }
             var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
 
-            Name name = null;
-            var contractAnnotation = annotationsByName.get(Contract.class.getName());
-            if (contractAnnotation != null) {
-                var contractee = compiler.externalContractCompiler.getContractTarget(classDecl, contractAnnotation);
-                if (contractee != null) {
-
-                    if (compiler.typeHasSource(contractee)) {
-                        // If the contractee has source, then we have a merged contract
-                        // And we do not need to traverse the contracter.
-                        // The contractee will lookup contracts in the contractor
-                        // for bodyless members
-                        var modifiableAnnotation = annotationsByName.get(Modifiable.class.getName());
-                        if (modifiableAnnotation != null) {
-                            compiler.reportError(modifiableAnnotation, "annotationOnSourceContractClass", Modifiable.class.getSimpleName(), classDecl.name.toString());
-                        }
-                        return List.of();
-                    }
-
-
-                    typeForWhichCurrentClassIsDefiningContract = contractee;
-                    name = compiler.getName(classDecl, typeForWhichCurrentClassIsDefiningContract);
-                }
-            }
-
-            if (name == null) {
-                name = compiler.getName(classDecl, classDecl.sym);
-            }
+            Name name = compiler.getName(classDecl, classDecl.sym);
             var origin = compiler.declToOrigin(classDecl, name);
             compiler.contextOrigins.push(origin);
 
@@ -157,19 +134,8 @@ public class TypeDeclarationCompiler {
     }
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        
-        var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
-        if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym)) {
+        if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym) || compiler.isImmutableClass(classDecl.sym)) {
             return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
-        }
-
-        if (contractAnnotation != null && contractAnnotation.immutable()) {
-            if (typeForWhichCurrentClassIsDefiningContract != null) {
-                return new ImmutableTypeCompiler(this).translate(typeForWhichCurrentClassIsDefiningContract, classDecl, origin, name);
-            } else {
-                compiler.reportError(classDecl, "immutableInternalContract");
-                return null;
-            }
         }
 
         for (var member : classDecl.getMembers()) {
@@ -188,14 +154,6 @@ public class TypeDeclarationCompiler {
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 var dafnyMember = translateField(variableDecl);
-                members.add(dafnyMember);
-            }
-        }
-
-        var externalContract = compiler.externalContractCompiler.externalContracts.get(classDecl.sym);
-        if (externalContract != null) {
-            for (var ghostField : externalContract.ghostFields()) {
-                var dafnyMember = translateField(ghostField);
                 members.add(dafnyMember);
             }
         }
@@ -341,30 +299,11 @@ public class TypeDeclarationCompiler {
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         var methodSymbol = method.sym;
-        if (typeForWhichCurrentClassIsDefiningContract != null && compiler.isSynthetic(method, methodSymbol)) {
+        if (typeForWhichCurrentClassIsDefiningContract != null && JavaToDafnyCompiler.isSynthetic(index, method, methodSymbol)) {
             return null;
         }
         compiler.symbolsWithAContract.add(methodSymbol);
-        
-        var externalDecl = findExternalContract(methodSymbol);
-        var declToUse = externalDecl == null ? method : externalDecl;
-        if (externalDecl != null && method.body != null) {
-            if (JavaToDafnyCompiler.isConstructor(declToUse.sym)) {
-                declToUse = method;
-            } else {
-                compiler.reportError(declToUse, "internalAndExternalContractForMethod", methodSymbol.name.toString());
-            }
-        }
-        if (declToUse != method) {
-            var baseAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
-            var baseIsPure = baseAnnotationsByName.containsKey(Pure.class.getName());
-
-            if (baseIsPure) {
-                compiler.reportError(method, "pureOnContractedMethod", method.name.toString());
-            }
-        }
-        
-        var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(declToUse.mods);
+        var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
         boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
         
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
@@ -372,27 +311,24 @@ public class TypeDeclarationCompiler {
 //            var types = Types.instance(context);
 //            var container = method.sym.enclClass();
 //            var impl = method.sym.implemented(container, types);
-            compiler.reportError(declToUse, "notSupported", "@InheritContract");
+            compiler.reportError(method, "notSupported", "@InheritContract");
             return null;
         }
 
-        var contract = new MethodOrLoopContract(declToUse, annotationsByName.containsKey(Pure.class.getName()));
+        var contract = new MethodOrLoopContract(method, annotationsByName.containsKey(Pure.class.getName()));
         var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
         List<JCTree.JCStatement> remainingStatements;
-        if (declToUse.body == null) {
+        if (method.body == null) {
             remainingStatements = null;
         } else {
             remainingStatements = new MethodOrLoopContractCompiler(compiler).
-                    extractContract(declToUse.body, contract, allowFooter);
-            if (externalDecl == declToUse) {
-                remainingStatements = null;
-            }
+                    extractContract(method.body, contract, allowFooter);
         }
         
         if (contract.isPure) {
-            return translatePureMethod(declToUse, shouldVerify, contract);
+            return translatePureMethod(method, shouldVerify, contract);
         } else {
-            return translateImpureMethod(declToUse, shouldVerify, contract, remainingStatements);
+            return translateImpureMethod(method, shouldVerify, contract, remainingStatements);
         }
     }
 
@@ -408,7 +344,7 @@ public class TypeDeclarationCompiler {
         var name = compiler.getName(method, method.sym);
         var origin = compiler.declToOrigin(method, name);
         var isStatic = JavaToDafnyCompiler.isStatic(method.mods);
-        List<Formal> ins = getIns(method.sym, shouldVerify, methodOrigin);
+        List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         List<Statement> bodyStatements = null;
         if (shouldVerify && postHeader != null) {
@@ -480,7 +416,7 @@ public class TypeDeclarationCompiler {
         var name = compiler.getName(method, method.sym);
         var origin = compiler.declToOrigin(method, name);
         var isStatic = JavaToDafnyCompiler.isStatic(method.mods);
-        List<Formal> ins = getIns(method.sym, shouldVerify, sourceOrigin);
+        List<Formal> ins = getIns(method, shouldVerify, sourceOrigin);
         var returnType = compiler.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, shouldVerify);
         if (returnType == null) {
             compiler.reportError(method, "pureMethodsNeedsReturnType");
@@ -516,32 +452,20 @@ public class TypeDeclarationCompiler {
         }
     }
 
-    private JCTree.@Nullable JCMethodDecl findExternalContract(Symbol.MethodSymbol methodSymbol) {
-        var enclosingClass = methodSymbol.enclClass();
-        var contractor = compiler.externalContractCompiler.externalContracts.get(enclosingClass);
-        if (contractor != null) {
-            return contractor.methodContracts().get(methodSymbol);
-        }
-        return null;
-    }
-
-    private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, boolean shouldVerify, IOrigin bodyOrigin) {
-        return methodSymbol.extraParams.
+    private List<Formal> getIns(JCTree.JCMethodDecl method, boolean shouldVerify, IOrigin bodyOrigin) {
+        var methodSymbol = method.sym;
+        var parameterSymbols = methodSymbol.extraParams.
                 appendList(methodSymbol.getParameters()).
-                appendList(methodSymbol.capturedLocals).map(jvd -> {
-                    var index = JVerifyIndex.instance(compiler.context);
-                    var parameter = index.getTree(jvd);
-                    IOrigin parameterOrigin;
-                    if (parameter == null) {
-                        parameterOrigin = bodyOrigin;
-                    } else {
-                        parameterOrigin = compiler.toOrigin(parameter);
-                    }
-                    Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(jvd));
-                    var syntacticType = compiler.translateMethodSignatureType(jvd.type, parameterOrigin, shouldVerify);
-                    return new Formal(parameterOrigin, formalName, syntacticType, false, true,
-                            null, null, false, false, false, null);
-                });
+                appendList(methodSymbol.capturedLocals);
+        return IntStream.range(0, method.getParameters().size()).mapToObj(index -> {
+            var parameter = method.getParameters().get(index);
+            var parameterSymbol = parameterSymbols.get(index);
+            IOrigin parameterOrigin = compiler.toOrigin(parameter);
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameterSymbol));
+            var syntacticType = compiler.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);
+            return new Formal(parameterOrigin, formalName, syntacticType, false, true,
+                    null, null, false, false, false, null);
+        }).toList();
     }
 
     private Formal makeReturnFormal(IOrigin origin, Type syntacticType) {
