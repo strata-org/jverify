@@ -499,22 +499,28 @@ class OptionalContract<T> {
     private boolean isSet;
 
     //Throws a NullPointerException if the value is null
+    //TODO: add precondition for null
+    @Pure
     static <T> OptionalContract<T> of(T value) {
         postcondition((OptionalContract<T> o) -> o.value == value && o.isSet);
         throw new ContractException();
     }
 
+    @Pure
     static <T> OptionalContract<T> empty() {
         postcondition((OptionalContract<T> o) -> !o.isSet);
         throw new ContractException();
     }
 
     //Currently the same as of because we are not able to handle null cases
+    //TODO: add null check
     /*
+    @Pure
     static <T> OptionalContract<T> ofNullable(T value) {
-        postcondition((OptionalContract<T> o) -> o.isSet && o.value == value);
+        postcondition((OptionalContract<T> o) ->  o.isSet && o.value == value);
         throw new ContractException();
-    }*/
+    }
+    */
 
     @Pure
     boolean isEmpty() {
