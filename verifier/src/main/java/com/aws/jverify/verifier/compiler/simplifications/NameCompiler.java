@@ -5,6 +5,10 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
+import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeScanner;
+import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Name;
 
 import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
@@ -25,8 +29,8 @@ import java.util.concurrent.Flow;
  * This class maintains bidirectional mappings between original and compiled names,
  * allowing for name resolution in both directions.
  */
-public class NameCompiler {
-    public static final String sep = "?";
+public class NameCompiler extends TreeScanner {
+    public static final char sep = '?';
     static private final String fieldPrefix = "F" + sep;
     static private final String methodPrefix = "Z" + sep;
     public String DEFAULT_CTOR_NAME = "ctor" + sep;
@@ -38,26 +42,28 @@ public class NameCompiler {
     public String UNDERSCORE_START_PREFIX = "a" + sep;
     public String RESERVED_PREFIX = "r" + sep;
 
-    private final Map<com.sun.tools.javac.util.Name, Integer> classNameOccurrenceCounts = new HashMap<>();
+    private final Map<Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
-    private final ExternalContractCompiler contractCompiler;
+    private final Symtab symtab;
     private final SimpleSynchronousPublisher<Symbol> subject = new SimpleSynchronousPublisher();
     
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     
-    public NameCompiler(ExternalContractCompiler contractCompiler) {
-        this.contractCompiler = contractCompiler;
+    public NameCompiler(Context context) {
+        this.symtab = Symtab.instance(context);
         this.symbolStringMap = new HashMap<>();
         this.reverseSymbolStringMap = new HashMap<>();
     }
-    
+
+    @Override
+    public void visitClassDef(JCTree.JCClassDecl tree) {
+        classNameOccurrenceCounts.merge(tree.sym.name, 1, (a, b) -> a + 1);
+        super.visitClassDef(tree);
+    }
+
     public Flow.Publisher<Symbol> foundSymbols() {
         return subject;    
-    }
-    
-    public void registerClass(Symbol.ClassSymbol classSymbol) {
-        classNameOccurrenceCounts.merge(classSymbol.name, 1, (a, b) -> a + 1);
     }
 
     public String safeGetOriginalName(String name) {
@@ -73,10 +79,7 @@ public class NameCompiler {
         }
         var compiledName = uncachedGetCompiledName(s);
         symbolStringMap.put(s, compiledName);
-        var contractee = contractCompiler.contractClassToContractee.get(s);
-        if (contractee == null) {
-            subject.submit(s);
-        }
+        subject.submit(s);
         reverseSymbolStringMap.put(compiledName, s);
         return compiledName;
     }
@@ -111,13 +114,8 @@ public class NameCompiler {
     }
 
     private String getClassName(Symbol.ClassSymbol classSymbol) {
-        var symtab = Symtab.instance(this.contractCompiler.compiler.context);
         if (classSymbol.type == symtab.objectType) {
             return ModifiableObjectCompiler.REFERENCE_OBJECT_NAME;
-        }
-        var newTarget = contractCompiler.contractClassToContractee.get(classSymbol);
-        if (newTarget != null) {
-            return uncachedGetCompiledName(newTarget);
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
         var hasEmptyDotName = classSymbol.isAnonymous();
@@ -147,9 +145,6 @@ public class NameCompiler {
             result.append(getConstructorName(uniqueName));
         }
         else {
-            if (classStats.sameNameFields()) {
-                result.append(methodPrefix);
-            }
             result.append(encodeName(s.name.toString()));
         }
         if (uniqueName) {
@@ -198,10 +193,6 @@ public class NameCompiler {
             case DOUBLE : {return "d";}
             case BOOLEAN: {return "z";}
             case CLASS: {
-                var newType = this.contractCompiler.contractClassTypeToContracteeType.get(type);
-                if (newType != null) {
-                    type = newType;
-                }
                 String classTypeStr = type.tsym.toString();
                 // Changing '.' to '_' so that the new name is a valid Dafny name
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
@@ -224,11 +215,7 @@ public class NameCompiler {
     private ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
         boolean sameNameFields = false;
         int methodsWithThisName = 0;
-        var newClazz = this.contractCompiler.contractClassToContractee.get(clazz);
-        if (newClazz == null) {
-            newClazz = clazz;
-        }
-        for(var member : newClazz.members().getSymbolsByName(name)) {
+        for(var member : clazz.members().getSymbolsByName(name)) {
             if (member instanceof Symbol.VarSymbol) {
                 sameNameFields = true;
             }

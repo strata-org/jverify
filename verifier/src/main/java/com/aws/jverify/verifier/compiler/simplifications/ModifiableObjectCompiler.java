@@ -6,6 +6,7 @@ import com.aws.jverify.generated.NameSegment;
 import com.aws.jverify.generated.Type;
 import com.aws.jverify.generated.UserDefinedType;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.Context;
@@ -29,11 +30,13 @@ import com.sun.tools.javac.util.JCDiagnostic;
 public class ModifiableObjectCompiler {
     public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
     
-    JavaToDafnyCompiler compiler;
+    private final JavaToDafnyCompiler compiler;
+    private final Reporter reporter;
     public final Context context;
 
     public ModifiableObjectCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
+        reporter = Reporter.instance(compiler.context);
         context = compiler.context;
     }
 
@@ -46,7 +49,7 @@ public class ModifiableObjectCompiler {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
             } else {
-                compiler.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Modifiable on a type other than Object");
+                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Modifiable on a type other than Object");
             }
         }
         if (classType.tsym == symtab.objectType.tsym) {
@@ -57,10 +60,6 @@ public class ModifiableObjectCompiler {
 
     public NameSegment getNewClassType(JCTree.JCNewClass newClass) {
         var type = newClass.type;
-        if (type == null) {
-            // Workaround because we're still using the unlambda phase, which does not set newClass.type
-            type = newClass.clazz.type;
-        }
         var baseType = (UserDefinedType)compiler.translateType(type, compiler.toOrigin(newClass));
         var baseNameSegment = (NameSegment)baseType.getNamePath();
         var baseName = baseNameSegment.getName();

@@ -325,6 +325,7 @@ public class ExpressionCompiler {
 
     private Expression translateFieldAccess(JCTree.JCFieldAccess fieldAccess, IOrigin origin) {
         if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
+            // Ignore package qualification
             return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
         }
         var selectedExpr = toExpr(fieldAccess.selected);

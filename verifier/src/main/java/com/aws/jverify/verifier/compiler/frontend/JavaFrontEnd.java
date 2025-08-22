@@ -3,9 +3,11 @@ package com.aws.jverify.verifier.compiler.frontend;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.simplifications.MoveStaticMethodsToStaticType;
+import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.MethodReferenceToLambdaCompiler;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
-import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.comp.*;
 import com.sun.tools.javac.main.Arguments;
@@ -30,11 +32,11 @@ import java.util.stream.Collectors;
 
 public class JavaFrontEnd {
     public final Context context;
-    private final JavaToDafnyCompiler compiler;
+    Reporter reporter;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
-        this.compiler = javaToDafnyCompiler;
         this.context = javaToDafnyCompiler.context;
+        reporter = Reporter.instance(context);
     }
 
     /**
@@ -56,17 +58,13 @@ public class JavaFrontEnd {
                 .collect(Collectors.joining(File.pathSeparator));
         var javacOptions = List.of("-cp", classpath);
 
-        ClientCodeWrapper ccw = ClientCodeWrapper.instance(context);
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        context.put(DiagnosticListener.class, ccw.wrap(diagnostics));
-
         JavaCompiler compiler = JavaCompiler.instance(context);
         Arguments args = Arguments.instance(context);
         args.init("javac", javacOptions, List.of(), files);
 
         /**
          * The javac phases are as follows (copied from CompileStates.CompileState):
-         *
+         * <p>
          * INIT(0),
          * PARSE(1),
          * ENTER(2),
@@ -78,44 +76,45 @@ public class JavaFrontEnd {
          * UNLAMBDA(8),
          * LOWER(9),
          * GENERATE(10);
-         *
+         * <p>
          * The first half mostly adds information to the tree, like resolution,
          * whereas the second half starts to be more destructive,
          * lowering higher-level features to lower-level ones.
          * Some of the latter are helpful, but in some cases the target language (Dafny)
          * supports features that JVM bytecode doesn't, so the phases don't help.
-         *
+         * <p>
          * Currently, we apply 0 through 5,
          * skip 6 and 7 as they remove features Dafny supports directly (generics and patterns),
          * but then apply 8 in order to rewrite lambda expressions and method references,
          * and 9 to rewrite features such as nested classes and autoboxing.
          * 10 actually generates JVM bytecode so we will likely never apply it.
-         *
+         * <p>
          * Because we have specification and proof code that use features like lambdas
          * for different purposes, we also apply our own phases before and after UNLAMBDA and LOWER
          * in order to temporarily remove/rewrite code we don't want rewritten and then restore it.
          * Therefore, our current pipeline looks like this:
-         *
+         * <p>
          * INIT(0),
          * PARSE(1),
          * ENTER(2),
          * PROCESS(3),
          * ATTR(4),
          * FLOW(5),
-         * SUBSTITUTE,
-         * UNLAMBDA(8),
-         * UNSUBSTITUTE
-         * SUSPEND,
-         * LOWER(9),
-         * UNSUSPEND
-         *
+         * JVerify specific: MethodReferenceToLambdaCompiler,
+         * JVerify specific: LambdaToAnonymousClassCompiler,
+         * JVerify specific: SUSPEND,
+         * JVerify customized: LOWER(9),
+         * JVerify specific: UNSUSPEND
+         * JVerify specific: ExternalContractCompiler
+         * JVerify specific: MoveStaticMethodsToStaticType
+         * <p>
          * For practical reasons we also have to stop the normal flow of the JavaCompiler
          * after 3 in order to get a reference to the set of compilation targets
          * (via a TaskListener and a configuration to stop the pipeline early,
          * and the Todo instance in the context).
          */
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
-        final Queue<Env<AttrContext>> envs = new LinkedList<>();
+        Set<JCTree.JCCompilationUnit> units = new HashSet<>();
         MultiTaskListener mtl = MultiTaskListener.instance(context);
         mtl.add(new TaskListener() {
             @Override
@@ -139,22 +138,29 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    envs.addAll(
-                            unsuspend(lower(suspend(
-                                    unlambda(
-                                            compiler.flow(compiler.attribute(todo))
-                    )))));
+                    
+                    var staticMover = new MoveStaticMethodsToStaticType(context);
+                    var contractCompiler = new ExternalContractCompiler(context);
+                    units.addAll(
+                            staticMover.translate(
+                            contractCompiler.apply(
+                                unsuspend(lower(suspend(
+                                        unlambda(
+                                                compiler.flow(compiler.attribute(todo))
+                    )))))));
                 }
             }
         });
-        // Applies the first half of our pipeline.
+        // Applies the Java to Java part of our pipeline
         compiler.compile(files, List.of(), null, List.of());
 
+        var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
+        
         var hasErrors = false;
-        for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+        for (Diagnostic<? extends JavaFileObject> diagnostic : javaFrontendDiagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 JCDiagnostic.DiagnosticPosition position = new DiagnosticPositionFromDiagnostic(diagnostic);
-                this.compiler.diagnostics.report(this.compiler.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
+                reporter.diagnostics.report(reporter.diagnosticFactory.create(JCDiagnostic.DiagnosticType.ERROR,
                         new DiagnosticSource(diagnostic.getSource(), null), position, "javaError",
                         diagnostic.getMessage(Locale.ENGLISH)));
 
@@ -162,7 +168,7 @@ public class JavaFrontEnd {
             }
         }
 
-        return hasErrors ? null : envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
+        return hasErrors ? null : units;
     }
 
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {;
@@ -172,6 +178,7 @@ public class JavaFrontEnd {
         // to not waste time with these traversals.
         // We could do the same here to save time in the future.
         for (Env<AttrContext> env : envs) {
+            env.tree = new MethodReferenceToLambdaCompiler(context).translate(env.tree);
             env.tree = new LambdaToAnonymousClassCompiler(env.toplevel, context).translate(env.tree);
         }
         return envs;
@@ -190,15 +197,15 @@ public class JavaFrontEnd {
     }
 
     // Phase to undo the effects of suspend().
-    private Queue<Env<AttrContext>> unsuspend(Queue<Env<AttrContext>> envs) {
+    private Set<JCTree.JCCompilationUnit> unsuspend(Set<JCTree.JCCompilationUnit> units) {
         var hider = Suspenders.instance(context);
-        envs.stream().map(env -> env.toplevel).distinct().forEach(topLevel -> {
+        units.forEach(topLevel -> {
             topLevel.defs = topLevel.defs.map(hider::unsuspend);
         });
-        return envs;
+        return units;
     }
 
-    private Queue<Env<AttrContext>> lower(Queue<Env<AttrContext>> envs) {
+    private Set<JCTree.JCCompilationUnit> lower(Queue<Env<AttrContext>> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
         var lower = Lower.instance(context);
         var log = Log.instance(context);
@@ -219,6 +226,6 @@ public class JavaFrontEnd {
         for(var entry : newDecls.entrySet()) {
             entry.getKey().defs = entry.getValue();
         }
-        return envs;
+        return new HashSet<>(newDecls.keySet());
     }
 }

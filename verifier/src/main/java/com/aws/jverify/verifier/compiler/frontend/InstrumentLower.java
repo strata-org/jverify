@@ -41,6 +41,8 @@ public class InstrumentLower {
                             .method(named("access").
                                     and(takesArgument(0, is(Symbol.class))))
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))
+                            .method(named("makeOuterThisVarSymbol"))
+                                    .intercept(MethodDelegation.to(LowerInterceptor.class))
                             .method(named("freevarDefs").
                                     and(takesArguments(int.class, List.class, Symbol.class, long.class)))
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))

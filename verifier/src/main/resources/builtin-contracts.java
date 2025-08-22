@@ -27,7 +27,7 @@ class ComparableContract<T> {
 
 @Contract(value = Number.class, immutable = true)
 class NumberContract {
-    
+
 }
 
 @Contract(Collection.class)
@@ -376,7 +376,7 @@ class HelperForBigIntegerContract {
 
     @Erased
     @Pure
-     static boolean isValidString(String v) {
+    static boolean isValidString(String v) {
         return (v.length() == 0 ||
                 ((v.charAt(0) == '+' || v.charAt(0) == '-') && isAllDigits(v.substring(1))) ||
                 isAllDigits(v));
@@ -388,9 +388,9 @@ class HelperForBigIntegerContract {
         return
                 v.length() == 0 ? 0 :
                         (v.charAt(0) == '+' ?
-                        stringToInt(v.substring(1)) :
-                        (v.charAt(0) == '-' ? -stringToInt(v.substring(1)) :
-                                (v.charAt(v.length()-1)-'0') + 10*stringToInt(v.substring(0,v.length()-1))
+                                stringToInt(v.substring(1)) :
+                                (v.charAt(0) == '-' ? -stringToInt(v.substring(1)) :
+                                        (v.charAt(v.length()-1)-'0') + 10*stringToInt(v.substring(0,v.length()-1))
                                 ));
     }
 

@@ -37,7 +37,6 @@ public class ImmutableTypeCompiler {
         Symbol.ClassSymbol currentTypeSymbol = typeDeclarationCompiler.getCurrentTypeSymbol(classDecl.sym);
         var traits = currentTypeSymbol
                 .getInterfaces().stream()
-                .filter(compiler::typeHasAContract)
                 .map(baseType -> compiler.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
@@ -47,7 +46,7 @@ public class ImmutableTypeCompiler {
             if (superClass.tsym == symtab.objectType.tsym || superClass.getKind() == TypeKind.NONE) {
                 traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
             } else {
-                if (compiler.typeHasAContract(superClass)) {
+                if (JavaToDafnyCompiler.typeHasSource(compiler.index, superClass.tsym)) {
                     traits.addFirst(compiler.translateType(superClass, origin, null));
                 }
             }
@@ -102,7 +101,7 @@ public class ImmutableTypeCompiler {
 
         if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
-            return null;
+            traits.clear();
         }
         compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
 
@@ -111,8 +110,7 @@ public class ImmutableTypeCompiler {
         }
 
         members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
-
-        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
+        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }
 
