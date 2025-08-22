@@ -3,11 +3,24 @@ package com.aws.jverify.verifier.tests.javasupport;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import com.aws.jverify.*;
+
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 3)
 class Arrays {
+    
+    interface SupplyArray {
+        int[] supply(int x);
+    }
+
+    SupplyArray arrayConstructorReference() {
+        return int[]::new;
+//             ^ Error: array size might be negative
+    }
 
     static void intArrayOfSize10() {
         int[] a = new int[10];
@@ -19,6 +32,7 @@ class Arrays {
         }
         check(a[0]==0);
     }
+    
     static void nullablePointArrayOfSize10() {
         @Nullable Point [] a = new @Nullable Point[10];
         a[0]=new Point(1,2);
@@ -73,22 +87,22 @@ class Arrays {
         check(i==n);
 //      ^^^^^^^^^^^ Error: assertion might not hold
     }
-}
 
-class Point {
-    private int a;
-    private int b;
+    static class Point {
+        private int a;
+        private int b;
 
-    public Point(int a_, int b_) {
-        postcondition(this.a == a_);
-        postcondition(this.b == b_);
-        this.a = a_;
-        this.b = b_;
-    }
+        public Point(int a_, int b_) {
+            postcondition(this.a == a_);
+            postcondition(this.b == b_);
+            this.a = a_;
+            this.b = b_;
+        }
 
-    @Pure
-    public int getA() {
-        reads(this);
-        return a;
+        @Pure
+        public int getA() {
+            reads(this);
+            return a;
+        }
     }
 }

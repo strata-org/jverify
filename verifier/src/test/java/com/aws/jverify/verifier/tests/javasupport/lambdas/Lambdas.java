@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.lambdas;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -10,12 +11,22 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 72, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 84, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
     // TODO: bring back once we support static fields
 //    private static int STATIC_FIELD = 100;
     private int instanceField = 50;
+    
+    static void lambdasInStaticMethod() {
+        doSomethingTwiceStatic((x, y) -> x);
+
+//        doSomethingTwice((x, y) -> STATIC_FIELD);
+        
+        doSomethingTwiceStatic((x, y) -> Lambdas.staticAdd(x, y));
+
+        doSomethingTwiceStatic((x, y) -> staticAdd(x,y));
+    }
     
     void classCaptures() {
         doSomethingTwice((x, y) -> x);
@@ -60,7 +71,14 @@ public class Lambdas {
         check(doer != doer2);
     }
 
+    Lambdas methodReferencesPostCondition() {
+        postcondition(Lambdas::instancePredicate);
+        return this;
+    }
+    
     void methodReferences() {
+        postcondition(instancePredicate());
+
         doSomethingTwice(this::add);
         doSomethingTwice(Lambdas::staticAdd);
         doSomethingTwiceWithLambdas(Lambdas::add);
@@ -95,7 +113,13 @@ public class Lambdas {
         // These also need fixes.
 //        check(result == 1 + 2 + 1 + 1 + 2);
     }
-    
+
+    @Verify(false)
+    static void doSomethingTwiceStatic(SomethingDoer doer) {
+        var y = doer.doSomething(1, 2);
+        var z = doer.doSomething(2, y);
+    }
+        
     @Verify(false)
     void doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
@@ -113,6 +137,11 @@ public class Lambdas {
         var z = doer.doSomething(2, y);
     }
 
+    @Pure
+    public boolean instancePredicate() {
+        return true;
+    }
+    
     @Verify(false)
     public int add(int x, int y) {
         return x + y;
@@ -127,6 +156,7 @@ public class Lambdas {
     void makeSomeClass(SomeClassMaker maker) {
         var sc = maker.makeSomething();
     }
+    
     @Verify(false)
     void makeSomeInnerClass(SomeInnerClassMaker maker) {
         var sc = maker.makeSomething();

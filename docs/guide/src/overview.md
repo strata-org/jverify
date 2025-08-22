@@ -17,7 +17,7 @@ No, JVerify is not yet ready for production use.
 However, you can use the [installation](./installation.md) and [Running JVerify](./first_verification.md) sections in this guide to explore what it can currently do. Note that you will run into poor error messages, unsupported features and bugs - that are not yours ;-).
 
 #### Does JVerify support the entire Java language?
-Yes, it will support all Java language features. Note that we differentiate between Java the language, as documented in [its specification](https://docs.oracle.com/javase/specs/), and the Java standard library. More on JVerify's support for the latter is further down this FAQ.
+Not yet, but it will support all Java language features. Note that we differentiate between Java the language, as documented in [its specification](https://docs.oracle.com/javase/specs/), and the Java standard library. More on JVerify's support for the latter is further down this FAQ.
 
 Despite JVerify supporting all Java language features, there may be edge-cases where despite sufficient verification hints by the programmer, JVerify can not prove the correctness of a correct program. In these cases, you can either skip verification, or otherwise you will have to modify the program, even though it's already correct. One class of these edge-cases is where verification depends on information from the type system, and needs a downcast where the type system does not require one.
 

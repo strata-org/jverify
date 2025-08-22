@@ -37,7 +37,6 @@ public class ImmutableTypeCompiler {
         Symbol.ClassSymbol currentTypeSymbol = typeDeclarationCompiler.getCurrentTypeSymbol(classDecl.sym);
         var traits = currentTypeSymbol
                 .getInterfaces().stream()
-                .filter(type -> JavaToDafnyCompiler.typeHasSource(compiler.index, type.tsym))
                 .map(baseType -> compiler.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
@@ -111,8 +110,7 @@ public class ImmutableTypeCompiler {
         }
 
         members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
-
-        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
+        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }
 

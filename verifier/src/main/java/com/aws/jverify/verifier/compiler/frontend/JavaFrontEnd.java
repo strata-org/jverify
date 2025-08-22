@@ -3,10 +3,10 @@ package com.aws.jverify.verifier.compiler.frontend;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.simplifications.MethodReferenceToLambdaCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
-import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.comp.*;
 import com.sun.tools.javac.main.Arguments;
@@ -101,9 +101,8 @@ public class JavaFrontEnd {
          * PROCESS(3),
          * ATTR(4),
          * FLOW(5),
-         * SUBSTITUTE,
-         * UNLAMBDA(8),
-         * UNSUBSTITUTE
+         * Method references to lambdas,
+         * Lambda to local classes,
          * SUSPEND,
          * LOWER(9),
          * UNSUSPEND
@@ -176,6 +175,7 @@ public class JavaFrontEnd {
         // to not waste time with these traversals.
         // We could do the same here to save time in the future.
         for (Env<AttrContext> env : envs) {
+            env.tree = new MethodReferenceToLambdaCompiler(context).translate(env.tree);
             env.tree = new LambdaToAnonymousClassCompiler(env.toplevel, context).translate(env.tree);
         }
         return envs;

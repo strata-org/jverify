@@ -145,9 +145,6 @@ public class NameCompiler extends TreeScanner {
             result.append(getConstructorName(uniqueName));
         }
         else {
-            if (classStats.sameNameFields()) {
-                result.append(methodPrefix);
-            }
             result.append(encodeName(s.name.toString()));
         }
         if (uniqueName) {

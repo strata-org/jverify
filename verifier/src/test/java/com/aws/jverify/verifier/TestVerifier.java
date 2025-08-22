@@ -59,6 +59,7 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("./src/main/resources/builtin-contracts.java").toString(),
                 "--dafny=" + dafnyPath,
+                "--print-dafny=../build/temp.dfy",
                 "--builtin-contracts=false");
         Assertions.assertEquals(0, exitCode, out.toString());
     }

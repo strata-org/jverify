@@ -2,16 +2,16 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.*;
-import com.sun.tools.javac.comp.LambdaToMethod;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
-import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.List;
+import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Name;
+import com.sun.tools.javac.util.Names;
 
 import java.util.*;
 
-import static com.sun.tools.javac.code.Flags.FINAL;
-import static com.sun.tools.javac.code.Flags.SYNTHETIC;
+import static com.sun.tools.javac.code.Flags.*;
 
 public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
@@ -62,13 +62,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         currentContainer = previous;
     }
 
-    @Override
-    public void visitReference(JCMemberReference tree) {
-        var lambda = new MethodReferenceToLambdaCompiler(context).referenceToLambda(tree);
-        visitLambda(lambda);
-    }
-
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
+        make.pos = lambda.pos;
+        
         var classSymbol = getClassSymbol(lambda);
         var implMethod = createImplementationMethod(classSymbol, lambda);
         var constructor = createConstructor(classSymbol);
@@ -97,12 +93,19 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         var line = compilationUnit.getLineMap().getLineNumber(lambda.pos);
         var column = compilationUnit.getLineMap().getColumnNumber(lambda.pos);
         Name name = names.lambda.append(names.fromString(line + "_" + column));
-        
-        var classSymbol = new Symbol.ClassSymbol(SYNTHETIC | FINAL, name, currentContainer);
+
+        int flags = SYNTHETIC | FINAL;
+        boolean hasNoEnclosingType = (currentContainer.flags() & STATIC) != 0;
+        if (hasNoEnclosingType) {
+            flags |= STATIC;
+
+        }
+        var classSymbol = new Symbol.ClassSymbol(flags, name, currentContainer);
 
         // Flatname should be globally unique. Qualified class name plus line and column achieves that.
         classSymbol.flatname = currentContainer.owner.flatName().append(name);
-        Type.ClassType classType = new Type.ClassType(currentContainer.enclClass().type, List.nil(), classSymbol);
+        Type enclosingType = hasNoEnclosingType ? Type.noType : currentContainer.enclClass().type;
+        Type.ClassType classType = new Type.ClassType(enclosingType, List.nil(), classSymbol);
         classType.interfaces_field = List.of(lambda.type);
         classSymbol.type = classType;
         classSymbol.members_field = Scope.WriteableScope.create(classSymbol);

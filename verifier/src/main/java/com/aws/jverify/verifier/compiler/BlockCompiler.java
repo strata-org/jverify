@@ -350,6 +350,10 @@ public class BlockCompiler {
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
                 Symtab symtab = Symtab.instance(compiler.context);
+                if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType) {
+                    return translateNewArrayLike(origin, arrayType.elemtype, com.sun.tools.javac.util.List.nil(),
+                            com.sun.tools.javac.util.List.from(newClass.args));
+                }
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
                 if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
                     var datatypeValue = ImmutableTypeCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
@@ -368,23 +372,34 @@ public class BlockCompiler {
                 return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));
             }
             case JCTree.JCNewArray newArray -> {
-                var arrayDimensions = newArray.getDimensions().stream().map(compiler.expressionCompiler::toExpr).toList();
-                var arrayInitializers = newArray.getInitializers();
-                var arrayJavaType = ((com.sun.tools.javac.code.Type.ArrayType) newArray.type).elemtype;
-                if (arrayJavaType instanceof com.sun.tools.javac.code.Type.ArrayType) {
-                    compiler.reportError(expr, "notSupported", "multi-dimensional arrays");
-                }
-                var arrayDafnyType = compiler.translateType(arrayJavaType, compiler.toOrigin(newArray), null);
-
-                if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
-                    compiler.reportError(expr, "notSupported", "new array with initializers");
-                }
-                return new AllocateArray(origin, null, arrayDafnyType, arrayDimensions, null);
+                return translateNewArray(expr, newArray, origin);
             }
             default -> {
             }
         }
         var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
+    }
+
+    private AllocateArray translateNewArray(JCTree.JCExpression expr, JCTree.JCNewArray newArray, IOrigin origin) {
+        var arrayDimensions = newArray.getDimensions();
+        var arrayInitializers = newArray.getInitializers();
+        var arrayJavaType = ((com.sun.tools.javac.code.Type.ArrayType) newArray.type).elemtype;
+        return translateNewArrayLike(origin, arrayJavaType, arrayInitializers, arrayDimensions);
+    }
+
+    private AllocateArray translateNewArrayLike(IOrigin origin,
+                                                com.sun.tools.javac.code.Type elementType,
+                                                com.sun.tools.javac.util.List<JCTree.JCExpression> arrayInitializers,
+                                                List<JCTree.JCExpression> arrayDimensions) {
+        if (elementType instanceof com.sun.tools.javac.code.Type.ArrayType) {
+            compiler.reportError(origin, "notSupported", "multi-dimensional arrays");
+        }
+        var arrayDafnyType = compiler.translateType(elementType, origin, null);
+
+        if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
+            compiler.reportError(origin, "notSupported", "new array with initializers");
+        }
+        return new AllocateArray(origin, null, arrayDafnyType, arrayDimensions.stream().map(compiler.expressionCompiler::toExpr).toList(), null);
     }
 }
