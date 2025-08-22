@@ -37,7 +37,7 @@ public class MoveStaticMethodsToStaticType {
     private final Enter enter;
     private final Map<Symbol.ClassSymbol, Symbol.ClassSymbol> classMap = new HashMap<>();
     private final Set<Symbol.ClassSymbol> staticClasses = new HashSet<>();
-    private Reporter reporter;
+    private final Reporter reporter;
 
     public MoveStaticMethodsToStaticType(Context context) {
         this.names = Names.instance(context);
