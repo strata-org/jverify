@@ -15,7 +15,7 @@ public class MissingContractsCompiler {
     JavaToDafnyCompiler compiler;
     TypeDeclarationCompiler  typeDeclarationCompiler;
     
-    record MissingContract(Symbol symbol, JCDiagnostic.DiagnosticPosition position) {}
+    record MissingContract(Symbol symbol, JCDiagnostic.DiagnosticPosition position, IOrigin origin) {}
     
     private final Queue<MissingContract> missingContracts = new LinkedList<>();
     private final Reporter reporter;
@@ -38,7 +38,8 @@ public class MissingContractsCompiler {
                     return;
                 }
                 if (symbol instanceof Symbol.ClassSymbol || symbol instanceof Symbol.MethodSymbol) {
-                    missingContracts.add(new MissingContract(symbol, reporter.positionFromOrigin(foundSymbol.origin())));
+                    missingContracts.add(new MissingContract(symbol, 
+                            reporter.positionFromOrigin(foundSymbol.origin()), foundSymbol.origin()));
                 }
             }
 
@@ -56,7 +57,6 @@ public class MissingContractsCompiler {
 
     public void addMissingTypeContracts(List<FileHeader> filesStarts) {
         var dummyToken = new Token(1, 1);
-        IOrigin dummyOrigin = new TokenRangeOrigin(dummyToken, dummyToken);
 
         Map<String, TopLevelDeclWithMembers> topLevelDecls = new HashMap<>();
         for(var fileHeader : filesStarts) {
@@ -69,53 +69,53 @@ public class MissingContractsCompiler {
             // Because inheritance can mean that adding missing contracts introduces new missing contracts
             // We need to loop
 
-            var entry = missingContracts.poll();
-            var symbol = entry.symbol();
+            var missingContract = missingContracts.poll();
+            var symbol = missingContract.symbol();
             if (!typeDeclarationCompiler.createdContracts.add(symbol)) {
                 continue;
             }
 
-            String compiledName = compiler.nameCompiler.getCompiledName(symbol, dummyOrigin);
+            String compiledName = compiler.nameCompiler.getCompiledName(symbol, missingContract.origin());
             if (compiledName.isEmpty()) {
                 // Defensive programming. Some types like intersection types have no name, although they should not occur here
                 continue;
             }
             
-            if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-                addMissingType(filesStarts, classSymbol, dummyOrigin, symbol, compiledName, topLevelDecls);
+            if (symbol instanceof Symbol.ClassSymbol) {
+                addMissingType(filesStarts, missingContract, compiledName, topLevelDecls);
             } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
-                addMissingMethod(methodSymbol, dummyOrigin, topLevelDecls, entry);
+                addMissingMethod(methodSymbol, topLevelDecls, missingContract);
             }
         }
     }
 
-    private void addMissingMethod(Symbol.MethodSymbol methodSymbol, IOrigin dummyOrigin, 
+    private void addMissingMethod(Symbol.MethodSymbol methodSymbol,
                                   Map<String, TopLevelDeclWithMembers> topLevelDecls, 
                                   MissingContract missingContract) {
         var clazz = (Symbol.ClassSymbol) methodSymbol.getEnclosingElement();
-        String clazzName = compiler.nameCompiler.getCompiledName(clazz, dummyOrigin);
+        String clazzName = compiler.nameCompiler.getCompiledName(clazz, missingContract.origin());
         var clazzDecl = topLevelDecls.get(clazzName);
         if (clazzDecl == null) {
             // wait for missing class to be added
             missingContracts.add(missingContract);
             return;
         }
-        var name = compiler.nameCompiler.getCompiledName(methodSymbol, dummyOrigin);
-        var typeParameters = typeDeclarationCompiler.translateTypeParameters(dummyOrigin, methodSymbol.getTypeParameters());
+        var name = compiler.nameCompiler.getCompiledName(methodSymbol, missingContract.origin());
+        var typeParameters = typeDeclarationCompiler.translateTypeParameters(missingContract.origin(), methodSymbol.getTypeParameters());
         com.sun.tools.javac.code.Type returnType = methodSymbol.getReturnType();
         MethodOrFunction callable;
         if (returnType.isPrimitiveOrVoid() && !returnType.isPrimitive()) {
-            callable = new Method(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
-                    typeParameters, getIns(methodSymbol, dummyOrigin),
+            callable = new Method(missingContract.origin(), new Name(missingContract.origin(), name), null, false, null,
+                    typeParameters, getIns(methodSymbol, missingContract.origin()),
                     List.of(),
                     List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
                     new Specification<>(List.of(), null),
                     methodSymbol.isStatic(), List.of(), null,false);
         } else {
-            callable = new Function(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
-                    typeParameters, getIns(methodSymbol, dummyOrigin),
+            callable = new Function(missingContract.origin(), new Name(missingContract.origin(), name), null, false, null,
+                    typeParameters, getIns(methodSymbol, missingContract.origin()),
                     List.of(), List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
-                    methodSymbol.isStatic(), false, null, compiler.translateType(returnType, dummyOrigin),
+                    methodSymbol.isStatic(), false, null, compiler.translateType(returnType, missingContract.origin()),
                     null, null, null);
         }
         reporter.reportDiagnostic(missingContract.position(), JCDiagnostic.DiagnosticType.WARNING, "missingContract",
@@ -123,11 +123,13 @@ public class MissingContractsCompiler {
         clazzDecl.getMembers().add(callable);
     }
 
-    private void addMissingType(List<FileHeader> filesStarts, Symbol.ClassSymbol classSymbol, IOrigin dummyOrigin, Symbol symbol, String compiledName, Map<String, TopLevelDeclWithMembers> topLevelDecls) {
-        List<TypeParameter> typeParameters = typeDeclarationCompiler.translateTypeParameters(dummyOrigin, symbol.getTypeParameters());
+    private void addMissingType(List<FileHeader> filesStarts, 
+                                MissingContract missingContract, String compiledName, Map<String, TopLevelDeclWithMembers> topLevelDecls) {
+        var classSymbol = (Symbol.ClassSymbol) missingContract.symbol;
+        List<TypeParameter> typeParameters = typeDeclarationCompiler.translateTypeParameters(missingContract.origin(), classSymbol.getTypeParameters());
         TraitDecl trait = typeDeclarationCompiler.getTraitDecl(
-                dummyOrigin,
-                new Name(dummyOrigin, compiledName),
+                missingContract.origin(),
+                new Name(missingContract.origin(), compiledName),
                 classSymbol,
                 typeParameters, new ArrayList<>());
 
