@@ -82,47 +82,57 @@ public class MissingContractsCompiler {
             }
             
             if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-                List<TypeParameter> typeParameters = typeDeclarationCompiler.translateTypeParameters(dummyOrigin, symbol.getTypeParameters());
-                TraitDecl trait = typeDeclarationCompiler.getTraitDecl(
-                        dummyOrigin,
-                        new Name(dummyOrigin, compiledName),
-                        classSymbol,
-                        typeParameters, new ArrayList<>());
-
-                topLevelDecls.put(compiledName, trait);
-                filesStarts.getFirst().getTopLevelDecls().add(trait);
+                addMissingType(filesStarts, classSymbol, dummyOrigin, symbol, compiledName, topLevelDecls);
             } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
-                var clazz = (Symbol.ClassSymbol)methodSymbol.getEnclosingElement();
-                String clazzName = compiler.nameCompiler.getCompiledName(clazz, dummyOrigin);
-                var clazzDecl = topLevelDecls.get(clazzName);
-                if (clazzDecl == null) {
-                    // wait for missing class to be added
-                    missingContracts.add(entry);
-                    continue;
-                }
-                var name = compiler.nameCompiler.getCompiledName(methodSymbol, dummyOrigin);
-                var typeParameters = typeDeclarationCompiler.translateTypeParameters(dummyOrigin, methodSymbol.getTypeParameters());
-                com.sun.tools.javac.code.Type returnType = methodSymbol.getReturnType();
-                MethodOrFunction callable;
-                if (returnType.isPrimitiveOrVoid() && !returnType.isPrimitive()) {
-                    callable = new Method(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
-                            typeParameters, getIns(methodSymbol, dummyOrigin),
-                            List.of(),
-                            List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
-                            new Specification<>(List.of(), null),
-                            methodSymbol.isStatic(), List.of(), null,false);
-                } else {
-                    callable = new Function(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
-                            typeParameters, getIns(methodSymbol, dummyOrigin),
-                            List.of(), List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
-                            methodSymbol.isStatic(), false, null, compiler.translateType(returnType, dummyOrigin),
-                            null, null, null);
-                }
-                reporter.reportDiagnostic(entry.position(), JCDiagnostic.DiagnosticType.WARNING, "missingContract",
-                        methodSymbol.getQualifiedName(), reporter.getOriginal(clazz).getQualifiedName());
-                clazzDecl.getMembers().add(callable);
+                addMissingMethod(methodSymbol, dummyOrigin, topLevelDecls, entry);
             }
         }
+    }
+
+    private void addMissingMethod(Symbol.MethodSymbol methodSymbol, IOrigin dummyOrigin, 
+                                  Map<String, TopLevelDeclWithMembers> topLevelDecls, 
+                                  MissingContract missingContract) {
+        var clazz = (Symbol.ClassSymbol) methodSymbol.getEnclosingElement();
+        String clazzName = compiler.nameCompiler.getCompiledName(clazz, dummyOrigin);
+        var clazzDecl = topLevelDecls.get(clazzName);
+        if (clazzDecl == null) {
+            // wait for missing class to be added
+            missingContracts.add(missingContract);
+            return;
+        }
+        var name = compiler.nameCompiler.getCompiledName(methodSymbol, dummyOrigin);
+        var typeParameters = typeDeclarationCompiler.translateTypeParameters(dummyOrigin, methodSymbol.getTypeParameters());
+        com.sun.tools.javac.code.Type returnType = methodSymbol.getReturnType();
+        MethodOrFunction callable;
+        if (returnType.isPrimitiveOrVoid() && !returnType.isPrimitive()) {
+            callable = new Method(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
+                    typeParameters, getIns(methodSymbol, dummyOrigin),
+                    List.of(),
+                    List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
+                    new Specification<>(List.of(), null),
+                    methodSymbol.isStatic(), List.of(), null,false);
+        } else {
+            callable = new Function(dummyOrigin, new Name(dummyOrigin, name), null, false, null,
+                    typeParameters, getIns(methodSymbol, dummyOrigin),
+                    List.of(), List.of(), new Specification<>(List.of(), null), new Specification<>(List.of(), null),
+                    methodSymbol.isStatic(), false, null, compiler.translateType(returnType, dummyOrigin),
+                    null, null, null);
+        }
+        reporter.reportDiagnostic(missingContract.position(), JCDiagnostic.DiagnosticType.WARNING, "missingContract",
+                methodSymbol.getQualifiedName(), reporter.getOriginal(clazz).getQualifiedName());
+        clazzDecl.getMembers().add(callable);
+    }
+
+    private void addMissingType(List<FileHeader> filesStarts, Symbol.ClassSymbol classSymbol, IOrigin dummyOrigin, Symbol symbol, String compiledName, Map<String, TopLevelDeclWithMembers> topLevelDecls) {
+        List<TypeParameter> typeParameters = typeDeclarationCompiler.translateTypeParameters(dummyOrigin, symbol.getTypeParameters());
+        TraitDecl trait = typeDeclarationCompiler.getTraitDecl(
+                dummyOrigin,
+                new Name(dummyOrigin, compiledName),
+                classSymbol,
+                typeParameters, new ArrayList<>());
+
+        topLevelDecls.put(compiledName, trait);
+        filesStarts.getFirst().getTopLevelDecls().add(trait);
     }
 
     private List<Formal> getIns(Symbol.MethodSymbol methodSymbol, IOrigin bodyOrigin) {
