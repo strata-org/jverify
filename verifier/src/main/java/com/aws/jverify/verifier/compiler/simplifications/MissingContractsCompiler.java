@@ -66,8 +66,8 @@ public class MissingContractsCompiler {
         }
 
         while(!missingContracts.isEmpty()) {
-            // Because inheritance can mean that adding missing contracts introduces new missing contracts
-            // We need to loop
+            // We need to loop,
+            // because inheritance can mean that adding missing contracts introduces new missing contracts
 
             var missingContract = missingContracts.poll();
             var symbol = missingContract.symbol();
