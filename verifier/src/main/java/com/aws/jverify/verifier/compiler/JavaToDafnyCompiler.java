@@ -415,6 +415,7 @@ public class JavaToDafnyCompiler {
     public void reportError(IOrigin origin, String key, Object... args) {
         reporter.reportError(origin, key, args);
     }
+    
     private UserDefinedType translateArrayType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ArrayType arrayTypeTree, String nullableSuffix) {
         // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
         var elemType = translateType(arrayTypeTree.elemtype, origin, additionalModifiers);

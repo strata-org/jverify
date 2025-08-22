@@ -64,7 +64,7 @@ public class JavaFrontEnd {
 
         /**
          * The javac phases are as follows (copied from CompileStates.CompileState):
-         *
+         * <p>
          * INIT(0),
          * PARSE(1),
          * ENTER(2),
@@ -76,36 +76,38 @@ public class JavaFrontEnd {
          * UNLAMBDA(8),
          * LOWER(9),
          * GENERATE(10);
-         *
+         * <p>
          * The first half mostly adds information to the tree, like resolution,
          * whereas the second half starts to be more destructive,
          * lowering higher-level features to lower-level ones.
          * Some of the latter are helpful, but in some cases the target language (Dafny)
          * supports features that JVM bytecode doesn't, so the phases don't help.
-         *
+         * <p>
          * Currently, we apply 0 through 5,
          * skip 6 and 7 as they remove features Dafny supports directly (generics and patterns),
          * but then apply 8 in order to rewrite lambda expressions and method references,
          * and 9 to rewrite features such as nested classes and autoboxing.
          * 10 actually generates JVM bytecode so we will likely never apply it.
-         *
+         * <p>
          * Because we have specification and proof code that use features like lambdas
          * for different purposes, we also apply our own phases before and after UNLAMBDA and LOWER
          * in order to temporarily remove/rewrite code we don't want rewritten and then restore it.
          * Therefore, our current pipeline looks like this:
-         *
+         * <p>
          * INIT(0),
          * PARSE(1),
          * ENTER(2),
          * PROCESS(3),
          * ATTR(4),
          * FLOW(5),
-         * Method references to lambdas,
-         * Lambda to local classes,
-         * SUSPEND,
-         * LOWER(9),
-         * UNSUSPEND
-         *
+         * JVerify specific: MethodReferenceToLambdaCompiler,
+         * JVerify specific: LambdaToAnonymousClassCompiler,
+         * JVerify specific: SUSPEND,
+         * JVerify customized: LOWER(9),
+         * JVerify specific: UNSUSPEND
+         * JVerify specific: ExternalContractCompiler
+         * JVerify specific: MoveStaticMethodsToStaticType
+         * <p>
          * For practical reasons we also have to stop the normal flow of the JavaCompiler
          * after 3 in order to get a reference to the set of compilation targets
          * (via a TaskListener and a configuration to stop the pipeline early,
