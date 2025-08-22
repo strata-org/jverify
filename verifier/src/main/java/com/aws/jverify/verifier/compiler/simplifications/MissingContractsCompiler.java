@@ -11,6 +11,9 @@ import com.sun.tools.javac.util.JCDiagnostic;
 import java.util.*;
 import java.util.concurrent.Flow;
 
+/**
+ * Add empty contracts for types and type members that are referenced from sources but that don't have a contract.
+ */
 public class MissingContractsCompiler {
     JavaToDafnyCompiler compiler;
     TypeDeclarationCompiler  typeDeclarationCompiler;

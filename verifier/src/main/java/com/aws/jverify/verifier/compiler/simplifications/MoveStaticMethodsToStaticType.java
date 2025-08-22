@@ -24,7 +24,10 @@ import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_CLAS
 
 /**
  * In Java, static methods ignore the type parameters of any enclosing types
- * We compile this behavior by moving static methods to a separate type that does not have type parameters 
+ * We compile this behavior by moving static methods to a separate type that does not have type parameters
+ * 
+ * Even if a method symbol is not defined in sources, we still move static symbols to a static class
+ * This is so that the later 'MissingContractsCompiler' phase will add contracts for these methods in a static class
  */
 public class MoveStaticMethodsToStaticType {
     
