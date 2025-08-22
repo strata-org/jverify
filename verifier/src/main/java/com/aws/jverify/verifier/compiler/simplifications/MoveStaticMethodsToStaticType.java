@@ -31,23 +31,19 @@ import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_CLAS
  */
 public class MoveStaticMethodsToStaticType {
     
-    Names names;
-    TreeMaker maker;
-    Symtab syms;
-    Elements elements;
-    JVerifyIndex index;
-    Enter enter;
-    Map<Symbol.ClassSymbol, Symbol.ClassSymbol> classMap = new HashMap<>();
-    Set<Symbol.ClassSymbol> staticClasses = new HashSet<>();
+    private final Names names;
+    private final TreeMaker maker;
+    private final JVerifyIndex index;
+    private final Enter enter;
+    private final Map<Symbol.ClassSymbol, Symbol.ClassSymbol> classMap = new HashMap<>();
+    private final Set<Symbol.ClassSymbol> staticClasses = new HashSet<>();
     private Reporter reporter;
 
     public MoveStaticMethodsToStaticType(Context context) {
         this.names = Names.instance(context);
         maker = TreeMaker.instance(context);
-        syms = Symtab.instance(context);
         enter = Enter.instance(context);
         index = JVerifyIndex.instance(context);
-        elements = JavacElements.instance(context);
         reporter = Reporter.instance(context);
     }
 
