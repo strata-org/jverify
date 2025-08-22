@@ -258,21 +258,15 @@ public class JavaToDafnyCompiler {
         }
     }
 
-    private boolean isNestedClass(JCTree.JCClassDecl classDecl) {
-        if (classDecl.sym != null && classDecl.sym.owner != null) {
-            return classDecl.sym.owner.kind == Kinds.Kind.TYP;
-        }
-
-        return false;
-    }
-
     public static boolean typeHasSource(JVerifyIndex index, Symbol.TypeSymbol typeSymbol) {
         return index.getTree(typeSymbol) != null;
     }
 
     private static boolean isEnum(com.sun.tools.javac.code.Type type) {
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
-            return classType.supertype_field != null && ((Symbol.ClassSymbol) classType.supertype_field.tsym).fullname.contentEquals("java.lang.Enum");
+            return classType.supertype_field != null && 
+                    classType.supertype_field.tsym instanceof Symbol.ClassSymbol classSymbol &&
+                    classSymbol.fullname.contentEquals("java.lang.Enum");
         }
         return false;
     }
@@ -409,6 +403,14 @@ public class JavaToDafnyCompiler {
         return null;
     }
 
+    public void reportError(JCTree tree, String key, Object... args) {
+        reporter.reportError(tree, key, args);
+    }
+    
+    public void reportError(IOrigin origin, String key, Object... args) {
+        reporter.reportError(origin, key, args);
+    }
+    
     private UserDefinedType translateArrayType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ArrayType arrayTypeTree, String nullableSuffix) {
         // TODO: Assuming nullable here means it's not possible to have non-nullable array elements?
         var elemType = translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
@@ -538,21 +540,6 @@ public class JavaToDafnyCompiler {
             if (classType.tsym.getTypeParameters().isEmpty()) {
                 typeArguments = null;
             } else {
-                // TODO needs a test. Something like the following
-                // The Map.Entry[]::new introduces a member reference with a 
-                // raw type that's not replaced with Object during type resolution
-                        /*
-                        
-            interface IT {}
-            record Outer(List<IT> years) {
-                public Map<String, IT> asMap(List<String> mapKeys) {
-                    var size = 10;
-                    Stream<Map.Entry<String, IT>> entries = IntStream.range(0, size).mapToObj(i -> Map.entry(mapKeys.get(i), years.get(i)));
-                    return Map.ofEntries(entries.toArray(Map.Entry[]::new));
-                }
-            }
-                        */
-
                 // unresolved raw type
                 var objectType = translateType(Symtab.instance(context).objectType, origin);
                 typeArguments = IntStream.range(0, classType.tsym.getTypeParameters().size()).
@@ -564,14 +551,6 @@ public class JavaToDafnyCompiler {
             nameSegment = new NameSegment(nameSegment.getOrigin(), nameSegment.getName() + nullableSuffix, nameSegment.getOptTypeArguments());
         }
         return new UserDefinedType(origin, nameSegment);
-    }
-    
-    public void reportError(JCTree tree, String key, Object... args) {
-        reporter.reportError(tree, key, args);
-    }
-    
-    public void reportError(IOrigin origin, String key, Object... args) {
-    reporter.reportError(origin, key, args);
     }
 
     /**

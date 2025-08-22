@@ -243,8 +243,9 @@ public class BlockCompiler {
 
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
         var origin = compiler.toOrigin(invocation);
-        if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name == ident.name.table.names._super) {
-            Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) ident.sym;
+        var superIdent = getSuperIdent(invocation);
+        if (superIdent != null) {
+            Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) superIdent.sym;
 
             if (!compiler.symbolsWithAContract.contains(baseConstructor)) {
                 return List.of();
@@ -269,6 +270,10 @@ public class BlockCompiler {
                 new ActualBindings(argBindings), null);
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+    }
+
+    public static JCTree.JCIdent getSuperIdent(JCTree.JCMethodInvocation invocation) {
+        return invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name == ident.name.table.names._super ? ident : null;
     }
 
     public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt) {

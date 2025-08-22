@@ -3,8 +3,9 @@ package com.aws.jverify.verifier.compiler.frontend;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.aws.jverify.verifier.compiler.*;
-import com.aws.jverify.verifier.compiler.simplifications.MethodReferenceToLambdaCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.MoveStaticMethodsToStaticType;
 import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.MethodReferenceToLambdaCompiler;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.MultiTaskListener;
@@ -31,11 +32,9 @@ import java.util.stream.Collectors;
 
 public class JavaFrontEnd {
     public final Context context;
-    private final JavaToDafnyCompiler compiler;
     Reporter reporter;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
-        this.compiler = javaToDafnyCompiler;
         this.context = javaToDafnyCompiler.context;
         reporter = Reporter.instance(context);
     }
@@ -65,7 +64,7 @@ public class JavaFrontEnd {
 
         /**
          * The javac phases are as follows (copied from CompileStates.CompileState):
-         *
+         * <p>
          * INIT(0),
          * PARSE(1),
          * ENTER(2),
@@ -77,43 +76,45 @@ public class JavaFrontEnd {
          * UNLAMBDA(8),
          * LOWER(9),
          * GENERATE(10);
-         *
+         * <p>
          * The first half mostly adds information to the tree, like resolution,
          * whereas the second half starts to be more destructive,
          * lowering higher-level features to lower-level ones.
          * Some of the latter are helpful, but in some cases the target language (Dafny)
          * supports features that JVM bytecode doesn't, so the phases don't help.
-         *
+         * <p>
          * Currently, we apply 0 through 5,
          * skip 6 and 7 as they remove features Dafny supports directly (generics and patterns),
          * but then apply 8 in order to rewrite lambda expressions and method references,
          * and 9 to rewrite features such as nested classes and autoboxing.
          * 10 actually generates JVM bytecode so we will likely never apply it.
-         *
+         * <p>
          * Because we have specification and proof code that use features like lambdas
          * for different purposes, we also apply our own phases before and after UNLAMBDA and LOWER
          * in order to temporarily remove/rewrite code we don't want rewritten and then restore it.
          * Therefore, our current pipeline looks like this:
-         *
+         * <p>
          * INIT(0),
          * PARSE(1),
          * ENTER(2),
          * PROCESS(3),
          * ATTR(4),
          * FLOW(5),
-         * Method references to lambdas,
-         * Lambda to local classes,
-         * SUSPEND,
-         * LOWER(9),
-         * UNSUSPEND
-         *
+         * JVerify specific: MethodReferenceToLambdaCompiler,
+         * JVerify specific: LambdaToAnonymousClassCompiler,
+         * JVerify specific: SUSPEND,
+         * JVerify customized: LOWER(9),
+         * JVerify specific: UNSUSPEND
+         * JVerify specific: ExternalContractCompiler
+         * JVerify specific: MoveStaticMethodsToStaticType
+         * <p>
          * For practical reasons we also have to stop the normal flow of the JavaCompiler
          * after 3 in order to get a reference to the set of compilation targets
          * (via a TaskListener and a configuration to stop the pipeline early,
          * and the Todo instance in the context).
          */
         compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.PROCESS;
-        final Queue<JCTree.JCCompilationUnit> envs = new LinkedList<>();
+        Set<JCTree.JCCompilationUnit> units = new HashSet<>();
         MultiTaskListener mtl = MultiTaskListener.instance(context);
         mtl.add(new TaskListener() {
             @Override
@@ -138,13 +139,15 @@ public class JavaFrontEnd {
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
                     
+                    var staticMover = new MoveStaticMethodsToStaticType(context);
                     var contractCompiler = new ExternalContractCompiler(context);
-                    envs.addAll(
+                    units.addAll(
+                            staticMover.translate(
                             contractCompiler.apply(
-                            unsuspend(lower(suspend(
-                                    unlambda(
-                                            compiler.flow(compiler.attribute(todo))
-                    ))))));
+                                unsuspend(lower(suspend(
+                                        unlambda(
+                                                compiler.flow(compiler.attribute(todo))
+                    )))))));
                 }
             }
         });
@@ -165,7 +168,7 @@ public class JavaFrontEnd {
             }
         }
 
-        return hasErrors ? null : new HashSet<>(envs);
+        return hasErrors ? null : units;
     }
 
     private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {;
@@ -223,6 +226,6 @@ public class JavaFrontEnd {
         for(var entry : newDecls.entrySet()) {
             entry.getKey().defs = entry.getValue();
         }
-        return newDecls.keySet();
+        return new HashSet<>(newDecls.keySet());
     }
 }

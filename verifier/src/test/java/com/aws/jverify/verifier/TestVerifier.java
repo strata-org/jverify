@@ -32,6 +32,21 @@ public class TestVerifier {
     }
 
     @Test
+    public void verifyBinarySearch() {
+        var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
+
+        var command = new CommandLine(new AppCommand());
+        StringWriter out = new StringWriter();
+        command.setOut(new PrintWriter(out));
+        command.setErr(new PrintWriter(out));
+
+        var exitCode = command.execute(
+                Path.of("../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java").toString(),
+                "--dafny=" + dafnyPath);
+        Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
+    }
+
+    @Test
     public void checkPathsOutput() {
         var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
 
@@ -87,7 +102,7 @@ public class TestVerifier {
             exitCode = process.waitFor();
         }
         var output = canonicalizeNewlines(writer.toString());
-        assertThat(output, containsString("Dafny program verifier finished with 6 verified, 0 errors"));
+        assertThat(output, containsString("Dafny program verifier finished with 7 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
     }
 
