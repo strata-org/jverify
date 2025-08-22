@@ -40,6 +40,8 @@ public class TypeDeclarationCompiler {
         reporter = Reporter.instance(compiler.context);
         var names = Names.instance(compiler.context);
         var symtab = Symtab.instance(compiler.context);
+        
+        // Equals is defined in additional.dfy
         createdContracts.add(symtab.objectType.tsym.members().findFirst(names.fromString("equals")));
 
     }

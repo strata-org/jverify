@@ -341,6 +341,7 @@ public class ExpressionCompiler {
                 compiler.reportError(fieldAccess, "notSupported", "String method " + fieldAccess.sym);
                 return JavaToDafnyCompiler.getHole(origin);
             } else {
+                // String methods are translated to Dafny native operations, so they don't need a contract.
                 this.compiler.typeDeclarationCompiler.createdContracts.add(fieldAccess.sym);
             }
         }
