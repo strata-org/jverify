@@ -1,15 +1,17 @@
 package com.aws.jverify.verifier.tests.verification;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 import com.aws.jverify.testing.GenericParent;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 1)
 public class MissingContracts {
     
     void checkFalse() {
@@ -59,9 +61,14 @@ public class MissingContracts {
     
     void indirectReference(GenericParent gp) {}
     
-// TODO generate ghost code everywhere
-//    void missingField() {
-//        var zero = BigDecimal.ZERO;
-//    }
+    void missingField() {
+        var zero = BigDecimal.ZERO;
+//                 ^ warning: missing contract for method 'ZERO' in class 'java.math.BigDecimal'
+    }
     
+    @Contract(value = BigDecimal.class, immutable = true)
+    static class BigDecimalContract {}
+
+    @Contract(value = Number.class, immutable = true)
+    static class NumberContract {}
 }
