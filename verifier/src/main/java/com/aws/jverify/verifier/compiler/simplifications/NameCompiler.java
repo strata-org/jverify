@@ -13,7 +13,6 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Name;
-import net.bytebuddy.dynamic.DynamicType;
 
 import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
@@ -170,7 +169,6 @@ public class NameCompiler extends TreeScanner {
         boolean uniqueName = classStats.methodsWithThisName() <= 1;
         if (s.name.equals(s.name.table.names.init)) {
             result.append(getConstructorName(uniqueName));
-            result.append(sep).append(getShortTypeName(s.enclClass().type));
         }
         else {
             result.append(encodeName(s.name.toString()));

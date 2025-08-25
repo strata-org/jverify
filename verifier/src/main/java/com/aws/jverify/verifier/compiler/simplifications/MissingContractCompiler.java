@@ -189,6 +189,10 @@ public class MissingContractCompiler {
                 return;
             }
             
+            if (symbol.isConstructor() && symbol.owner.flatName().contentEquals(Record.class.getCanonicalName())) {
+                return;
+            }
+            
             if (symbol.owner.isEnum()) {
                 // Do not add enum members, since enums are translated to datatypes
                 return;

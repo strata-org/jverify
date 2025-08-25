@@ -76,17 +76,19 @@ public class AvoidNameCollisionsTest {
         return r;
     }
     
-    class MethodDuplicateNameOneInherited_Base {
+    static class MethodDuplicateNameOneInherited_Base {
         MethodDuplicateNameOneInherited_Base() {
             
         }
         void foo() {}
     }
 
-    class MethodDuplicateNameOneInherited_Extendee extends MethodDuplicateNameOneInherited_Base {
+    static class MethodDuplicateNameOneInherited_Extendee extends MethodDuplicateNameOneInherited_Base {
         MethodDuplicateNameOneInherited_Extendee() {
             
         }
         void foo(int x) {}
     }
+    
+    record BaseRecord() {}
 }
