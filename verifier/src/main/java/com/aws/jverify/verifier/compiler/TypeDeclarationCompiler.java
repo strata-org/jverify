@@ -355,7 +355,6 @@ public class TypeDeclarationCompiler {
                     contract.getDecreases(), contract.getModifies(),
                     body);
         } else {
-            BlockStmt body;
             List<Statement> bodyStatements;
             if (shouldVerify) {
                 bodyStatements = blockCompiler.translateStatements(postHeader);
@@ -365,11 +364,7 @@ public class TypeDeclarationCompiler {
                 // Would be nicer if Dafny had explicit assumed bodies
                 bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
             }
-            if (bodyStatements != null) {
-                body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
-            } else {
-                body = null;
-            }
+            var body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
             return new Method(origin, name, null, false, null, dafnyTypeParameters,
                     ins, contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
