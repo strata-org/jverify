@@ -107,7 +107,7 @@ class TranslationErrors {
 
     int switchThrowBody(int i) {
         return switch (i) {
-            case 0 -> throw new RuntimeException("");
+            case 0 -> throw new RuntimeException();
 //                    ^ error: switch rule throw statement is not supported
             case 1, 2 -> -i;
 //          ^ error: switch labeled statement group is not supported
