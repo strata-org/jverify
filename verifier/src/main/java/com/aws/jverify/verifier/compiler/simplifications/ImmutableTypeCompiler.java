@@ -102,7 +102,6 @@ public class ImmutableTypeCompiler {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
             traits.clear();
         }
-        compiler.typeDeclarationCompiler.createdContracts.add(classDecl.sym);
 
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);

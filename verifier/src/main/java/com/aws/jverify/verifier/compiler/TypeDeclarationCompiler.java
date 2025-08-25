@@ -30,7 +30,6 @@ public class TypeDeclarationCompiler {
     JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
-    public final Set<Symbol> createdContracts = new HashSet<>();
 
     private final TraitWithConstructorCompiler traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
 
@@ -40,9 +39,6 @@ public class TypeDeclarationCompiler {
         reporter = Reporter.instance(compiler.context);
         var names = Names.instance(compiler.context);
         var symtab = Symtab.instance(compiler.context);
-        
-        // Equals is defined in additional.dfy
-        createdContracts.add(symtab.objectType.tsym.members().findFirst(names.fromString("equals")));
 
     }
 
@@ -103,7 +99,6 @@ public class TypeDeclarationCompiler {
 
             }
         }
-        createdContracts.add(classDecl.sym);
         return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
     }
 
@@ -182,7 +177,6 @@ public class TypeDeclarationCompiler {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
 
-        createdContracts.add(definingSymbol);
         return new TraitDecl(origin, new Name(name.getOrigin(), name.getValue()), null,
                 typeParameters, members, superTraits, false);
     }
@@ -287,7 +281,6 @@ public class TypeDeclarationCompiler {
         }
         var remainingStatements = new MethodOrLoopContractCompiler(compiler).
                 extractContract(method.body, contract, allowFooter);
-        createdContracts.add(method.sym);
 
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
