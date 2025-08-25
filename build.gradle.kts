@@ -355,6 +355,7 @@ project(":test-engine") {
     dependencies {
         implementation(project(":common"))
         implementation(project(":verifier"))
+        implementation(project(":library-for-testing"))
 
         implementation("org.junit.jupiter:junit-jupiter")
         // Must be transitive in order to export our engine, which subclasses HierarchicalTestEngine

@@ -288,8 +288,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     private static VerifierOptions getVerifierOptions(JVerifyTest annotation) {
         var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
-        var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
+        var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
         return new VerifierOptions(
