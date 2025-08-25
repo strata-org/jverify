@@ -49,7 +49,6 @@ public class NameCompiler extends TreeScanner {
     private final Map<Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
-    private final SimpleSynchronousPublisher<FoundSymbol> subject = new SimpleSynchronousPublisher<>();
     private final Symtab symtab;
     private final Types types;
     final Reporter reporter;
@@ -76,16 +75,8 @@ public class NameCompiler extends TreeScanner {
 
     @Override
     public void visitClassDef(JCTree.JCClassDecl tree) {
-        registerClassSymbol(tree.sym);
+        classNameOccurrenceCounts.merge(tree.sym.name, 1, (a, b) -> a + 1);
         super.visitClassDef(tree);
-    }
-
-    public void registerClassSymbol(Symbol.ClassSymbol sym) {
-        classNameOccurrenceCounts.merge(sym.name, 1, (a, b) -> a + 1);
-    }
-
-    public Flow.Publisher<FoundSymbol> foundSymbols() {
-        return subject;    
     }
     
     public String safeGetOriginalName(String name) {
@@ -105,7 +96,6 @@ public class NameCompiler extends TreeScanner {
         }
         var compiledName = uncachedGetCompiledName(symbol);
         symbolStringMap.put(symbol, compiledName);
-        subject.submit(new FoundSymbol(symbol, origin));
         reverseSymbolStringMap.put(compiledName, symbol);
         return compiledName;
     }
@@ -256,6 +246,7 @@ public class NameCompiler extends TreeScanner {
             if (superType.tsym != clazz) {
                 for (Symbol member : superType.tsym.members().getSymbolsByName(name)) {
                     if (method != null && types.isSubSignature(classMember.type, member.type)) {
+                        // method overrides do not cause name collisions
                         continue;
                     }
                     

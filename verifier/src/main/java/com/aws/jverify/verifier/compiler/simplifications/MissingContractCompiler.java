@@ -190,6 +190,7 @@ public class MissingContractCompiler {
             }
             
             if (symbol.isConstructor() && symbol.owner.flatName().contentEquals(Record.class.getCanonicalName())) {
+                // Datatype constructors do not call a base constructor
                 return;
             }
             
@@ -215,10 +216,12 @@ public class MissingContractCompiler {
             }
             
             if (symbol.owner == symtab.arrayClass) {
+                // Arrays are handled using custom code
                 return;
             }
             
             if (isJVerifySymbol(symbol)) {
+                // Do not add contracts for JVerify library methods, since they are compiled away anyways
                 return;
             }
             
