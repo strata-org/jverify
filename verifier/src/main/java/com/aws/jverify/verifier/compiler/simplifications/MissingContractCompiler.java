@@ -19,7 +19,7 @@ import java.util.*;
 
 import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_CLASS;
 
-public class NewMissingContractCompiler {
+public class MissingContractCompiler {
 
     private final TreeMaker maker;
     private final JVerifyIndex index;
@@ -35,7 +35,7 @@ public class NewMissingContractCompiler {
 
     record Reference(Symbol symbol, JCTree.JCCompilationUnit compilationUnit, JCTree tree) {}
     
-    public NewMissingContractCompiler(Context context) {
+    public MissingContractCompiler(Context context) {
         this.maker = TreeMaker.instance(context);
         this.index = JVerifyIndex.instance(context);
         this.names = Names.instance(context);

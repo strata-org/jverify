@@ -138,7 +138,7 @@ public class JavaFrontEnd {
                     
                     var staticMover = new MoveStaticMethodsToStaticType(context);
                     var contractCompiler = new ExternalContractCompiler(context);
-                    var missingContractCompiler = new NewMissingContractCompiler(context);
+                    var missingContractCompiler = new MissingContractCompiler(context);
                     units.addAll(
                             staticMover.translate(
                             missingContractCompiler.compile(
