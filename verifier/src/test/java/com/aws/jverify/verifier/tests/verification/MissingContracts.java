@@ -2,6 +2,8 @@ package com.aws.jverify.verifier.tests.verification;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
+
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
@@ -43,4 +45,9 @@ public class MissingContracts {
 //      ^ warning: missing contract for method 'addFirst' in class 'java.util.List'
     }
     record Value() {}
+    
+    void createArrayList() {
+        var l = new ArrayList<Value>();
+//              ^ warning: missing contract for method '<init>' in class 'java.util.ArrayList'
+    }
 }

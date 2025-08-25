@@ -9,4 +9,6 @@ class ObjectContract {
 
 @Contract(value = Record.class, immutable = true)
 class RecordContract {
+    public RecordContract() {
+    }
 }

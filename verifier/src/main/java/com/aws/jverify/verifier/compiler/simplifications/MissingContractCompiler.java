@@ -71,6 +71,7 @@ public class MissingContractCompiler {
     }
 
     private void addMissingMethod(Reference reference, Symbol.MethodSymbol methodSymbol) {
+        maker.pos = reference.tree.pos;
         var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
         if (methodDecl == null) {
             var classDecl = getOrAddType(methodSymbol.enclClass(), reference);
@@ -97,6 +98,7 @@ public class MissingContractCompiler {
         if (!foundSymbols.add(classSymbol)) {
             return (JCTree.JCClassDecl) index.getTree(classSymbol);
         }
+        maker.pos = reference.tree.pos;
         List<JCTree.JCTypeParameter> typeParameters = classSymbol.getTypeParameters().map(tp ->
                 maker.TypeParameter(tp.name, tp.getBounds().map(maker::Type)));
         JCTree.JCExpression superClassExpr = classSymbol.getSuperclass() == Type.noType ? null : maker.Type(classSymbol.getSuperclass());
@@ -167,10 +169,10 @@ public class MissingContractCompiler {
                 return;
             }
             
-            if (symbol.isConstructor()) {
-                // Implicit constructors should be ignored
-                return;
-            }
+//            if (symbol.isConstructor()) {
+//                // Implicit constructors should be ignored
+//                return;
+//            }
             
             if (symbol.owner.isEnum()) {
                 // Do not add enum members
@@ -230,6 +232,12 @@ public class MissingContractCompiler {
         public void visitSelect(JCTree.JCFieldAccess tree) {
             visitReference(tree.sym, tree);
             super.visitSelect(tree);
+        }
+
+        @Override
+        public void visitNewClass(JCTree.JCNewClass tree) {
+            visitReference(tree.constructor, tree);
+            super.visitNewClass(tree);
         }
     }
     
