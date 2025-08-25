@@ -5,17 +5,16 @@ package com.aws.jverify.generated;
 import com.aws.jverify.generated.Specification;
 import java.util.List;
 
-public abstract class LoopStmt extends LabeledStatement {
+public abstract class LoopStmt extends Statement {
   private final List<AttributedExpression> invariants;
 
   private final Specification<Expression> decreases;
 
   private final Specification<FrameExpression> mod;
 
-  public LoopStmt(IOrigin origin, Attributes attributes, List<Label> labels,
-      List<AttributedExpression> invariants, Specification<Expression> decreases,
-      Specification<FrameExpression> mod) {
-    super(origin, attributes, labels);
+  public LoopStmt(IOrigin origin, Attributes attributes, List<AttributedExpression> invariants,
+      Specification<Expression> decreases, Specification<FrameExpression> mod) {
+    super(origin, attributes);
     this.invariants = invariants;
     this.decreases = decreases;
     this.mod = mod;

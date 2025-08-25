@@ -2,10 +2,9 @@ package com.aws.jverify.generated;
 
 // Generated IfStmt.java:
 // Generated from C# class
-import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-public class IfStmt extends LabeledStatement {
+public class IfStmt extends Statement {
   private final Boolean isBindingGuard;
 
   @Nullable
@@ -16,9 +15,9 @@ public class IfStmt extends LabeledStatement {
   @Nullable
   private final Statement els;
 
-  public IfStmt(IOrigin origin, Attributes attributes, List<Label> labels, Boolean isBindingGuard,
-      Expression guard, BlockStmt thn, Statement els) {
-    super(origin, attributes, labels);
+  public IfStmt(IOrigin origin, Attributes attributes, Boolean isBindingGuard, Expression guard,
+      BlockStmt thn, Statement els) {
+    super(origin, attributes);
     this.isBindingGuard = isBindingGuard;
     this.guard = guard;
     this.thn = thn;

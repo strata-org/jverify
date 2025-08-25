@@ -2,19 +2,15 @@ package com.aws.jverify.generated;
 
 // Generated Field.java:
 // Generated from C# class
-import org.checkerframework.checker.nullness.qual.Nullable;
-
 public class Field extends MemberDecl {
-  @Nullable
-  private final Type explicitType;
+  private final Type type;
 
-  public Field(IOrigin origin, Name nameNode, Attributes attributes, Boolean isGhost,
-      Type explicitType) {
+  public Field(IOrigin origin, Name nameNode, Attributes attributes, Boolean isGhost, Type type) {
     super(origin, nameNode, attributes, isGhost);
-    this.explicitType = explicitType;
+    this.type = type;
   }
 
-  public Type getExplicitType() {
-    return this.explicitType;
+  public Type getType() {
+    return this.type;
   }
 }

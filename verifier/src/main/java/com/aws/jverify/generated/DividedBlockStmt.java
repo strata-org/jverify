@@ -13,9 +13,9 @@ public class DividedBlockStmt extends BlockLikeStmt {
 
   private final List<Statement> bodyProper;
 
-  public DividedBlockStmt(IOrigin origin, Attributes attributes, List<Label> labels,
-      List<Statement> bodyInit, IOrigin separatorTok, List<Statement> bodyProper) {
-    super(origin, attributes, labels);
+  public DividedBlockStmt(IOrigin origin, Attributes attributes, List<Statement> bodyInit,
+      IOrigin separatorTok, List<Statement> bodyProper) {
+    super(origin, attributes);
     this.bodyInit = bodyInit;
     this.separatorTok = separatorTok;
     this.bodyProper = bodyProper;

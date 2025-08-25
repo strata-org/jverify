@@ -292,7 +292,7 @@ public class TypeDeclarationCompiler {
     private MethodOrConstructor translateImpureMethod(JCTree.JCMethodDecl method,
                                                       boolean shouldVerify,
                                                       MethodOrLoopContract contract,
-                                                      @Nullable List<JCTree.JCStatement> postHeader) {
+                                                      List<JCTree.JCStatement> postHeader) {
         var methodOrigin = compiler.toOrigin(method);
 
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
@@ -303,7 +303,6 @@ public class TypeDeclarationCompiler {
         var isStatic = JavaToDafnyCompiler.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
-        List<Statement> bodyStatements = null;
         applyInvariants(method.mods, method.sym, contract);
         blockCompiler.checkEmptyExpressions(method, contract.invariants, "invariants", "method");
 
@@ -329,7 +328,7 @@ public class TypeDeclarationCompiler {
             if (shouldVerify && postHeader != null) {
                 var treeMaker = TreeMaker.instance(compiler.context);
 
-                bodyStatements = new ArrayList<>();
+                var bodyStatements = new ArrayList<>();
                 if (!postHeader.isEmpty()) {
                     var first = postHeader.getFirst();
                     if (first instanceof JCTree.JCExpressionStatement expressionStatement 
@@ -356,11 +355,17 @@ public class TypeDeclarationCompiler {
                     body);
         } else {
             BlockStmt body;
-            if (shouldVerify && postHeader != null) {
+            List<Statement> bodyStatements;
+            if (shouldVerify) {
                 bodyStatements = blockCompiler.translateStatements(postHeader);
+            } else {
+                // Leaving out the body does not assume the body for traits
+                // So we need to use an assume stmt body
+                // Would be nicer if Dafny had explicit assumed bodies
+                bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
             }
             if (bodyStatements != null) {
-                body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
+                body = new BlockStmt(methodOrigin, null, bodyStatements);
             } else {
                 body = null;
             }
