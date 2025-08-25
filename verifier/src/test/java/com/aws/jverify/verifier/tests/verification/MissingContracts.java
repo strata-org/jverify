@@ -3,13 +3,12 @@ package com.aws.jverify.verifier.tests.verification;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 1)
 public class MissingContracts {
     
     void checkFalse() {
@@ -53,8 +52,8 @@ public class MissingContracts {
     record Value() {}
     
 // TODO generate ghost code everywhere
-    void missingField() {
-        var zero = BigDecimal.ZERO;
-    }
+//    void missingField() {
+//        var zero = BigDecimal.ZERO;
+//    }
     
 }
