@@ -52,6 +52,7 @@ public class MissingContracts {
     }
     record Value() {}
     
+// TODO generate ghost code everywhere
     void missingField() {
         var zero = BigDecimal.ZERO;
     }

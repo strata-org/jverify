@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 public class JavaToDafnyCompiler {
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();

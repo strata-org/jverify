@@ -245,10 +245,10 @@ public class TypeDeclarationCompiler {
         Type type = compiler.translateType(variableDecl.type, 
                 compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
-        if (JavaToDafnyCompiler.isStatic(variableDecl.sym) && variableDecl.sym.isFinal()) {
-            return new ConstantField(origin, fieldName, null, true, type,
-                    null, true, false);
-        }
+//        if (JavaToDafnyCompiler.isStatic(variableDecl.sym) && variableDecl.sym.isFinal()) {
+//            return new ConstantField(origin, fieldName, null, true, type,
+//                    null, true, false);
+//        }
         
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {

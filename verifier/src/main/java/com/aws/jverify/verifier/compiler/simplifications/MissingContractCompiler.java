@@ -14,10 +14,11 @@ import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Names;
 
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
 import java.util.*;
 
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_CLASS;
+import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_PACKAGE;
 
 public class MissingContractCompiler {
 
@@ -74,6 +75,8 @@ public class MissingContractCompiler {
                     var classDecl = getOrAddType(fieldSymbol.enclClass(), reference);
                     fieldDecl = maker.VarDef(fieldSymbol, null);
                     classDecl.defs = classDecl.defs.append(fieldDecl);
+                    reporter.reportDiagnostic(reporter.toOrigin(reference.tree), JCDiagnostic.DiagnosticType.WARNING, "missingContract",
+                            fieldSymbol.getQualifiedName(), fieldSymbol.enclClass().getQualifiedName());
                 }
             }
         }
@@ -181,7 +184,7 @@ public class MissingContractCompiler {
         
         void visitReference(Symbol symbol, JCTree tree) {
             boolean validSymbol = symbol instanceof Symbol.MethodSymbol || symbol instanceof Symbol.ClassSymbol
-                    || (symbol instanceof Symbol.VarSymbol varSymbol && varSymbol.owner instanceof Symbol.ClassSymbol);
+                    || (symbol instanceof Symbol.VarSymbol varSymbol && isField(varSymbol));
             if (!validSymbol) {
                 return;
             }
@@ -211,7 +214,7 @@ public class MissingContractCompiler {
                 return;
             }
             
-            if (symbol.owner.type != Type.noType && symbol.outermostClass().fullname.contentEquals(JVERIFY_CLASS)) {
+            if (isJVerifySymbol(symbol)) {
                 return;
             }
             
@@ -252,7 +255,15 @@ public class MissingContractCompiler {
             super.visitNewClass(tree);
         }
     }
-    
+
+    private static boolean isField(Symbol.VarSymbol varSymbol) {
+        return varSymbol.getKind() == ElementKind.FIELD && !varSymbol.name.equals(varSymbol.name.table.names._this);
+    }
+
+    private static boolean isJVerifySymbol(Symbol symbol) {
+        return symbol.owner.type != Type.noType && symbol.outermostClass().packge().fullname.contentEquals(JVERIFY_PACKAGE);
+    }
+
     public boolean isRecordAccessor(Symbol.MethodSymbol method) {
         Symbol.ClassSymbol enclosingClass = (Symbol.ClassSymbol) method.owner;
 

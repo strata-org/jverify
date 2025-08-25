@@ -114,6 +114,12 @@ class TranslationErrors {
             default -> i * i * i;
         };
     }
+    
+    @Contract(RuntimeException.class)
+    static class RuntimeExceptionContract {
+        public RuntimeExceptionContract() {
+        }
+    }
 
     // This is intentional: primitives aren't nullable in Java.
     static boolean nullablePrimitive(@Nullable int i) {

@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.IOrigin;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.sun.tools.javac.code.Symbol;
@@ -7,10 +8,12 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
+import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Name;
+import net.bytebuddy.dynamic.DynamicType;
 
 import javax.lang.model.element.ElementKind;
 import java.util.HashMap;
@@ -49,6 +52,7 @@ public class NameCompiler extends TreeScanner {
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final SimpleSynchronousPublisher<FoundSymbol> subject = new SimpleSynchronousPublisher<>();
     private final Symtab symtab;
+    private final Types types;
     final Reporter reporter;
     
     public record FoundSymbol(Symbol symbol, IOrigin origin) {}
@@ -65,6 +69,7 @@ public class NameCompiler extends TreeScanner {
     private NameCompiler(Context context) {
         context.put(myKey, this);
         this.symtab = Symtab.instance(context);
+        this.types = Types.instance(context);
         this.symbolStringMap = new HashMap<>();
         reporter = Reporter.instance(context);
         this.reverseSymbolStringMap = new HashMap<>();
@@ -151,7 +156,7 @@ public class NameCompiler extends TreeScanner {
         if (s.name.contentEquals(s.name.table.names._this)) {
             return s.name.toString();
         }
-        var classStats = getGetClassNameStats(s.enclClass(), s.name);
+        var classStats = getGetClassNameStats(s, null);
         if (classStats.methodsWithThisName > 0) {
             return fieldPrefix + s.name.toString();
         }
@@ -161,10 +166,11 @@ public class NameCompiler extends TreeScanner {
     private String getMethodName(Symbol.MethodSymbol s) {
         StringBuilder result = new StringBuilder();
                 
-        ClassNameStats classStats = getGetClassNameStats(s.enclClass(), s.name);
+        ClassNameStats classStats = getGetClassNameStats(s, s);
         boolean uniqueName = classStats.methodsWithThisName() <= 1;
         if (s.name.equals(s.name.table.names.init)) {
             result.append(getConstructorName(uniqueName));
+            result.append(sep).append(getShortTypeName(s.enclClass().type));
         }
         else {
             result.append(encodeName(s.name.toString()));
@@ -234,7 +240,9 @@ public class NameCompiler extends TreeScanner {
         }
     }
 
-    private ClassNameStats getGetClassNameStats(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Name name) {
+    private ClassNameStats getGetClassNameStats(Symbol classMember, Symbol.@Nullable MethodSymbol method) {
+        var clazz = classMember.enclClass();
+        var name = classMember.name;
         boolean sameNameFields = false;
         int methodsWithThisName = 0;
         for(var member : clazz.members().getSymbolsByName(name)) {
@@ -243,6 +251,23 @@ public class NameCompiler extends TreeScanner {
             }
             if (member instanceof Symbol.MethodSymbol) {
                 methodsWithThisName += 1;
+            }
+        }
+
+        for (Type superType : types.closure(clazz.type)) {
+            if (superType.tsym != clazz) {
+                for (Symbol member : superType.tsym.members().getSymbolsByName(name)) {
+                    if (method != null && types.isSubSignature(classMember.type, member.type)) {
+                        continue;
+                    }
+                    
+                    if (member instanceof Symbol.VarSymbol) {
+                        sameNameFields = true;
+                    }
+                    if (member instanceof Symbol.MethodSymbol) {
+                        methodsWithThisName += 1;
+                    }
+                }
             }
         }
         return new ClassNameStats(sameNameFields, methodsWithThisName);

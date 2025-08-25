@@ -38,5 +38,11 @@ public class LibraryContractGhostFieldErrors {
 //          ^ error: a pure block must end in a return or if-else statement
         }
     }
+    
+    @Contract(RuntimeException.class)
+    static class RuntimeExceptionContract {
+        public RuntimeExceptionContract() {
+        }
+    }
 }
 

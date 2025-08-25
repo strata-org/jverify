@@ -308,7 +308,7 @@ record MapEntry<K, V>(K key, V value) implements Map.Entry<K, V> {
     @Override
     @Verify(false)
     public V setValue(V value) {
-        throw new UnsupportedOperationException();
+        throw new ContractException();
     }
 }
 

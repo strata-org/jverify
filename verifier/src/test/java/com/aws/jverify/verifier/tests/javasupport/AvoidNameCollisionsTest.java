@@ -75,4 +75,18 @@ public class AvoidNameCollisionsTest {
         r = 0;
         return r;
     }
+    
+    class MethodDuplicateNameOneInherited_Base {
+        MethodDuplicateNameOneInherited_Base() {
+            
+        }
+        void foo() {}
+    }
+
+    class MethodDuplicateNameOneInherited_Extendee extends MethodDuplicateNameOneInherited_Base {
+        MethodDuplicateNameOneInherited_Extendee() {
+            
+        }
+        void foo(int x) {}
+    }
 }
