@@ -6,6 +6,7 @@ import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class AllocateArray extends TypeRhs {
+  @Nullable
   private final Type explicitType;
 
   private final List<Expression> arrayDimensions;

@@ -8,10 +8,10 @@ import java.util.List;
 public class WhileStmt extends OneBodyLoopStmt {
   private final Expression guard;
 
-  public WhileStmt(IOrigin origin, Attributes attributes, List<AttributedExpression> invariants,
-      Specification<Expression> decreases, Specification<FrameExpression> mod, BlockStmt body,
-      Expression guard) {
-    super(origin, attributes, invariants, decreases, mod, body);
+  public WhileStmt(IOrigin origin, Attributes attributes, List<Label> labels,
+      List<AttributedExpression> invariants, Specification<Expression> decreases,
+      Specification<FrameExpression> mod, BlockStmt body, Expression guard) {
+    super(origin, attributes, labels, invariants, decreases, mod, body);
     this.guard = guard;
   }
 

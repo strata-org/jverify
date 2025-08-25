@@ -328,7 +328,7 @@ public class TypeDeclarationCompiler {
             if (shouldVerify && postHeader != null) {
                 var treeMaker = TreeMaker.instance(compiler.context);
 
-                var bodyStatements = new ArrayList<>();
+                var bodyStatements = new ArrayList<Statement>();
                 if (!postHeader.isEmpty()) {
                     var first = postHeader.getFirst();
                     if (first instanceof JCTree.JCExpressionStatement expressionStatement 
@@ -365,7 +365,7 @@ public class TypeDeclarationCompiler {
                 bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
             }
             if (bodyStatements != null) {
-                body = new BlockStmt(methodOrigin, null, bodyStatements);
+                body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
             } else {
                 body = null;
             }

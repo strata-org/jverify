@@ -7,8 +7,9 @@ import java.util.List;
 public class BlockStmt extends BlockLikeStmt {
   private final List<Statement> body;
 
-  public BlockStmt(IOrigin origin, Attributes attributes, List<Statement> body) {
-    super(origin, attributes);
+  public BlockStmt(IOrigin origin, Attributes attributes, List<Label> labels,
+      List<Statement> body) {
+    super(origin, attributes, labels);
     this.body = body;
   }
 
