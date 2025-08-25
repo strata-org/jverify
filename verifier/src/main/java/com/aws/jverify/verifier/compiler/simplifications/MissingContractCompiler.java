@@ -63,33 +63,37 @@ public class MissingContractCompiler {
             
             var symbol = entry.getValue().symbol;
             if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-                getOrAddType(classSymbol, entry.getValue().compilationUnit);
+                getOrAddType(classSymbol, entry.getValue());
             } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
-                var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
-                if (methodDecl == null) {
-                    var classDecl = getOrAddType(symbol.enclClass(), entry.getValue().compilationUnit);
-
-                    methodDecl = maker.MethodDef(methodSymbol, maker.Block(0, List.nil()));
-                    classDecl.defs = classDecl.defs.append(methodDecl);
-                } else {
-                    methodDecl.body = maker.Block(0, List.nil());
-                }
-                Symbol.ClassSymbol pureSymbol = elements.getTypeElement(Pure.class.getCanonicalName());
-                if (methodSymbol.type.getReturnType().getKind() != TypeKind.VOID) {
-                    methodDecl.mods.annotations = methodDecl.mods.annotations.append(
-                            maker.Annotation(maker.Ident(pureSymbol), List.nil()));
-                }
-                methodDecl.mods.annotations = methodDecl.mods.annotations.append(verifyMaker.getVerifyFalseAnnotation());
-
-                Reference reference = entry.getValue();
-                reporter.compilationUnit = reference.compilationUnit();
-                reporter.reportDiagnostic(reporter.toOrigin(reference.tree), JCDiagnostic.DiagnosticType.WARNING, "missingContract",
-                        methodSymbol.getQualifiedName(), symbol.enclClass().getQualifiedName());
+                addMissingMethod(entry.getValue(), methodSymbol);
             }
         }
     }
 
-    private JCTree.JCClassDecl getOrAddType(Symbol.ClassSymbol classSymbol, JCTree.JCCompilationUnit compilationUnit) {
+    private void addMissingMethod(Reference reference, Symbol.MethodSymbol methodSymbol) {
+        var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
+        if (methodDecl == null) {
+            var classDecl = getOrAddType(methodSymbol.enclClass(), reference);
+
+            methodDecl = maker.MethodDef(methodSymbol, maker.Block(0, com.sun.tools.javac.util.List.nil()));
+            classDecl.defs = classDecl.defs.append(methodDecl);
+        } else {
+            methodDecl.body = maker.Block(0, com.sun.tools.javac.util.List.nil());
+        }
+        Symbol.ClassSymbol pureSymbol = elements.getTypeElement(Pure.class.getCanonicalName());
+        if (methodSymbol.type.getReturnType().getKind() != TypeKind.VOID) {
+            methodDecl.mods.annotations = methodDecl.mods.annotations.append(
+                    maker.Annotation(maker.Ident(pureSymbol), com.sun.tools.javac.util.List.nil()));
+        }
+        methodDecl.mods.annotations = methodDecl.mods.annotations.append(verifyMaker.getVerifyFalseAnnotation());
+
+        reporter.compilationUnit = reference.compilationUnit();
+        reporter.reportDiagnostic(reporter.toOrigin(reference.tree), JCDiagnostic.DiagnosticType.WARNING, "missingContract",
+                methodSymbol.getQualifiedName(), methodSymbol.enclClass().getQualifiedName());
+    }
+
+    private JCTree.JCClassDecl getOrAddType(Symbol.ClassSymbol classSymbol, Reference reference) {
+        var compilationUnit = reference.compilationUnit();
         if (!foundSymbols.add(classSymbol)) {
             return (JCTree.JCClassDecl) index.getTree(classSymbol);
         }
@@ -131,35 +135,34 @@ public class MissingContractCompiler {
             if (tree.body != null) {
                 foundSymbols.add(tree.sym);
             }
-            addType(tree.type, tree);
+            visitType(tree.type, tree);
             super.visitMethodDef(tree);
         }
 
         @Override
         public void visitAnnotation(JCTree.JCAnnotation tree) {
+            // skip annotations
         }
 
-        void addType(Type type, JCTree tree) {
+        void visitType(Type type, JCTree tree) {
             if (type == null) {
                 return;
             }
             for(var param : type.getParameterTypes()) {
-                addType(param, tree);
+                visitType(param, tree);
             }
-            addType(type.getReturnType(), tree);
-            // trait DeserializationConfig extends MapperConfigBase<com_fasterxml_jackson_databind_DeserializationFeature, DeserializationConfig>
+            visitType(type.getReturnType(), tree);
             if (type instanceof Type.ClassType classType) {
-                var fresh = !symbolReferences.containsKey(classType.tsym);
-                addRef(classType.tsym, tree);
+                visitReference(classType.tsym, tree);
                 for(var argument : classType.getTypeArguments()) {
-                    addType(argument, tree);
+                    visitType(argument, tree);
                 }
             } else if (type instanceof Type.ArrayType arrayType) {
-                addType(arrayType.elemtype, tree);
+                visitType(arrayType.elemtype, tree);
             }
         }
         
-        void addRef(Symbol symbol, JCTree tree) {
+        void visitReference(Symbol symbol, JCTree tree) {
             if (!(symbol instanceof Symbol.MethodSymbol || symbol instanceof Symbol.ClassSymbol)) {
                 return;
             }
@@ -175,6 +178,7 @@ public class MissingContractCompiler {
             }
             
             if (symbol instanceof Symbol.MethodSymbol methodSymbol && isRecordAccessor(methodSymbol)) {
+                // records are translated to datatypes, which get implicit deconstructors
                 return;
             }
 
@@ -183,13 +187,13 @@ public class MissingContractCompiler {
                 // String is handled using custom code
                 return;
             }
-            
-            if (symbol.owner == symtab.arrayClass) {
+
+            if (symbol instanceof Symbol.MethodSymbol && symbol.name.contentEquals("equals")) {
+                // equals is in additional.dfy
                 return;
             }
             
-            if (symbol instanceof Symbol.MethodSymbol && symbol.name.contentEquals("equals")) {
-                // equals is in additional.dfy
+            if (symbol.owner == symtab.arrayClass) {
                 return;
             }
             
@@ -201,29 +205,30 @@ public class MissingContractCompiler {
                 return;
             }
             symbolReferences.put(symbol, new Reference(symbol, compilationUnit, tree));
-                
-            if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
-                addType(methodSymbol.type, tree);
-            }
-            
-            if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-                var superSymbol = classSymbol.getSuperclass();
-                addType(superSymbol, tree);
-                for(var _interface : classSymbol.getInterfaces()) {
-                    addType(_interface, tree);
+
+            switch (symbol) {
+                case Symbol.MethodSymbol methodSymbol -> visitType(methodSymbol.type, tree);
+                case Symbol.ClassSymbol classSymbol -> {
+                    var superSymbol = classSymbol.getSuperclass();
+                    visitType(superSymbol, tree);
+                    for (var _interface : classSymbol.getInterfaces()) {
+                        visitType(_interface, tree);
+                    }
+                }
+                default -> {
                 }
             }
         }
 
         @Override
         public void visitIdent(JCTree.JCIdent tree) {
-            addRef(tree.sym, tree);
+            visitReference(tree.sym, tree);
             super.visitIdent(tree);
         }
 
         @Override
         public void visitSelect(JCTree.JCFieldAccess tree) {
-            addRef(tree.sym, tree);
+            visitReference(tree.sym, tree);
             super.visitSelect(tree);
         }
     }

@@ -333,18 +333,6 @@ public class ExpressionCompiler {
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
             return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
         }
-
-
-        if (fieldAccess.sym.owner instanceof Symbol.ClassSymbol ownerClass
-                && ownerClass.fullname.contentEquals(String.class.getName())) {
-            if (!supportedStringMethods.contains(fieldAccess.sym.name.toString())) {
-                compiler.reportError(fieldAccess, "notSupported", "String method " + fieldAccess.sym);
-                return JavaToDafnyCompiler.getHole(origin);
-            } else {
-                // String methods are translated to Dafny native operations, so they don't need a contract.
-                this.compiler.typeDeclarationCompiler.createdContracts.add(fieldAccess.sym);
-            }
-        }
         
         var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);
         if (compiler.isEnum(fieldAccess.selected)) {
@@ -397,6 +385,14 @@ public class ExpressionCompiler {
             }
         }
 
+        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
+                && ownerClass.fullname.contentEquals(String.class.getName())) {
+            if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
+                compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
+                return JavaToDafnyCompiler.getHole(origin);
+            }
+        }
+        
         var target = toExpr(invocation.getMethodSelect());
         return new ApplySuffix(origin, target, null,
                 new ActualBindings(argBindings), null);

@@ -69,12 +69,8 @@ public class Reporter {
     public void reportDiagnostic(JCDiagnostic.DiagnosticPosition position, 
                                  JCDiagnostic.DiagnosticType type, 
                                  String key, Object... args) {
-        reportDiagnostic(position, type, key, args, compilationUnit);
-    }
-
-    public void reportDiagnostic(JCDiagnostic.DiagnosticPosition position, JCDiagnostic.DiagnosticType type, String key, Object[] args, JCTree.JCCompilationUnit compilationUnit1) {
         this.diagnostics.report(diagnosticFactory.create(type,
-                new DiagnosticSource(compilationUnit1.getSourceFile(), null), position, key,
+                new DiagnosticSource(compilationUnit.getSourceFile(), null), position, key,
                 args));
     }
 

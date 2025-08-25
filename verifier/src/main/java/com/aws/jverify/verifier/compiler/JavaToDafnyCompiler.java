@@ -43,7 +43,6 @@ import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
-    public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public final Context context;
 
