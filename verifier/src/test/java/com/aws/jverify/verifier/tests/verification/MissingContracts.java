@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.tests.verification;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
+import com.aws.jverify.testing.GenericParent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +51,13 @@ public class MissingContracts {
 //              ^ warning: missing contract for method '<init>' in class 'java.util.ArrayList'
     }
     record Value() {}
+    
+    void referenceTwoMissingClassesWithTheSameName() {
+        com.aws.jverify.testing.a.DuplicateName duplicateNameA;
+        com.aws.jverify.testing.b.DuplicateName duplicateNameB;
+    }
+    
+    void indirectReference(GenericParent gp) {}
     
 // TODO generate ghost code everywhere
 //    void missingField() {

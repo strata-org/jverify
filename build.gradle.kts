@@ -63,6 +63,12 @@ project(":library") {
     }
 }
 
+project(":library-for-testing") {
+    dependencies {
+        testImplementation(project(":library"))
+    }
+}
+
 project(":examples") {
     dependencies {
         testImplementation(project(":library"))
@@ -295,6 +301,7 @@ project(":verifier") {
         testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
+        testImplementation(project(":library-for-testing"))
         testImplementation("org.hamcrest:hamcrest:2.2")
         testImplementation("org.hamcrest:hamcrest-library:2.2")
 
