@@ -8,7 +8,7 @@ import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 1)
 public class MissingContracts {
     
     void checkFalse() {
