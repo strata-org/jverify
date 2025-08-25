@@ -60,22 +60,29 @@ public class MissingContractCompiler {
             if (foundSymbols.contains(entry.getKey())) {
                 continue;
             }
-            
-            var symbol = entry.getValue().symbol;
+
+            Reference reference = entry.getValue();
+            var symbol = reference.symbol;
+            maker.pos = reference.tree.pos;
             if (symbol instanceof Symbol.ClassSymbol classSymbol) {
-                getOrAddType(classSymbol, entry.getValue());
+                getOrAddType(classSymbol, reference);
             } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
-                addMissingMethod(entry.getValue(), methodSymbol);
+                addMissingMethod(reference, methodSymbol);
+            } else if (symbol instanceof Symbol.VarSymbol fieldSymbol) {
+                var fieldDecl = (JCTree.JCVariableDecl)index.getTree(fieldSymbol);
+                if (fieldDecl == null) {
+                    var classDecl = getOrAddType(fieldSymbol.enclClass(), reference);
+                    fieldDecl = maker.VarDef(fieldSymbol, null);
+                    classDecl.defs = classDecl.defs.append(fieldDecl);
+                }
             }
         }
     }
 
     private void addMissingMethod(Reference reference, Symbol.MethodSymbol methodSymbol) {
-        maker.pos = reference.tree.pos;
         var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
         if (methodDecl == null) {
             var classDecl = getOrAddType(methodSymbol.enclClass(), reference);
-
             methodDecl = maker.MethodDef(methodSymbol, maker.Block(0, com.sun.tools.javac.util.List.nil()));
             classDecl.defs = classDecl.defs.append(methodDecl);
         } else {
@@ -98,7 +105,6 @@ public class MissingContractCompiler {
         if (!foundSymbols.add(classSymbol)) {
             return (JCTree.JCClassDecl) index.getTree(classSymbol);
         }
-        maker.pos = reference.tree.pos;
         List<JCTree.JCTypeParameter> typeParameters = classSymbol.getTypeParameters().map(tp ->
                 maker.TypeParameter(tp.name, tp.getBounds().map(maker::Type)));
         JCTree.JCExpression superClassExpr = classSymbol.getSuperclass() == Type.noType ? null : maker.Type(classSymbol.getSuperclass());
@@ -137,8 +143,17 @@ public class MissingContractCompiler {
             if (tree.body != null) {
                 foundSymbols.add(tree.sym);
             }
-            visitType(tree.type, tree);
+            visitType(tree.type, tree); // unnecessary?
             super.visitMethodDef(tree);
+        }
+
+        @Override
+        public void visitVarDef(JCTree.JCVariableDecl tree) {
+            if (tree.sym.owner instanceof Symbol.ClassSymbol) {
+                foundSymbols.add(tree.sym);
+                visitType(tree.type, tree); // unnecessary?
+            }
+            super.visitVarDef(tree);
         }
 
         @Override
@@ -165,17 +180,14 @@ public class MissingContractCompiler {
         }
         
         void visitReference(Symbol symbol, JCTree tree) {
-            if (!(symbol instanceof Symbol.MethodSymbol || symbol instanceof Symbol.ClassSymbol)) {
+            boolean validSymbol = symbol instanceof Symbol.MethodSymbol || symbol instanceof Symbol.ClassSymbol
+                    || (symbol instanceof Symbol.VarSymbol varSymbol && varSymbol.owner instanceof Symbol.ClassSymbol);
+            if (!validSymbol) {
                 return;
             }
             
-//            if (symbol.isConstructor()) {
-//                // Implicit constructors should be ignored
-//                return;
-//            }
-            
             if (symbol.owner.isEnum()) {
-                // Do not add enum members
+                // Do not add enum members, since enums are translated to datatypes
                 return;
             }
             
@@ -217,8 +229,8 @@ public class MissingContractCompiler {
                         visitType(_interface, tree);
                     }
                 }
-                default -> {
-                }
+                case Symbol.VarSymbol varSymbol -> visitType(varSymbol.type, tree);
+                default -> throw new RuntimeException("impossible");
             }
         }
 

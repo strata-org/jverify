@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.tests.verification;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,13 +42,18 @@ public class MissingContracts {
     }
     
     void impureUser(List<Value> values) {
+        // By creating a contract for addFirst (which is in List) and a contract for ArrayList,
+        // we test that missing contracts created in an inheritance chain
+        // do not cause issues.
         values.addFirst(new Value());
 //      ^ warning: missing contract for method 'addFirst' in class 'java.util.List'
-    }
-    record Value() {}
-    
-    void createArrayList() {
         var l = new ArrayList<Value>();
 //              ^ warning: missing contract for method '<init>' in class 'java.util.ArrayList'
     }
+    record Value() {}
+    
+    void missingField() {
+        var zero = BigDecimal.ZERO;
+    }
+    
 }
