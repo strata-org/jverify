@@ -360,8 +360,8 @@ public class TypeDeclarationCompiler {
                 bodyStatements = blockCompiler.translateStatements(postHeader);
             } else {
                 // Leaving out the body does not assume the body for traits
-                // So we need to use an assume stmt body
-                // Would be nicer if Dafny had explicit assumed bodies
+                // So we need to have a body with an assume statement
+                // Would be nicer (and faster) if Dafny had explicit assumed bodies
                 bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
             }
             var body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
