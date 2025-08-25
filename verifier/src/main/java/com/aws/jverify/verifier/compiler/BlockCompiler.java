@@ -149,7 +149,7 @@ public class BlockCompiler {
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
         Type translatedType = compiler.translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
-        LocalVariable localVariable = new LocalVariable(origin, compiler.nameCompiler.getCompiledName(variableDecl.sym),
+        LocalVariable localVariable = new LocalVariable(origin, compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
@@ -251,8 +251,8 @@ public class BlockCompiler {
                 return List.of();
             }
 
-            var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor);
-            var baseConstructorClassName = compiler.nameCompiler.getCompiledName(baseConstructor.enclClass());
+            var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor, superIdent);
+            var baseConstructorClassName = compiler.nameCompiler.getCompiledName(baseConstructor.enclClass(), superIdent);
             var initName = compiler.nameCompiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
             var arguments = invocation.getArguments().stream().map(
                     e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
@@ -366,7 +366,7 @@ public class BlockCompiler {
                 }
                 NameSegment classBaseType = new ModifiableObjectCompiler(compiler).getNewClassType(newClass);
 
-                String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor);
+                String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor, origin);
                 Name ctorName = new Name(origin, ctorNameStr);
                 var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName,null));
 

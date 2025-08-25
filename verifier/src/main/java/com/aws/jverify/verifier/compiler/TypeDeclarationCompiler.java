@@ -6,7 +6,6 @@ import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCom
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
 import com.sun.source.tree.Tree;
@@ -15,11 +14,11 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
 import java.util.*;
-import java.util.concurrent.Flow;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -27,45 +26,24 @@ import java.util.stream.Stream;
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
+    final Reporter reporter;
     JVerifyIndex index;
-    private Symbol.@Nullable ClassSymbol typeForWhichCurrentClassIsDefiningContract;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
-    public final Set<Symbol.ClassSymbol> createdContracts = new HashSet<>();
-    private final Set<Symbol.ClassSymbol> missingContracts = new HashSet<>();
+    public final Set<Symbol> createdContracts = new HashSet<>();
 
     private final TraitWithConstructorCompiler traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
 
     public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
         index = JVerifyIndex.instance(compiler.context);
+        reporter = Reporter.instance(compiler.context);
+        var names = Names.instance(compiler.context);
+        var symtab = Symtab.instance(compiler.context);
+        
+        // Equals is defined in additional.dfy
+        createdContracts.add(symtab.objectType.tsym.members().findFirst(names.fromString("equals")));
 
-        compiler.nameCompiler.foundSymbols().subscribe(new Flow.Subscriber<Symbol>() {
-            @Override
-            public void onSubscribe(Flow.Subscription subscription) {
-                // Never emitted
-            }
-
-            @Override
-            public void onNext(Symbol symbol) {
-                if (symbol instanceof Symbol.ClassSymbol cs) {
-                    if (createdContracts.contains(cs)) {
-                        return;
-                    }
-                    missingContracts.add(cs);
-                }
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                // Never emitted
-            }
-
-            @Override
-            public void onComplete() {
-                // Never emitted
-            }
-        });
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
@@ -79,15 +57,12 @@ public class TypeDeclarationCompiler {
 
             Name name = compiler.getName(classDecl, classDecl.sym);
             var origin = compiler.declToOrigin(classDecl, name);
-            compiler.contextOrigins.push(origin);
+            reporter.contextOrigins.push(origin);
 
             var mode = compiler.verifyAnnotationCompiler.getShouldVerifyMode(annotationsByName);
-            if (typeForWhichCurrentClassIsDefiningContract != null) {
-                mode = VerifyAnnotationCompiler.ShouldVerifyMode.AlwaysNo;
-            }
             compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
-            var classSymbol = getCurrentTypeSymbol(classDecl.sym);
+            var classSymbol = classDecl.sym;
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
@@ -105,8 +80,7 @@ public class TypeDeclarationCompiler {
                 result.addAll(traitWithConstructorCompiler.compile(intermediateResult, classSymbol));
             }
 
-            typeForWhichCurrentClassIsDefiningContract = null;
-            compiler.contextOrigins.pop();
+            reporter.contextOrigins.pop();
             compiler.verifyAnnotationCompiler.shouldVerifies.pop();
             return result;
         }
@@ -122,7 +96,7 @@ public class TypeDeclarationCompiler {
         List<DatatypeCtor> constructors = new ArrayList<>();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                var variableName = compiler.nameCompiler.getCompiledName(variableDecl.sym);
+                var variableName = compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
                 Name constructorName = compiler.getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(compiler.declToOrigin(variableDecl, constructorName), constructorName,
                         null, false, List.of()));
@@ -168,15 +142,13 @@ public class TypeDeclarationCompiler {
             }
         }
 
-        var definingSymbol = getCurrentTypeSymbol(classDecl.sym);
-
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
             javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParameters = translateTypeParameters(javaTypeParams);
 
-        return getTraitDecl(origin, name, definingSymbol, typeParameters, members);
+        return getTraitDecl(origin, name, classDecl.sym, typeParameters, members);
     }
 
     public TraitDecl getTraitDecl(IOrigin origin, Name name,
@@ -217,7 +189,7 @@ public class TypeDeclarationCompiler {
 
     public List<TypeParameter> translateTypeParameters(IOrigin origin,  List<Symbol.TypeVariableSymbol> typarams) {
         return typarams.stream().map(p -> {
-            var name = new Name(origin, compiler.nameCompiler.getCompiledName(p));
+            var name = new Name(origin, compiler.nameCompiler.getCompiledName(p, origin));
             var bounds = p.getBounds().map(t -> compiler.translateType(t, origin));
 
             return getTypeParameter(origin, bounds, name);
@@ -247,10 +219,6 @@ public class TypeDeclarationCompiler {
             IOrigin origin = compiler.toOrigin(p);
             return getTypeParameter(origin, bounds, name);
         }).toList();
-    }
-
-    public Symbol.ClassSymbol getCurrentTypeSymbol(Symbol.ClassSymbol classSymbol) {
-        return typeForWhichCurrentClassIsDefiningContract == null ? classSymbol : typeForWhichCurrentClassIsDefiningContract;
     }
 
     public MemberDecl translateMember(JCTree member) {
@@ -299,9 +267,6 @@ public class TypeDeclarationCompiler {
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         var methodSymbol = method.sym;
-        if (typeForWhichCurrentClassIsDefiningContract != null && JavaToDafnyCompiler.isSynthetic(index, method, methodSymbol)) {
-            return null;
-        }
         compiler.symbolsWithAContract.add(methodSymbol);
         var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
         boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
@@ -317,14 +282,13 @@ public class TypeDeclarationCompiler {
 
         var contract = new MethodOrLoopContract(method, annotationsByName.containsKey(Pure.class.getName()));
         var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
-        List<JCTree.JCStatement> remainingStatements;
         if (method.body == null) {
-            remainingStatements = null;
-        } else {
-            remainingStatements = new MethodOrLoopContractCompiler(compiler).
-                    extractContract(method.body, contract, allowFooter);
+            return null;
         }
-        
+        var remainingStatements = new MethodOrLoopContractCompiler(compiler).
+                extractContract(method.body, contract, allowFooter);
+        createdContracts.add(method.sym);
+
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
         } else {
@@ -430,7 +394,6 @@ public class TypeDeclarationCompiler {
             return null;
         }
         applyInvariants(method.mods, method.sym, contract);
-
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
         return new Function(origin, name, null, false, null, dafnyTypeParameters,
                 ins, contract.preconditions, contract.postconditions, contract.getReads(),
@@ -445,7 +408,7 @@ public class TypeDeclarationCompiler {
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {
             for (var invariant : invariants) {
-                var memberName = compiler.nameCompiler.getCompiledName(invariant.sym);
+                var memberName = compiler.nameCompiler.getCompiledName(invariant.sym, invariant);
                 var invariantName = compiler.getName(invariant, invariant.getName());
                 var invariantOrigin = compiler.declToOrigin(invariant, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
@@ -468,7 +431,7 @@ public class TypeDeclarationCompiler {
             var parameter = method.getParameters().get(index);
             var parameterSymbol = parameterSymbols.get(index);
             IOrigin parameterOrigin = compiler.toOrigin(parameter);
-            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym));
+            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym, parameter));
             // TODO use parameter.sym.type ?
             var syntacticType = compiler.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
@@ -479,33 +442,5 @@ public class TypeDeclarationCompiler {
     private Formal makeReturnFormal(IOrigin origin, Type syntacticType) {
         var name = new Name(origin, NameCompiler.RETURN_VARIABLE_NAME);
         return new Formal(origin, name, syntacticType, false, false, null, null, false, false, false, null);
-    }
-
-    public void addMissingTypeContracts(List<FileHeader> filesStarts) {
-        var dummyToken = new Token(1, 1);
-        IOrigin dummyOrigin = new TokenRangeOrigin(dummyToken, dummyToken);
-        while(!missingContracts.isEmpty()) {
-            // Because inheritance can mean that adding missing contracts introduces new missing contracts
-            // We need to loop
-            
-            var classSymbol = missingContracts.iterator().next();
-            missingContracts.remove(classSymbol);
-            if (!createdContracts.add(classSymbol)) {
-                continue;
-            }
-            String compiledName = compiler.nameCompiler.getCompiledName(classSymbol);
-            if (compiledName.isEmpty()) {
-                // Defensive programming. Some types like intersection types have no name, although they should not occur here
-                continue;
-            }
-            List<TypeParameter> typeParameters = translateTypeParameters(dummyOrigin, classSymbol.getTypeParameters());
-            TraitDecl trait = getTraitDecl(
-                    dummyOrigin,
-                    new Name(dummyOrigin, compiledName),
-                    classSymbol,
-                    typeParameters, List.of());
-
-            filesStarts.getFirst().getTopLevelDecls().add(trait);
-        }
     }
 }

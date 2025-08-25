@@ -1,5 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.generated.IOrigin;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Symtab;
@@ -45,27 +47,43 @@ public class NameCompiler extends TreeScanner {
     private final Map<Name, Integer> classNameOccurrenceCounts = new HashMap<>();
     private final Map<Symbol, String> symbolStringMap;
     private final Map<String, Symbol> reverseSymbolStringMap;
+    private final SimpleSynchronousPublisher<FoundSymbol> subject = new SimpleSynchronousPublisher<>();
     private final Symtab symtab;
-    private final SimpleSynchronousPublisher<Symbol> subject = new SimpleSynchronousPublisher();
+    final Reporter reporter;
     
+    public record FoundSymbol(Symbol symbol, IOrigin origin) {}
     Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
     
-    public NameCompiler(Context context) {
+    protected static final Context.Key<NameCompiler> myKey = new Context.Key<>();
+    public static NameCompiler instance(Context context) {
+        NameCompiler instance = context.get(myKey);
+        if (instance == null)
+            instance = new NameCompiler(context);
+        return instance;
+    }
+    
+    private NameCompiler(Context context) {
+        context.put(myKey, this);
         this.symtab = Symtab.instance(context);
         this.symbolStringMap = new HashMap<>();
+        reporter = Reporter.instance(context);
         this.reverseSymbolStringMap = new HashMap<>();
     }
 
     @Override
     public void visitClassDef(JCTree.JCClassDecl tree) {
-        classNameOccurrenceCounts.merge(tree.sym.name, 1, (a, b) -> a + 1);
+        registerClassSymbol(tree.sym);
         super.visitClassDef(tree);
     }
 
-    public Flow.Publisher<Symbol> foundSymbols() {
-        return subject;    
+    public void registerClassSymbol(Symbol.ClassSymbol sym) {
+        classNameOccurrenceCounts.merge(sym.name, 1, (a, b) -> a + 1);
     }
 
+    public Flow.Publisher<FoundSymbol> foundSymbols() {
+        return subject;    
+    }
+    
     public String safeGetOriginalName(String name) {
         if (reverseSymbolStringMap.containsKey(name)) {
             return reverseSymbolStringMap.get(name).name.toString();
@@ -73,14 +91,18 @@ public class NameCompiler extends TreeScanner {
         return name;
     }
     
-    public String getCompiledName(Symbol s) {
-        if (symbolStringMap.containsKey(s)) {
-            return symbolStringMap.get(s);
+    public String getCompiledName(Symbol symbol, JCTree node) {
+        return getCompiledName(symbol, reporter.toOrigin(node));
+    }
+    
+    public String getCompiledName(Symbol symbol, IOrigin origin) {
+        if (symbolStringMap.containsKey(symbol)) {
+            return symbolStringMap.get(symbol);
         }
-        var compiledName = uncachedGetCompiledName(s);
-        symbolStringMap.put(s, compiledName);
-        subject.submit(s);
-        reverseSymbolStringMap.put(compiledName, s);
+        var compiledName = uncachedGetCompiledName(symbol);
+        symbolStringMap.put(symbol, compiledName);
+        subject.submit(new FoundSymbol(symbol, origin));
+        reverseSymbolStringMap.put(compiledName, symbol);
         return compiledName;
     }
     

@@ -1,5 +1,7 @@
 package com.aws.jverify.verifier.tests.javasupport.statements;
 
+import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
@@ -10,9 +12,9 @@ import static com.aws.jverify.JVerify.*;
 class TranslationErrors {
     
     void quantifierNeedsLambdaArgument() {
-        check(forall((Integer i) -> i > 0));
-        java.util.function.Function<Integer, Boolean> f =
-                (Integer i) -> i > 0;
+        check(forall((int i) -> i > 0));
+        java.util.function.IntPredicate f =
+                (int i) -> i > 0;
         check(forall(f));
 //                   ^ error: the argument to a forall call must be a lambda
     }
@@ -68,6 +70,14 @@ class TranslationErrors {
         };
     }
 
+    @Contract(Integer.class)
+    static class IntegerContract {
+        @Pure
+        public int intValue() {
+            throw new ContractException();
+        }
+    }
+    
     int switchCasePattern(Integer i) {
         return switch (i) {
             case Integer ii when ii < 0 -> ii * 3;

@@ -60,7 +60,9 @@ public class MethodOrLoopContractCompiler {
                 }
             }
 
-            contract.pureBody = compiler.expressionCompiler.toExpr(remainingStatements);
+            if (!remainingStatements.isEmpty()) {
+                contract.pureBody = compiler.expressionCompiler.toExpr(remainingStatements);
+            }
             return List.of();
         }
         return result;
@@ -203,7 +205,7 @@ public class MethodOrLoopContractCompiler {
                     new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null), false));
             var callee = new ExprDotName(origin,
                     compiler.expressionCompiler.toExpr(memberReference.expr),
-                    compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym)), null);
+                    compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
             var call = new ApplySuffix(origin, callee, null,
                     new ActualBindings(argBindings), null);
             header.postconditions.add(new AttributedExpression(call, null, null));
