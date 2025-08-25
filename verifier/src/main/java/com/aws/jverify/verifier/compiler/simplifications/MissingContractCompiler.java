@@ -146,7 +146,6 @@ public class MissingContractCompiler {
             if (tree.body != null) {
                 foundSymbols.add(tree.sym);
             }
-            visitType(tree.type, tree); // TODO unnecessary?
             super.visitMethodDef(tree);
         }
 
@@ -154,7 +153,6 @@ public class MissingContractCompiler {
         public void visitVarDef(JCTree.JCVariableDecl tree) {
             if (tree.sym.owner instanceof Symbol.ClassSymbol) {
                 foundSymbols.add(tree.sym);
-                visitType(tree.type, tree); // TODO unnecessary?
             }
             super.visitVarDef(tree);
         }
