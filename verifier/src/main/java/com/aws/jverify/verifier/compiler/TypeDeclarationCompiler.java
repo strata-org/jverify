@@ -245,11 +245,11 @@ public class TypeDeclarationCompiler {
         Type type = compiler.translateType(variableDecl.type, 
                 compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
-        
+
+        var isStatic = varFlags.contains(Modifier.STATIC);
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());
-                var isStatic = varFlags.contains(Modifier.STATIC);
                 return new ConstantField(origin, fieldName, null, false, type, rhs, isStatic, false);
             }
 
@@ -258,10 +258,9 @@ public class TypeDeclarationCompiler {
         }
 
         if (varFlags.contains(Modifier.FINAL)) {
-            var isStatic = varFlags.contains(Modifier.STATIC);
             return new ConstantField(origin, fieldName, null, true, type, null, isStatic, false);
         } else {
-            return new Field(origin, fieldName, null, false, type);
+            return new Field(origin, fieldName, null, true, type);
         }
     }
 
