@@ -11,7 +11,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 86, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 90, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
 
     // TODO: bring back once we support static fields
@@ -113,6 +113,10 @@ public class Lambdas {
         // These also need fixes.
 //        check(result == 1 + 2 + 1 + 1 + 2);
     }
+    
+    void pure() {
+        pureFunctionUser((Integer x) -> x);
+    }
 
     @Verify(false)
     static void doSomethingTwiceStatic(SomethingDoer doer) {
@@ -160,6 +164,11 @@ public class Lambdas {
     @Verify(false)
     void makeSomeInnerClass(SomeInnerClassMaker maker) {
         var sc = maker.makeSomething();
+    }
+    
+    @Verify(false)
+    void pureFunctionUser(PureFunction<Integer, Integer> pureFunction) {
+        
     }
 }
 
@@ -252,4 +261,9 @@ interface SomethingDoerWithSpec {
             throw new ContractException();
         }
     }
+}
+
+interface PureFunction<I, O> {
+    @Pure
+    O apply(I input);
 }
