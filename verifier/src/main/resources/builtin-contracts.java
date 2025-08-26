@@ -498,7 +498,6 @@ class OptionalContract<T> {
     private T value;
     private boolean isSet;
 
-    //Throws a NullPointerException if the value is null
     //TODO: add precondition for null
     @Pure
     static <T> OptionalContract<T> of(T value) {
@@ -540,7 +539,6 @@ class OptionalContract<T> {
         throw new ContractException();
     }
 
-    // Throws a NoSuchElementException if this is an empty object
     @Pure
     T get() {
         precondition(isSet);
