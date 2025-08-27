@@ -34,13 +34,12 @@ public class ImmutableTypeCompiler {
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
-        Symbol.ClassSymbol currentTypeSymbol = typeDeclarationCompiler.getCurrentTypeSymbol(classDecl.sym);
-        var traits = currentTypeSymbol
+        var traits = classDecl.sym
                 .getInterfaces().stream()
                 .map(baseType -> compiler.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
-        var superClass = currentTypeSymbol.getSuperclass();
+        var superClass = classDecl.sym.getSuperclass();
         if (superClass != null) {
             Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym || superClass.getKind() == TypeKind.NONE) {
@@ -103,7 +102,6 @@ public class ImmutableTypeCompiler {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
             traits.clear();
         }
-        compiler.typeDeclarationCompiler.createdContracts.add(currentTypeSymbol);
 
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
@@ -149,7 +147,7 @@ public class ImmutableTypeCompiler {
                 if (identifier.name == identifier.name.table.names._this) {
                     return resultReference;
                 } else {
-                    var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
+                    var identName = compiler.nameCompiler.getCompiledName(identifier.sym, origin);
                     return new ExprDotName(origin, resultReference, compiler.getName(identifier, identName), null);
                 }
             } else {
@@ -176,7 +174,7 @@ public class ImmutableTypeCompiler {
                 {
                     var field = (JCTree.JCVariableDecl)member;
                     IOrigin fieldOrigin = compiler.toOrigin(field);
-                    var fieldName = new Name(fieldOrigin, compiler.nameCompiler.getCompiledName(field.sym));
+                    var fieldName = new Name(fieldOrigin, compiler.nameCompiler.getCompiledName(field.sym, fieldOrigin));
                     BinaryExpr e = new BinaryExpr(fieldOrigin, BinaryExprOpcode.Eq, 
                             new ExprDotName(fieldOrigin, resultReference, fieldName, null),
                             new NameSegment(fieldOrigin, fieldName.getValue(), null));
@@ -227,8 +225,8 @@ public class ImmutableTypeCompiler {
         JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.compiler.context);
         boolean callDatatypeConstructor = isCanonicalRecordConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
             
-        var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass());
-        var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor);
+        var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass(), origin);
+        var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor, origin);
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
         var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.compiler.getName(newClass, constructorName), null);

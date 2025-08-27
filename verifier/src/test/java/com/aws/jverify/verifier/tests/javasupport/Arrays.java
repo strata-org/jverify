@@ -10,7 +10,7 @@ import java.util.function.Supplier;
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(exitCode = 4, dafnyVerified = 12, dafnyErrors = 3)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 3)
 class Arrays {
     
     interface SupplyArray {

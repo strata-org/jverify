@@ -7,7 +7,7 @@ import java.util.function.IntPredicate;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 14, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(dafnyVerified = 19, dafnyErrors = 0, verifyPrintedDafny = true)
 public class AvoidNameCollisionsTest {
 
     void set(int set, int r_set) {}
@@ -75,4 +75,20 @@ public class AvoidNameCollisionsTest {
         r = 0;
         return r;
     }
+    
+    static class MethodDuplicateNameOneInherited_Base {
+        MethodDuplicateNameOneInherited_Base() {
+            
+        }
+        void foo() {}
+    }
+
+    static class MethodDuplicateNameOneInherited_Extendee extends MethodDuplicateNameOneInherited_Base {
+        MethodDuplicateNameOneInherited_Extendee() {
+            
+        }
+        void foo(int x) {}
+    }
+    
+    record BaseRecord() {}
 }
