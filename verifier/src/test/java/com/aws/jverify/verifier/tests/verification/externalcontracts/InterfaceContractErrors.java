@@ -15,14 +15,14 @@ public class InterfaceContractErrors {
         @Override
         public int redeclaredContract() {
 //                 ^ error: method 'redeclaredContract' already has an internally defined contract
-            postcondition((Integer r) -> true);
+            postcondition((int r) -> true);
             throw new ContractException();
         }
     }
 
     interface I {
         default int redeclaredContract() {
-            postcondition((Integer r) -> r > 2);
+            postcondition((int r) -> r > 2);
             return 1;
         }
     }

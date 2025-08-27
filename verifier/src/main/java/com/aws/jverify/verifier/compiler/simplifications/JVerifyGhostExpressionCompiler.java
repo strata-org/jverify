@@ -51,7 +51,7 @@ public class JVerifyGhostExpressionCompiler {
                 }
                 if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
                     compiler.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
-                    return null;
+                    return JavaToDafnyCompiler.getHole(origin);
                 }
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = compiler.toOrigin(lambda);
@@ -117,7 +117,7 @@ public class JVerifyGhostExpressionCompiler {
         }
 
         compiler.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
-        return null;
+        return JavaToDafnyCompiler.getHole(origin);
     }
 
     private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {

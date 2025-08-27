@@ -41,9 +41,8 @@ public class ExternalContractCompiler {
     private final JVerifyIndex index;
     private final Enter enter;
     private final Types types;
-    private final TreeMaker maker;
+    private final JVerifyMaker verifyMaker;
     private final Reporter reporter;
-    private final JavacElements elements;
     private final Set<Symbol.ClassSymbol> symbolsWithContracts = new HashSet<>();
     private final Map<Symbol, Symbol> contractSymbolToContractee = new HashMap<>();
 
@@ -51,8 +50,7 @@ public class ExternalContractCompiler {
         this.names = Names.instance(context);
         this.enter = Enter.instance(context);
         this.types = Types.instance(context);
-        this.maker = TreeMaker.instance(context);
-        this.elements = JavacElements.instance(context);
+        this.verifyMaker = JVerifyMaker.instance(context);
         this.index = JVerifyIndex.instance(context);
         this.reporter = Reporter.instance(context);
     }
@@ -169,7 +167,7 @@ public class ExternalContractCompiler {
                         } else {
                             baseSource.body = methodDecl.body;
                             baseSource.mods.annotations = methodDecl.mods.annotations;
-                            baseSource.mods.annotations = baseSource.mods.annotations.append(getVerifyFalseAnnotation());
+                            baseSource.mods.annotations = baseSource.mods.annotations.append(verifyMaker.getVerifyFalseAnnotation());
                         }
                     } else {
                         reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
@@ -193,6 +191,7 @@ public class ExternalContractCompiler {
                     var baseMethod = OverrideFinder.findOverriddenMethod(contracteeSymbol, methodSymbol, types);
                     if (baseMethod != null) {
                         newMembers.add(methodDecl);
+                        index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
                         contractSymbolToContractee.put(methodDecl.sym, baseMethod);
                         methodDecl.sym = baseMethod;
                     } else {
@@ -218,7 +217,7 @@ public class ExternalContractCompiler {
             classDecl.sym = contracteeSymbol;
             classDecl.type = contracteeSymbol.type;
 
-            classDecl.mods.annotations = classDecl.mods.annotations.append(getVerifyFalseAnnotation());
+            classDecl.mods.annotations = classDecl.mods.annotations.append(verifyMaker.getVerifyFalseAnnotation());
 
             // Moves the contract attribute, including its immutable part.
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
@@ -252,12 +251,6 @@ public class ExternalContractCompiler {
             }
             return symbol;
         }
-    }
-
-    private JCTree.JCAnnotation getVerifyFalseAnnotation() {
-        var verifySymbol = elements.getTypeElement(Verify.class.getCanonicalName());
-        return maker.Annotation(maker.Ident(verifySymbol), List.of(
-                maker.Assign(maker.Ident(names.fromString("value")), maker.Literal(false))));
     }
 
     private String methodToString(JCTree tree) {

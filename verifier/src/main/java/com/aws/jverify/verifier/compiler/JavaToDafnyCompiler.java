@@ -44,10 +44,10 @@ import java.util.stream.Stream;
 public class JavaToDafnyCompiler {
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
     public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
-    public final Stack<IOrigin> contextOrigins = new Stack<>();
     public final NameCompiler nameCompiler;
     public final VerifyAnnotationCompiler verifyAnnotationCompiler;
     public final TypeDeclarationCompiler typeDeclarationCompiler;
@@ -79,10 +79,10 @@ public class JavaToDafnyCompiler {
         
         reporter = Reporter.instance(context);
         verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
-        nameCompiler = new NameCompiler(context);
+        nameCompiler = NameCompiler.instance(context);
+        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
         index = JVerifyIndex.instance(context);
         names = Names.instance(context);
-        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
     }
 
     public NameCompiler getNameCompiler() {
@@ -129,11 +129,11 @@ public class JavaToDafnyCompiler {
 
         // Add a default origin to fallback to
         var dummyToken = new Token(1, 1);
-        contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
+        reporter.contextOrigins.push(new TokenRangeOrigin(dummyToken, dummyToken));
 
         compileSymbolsTopologically(symbolToCompilationUnit);
 
-        contextOrigins.pop();
+        reporter.contextOrigins.pop();
 
         List<FileHeader> filesStarts = new ArrayList<>();
         for (var compilationUnit : parsed) {
@@ -149,8 +149,6 @@ public class JavaToDafnyCompiler {
             }));
             filesStarts.add(new FileHeader(compilationUnit.sourcefile.toUri().toString(), isLibrary, fileDeclarations));
         }
-        
-        typeDeclarationCompiler.addMissingTypeContracts(filesStarts);
 
         return new FilesContainer(filesStarts);
     }
@@ -333,6 +331,10 @@ public class JavaToDafnyCompiler {
         return (modifiers.flags & Flags.STATIC) != 0;
     }
 
+    public static boolean isStatic(Symbol symbol) {
+        return (symbol.flags() & Flags.STATIC) != 0;
+    }
+
     public static LiteralExpr getReferenceHole(IOrigin origin) {
         // TODO should be a typeless 'hole' expression, but Dafny does not have that.
         return new LiteralExpr(origin, null);
@@ -391,7 +393,7 @@ public class JavaToDafnyCompiler {
                 return translateClassType(origin, additionalModifiers, classType, isNullable, nullableSuffix);
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
-                return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym), null));
+                return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym, origin), null));
             }
             case com.sun.tools.javac.code.Type.WildcardType wildcardType -> {
                 return translateWildcardType(origin, wildcardType);
@@ -508,7 +510,6 @@ public class JavaToDafnyCompiler {
                                     com.sun.tools.javac.code.Type.ClassType classType, 
                                     boolean isNullable, 
                                     String nullableSuffix) {
-
         Type remappedType = new ModifiableObjectCompiler(this).getRemappedType(classType, origin, additionalModifiers);
         if (remappedType != null) {
             return remappedType;
@@ -525,7 +526,7 @@ public class JavaToDafnyCompiler {
         }
 
         // Remove the name qualification because we do not support that yet
-        var compiledName = nameCompiler.getCompiledName(classType.tsym);
+        var compiledName = nameCompiler.getCompiledName(classType.tsym, origin);
         var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
         if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
             var ownerTypes = getOwnAndEnclosedTypeParameters(classType.tsym).toList();
@@ -573,7 +574,7 @@ public class JavaToDafnyCompiler {
     }
 
     public Name getName(JCTree tree, Symbol symbol) {
-        return getName(tree, nameCompiler.getCompiledName(symbol), symbol.name.length());
+        return getName(tree, nameCompiler.getCompiledName(symbol, tree), symbol.name.length());
     }
 
     public Name getName(JCTree tree, String name) {
@@ -585,7 +586,7 @@ public class JavaToDafnyCompiler {
         int startPos = positionCalculator.getStartPos(tree);
         var startToken = positionCalculator.toToken(startPos);
         var endToken = positionCalculator.toToken(startPos + length);
-        var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
+        var origin = startToken == null ? reporter.contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
         return new Name(origin, name);
     }
 
@@ -599,16 +600,7 @@ public class JavaToDafnyCompiler {
     }
     
     public IOrigin toOrigin(JCTree node) {
-        var positionCalculator = new PositionCalculator(reporter.compilationUnit);
-        var startToken = positionCalculator.toToken(TreeInfo.getStartPos(node));
-        if (startToken == null) {
-            return contextOrigins.peek();
-        }
-        int endPos = positionCalculator.getEndPos(node);
-        var endToken = endPos == Position.NOPOS 
-                ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1) 
-                : positionCalculator.toToken(endPos);
-        return new TokenRangeOrigin(startToken, endToken);
+        return reporter.toOrigin(node);
     }
 
     public static TokenRange originToRange(IOrigin tokenRangeOrigin) {
@@ -622,8 +614,7 @@ public class JavaToDafnyCompiler {
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return !(methodSymbol instanceof Symbol.DynamicMethodSymbol)
-                && methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
+        return methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
     }
 
     /**

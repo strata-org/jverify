@@ -1,11 +1,8 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
 import com.aws.jverify.verifier.VerifierOptions;
-import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.aws.jverify.verifier.compiler.*;
-import com.aws.jverify.verifier.compiler.simplifications.MoveStaticMethodsToStaticType;
-import com.aws.jverify.verifier.compiler.simplifications.ExternalContractCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.MethodReferenceToLambdaCompiler;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.MultiTaskListener;
@@ -141,20 +138,22 @@ public class JavaFrontEnd {
                     
                     var staticMover = new MoveStaticMethodsToStaticType(context);
                     var contractCompiler = new ExternalContractCompiler(context);
+                    var missingContractCompiler = new MissingContractCompiler(context);
                     units.addAll(
                             staticMover.translate(
+                            missingContractCompiler.compile(
                             contractCompiler.apply(
                                 unsuspend(lower(suspend(
                                         unlambda(
                                                 compiler.flow(compiler.attribute(todo))
-                    )))))));
+                    ))))))));
                 }
             }
         });
         // Applies the Java to Java part of our pipeline
         compiler.compile(files, List.of(), null, List.of());
 
-        var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
+        @SuppressWarnings("unchecked") var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
         
         var hasErrors = false;
         for (Diagnostic<? extends JavaFileObject> diagnostic : javaFrontendDiagnostics.getDiagnostics()) {

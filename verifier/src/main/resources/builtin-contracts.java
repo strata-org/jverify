@@ -9,6 +9,13 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import static com.aws.jverify.JVerify.check;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.SequencedCollection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntPredicate;
@@ -43,12 +50,14 @@ abstract class ListContract<E> implements List<E> {
 
     JVerify.Sequence<E> elements;
 
+    @Pure
     static <E> List<E> of() {
         postcondition((List<E> r) ->
                 r.size() == 0);
         throw new ContractException();
     }
 
+    @Pure
     static <E> List<E> of(E e1) {
         postcondition((List<E> r) ->
                 r.size() == 1 &&
@@ -56,6 +65,7 @@ abstract class ListContract<E> implements List<E> {
         throw new ContractException();
     }
 
+    @Pure
     static <E> List<E> of(E e1, E e2) {
         postcondition((List<E> r) ->
                 r.size() == 2 &&
@@ -64,6 +74,7 @@ abstract class ListContract<E> implements List<E> {
         throw new ContractException();
     }
 
+    @Pure
     static <E> List<E> of(E e1, E e2, E e3) {
         postcondition((List<E> r) ->
                 r.size() == 3 &&
@@ -110,12 +121,14 @@ abstract class SetContract<E> implements Set<E> {
 
     JVerify.Set<E> elements;
 
+    @Pure
     static <E> Set<E> of() {
         postcondition((Set<E> r) ->
                 r.size() == 0);
         throw new ContractException();
     }
 
+    @Pure
     static <E> Set<E> of(E e1) {
         postcondition((Set<E> r) ->
                 r.size() == 1 &&
@@ -123,6 +136,7 @@ abstract class SetContract<E> implements Set<E> {
         throw new ContractException();
     }
 
+    @Pure
     static <E> Set<E> of(E e1, E e2) {
         postcondition((Set<E> r) ->
                 r.size() == 2 &&
@@ -131,6 +145,7 @@ abstract class SetContract<E> implements Set<E> {
         throw new ContractException();
     }
 
+    @Pure
     static <E> Set<E> of(E e1, E e2, E e3) {
         postcondition((Set<E> r) ->
                 r.size() == 3 &&
@@ -170,12 +185,14 @@ abstract class MapContract<K, V> implements Map<K, V> {
 
     JVerify.Map<Object, V> elements;
 
+    @Pure
     static <K, V> Map<K, V> of() {
         postcondition((Map<K, V> r) ->
                 r.size() == 0);
         throw new ContractException();
     }
 
+    @Pure
     static <K, V> Map<K, V> of(K k1, V v1) {
         postcondition((Map<K, V> r) ->
                 r.size() == 1 &&
@@ -184,6 +201,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
         throw new ContractException();
     }
 
+    @Pure
     static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2) {
         postcondition((Map<K, V> r) ->
                 r.size() == 2 &&
@@ -194,6 +212,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
         throw new ContractException();
     }
 
+    @Pure
     static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3) {
         postcondition((Map<K, V> r) ->
                 r.size() == 2 &&
@@ -291,7 +310,7 @@ record MapEntry<K, V>(K key, V value) implements Map.Entry<K, V> {
     @Override
     @Verify(false)
     public V setValue(V value) {
-        throw new UnsupportedOperationException();
+        throw new ContractException();
     }
 }
 
@@ -306,6 +325,7 @@ class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
 
+    @Pure
     public static Integer valueOf(int i) {
         postcondition((Integer b) -> b.intValue() == i);
         throw new ContractException();
@@ -326,6 +346,7 @@ class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
 
+    @Pure
     public static Long valueOf(long l) {
         postcondition((Long b) -> b.longValue() == l);
         throw new ContractException();
@@ -420,21 +441,25 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract add(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue + v.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract subtract(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue - v.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract multiply(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue * v.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract divide(BigIntegerContract v) {
         precondition(v.intValue != 0);
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue / v.intValue);
@@ -447,38 +472,45 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract abs() {
         postcondition((BigIntegerContract b) -> b.intValue == (this.intValue < 0 ? -this.intValue : this.intValue));
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract min(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == (this.intValue < v.intValue ? this.intValue : v.intValue));
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract max(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == (this.intValue > v.intValue ? this.intValue : v.intValue));
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract mod(BigIntegerContract v) {
         precondition(v.intValue != 0);
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue % v.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract negate() {
         postcondition((BigIntegerContract b) -> b.intValue == -this.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract pow(int exponent) {
         precondition(exponent >= 0);
         postcondition((BigIntegerContract b) -> b.intValue == HelperForBigIntegerContract.pow(intValue, exponent));
         throw new ContractException();
     }
 
+    @Pure
     static BigIntegerContract valueOf(long val) {
         postcondition((BigIntegerContract b) -> b.intValue == val);
         throw new ContractException();

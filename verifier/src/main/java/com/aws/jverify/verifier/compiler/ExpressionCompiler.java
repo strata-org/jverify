@@ -5,6 +5,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
+import com.sun.jdi.event.ThreadStartEvent;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -25,9 +26,8 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
-     public final JavaToDafnyCompiler compiler;
-
-     private static final Set<String> supportedStringMethods = Set.of("equals", "concat", "startsWith", "substring", "isEmpty", "charAt", "length", "indexOf");
+    public final JavaToDafnyCompiler compiler;
+    private static final Set<String> supportedStringMethods = Set.of("equals", "concat", "startsWith", "substring", "isEmpty", "charAt", "length", "indexOf");
 
     public ExpressionCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -106,7 +106,7 @@ public class ExpressionCompiler {
                 }
                 var origin = compiler.toOrigin(statement);
                 var type = compiler.translateType(variableDecl.type, compiler.toOrigin(variableDecl));
-                String name = compiler.nameCompiler.getCompiledName(variableDecl.sym);
+                String name = compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
                 var returnVar = new BoundVar(origin, new Name(origin, name), type, false);
                 var lhs = new CasePattern<>(origin, name, returnVar, null);
                 result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init)), result, true, null); 
@@ -287,7 +287,7 @@ public class ExpressionCompiler {
     }
     
     public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
-        var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
+        var identName = compiler.nameCompiler.getCompiledName(identifier.sym, identifier);
         if (identName.contentEquals("this")) {
             return new ThisExpr(origin);
         }
@@ -326,15 +326,15 @@ public class ExpressionCompiler {
     private Expression translateFieldAccess(JCTree.JCFieldAccess fieldAccess, IOrigin origin) {
         if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
             // Ignore package qualification
-            return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
+            return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol, origin), List.of());
         }
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
             return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
         }
-
-        var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym);
+        
+        var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);
         if (compiler.isEnum(fieldAccess.selected)) {
             return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                     null, new ActualBindings(List.of()), null);
@@ -379,7 +379,7 @@ public class ExpressionCompiler {
                 } else {
                     receiver = JavaToDafnyCompiler.getHole(origin);
                 }
-                var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get());
+                var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get(), origin);
                 var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
             }
@@ -387,12 +387,12 @@ public class ExpressionCompiler {
 
         if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                 && ownerClass.fullname.contentEquals(String.class.getName())) {
-                 if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
-                    compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
-                    return compiler.getHole(origin);
-                }
+            if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
+                compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
+                return JavaToDafnyCompiler.getHole(origin);
+            }
         }
-
+        
         var target = toExpr(invocation.getMethodSelect());
         return new ApplySuffix(origin, target, null,
                 new ActualBindings(argBindings), null);

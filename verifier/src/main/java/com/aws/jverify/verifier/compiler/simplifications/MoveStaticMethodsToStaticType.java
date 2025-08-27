@@ -18,12 +18,14 @@ import com.sun.tools.javac.util.Names;
 import javax.lang.model.util.Elements;
 import java.util.*;
 
+import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_CLASS;
+
 /**
  * In Java, static methods ignore the type parameters of any enclosing types
  * We compile this behavior by moving static methods to a separate type that does not have type parameters 
  */
 public class MoveStaticMethodsToStaticType {
-    
+
     Names names;
     TreeMaker maker;
     Symtab syms;
@@ -95,6 +97,11 @@ public class MoveStaticMethodsToStaticType {
                 return;
             }
             
+            if (tree.sym.owner.type != Type.noType && tree.sym.outermostClass().fullname.contentEquals(JVERIFY_CLASS)) {
+                super.visitClassDef(tree);
+                return;
+            }
+
             var members = tree.getMembers();
             var newMembers = new ArrayList<JCTree>();
             while(!members.isEmpty()) {
@@ -104,7 +111,7 @@ public class MoveStaticMethodsToStaticType {
                     if (methodDecl.sym.isStatic()) {
                         staticMembers = staticMembers.append(methodDecl);
                         var methodSymbol = methodDecl.sym;
-                        
+
                         staticSymbols.add(methodSymbol);
                         methodSymbol.owner = staticClassSymbol;
                         staticClassSymbol.members().enter(methodSymbol);
@@ -126,15 +133,15 @@ public class MoveStaticMethodsToStaticType {
             tree.defs = List.from(newMembers);
             super.visitClassDef(tree);
         }
-        
+
     }
 
     class ReferenceUpdater extends TreeTranslator {
         boolean staticContext = false;
-        
+
         @Override
         public void visitSelect(JCTree.JCFieldAccess tree) {
-            if (staticSymbols.contains(tree.sym)) { 
+            if (staticSymbols.contains(tree.sym)) {
                 var previous = staticContext;
                 staticContext = true;
                 super.visitSelect(tree);
