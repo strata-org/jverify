@@ -1,7 +1,9 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.*;
+import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
 import com.sun.tools.javac.util.List;
@@ -16,14 +18,16 @@ import static com.sun.tools.javac.code.Flags.*;
 public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
     private final JCCompilationUnit compilationUnit;
-    private final TreeMaker make;
+    private final TreeMaker maker;
+    private final JavacElements elements;
     private final Names names;
     private final Types types;
     private final Context context;
 
     public LambdaToAnonymousClassCompiler(JCCompilationUnit compilationUnit, Context context) {
         this.compilationUnit = compilationUnit;
-        this.make = TreeMaker.instance(context);
+        this.maker = TreeMaker.instance(context);
+        this.elements = JavacElements.instance(context);
         this.names = Names.instance(context);
         this.types = Types.instance(context);
         this.context = context;
@@ -63,7 +67,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
-        make.pos = lambda.pos;
+        maker.pos = lambda.pos;
         
         var classSymbol = getClassSymbol(lambda);
         var implMethod = createImplementationMethod(classSymbol, lambda);
@@ -76,11 +80,11 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private JCNewClass getNewClassExpression(JCLambda lambda,
                                              JCClassDecl classDef,
                                              JCMethodDecl constructor) {
-        make.pos = lambda.pos;
-        var result = make.NewClass(
+        maker.pos = lambda.pos;
+        var result = maker.NewClass(
                 null,
                 List.nil(),
-                make.Type(lambda.type),
+                maker.Type(lambda.type),
                 List.nil(),
                 classDef
         );
@@ -122,12 +126,12 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         classSymbol.members().enter(implMethod.sym);
         classSymbol.members().enter(constructor.sym);
 
-        var classDef = make.ClassDef(
-                make.Modifiers(classSymbol.flags()),
+        var classDef = maker.ClassDef(
+                maker.Modifiers(classSymbol.flags()),
                 classSymbol.name,
                 List.nil(),
                 null,
-                List.of(make.Type(lambda.type)),
+                List.of(maker.Type(lambda.type)),
                 List.from(classBody)
         );
         classDef.sym = classSymbol;
@@ -136,7 +140,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private JCMethodDecl createConstructor(Symbol.ClassSymbol classSymbol) {
-        var modifiers = make.Modifiers(SYNTHETIC);
+        var modifiers = maker.Modifiers(SYNTHETIC);
 
         var methodSymbol = new Symbol.MethodSymbol(modifiers.flags, names.init, new Type.MethodType(
                 List.nil(),
@@ -145,14 +149,14 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         ), classSymbol);
         methodSymbol.params = List.nil();
 
-        var result = make.MethodDef(
+        var result = maker.MethodDef(
                 modifiers,
                 names.init,
                 null,
                 List.nil(),
                 List.nil(),
                 List.nil(),
-                make.Block(0, List.nil()),
+                maker.Block(0, List.nil()),
                 null
         );
         result.sym = methodSymbol;
@@ -160,11 +164,14 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     }
 
     private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, JCLambda lambda) {
-
         var samMethod = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.type.tsym);
+        var isPure = samMethod.getAnnotation(Pure.class) != null;
         var methodType = types.memberType(lambda.type, samMethod);
 
-        var modifiers = make.Modifiers(Flags.PUBLIC | SYNTHETIC);
+        var modifiers = maker.Modifiers(Flags.PUBLIC | SYNTHETIC);
+        if (isPure) {
+            modifiers.annotations = modifiers.annotations.append(getPureAnnotation());
+        }
         var methodSymbol = new Symbol.MethodSymbol(modifiers.flags, samMethod.name, new Type.MethodType(
                 methodType.getParameterTypes(),
                 methodType.getReturnType(),
@@ -173,10 +180,10 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         methodSymbol.params = lambda.params.map(d -> d.sym);
 
         var methodBody = getMethodBody(lambda, methodSymbol);
-        var result = make.MethodDef(
+        var result = maker.MethodDef(
                 modifiers,
                 methodSymbol.name,
-                make.Type(methodType.getReturnType()),
+                maker.Type(methodType.getReturnType()),
                 List.nil(),
                 lambda.params,
                 List.nil(),
@@ -190,6 +197,11 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         }
         return result;
     }
+    
+    private JCTree.JCAnnotation getPureAnnotation() {
+        var verifySymbol = elements.getTypeElement(Pure.class.getCanonicalName());
+        return maker.Annotation(maker.Ident(verifySymbol), List.nil());
+    }
 
     private JCBlock getMethodBody(JCLambda lambda, Symbol.MethodSymbol methodSymbol) {
         qualifyThisAndUpdateOwners(methodSymbol, lambda);
@@ -199,8 +211,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private JCBlock handleExpressionOrBlockBody(JCLambda lambda) {
         JCBlock methodBody;
         if (lambda.getBodyKind() == JCLambda.BodyKind.EXPRESSION) {
-            JCReturn returnStmt = make.Return((JCExpression) lambda.body);
-            methodBody = make.Block(0, List.of(returnStmt));
+            JCReturn returnStmt = maker.Return((JCExpression) lambda.body);
+            methodBody = maker.Block(0, List.of(returnStmt));
         } else {
             methodBody = (JCBlock) lambda.body;
         }
@@ -230,12 +242,12 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
             public void visitIdent(JCIdent ident) {
                 // "this" suddenly refers to the local class, so we need to qualify it with the outer class.
                 if (ident.name == names._this) {
-                    make.pos = ident.pos;
+                    maker.pos = ident.pos;
                     Symbol.TypeSymbol thisClass = ident.sym.type.tsym;
-                    JCIdent outerClass = make.Ident(thisClass.name);
+                    JCIdent outerClass = maker.Ident(thisClass.name);
                     outerClass.sym = thisClass;
                     outerClass.type = outerClass.sym.type;
-                    JCFieldAccess select = make.Select(outerClass, names._this);
+                    JCFieldAccess select = maker.Select(outerClass, names._this);
                     select.sym = thisClass;
                     select.type = select.sym.type;
                     result = select;

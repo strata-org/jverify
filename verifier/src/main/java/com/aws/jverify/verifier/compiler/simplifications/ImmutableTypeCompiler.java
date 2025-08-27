@@ -220,11 +220,7 @@ public class ImmutableTypeCompiler {
             typeArgs = compiler.getOwnAndEnclosedTypeParameters(newClass.type.tsym).map(
                     tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
         }
-        
-        typeArgs.addAll(newClass.typeargs.map(expressionCompiler.compiler::translateType));
-        if (newClass.clazz instanceof JCTree.JCTypeApply typeApply) {
-            typeArgs.addAll(typeApply.arguments.map(expressionCompiler.compiler::translateType));
-        }
+        typeArgs.addAll(newClass.type.getTypeArguments().map(t -> expressionCompiler.compiler.translateType(t, origin)));
 
         JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.compiler.context);
         boolean callDatatypeConstructor = isCanonicalRecordConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
