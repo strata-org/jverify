@@ -27,7 +27,7 @@ public class MissingContractCompiler {
     private final Symtab symtab;
     private final JavacElements elements;
     private final JVerifyUtils jverifyUtils;
-    MethodOrLoopContractCompiler internalContractCompiler;
+    private final MethodOrLoopContractCompiler internalContractCompiler;
 
     private final Map<Symbol, Reference> symbolReferences = new HashMap<>();
     private final Set<Symbol> foundSymbols = new HashSet<>();

@@ -15,24 +15,23 @@ import java.util.Set;
 import java.util.Stack;
 
 /**
- * Depends on the contract/implementation format for method bodies
- * that NewMethodOrLoopContractCompiler establishes
+ * Depends on MethodOrLoopContractCompiler
  */
-public class NewVerifyAnnotationCompiler extends TreeScanner {
+public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
 
-    public NewVerifyAnnotationCompiler(Context context) {
-        context.put(NewVerifyAnnotationCompiler.class, this);
+    public VerifyAnnotationCompiler(Context context) {
+        context.put(VerifyAnnotationCompiler.class, this);
         jverifyUtils = JVerifyUtils.instance(context);
         shouldVerifies.push(context.get(VerifierOptions.class).verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
     }
     
-    public static NewVerifyAnnotationCompiler instance(Context context) {
-        NewVerifyAnnotationCompiler instance = context.get(NewVerifyAnnotationCompiler.class);
+    public static VerifyAnnotationCompiler instance(Context context) {
+        VerifyAnnotationCompiler instance = context.get(VerifyAnnotationCompiler.class);
         if (instance == null) {
-            instance = new NewVerifyAnnotationCompiler(context);
+            instance = new VerifyAnnotationCompiler(context);
         }
         return instance;
     }

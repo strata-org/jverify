@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.ContractException;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
@@ -21,6 +20,7 @@ import java.util.Set;
 /*
 Extracts contracts from constructor, method or loop bodies
 Does not support lambdas.
+TODO: could be slightly simplified by compiling DoWhile loops first
  */
 public class MethodOrLoopContractCompiler extends TreeTranslator {
     private final TreeMaker maker;
@@ -45,6 +45,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     public static boolean hasImplementation(JCTree.JCMethodDecl method) {
         return method.body != null && method.body.getStatements().get(1) instanceof JCTree.JCBlock;
     }
+    
 
     public static MethodOrLoopContractCompiler instance(Context context) {
         MethodOrLoopContractCompiler instance = context.get(MethodOrLoopContractCompiler.class);
@@ -144,41 +145,33 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         remainingStatements = addHeaderContracts(remainingStatements, contractStatements);
 
         if (allowFooter) {
-            int i;
-            for (i = remainingStatements.size() - 1; i > 0; i--) {
-                var current = remainingStatements.get(i);
-                boolean foundHeader = isContractStatement(current);
-                if (!foundHeader) {
-                    break;
-                }
-                contractStatements.add(current);
-            }
-            int footerContracts = i + 1;
-            remainingStatements = remainingStatements.subList(0, footerContracts);
+            remainingStatements = addFooterContracts(remainingStatements, contractStatements);
         }
 
         maker.pos = tree.pos;
         var contractBlock = maker.Block(0, List.from(contractStatements));
 
-        List<JCTree.JCStatement> implStatements;
         if (superOrThis != null) {
             remainingStatements = new ArrayList<>(remainingStatements);
             remainingStatements.addFirst(superOrThis);
         }
         JCTree.JCBlock implementationBlock = maker.Block(0, List.from(remainingStatements));
-        implStatements = List.of(implementationBlock);
-        return implStatements.prepend(contractBlock);
+        return List.<JCTree.JCStatement>of(implementationBlock).prepend(contractBlock);
     }
 
-    private static boolean hasImplementation(java.util.List<JCTree.JCStatement> remainingStatements) {
-        boolean hasImplementation = true;
-        if (remainingStatements.size() == 1) {
-            var statement = remainingStatements.getFirst();
-            boolean isContractThrow = statement instanceof JCTree.JCThrow throwStatement &&
-                    throwStatement.expr.type.tsym.getQualifiedName().contentEquals(ContractException.class.getCanonicalName());
-            hasImplementation = !isContractThrow;
+    private java.util.List<JCTree.JCStatement> addFooterContracts(java.util.List<JCTree.JCStatement> remainingStatements, ArrayList<JCTree.JCStatement> contractStatements) {
+        int i;
+        for (i = remainingStatements.size() - 1; i > 0; i--) {
+            var current = remainingStatements.get(i);
+            boolean foundHeader = isContractStatement(current);
+            if (!foundHeader) {
+                break;
+            }
+            contractStatements.add(current);
         }
-        return hasImplementation;
+        int footerContracts = i + 1;
+        remainingStatements = remainingStatements.subList(0, footerContracts);
+        return remainingStatements;
     }
 
     private static JCTree.JCStatement getSuperOrThis(List<JCTree.JCStatement> statements) {
