@@ -72,7 +72,7 @@ public class NewVerifyAnnotationCompiler extends TreeScanner {
     }
 
     public void removeImplementation(JCTree.JCMethodDecl tree) {
-        var contractBlock = NewMethodOrLoopContractCompiler.getContractBlock(tree);
+        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
         tree.body.stats = List.of(contractBlock, jverifyMaker.contractThrow());
     }
 

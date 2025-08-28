@@ -11,7 +11,6 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
@@ -23,7 +22,7 @@ import java.util.stream.Stream;
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
-    private final NewMethodOrLoopContractCompiler newMethodOrLoopContractCompiler;
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     final Reporter reporter;
     private final JVerifyMaker jverifyMaker;
     JVerifyIndex index;
@@ -36,7 +35,7 @@ public class TypeDeclarationCompiler {
         this.compiler = compiler;
         index = JVerifyIndex.instance(compiler.context);
         reporter = Reporter.instance(compiler.context);
-        newMethodOrLoopContractCompiler = NewMethodOrLoopContractCompiler.instance(compiler.context);
+        methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         jverifyMaker = JVerifyMaker.instance(compiler.context);
     }
 
@@ -260,7 +259,7 @@ public class TypeDeclarationCompiler {
         if (method.body == null) {
             return null;
         }
-        boolean shouldVerify = NewMethodOrLoopContractCompiler.hasImplementation(method);
+        boolean shouldVerify = MethodOrLoopContractCompiler.hasImplementation(method);
         
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
 // Hints for whenever this is implemented.
@@ -272,7 +271,7 @@ public class TypeDeclarationCompiler {
         }
 
         var contract = new MethodOrLoopContract(method, jverifyMaker.isPure(method.sym));
-        var remainingStatements = newMethodOrLoopContractCompiler.
+        var remainingStatements = methodOrLoopContractCompiler.
                 extractContract(compiler, method.body, contract);
 
         if (contract.isPure) {

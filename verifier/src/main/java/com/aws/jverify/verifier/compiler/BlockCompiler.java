@@ -13,12 +13,14 @@ import java.util.stream.Collectors;
 public class BlockCompiler {
 
     public final JavaToDafnyCompiler compiler;
+    MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
 
     public BlockCompiler(JavaToDafnyCompiler compiler, Symbol.MethodSymbol methodSymbol) {
         this.compiler = compiler;
         this.methodSymbol = methodSymbol;
+        methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         statementCompilers.add(new ForLoopCompiler(this));
         statementCompilers.add(new DoWhileLoopCompiler(this));
         statementCompilers.add(new ImpureExpressionStatementCompiler(this));
@@ -169,7 +171,7 @@ public class BlockCompiler {
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = new MethodOrLoopContractCompiler(compiler).extractContract(body, header, false);
+        var postHeader = methodOrLoopContractCompiler.extractContract(compiler, (JCTree.JCBlock)body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 

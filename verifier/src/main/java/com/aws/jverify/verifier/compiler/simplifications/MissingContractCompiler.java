@@ -27,7 +27,7 @@ public class MissingContractCompiler {
     private final Symtab symtab;
     private final JavacElements elements;
     private final JVerifyMaker jverifyMaker;
-    NewMethodOrLoopContractCompiler internalContractCompiler;
+    MethodOrLoopContractCompiler internalContractCompiler;
 
     private final Map<Symbol, Reference> symbolReferences = new HashMap<>();
     private final Set<Symbol> foundSymbols = new HashSet<>();
@@ -44,7 +44,7 @@ public class MissingContractCompiler {
         this.symtab = Symtab.instance(context);
         jverifyMaker = JVerifyMaker.instance(context);
         reporter = Reporter.instance(context);
-        internalContractCompiler = NewMethodOrLoopContractCompiler.instance(context);
+        internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
     
     public Set<JCTree.JCCompilationUnit> compile(Set<JCTree.JCCompilationUnit> units) {

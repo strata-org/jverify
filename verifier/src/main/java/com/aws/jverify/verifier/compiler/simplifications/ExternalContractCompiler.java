@@ -214,7 +214,7 @@ public class ExternalContractCompiler {
                     var noVerify = true;
                     boolean pure = jverifyMaker.isPure(methodSymbol);
                     if (pure) {
-                        var implementation = NewMethodOrLoopContractCompiler.getImplementation(methodDecl);
+                        var implementation = MethodOrLoopContractCompiler.getImplementation(methodDecl);
                         if (implementation != null)
                             if (implementation.getStatements().size() == 1) {
                                 var statement = implementation.getStatements().getFirst();

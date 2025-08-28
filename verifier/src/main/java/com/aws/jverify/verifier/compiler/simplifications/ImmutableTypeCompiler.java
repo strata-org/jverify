@@ -162,7 +162,7 @@ public class ImmutableTypeCompiler {
         if (dafnyMember instanceof Constructor constructor && 
                 (classDecl.sym.isAnonymous() || 
                         JavaToDafnyCompiler.isSynthetic(classDecl.sym.flags()) || 
-                        !NewMethodOrLoopContractCompiler.hasImplementation(methodDecl))) {
+                        !MethodOrLoopContractCompiler.hasImplementation(methodDecl))) {
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
 
