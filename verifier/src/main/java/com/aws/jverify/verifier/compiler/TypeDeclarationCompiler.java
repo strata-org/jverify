@@ -173,15 +173,6 @@ public class TypeDeclarationCompiler {
                 typeParameters, members, superTraits, false);
     }
 
-    public List<TypeParameter> translateTypeParameters(IOrigin origin,  List<Symbol.TypeVariableSymbol> typarams) {
-        return typarams.stream().map(p -> {
-            var name = new Name(origin, compiler.nameCompiler.getCompiledName(p, origin));
-            var bounds = p.getBounds().map(t -> compiler.translateType(t, origin));
-
-            return getTypeParameter(origin, bounds, name);
-        }).toList();
-    }
-
     private static TypeParameter getTypeParameter(IOrigin origin, com.sun.tools.javac.util.List<@Nullable Type> bounds, Name name) {
         if (bounds.isEmpty()) {
             bounds = bounds.append(new UserDefinedType(origin,
