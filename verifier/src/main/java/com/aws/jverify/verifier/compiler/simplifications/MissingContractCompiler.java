@@ -26,7 +26,7 @@ public class MissingContractCompiler {
     private final Names names;
     private final Symtab symtab;
     private final JavacElements elements;
-    private final JVerifyMaker jverifyMaker;
+    private final JVerifyUtils jverifyUtils;
     MethodOrLoopContractCompiler internalContractCompiler;
 
     private final Map<Symbol, Reference> symbolReferences = new HashMap<>();
@@ -42,7 +42,7 @@ public class MissingContractCompiler {
         this.enter = Enter.instance(context);
         this.elements = JavacElements.instance(context);
         this.symtab = Symtab.instance(context);
-        jverifyMaker = JVerifyMaker.instance(context);
+        jverifyUtils = JVerifyUtils.instance(context);
         reporter = Reporter.instance(context);
         internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
@@ -108,8 +108,8 @@ public class MissingContractCompiler {
             methodSymbol.resetAnnotations();
             methodSymbol.setDeclarationAttributes(newAnnotations.toList());
         }
-        methodDecl.mods.annotations = methodDecl.mods.annotations.append(jverifyMaker.getVerifyFalseAnnotation());
-        jverifyMaker.addVerifyFalseToMethodSymbol(methodSymbol, methodSymbol);
+        methodDecl.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
+        jverifyUtils.addVerifyFalseToMethodSymbol(methodSymbol, methodSymbol);
 
         reporter.compilationUnit = reference.compilationUnit();
         reporter.reportDiagnostic(reporter.toOrigin(reference.tree), JCDiagnostic.DiagnosticType.WARNING, "missingContract",

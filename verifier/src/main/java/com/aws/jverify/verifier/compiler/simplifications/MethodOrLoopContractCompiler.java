@@ -25,13 +25,13 @@ Does not support lambdas.
 public class MethodOrLoopContractCompiler extends TreeTranslator {
     private final TreeMaker maker;
     private final Reporter reporter;
-    private final JVerifyMaker jverifyMaker;
+    private final JVerifyUtils jverifyUtils;
 
     private MethodOrLoopContractCompiler(Context context) {
         context.put(MethodOrLoopContractCompiler.class, this);
         this.maker = TreeMaker.instance(context);
         this.reporter = Reporter.instance(context);
-        this.jverifyMaker = JVerifyMaker.instance(context);
+        this.jverifyUtils = JVerifyUtils.instance(context);
     }
 
     public static JCTree.@Nullable JCBlock getImplementation(JCTree.JCMethodDecl method) {
@@ -237,7 +237,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
     public JCTree.JCBlock getDefaultBody() {
-        JCTree.JCStatement implementation = jverifyMaker.contractThrow();
+        JCTree.JCStatement implementation = jverifyUtils.contractThrow();
         return maker.Block(0, List.of(
                 maker.Block(0, List.nil()),
                 implementation));

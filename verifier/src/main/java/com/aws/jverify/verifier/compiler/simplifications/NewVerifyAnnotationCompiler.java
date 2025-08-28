@@ -19,11 +19,11 @@ import java.util.Stack;
  * that NewMethodOrLoopContractCompiler establishes
  */
 public class NewVerifyAnnotationCompiler extends TreeScanner {
-    private final JVerifyMaker jverifyMaker;
+    private final JVerifyUtils jverifyUtils;
 
     public NewVerifyAnnotationCompiler(Context context) {
         context.put(NewVerifyAnnotationCompiler.class, this);
-        jverifyMaker = JVerifyMaker.instance(context);
+        jverifyUtils = JVerifyUtils.instance(context);
         shouldVerifies.push(context.get(VerifierOptions.class).verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
@@ -73,7 +73,7 @@ public class NewVerifyAnnotationCompiler extends TreeScanner {
 
     public void removeImplementation(JCTree.JCMethodDecl tree) {
         var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
-        tree.body.stats = List.of(contractBlock, jverifyMaker.contractThrow());
+        tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
     }
 
     public boolean processVerifyAnnotationAndPop(AnnoConstruct annoConstruct) {

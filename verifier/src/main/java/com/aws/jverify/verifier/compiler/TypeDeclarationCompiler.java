@@ -24,7 +24,7 @@ public class TypeDeclarationCompiler {
     public final JavaToDafnyCompiler compiler;
     private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     final Reporter reporter;
-    private final JVerifyMaker jverifyMaker;
+    private final JVerifyUtils jverifyUtils;
     JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
@@ -36,7 +36,7 @@ public class TypeDeclarationCompiler {
         index = JVerifyIndex.instance(compiler.context);
         reporter = Reporter.instance(compiler.context);
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
-        jverifyMaker = JVerifyMaker.instance(compiler.context);
+        jverifyUtils = JVerifyUtils.instance(compiler.context);
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
@@ -270,7 +270,7 @@ public class TypeDeclarationCompiler {
             return null;
         }
 
-        var contract = new MethodOrLoopContract(method, jverifyMaker.isPure(method.sym));
+        var contract = new MethodOrLoopContract(method, jverifyUtils.isPure(method.sym));
         var remainingStatements = methodOrLoopContractCompiler.
                 extractContract(compiler, method.body, contract);
 

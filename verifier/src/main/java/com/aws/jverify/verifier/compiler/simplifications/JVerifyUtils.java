@@ -13,7 +13,7 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.*;
 
-public class JVerifyMaker {
+public class JVerifyUtils {
 
     private final JavacElements elements;
     private final TreeMaker maker;
@@ -21,16 +21,16 @@ public class JVerifyMaker {
     private final Symtab symtab;
     private final Types types;
 
-    public static JVerifyMaker instance(Context context) {
-        JVerifyMaker instance = context.get(JVerifyMaker.class);
+    public static JVerifyUtils instance(Context context) {
+        JVerifyUtils instance = context.get(JVerifyUtils.class);
         if (instance == null) {
-            instance = new JVerifyMaker(context);
+            instance = new JVerifyUtils(context);
         }
         return instance;
     }
 
-    private JVerifyMaker(Context context) {
-        context.put(JVerifyMaker.class, this);
+    private JVerifyUtils(Context context) {
+        context.put(JVerifyUtils.class, this);
         elements = JavacElements.instance(context);
         maker = TreeMaker.instance(context);
         names = Names.instance(context);

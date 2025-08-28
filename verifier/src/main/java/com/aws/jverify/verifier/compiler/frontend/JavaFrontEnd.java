@@ -142,12 +142,12 @@ public class JavaFrontEnd {
                     var externalContractCompiler = new ExternalContractCompiler(context);
                     var missingContractCompiler = new MissingContractCompiler(context);
                     var newMethodContractCompiler = MethodOrLoopContractCompiler.instance(context);
-                    var newVerifyCompiler = NewVerifyAnnotationCompiler.instance(context);
+                    var verifyAnnotationCompiler = NewVerifyAnnotationCompiler.instance(context);
                     units.addAll(
                             staticMover.translate(
                                     unsuspend(lower(suspend(
                                                 missingContractCompiler.compile(
-                                                        newVerifyCompiler.transform(
+                                                        verifyAnnotationCompiler.transform(
                                                                 externalContractCompiler.apply(
                                                         newMethodContractCompiler.transform(
                                                                 unlambda(
