@@ -31,12 +31,12 @@ public class InterfaceContractErrors {
 
     @Contract
     @Modifiable
-//  ^ error: annotation 'Modifiable' on @Contract class 'InterfaceContractErrors$IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
+//  ^ error: annotation 'Modifiable' on @Contract class 'IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
     static class IllegalAnnotationContract implements IllegalAnnotationInterface {
     }
 
     interface HasGenericArgument<Bar> {}
     @Contract
     static class HasGenericArgumentContract<Foo> implements HasGenericArgument<Foo> {}
-//         ^ error: Contract class 'InterfaceContractErrors$HasGenericArgumentContract' has different type parameters than the contractee 'HasGenericArgument'. The parameters must have the same names
+//         ^ error: Contract class 'HasGenericArgumentContract' has different type parameters than the contractee 'HasGenericArgument'. The parameters must have the same names
 }

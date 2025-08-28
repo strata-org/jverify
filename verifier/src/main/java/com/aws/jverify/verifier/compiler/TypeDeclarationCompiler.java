@@ -2,12 +2,9 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
@@ -26,7 +23,9 @@ import java.util.stream.Stream;
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
+    private final NewMethodOrLoopContractCompiler newMethodOrLoopContractCompiler;
     final Reporter reporter;
+    private final JVerifyMaker jverifyMaker;
     JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
@@ -37,9 +36,8 @@ public class TypeDeclarationCompiler {
         this.compiler = compiler;
         index = JVerifyIndex.instance(compiler.context);
         reporter = Reporter.instance(compiler.context);
-        var names = Names.instance(compiler.context);
-        var symtab = Symtab.instance(compiler.context);
-
+        newMethodOrLoopContractCompiler = NewMethodOrLoopContractCompiler.instance(compiler.context);
+        jverifyMaker = JVerifyMaker.instance(compiler.context);
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
@@ -49,14 +47,10 @@ public class TypeDeclarationCompiler {
             if (classDecl.name.equals(classDecl.name.table.names.package_info)) {
                 return List.of();
             }
-            var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
 
             Name name = compiler.getName(classDecl, classDecl.sym);
             var origin = compiler.declToOrigin(classDecl, name);
             reporter.contextOrigins.push(origin);
-
-            var mode = compiler.verifyAnnotationCompiler.getShouldVerifyMode(annotationsByName);
-            compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
             var classSymbol = classDecl.sym;
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
@@ -77,7 +71,6 @@ public class TypeDeclarationCompiler {
             }
 
             reporter.contextOrigins.pop();
-            compiler.verifyAnnotationCompiler.shouldVerifies.pop();
             return result;
         }
         if (tree instanceof JCTree jcTree) {
@@ -264,7 +257,10 @@ public class TypeDeclarationCompiler {
         var methodSymbol = method.sym;
         compiler.symbolsWithAContract.add(methodSymbol);
         var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
-        boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
+        if (method.body == null) {
+            return null;
+        }
+        boolean shouldVerify = NewMethodOrLoopContractCompiler.hasImplementation(method);
         
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
 // Hints for whenever this is implemented.
@@ -275,13 +271,9 @@ public class TypeDeclarationCompiler {
             return null;
         }
 
-        var contract = new MethodOrLoopContract(method, annotationsByName.containsKey(Pure.class.getName()));
-        var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
-        if (method.body == null) {
-            return null;
-        }
-        var remainingStatements = new MethodOrLoopContractCompiler(compiler).
-                extractContract(method.body, contract, allowFooter);
+        var contract = new MethodOrLoopContract(method, jverifyMaker.isPure(method.sym));
+        var remainingStatements = newMethodOrLoopContractCompiler.
+                extractContract(compiler, method.body, contract);
 
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
@@ -293,7 +285,7 @@ public class TypeDeclarationCompiler {
     private MethodOrConstructor translateImpureMethod(JCTree.JCMethodDecl method,
                                                       boolean shouldVerify,
                                                       MethodOrLoopContract contract,
-                                                      List<JCTree.JCStatement> postHeader) {
+                                                      com.sun.tools.javac.util.List<JCTree.JCStatement> postHeader) {
         var methodOrigin = compiler.toOrigin(method);
 
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
@@ -326,7 +318,7 @@ public class TypeDeclarationCompiler {
 
         if (JavaToDafnyCompiler.isConstructor(method.sym)) {
             DividedBlockStmt body;
-            if (shouldVerify && postHeader != null) {
+            if (shouldVerify) {
                 var treeMaker = TreeMaker.instance(compiler.context);
 
                 var bodyStatements = new ArrayList<Statement>();
@@ -335,7 +327,7 @@ public class TypeDeclarationCompiler {
                     if (first instanceof JCTree.JCExpressionStatement expressionStatement 
                             && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation methodInvocation && BlockCompiler.getSuperIdent(methodInvocation) != null) {
                         bodyStatements.addAll(blockCompiler.translateStatement(first));
-                        postHeader.removeFirst();
+                        postHeader = postHeader.tail;
                     }
                 }
                 for (JCTree.JCVariableDecl variableDecl : initializers) {

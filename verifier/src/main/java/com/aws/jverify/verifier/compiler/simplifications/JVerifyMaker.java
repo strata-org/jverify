@@ -1,13 +1,17 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.ContractException;
+import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
+import com.aws.jverify.verifier.compiler.OverrideFinder;
+import com.sun.tools.javac.code.Attribute;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Names;
+import com.sun.tools.javac.util.*;
 
 public class JVerifyMaker {
 
@@ -15,6 +19,7 @@ public class JVerifyMaker {
     private final TreeMaker maker;
     private final Names names;
     private final Symtab symtab;
+    private final Types types;
 
     public static JVerifyMaker instance(Context context) {
         JVerifyMaker instance = context.get(JVerifyMaker.class);
@@ -30,13 +35,65 @@ public class JVerifyMaker {
         maker = TreeMaker.instance(context);
         names = Names.instance(context);
         symtab = Symtab.instance(context);
+        types = Types.instance(context);
     }
 
     public JCTree.JCAnnotation getVerifyFalseAnnotation() {
-        var verifySymbol = elements.getTypeElement(Verify.class.getCanonicalName());
+        var verifySymbol = getVerifyClassSymbol();
         JCTree.JCIdent value = maker.Ident(names.fromString("value"));
         value.sym = symtab.booleanType.tsym;
         return maker.Annotation(maker.Ident(verifySymbol), List.of(
                 maker.Assign(value, maker.Literal(false))));
+    }
+
+    public Symbol.ClassSymbol getVerifyClassSymbol() {
+        return elements.getTypeElement(Verify.class.getCanonicalName());
+    }
+
+    public void addVerifyFalseToMethodSymbol(Symbol.MethodSymbol contractMethod, Symbol.MethodSymbol contractee) {
+        ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
+        newAnnotations.addAll(contractMethod.getAnnotationMirrors());
+        newAnnotations.add(getVerifyAnnotation());
+        contractee.resetAnnotations();
+        contractee.setDeclarationAttributes(newAnnotations.toList());
+    }
+    
+    public Attribute.Compound getVerifyAnnotation() {
+        ListBuffer<Pair<Symbol.MethodSymbol, Attribute>> values = new ListBuffer<>();
+
+        Symbol.MethodSymbol valueMethod = null;
+        for (Symbol member : getVerifyClassSymbol().members().getSymbols()) {
+            if (member instanceof Symbol.MethodSymbol && member.name.toString().equals("value")) {
+                valueMethod = (Symbol.MethodSymbol) member;
+                break;
+            }
+        }
+
+        if (valueMethod != null) {
+            Attribute falseAttr = new Attribute.Constant(valueMethod.type, false);
+            values.add(new Pair<>(valueMethod, falseAttr));
+        }
+
+        return new Attribute.Compound(
+                getVerifyClassSymbol().type,
+                values.toList()
+        );
+    }
+
+    public JCTree.JCStatement contractThrow() {
+        var contractSymbol = elements.getTypeElement(ContractException.class.getCanonicalName());
+        return maker.Throw(maker.Ident(contractSymbol));
+    }
+
+    public boolean isPure(Symbol.MethodSymbol method) {
+        if (method.getAnnotation(Pure.class) != null) {
+            return true;
+        }
+
+        var overriddenMethod = OverrideFinder.findOverriddenMethod(method.enclClass(), method, types);
+        if (overriddenMethod != null) {
+            return isPure(overriddenMethod);
+        }
+        return false;
     }
 }

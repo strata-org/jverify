@@ -169,9 +169,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         var methodType = types.memberType(lambda.type, samMethod);
 
         var modifiers = maker.Modifiers(Flags.PUBLIC | SYNTHETIC);
-        if (isPure) {
-            modifiers.annotations = modifiers.annotations.append(getPureAnnotation());
-        }
         var methodSymbol = new Symbol.MethodSymbol(modifiers.flags, samMethod.name, new Type.MethodType(
                 methodType.getParameterTypes(),
                 methodType.getReturnType(),

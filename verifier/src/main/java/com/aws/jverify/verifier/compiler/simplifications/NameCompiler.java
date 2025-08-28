@@ -9,6 +9,7 @@ import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.*;
 import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
@@ -51,10 +52,11 @@ public class NameCompiler extends TreeScanner {
     private final Map<String, Symbol> reverseSymbolStringMap;
     private final Symtab symtab;
     private final Types types;
+    private final JavacElements elements;
     final Reporter reporter;
     
     public record FoundSymbol(Symbol symbol, IOrigin origin) {}
-    Set<String> reservedDafnyNames = Set.of("map", "function", "set", "seq", "type", "method", "predicate", "this");
+    Set<String> reservedDafnyNames = Set.of("class", "map", "function", "set", "seq", "type", "method", "predicate", "this");
     
     protected static final Context.Key<NameCompiler> myKey = new Context.Key<>();
     public static NameCompiler instance(Context context) {
@@ -68,6 +70,7 @@ public class NameCompiler extends TreeScanner {
         context.put(myKey, this);
         this.symtab = Symtab.instance(context);
         this.types = Types.instance(context);
+        this.elements = JavacElements.instance(context);
         this.symbolStringMap = new HashMap<>();
         reporter = Reporter.instance(context);
         this.reverseSymbolStringMap = new HashMap<>();
@@ -245,7 +248,8 @@ public class NameCompiler extends TreeScanner {
         for (Type superType : types.closure(clazz.type)) {
             if (superType.tsym != clazz) {
                 for (Symbol member : superType.tsym.members().getSymbolsByName(name)) {
-                    if (method != null && types.isSubSignature(classMember.type, member.type)) {
+                    if (method != null && member instanceof Symbol.MethodSymbol methodSymbol && 
+                            elements.overrides(method, methodSymbol, (Symbol.ClassSymbol)method.owner)) {
                         // method overrides do not cause name collisions
                         continue;
                     }

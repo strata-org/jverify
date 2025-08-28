@@ -60,7 +60,7 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("./src/test/resources/AssertFalse.java").toString(),
                 "--dafny=" + dafnyPath, "--paths");
-        Assertions.assertTrue(out.toString().startsWith("src/test/resources/AssertFalse.java"));
+        Assertions.assertTrue(out.toString().startsWith("src/test/resources/AssertFalse.java"), out.toString());
         Assertions.assertEquals(4, exitCode);
     }
 

@@ -154,7 +154,6 @@ public class ImmutableTypeCompiler {
                 return compiler.expressionCompiler.translateIdentifierNoOverride(identifier, innerOrigin);
             }
         };
-        var shouldVerify = compiler.verifyAnnotationCompiler.shouldVerify();
 
         var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(
                 () -> typeDeclarationCompiler.translateMember(methodDecl),
@@ -163,8 +162,7 @@ public class ImmutableTypeCompiler {
         if (dafnyMember instanceof Constructor constructor && 
                 (classDecl.sym.isAnonymous() || 
                         JavaToDafnyCompiler.isSynthetic(classDecl.sym.flags()) || 
-                        constructor.getBody() == null || 
-                        !shouldVerify)) {
+                        !NewMethodOrLoopContractCompiler.hasImplementation(methodDecl))) {
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
 

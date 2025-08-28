@@ -8,6 +8,7 @@ import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.tree.TreeTranslator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +16,7 @@ import java.util.List;
 /*
 Extracts contracts from constructor, method or loop bodies
  */
-public class MethodOrLoopContractCompiler {
+public class MethodOrLoopContractCompiler extends TreeTranslator {
     public final JavaToDafnyCompiler compiler;
 
     public MethodOrLoopContractCompiler(JavaToDafnyCompiler compiler) {
@@ -32,9 +33,9 @@ public class MethodOrLoopContractCompiler {
         return extractContract(statements, contract, allowFooter);
     }
     
-    public List<JCTree.JCStatement> extractContract(List<JCTree.JCStatement> statements,
-                                                    MethodOrLoopContract contract,
-                                                    boolean allowFooter) {
+    private List<JCTree.JCStatement> extractContract(List<JCTree.JCStatement> statements,
+                                                     MethodOrLoopContract contract,
+                                                     boolean allowFooter) {
         var superOrThis = getSuperOrThis(statements);
         
         var remainingStatements = statements;
@@ -88,7 +89,7 @@ public class MethodOrLoopContractCompiler {
         int i;
         for (i = 0; i < statements.size(); i++) {
             var statement = statements.get(i);
-            boolean foundHeader = handleStatement(statement, contract);
+            boolean foundHeader = handleStatement(compiler, statement, contract);
             if (!foundHeader) {
                 break;
             }
@@ -102,7 +103,7 @@ public class MethodOrLoopContractCompiler {
         int i;
         for (i = statements.size() - 1; i > 0; i--) {
             var statement = statements.get(i);
-            boolean foundHeader = handleStatement(statement, contract);
+            boolean foundHeader = handleStatement(compiler, statement, contract);
             if (!foundHeader) {
                 break;
             }
@@ -111,7 +112,7 @@ public class MethodOrLoopContractCompiler {
         return statements.subList(0, footerContracts);
     }
 
-    private boolean handleStatement(JCTree.JCStatement statement, MethodOrLoopContract contract) {
+    public static boolean handleStatement(JavaToDafnyCompiler compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
@@ -136,7 +137,7 @@ public class MethodOrLoopContractCompiler {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A postcondition call may have only one argument");
                 }
-                handlePostcondition(contract, invocation.getArguments().getFirst());
+                handlePostcondition(compiler, contract, invocation.getArguments().getFirst());
             }
             case "invariant" -> {
                 if (invocation.args.size() != 1) {
@@ -180,7 +181,7 @@ public class MethodOrLoopContractCompiler {
         return true;
     }
 
-    private void handlePostcondition(MethodOrLoopContract header, JCTree.JCExpression expr) {
+    private static void handlePostcondition(JavaToDafnyCompiler compiler,  MethodOrLoopContract header, JCTree.JCExpression expr) {
         if (expr instanceof JCTree.JCLambda lambda) {
             if (lambda.getParameters().size() != 1) {
                 throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
@@ -211,7 +212,7 @@ public class MethodOrLoopContractCompiler {
             header.postconditions.add(new AttributedExpression(call, null, null));
         } else if (expr instanceof JCTree.JCTypeCast typeCast) {
             // Casts like (IntPredicate) are sometimes necessary to disambiguate
-            handlePostcondition(header, typeCast.getExpression());
+            handlePostcondition(compiler, header, typeCast.getExpression());
         } else {
             var dafnyExpr = compiler.expressionCompiler.toExpr(expr);
             header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
