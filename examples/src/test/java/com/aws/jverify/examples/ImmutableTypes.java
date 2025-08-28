@@ -12,17 +12,17 @@ interface Immutable {
     
     @Contract
     class MyContract implements Immutable {
-        int xr;
+        int x;
 
         public void increment() {
             modifies(this); // error
 //                   ^^^^ Error: a modifies-clause expression must denote an object, a single field location like o`x or a`[i] of type (object, field)  (with `--referrers`), or a set/iset/multiset/seq of objects or single field locations (with `--referrers`) (instead got Immutable)
-            postcondition(xr == old(xr) + 1);
+            postcondition(x == old(x) + 1);
         }
         
         @Pure
         public int getX() {
-            return xr;
+            return x;
         }
     }   
 }
