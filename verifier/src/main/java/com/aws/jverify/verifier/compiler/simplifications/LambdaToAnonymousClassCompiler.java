@@ -165,7 +165,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
     private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, JCLambda lambda) {
         var samMethod = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.type.tsym);
-        var isPure = samMethod.getAnnotation(Pure.class) != null;
         var methodType = types.memberType(lambda.type, samMethod);
 
         var modifiers = maker.Modifiers(Flags.PUBLIC | SYNTHETIC);
