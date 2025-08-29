@@ -131,4 +131,8 @@ class Strings {
 //      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
 
     }
+    
+    void castStringToCharSequence() {
+        var instant = java.time.Instant.parse("hello");
+    }
 }
