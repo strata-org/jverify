@@ -155,13 +155,6 @@ public class JVerifyGhostExpressionCompiler {
      */
     public Type translateClassType(com.sun.tools.javac.code.Type.ClassType classType, IOrigin origin, boolean isNullable) {
         var className = classType.asElement().flatName();
-        if (className.toString().equals(String.class.getName())) {
-            if (!isNullable) {
-                return new UserDefinedType(origin, new NameSegment(origin, "DString", null));
-            }
-            compiler.reportError(origin, "notSupported", "nullable String type");
-            return null;
-        }
         if (className.toString().equals(JVerify.Sequence.class.getName())) {
             var typeArguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
             if (typeArguments.stream().anyMatch(Objects::isNull)) {

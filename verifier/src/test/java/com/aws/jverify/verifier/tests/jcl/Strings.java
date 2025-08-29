@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 14, dafnyErrors = 6)
+@JVerifyTest(exitCode = 4, dafnyVerified = 14, dafnyErrors = 6, useBuiltinContracts = true)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
@@ -90,7 +90,8 @@ class Strings {
     static void testIndexOf() {
         var hello = "hello";
 
-        check(hello.charAt(4) == 'o');
+        char oChar = 'o';
+        check(hello.charAt(4) == oChar);
         check(hello.indexOf('o')==4);   // Proven thanks to the check above
         check(hello.indexOf('e')==1);
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold

@@ -7,6 +7,7 @@ import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
+
 import static com.aws.jverify.JVerify.check;
 
 import java.util.Collection;
@@ -576,6 +577,75 @@ class OptionalContract<T> {
     T get() {
         precondition(isSet);
         postcondition((T b) -> b == this.value);
+        throw new ContractException();
+    }
+}
+
+@Contract(value = String.class, immutable = true)
+class StringContract {
+    JVerify.CharSequence chars;
+
+    @Pure
+    public String concat(StringContract str) {
+        postcondition((StringContract r) -> r.chars.equals(chars.concat(str.chars)));
+        throw new ContractException();
+    }
+
+    @Pure
+    public int indexOf(int ch) {
+        postcondition((int result) -> -1 <= result && result < this.chars.size());
+        postcondition((int result) -> result == -1
+                ? JVerify.forall((int i) -> JVerify.implies(0 <= i && i < chars.size(), chars.get(i) != ch))
+                : chars.get(result) == ch && JVerify.forall((int j) -> JVerify.implies(0 <= j && j < result, chars.get(j) != ch))
+        );
+        throw new ContractException();
+    }
+
+    @Pure
+    public int length() {
+        return chars.size();
+    }
+
+    @Pure
+    public char charAt(int index) {
+        precondition(0 <= index && index < chars.size());
+        return chars.get(index);
+    }
+
+    @Pure
+    public boolean isEmpty() {
+        return chars.size() == 0;
+    }
+
+    @Pure
+    public String substring(int beginIndex) {
+
+        precondition(beginIndex >= 0 && beginIndex <= chars.size());
+        postcondition((String r) -> r.chars() == chars.drop(beginIndex));
+        throw new ContractException();
+    }
+
+    @Pure
+    public String substring(int beginIndex, int endIndex) {
+        precondition(beginIndex >= 0 && beginIndex <= endIndex && endIndex <= chars.size());
+        postcondition((String r) -> r.chars() == chars.subsequence(beginIndex, endIndex));
+        throw new ContractException();
+    }
+
+    @Pure
+    public boolean equals(Object anObject) {
+        return anObject instanceof StringContract otherString &&
+                chars.equals(otherString.chars);
+    }
+
+    @Pure
+    public boolean startsWith(StringContract prefix) {
+        return startsWith(prefix, 0);
+    }
+
+    @Pure
+    public boolean startsWith(StringContract prefix, int toffset) {
+        postcondition((boolean r) -> r == chars.drop(toffset).take(prefix.chars.size()).equals(prefix.chars));
         throw new ContractException();
     }
 }

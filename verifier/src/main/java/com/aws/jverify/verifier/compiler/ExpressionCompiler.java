@@ -27,7 +27,6 @@ import java.util.stream.Stream;
 
 public class ExpressionCompiler {
     public final JavaToDafnyCompiler compiler;
-    private static final Set<String> supportedStringMethods = Set.of("equals", "concat", "startsWith", "substring", "isEmpty", "charAt", "length", "indexOf");
 
     public ExpressionCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -382,14 +381,6 @@ public class ExpressionCompiler {
                 var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get(), origin);
                 var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
-            }
-        }
-
-        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
-                && ownerClass.fullname.contentEquals(String.class.getName())) {
-            if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
-                compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
-                return JavaToDafnyCompiler.getHole(origin);
             }
         }
         

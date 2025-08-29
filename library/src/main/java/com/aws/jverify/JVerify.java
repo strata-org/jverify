@@ -184,6 +184,45 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+
+    public interface CharSequence {
+        /**
+         * Returns the element at index {@code index}.
+         */
+        char get(int index);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        CharSequence drop(int fromIndex);
+
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
+        CharSequence take(int toIndex);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
+         */
+        CharSequence subsequence(int fromIndex, int toIndex);
+
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
+        boolean contains(char element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        CharSequence concat(CharSequence next);
+    }
+    
     public interface Sequence<T> {
         /**
          * Returns the element at index {@code index}.
@@ -215,6 +254,11 @@ public class JVerify {
          * Returns the number of elements in this sequence.
          */
         @Unbounded int size();
+        
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        Sequence<T> concat(Sequence<T> next);
     }
 
     public interface IntSequence {
