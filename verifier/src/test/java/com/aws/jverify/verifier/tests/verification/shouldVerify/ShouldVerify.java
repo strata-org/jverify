@@ -4,6 +4,8 @@ package com.aws.jverify.verifier.tests.verification.shouldVerify;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import java.math.BigInteger;
+
 import static com.aws.jverify.JVerify.check;
 
 @JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 6,
@@ -16,16 +18,16 @@ import static com.aws.jverify.JVerify.check;
 public class ShouldVerify {
 
     @Verify(value = true, overrideChildren = true)
-    static class ShouldVerify1 {
+    static class VerifiedConstructor {
 
         @Verify(false)
-        public ShouldVerify1() {
+        public VerifiedConstructor() {
             check(false);
 //          ^^^^^^^^^^^^ Error: assertion might not hold
         }
 
         @Verify(false)
-        void foo1() {
+        void isVerified() {
             check(false);
 //          ^^^^^^^^^^^^ Error: assertion might not hold
         }
@@ -34,7 +36,7 @@ public class ShouldVerify {
     @Verify(value = false, overrideChildren = true)
     static class ShouldVerify2 {
         @Verify(true)
-        void foo2() {
+        void notVerified() {
             check(false);
         }
     }
@@ -42,12 +44,13 @@ public class ShouldVerify {
     @Verify(value = false, overrideChildren = false)
     static class ShouldVerify3 {
         @Verify(true)
-        void foo3() {
+        void isVerified() {
             check(false);
 //          ^^^^^^^^^^^^ Error: assertion might not hold
         }
 
-        void foo4() {
+        void notVerifiedMethodCanUseCodeWithoutContracts() {
+            BigInteger bigInteger = new BigInteger("1");
             check(false);
         }
     }
