@@ -9,7 +9,7 @@ import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 6,
+@JVerifyTest(exitCode = 4, dafnyVerified = 15, dafnyErrors = 6,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 
@@ -74,6 +74,16 @@ public class ShouldVerify {
     static class VerifyFalseAffectsFields {
         static final BigInteger b1 = BigInteger.ZERO;
         static BigInteger b2 = BigInteger.ONE;
+        BigInteger b3 = BigInteger.TWO;
+    }
+
+    @Verify(true)
+    static class VerifyFalseOnFieldsAffectsFields {
+        @Verify(false)
+        static final BigInteger b1 = BigInteger.ZERO;
+        @Verify(false)
+        static BigInteger b2 = BigInteger.ONE;
+        @Verify(false)
         BigInteger b3 = BigInteger.TWO;
     }
 
