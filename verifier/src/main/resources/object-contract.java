@@ -64,14 +64,14 @@ class StringContract {
     public StringContract substring(int beginIndex) {
 
         precondition(beginIndex >= 0 && beginIndex <= chars.size());
-        postcondition((StringContract r) -> r.chars == chars.drop(beginIndex));
+        postcondition((StringContract r) -> JVerify.jequals(r.chars, chars.drop(beginIndex)));
         throw new ContractException();
     }
 
     @Pure
     public String substring(int beginIndex, int endIndex) {
         precondition(beginIndex >= 0 && beginIndex <= endIndex && endIndex <= chars.size());
-        postcondition((StringContract r) -> r.chars == chars.subsequence(beginIndex, endIndex));
+        postcondition((StringContract r) -> JVerify.jequals(r.chars, chars.subsequence(beginIndex, endIndex)));
         throw new ContractException();
     }
 
@@ -83,17 +83,16 @@ class StringContract {
 
     @Pure
     public boolean startsWith(StringContract prefix) {
-        precondition(prefix.chars.size() <= chars.size());
         return startsWith(prefix, 0);
     }
 
     @Pure
     public boolean startsWith(StringContract prefix, int toffset) {
-        precondition(toffset >= 0);
-        precondition(prefix.chars.size() + toffset <= chars.size());
-        postcondition((boolean r) -> r == jequals(
-                chars.drop(toffset).take(prefix.chars.size()), 
-                prefix.chars)
+        postcondition((boolean r) -> r == toffset >= 0 &&
+                prefix.chars.size() + toffset <= chars.size() &&
+                jequals(
+                    chars.drop(toffset).take(prefix.chars.size()), 
+                    prefix.chars)
         );
         throw new ContractException();
     }
