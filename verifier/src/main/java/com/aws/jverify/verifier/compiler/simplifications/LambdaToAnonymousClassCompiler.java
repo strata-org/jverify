@@ -15,6 +15,9 @@ import java.util.*;
 
 import static com.sun.tools.javac.code.Flags.*;
 
+/**
+ * Needs to occur before the Lower pass
+ */
 public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
     private final JCCompilationUnit compilationUnit;
