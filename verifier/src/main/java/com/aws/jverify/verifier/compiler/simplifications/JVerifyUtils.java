@@ -3,7 +3,6 @@ package com.aws.jverify.verifier.compiler.simplifications;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
-import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
