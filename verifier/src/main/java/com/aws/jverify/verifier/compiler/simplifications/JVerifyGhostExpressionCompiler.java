@@ -79,7 +79,7 @@ public class JVerifyGhostExpressionCompiler {
             case "get" -> {
                 var seq = expressionCompiler.toExpr(receiver);
                 var index = expressionCompiler.toExpr(args.getFirst());
-                return new SeqSelectExpr(compiler.toOrigin(invocation), true, seq, index, null, null);
+                return new SeqSelectExpr(origin, true, seq, index, null, null);
             }
             case "drop" -> {
                 return toSubsequence(origin, receiver, args.getFirst(), null);
@@ -90,26 +90,41 @@ public class JVerifyGhostExpressionCompiler {
             case "subsequence" -> {
                 return toSubsequence(origin, receiver, args.get(0), args.get(1));
             }
+            case "concat" -> {
+                var left = expressionCompiler.toExpr(receiver);
+                var right = expressionCompiler.toExpr(args.getFirst());
+                return new BinaryExpr(origin, BinaryExprOpcode.Add, left, right);
+            }
             case "contains" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
                 var collection = expressionCompiler.toExpr(receiver);
-                return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, collection);
+                return new BinaryExpr(origin, BinaryExprOpcode.In, element, collection);
             }
             case "size" -> {
                 var collection = expressionCompiler.toExpr(receiver);
-                return new UnaryOpExpr(compiler.toOrigin(invocation), collection, UnaryOpExprOpcode.Cardinality);
+                return new UnaryOpExpr(origin, collection, UnaryOpExprOpcode.Cardinality);
             }
             case "entries" -> {
                 var collection = expressionCompiler.toExpr(receiver);
-                return new ExprDotName(compiler.toOrigin(invocation), collection, new Name(origin, "Items"), null);
+                return new ExprDotName(origin, collection, new Name(origin, "Items"), null);
             }
             case "old" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
-                return new OldExpr(compiler.toOrigin(invocation), element, null);
+                return new OldExpr(origin, element, null);
             }
             case "fresh" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
-                return new FreshExpr(compiler.toOrigin(invocation), element, null);
+                return new FreshExpr(origin, element, null);
+            }
+            case "implies" -> {
+                var antecedent = expressionCompiler.toExpr(args.getFirst());
+                var consequent = expressionCompiler.toExpr(args.get(1));
+                return new BinaryExpr(origin, BinaryExprOpcode.Imp, antecedent, consequent);
+            }
+            case "jequals" -> {
+                var left = expressionCompiler.toExpr(args.getFirst());
+                var right = expressionCompiler.toExpr(args.get(1));
+                return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
             }
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
@@ -169,6 +184,9 @@ public class JVerifyGhostExpressionCompiler {
         if (className.toString().equals(JVerify.Map.class.getName())) {
             var arguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
             return new MapType(origin, arguments, true);
+        }
+        if (className.toString().equals(JVerify.CharJSequence.class.getName())) {
+            return new SeqType(origin, List.of(JavaToDafnyCompiler.getChar16Type(origin)));
         }
         return null;
     }

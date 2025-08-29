@@ -7,13 +7,10 @@ import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.frontend.JavaFrontEnd;
 import com.aws.jverify.verifier.compiler.simplifications.*;
-import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.tree.TreeScanner;
-import com.sun.tools.javac.util.Position;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
@@ -464,7 +461,7 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "byte", null));
             }
             case CHAR -> {
-                return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
+                return getChar16Type(origin);
             }
             case FLOAT -> {
                 return new UserDefinedType(origin, new NameSegment(origin, "float", null));
@@ -476,6 +473,10 @@ public class JavaToDafnyCompiler {
 
         reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
         return null;
+    }
+
+    public static UserDefinedType getChar16Type(IOrigin origin) {
+        return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
     }
 
     private Type translateWildcardType(IOrigin origin, com.sun.tools.javac.code.Type.WildcardType wildcardType) {

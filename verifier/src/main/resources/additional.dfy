@@ -22,10 +22,10 @@ type int64 = x: int | -0x8000_0000_0000_0000 <= x <= 0x7fff_ffff_ffff_ffff
 // Base type is int and not char, because Java's char allows surrogates and Dafny's char does not
 type char16 = i: int | 0x0000 <= i <= 0xffff
 
-function JString(s: string): DString
+function JString(s: string): String
   requires forall i | 0 <= i < |s| :: 0x0000 <= s[i] as int <= 0xffff
 {
-  JS(seq(|s|, i requires 0 <= i < |s| => s[i] as char16))
+  String(seq(|s|, i requires 0 <= i < |s| => s[i] as char16))
 }
 
 type byte = x | 0 <= x < 256

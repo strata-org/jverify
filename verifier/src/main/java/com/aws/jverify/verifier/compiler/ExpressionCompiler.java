@@ -526,7 +526,7 @@ public class ExpressionCompiler {
                 // Fallback to sequence of numeric values
                 var charExprs = stringValue.chars().boxed()
                         .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
-                return new ApplySuffix(origin, new NameSegment(origin, "JS", null), null,
+                return new ApplySuffix(origin, new NameSegment(origin, "String", null), null,
                         new ActualBindings(List.of(new ActualBinding(null, new SeqDisplayExpr(origin, charExprs), false))), null);
             }
         }

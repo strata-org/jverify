@@ -215,12 +215,6 @@ public class MissingContractCompiler {
                 return;
             }
 
-            var enclosingClass = symbol.enclClass();
-            if (enclosingClass != null && enclosingClass.fullname.contentEquals("java.lang.String")) {
-                // String is handled using custom code
-                return;
-            }
-
             if (symbol instanceof Symbol.MethodSymbol && symbol.name.contentEquals("equals")) {
                 // equals is in additional.dfy
                 return;
