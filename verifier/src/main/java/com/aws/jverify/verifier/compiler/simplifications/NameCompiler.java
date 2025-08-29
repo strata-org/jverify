@@ -232,10 +232,10 @@ public class NameCompiler extends TreeScanner {
     }
 
     private ClassNameStats getGetClassNameStats(Symbol classMember, Symbol.@Nullable MethodSymbol method) {
-        var clazz = classMember.enclClass();
         var name = classMember.name;
         boolean sameNameFields = false;
         int methodsWithThisName = 0;
+        var clazz = classMember.enclClass();
         for(var member : clazz.members().getSymbolsByName(name)) {
             if (member instanceof Symbol.VarSymbol) {
                 sameNameFields = true;

@@ -4,10 +4,7 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.compiler.OverrideFinder;
-import com.sun.tools.javac.code.Attribute;
-import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Symtab;
-import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -85,15 +82,23 @@ public class JVerifyUtils {
         return maker.Throw(maker.Ident(contractSymbol));
     }
 
-    public boolean isPure(Symbol.MethodSymbol method) {
-        if (method.getAnnotation(Pure.class) != null) {
+    public boolean isPure(Symbol.MethodSymbol rider) {
+        if (rider.getAnnotation(Pure.class) != null) {
             return true;
         }
 
-        var overriddenMethod = OverrideFinder.findOverriddenMethod(method.enclClass(), method, types);
-        if (overriddenMethod != null) {
-            return isPure(overriddenMethod);
+        var riderClass = rider.enclClass();
+        for (Type superType : types.closure(riderClass.type)) {
+            if (superType.tsym != riderClass) {
+                for (Symbol member : superType.tsym.members().getSymbolsByName(rider.name)) {
+                    if (member instanceof Symbol.MethodSymbol ridee &&
+                            elements.overrides(rider, ridee, ridee.enclClass())) {
+                        return isPure(ridee);
+                    }
+                }
+            }
         }
+        
         return false;
     }
 }

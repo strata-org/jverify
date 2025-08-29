@@ -5,7 +5,6 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.OverrideFinder;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.AttrContext;
@@ -170,16 +169,16 @@ public class ExternalContractCompiler {
                         continue;
                     }
                     
-                    var baseMethod = OverrideFinder.findOverriddenMethodInclRoot(contracteeSymbol, methodSymbol, types);
-                    if (baseMethod != null) {
-                        var baseSource = (JCTree.JCMethodDecl)index.getTree(baseMethod);
+                    var contracteeMethod = findContractee(contracteeSymbol, methodSymbol, types);
+                    if (contracteeMethod != null) {
+                        var baseSource = (JCTree.JCMethodDecl)index.getTree(contracteeMethod);
                         if (baseSource.getBody() != null) {
                             reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                         } else {
-                            contractSymbolToContractee.put(methodSymbol, baseMethod);
+                            contractSymbolToContractee.put(methodSymbol, contracteeMethod);
                             baseSource.body = methodDecl.body;
                             baseSource.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
-                            jverifyUtils.addVerifyFalseToMethodSymbol(methodSymbol, baseMethod);
+                            jverifyUtils.addVerifyFalseToMethodSymbol(methodSymbol, contracteeMethod);
                         }
                     } else {
                         reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
@@ -241,7 +240,7 @@ public class ExternalContractCompiler {
                 return;
             }
 
-            var baseMethod = OverrideFinder.findOverriddenMethodInclRoot(contracteeSymbol, methodSymbol, types);
+            var baseMethod = findContractee(contracteeSymbol, methodSymbol, types);
             if (baseMethod != null) {
                 newMembers.add(methodDecl);
                 index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
@@ -373,5 +372,32 @@ public class ExternalContractCompiler {
             updateOwner(tree.sym);
             super.visitMethodDef(tree);
         }
+    }
+
+    public static Symbol.MethodSymbol findContractee(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
+        Symbol.MethodSymbol candidate = getCandidateForType(contractee, method, types);
+        if (candidate != null) {
+            return candidate;
+        }
+
+        for (Type baseType : types.closure(contractee.type)) {
+            Symbol.MethodSymbol baseCandidate = getCandidateForType(baseType.tsym, method, types);
+            if (baseCandidate != null) {
+                return baseCandidate;
+            }
+        }
+        
+        return null;
+    }
+
+    private static Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {
+        for (Symbol member : contractee.members().getSymbolsByName(method.name)) {
+            if (member instanceof Symbol.MethodSymbol candidate) {
+                if (types.isSubSignature(types.erasure(member.type), types.erasure(method.type))) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 }
