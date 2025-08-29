@@ -1,6 +1,7 @@
 // ^ b/WillVerify.java(10:9-10:21) Error: assertion might not hold
 package com.aws.jverify.verifier.tests.verification.shouldVerify;
 
+import com.aws.jverify.Contract;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -69,4 +70,15 @@ public class ShouldVerify {
         }
     }
 
+    @Verify(false)
+    static class VerifyFalseAffectsFields {
+        static final BigInteger b1 = BigInteger.ZERO;
+        static BigInteger b2 = BigInteger.ONE;
+        BigInteger b3 = BigInteger.TWO;
+    }
+
+    @Contract(value = BigInteger.class, immutable = true)
+    static abstract class BigIntegerContract {}
+    @Contract(value = Number.class, immutable = true)
+    static abstract class NumberContract {}
 }
