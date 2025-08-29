@@ -20,10 +20,12 @@ import java.util.stream.Collectors;
 public class ImmutableTypeCompiler {
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final JavaToDafnyCompiler compiler;
+    private final Symtab symtab;
 
     public ImmutableTypeCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
         this.compiler = typeDeclarationCompiler.compiler;
+        symtab = Symtab.instance(compiler.context);
     }
 
     public TopLevelDeclWithMembers translate(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -73,7 +75,7 @@ public class ImmutableTypeCompiler {
                 if (compNames.contains(methodName) && params.isEmpty()) {
                     compiler.reportError(member, "notSupported", "explicit record component accessor method");
                     continue;
-                } else if ("equals".equals(methodName)
+                } else if (classSymbol != symtab.recordType.tsym && "equals".equals(methodName)
                         && params.length() == 1
                         && params.getFirst().type.toString().equals(Object.class.getName())) {
                     compiler.reportError(member, "notSupported", "overridden equals method in record");
@@ -107,7 +109,9 @@ public class ImmutableTypeCompiler {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
-        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
+        if (!classSymbol.isRecord()) {
+            members.add(compiler.shallowEqualsFunctionDeclaration(classSymbol, origin));
+        }
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }

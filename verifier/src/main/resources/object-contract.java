@@ -16,8 +16,12 @@ class ObjectContract {
 
 @Contract(value = Record.class, immutable = true)
 class RecordContract {
+    @Pure
+    @Override
+    public boolean equals(Object obj) {
+        return JVerify.jequals(this, obj);
+    }
 }
-
 
 @Contract(value = String.class, immutable = true)
 class StringContract {
