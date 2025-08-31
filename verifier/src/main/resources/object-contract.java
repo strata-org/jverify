@@ -88,12 +88,12 @@ class StringContract {
 
     @Pure
     public boolean startsWith(StringContract prefix, int toffset) {
-        postcondition((boolean r) -> r == toffset >= 0 &&
+        postcondition((boolean r) -> r == (toffset >= 0 &&
                 prefix.chars.size() + toffset <= chars.size() &&
                 jequals(
                     chars.drop(toffset).take(prefix.chars.size()), 
                     prefix.chars)
-        );
+        ));
         throw new ContractException();
     }
 }
