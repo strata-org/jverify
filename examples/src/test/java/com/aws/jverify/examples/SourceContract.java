@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.*;
 
 @Contract(Foo.class)
 @JVerifyTest(dafnyVerified = 8, dafnyErrors = 0)
-public class ExternalContract implements Foo {
+public class SourceContract implements Foo {
     int erasedValue;
     
     public int foo(int x) {
@@ -18,8 +18,8 @@ public class ExternalContract implements Foo {
         throw new ContractException();
     }
     
-    public ExternalContract selfType() {
-      postcondition((ExternalContract r) -> r.erasedValue == 3);
+    public SourceContract selfType() {
+      postcondition((SourceContract r) -> r.erasedValue == 3);
       erasedValue = 3;
       return this;
     }
