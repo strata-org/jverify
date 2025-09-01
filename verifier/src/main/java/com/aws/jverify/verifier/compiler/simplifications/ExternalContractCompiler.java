@@ -121,6 +121,7 @@ public class ExternalContractCompiler {
                     handleLibraryContract(classDecl, contracteeSymbol);
                 } else {
                     if (!sourceContractedSymbols.add(contracteeSymbol)) {
+                        classesToRemove.add(classDecl);
                         reporter.reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
                         return;
                     }
