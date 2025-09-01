@@ -188,7 +188,7 @@ public class ExternalContractCompiler {
         }
 
         private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-            classDecl.type.tsym = contracteeSymbol; // Required before calling 'findOverriddenMethod'
+            classDecl.type.tsym = contracteeSymbol; // Required before calling 'findContractee'
             
             var newMembers =  new ArrayList<JCTree>();
             for(var member : classDecl.getMembers()) {

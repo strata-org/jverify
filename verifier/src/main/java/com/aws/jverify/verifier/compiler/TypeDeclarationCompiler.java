@@ -239,7 +239,7 @@ public class TypeDeclarationCompiler {
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
         }
-        return new Field(origin, fieldName, null, false, type);
+        return new Field(origin, fieldName, null, true, type);
     }
 
 
