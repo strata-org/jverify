@@ -7,7 +7,7 @@ trait Object {
     //
     // See also JavaToDafnyCompiler.equalsFunctionDeclaration
     // for more on overridding pure methods.
-    ghost predicate equals(obj: Object)
+    predicate equals(obj: Object)
 }
 
 type nat15 = x: int16 | x >= 0

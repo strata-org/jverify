@@ -39,6 +39,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
+    public static final boolean Ghostness = false;
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
@@ -634,7 +635,7 @@ public class JavaToDafnyCompiler {
     public static Function equalsFunctionDeclaration(IOrigin origin) {
         var otherIn = new Formal(origin, new Name(origin, "obj"), new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null)),
                 false, true, null, null, false, false, false, null);
-        return new Function(origin, new Name(origin, "equals"), null, true, null, List.of(),
+        return new Function(origin, new Name(origin, "equals"), null, JavaToDafnyCompiler.Ghostness, null, List.of(),
                 List.of(otherIn),
                 List.of(), List.of(), new Specification<>(List.of(), null),
                 new Specification<>(List.of(), null), false, false, null, new BoolType(origin),
@@ -656,7 +657,7 @@ public class JavaToDafnyCompiler {
         ITEExpr body = new ITEExpr(origin, false, new TypeTestExpr(origin, obj, toType),
                 new BinaryExpr(origin, BinaryExprOpcode.Eq, new ThisExpr(origin), obj),
                 new LiteralExpr(origin, false));
-        return new Function(origin, new Name(origin, "equals"), null, true, null, List.of(),
+        return new Function(origin, new Name(origin, "equals"), null, JavaToDafnyCompiler.Ghostness, null, List.of(),
                 List.of(otherIn),
                 List.of(), List.of(), new Specification<>(List.of(), null),
                 new Specification<>(List.of(), null), false, false, null, new BoolType(origin),

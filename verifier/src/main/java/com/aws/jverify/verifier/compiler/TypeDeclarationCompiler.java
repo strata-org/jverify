@@ -233,13 +233,13 @@ public class TypeDeclarationCompiler {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());
                 var isStatic = varFlags.contains(Modifier.STATIC);
-                return new ConstantField(origin, fieldName, null, false, type, rhs, isStatic, false);
+                return new ConstantField(origin, fieldName, null, JavaToDafnyCompiler.Ghostness, type, rhs, isStatic, false);
             }
 
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
         }
-        return new Field(origin, fieldName, null, true, type);
+        return new Field(origin, fieldName, null, JavaToDafnyCompiler.Ghostness, type);
     }
 
 
@@ -332,7 +332,7 @@ public class TypeDeclarationCompiler {
                 body = null;
             }
 
-            return new Constructor(origin, name, null, true, null, dafnyTypeParameters, ins,
+            return new Constructor(origin, name, null, JavaToDafnyCompiler.Ghostness, null, dafnyTypeParameters, ins,
                     contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
                     body);
@@ -347,7 +347,7 @@ public class TypeDeclarationCompiler {
                 bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
             }
             var body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
-            return new Method(origin, name, null, true, null, dafnyTypeParameters,
+            return new Method(origin, name, null, JavaToDafnyCompiler.Ghostness, null, dafnyTypeParameters,
                     ins, contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
                     isStatic, outs,
@@ -371,7 +371,7 @@ public class TypeDeclarationCompiler {
         }
         applyInvariants(method.mods, method.sym, contract);
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
-        return new Function(origin, name, null, true, null, dafnyTypeParameters,
+        return new Function(origin, name, null, JavaToDafnyCompiler.Ghostness, null, dafnyTypeParameters,
                 ins, contract.preconditions, contract.postconditions, contract.getReads(),
                 contract.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
                 returnType, contract.pureBody, null, null);

@@ -90,7 +90,7 @@ public class ImmutableTypeCompiler {
                     Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
                     var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
                     Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
-                    members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
+                    members.add(new ConstantField(fieldOrigin, fieldName, null, JavaToDafnyCompiler.Ghostness, type, null, false, false));
                 }
                 continue;
             } 
@@ -183,7 +183,7 @@ public class ImmutableTypeCompiler {
                     return new AttributedExpression(e, null, null);
                 }).toList();
             }
-            var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), true, null,
+            var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), JavaToDafnyCompiler.Ghostness, null,
                 constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
 
