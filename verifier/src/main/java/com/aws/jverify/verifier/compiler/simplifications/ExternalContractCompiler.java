@@ -216,14 +216,15 @@ public class ExternalContractCompiler {
             declToAddTo.defs = List.from(newMembers);
 
             if (existingDecl == null) {
-                var oldSymbol = classDecl.sym;
-                oldSymbol.name = contracteeSymbol.name;
+                var contracterSymbol = classDecl.sym;
+                contracterSymbol.name = contracteeSymbol.name;
                 classDecl.sym = contracteeSymbol;
                 classDecl.type = contracteeSymbol.type;
+                moveContractAnnotation(contracteeSymbol, contracterSymbol);
 
-                moveContractAnnotation(contracteeSymbol, oldSymbol);
-
-                index.put(classDecl.sym, enter.classEnv(classDecl, topLevelEnv));
+                index.put(contracteeSymbol, enter.classEnv(classDecl, topLevelEnv));
+            } else {
+                classesToRemove.add(classDecl);
             }
         }
 
@@ -234,9 +235,6 @@ public class ExternalContractCompiler {
                     getSymbolsByName(field.name, s -> s.getKind() == ElementKind.FIELD).iterator();
             if (baseField.hasNext()) {
                 Symbol.VarSymbol contractedFieldSymbol = (Symbol.VarSymbol) baseField.next();
-                if (!contractees.add(contractedFieldSymbol)) {
-                    return newMembers;
-                }
                 contractSymbolToContractee.put(field.sym, contractedFieldSymbol);
                 field.sym = contractedFieldSymbol;
             }
@@ -254,9 +252,10 @@ public class ExternalContractCompiler {
             contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
         }
 
-        private List<JCTree> handleLibraryContractMethod(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol, 
-                                                 JCTree.JCMethodDecl methodDecl, 
-                                                 List<JCTree> newMembers) {
+        private List<JCTree> handleLibraryContractMethod(JCTree.JCClassDecl classDecl, 
+                                                         Symbol.ClassSymbol contracteeSymbol, 
+                                                         JCTree.JCMethodDecl methodDecl, 
+                                                         List<JCTree> newMembers) {
             var methodSymbol = methodDecl.sym;
 
             if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {

@@ -570,8 +570,7 @@ class OptionalContract<T> {
 }
 
 @Contract(value = String.class, immutable = true)
-class StringContract {
-    JVerify.CharJSequence chars;
+class StringContract extends StringTypeContract {
 
     @Pure
     public StringContract concat(StringContract str) {
