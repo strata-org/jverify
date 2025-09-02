@@ -414,7 +414,7 @@ public class JavaToDafnyCompiler {
             // should be unreachable
             throw new IllegalArgumentException("Array type without element type");
         }
-        return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
+        return new UserDefinedType(origin, new NameSegment(origin, "GhostArray" + nullableSuffix, List.of(elemType)));
     }
 
     private NonProxyType translatePrimitiveType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean isNullable, TypeKind primitiveTypeKind) {

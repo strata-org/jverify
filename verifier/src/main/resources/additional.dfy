@@ -10,6 +10,20 @@ trait Object {
     ghost predicate equals(obj: Object)
 }
 
+class GhostArray<T> {
+  static method create(size: int) returns (r: GhostArray<T>)
+    ensures r.size() == size && fresh(r)
+  
+  function size(): nat
+
+  function get(index: nat): T
+    reads this
+  
+  method sett(index: nat, value: T)
+    modifies this
+    ensures get(index) == value
+}
+
 type nat15 = x: int16 | x >= 0
 type int16 = x: int | -0x8000 <= x <= 0x7fff
 
