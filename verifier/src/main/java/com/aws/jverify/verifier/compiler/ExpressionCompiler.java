@@ -528,7 +528,7 @@ public class ExpressionCompiler {
                 // Fallback to sequence of numeric values
                 var charExprs = stringValue.chars().boxed()
                         .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
-                NameSegment callee = new NameSegment(origin, "String", null);
+                NameSegment callee = new NameSegment(origin, "JS", null);
                 SeqDisplayExpr actual = new SeqDisplayExpr(origin, charExprs);
                 return createCall2(origin, callee, Stream.of(actual));
             }
