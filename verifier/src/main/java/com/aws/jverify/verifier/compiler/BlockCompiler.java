@@ -6,7 +6,6 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.tree.TreeMaker;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -218,25 +217,12 @@ public class BlockCompiler {
         List<Expression> lhss;
         List<AssignmentRhs> rhss;
         if (assign.lhs instanceof JCTree.JCArrayAccess arrayAccess) {
-            var name = "blaaa";
-            var type = compiler.translateType(assign.rhs.type, origin);
-            LocalVariable localVariable = new LocalVariable(origin,
-                    name,
-                    type, false);
-            var rhs = toAssignmentRhs(assign.getExpression(), null);
-            List<Expression> lhss2 = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
-            List<AssignmentRhs> rhss2 = List.of(rhs);
-            var dafnyInitializer = new AssignStatement(origin, null, lhss2, rhss2, false);
-            VarDeclStmt varDecl = new VarDeclStmt(origin, null, List.of(localVariable), dafnyInitializer);
-            
             var arrayObj = expressionCompiler.toExpr(arrayAccess.getExpression());
             var callee = new ExprDotName(origin, arrayObj, new Name(origin, "sett"), null);
-            var call = ExpressionCompiler.createCall2(origin, callee, 
-                    Stream.of(expressionCompiler.toExpr(arrayAccess.getIndex()),
-                    new NameSegment(origin, name, null)));
+            var call = expressionCompiler.createCall(origin, callee, 
+                    Stream.of(arrayAccess.getIndex(), assign.getExpression()));
             lhss = List.of();
             rhss = List.of(new ExprRhs(origin, null, call));
-            return List.of(varDecl, new AssignStatement(origin, null, lhss, rhss, false));
         } else {
             lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), originOverride));
             rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride));

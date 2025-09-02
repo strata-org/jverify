@@ -10,8 +10,9 @@ trait Object {
     ghost predicate equals(obj: Object)
 }
 
-class GhostArray<T> extends Object {
+class GhostArray<T(00)> extends Object {
   ghost static method create(size: int) returns (r: GhostArray<T>)
+    requires size >= 0
     ensures r.size() == size && fresh(r)
   
   ghost function size(): nat
