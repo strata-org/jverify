@@ -30,7 +30,7 @@ class GhostArray<TArrayElement> {
     }
 
     @Pure
-    public @Nat int size() {
+    public @Nat int size() { // TODO rename to length?
         throw new ContractException();
     }
 
