@@ -176,7 +176,8 @@ public class TypeDeclarationCompiler {
     private static TypeParameter getTypeParameter(IOrigin origin, 
                                                   com.sun.tools.javac.util.List<@Nullable Type> bounds, 
                                                   Name name) {
-        if (bounds.isEmpty() && !name.getValue().equals("TArrayElement")) {
+        boolean arrayParameter = name.getValue().equals("TArrayElement");
+        if (bounds.isEmpty() && !arrayParameter) {
             bounds = bounds.append(new UserDefinedType(origin,
                     new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
@@ -184,7 +185,7 @@ public class TypeDeclarationCompiler {
                 name, null, TPVarianceSyntax.NonVariant_Strict,
                 new TypeParameterCharacteristics(
                         TypeParameterEqualitySupportValue.Unspecified,
-                        TypeAutoInitInfo.MaybeEmpty,
+                        arrayParameter ? TypeAutoInitInfo.Nonempty : TypeAutoInitInfo.MaybeEmpty,
                         false
                 ),
                 bounds);
@@ -241,7 +242,7 @@ public class TypeDeclarationCompiler {
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
         }
-        return new Field(origin, fieldName, null, false, type);
+        return new Field(origin, fieldName, null, JavaToDafnyCompiler.Ghostness, type);
     }
 
 

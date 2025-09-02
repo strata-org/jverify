@@ -111,6 +111,11 @@ public class JVerifyGhostExpressionCompiler {
                 var element = expressionCompiler.toExpr(args.getFirst());
                 return new FreshExpr(compiler.toOrigin(invocation), element, null);
             }
+            case "implies" -> {
+                var antecedent = expressionCompiler.toExpr(args.getFirst());
+                var consequent = expressionCompiler.toExpr(args.get(1));
+                return new BinaryExpr(origin, BinaryExprOpcode.Imp, antecedent, consequent);
+            }
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
             }

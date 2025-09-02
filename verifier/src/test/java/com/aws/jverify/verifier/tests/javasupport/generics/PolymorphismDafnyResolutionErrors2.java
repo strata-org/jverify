@@ -11,6 +11,5 @@ public class PolymorphismDafnyResolutionErrors2 {
         Object a = new Object();
         @Modifiable Object b = new Object();
         var c = a == (@Modifiable Object)b;
-//              ^ Error: == can only be applied to expressions of types that support equality (got Object)
     }
 }

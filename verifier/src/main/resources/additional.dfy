@@ -52,7 +52,7 @@ datatype DString extends Object = JS(elements: seq<char16>) {
     {
       JS(this.elements[start..end])
     }
-    function equals(other: Object) : (b: bool)
+    ghost function equals(other: Object) : (b: bool)
     {
       other is DString && this.elements == (other as DString).elements
     }

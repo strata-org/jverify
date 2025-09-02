@@ -68,6 +68,11 @@ public class ArrayCompiler extends TreeTranslator {
     }
 
     @Override
+    public void visitAnnotation(JCTree.JCAnnotation tree) {
+        result = tree;
+    }
+
+    @Override
     public void visitNewArray(JCTree.JCNewArray newArray) {
         super.visitNewArray(newArray);
         
@@ -81,7 +86,8 @@ public class ArrayCompiler extends TreeTranslator {
         }
 
         maker.pos = newArray.pos;
-        JCTree.JCMethodInvocation create = maker.App(maker.Select(maker.Ident(arraySymbol), createMethodSymbol), List.of(newArray.getDimensions().head));
+        JCTree.JCMethodInvocation create = maker.App(maker.Select(maker.Ident(arraySymbol), createMethodSymbol), 
+                List.of(newArray.getDimensions().head));
         create.typeargs = List.of(maker.Type(elementType));
         result = create;
         result.type = newArray.type;
