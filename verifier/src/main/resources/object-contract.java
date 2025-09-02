@@ -22,10 +22,10 @@ abstract class RecordContract {
 
 @Verify(false)
 class GhostArray<TArrayElement> {
-    public static <TArrayElement> GhostArray<TArrayElement> create(int size) {
+    public static <TCreateArrayElement> GhostArray<TCreateArrayElement> create(int size) {
         precondition(size >= 0);
         //noinspection ConstantValue
-        postcondition((GhostArray<TArrayElement> r) -> r.size() == size && fresh(r));
+        postcondition((GhostArray<TCreateArrayElement> r) -> r.size() == size && fresh(r));
         throw new ContractException();
     }
 

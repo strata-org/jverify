@@ -177,7 +177,8 @@ public class TypeDeclarationCompiler {
                                                   com.sun.tools.javac.util.List<@Nullable Type> bounds, 
                                                   Name name) {
         boolean arrayParameter = name.getValue().equals("TArrayElement");
-        if (bounds.isEmpty() && !arrayParameter) {
+        boolean createArrayParameter = name.getValue().equals("TCreateArrayElement");
+        if (bounds.isEmpty() && !arrayParameter && !createArrayParameter) {
             bounds = bounds.append(new UserDefinedType(origin,
                     new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
@@ -185,7 +186,7 @@ public class TypeDeclarationCompiler {
                 name, null, TPVarianceSyntax.NonVariant_Strict,
                 new TypeParameterCharacteristics(
                         TypeParameterEqualitySupportValue.Unspecified,
-                        arrayParameter ? TypeAutoInitInfo.Nonempty : TypeAutoInitInfo.MaybeEmpty,
+                        createArrayParameter ? TypeAutoInitInfo.Nonempty : TypeAutoInitInfo.MaybeEmpty,
                         false
                 ),
                 bounds);
