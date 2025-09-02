@@ -217,10 +217,10 @@ public class ExpressionCompiler {
         return new ConversionExpr(origin, castExpr, type, "");
     }
 
-    private SeqSelectExpr translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
+    private Expression translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
         var arrayExpr = toExpr(arrayAccess.getExpression());
-        var indexExpr = toExpr(arrayAccess.getIndex());
-        return new SeqSelectExpr(origin, true, arrayExpr, indexExpr, null, null);
+        var callee = new ExprDotName(origin, arrayExpr, new Name(origin, "get"), null);
+        return createCall(origin, callee, Stream.of(arrayAccess.getIndex()));
     }
 
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin) {
@@ -327,7 +327,8 @@ public class ExpressionCompiler {
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
-            return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
+            ExprDotName callee = new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "size"), null);
+            return createCall(origin, callee, Stream.of());
         }
         
         var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);

@@ -194,10 +194,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 updateTestAnnotation(sourceFile, annotation, verificationResults);
             }
         }
-
-        assertThat("exit code",
-                verificationResults.getExitCode(),
-                is(annotation.exitCode()));
         
         var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
@@ -205,6 +201,9 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         Integer expectedDafnyVerifiedCount = annotation.dafnyVerified() >= 0 ? annotation.dafnyVerified() : null;
         Integer expectedDafnyErrorCount = annotation.dafnyErrors() >= 0 ? annotation.dafnyErrors() : null;
         Assertions.assertAll(
+                () -> assertThat("exit code",
+                                verificationResults.getExitCode(),
+                                is(annotation.exitCode())),
 //                () -> assertThat("Dafny verified count",
 //                        verificationResults.getDafnyVerifiedCount(),
 //                        is(expectedDafnyVerifiedCount)),

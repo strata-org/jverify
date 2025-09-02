@@ -10,18 +10,20 @@ trait Object {
     ghost predicate equals(obj: Object)
 }
 
-class GhostArray<T> {
-  static method create(size: int) returns (r: GhostArray<T>)
+class GhostArray<T> extends Object {
+  ghost static method create(size: int) returns (r: GhostArray<T>)
     ensures r.size() == size && fresh(r)
   
-  function size(): nat
+  ghost function size(): nat
 
-  function get(index: nat): T
+  ghost function get(index: nat): T
     reads this
   
-  method sett(index: nat, value: T)
+  ghost method sett(index: nat, value: T)
     modifies this
-    ensures get(index) == value
+    ensures get(index) == value && forall i: int :: i != index ==> old(get(i)) == get(i)
+    
+  ghost predicate equals(obj: Object)
 }
 
 type nat15 = x: int16 | x >= 0
