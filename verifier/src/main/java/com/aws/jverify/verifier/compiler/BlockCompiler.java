@@ -355,9 +355,8 @@ public class BlockCompiler {
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
                 Symtab symtab = Symtab.instance(compiler.context);
-                if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType) {
-                    com.sun.tools.javac.util.List.from(newClass.args);
-                    throw new RuntimeException("not supported");
+                if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType) {
+                    throw new RuntimeException("not supported. should have already been lowered");
                 }
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
                 if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
@@ -373,8 +372,8 @@ public class BlockCompiler {
                 var argBindings = expressionCompiler.createBindings(newClass.getArguments().stream().map(expressionCompiler::toExpr));
                 return new AllocateClass(origin, null, ty, argBindings);
             }
-            case JCTree.JCNewArray newArray -> {
-                throw new RuntimeException("not supported");
+            case JCTree.JCNewArray _ -> {
+                throw new RuntimeException("not supported. should have already been lowered");
             }
             default -> {
             }

@@ -194,7 +194,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 updateTestAnnotation(sourceFile, annotation, verificationResults);
             }
         }
-        
+
         var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
