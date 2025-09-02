@@ -173,8 +173,10 @@ public class TypeDeclarationCompiler {
                 typeParameters, members, superTraits, false);
     }
 
-    private static TypeParameter getTypeParameter(IOrigin origin, com.sun.tools.javac.util.List<@Nullable Type> bounds, Name name) {
-        if (bounds.isEmpty()) {
+    private static TypeParameter getTypeParameter(IOrigin origin, 
+                                                  com.sun.tools.javac.util.List<@Nullable Type> bounds, 
+                                                  Name name) {
+        if (bounds.isEmpty() && !name.getValue().equals("TArrayElement")) {
             bounds = bounds.append(new UserDefinedType(origin,
                     new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }

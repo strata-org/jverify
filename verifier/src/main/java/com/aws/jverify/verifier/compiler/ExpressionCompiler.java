@@ -218,9 +218,7 @@ public class ExpressionCompiler {
     }
 
     private Expression translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
-        var arrayExpr = toExpr(arrayAccess.getExpression());
-        var callee = new ExprDotName(origin, arrayExpr, new Name(origin, "get"), null);
-        return createCall(origin, callee, Stream.of(arrayAccess.getIndex()));
+        throw new RuntimeException("not supported");
     }
 
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin) {

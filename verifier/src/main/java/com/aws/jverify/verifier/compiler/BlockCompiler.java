@@ -9,7 +9,6 @@ import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class BlockCompiler {
 
@@ -214,19 +213,8 @@ public class BlockCompiler {
 
     private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(assign));
-        List<Expression> lhss;
-        List<AssignmentRhs> rhss;
-        if (assign.lhs instanceof JCTree.JCArrayAccess arrayAccess) {
-            var arrayObj = expressionCompiler.toExpr(arrayAccess.getExpression());
-            var callee = new ExprDotName(origin, arrayObj, new Name(origin, "sett"), null);
-            var call = expressionCompiler.createCall(origin, callee, 
-                    Stream.of(arrayAccess.getIndex(), assign.getExpression()));
-            lhss = List.of();
-            rhss = List.of(new ExprRhs(origin, null, call));
-        } else {
-            lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), originOverride));
-            rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride));
-        }
+        List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), originOverride));
+        List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
 
@@ -368,8 +356,8 @@ public class BlockCompiler {
             case JCTree.JCNewClass newClass -> {
                 Symtab symtab = Symtab.instance(compiler.context);
                 if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType) {
-                    return translateNewArrayLike(origin, arrayType.elemtype, com.sun.tools.javac.util.List.nil(),
-                            com.sun.tools.javac.util.List.from(newClass.args));
+                    com.sun.tools.javac.util.List.from(newClass.args);
+                    throw new RuntimeException("not supported");
                 }
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
                 if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
@@ -386,36 +374,12 @@ public class BlockCompiler {
                 return new AllocateClass(origin, null, ty, argBindings);
             }
             case JCTree.JCNewArray newArray -> {
-                return translateNewArray(newArray, origin);
+                throw new RuntimeException("not supported");
             }
             default -> {
             }
         }
         var dafnyExpr = expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
-    }
-
-    private AssignmentRhs translateNewArray(JCTree.JCNewArray newArray, IOrigin origin) {
-        var arrayDimensions = newArray.getDimensions();
-        var arrayInitializers = newArray.getInitializers();
-        var arrayJavaType = ((com.sun.tools.javac.code.Type.ArrayType) newArray.type).elemtype;
-        return translateNewArrayLike(origin, arrayJavaType, arrayInitializers, arrayDimensions);
-    }
-
-    private AssignmentRhs translateNewArrayLike(IOrigin origin,
-                                                com.sun.tools.javac.code.Type elementType,
-                                                com.sun.tools.javac.util.List<JCTree.JCExpression> arrayInitializers,
-                                                List<JCTree.JCExpression> arrayDimensions) {
-        if (elementType instanceof com.sun.tools.javac.code.Type.ArrayType) {
-            compiler.reportError(origin, "notSupported", "multi-dimensional arrays");
-        }
-        var arrayDafnyType = compiler.translateType(elementType, origin, null);
-
-        if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
-            compiler.reportError(origin, "notSupported", "new array with initializers");
-        }
-        NameSegment arrayReference = new NameSegment(origin, "GhostArray", List.of(arrayDafnyType));
-        ExprDotName callee = new ExprDotName(origin, arrayReference, new Name(origin, "create"), null);
-        return new ExprRhs(origin, null, expressionCompiler.createCall(origin, callee, arrayDimensions.stream()));
     }
 }
