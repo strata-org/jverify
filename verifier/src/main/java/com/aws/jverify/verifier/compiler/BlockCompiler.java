@@ -13,12 +13,14 @@ import java.util.stream.Collectors;
 public class BlockCompiler {
 
     public final JavaToDafnyCompiler compiler;
+    private final ExpressionCompiler expressionCompiler;
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
 
     public BlockCompiler(JavaToDafnyCompiler compiler, Symbol.MethodSymbol methodSymbol) {
         this.compiler = compiler;
+        expressionCompiler = compiler.expressionCompiler;
         this.methodSymbol = methodSymbol;
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         statementCompilers.add(new ForLoopCompiler(this));
@@ -57,7 +59,7 @@ public class BlockCompiler {
                 return translateExpressionStatement(expressionStatement, originOverride);
             }
             case JCTree.JCAssert assertStmt -> {
-                return List.of(new AssertStmt(origin, null, compiler.expressionCompiler.toExpr(assertStmt.getCondition()), null));
+                return List.of(new AssertStmt(origin, null, expressionCompiler.toExpr(assertStmt.getCondition()), null));
             }
             case JCTree.JCIf ifStatement -> {
                 return translateIfStatement(ifStatement);
@@ -139,7 +141,7 @@ public class BlockCompiler {
 
     private List<Statement> translateIfStatement(JCTree.JCIf ifStatement) {
         var origin = compiler.toOrigin(ifStatement);
-        var condition = compiler.expressionCompiler.toExpr(ifStatement.getCondition());
+        var condition = expressionCompiler.toExpr(ifStatement.getCondition());
         var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
         BlockStmt elseBranch = null;
         if (ifStatement.getElseStatement() != null) {
@@ -175,7 +177,7 @@ public class BlockCompiler {
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
-        var dafnyCondition = compiler.expressionCompiler.toExpr(condition);
+        var dafnyCondition = expressionCompiler.toExpr(condition);
         var bodyStatements = translateStatements(postHeader);
         var newBodyStatements = transformBody.apply(bodyStatements);
         return new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
@@ -211,7 +213,7 @@ public class BlockCompiler {
 
     private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(assign));
-        List<Expression> lhss = List.of(compiler.expressionCompiler.toExpr(assign.getVariable(), originOverride));
+        List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), originOverride));
         List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
@@ -232,7 +234,7 @@ public class BlockCompiler {
                 throw new JavaViolationException("Check should have a single argument");
             }
             return List.of(new AssertStmt(compiler.toOrigin(invocation), null,
-                    compiler.expressionCompiler.toExpr(invocation.args.getFirst()), null));
+                    expressionCompiler.toExpr(invocation.args.getFirst()), null));
         } else {
             if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
                 compiler.reportError(invocation, "contractForConstructor");
@@ -246,6 +248,7 @@ public class BlockCompiler {
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
         var origin = compiler.toOrigin(invocation);
         var superIdent = getSuperIdent(invocation);
+        com.sun.tools.javac.util.List<JCTree.JCExpression> javaArguments = invocation.getArguments();
         if (superIdent != null) {
             Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) superIdent.sym;
 
@@ -256,20 +259,15 @@ public class BlockCompiler {
             var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor, superIdent);
             var baseConstructorClassName = compiler.nameCompiler.getCompiledName(baseConstructor.enclClass(), superIdent);
             var initName = compiler.nameCompiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
-            var arguments = invocation.getArguments().stream().map(
-                    e -> new ActualBinding(null, compiler.expressionCompiler.toExpr(e), false)).toList();
-            var applySuffix = new ApplySuffix(origin,
-                    new NameSegment(origin, initName, null), null, new ActualBindings(arguments), null);
+            NameSegment callee = new NameSegment(origin, initName, null);
+            var applySuffix = expressionCompiler.createCall(origin, callee, javaArguments.stream());
             var initCall = new AssignStatement(origin, null, List.of(),
                     List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
 
             return List.of(initCall);
         }
-        var argBindings = invocation.getArguments().stream().map(
-                a -> new ActualBinding(null, compiler.expressionCompiler.toExpr(a), false)).toList();
-        Expression expr = compiler.expressionCompiler.toExpr(invocation.getMethodSelect());
-        ApplySuffix applySuffix = new ApplySuffix(origin, expr, null,
-                new ActualBindings(argBindings), null);
+        Expression callee = expressionCompiler.toExpr(invocation.getMethodSelect());
+        ApplySuffix applySuffix = expressionCompiler.createCall(origin, callee, javaArguments.stream());
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
     }
@@ -312,7 +310,7 @@ public class BlockCompiler {
                     origin, Patterns.makeWildPattern(origin), List.of(), null));
         }
 
-        var source = compiler.expressionCompiler.toExpr(switchStmt.getExpression());
+        var source = expressionCompiler.toExpr(switchStmt.getExpression());
         return List.of(new NestedMatchStmt(origin, null, source, translatedCases, true));
     }
 
@@ -358,12 +356,12 @@ public class BlockCompiler {
             case JCTree.JCNewClass newClass -> {
                 Symtab symtab = Symtab.instance(compiler.context);
                 if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType) {
-                    return translateNewArrayLike(origin, arrayType.elemtype, com.sun.tools.javac.util.List.nil(),
-                            com.sun.tools.javac.util.List.from(newClass.args));
+                    com.sun.tools.javac.util.List.from(newClass.args);
+                    throw new RuntimeException("not supported");
                 }
                 Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
                 if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
-                    var datatypeValue = ImmutableTypeCompiler.translateNewRecord(compiler.expressionCompiler, origin, newClass);
+                    var datatypeValue = ImmutableTypeCompiler.translateNewRecord(expressionCompiler, origin, newClass);
                     return new ExprRhs(origin, null, datatypeValue);
                 }
                 NameSegment classBaseType = new ModifiableObjectCompiler(compiler).getNewClassType(newClass);
@@ -372,41 +370,16 @@ public class BlockCompiler {
                 Name ctorName = new Name(origin, ctorNameStr);
                 var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName,null));
 
-                var argBindings = newClass.getArguments().stream()
-                        .map(a -> new ActualBinding(
-                                null, compiler.expressionCompiler.toExpr(a), false))
-                        .toList();
-                return new AllocateClass(origin, null, ty, new ActualBindings(argBindings));
+                var argBindings = expressionCompiler.createBindings(newClass.getArguments().stream().map(expressionCompiler::toExpr));
+                return new AllocateClass(origin, null, ty, argBindings);
             }
             case JCTree.JCNewArray newArray -> {
-                return translateNewArray(expr, newArray, origin);
+                throw new RuntimeException("not supported");
             }
             default -> {
             }
         }
-        var dafnyExpr = compiler.expressionCompiler.toExpr(expr, originOverride);
+        var dafnyExpr = expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
-    }
-
-    private AllocateArray translateNewArray(JCTree.JCExpression expr, JCTree.JCNewArray newArray, IOrigin origin) {
-        var arrayDimensions = newArray.getDimensions();
-        var arrayInitializers = newArray.getInitializers();
-        var arrayJavaType = ((com.sun.tools.javac.code.Type.ArrayType) newArray.type).elemtype;
-        return translateNewArrayLike(origin, arrayJavaType, arrayInitializers, arrayDimensions);
-    }
-
-    private AllocateArray translateNewArrayLike(IOrigin origin,
-                                                com.sun.tools.javac.code.Type elementType,
-                                                com.sun.tools.javac.util.List<JCTree.JCExpression> arrayInitializers,
-                                                List<JCTree.JCExpression> arrayDimensions) {
-        if (elementType instanceof com.sun.tools.javac.code.Type.ArrayType) {
-            compiler.reportError(origin, "notSupported", "multi-dimensional arrays");
-        }
-        var arrayDafnyType = compiler.translateType(elementType, origin, null);
-
-        if (arrayInitializers != null && !arrayInitializers.isEmpty()) {
-            compiler.reportError(origin, "notSupported", "new array with initializers");
-        }
-        return new AllocateArray(origin, null, arrayDafnyType, arrayDimensions.stream().map(compiler.expressionCompiler::toExpr).toList(), null);
     }
 }

@@ -3,10 +3,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
-import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.*;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -16,6 +13,7 @@ import com.sun.tools.javac.util.List;
 
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /*
 Extracts contracts from constructor, method or loop bodies
@@ -331,13 +329,11 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
 
         } else if (expr instanceof JCTree.JCMemberReference memberReference) {
             var origin = compiler.toOrigin(memberReference);
-            var argBindings = java.util.List.of(new ActualBinding(null,
-                    new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null), false));
+            NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
                     compiler.expressionCompiler.toExpr(memberReference.expr),
                     compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
-            var call = new ApplySuffix(origin, callee, null,
-                    new ActualBindings(argBindings), null);
+            var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
             header.postconditions.add(new AttributedExpression(call, null, null));
         } else if (expr instanceof JCTree.JCTypeCast typeCast) {
             // Casts like (IntPredicate) are sometimes necessary to disambiguate

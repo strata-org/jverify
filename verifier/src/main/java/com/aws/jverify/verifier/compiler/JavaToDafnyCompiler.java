@@ -12,6 +12,7 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.file.JavacFileManager;
+import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Position;
 import com.sun.tools.javac.code.TypeMetadata;
@@ -42,6 +43,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
+
+    public static final boolean Ghostness = true;
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
@@ -52,6 +55,7 @@ public class JavaToDafnyCompiler {
     public final TypeDeclarationCompiler typeDeclarationCompiler;
     public final Reporter reporter;
     public final Names names;
+    public final JavacElements elements;
     public final VerifierOptions verifierOptions;
     public final JVerifyIndex index;
 
@@ -75,7 +79,8 @@ public class JavaToDafnyCompiler {
         context.put(DiagnosticListener.class, diagnostics);
         
         JavacFileManager.preRegister(context);
-        
+
+        elements = JavacElements.instance(context);
         reporter = Reporter.instance(context);
         nameCompiler = NameCompiler.instance(context);
         typeDeclarationCompiler = new TypeDeclarationCompiler(this);
@@ -416,7 +421,9 @@ public class JavaToDafnyCompiler {
             // should be unreachable
             throw new IllegalArgumentException("Array type without element type");
         }
-        return new UserDefinedType(origin, new NameSegment(origin, "array" + nullableSuffix, List.of(elemType)));
+        Symbol.ClassSymbol arraySymbol = elements.getTypeElement(ArrayCompiler.COM_AWS_JVERIFY_BUILTIN_GHOST_ARRAY);
+        var arrayDafnyName = nameCompiler.getCompiledName(arraySymbol, origin);
+        return new UserDefinedType(origin, new NameSegment(origin, arrayDafnyName + nullableSuffix, List.of(elemType)));
     }
 
     private NonProxyType translatePrimitiveType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean isNullable, TypeKind primitiveTypeKind) {
@@ -633,7 +640,8 @@ public class JavaToDafnyCompiler {
     public static Function equalsFunctionDeclaration(IOrigin origin) {
         var otherIn = new Formal(origin, new Name(origin, "obj"), new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null)),
                 false, true, null, null, false, false, false, null);
-        return new Function(origin, new Name(origin, "equals"), null, false, null, List.of(),
+        return new Function(origin, new Name(origin, "equals"), null, JavaToDafnyCompiler.Ghostness, 
+                null, List.of(),
                 List.of(otherIn),
                 List.of(), List.of(), new Specification<>(List.of(), null),
                 new Specification<>(List.of(), null), false, false, null, new BoolType(origin),

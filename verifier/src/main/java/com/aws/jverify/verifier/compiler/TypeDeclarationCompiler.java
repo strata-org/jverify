@@ -173,8 +173,10 @@ public class TypeDeclarationCompiler {
                 typeParameters, members, superTraits, false);
     }
 
-    private static TypeParameter getTypeParameter(IOrigin origin, com.sun.tools.javac.util.List<@Nullable Type> bounds, Name name) {
-        if (bounds.isEmpty()) {
+    private static TypeParameter getTypeParameter(IOrigin origin, 
+                                                  com.sun.tools.javac.util.List<@Nullable Type> bounds, 
+                                                  Name name) {
+        if (bounds.isEmpty() && !name.getValue().equals("TArrayElement")) {
             bounds = bounds.append(new UserDefinedType(origin,
                     new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
@@ -332,7 +334,8 @@ public class TypeDeclarationCompiler {
                 body = null;
             }
 
-            return new Constructor(origin, name, null, false, null, dafnyTypeParameters, ins,
+            return new Constructor(origin, name, null, JavaToDafnyCompiler.Ghostness, 
+                    null, dafnyTypeParameters, ins,
                     contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
                     body);
@@ -347,7 +350,8 @@ public class TypeDeclarationCompiler {
                 bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
             }
             var body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
-            return new Method(origin, name, null, false, null, dafnyTypeParameters,
+            return new Method(origin, name, null, JavaToDafnyCompiler.Ghostness, 
+                    null, dafnyTypeParameters,
                     ins, contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
                     isStatic, outs,
@@ -371,7 +375,8 @@ public class TypeDeclarationCompiler {
         }
         applyInvariants(method.mods, method.sym, contract);
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
-        return new Function(origin, name, null, false, null, dafnyTypeParameters,
+        return new Function(origin, name, null, JavaToDafnyCompiler.Ghostness, 
+                null, dafnyTypeParameters,
                 ins, contract.preconditions, contract.postconditions, contract.getReads(),
                 contract.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
                 returnType, contract.pureBody, null, null);
