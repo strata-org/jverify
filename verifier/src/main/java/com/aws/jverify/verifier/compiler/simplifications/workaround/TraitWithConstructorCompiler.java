@@ -17,49 +17,9 @@ import java.util.*;
  */
 public class TraitWithConstructorCompiler {
     private final TypeDeclarationCompiler typeDeclarationCompiler;
-    private final VerifyAnnotationCompiler verifyAnnotationCompiler;
-    private final Types types;
-    private final NameCompiler nameCompiler;
 
     public TraitWithConstructorCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
-        types = Types.instance(typeDeclarationCompiler.compiler.context);
-        verifyAnnotationCompiler = new VerifyAnnotationCompiler(typeDeclarationCompiler.compiler.context);
-        nameCompiler = typeDeclarationCompiler.compiler.nameCompiler;
-    }
-    
-    private Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
-    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
-        var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
-        if (result == null) {
-            result = new HashSet<>();
-            var names = new HashSet<String>();
-            for(var member : typeSymbol.members().getSymbols()) {
-                if (member instanceof Symbol.MethodSymbol methodSymbol) {
-                    if (verifyAnnotationCompiler.removedImplementations.contains(methodSymbol)) {
-                        MethodOrFunction callable = typeDeclarationCompiler.callables.get(methodSymbol);
-                        if (callable != null &&
-                                (callable instanceof Method method && method.getBody() == null ||
-                                        callable instanceof Function function && function.getBody() == null)) {
-                            result.add(callable);
-                        }
-                    } else {
-                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
-                    }
-                }
-            }
-            for(var baseType : types.closure(typeSymbol.type)) {
-                if (baseType.tsym != typeSymbol) {
-                    for(var unverified : getUnverifiedMethods(baseType.tsym, origin)) {
-                        if (!names.contains(unverified.getNameNode().getValue())) {
-                            result.add(unverified);
-                        }
-                    }
-                }
-            }
-            inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
-        }
-        return result;
     }
 
     public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
@@ -103,9 +63,7 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
-            // this equals function is unverified but declared in additional.dfy, so it's not detected at the Java level.
-            classMembers.add(JavaToDafnyCompiler.equalsFunctionDeclaration(traitDecl.getOrigin()));
-            classMembers.addAll(getUnverifiedMethods(classSymbol, traitDecl.getOrigin()));
+            classMembers.addAll(typeDeclarationCompiler.getUnverifiedMethods(classSymbol, traitDecl.getOrigin()));
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();

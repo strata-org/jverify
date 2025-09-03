@@ -15,6 +15,7 @@ import com.sun.tools.javac.tree.TreeInfo;
 import javax.lang.model.type.TypeKind;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ImmutableTypeCompiler {
@@ -107,7 +108,7 @@ public class ImmutableTypeCompiler {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
-        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
+        members.addAll(typeDeclarationCompiler.getUnverifiedMethods(classSymbol, origin));
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }

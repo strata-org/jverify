@@ -5,6 +5,12 @@ import com.aws.jverify.Contract;
 @Contract(Object.class)
 class ObjectContract {
     public ObjectContract() {}
+
+    @Pure
+    @Verify(false)
+    public boolean equals(Object obj) {
+        throw new ContractException();
+    }
 }
 
 @Contract(value = Record.class, immutable = true)
