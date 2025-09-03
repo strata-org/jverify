@@ -50,8 +50,9 @@ public class Driver {
         InstrumentLower.installModification();
         var context = new Context();
         TypesWithoutErasure.preRegister(context);
+        context.put(VerifierOptions.class, verifierOptions);
         
-        var compiler = new JavaToDafnyCompiler(context, verifierOptions);
+        var compiler = new JavaToDafnyCompiler(context);
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 

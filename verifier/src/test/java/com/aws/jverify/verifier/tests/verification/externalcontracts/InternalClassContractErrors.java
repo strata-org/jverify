@@ -13,7 +13,7 @@ public class InternalClassContractErrors {
 
     @Contract
     static class HasNoTarget {}
-//         ^ error: could not find a target for @Contract class 'InternalClassContractErrors$HasNoTarget'
+//         ^ error: could not find a target for @Contract class 'HasNoTarget'
 
     @Contract
     static class FooContract1 extends Foo {

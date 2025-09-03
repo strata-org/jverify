@@ -9,10 +9,8 @@ import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeScanner;
-import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Names;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
@@ -28,7 +26,8 @@ public class MissingContractCompiler {
     private final Names names;
     private final Symtab symtab;
     private final JavacElements elements;
-    private final JVerifyMaker verifyMaker;
+    private final JVerifyUtils jverifyUtils;
+    private final MethodOrLoopContractCompiler internalContractCompiler;
 
     private final Map<Symbol, Reference> symbolReferences = new HashMap<>();
     private final Set<Symbol> foundSymbols = new HashSet<>();
@@ -43,8 +42,9 @@ public class MissingContractCompiler {
         this.enter = Enter.instance(context);
         this.elements = JavacElements.instance(context);
         this.symtab = Symtab.instance(context);
-        verifyMaker = JVerifyMaker.instance(context);
+        jverifyUtils = JVerifyUtils.instance(context);
         reporter = Reporter.instance(context);
+        internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
     
     public Set<JCTree.JCCompilationUnit> compile(Set<JCTree.JCCompilationUnit> units) {
@@ -70,6 +70,10 @@ public class MissingContractCompiler {
             } else if (symbol instanceof Symbol.MethodSymbol methodSymbol) {
                 addMissingMethod(reference, methodSymbol);
             } else if (symbol instanceof Symbol.VarSymbol fieldSymbol) {
+                if (fieldSymbol.name.contentEquals(names._class)) {
+                    // Ignore .class fields for now
+                    continue;
+                }
                 var fieldDecl = (JCTree.JCVariableDecl)index.getTree(fieldSymbol);
                 if (fieldDecl == null) {
                     var classDecl = getOrAddType(fieldSymbol.enclClass(), reference);
@@ -84,19 +88,28 @@ public class MissingContractCompiler {
 
     private void addMissingMethod(Reference reference, Symbol.MethodSymbol methodSymbol) {
         var methodDecl = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
+        JCTree.JCBlock defaultBody = internalContractCompiler.getDefaultBody();
         if (methodDecl == null) {
             var classDecl = getOrAddType(methodSymbol.enclClass(), reference);
-            methodDecl = maker.MethodDef(methodSymbol, maker.Block(0, com.sun.tools.javac.util.List.nil()));
+            methodDecl = maker.MethodDef(methodSymbol, defaultBody);
             classDecl.defs = classDecl.defs.append(methodDecl);
         } else {
-            methodDecl.body = maker.Block(0, com.sun.tools.javac.util.List.nil());
+            methodDecl.body = defaultBody;
         }
         Symbol.ClassSymbol pureSymbol = elements.getTypeElement(Pure.class.getCanonicalName());
-        if (methodSymbol.type.getReturnType().getKind() != TypeKind.VOID) {
+        if (methodSymbol.getAnnotation(Pure.class) == null && methodSymbol.type.getReturnType().getKind() != TypeKind.VOID) {
             methodDecl.mods.annotations = methodDecl.mods.annotations.append(
-                    maker.Annotation(maker.Ident(pureSymbol), com.sun.tools.javac.util.List.nil()));
+                    maker.Annotation(maker.Ident(pureSymbol), List.nil()));
+
+            ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
+            newAnnotations.addAll(methodSymbol.getAnnotationMirrors());
+            newAnnotations.add(new Attribute.Compound(pureSymbol.type, List.nil()));
+
+            methodSymbol.resetAnnotations();
+            methodSymbol.setDeclarationAttributes(newAnnotations.toList());
         }
-        methodDecl.mods.annotations = methodDecl.mods.annotations.append(verifyMaker.getVerifyFalseAnnotation());
+        methodDecl.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
+        jverifyUtils.addVerifyFalseToMethodSymbol(methodSymbol, methodSymbol);
 
         reporter.compilationUnit = reference.compilationUnit();
         reporter.reportDiagnostic(reporter.toOrigin(reference.tree), JCDiagnostic.DiagnosticType.WARNING, "missingContract",
@@ -151,7 +164,7 @@ public class MissingContractCompiler {
 
         @Override
         public void visitVarDef(JCTree.JCVariableDecl tree) {
-            if (tree.sym.owner instanceof Symbol.ClassSymbol) {
+            if (isField(tree.sym)) {
                 foundSymbols.add(tree.sym);
             }
             super.visitVarDef(tree);

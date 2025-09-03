@@ -375,6 +375,7 @@ class BooleanContract {
 
 @Contract
 class IntFunction<R> implements java.util.function.IntFunction<R> {
+    @Pure
     public R apply(int value) {
         throw new ContractException();
     }

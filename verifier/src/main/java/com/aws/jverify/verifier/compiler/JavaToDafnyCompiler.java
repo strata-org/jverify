@@ -49,7 +49,6 @@ public class JavaToDafnyCompiler {
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
     public final NameCompiler nameCompiler;
-    public final VerifyAnnotationCompiler verifyAnnotationCompiler;
     public final TypeDeclarationCompiler typeDeclarationCompiler;
     public final Reporter reporter;
     public final Names names;
@@ -68,9 +67,9 @@ public class JavaToDafnyCompiler {
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
     
-    public JavaToDafnyCompiler(Context context, VerifierOptions verifierOptions) {
+    public JavaToDafnyCompiler(Context context) {
         this.context = context;
-        this.verifierOptions = verifierOptions;
+        this.verifierOptions = context.get(VerifierOptions.class);
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         context.put(DiagnosticListener.class, diagnostics);
@@ -78,7 +77,6 @@ public class JavaToDafnyCompiler {
         JavacFileManager.preRegister(context);
         
         reporter = Reporter.instance(context);
-        verifyAnnotationCompiler = new VerifyAnnotationCompiler(this);
         nameCompiler = NameCompiler.instance(context);
         typeDeclarationCompiler = new TypeDeclarationCompiler(this);
         index = JVerifyIndex.instance(context);
@@ -174,10 +172,7 @@ public class JavaToDafnyCompiler {
                 compilationUnit = env.toplevel;
             }
             reporter.compilationUnit = compilationUnit;
-            var verifyAnnotation = compilationUnit.packge.getAnnotation(Verify.class);
-            verifyAnnotationCompiler.processVerifyAnnotation(verifyAnnotation);
             var dafnyDecls = typeDeclarationCompiler.translateTypeDeclaration(relatedDeclaration);
-            verifyAnnotationCompiler.shouldVerifies.pop();
             declarationsForFile.get(compilationUnit).addAll(dafnyDecls);
         }
     }
@@ -220,7 +215,8 @@ public class JavaToDafnyCompiler {
         var classAnnotations = modifiers.getAnnotations();
         return classAnnotations.stream().collect(Collectors.toMap(
                 (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                a -> a));
+                a -> a, 
+                (first, second) -> first));
     }
     
     public static Map<String, JCTree.JCExpression> getArguments(JCTree.JCAnnotation annotation) {

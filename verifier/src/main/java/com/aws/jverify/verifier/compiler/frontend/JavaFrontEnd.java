@@ -29,11 +29,13 @@ import java.util.stream.Collectors;
 
 public class JavaFrontEnd {
     public final Context context;
-    Reporter reporter;
+    private final Reporter reporter;
+    private final Enter enter;
 
     public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
         this.context = javaToDafnyCompiler.context;
         reporter = Reporter.instance(context);
+        enter = Enter.instance(context);
     }
 
     /**
@@ -137,16 +139,20 @@ public class JavaFrontEnd {
                     // including the comment "these method calls must be chained to avoid memory leaks"
                     
                     var staticMover = new MoveStaticMethodsToStaticType(context);
-                    var contractCompiler = new ExternalContractCompiler(context);
+                    var externalContractCompiler = new ExternalContractCompiler(context);
                     var missingContractCompiler = new MissingContractCompiler(context);
+                    var newMethodContractCompiler = MethodOrLoopContractCompiler.instance(context);
+                    var verifyAnnotationCompiler = VerifyAnnotationCompiler.instance(context);
                     units.addAll(
                             staticMover.translate(
-                            missingContractCompiler.compile(
-                            contractCompiler.apply(
-                                unsuspend(lower(suspend(
-                                        unlambda(
-                                                compiler.flow(compiler.attribute(todo))
-                    ))))))));
+                                    unsuspend(lower(suspend(
+                                                missingContractCompiler.compile(
+                                                        verifyAnnotationCompiler.transform(
+                                                                externalContractCompiler.apply(
+                                                        newMethodContractCompiler.transform(
+                                                                unlambda(
+                                                        toUnits(compiler.flow(compiler.attribute(todo)))
+                    ))))))))));
                 }
             }
         });
@@ -170,27 +176,38 @@ public class JavaFrontEnd {
         return hasErrors ? null : units;
     }
 
-    private Queue<Env<AttrContext>> unlambda(Queue<Env<AttrContext>> envs) {;
-
+    private Set<JCTree.JCCompilationUnit> toUnits(Queue<Env<AttrContext>> envs) {
+        Set<JCTree.JCCompilationUnit> result = envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
+        JVerifyIndex index = JVerifyIndex.instance(context);
+        for(var unit : result) {
+            Env<AttrContext> env = enter.getTopLevelEnv(unit);
+            for(var def : unit.defs) {
+                index.index(env, def);
+            }
+        }
+        return result;
+    }
+    
+    private Set<JCTree.JCCompilationUnit> unlambda(Set<JCTree.JCCompilationUnit> envs) {
         // Note JavaCompiler.desugar has some additional logic to
         // scan for classes that have lambdas first,
         // to not waste time with these traversals.
         // We could do the same here to save time in the future.
-        for (Env<AttrContext> env : envs) {
-            env.tree = new MethodReferenceToLambdaCompiler(context).translate(env.tree);
-            env.tree = new LambdaToAnonymousClassCompiler(env.toplevel, context).translate(env.tree);
+        for (var env : envs) {
+            new MethodReferenceToLambdaCompiler(context).translate(env);
+            new LambdaToAnonymousClassCompiler(env, context).translate(env);
         }
         return envs;
     }
 
     // Phase to hide/rewrite higher level features such as switches
     // so future phases don't rewrite them.
-    private Queue<Env<AttrContext>> suspend(Queue<Env<AttrContext>> envs) {
+    private Set<JCTree.JCCompilationUnit> suspend(Set<JCTree.JCCompilationUnit> envs) {
         var suspenders = Suspenders.instance(context);
         Log log = Log.instance(context);
-        for (Env<AttrContext> env: envs) {
-            log.useSource(env.toplevel.sourcefile);
-            env.tree = suspenders.suspend(env.tree);
+        for (var env: envs) {
+            log.useSource(env.sourcefile);
+            suspenders.suspend(env);
         }
         return envs;
     }
@@ -204,27 +221,29 @@ public class JavaFrontEnd {
         return units;
     }
 
-    private Set<JCTree.JCCompilationUnit> lower(Queue<Env<AttrContext>> envs) {
+    private Set<JCTree.JCCompilationUnit> lower(Set<JCTree.JCCompilationUnit> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
         var lower = Lower.instance(context);
         var log = Log.instance(context);
         var index = JVerifyIndex.instance(context);
 
-        Map<JCTree.JCCompilationUnit, com.sun.tools.javac.util.List<JCTree>> newDecls = new HashMap<>();
-        for (Env<AttrContext> env : envs) {
-            log.useSource(env.toplevel.sourcefile);
-            com.sun.tools.javac.util.List<JCTree> classes = lower.translateTopLevelClass(env, env.tree, localMake);
-
-            for (JCTree clazz : classes) {
-                index.index(env, clazz);
+        for (var env : envs) {
+            log.useSource(env.sourcefile);
+            Env<AttrContext> unitEnv = enter.getTopLevelEnv(env);
+            var newDefs = com.sun.tools.javac.util.List.<JCTree>nil();
+            for(var topLevel : env.defs) {
+                if (topLevel instanceof JCTree.JCClassDecl) {
+                    com.sun.tools.javac.util.List<JCTree> classes = lower.translateTopLevelClass(unitEnv, topLevel, localMake);
+                    for (JCTree clazz : classes) {
+                        index.index(unitEnv, clazz);
+                    }
+                    newDefs = newDefs.appendList(classes);
+                } else {
+                    newDefs = newDefs.append(topLevel);
+                }
             }
-
-            var decls = newDecls.getOrDefault(env.toplevel, com.sun.tools.javac.util.List.nil());
-            newDecls.put(env.toplevel, decls.appendList(classes));
+            env.defs = newDefs;
         }
-        for(var entry : newDecls.entrySet()) {
-            entry.getKey().defs = entry.getValue();
-        }
-        return new HashSet<>(newDecls.keySet());
+        return envs;
     }
 }

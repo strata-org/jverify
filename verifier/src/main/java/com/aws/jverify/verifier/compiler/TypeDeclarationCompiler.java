@@ -2,19 +2,15 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.simplifications.ModifiableObjectCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
@@ -26,7 +22,9 @@ import java.util.stream.Stream;
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
-    final Reporter reporter;
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
+    private final Reporter reporter;
+    private final JVerifyUtils jverifyUtils;
     JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
@@ -37,9 +35,8 @@ public class TypeDeclarationCompiler {
         this.compiler = compiler;
         index = JVerifyIndex.instance(compiler.context);
         reporter = Reporter.instance(compiler.context);
-        var names = Names.instance(compiler.context);
-        var symtab = Symtab.instance(compiler.context);
-
+        methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
+        jverifyUtils = JVerifyUtils.instance(compiler.context);
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
@@ -49,14 +46,10 @@ public class TypeDeclarationCompiler {
             if (classDecl.name.equals(classDecl.name.table.names.package_info)) {
                 return List.of();
             }
-            var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
 
             Name name = compiler.getName(classDecl, classDecl.sym);
             var origin = compiler.declToOrigin(classDecl, name);
             reporter.contextOrigins.push(origin);
-
-            var mode = compiler.verifyAnnotationCompiler.getShouldVerifyMode(annotationsByName);
-            compiler.verifyAnnotationCompiler.addShouldVerify(mode);
 
             var classSymbol = classDecl.sym;
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
@@ -77,7 +70,6 @@ public class TypeDeclarationCompiler {
             }
 
             reporter.contextOrigins.pop();
-            compiler.verifyAnnotationCompiler.shouldVerifies.pop();
             return result;
         }
         if (tree instanceof JCTree jcTree) {
@@ -181,15 +173,6 @@ public class TypeDeclarationCompiler {
                 typeParameters, members, superTraits, false);
     }
 
-    public List<TypeParameter> translateTypeParameters(IOrigin origin,  List<Symbol.TypeVariableSymbol> typarams) {
-        return typarams.stream().map(p -> {
-            var name = new Name(origin, compiler.nameCompiler.getCompiledName(p, origin));
-            var bounds = p.getBounds().map(t -> compiler.translateType(t, origin));
-
-            return getTypeParameter(origin, bounds, name);
-        }).toList();
-    }
-
     private static TypeParameter getTypeParameter(IOrigin origin, com.sun.tools.javac.util.List<@Nullable Type> bounds, Name name) {
         if (bounds.isEmpty()) {
             bounds = bounds.append(new UserDefinedType(origin,
@@ -264,7 +247,10 @@ public class TypeDeclarationCompiler {
         var methodSymbol = method.sym;
         compiler.symbolsWithAContract.add(methodSymbol);
         var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
-        boolean shouldVerify = compiler.verifyAnnotationCompiler.processVerifyAnnotationAndPop(annotationsByName);
+        if (method.body == null) {
+            return null;
+        }
+        boolean shouldVerify = MethodOrLoopContractCompiler.hasImplementation(method);
         
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
 // Hints for whenever this is implemented.
@@ -275,13 +261,9 @@ public class TypeDeclarationCompiler {
             return null;
         }
 
-        var contract = new MethodOrLoopContract(method, annotationsByName.containsKey(Pure.class.getName()));
-        var allowFooter = JavaToDafnyCompiler.isConstructor(methodSymbol);
-        if (method.body == null) {
-            return null;
-        }
-        var remainingStatements = new MethodOrLoopContractCompiler(compiler).
-                extractContract(method.body, contract, allowFooter);
+        var contract = new MethodOrLoopContract(method, jverifyUtils.isPure(method.sym));
+        var remainingStatements = methodOrLoopContractCompiler.
+                extractContract(compiler, method.body, contract);
 
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
@@ -293,7 +275,7 @@ public class TypeDeclarationCompiler {
     private MethodOrConstructor translateImpureMethod(JCTree.JCMethodDecl method,
                                                       boolean shouldVerify,
                                                       MethodOrLoopContract contract,
-                                                      List<JCTree.JCStatement> postHeader) {
+                                                      com.sun.tools.javac.util.List<JCTree.JCStatement> postHeader) {
         var methodOrigin = compiler.toOrigin(method);
 
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
@@ -326,7 +308,7 @@ public class TypeDeclarationCompiler {
 
         if (JavaToDafnyCompiler.isConstructor(method.sym)) {
             DividedBlockStmt body;
-            if (shouldVerify && postHeader != null) {
+            if (shouldVerify) {
                 var treeMaker = TreeMaker.instance(compiler.context);
 
                 var bodyStatements = new ArrayList<Statement>();
@@ -335,7 +317,7 @@ public class TypeDeclarationCompiler {
                     if (first instanceof JCTree.JCExpressionStatement expressionStatement 
                             && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation methodInvocation && BlockCompiler.getSuperIdent(methodInvocation) != null) {
                         bodyStatements.addAll(blockCompiler.translateStatement(first));
-                        postHeader.removeFirst();
+                        postHeader = postHeader.tail;
                     }
                 }
                 for (JCTree.JCVariableDecl variableDecl : initializers) {

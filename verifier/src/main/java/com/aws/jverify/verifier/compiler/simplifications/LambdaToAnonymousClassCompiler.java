@@ -15,6 +15,9 @@ import java.util.*;
 
 import static com.sun.tools.javac.code.Flags.*;
 
+/**
+ * Needs to occur before the Lower pass
+ */
 public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
     private final JCCompilationUnit compilationUnit;
@@ -165,13 +168,9 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
     private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, JCLambda lambda) {
         var samMethod = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.type.tsym);
-        var isPure = samMethod.getAnnotation(Pure.class) != null;
         var methodType = types.memberType(lambda.type, samMethod);
 
         var modifiers = maker.Modifiers(Flags.PUBLIC | SYNTHETIC);
-        if (isPure) {
-            modifiers.annotations = modifiers.annotations.append(getPureAnnotation());
-        }
         var methodSymbol = new Symbol.MethodSymbol(modifiers.flags, samMethod.name, new Type.MethodType(
                 methodType.getParameterTypes(),
                 methodType.getReturnType(),
