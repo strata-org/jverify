@@ -466,6 +466,7 @@ public class TypeDeclarationCompiler {
             for(var baseType : types.closure(typeSymbol.type)) {
                 if (baseType.tsym != typeSymbol) {
                     for(var unverified : getUnverifiedMethods(baseType.tsym, origin, true)) {
+                        // TODO bugs when a record extends an interface
                         if (!names.contains(unverified.getNameNode().getValue())) {
                             result.add(unverified);
                         }

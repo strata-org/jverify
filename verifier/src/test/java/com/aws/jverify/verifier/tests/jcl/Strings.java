@@ -135,5 +135,6 @@ class Strings {
     
     void castStringToCharSequence() {
         var instant = java.time.Instant.parse("hello");
+//                    ^ warning: missing contract for method 'parse' in class 'java.time.Instant'
     }
 }

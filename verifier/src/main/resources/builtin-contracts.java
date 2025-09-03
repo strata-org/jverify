@@ -253,7 +253,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
                 size() == r.size() &&
                         r.elements ==
                                 JVerify.Set.all((K k) -> elements.contains(k))
-                                        .map((K k) -> (java.util.Map.Entry<K,V>)new MapEntry<K, V>(k, elements.get(k))));
+                                        .map((K k) -> Map.entry(k, elements.get(k))));
         throw new ContractException();
     }
 
@@ -275,30 +275,6 @@ abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
     @Override
     @Pure
     public V getValue() {
-        throw new ContractException();
-    }
-}
-
-// It would be better to use Map.entry(key, value) directly,
-// but that currently doesn't work because we end up with <K, V> type parameters
-// on both Map and Map.entry, and while Java ignores the outer type parameters
-// for static methods, Dafny gets confused and doesn't resolve.
-record MapEntry<K, V>(K key, V value) implements Map.Entry<K, V> {
-    @Override
-    @Pure
-    public K getKey() {
-        return key;
-    }
-
-    @Override
-    @Pure
-    public V getValue() {
-        return value;
-    }
-
-    @Override
-    @Verify(false)
-    public V setValue(V value) {
         throw new ContractException();
     }
 }
