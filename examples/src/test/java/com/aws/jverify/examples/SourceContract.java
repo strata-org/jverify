@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.*;
 
 @Contract(Foo.class)
 @JVerifyTest(dafnyVerified = 16, dafnyErrors = 0)
-public class ExternalContract implements Foo {
+public class SourceContract implements Foo {
     int erasedValue;
     
     public int foo(int x) {
