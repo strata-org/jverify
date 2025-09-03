@@ -46,7 +46,7 @@ class BigIntegers {
     static void testConstructorNegative() {
         BigInteger bi = new BigInteger("23456");
         check(bi.intValue() == 23456);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     // Test all arithmetic operations on BigIntegers
@@ -74,7 +74,7 @@ class BigIntegers {
         BigInteger minusTwo = new BigInteger("-2");
         BigInteger fail = bi.add(minusTwo);
         check(fail.intValue() == 25);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
     
     @Pure

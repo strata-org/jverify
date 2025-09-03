@@ -5,12 +5,18 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 33, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 26, dafnyErrors = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
     }
-
+    
+    static void jequalityOnRecords() {
+        var one = new IntRecord(1);
+        var anotherOne = new IntRecord(1);
+        check(one.equals(anotherOne));
+    }
+    
     static void primitiveRecords() {
         var neg = new IntRecord(-1);
         var pos = new IntRecord(2);
@@ -20,7 +26,7 @@ class RecordsVerified {
         check(pos.value() == 2);
 
         check(big.value() == 777);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void referenceRecords() {
@@ -33,7 +39,7 @@ class RecordsVerified {
         check(rec1.foobar().id == 1);
 
         check(rec2.foobar().id == 3);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void genericRecords() {
@@ -44,7 +50,7 @@ class RecordsVerified {
         var foobar = new Foobar(3);
         var foobarRecord = new FoobarRecord(foobar);
         check(foobarRecord.foobar() == null);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
         var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
         check(foobarFoobarRecord.b().foobar() == null);
@@ -67,7 +73,7 @@ class RecordsVerified {
         check(nodeC.head().equals("C"));
 
         check(nodeA.tail() == null);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void memberFunctions() {

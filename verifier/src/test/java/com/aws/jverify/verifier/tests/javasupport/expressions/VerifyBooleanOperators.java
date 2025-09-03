@@ -18,6 +18,6 @@ class VerifyBooleanOperators {
         check(not == false);
         
         check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     } 
 }

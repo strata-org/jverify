@@ -91,7 +91,7 @@ class OverloadsTest {
             // Errors
             OverloadsTest c = new OverloadsTest(10, 15, 20);
             check(c.f()==11);
-//          ^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
             check(c.g()==16);
             check(c.h()==21);
         }
