@@ -10,6 +10,7 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.lang.model.element.ElementKind;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
@@ -59,6 +60,17 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         processVerifyAnnotation(tree.sym);
         super.visitClassDef(tree);
         shouldVerifies.pop();
+    }
+
+    @Override
+    public void visitVarDef(JCTree.JCVariableDecl tree) {
+        if (tree.sym.getKind() == ElementKind.FIELD) {
+            boolean shouldVerify = processVerifyAnnotationAndPop(tree.sym);
+            if (!shouldVerify) {
+                tree.init = null;
+            }
+        }
+        super.visitVarDef(tree);
     }
 
     @Override
