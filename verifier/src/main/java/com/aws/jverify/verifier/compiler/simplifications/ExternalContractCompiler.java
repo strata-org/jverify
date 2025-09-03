@@ -379,13 +379,6 @@ public class ExternalContractCompiler {
         if (candidate != null) {
             return candidate;
         }
-
-        for (Type baseType : types.closure(contractee.type)) {
-            Symbol.MethodSymbol baseCandidate = getCandidateForType(baseType.tsym, method, types);
-            if (baseCandidate != null) {
-                return baseCandidate;
-            }
-        }
         
         return null;
     }

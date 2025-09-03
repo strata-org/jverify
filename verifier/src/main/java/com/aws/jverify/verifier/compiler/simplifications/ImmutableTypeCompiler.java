@@ -80,14 +80,16 @@ public class ImmutableTypeCompiler {
                 if (compNames.contains(methodName) && params.isEmpty()) {
                     compiler.reportError(member, "notSupported", "explicit record component accessor method");
                     continue;
-                } else if ("equals".equals(methodName)
-                        && params.length() == 1
-                        && params.getFirst().type.toString().equals(Object.class.getName())) {
-                    compiler.reportError(member, "notSupported", "overridden equals method in record");
-                    continue;
-                } else if ("hashCode".equals(methodName) && params.isEmpty()) {
-                    compiler.reportError(member, "notSupported", "overridden hashCode method in record");
-                    continue;
+                } else if(classSymbol.isRecord()) {
+                    if ("equals".equals(methodName)
+                            && params.length() == 1
+                            && params.getFirst().type.toString().equals(Object.class.getName())) {
+                        compiler.reportError(member, "notSupported", "overridden equals method in record");
+                        continue;
+                    } else if ("hashCode".equals(methodName) && params.isEmpty()) {
+                        compiler.reportError(member, "notSupported", "overridden hashCode method in record");
+                        continue;
+                    }
                 }
             } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 fields.add(variableDecl);

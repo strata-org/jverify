@@ -462,8 +462,6 @@ public class TypeDeclarationCompiler {
                     for(var unverified : getUnverifiedMethods(baseType.tsym, origin, true)) {
                         if (!names.contains(unverified.getNameNode().getValue())) {
                             result.add(unverified);
-                        } else {
-                            var b = 3;
                         }
                     }
                 }

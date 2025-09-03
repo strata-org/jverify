@@ -2,8 +2,4 @@ package com.aws.jverify.testing;
 
 import java.util.Map;
 
-public abstract class GenericParent implements Map<GenericParent, SomethingElse> {
-    
-}
-
-class SomethingElse {}
+public abstract class GenericParent implements Map<GenericParent, LibraryClassA> {}
