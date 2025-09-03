@@ -436,7 +436,7 @@ public class TypeDeclarationCompiler {
 
 
     private final Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
-    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
+    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
         var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
             result = new HashSet<>();
@@ -447,7 +447,7 @@ public class TypeDeclarationCompiler {
                     var methodSymbol = method.sym;
                     if (verifyAnnotationCompiler.removedImplementations.contains(methodSymbol)) {
                         MethodOrFunction callable = callables.get(methodSymbol);
-                        if (callable != null &&
+                        if (includeSelf && callable != null &&
                                 (callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
                                         callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null)) {
                             result.add(callable);
@@ -459,7 +459,7 @@ public class TypeDeclarationCompiler {
             }
             for(var baseType : types.closure(typeSymbol.type)) {
                 if (baseType.tsym != typeSymbol) {
-                    for(var unverified : getUnverifiedMethods(baseType.tsym, origin)) {
+                    for(var unverified : getUnverifiedMethods(baseType.tsym, origin, true)) {
                         if (!names.contains(unverified.getNameNode().getValue())) {
                             result.add(unverified);
                         } else {
@@ -468,7 +468,9 @@ public class TypeDeclarationCompiler {
                     }
                 }
             }
-            inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
+            if (includeSelf) {
+                inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
+            }
         }
         return result;
     }
