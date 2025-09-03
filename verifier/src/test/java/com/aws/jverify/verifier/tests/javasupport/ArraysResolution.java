@@ -10,7 +10,7 @@ class ArraysResolution {
 
     static void pointArrayOfSize10() {
         Point[] a = new Point[10];
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: type parameter (T) passed to type GhostArray must be nonempty (got Point)
+//                  ^ Error: type parameter (TCreateArrayElement) passed to method create must be nonempty (got Point)
         var zeroPoint = new Point(1,2);
         a[0] = zeroPoint;
         for (int i = 1; i < a.length; i++) {
@@ -32,7 +32,7 @@ class ArraysResolution {
 
     static void pointArrayOfSize0() {
         Point[] a = new Point[0];
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: type parameter (T) passed to type GhostArray must be nonempty (got Point)
+//                  ^ Error: type parameter (TCreateArrayElement) passed to method create must be nonempty (got Point)
     }
 
     static class Point {

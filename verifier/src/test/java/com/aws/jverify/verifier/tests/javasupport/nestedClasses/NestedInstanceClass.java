@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 8, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 15, dafnyErrors = 2)
 public class NestedInstanceClass {
     int x;
     
@@ -13,12 +13,12 @@ public class NestedInstanceClass {
     public class InstanceNestee {
         void checkFalse() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         void checkX() {
             check(x == 3);
-//          ^^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         @SuppressWarnings("ConstantValue")

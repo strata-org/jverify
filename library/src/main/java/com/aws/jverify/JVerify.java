@@ -108,6 +108,10 @@ public class JVerify {
         throw new ContractException();
     }
 
+    public static <T> boolean jequals(T left, T right) {
+        throw new VerificationMethodExecutedException();
+    }
+    
     /**
      * Returns true if the given object were allocated during the current method call.
      */

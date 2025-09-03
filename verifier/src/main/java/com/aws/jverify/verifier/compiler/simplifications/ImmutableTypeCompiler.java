@@ -75,7 +75,8 @@ public class ImmutableTypeCompiler {
                 if (compNames.contains(methodName) && params.isEmpty()) {
                     compiler.reportError(member, "notSupported", "explicit record component accessor method");
                     continue;
-                } else if (classSymbol != symtab.recordType.tsym && "equals".equals(methodName)
+                } else if ("equals".equals(methodName)
+                        && !isAbstract
                         && params.length() == 1
                         && params.getFirst().type.toString().equals(Object.class.getName())) {
                     compiler.reportError(member, "notSupported", "overridden equals method in record");
@@ -108,10 +109,7 @@ public class ImmutableTypeCompiler {
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
-
-        if (!classSymbol.isRecord()) {
-            members.add(compiler.shallowEqualsFunctionDeclaration(classSymbol, origin));
-        }
+        
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }
@@ -183,7 +181,8 @@ public class ImmutableTypeCompiler {
                     return new AttributedExpression(e, null, null);
                 }).toList();
             }
-            var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), JavaToDafnyCompiler.Ghostness, null,
+            var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), 
+                    JavaToDafnyCompiler.Ghostness, null,
                 constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
 

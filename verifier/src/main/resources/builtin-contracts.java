@@ -572,6 +572,11 @@ class OptionalContract<T> {
 @Contract(value = String.class, immutable = true)
 class StringContract extends StringTypeContract {
 
+    @Override
+    public boolean equals(Object obj) {
+        return JVerify.jequals(this, obj);
+    }
+    
     @Pure
     public StringContract concat(StringContract str) {
         postcondition((StringContract r) -> jequals(r.chars, chars.concat(str.chars)));

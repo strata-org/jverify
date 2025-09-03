@@ -68,6 +68,20 @@ public class ArrayCompiler extends TreeTranslator {
     }
 
     @Override
+    public void visitAnnotation(JCTree.JCAnnotation tree) {
+        result = tree;
+    }
+
+    @Override
+    public void visitClassDef(JCTree.JCClassDecl tree) {
+        if (tree.sym.isEnum()) {
+            result = tree;
+        } else {
+            super.visitClassDef(tree);
+        }
+    }
+
+    @Override
     public void visitNewArray(JCTree.JCNewArray newArray) {
         super.visitNewArray(newArray);
         
@@ -76,12 +90,17 @@ public class ArrayCompiler extends TreeTranslator {
             reporter.reportError(newArray, "notSupported", "multi-dimensional arrays");
         }
 
+        JCTree.JCExpression size;
         if (newArray.getInitializers() != null && !newArray.getInitializers().isEmpty()) {
             reporter.reportError(newArray, "notSupported", "new array with initializers");
+            size = maker.Literal(0);
+        } else {
+            size = newArray.getDimensions().head;
         }
 
         maker.pos = newArray.pos;
-        JCTree.JCMethodInvocation create = maker.App(maker.Select(maker.Ident(arraySymbol), createMethodSymbol), List.of(newArray.getDimensions().head));
+        JCTree.JCMethodInvocation create = maker.App(maker.Select(maker.Ident(arraySymbol), createMethodSymbol), 
+                List.of(size));
         create.typeargs = List.of(maker.Type(elementType));
         result = create;
         result.type = newArray.type;

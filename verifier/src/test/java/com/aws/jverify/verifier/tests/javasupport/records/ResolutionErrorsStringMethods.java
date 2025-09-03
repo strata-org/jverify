@@ -9,6 +9,6 @@ class ResolutionErrorsStringMethods {
     static void stringFormatted() {
         check("hello %s".formatted("world").length() == 11);
 //                                ^ error: String method formatted(java.lang.Object...) is not supported
-//                                 ^ error: JCNewArray in an expression is not supported
+//                                 ^ error: new array with initializers is not supported
     }
 }

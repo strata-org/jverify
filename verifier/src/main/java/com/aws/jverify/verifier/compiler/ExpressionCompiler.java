@@ -218,7 +218,7 @@ public class ExpressionCompiler {
     }
 
     private Expression translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
-        throw new RuntimeException("not supported");
+        throw new RuntimeException("not supported. should have already been lowered");
     }
 
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin) {

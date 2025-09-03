@@ -9,12 +9,12 @@ import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 7, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 14, dafnyErrors = 1)
 public class MissingContracts {
     
     void checkFalse() {
         check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
     
     interface MissingContract {

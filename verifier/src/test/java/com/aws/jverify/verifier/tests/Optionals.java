@@ -7,7 +7,7 @@ import java.util.Optional;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 2, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 2, useBuiltinContracts = true)
 public class Optionals {
 
     void testEmpty() {
@@ -24,7 +24,7 @@ public class Optionals {
         var opt = Optional.of("Hello");
         check(opt.get().equals("Hello"));
         check(opt.isEmpty());
-//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
         check(opt.isPresent());
         var res = opt.orElse("World");
         check(res.equals("Hello"));
@@ -36,7 +36,7 @@ public class Optionals {
         var opt = Optional.ofNullable("5");
         check(opt.isPresent());
         check(opt.get().equals("7"));
-            ^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+            ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
         check(opt.get().equals("5"));
         check(opt.get().equals(opt.get()));
     }
