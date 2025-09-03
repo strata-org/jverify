@@ -22,6 +22,6 @@ class PrimitiveAndBoxedTypesVerification {
     @SuppressWarnings("ConstantValue")
     static void nullArgForNonNullParam() {
         Integer zero = null;
-//                     ^^^^ Error: value of expression (of type 'Integer?') is not known to be an instance of type 'Integer', because it might be null
+//                     ^^^^ Error: value of expression (of type 'Integer?') is not known to be an instance of type 'Integer', because it could not be proved to be non-null
     }
 }
