@@ -11,10 +11,12 @@ class RecordsVerified {
         var _ = new UnitRecord();
     }
     
-    static void jequalityOnRecords() {
-        var one = new IntRecord(1);
-        var anotherOne = new IntRecord(1);
-        check(one.equals(anotherOne));
+    static void equalsOnRecords() {
+        var first = new IntRecord(1);
+        var second = new IntRecord(1);
+        var third = new IntRecord(2);
+        check(first.equals(second));
+        check(!first.equals(third));
     }
     
     static void primitiveRecords() {
