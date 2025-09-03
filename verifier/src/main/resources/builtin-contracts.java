@@ -625,12 +625,6 @@ class StringContract extends StringTypeContract {
         throw new ContractException();
     }
 
-//    @Pure
-//    public boolean equals(Object anObject) {
-//        return anObject instanceof StringContract otherString &&
-//                chars.equals(otherString.chars);
-//    }
-
     @Pure
     public boolean startsWith(StringContract prefix) {
         return startsWith(prefix, 0);
