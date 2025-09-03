@@ -28,8 +28,9 @@ public class TypeDeclarationCompiler {
     JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
+    public final Map<Symbol.MethodSymbol, MethodOrFunction> callables = new HashMap<>();
 
-    private final TraitWithConstructorCompiler traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
+    private final TraitWithConstructorCompiler traitWithConstructorCompiler;
 
     public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -37,6 +38,7 @@ public class TypeDeclarationCompiler {
         reporter = Reporter.instance(compiler.context);
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         jverifyUtils = JVerifyUtils.instance(compiler.context);
+        traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
@@ -347,11 +349,13 @@ public class TypeDeclarationCompiler {
                 bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
             }
             var body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
-            return new Method(origin, name, null, false, null, dafnyTypeParameters,
+            var result = new Method(origin, name, null, false, null, dafnyTypeParameters,
                     ins, contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
                     isStatic, outs,
                     body, false);
+            callables.put(method.sym, result);
+            return result;
         }
     }
 
@@ -371,10 +375,13 @@ public class TypeDeclarationCompiler {
         }
         applyInvariants(method.mods, method.sym, contract);
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
-        return new Function(origin, name, null, false, null, dafnyTypeParameters,
+
+        Function result = new Function(origin, name, null, false, null, dafnyTypeParameters,
                 ins, contract.preconditions, contract.postconditions, contract.getReads(),
                 contract.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
                 returnType, contract.pureBody, null, null);
+        callables.put(method.sym, result);
+        return result;
     }
 
     private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopContract header) {

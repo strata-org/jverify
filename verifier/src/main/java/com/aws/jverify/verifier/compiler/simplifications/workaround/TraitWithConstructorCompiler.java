@@ -4,20 +4,64 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.model.JavacElements;
+import com.sun.tools.javac.tree.JCTree;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Since Dafny does not support traits with constructors,
  * this compiler splits such a trait into a trait and a class, moving the constructor to the class
  */
 public class TraitWithConstructorCompiler {
-    TypeDeclarationCompiler typeDeclarationCompiler;
+    private final TypeDeclarationCompiler typeDeclarationCompiler;
+    private final VerifyAnnotationCompiler verifyAnnotationCompiler;
+    private final Types types;
+    private final NameCompiler nameCompiler;
 
     public TraitWithConstructorCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
+        types = Types.instance(typeDeclarationCompiler.compiler.context);
+        verifyAnnotationCompiler = new VerifyAnnotationCompiler(typeDeclarationCompiler.compiler.context);
+        nameCompiler = typeDeclarationCompiler.compiler.nameCompiler;
+    }
+    
+    private Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedAssumedMethodsForTypes = new HashMap<>();
+    public Set<MethodOrFunction> getAssumedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
+        var result = inheritedAssumedMethodsForTypes.get(typeSymbol);
+        if (result == null) {
+            result = new HashSet<>();
+            var names = new HashSet<String>();
+            for(var member : typeSymbol.members().getSymbols()) {
+                if (member instanceof Symbol.MethodSymbol methodSymbol) {
+                    if (verifyAnnotationCompiler.removedImplementations.contains(methodSymbol)) {
+                        MethodOrFunction callable = typeDeclarationCompiler.callables.get(methodSymbol);
+                        if (callable != null &&
+                                (callable instanceof Method method && method.getBody() == null ||
+                                        callable instanceof Function function && function.getBody() == null)) {
+                            result.add(callable);
+                        }
+                    } else {
+                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
+                    }
+                }
+            }
+            for(var baseType : types.closure(typeSymbol.type)) {
+                if (baseType.tsym != typeSymbol) {
+                    for(var assumed : getAssumedMethods(baseType.tsym, origin)) {
+                        if (!names.contains(assumed.getNameNode().getValue())) {
+                            result.add(assumed);
+                        }
+                    }
+                }
+            }
+            inheritedAssumedMethodsForTypes.put(typeSymbol, result);
+        }
+        return result;
     }
 
     public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
@@ -40,29 +84,14 @@ public class TraitWithConstructorCompiler {
             switch (member) {
                 case Method method when !method.getHasStaticKeyword() -> {
                     traitMembers.add(member);
-                    if (method.getBody() == null) {
-                        classMembers.add(member);
-                        // A bodyless trait in Dafny is abstract. 
-                        // You can not declare an assumed member in traits in Dafny
-                        // We add the assumed member to the class
-                    }
                 }
 
                 case Function function -> {
                     traitMembers.add(function);
-                    if (function.getBody() == null && !function.getHasStaticKeyword()) {
-                        // A bodyless trait in Dafny is abstract.
-                        // You can not declare an assumed member in traits in Dafny
-                        // We add the assumed member to the class
-                        classMembers.add(member);
-                    }
                 }
                 case Constructor constructor -> {
                     classNeeded = true;
-                    Method initMethod = constructorToInitMethod(traitDecl.getNameNode().getValue(), constructor);
-                    if (initMethod != null) {
-                        traitMembers.add(initMethod);
-                    }
+                    traitMembers.add(constructorToInitMethod(traitDecl.getNameNode().getValue(), constructor));
 
                     var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null,
                             constructor.getTypeArgs(), constructor.getIns(),
@@ -76,7 +105,9 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
+            // this equals function is assumed but declared in additional.dfy, so it's not detected at the Java level.
             classMembers.add(JavaToDafnyCompiler.equalsFunctionDeclaration(traitDecl.getOrigin()));
+            classMembers.addAll(getAssumedMethods(classSymbol, traitDecl.getOrigin()));
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();
