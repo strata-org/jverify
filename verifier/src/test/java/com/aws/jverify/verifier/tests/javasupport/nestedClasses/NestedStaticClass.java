@@ -13,7 +13,7 @@ public class NestedStaticClass {
     public static class StaticNestee {
         void checkFalse() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
     }
 }

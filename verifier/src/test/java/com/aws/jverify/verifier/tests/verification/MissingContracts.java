@@ -14,7 +14,7 @@ public class MissingContracts {
     
     void checkFalse() {
         check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
     
     interface MissingContract {

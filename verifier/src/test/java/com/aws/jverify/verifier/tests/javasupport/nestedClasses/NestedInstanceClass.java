@@ -13,12 +13,12 @@ public class NestedInstanceClass {
     public class InstanceNestee {
         void checkFalse() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         void checkX() {
             check(x == 3);
-//          ^^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         @SuppressWarnings("ConstantValue")
