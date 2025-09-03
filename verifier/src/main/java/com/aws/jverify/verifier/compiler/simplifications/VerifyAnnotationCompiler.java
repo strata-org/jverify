@@ -4,12 +4,14 @@ import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.AnnoConstruct;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
@@ -19,6 +21,7 @@ import java.util.Stack;
  */
 public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
+    public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
 
     public VerifyAnnotationCompiler(Context context) {
         context.put(VerifyAnnotationCompiler.class, this);
@@ -73,6 +76,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     public void removeImplementation(JCTree.JCMethodDecl tree) {
         var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
         tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
+        removedImplementations.add(tree.sym);
     }
 
     public boolean processVerifyAnnotationAndPop(AnnoConstruct annoConstruct) {
