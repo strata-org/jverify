@@ -9,6 +9,7 @@ import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -22,6 +23,9 @@ import java.util.stream.Stream;
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
+    private final VerifyAnnotationCompiler verifyAnnotationCompiler;
+    private final Types types;
+    private final NameCompiler nameCompiler;
     private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     final Reporter reporter;
     private final JVerifyUtils jverifyUtils;
@@ -38,6 +42,9 @@ public class TypeDeclarationCompiler {
         reporter = Reporter.instance(compiler.context);
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         jverifyUtils = JVerifyUtils.instance(compiler.context);
+        verifyAnnotationCompiler = new VerifyAnnotationCompiler(compiler.context);
+        types = Types.instance(compiler.context);
+        nameCompiler = NameCompiler.instance(compiler.context);
         traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
     }
 
@@ -57,7 +64,7 @@ public class TypeDeclarationCompiler {
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
-                case RECORD -> new ImmutableTypeCompiler(this).translate(classSymbol, classDecl, origin, name);
+                case RECORD -> new ImmutableTypeCompiler(this).translate(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -98,7 +105,7 @@ public class TypeDeclarationCompiler {
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym) || compiler.isImmutableClass(classDecl.sym)) {
-            return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
+            return new ImmutableTypeCompiler(this).translate(classDecl, origin, name);
         }
 
         for (var member : classDecl.getMembers()) {
@@ -431,5 +438,44 @@ public class TypeDeclarationCompiler {
     private Formal makeReturnFormal(IOrigin origin, Type syntacticType) {
         var name = new Name(origin, NameCompiler.RETURN_VARIABLE_NAME);
         return new Formal(origin, name, syntacticType, false, false, null, null, false, false, false, null);
+    }
+
+
+    private final Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
+    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
+        var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
+        if (result == null) {
+            result = new HashSet<>();
+            var names = new HashSet<String>();
+            var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
+            for(var member : decl.getMembers()) {
+                if (member instanceof JCTree.JCMethodDecl method) {
+                    var methodSymbol = method.sym;
+                    if (verifyAnnotationCompiler.removedImplementations.contains(methodSymbol)) {
+                        MethodOrFunction callable = callables.get(methodSymbol);
+                        if (includeSelf && callable != null &&
+                                (callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
+                                        callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null)) {
+                            result.add(callable);
+                        }
+                    } else {
+                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
+                    }
+                }
+            }
+            for(var baseType : types.closure(typeSymbol.type)) {
+                if (baseType.tsym != typeSymbol) {
+                    for(var unverified : getUnverifiedMethods(baseType.tsym, origin, true)) {
+                        if (!names.contains(unverified.getNameNode().getValue())) {
+                            result.add(unverified);
+                        }
+                    }
+                }
+            }
+            if (includeSelf) {
+                inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
+            }
+        }
+        return result;
     }
 }

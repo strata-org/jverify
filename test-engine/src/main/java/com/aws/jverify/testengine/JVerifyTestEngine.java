@@ -202,8 +202,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         Integer expectedDafnyErrorCount = annotation.dafnyErrors() >= 0 ? annotation.dafnyErrors() : null;
         Assertions.assertAll(
                 () -> assertThat("exit code",
-                                verificationResults.getExitCode(),
-                                is(annotation.exitCode())),
+                        verificationResults.getExitCode(),
+                        is(annotation.exitCode())),
 //                () -> assertThat("Dafny verified count",
 //                        verificationResults.getDafnyVerifiedCount(),
 //                        is(expectedDafnyVerifiedCount)),
