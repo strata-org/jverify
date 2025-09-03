@@ -117,7 +117,7 @@ public class ImmutableTypeCompiler {
         }
 
         members.addAll(typeDeclarationCompiler.getUnverifiedMethods(classSymbol, origin, false));
-        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
+        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }
 
