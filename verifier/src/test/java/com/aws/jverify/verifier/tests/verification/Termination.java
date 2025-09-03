@@ -28,7 +28,7 @@ class Termination {
             if (y == 0) {
             } else {
                 WrongOrder(y, y - 1);
-//              ^^^^^^^^^^^^^^^^^^^^ Error: decreases clause might not decrease
+//              ^^^^^^^^^^^^^^^^^^^^ Error: decreases clause could not be proved to decrease
             }
         }
         else {

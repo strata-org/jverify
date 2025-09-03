@@ -121,7 +121,7 @@ class CInvalidImplementation implements I {
         modifies(this);
         postcondition((int r) -> r > 2);
         c.x = 3;
-//      ^^^ Error: assignment might update an object not in the enclosing context's modifies clause
+//      ^^^ Error: modified field could not be proved to be in the current modifies clause
         return 3;
     }
 }

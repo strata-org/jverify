@@ -76,4 +76,5 @@ type float = real
 type double = real
 
 function toSequence<T>(arr: GhostArray<T> ): (r: seq<T>)
+  reads arr
   ensures |r| == arr.size() && forall i: nat :: i < arr.size() ==> arr.get(i) == r[i] 

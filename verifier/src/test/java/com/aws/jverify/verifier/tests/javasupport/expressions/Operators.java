@@ -166,7 +166,7 @@ class Operators {
 
     void castNumInvalid(int i) {
         check(i == (short) i);
-//                 ^^^^^^^^^ Error: result of operation might violate subset type constraint for 'int16'
+//                 ^^^^^^^^^ Error: result of operation could not be proved to satisfy subset type constraint for 'int16'
     }
 
     void castRefTrivial() {
