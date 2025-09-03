@@ -10,13 +10,6 @@ class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
     }
-<<<<<<< HEAD
-
-    static void jequalityOnRecords() {
-        var one = new IntRecord(1);
-        var anotherOne = new IntRecord(1);
-        check(JVerify.jequals(one, anotherOne));
-=======
     
     static void equalsOnRecords() {
         var first = new IntRecord(1);
@@ -24,7 +17,6 @@ class RecordsVerified {
         var third = new IntRecord(2);
         check(first.equals(second));
         check(!first.equals(third));
->>>>>>> recordEquality
     }
     
     static void primitiveRecords() {

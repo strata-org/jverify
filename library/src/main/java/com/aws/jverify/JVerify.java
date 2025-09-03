@@ -186,10 +186,6 @@ public class JVerify {
     public static IntSequence sequence(int[] array, int fromIndex, int toIndex) {
         throw new VerificationMethodExecutedException();
     }
-    
-    public static <T> boolean jequals(T left, T right) {
-        throw new VerificationMethodExecutedException();
-    }
 
     public interface CharJSequence {
         /**

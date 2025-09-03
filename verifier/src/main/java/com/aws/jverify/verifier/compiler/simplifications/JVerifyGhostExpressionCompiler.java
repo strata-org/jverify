@@ -122,16 +122,6 @@ public class JVerifyGhostExpressionCompiler {
                 var consequent = expressionCompiler.toExpr(args.get(1));
                 return new BinaryExpr(origin, BinaryExprOpcode.Imp, antecedent, consequent);
             }
-            case "jequals" -> {
-                var left = expressionCompiler.toExpr(args.getFirst());
-                var right = expressionCompiler.toExpr(args.get(1));
-                return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
-            }
-            case "implies" -> {
-                var antecedent = expressionCompiler.toExpr(args.getFirst());
-                var consequent = expressionCompiler.toExpr(args.get(1));
-                return new BinaryExpr(origin, BinaryExprOpcode.Imp, antecedent, consequent);
-            }
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
             }
