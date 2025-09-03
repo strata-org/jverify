@@ -27,31 +27,37 @@ public class ImmutableTypeCompiler {
         this.compiler = typeDeclarationCompiler.compiler;
     }
 
-    public TopLevelDeclWithMembers translate(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    public TopLevelDeclWithMembers translate(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
 
+        var classSymbol = classDecl.sym;
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
             javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
-        var traits = classDecl.sym
+        var traits = classSymbol
                 .getInterfaces().stream()
                 .map(baseType -> compiler.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
         var superClass = classDecl.sym.getSuperclass();
+        var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null));
         if (superClass != null) {
             Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
-            if (superClass.tsym == symtab.objectType.tsym || superClass.getKind() == TypeKind.NONE) {
-                traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+            if (superClass.tsym == symtab.objectType.tsym) {
+                traits.addFirst(pureObjectType);
+            } if (superClass.getKind() == TypeKind.NONE) {
+                if (classSymbol.isInterface()) {
+                    traits.addFirst(pureObjectType);
+                }
             } else {
                 if (JavaToDafnyCompiler.typeHasSource(compiler.index, superClass.tsym)) {
                     traits.addFirst(compiler.translateType(superClass, origin, null));
                 }
             }
         } else {
-            traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+            traits.addFirst(pureObjectType);
         }
 
         var comps = TreeInfo.recordFields(classDecl);

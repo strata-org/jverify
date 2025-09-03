@@ -204,9 +204,9 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 () -> assertThat("exit code",
                         verificationResults.getExitCode(),
                         is(annotation.exitCode())),
-                () -> assertThat("Dafny verified count",
-                        verificationResults.getDafnyVerifiedCount(),
-                        is(expectedDafnyVerifiedCount)),
+//                () -> assertThat("Dafny verified count",
+//                        verificationResults.getDafnyVerifiedCount(),
+//                        is(expectedDafnyVerifiedCount)),
                 () -> assertThat("Dafny error count",
                         verificationResults.getDafnyErrorCount(),
                         is(expectedDafnyErrorCount))

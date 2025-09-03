@@ -64,7 +64,7 @@ public class TypeDeclarationCompiler {
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
-                case RECORD -> new ImmutableTypeCompiler(this).translate(classSymbol, classDecl, origin, name);
+                case RECORD -> new ImmutableTypeCompiler(this).translate(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -105,7 +105,7 @@ public class TypeDeclarationCompiler {
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
         if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym) || compiler.isImmutableClass(classDecl.sym)) {
-            return new ImmutableTypeCompiler(this).translate(classDecl.sym, classDecl, origin, name);
+            return new ImmutableTypeCompiler(this).translate(classDecl, origin, name);
         }
 
         for (var member : classDecl.getMembers()) {
