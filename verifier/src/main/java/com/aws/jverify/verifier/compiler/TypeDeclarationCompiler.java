@@ -27,7 +27,7 @@ public class TypeDeclarationCompiler {
     private final Types types;
     private final NameCompiler nameCompiler;
     private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
-    final Reporter reporter;
+    private final Reporter reporter;
     private final JVerifyUtils jverifyUtils;
     JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();

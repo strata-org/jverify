@@ -259,7 +259,6 @@ public class ExternalContractCompiler {
                                                       Symbol.MethodSymbol methodSymbol) {
 
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
-            // newAnnotations.addAll(baseMethod.getAnnotationMirrors());
             newAnnotations.addAll(methodSymbol.getAnnotationMirrors());
             if (!shouldVerify(methodDecl, methodSymbol)) {
                 methodDecl.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
