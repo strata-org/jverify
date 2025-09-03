@@ -23,7 +23,7 @@ public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final JavaToDafnyCompiler compiler;
     private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
-    final Reporter reporter;
+    private final Reporter reporter;
     private final JVerifyUtils jverifyUtils;
     JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
