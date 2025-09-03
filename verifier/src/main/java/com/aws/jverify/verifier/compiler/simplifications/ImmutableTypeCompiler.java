@@ -11,6 +11,7 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.util.Names;
 
 import javax.lang.model.type.TypeKind;
 import java.util.ArrayList;
@@ -21,11 +22,13 @@ public class ImmutableTypeCompiler {
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final JavaToDafnyCompiler compiler;
     private final Symtab symtab;
+    private final Names names;
 
     public ImmutableTypeCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
         this.compiler = typeDeclarationCompiler.compiler;
         symtab = Symtab.instance(compiler.context);
+        names = Names.instance(compiler.context);
     }
 
     public TopLevelDeclWithMembers translate(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {

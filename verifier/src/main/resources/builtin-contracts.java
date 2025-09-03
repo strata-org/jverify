@@ -572,6 +572,7 @@ class OptionalContract<T> {
 @Contract(value = String.class, immutable = true)
 class StringContract extends StringTypeContract {
 
+    @Pure // todo errors are getting the wrong compilation unit it seems
     @Override
     public boolean equals(Object obj) {
         return JVerify.jequals(this, obj);
