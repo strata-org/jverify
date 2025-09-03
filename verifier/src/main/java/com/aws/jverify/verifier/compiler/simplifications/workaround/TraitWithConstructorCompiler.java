@@ -8,8 +8,6 @@ import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Types;
-import com.sun.tools.javac.model.JavacElements;
-import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
 
@@ -30,9 +28,9 @@ public class TraitWithConstructorCompiler {
         nameCompiler = typeDeclarationCompiler.compiler.nameCompiler;
     }
     
-    private Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedAssumedMethodsForTypes = new HashMap<>();
-    public Set<MethodOrFunction> getAssumedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
-        var result = inheritedAssumedMethodsForTypes.get(typeSymbol);
+    private Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
+    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
+        var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
             result = new HashSet<>();
             var names = new HashSet<String>();
@@ -52,14 +50,14 @@ public class TraitWithConstructorCompiler {
             }
             for(var baseType : types.closure(typeSymbol.type)) {
                 if (baseType.tsym != typeSymbol) {
-                    for(var assumed : getAssumedMethods(baseType.tsym, origin)) {
-                        if (!names.contains(assumed.getNameNode().getValue())) {
-                            result.add(assumed);
+                    for(var unverified : getUnverifiedMethods(baseType.tsym, origin)) {
+                        if (!names.contains(unverified.getNameNode().getValue())) {
+                            result.add(unverified);
                         }
                     }
                 }
             }
-            inheritedAssumedMethodsForTypes.put(typeSymbol, result);
+            inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
         }
         return result;
     }
@@ -105,9 +103,9 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
-            // this equals function is assumed but declared in additional.dfy, so it's not detected at the Java level.
+            // this equals function is unverified but declared in additional.dfy, so it's not detected at the Java level.
             classMembers.add(JavaToDafnyCompiler.equalsFunctionDeclaration(traitDecl.getOrigin()));
-            classMembers.addAll(getAssumedMethods(classSymbol, traitDecl.getOrigin()));
+            classMembers.addAll(getUnverifiedMethods(classSymbol, traitDecl.getOrigin()));
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();
