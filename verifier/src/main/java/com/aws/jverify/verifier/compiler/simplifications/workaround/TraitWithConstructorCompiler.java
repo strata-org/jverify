@@ -63,7 +63,7 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
-            classMembers.addAll(typeDeclarationCompiler.getUnverifiedMethods(classSymbol, traitDecl.getOrigin(), true));
+            classMembers.addAll(typeDeclarationCompiler.getUnverifiedMethods(classSymbol, traitDecl.getOrigin()));
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();

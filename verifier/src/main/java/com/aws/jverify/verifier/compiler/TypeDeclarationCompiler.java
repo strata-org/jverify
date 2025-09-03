@@ -436,38 +436,72 @@ public class TypeDeclarationCompiler {
 
 
     private final Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
-    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
+
+    private final Map<Symbol.TypeSymbol, Set<String>> definedMethodsCache = new HashMap<>();
+    public Set<String> getDefinedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
+        var result = definedMethodsCache.get(typeSymbol);
+        if (result != null) {
+            return result;
+        }
+        
+        result = new HashSet<>();
+
+        var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
+        for(var member : decl.getMembers()) {
+            if (member instanceof JCTree.JCMethodDecl method) {
+                var methodSymbol = method.sym;
+                if (MethodOrLoopContractCompiler.hasImplementation(method)) {
+                    result.add(nameCompiler.getCompiledName(methodSymbol, origin));
+                }
+            }
+        }
+
+        for(var baseType : types.interfaces(typeSymbol.type).append(types.supertype(typeSymbol.type))) {
+            if (baseType == com.sun.tools.javac.code.Type.noType) {
+                continue;
+            }
+            result.addAll(getDefinedMethods(baseType.tsym, origin));
+        }
+        
+        definedMethodsCache.put(typeSymbol, result);
+        return result;
+    }
+    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
         var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
-            result = new HashSet<>();
-            var names = new HashSet<String>();
-            var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
+            result = getUnverifiedMethods(typeSymbol, origin, true);
+            inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
+        }
+        return result;
+    }
+    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
+        var result = new HashSet<MethodOrFunction>();
+        var names = getDefinedMethods(typeSymbol, origin);
+
+        var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
+        if (includeSelf) {
             for(var member : decl.getMembers()) {
                 if (member instanceof JCTree.JCMethodDecl method) {
                     var methodSymbol = method.sym;
                     if (verifyAnnotationCompiler.removedImplementations.contains(methodSymbol)) {
                         MethodOrFunction callable = callables.get(methodSymbol);
-                        if (includeSelf && callable != null &&
+                        if (callable != null &&
                                 (callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
                                         callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null)) {
                             result.add(callable);
                         }
-                    } else {
-                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
                     }
                 }
             }
-            for(var baseType : types.closure(typeSymbol.type)) {
-                if (baseType.tsym != typeSymbol) {
-                    for(var unverified : getUnverifiedMethods(baseType.tsym, origin, true)) {
-                        if (!names.contains(unverified.getNameNode().getValue())) {
-                            result.add(unverified);
-                        }
+        }
+        
+        for(var baseType : types.interfaces(typeSymbol.type).append(types.supertype(typeSymbol.type))) {
+            if (baseType.tsym != null && baseType.tsym != typeSymbol) {
+                for(var unverified : getUnverifiedMethods(baseType.tsym, origin)) {
+                    if (!names.contains(unverified.getNameNode().getValue())) {
+                        result.add(unverified);
                     }
                 }
-            }
-            if (includeSelf) {
-                inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
             }
         }
         return result;

@@ -188,7 +188,7 @@ public class ExternalContractCompiler {
         }
 
         private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-            classDecl.type.tsym = contracteeSymbol; // Required before calling 'findOverriddenMethod'
+            classDecl.type.tsym = contracteeSymbol;
             
             var newMembers =  new ArrayList<JCTree>();
             for(var member : classDecl.getMembers()) {
@@ -375,12 +375,7 @@ public class ExternalContractCompiler {
     }
 
     public static Symbol.MethodSymbol findContractee(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
-        Symbol.MethodSymbol candidate = getCandidateForType(contractee, method, types);
-        if (candidate != null) {
-            return candidate;
-        }
-        
-        return null;
+        return getCandidateForType(contractee, method, types);
     }
 
     private static Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {

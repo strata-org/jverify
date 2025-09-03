@@ -86,4 +86,31 @@ public class InheritedUnverifiedMembers {
     void testCustomEquals(LibraryClassBContract first, LibraryClassBContract second) {
         check(first.equals(second));
     }
+    
+    record ARecordThatImplementsAnInterface() implements I {
+
+        @Override
+        public int pure() {
+            return 3;
+        }
+    }
+    
+    interface DiamondTop {
+        @Verify(false)
+        default int notVerifiedImpure() {
+            return 3;
+        }
+    }
+
+    interface LeftWithOverride extends DiamondTop {
+        @Override
+        default int notVerifiedImpure() {
+            return 4;
+        }
+    }
+
+    interface RightWithoutOverride extends DiamondTop {
+    }
+    
+    static class DiamondBottom implements LeftWithOverride, RightWithoutOverride {}
 }
