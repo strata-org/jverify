@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 24, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 25, dafnyErrors = 0)
 public class PolymorphismWithBounds {
     
     public static void root() {

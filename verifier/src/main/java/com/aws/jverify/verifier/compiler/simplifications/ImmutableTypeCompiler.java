@@ -108,6 +108,9 @@ public class ImmutableTypeCompiler {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
+        if (!classDecl.sym.isRecord()) {
+            members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
+        }
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }

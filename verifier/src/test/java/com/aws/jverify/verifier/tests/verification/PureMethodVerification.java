@@ -5,7 +5,7 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 16, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 17, dafnyErrors = 0)
 public class PureMethodVerification {
 
     @Pure

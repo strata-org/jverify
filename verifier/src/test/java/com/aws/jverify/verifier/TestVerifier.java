@@ -104,7 +104,7 @@ public class TestVerifier {
             exitCode = process.waitFor();
         }
         var output = canonicalizeNewlines(writer.toString());
-        assertThat(output, containsString("Dafny program verifier finished with 14 verified, 0 errors"));
+        assertThat(output, containsString("Dafny program verifier finished with 15 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
     }
 
