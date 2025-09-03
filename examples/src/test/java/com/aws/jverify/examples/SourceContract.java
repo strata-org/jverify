@@ -8,8 +8,8 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @Contract(Foo.class)
-@JVerifyTest(dafnyVerified = 15, dafnyErrors = 0)
-public class SourceContract implements Foo {
+@JVerifyTest(dafnyVerified = 16, dafnyErrors = 0)
+public class ExternalContract implements Foo {
     int erasedValue;
     
     public int foo(int x) {
