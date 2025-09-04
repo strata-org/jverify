@@ -31,7 +31,6 @@ class StringTypeContract {
     JVerify.CharJSequence chars;
 }
 
-
 @Verify(false)
 class GhostArray<TArrayElement> {
     public static <TCreateArrayElement> GhostArray<TCreateArrayElement> create(int size) {
