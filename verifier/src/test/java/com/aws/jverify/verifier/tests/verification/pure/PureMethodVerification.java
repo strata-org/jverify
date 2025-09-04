@@ -5,7 +5,9 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 10, dafnyErrors = 0)
+import static com.aws.jverify.JVerify.precondition;
+
+@JVerifyTest(dafnyVerified = 11, dafnyErrors = 0)
 public class PureMethodVerification {
 
     @Pure
@@ -36,6 +38,24 @@ public class PureMethodVerification {
             return 5;
         }
         return 7;
+    }
+    
+    @SuppressWarnings("UnnecessaryLocalVariable")
+    @Pure
+    int nesting(int a) {
+        precondition(a > 0 && a < 100);
+        var b = a + 2;
+        if (b > 2) {
+            var c = b + 3;
+            if (c > 3) {
+                return c + 4;
+            }
+            var d = c + 5;
+            
+            return d + 6;
+        }
+        var e = b + 1;
+        return e;
     }
     
     interface Base {
