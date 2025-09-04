@@ -420,7 +420,8 @@ class HelperForBigIntegerContract {
             return -stringToInt(v.substring(1));
         }
 
-        return (v.charAt(v.length()-1)-'0') + 10*stringToInt(v.substring(0,v.length()-1));
+        return v.charAt(v.length()-1)-'0' + 
+                10*stringToInt(v.substring(0,v.length()-1));
     }
 
     @Erased
