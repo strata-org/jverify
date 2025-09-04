@@ -3,11 +3,7 @@ package com.aws.jverify.verifier.compiler.simplifications.workaround;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Types;
 
 import java.util.*;
 
@@ -63,7 +59,7 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
-            classMembers.addAll(typeDeclarationCompiler.getUnverifiedMethods(classSymbol, traitDecl.getOrigin()));
+            classMembers.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, traitDecl.getOrigin()));
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();

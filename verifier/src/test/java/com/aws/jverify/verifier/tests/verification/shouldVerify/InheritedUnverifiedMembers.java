@@ -77,6 +77,7 @@ public class InheritedUnverifiedMembers {
 
     @Contract(value = LibraryClassB.class, immutable = true)
     static class LibraryClassBContract {
+        @Pure
         @Override
         public boolean equals(Object obj) {
             return true;
