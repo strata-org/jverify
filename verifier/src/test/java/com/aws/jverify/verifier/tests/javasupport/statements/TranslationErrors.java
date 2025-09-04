@@ -131,12 +131,6 @@ class TranslationErrors {
         return i == 0;
     }
 
-    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
-    static boolean nullableString(@Nullable String s) {
-//                                ^ error: nullable String type is not supported
-        return s == null;
-    }
-
     record IntWrapper(int value) {}
 
     @SuppressWarnings("unused")

@@ -43,6 +43,12 @@ public class ArrayCompiler extends TreeTranslator {
     }
 
     @Override
+    public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+        reporter.compilationUnit = tree;
+        super.visitTopLevel(tree);
+    }
+
+    @Override
     public void visitNewClass(JCTree.JCNewClass tree) {
         if (tree.type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType) {
             maker.pos = tree.pos;
