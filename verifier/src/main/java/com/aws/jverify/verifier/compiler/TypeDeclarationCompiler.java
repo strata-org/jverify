@@ -27,7 +27,7 @@ public class TypeDeclarationCompiler {
     private final Types types;
     private final NameCompiler nameCompiler;
     private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
-    final Reporter reporter;
+    private final Reporter reporter;
     private final JVerifyUtils jverifyUtils;
     JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
@@ -442,39 +442,75 @@ public class TypeDeclarationCompiler {
 
 
     private final Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
-    public Set<MethodOrFunction> getUnverifiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
+
+    private final Map<Symbol.TypeSymbol, Set<String>> definedMethodsCache = new HashMap<>();
+    public Set<String> getBodiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
+        var result = definedMethodsCache.get(typeSymbol);
+        if (result != null) {
+            return result;
+        }
+        
+        result = new HashSet<>();
+
+        var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
+        for(var member : decl.getMembers()) {
+            if (member instanceof JCTree.JCMethodDecl method) {
+                var methodSymbol = method.sym;
+                if (MethodOrLoopContractCompiler.hasImplementation(method)) {
+                    result.add(nameCompiler.getCompiledName(methodSymbol, origin));
+                }
+            }
+        }
+
+        for(var baseType : types.interfaces(typeSymbol.type).append(types.supertype(typeSymbol.type))) {
+            if (baseType == com.sun.tools.javac.code.Type.noType) {
+                continue;
+            }
+            result.addAll(getBodiedMethods(baseType.tsym, origin));
+        }
+        
+        definedMethodsCache.put(typeSymbol, result);
+        return result;
+    }
+    public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
         var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
-            result = new HashSet<>();
-            var names = new HashSet<String>();
-            var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
+            result = getBodylessMethods(typeSymbol, origin, true);
+            inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
+        }
+        return result;
+    }
+    public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
+        var result = new HashSet<MethodOrFunction>();
+        var names = getBodiedMethods(typeSymbol, origin);
+
+        var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
+        if (includeSelf) {
             for(var member : decl.getMembers()) {
                 if (member instanceof JCTree.JCMethodDecl method) {
                     var methodSymbol = method.sym;
                     if (verifyAnnotationCompiler.removedImplementations.contains(methodSymbol)) {
                         MethodOrFunction callable = callables.get(methodSymbol);
-                        if (includeSelf && callable != null &&
-                                (callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
-                                        callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null)) {
-                            result.add(callable);
-                        }
-                    } else {
-                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
-                    }
-                }
-            }
-            for(var baseType : types.closure(typeSymbol.type)) {
-                if (baseType.tsym != typeSymbol) {
-                    for(var unverified : getUnverifiedMethods(baseType.tsym, origin, true)) {
-                        // TODO bugs when a record extends an interface
-                        if (!names.contains(unverified.getNameNode().getValue())) {
-                            result.add(unverified);
+                        if (callable != null) {
+                            if (callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
+                                            callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null) {
+                                result.add(callable);
+                            } else {
+                                names.add(nameCompiler.getCompiledName(methodSymbol, origin));
+                            }
                         }
                     }
                 }
             }
-            if (includeSelf) {
-                inheritedUnverifiedMethodsForTypes.put(typeSymbol, result);
+        }
+        
+        for(var baseType : types.interfaces(typeSymbol.type).append(types.supertype(typeSymbol.type))) {
+            if (baseType.tsym != null && baseType.tsym != typeSymbol) {
+                for(var unverified : getBodylessMethods(baseType.tsym, origin)) {
+                    if (!names.contains(unverified.getNameNode().getValue())) {
+                        result.add(unverified);
+                    }
+                }
             }
         }
         return result;

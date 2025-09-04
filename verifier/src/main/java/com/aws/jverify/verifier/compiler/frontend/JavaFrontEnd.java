@@ -190,8 +190,7 @@ public class JavaFrontEnd {
         return result;
     }
     
-    private Set<JCTree.JCCompilationUnit> unlambda(Set<JCTree.JCCompilationUnit> envs) {;
-
+    private Set<JCTree.JCCompilationUnit> unlambda(Set<JCTree.JCCompilationUnit> envs) {
         // Note JavaCompiler.desugar has some additional logic to
         // scan for classes that have lambdas first,
         // to not waste time with these traversals.

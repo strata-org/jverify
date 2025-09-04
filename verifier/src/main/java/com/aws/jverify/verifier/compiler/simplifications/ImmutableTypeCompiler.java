@@ -7,7 +7,6 @@ import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Flags;
-import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -16,7 +15,6 @@ import com.sun.tools.javac.util.Names;
 import javax.lang.model.type.TypeKind;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ImmutableTypeCompiler {
@@ -120,8 +118,7 @@ public class ImmutableTypeCompiler {
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
-        
-        members.addAll(typeDeclarationCompiler.getUnverifiedMethods(classSymbol, origin, false));
+        members.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, origin, false));
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }

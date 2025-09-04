@@ -204,7 +204,6 @@ public class ExternalContractCompiler {
                 newMembers = existingDecl.defs;
                 declToAddTo = existingDecl;
             }
-
             for(var member : classDecl.getMembers()) {
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
                     newMembers = handleLibraryContractMethod(classDecl, contracteeSymbol, methodDecl, newMembers);
@@ -275,24 +274,22 @@ public class ExternalContractCompiler {
             
             index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
             contractSymbolToContractee.put(methodDecl.sym, contractee);
+            updateLibraryContractAnnotations(methodDecl, contractee);
             methodDecl.sym = contractee;
-            updateLibraryContractAnnotations(methodDecl, contractee, methodSymbol);
             return newMembers.append(methodDecl);
         }
 
-        private void updateLibraryContractAnnotations(JCTree.JCMethodDecl methodDecl, 
-                                                      Symbol.MethodSymbol baseMethod, 
-                                                      Symbol.MethodSymbol methodSymbol) {
-
+        private void updateLibraryContractAnnotations(JCTree.JCMethodDecl contracter, 
+                                                      Symbol.MethodSymbol contracteeSymbol) {
+            var contracterSymbol = contracter.sym;
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
-            // newAnnotations.addAll(baseMethod.getAnnotationMirrors());
-            newAnnotations.addAll(methodSymbol.getAnnotationMirrors());
-            if (!shouldVerify(methodDecl, methodSymbol)) {
-                methodDecl.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
+            newAnnotations.addAll(contracterSymbol.getAnnotationMirrors());
+            if (!shouldVerify(contracter, contracterSymbol)) {
+                contracter.mods.annotations = contracter.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
                 newAnnotations.add(jverifyUtils.getVerifyAnnotation());
             }
-            baseMethod.resetAnnotations();
-            baseMethod.setDeclarationAttributes(newAnnotations.toList());
+            contracteeSymbol.resetAnnotations();
+            contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
         }
 
         private boolean shouldVerify(JCTree.JCMethodDecl methodDecl, Symbol.MethodSymbol methodSymbol) {
@@ -401,12 +398,7 @@ public class ExternalContractCompiler {
     }
 
     public static Symbol.MethodSymbol findContractee(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
-        Symbol.MethodSymbol candidate = getCandidateForType(contractee, method, types);
-        if (candidate != null) {
-            return candidate;
-        }
-        
-        return null;
+        return getCandidateForType(contractee, method, types);
     }
 
     private static Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {
