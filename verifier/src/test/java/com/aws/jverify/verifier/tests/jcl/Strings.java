@@ -1,3 +1,7 @@
+// ^ /object-contract.java(555:19-555:61) Related location: this proposition could not be proved
+// ^ /object-contract.java(589:16-589:33) Related location: this proposition could not be proved
+// ^ /object-contract.java(609:16-609:37) Related location: this proposition could not be proved
+// ^ /object-contract.java(609:16-609:37) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests.jcl;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -118,7 +122,7 @@ class Strings {
         check(s1.startsWith(s3));
         String s4 = s2.substring(1);
         check(s2.startsWith(s4));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//            ^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
     }
 
@@ -129,7 +133,7 @@ class Strings {
         check(s3.length() == 8);
         check(s3.startsWith(s1));
         check(s3.startsWith(s2));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//            ^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
     }
     

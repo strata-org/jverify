@@ -551,7 +551,9 @@ class StringContract extends StringTypeContract {
     @Pure // todo errors are getting the wrong compilation unit it seems
     @Override
     public boolean equals(Object obj) {
-        return JVerify.jequals(this, obj);
+        return obj instanceof StringContract 
+                ? JVerify.jequals(this, (StringContract)obj) 
+                : false;
     }
     
     @Pure
