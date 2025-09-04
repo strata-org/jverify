@@ -1,11 +1,11 @@
-package com.aws.jverify.verifier.tests.verification;
+package com.aws.jverify.verifier.tests.verification.pure;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 9, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 10, dafnyErrors = 0)
 public class PureMethodVerification {
 
     @Pure
@@ -24,6 +24,18 @@ public class PureMethodVerification {
         } else {
             return x + y;
         }
+    }
+    
+    @Pure
+    int pureMethodWithEarlyExits(int x) {
+        if (x > 10) {
+            return 3;
+        }
+        
+        if (x > 5) {
+            return 5;
+        }
+        return 7;
     }
     
     interface Base {
