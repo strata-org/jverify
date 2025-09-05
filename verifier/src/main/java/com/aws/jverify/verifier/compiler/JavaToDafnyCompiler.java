@@ -40,7 +40,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
-
     public static final boolean Ghostness = true;
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
     public static final String JVERIFY_CLASS = JVerify.class.getName();

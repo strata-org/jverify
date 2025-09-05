@@ -23,15 +23,6 @@ public class Reporter {
     public JCDiagnostic.Factory diagnosticFactory;
     public JCTree.JCCompilationUnit compilationUnit;
     public final Stack<IOrigin> contextOrigins = new Stack<>();
-    private final Map<Symbol, Symbol> mappedSymbols = new HashMap<>();
-    
-    public Symbol getOriginal(Symbol symbol) {
-        return mappedSymbols.getOrDefault(symbol, symbol);
-    }
-    
-    public void mapSymbol(Symbol original, Symbol neww) {
-        mappedSymbols.put(neww, original);
-    }
 
     public static Reporter instance(Context context) {
         Reporter instance = context.get(Reporter.class);

@@ -151,6 +151,7 @@ public class MissingContractCompiler {
             if (tree.sym.isEnum()) {
                 return;
             }
+            visitReference(tree.sym, tree);
             super.visitClassDef(tree);
         }
 

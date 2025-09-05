@@ -80,7 +80,7 @@ public class JVerifyGhostExpressionCompiler {
             case "get" -> {
                 var seq = expressionCompiler.toExpr(receiver);
                 var index = expressionCompiler.toExpr(args.getFirst());
-                return new SeqSelectExpr(compiler.toOrigin(invocation), true, seq, index, null, null);
+                return new SeqSelectExpr(origin, true, seq, index, null, null);
             }
             case "drop" -> {
                 return toSubsequence(origin, receiver, args.getFirst(), null);

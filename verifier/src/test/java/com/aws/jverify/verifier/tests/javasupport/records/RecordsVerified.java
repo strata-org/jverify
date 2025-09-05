@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 36, dafnyErrors = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
@@ -64,15 +64,15 @@ class RecordsVerified {
     }
 
     static void recursiveRecords() {
-        var nodeC = new BasicConsList("C", null);
+        var nodeC = new BasicConsList(3, null);
         var contC = new Wrapper<>(nodeC);
-        var nodeB = new BasicConsList("B", contC);
+        var nodeB = new BasicConsList(2, contC);
         var contB = new Wrapper<>(nodeB);
-        var nodeA = new BasicConsList("A", contB);
+        var nodeA = new BasicConsList(1, contB);
 
-        check(nodeA.head().equals("A"));
-        check(nodeB.head().equals("B"));
-        check(nodeC.head().equals("C"));
+        check(nodeA.head() == 1);
+        check(nodeB.head() == 2);
+        check(nodeC.head() == 3);
 
         check(nodeA.tail() == null);
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
@@ -122,7 +122,7 @@ record Pair<A, B>(A a, B b) {}
 record UnusedTypeParameter<A, B>(int x) {}
 
 /** Recursion */
-record BasicConsList(String head, @Nullable Wrapper<BasicConsList> tail) {}
+record BasicConsList(int head, @Nullable Wrapper<BasicConsList> tail) {}
 
 /** Members */
 @SuppressWarnings("ManualMinMaxCalculation")

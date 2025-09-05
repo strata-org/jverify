@@ -2,7 +2,6 @@ package com.aws.jverify;
 
 import java.util.Optional;
 import java.util.function.BiPredicate;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;

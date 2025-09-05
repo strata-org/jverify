@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.records;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
+import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(exitCode = 2)
@@ -72,7 +73,13 @@ class RecordsErrors {
     
     @Contract(value = WantsContract.class, immutable = true)
 //  ^ error: class 'WantsContract' must not have an externally defined contract because all its contracts can be defined internally
-    class WantsContractContract {}
+    static class WantsContractContract {}
     
-    class WantsContract {}
+    static class WantsContract {}
+
+    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
+    static boolean nullableString(@Nullable DoorStuck s) {
+//                                ^ error: nullable record type is not supported
+        return s == null;
+    }
 }
