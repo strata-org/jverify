@@ -10,7 +10,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 14, dafnyErrors = 6)
+@JVerifyTest(exitCode = 4, dafnyVerified = 21, dafnyErrors = 6)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
@@ -23,7 +23,7 @@ class Strings {
     static void stringCharAtIncorrect() {
         check("🐱".charAt(0) == '\uD83D');
         check("🐱".charAt(0) == '\uDC31');
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void stringEquals() {
@@ -32,7 +32,7 @@ class Strings {
 
     static void stringNotEqual() {
         check("hello world".equals("helloworld"));
-//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void stringIsEmpty(String str) {
@@ -41,7 +41,7 @@ class Strings {
 
     static void stringNotEmpty() {
         check("full".isEmpty());
-//            ^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//            ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static boolean stringLengthEven(String str) {
@@ -93,7 +93,7 @@ class Strings {
         check(hello.charAt(4) == 'o');
         check(hello.indexOf('o')==4);   // Proven thanks to the check above
         check(hello.indexOf('e')==1);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 // The assertion above fails in CI but not on a local machine, instability probably due to the recursive function
 // indexOf that may require too much verifier capacity
         check(hello.indexOf('3')==-1); // Proven without any help
@@ -117,7 +117,7 @@ class Strings {
         check(s1.startsWith(s3));
         String s4 = s2.substring(1);
         check(s2.startsWith(s4));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
     }
 
@@ -128,7 +128,7 @@ class Strings {
         check(s3.length() == 8);
         check(s3.startsWith(s1));
         check(s3.startsWith(s2));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
     }
 }

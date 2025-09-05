@@ -4,10 +4,9 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
-
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(dafnyVerified = 11, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 18, dafnyErrors = 0)
 public class PureMethodVerification {
 
     @Pure

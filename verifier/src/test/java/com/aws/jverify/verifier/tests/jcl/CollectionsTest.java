@@ -9,7 +9,7 @@ import java.util.Set;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 4, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 4, useBuiltinContracts = true)
 public class CollectionsTest {
 
     void listVerifying() {
@@ -25,7 +25,7 @@ public class CollectionsTest {
     void listCheckFails() {
         var s = List.of("one", "two");
         check(s.size() ==  0);
-//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     void listPreconditionFails() {
@@ -48,7 +48,7 @@ public class CollectionsTest {
     void setCheckFails() {
         var s = Set.of("one", "two");
         check(s.size() ==  0);
-//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     void mapVerifying() {
@@ -66,6 +66,6 @@ public class CollectionsTest {
     void mapCheckFails() {
         var s = Map.of("one", "two");
         check(s.size() ==  0);
-//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 }

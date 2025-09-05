@@ -179,7 +179,8 @@ public class ImmutableTypeCompiler {
                     return new AttributedExpression(e, null, null);
                 }).toList();
             }
-            var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), false, null,
+            var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), 
+                    JavaToDafnyCompiler.Ghostness, null,
                 constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
 
@@ -208,9 +209,6 @@ public class ImmutableTypeCompiler {
      * that can be used in pure contexts.
      */
     public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
-        var argBindings = newClass.getArguments().stream()
-                .map(a -> new ActualBinding(null, expressionCompiler.toExpr(a), false)).toList();
-
 
         JavaToDafnyCompiler compiler = expressionCompiler.compiler;
         List<Type> typeArgs = new ArrayList<>();
@@ -228,6 +226,7 @@ public class ImmutableTypeCompiler {
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
         var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.compiler.getName(newClass, constructorName), null);
-        return new ApplySuffix(origin, dafnyConstructor, null, new ActualBindings(argBindings), null);
+
+        return expressionCompiler.createCall(origin, dafnyConstructor, newClass.args.stream());
     }
 }

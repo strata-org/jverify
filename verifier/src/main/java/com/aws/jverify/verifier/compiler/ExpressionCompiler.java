@@ -229,10 +229,8 @@ public class ExpressionCompiler {
         return new ConversionExpr(origin, castExpr, type, "");
     }
 
-    private SeqSelectExpr translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
-        var arrayExpr = toExpr(arrayAccess.getExpression());
-        var indexExpr = toExpr(arrayAccess.getIndex());
-        return new SeqSelectExpr(origin, true, arrayExpr, indexExpr, null, null);
+    private Expression translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
+        throw new RuntimeException("not supported. should have already been lowered");
     }
 
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin) {
@@ -339,7 +337,8 @@ public class ExpressionCompiler {
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
-            return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
+            ExprDotName callee = new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "length"), null);
+            return createCall(origin, callee, Stream.of());
         }
         
         var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);
@@ -364,7 +363,6 @@ public class ExpressionCompiler {
         }
 
         var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
-        var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
 
         if (!((invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) ||
              (invocation.getMethodSelect() instanceof JCTree.JCIdent))) {
@@ -402,8 +400,7 @@ public class ExpressionCompiler {
         }
         
         var target = toExpr(invocation.getMethodSelect());
-        return new ApplySuffix(origin, target, null,
-                new ActualBindings(argBindings), null);
+        return createCall(origin, target, invocation.getArguments().stream());
     }
 
     /**
@@ -426,9 +423,7 @@ public class ExpressionCompiler {
 
         if (opName.equals("+") && leftType.toString().contentEquals(String.class.getName())) {
             var callee = new ExprDotName(origin, left, new Name(origin, "concat"), null);
-            var arg = List.of(new ActualBinding(null, right, false));
-            return new ApplySuffix(origin, callee, null,
-                    new ActualBindings(arg), null);
+            return createCall2(origin, callee, Stream.of(right));
         }
 
         if (opName.equals("==") || opName.equals("!=")) {
@@ -543,14 +538,15 @@ public class ExpressionCompiler {
                 // Fallback to sequence of numeric values
                 var charExprs = stringValue.chars().boxed()
                         .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
-                return new ApplySuffix(origin, new NameSegment(origin, "JS", null), null,
-                        new ActualBindings(List.of(new ActualBinding(null, new SeqDisplayExpr(origin, charExprs), false))), null);
+                NameSegment callee = new NameSegment(origin, "JS", null);
+                SeqDisplayExpr actual = new SeqDisplayExpr(origin, charExprs);
+                return createCall2(origin, callee, Stream.of(actual));
             }
         }
 
         var stringExpr = new StringLiteralExpr(origin, translatedChars.toString(), false);
-        return new ApplySuffix(origin, new NameSegment(origin, "JString", null), null,
-                new ActualBindings(List.of(new ActualBinding(null, stringExpr, false))), null);
+        NameSegment callee = new NameSegment(origin, "JString", null);
+        return createCall2(origin, callee, Stream.of(stringExpr));
     }
 
     private static final Map<Character, String> ESCAPED_CHARS = Map.of(
@@ -562,4 +558,19 @@ public class ExpressionCompiler {
             '\r', "\\r",
             '\t', "\\t"
     );
+
+
+    public ApplySuffix createCall(IOrigin origin, Expression callee, Stream<JCTree.JCExpression> arguments) {
+        return createCall2(origin, callee, arguments.map(this::toExpr));
+    }
+
+    public static ApplySuffix createCall2(IOrigin origin, Expression callee, Stream<Expression> bindingList) {
+        return new ApplySuffix(origin, callee, null,
+                createBindings(bindingList), null);
+    }
+
+    public static ActualBindings createBindings(Stream<Expression> bindingList) {
+        return new ActualBindings(bindingList.map(expression ->
+                new ActualBinding(null, expression, false)).toList());
+    }
 }

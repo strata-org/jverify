@@ -1,17 +1,15 @@
+// ^ /object-contract.java(26:22-26:31) Related location: this is the precondition that could not be proved
 package com.aws.jverify.verifier.tests.javasupport;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
 import com.aws.jverify.*;
 
-import java.util.function.Function;
-import java.util.function.Supplier;
-
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 3)
-class Arrays {
+@JVerifyTest(exitCode = 4, dafnyVerified = 17, dafnyErrors = 2)
+class ArraysVerification {
     
     interface SupplyArray {
         int[] supply(int x);
@@ -19,7 +17,7 @@ class Arrays {
 
     SupplyArray arrayConstructorReference() {
         return int[]::new;
-//             ^ Error: array size might be negative
+//             ^ Error: a precondition for this call could not be proved
     }
 
     static void intArrayOfSize10() {
@@ -35,7 +33,9 @@ class Arrays {
     
     static void nullablePointArrayOfSize10() {
         @Nullable Point [] a = new @Nullable Point[10];
-        a[0]=new Point(1,2);
+        
+        var zeroPoint = new Point(1,2);
+        a[0] = zeroPoint;
         for (int i = 1; i < a.length; i++) {
             modifies(a);
             // We want a better invariant like
@@ -43,34 +43,14 @@ class Arrays {
             // This does not work now as we cannot pass a non final variable in a lambda
             invariant(a[0] != null);
             invariant(a[0].getA()==1);
-            a[i] = new Point(i,i+1);
+            invariant(a[0] == zeroPoint);
+
+            var loopPoint = new Point(i,i+1);
+            a[i] = loopPoint;
         }
         check(a[0] != null);
 
         check(a[0].getA()==1);
-    }
-
-    static void pointArrayOfSize10() {
-        Point[] a = new Point[10];
-//                  ^^^^^^^^^^^^^ Error: unless an initializer is provided for the array elements, a new array of 'Point' must have empty size
-        a[0]=new Point(1,2);
-        for (int i = 1; i < a.length; i++) {
-            modifies(a);
-            // We want a better invariant like
-            // invariant(Forall((Integeer j) -> Implies(0<=j && j<i,a[i]!=null && a[i].getA()==i)));
-            // This does not work now as we cannot pass a non final variable in a lambda
-            invariant(a[0] != null);
-//                    ^^^^^^^^^^^^ Warning: the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
-            invariant(a[0].getA()==1);
-            a[i] = new Point(i,i+1);
-        }
-        check(a[0] != null);
-//            ^^^^^^^^^^^^ Warning: the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
-        check(a[0].getA()==1);
-    }
-
-    static void pointArrayOfSize0() {
-        Point[] a = new Point[0];
     }
 
     static void intArrayOfSizeN(int n) {
@@ -85,7 +65,7 @@ class Arrays {
         }
         check(a[0]==0);
         check(i==n);
-//      ^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static class Point {

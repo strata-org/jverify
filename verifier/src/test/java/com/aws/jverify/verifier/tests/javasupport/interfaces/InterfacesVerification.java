@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 24, dafnyErrors = 5)
+@JVerifyTest(exitCode = 4, dafnyVerified = 31, dafnyErrors = 5)
 class InterfacesVerification {
     public void root(I i) {
         var a = i.f(1);
@@ -121,7 +121,7 @@ class CInvalidImplementation implements I {
         modifies(this);
         postcondition((int r) -> r > 2);
         c.x = 3;
-//      ^^^ Error: assignment might update an object not in the enclosing context's modifies clause
+//      ^^^ Error: modified field could not be proved to be in the current modifies clause
         return 3;
     }
 }
