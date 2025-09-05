@@ -7,14 +7,11 @@ import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.frontend.JavaFrontEnd;
 import com.aws.jverify.verifier.compiler.simplifications.*;
-import com.sun.tools.javac.api.ClientCodeWrapper;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.TreeScanner;
-import com.sun.tools.javac.util.Position;
 import com.sun.tools.javac.code.TypeMetadata;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
@@ -421,7 +418,7 @@ public class JavaToDafnyCompiler {
             // should be unreachable
             throw new IllegalArgumentException("Array type without element type");
         }
-        Symbol.ClassSymbol arraySymbol = elements.getTypeElement(ArrayCompiler.COM_AWS_JVERIFY_BUILTIN_GHOST_ARRAY);
+        Symbol.ClassSymbol arraySymbol = elements.getTypeElement(ArrayCompiler.COM_AWS_JVERIFY_BUILTIN_JARRAY);
         var arrayDafnyName = nameCompiler.getCompiledName(arraySymbol, origin);
         return new UserDefinedType(origin, new NameSegment(origin, arrayDafnyName + nullableSuffix, List.of(elemType)));
     }

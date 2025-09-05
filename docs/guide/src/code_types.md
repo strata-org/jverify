@@ -35,7 +35,9 @@ The rules for pure expressions are as follows:
 
 The rules for pure blocks are:
 - The last statement of the block must be either a return or an if-else statement.
-- Any statements before the last one and after the contract, must be variable declarations with an initializer.
+- Any statements before the last one and after the contract, must be either:
+  - a variable declaration with an initializer.
+  - an if-then with no else, whose body follows the rules for pure blocks
 
 Summary table:
 

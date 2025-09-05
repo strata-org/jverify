@@ -13,7 +13,7 @@ import com.sun.tools.javac.util.Names;
 import java.util.Set;
 
 public class ArrayCompiler extends TreeTranslator {
-    public static final String COM_AWS_JVERIFY_BUILTIN_GHOST_ARRAY = "com.aws.jverify.builtin.GhostArray";
+    public static final String COM_AWS_JVERIFY_BUILTIN_JARRAY = "com.aws.jverify.builtin.JArray";
     private final Symbol.ClassSymbol arraySymbol;
     private final Symbol.MethodSymbol getMethodSymbol;
     private final Symbol.MethodSymbol createMethodSymbol;
@@ -36,10 +36,16 @@ public class ArrayCompiler extends TreeTranslator {
         this.names = Names.instance(context);
         this.reporter = Reporter.instance(context);
 
-        arraySymbol = elements.getTypeElement(COM_AWS_JVERIFY_BUILTIN_GHOST_ARRAY);
+        arraySymbol = elements.getTypeElement(COM_AWS_JVERIFY_BUILTIN_JARRAY);
         getMethodSymbol = (Symbol.MethodSymbol)arraySymbol.members().getSymbolsByName(names.fromString("get")).iterator().next();
         createMethodSymbol = (Symbol.MethodSymbol)arraySymbol.members().getSymbolsByName(names.fromString("create")).iterator().next();
         setMethodSymbol = (Symbol.MethodSymbol)arraySymbol.members().getSymbolsByName(names.fromString("set")).iterator().next();
+    }
+
+    @Override
+    public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+        reporter.compilationUnit = tree;
+        super.visitTopLevel(tree);
     }
 
     @Override
