@@ -1,4 +1,4 @@
-// ^ /object-contract.java(27:22-27:31) Related location: this is the precondition that could not be proved
+// ^ /object-contract.java(32:22-32:31) Related location: this is the precondition that could not be proved
 package com.aws.jverify.verifier.tests.javasupport;
 
 import com.aws.jverify.testengine.JVerifyTest;
