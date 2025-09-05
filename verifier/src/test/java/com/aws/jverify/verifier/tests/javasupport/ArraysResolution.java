@@ -21,7 +21,7 @@ class ArraysResolution {
             invariant(a[0] != null);
 //                    ^^^^^^^^^^^^ Warning: the type of the other operand is a non-null type, so this comparison with 'null' will always return 'true'
             invariant(a[0].getA()==1);
-            invariant(a[0] == zeroPoint); // should not be necessary
+            invariant(a[0] == zeroPoint);
             var loopPoint = new Point(i,i+1);
             a[i] = loopPoint;
         }

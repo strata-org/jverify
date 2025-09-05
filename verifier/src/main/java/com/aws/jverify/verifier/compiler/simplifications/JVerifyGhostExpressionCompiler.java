@@ -96,7 +96,7 @@ public class JVerifyGhostExpressionCompiler {
                 var collection = expressionCompiler.toExpr(receiver);
                 return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, collection);
             }
-            case "size" -> {
+            case "length" -> {
                 var collection = expressionCompiler.toExpr(receiver);
                 return new UnaryOpExpr(compiler.toOrigin(invocation), collection, UnaryOpExprOpcode.Cardinality);
             }

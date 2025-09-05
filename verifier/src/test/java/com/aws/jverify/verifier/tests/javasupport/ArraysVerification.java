@@ -43,8 +43,8 @@ class ArraysVerification {
             // This does not work now as we cannot pass a non final variable in a lambda
             invariant(a[0] != null);
             invariant(a[0].getA()==1);
-            invariant(a[0] == zeroPoint); // should not be necessary
-            
+            invariant(a[0] == zeroPoint);
+
             var loopPoint = new Point(i,i+1);
             a[i] = loopPoint;
         }

@@ -327,7 +327,7 @@ public class ExpressionCompiler {
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
-            ExprDotName callee = new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "size"), null);
+            ExprDotName callee = new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "length"), null);
             return createCall(origin, callee, Stream.of());
         }
         
