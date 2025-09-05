@@ -487,20 +487,17 @@ public class TypeDeclarationCompiler {
         var names = getBodiedMethods(typeSymbol, origin);
 
         var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
-        if (includeSelf) {
-            for(var member : decl.getMembers()) {
-                if (member instanceof JCTree.JCMethodDecl method) {
-                    var methodSymbol = method.sym;
-                    if (verifyAnnotationCompiler.removedImplementations.contains(methodSymbol)) {
-                        MethodOrFunction callable = callables.get(methodSymbol);
-                        if (callable != null) {
-                            if (callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
-                                            callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null) {
-                                result.add(callable);
-                            } else {
-                                names.add(nameCompiler.getCompiledName(methodSymbol, origin));
-                            }
-                        }
+        for(var member : decl.getMembers()) {
+            if (member instanceof JCTree.JCMethodDecl method) {
+                var methodSymbol = method.sym;
+                MethodOrFunction callable = callables.get(methodSymbol);
+                if (callable != null) {
+                    boolean bodiless = callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
+                            callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null;
+                    if (includeSelf && bodiless) {
+                        result.add(callable);
+                    } else {
+                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
                     }
                 }
             }

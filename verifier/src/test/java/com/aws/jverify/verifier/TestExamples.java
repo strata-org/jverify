@@ -27,25 +27,25 @@ public class TestExamples {
     @Test
     public void testNullCheck() throws IOException {
         var markedSourcePath = Path.of("NullCheck.java");
-        verifyPath(markedSourcePath, 4, 15, 2, false);
+        verifyPath(markedSourcePath, 4, 5, 2, false);
     }
     
     @Test
     public void testFibonacci() throws IOException {
         var markedSourcePath = Path.of("Fibonacci.java");
-        verifyPath(markedSourcePath, 0, 16, 0, false);
+        verifyPath(markedSourcePath, 0, 6, 0, false);
     }
     
     @Test
     public void testUserProfile() throws IOException {
         var markedSourcePath = Path.of("UserProfile.java");
-        verifyPath(markedSourcePath, 0, 19, 0, false);
+        verifyPath(markedSourcePath, 0, 9, 0, false);
     }
     
     @Test
     public void testBinarySearch() throws IOException {
         var markedSourcePath = Path.of("BinarySearch.java");
-        verifyPath(markedSourcePath, 0, 15, 0, false);
+        verifyPath(markedSourcePath, 0, 5, 0, false);
     }
     
     private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors, boolean continueOnErrors) throws IOException {
