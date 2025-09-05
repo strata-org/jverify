@@ -33,6 +33,6 @@ type byte = x | 0 <= x < 256
 type float = real
 type double = real
 
-function toSequence<T>(arr: GhostArray<T> ): (r: seq<T>)
+function toSequence<T>(arr: JArray<T> ): (r: seq<T>)
   reads arr
-  ensures |r| == arr.size() && forall i: nat :: i < arr.size() ==> arr.get(i) == r[i] 
+  ensures |r| == arr.length() && forall i: nat :: i < arr.length() ==> arr.get(i) == r[i] 

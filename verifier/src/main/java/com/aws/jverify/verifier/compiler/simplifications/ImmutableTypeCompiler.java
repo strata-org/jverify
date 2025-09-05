@@ -118,6 +118,7 @@ public class ImmutableTypeCompiler {
         if (isAbstract) {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
+
         members.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, origin, false));
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
                 List.of(getDatatypeCtor(origin, name, fields)), false);

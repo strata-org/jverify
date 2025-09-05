@@ -204,9 +204,9 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 () -> assertThat("exit code",
                         verificationResults.getExitCode(),
                         is(annotation.exitCode())),
-//                () -> assertThat("Dafny verified count",
-//                        verificationResults.getDafnyVerifiedCount(),
-//                        is(expectedDafnyVerifiedCount)),
+                () -> assertThat("Dafny verified count",
+                        verificationResults.getDafnyVerifiedCount(),
+                        is(expectedDafnyVerifiedCount)),
                 () -> assertThat("Dafny error count",
                         verificationResults.getDafnyErrorCount(),
                         is(expectedDafnyErrorCount))
@@ -387,13 +387,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         };
     }
 
-    private static final Pattern JVERIFY_TEST_ANNOTATION_PATTERN = Pattern.compile("@JVerifyTest\\s*\\([^)]*\n");
-
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, VerificationResults verificationResults) throws IOException {
         try (BufferedReader reader = new BufferedReader(sourceFile.openReader(false))) {
             var allLines = reader.lines().toArray(String[]::new);
             var maybeAnnotationIndex = IntStream.range(0, allLines.length)
-                    .filter(index -> JVERIFY_TEST_ANNOTATION_PATTERN.matcher(allLines[index]).matches())
+                    .filter(index -> allLines[index].startsWith("@JVerifyTest"))
                     .findFirst();
             if (maybeAnnotationIndex.isPresent()) {
                 int annotationIndex = maybeAnnotationIndex.getAsInt();

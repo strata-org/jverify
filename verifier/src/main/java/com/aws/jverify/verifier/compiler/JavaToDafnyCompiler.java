@@ -417,7 +417,7 @@ public class JavaToDafnyCompiler {
             // should be unreachable
             throw new IllegalArgumentException("Array type without element type");
         }
-        Symbol.ClassSymbol arraySymbol = elements.getTypeElement(ArrayCompiler.COM_AWS_JVERIFY_BUILTIN_GHOST_ARRAY);
+        Symbol.ClassSymbol arraySymbol = elements.getTypeElement(ArrayCompiler.COM_AWS_JVERIFY_BUILTIN_JARRAY);
         var arrayDafnyName = nameCompiler.getCompiledName(arraySymbol, origin);
         return new UserDefinedType(origin, new NameSegment(origin, arrayDafnyName + nullableSuffix, List.of(elemType)));
     }
@@ -629,7 +629,7 @@ public class JavaToDafnyCompiler {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
-    
+
     public boolean isImmutable(Symbol.ClassSymbol classSymbol) {
         Symtab symtab = Symtab.instance(context);
         if (classSymbol.type == symtab.objectType) {

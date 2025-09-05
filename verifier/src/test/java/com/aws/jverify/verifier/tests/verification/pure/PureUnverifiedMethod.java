@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests.verification;
+package com.aws.jverify.verifier.tests.verification.pure;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 12, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 1)
 public class PureUnverifiedMethod {
     
     void pureUnverifiedBodyIsNotVisible() {

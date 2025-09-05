@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 15, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 16, dafnyErrors = 1)
 public class NestedStaticClass {
     @Nullable
     StaticNestee nestee;

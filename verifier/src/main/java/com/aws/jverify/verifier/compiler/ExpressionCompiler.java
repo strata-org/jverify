@@ -106,6 +106,10 @@ public class ExpressionCompiler {
                 var returnVar = new BoundVar(origin, new Name(origin, name), type, false);
                 var lhs = new CasePattern<>(origin, name, returnVar, null);
                 result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init)), result, true, null); 
+            } else if (statement instanceof JCTree.JCIf ifStatement && ifStatement.getElseStatement() == null) {
+                var thenExpression = toExpr(ifStatement.getThenStatement());
+                result = new ITEExpr(compiler.toOrigin(ifStatement), false, 
+                        toExpr(ifStatement.getCondition()), thenExpression, result);
             } else {
                 compiler.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
                 return result;
@@ -118,10 +122,16 @@ public class ExpressionCompiler {
         IOrigin origin = compiler.toOrigin(statement);
         return switch (statement) {
             case JCTree.JCBlock block -> toExpr(block.getStatements());
-            case JCTree.JCIf ifStatement -> new ITEExpr(origin, false,
+            case JCTree.JCIf ifStatement -> {
+                if (ifStatement.getElseStatement() == null) {
+                    compiler.reportError(statement, "pureMethodEndingIfThen");
+                    yield JavaToDafnyCompiler.getHole(origin);
+                }
+                yield new ITEExpr(origin, false,
                     toExpr(ifStatement.getCondition()),
                     toExpr(ifStatement.getThenStatement()),
                     toExpr(ifStatement.getElseStatement()));
+            }
             case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr);
             default -> {
                 compiler.reportError(statement, "pureMethodLastStatement");
@@ -325,7 +335,7 @@ public class ExpressionCompiler {
         var selectedExpr = toExpr(fieldAccess.selected);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
-            ExprDotName callee = new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "size"), null);
+            ExprDotName callee = new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "length"), null);
             return createCall(origin, callee, Stream.of());
         }
         

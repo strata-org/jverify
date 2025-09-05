@@ -368,17 +368,25 @@ class HelperForBigIntegerContract {
                 ((v.charAt(0) == '+' || v.charAt(0) == '-') && isAllDigits(v.substring(1))) ||
                 isAllDigits(v));
     }
+    
     @Erased
     @Pure
     static @Unbounded int stringToInt(String v) {
         decreases(v.length());
-        return
-                v.length() == 0 ? 0 :
-                        (v.charAt(0) == '+' ?
-                                stringToInt(v.substring(1)) :
-                                (v.charAt(0) == '-' ? -stringToInt(v.substring(1)) :
-                                        (v.charAt(v.length()-1)-'0') + 10*stringToInt(v.substring(0,v.length()-1))
-                                ));
+        if (v.length() == 0) {
+            return 0;
+        }
+
+        if (v.charAt(0) == '+') {
+            return stringToInt(v.substring(1));
+        }
+
+        if (v.charAt(0) == '-') {
+            return -stringToInt(v.substring(1));
+        }
+
+        return v.charAt(v.length()-1)-'0' + 
+                10*stringToInt(v.substring(0,v.length()-1));
     }
 
     @Erased

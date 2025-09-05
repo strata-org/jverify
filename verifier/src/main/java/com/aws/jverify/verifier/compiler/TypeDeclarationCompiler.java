@@ -472,6 +472,7 @@ public class TypeDeclarationCompiler {
         definedMethodsCache.put(typeSymbol, result);
         return result;
     }
+    
     public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
         var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
@@ -480,6 +481,7 @@ public class TypeDeclarationCompiler {
         }
         return result;
     }
+    
     public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
         var result = new HashSet<MethodOrFunction>();
         var names = getBodiedMethods(typeSymbol, origin);

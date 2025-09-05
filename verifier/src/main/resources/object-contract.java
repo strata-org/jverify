@@ -32,16 +32,16 @@ class StringTypeContract {
 }
 
 @Verify(false)
-class GhostArray<TArrayElement> {
-    public static <TCreateArrayElement> GhostArray<TCreateArrayElement> create(int size) {
+class JArray<TArrayElement> {
+    public static <TCreateArrayElement> JArray<TCreateArrayElement> create(int size) {
         precondition(size >= 0);
         //noinspection ConstantValue
-        postcondition((GhostArray<TCreateArrayElement> r) -> r.size() == size && fresh(r));
+        postcondition((JArray<TCreateArrayElement> r) -> r.length() == size && fresh(r));
         throw new ContractException();
     }
 
     @Pure
-    public @Nat int size() { // TODO rename to length?
+    public @Nat int length() {
         throw new ContractException();
     }
 
@@ -53,7 +53,7 @@ class GhostArray<TArrayElement> {
 
     public void set(@Nat int index, TArrayElement value) {
         modifies(this);
-        precondition(index <= size());
+        precondition(index <= length());
         //noinspection ConstantValue
         postcondition(get(index) == value && forall(
                 (int i) -> implies(i != index && i >= 0, old(get(i)) == get(i))));
