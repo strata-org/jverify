@@ -10,7 +10,7 @@ import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 16, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 17, dafnyErrors = 0)
 public class LibraryContractGhostFieldVerification {
     static void test(DummyBigIntegerContract v) {
         precondition(v.value == 1);
