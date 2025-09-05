@@ -155,8 +155,7 @@ public class JavaToDafnyCompiler {
     }
 
     private boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
-        boolean result = builtinSources.contains(compilationUnit.getSourceFile());
-        return result;
+        return builtinSources.contains(compilationUnit.getSourceFile());
     }
 
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
