@@ -6,7 +6,7 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(dafnyVerified = 18, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 19, dafnyErrors = 0)
 public class PureMethodVerification {
 
     @Pure

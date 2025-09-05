@@ -110,6 +110,19 @@ public class JVerify {
     }
 
     /**
+     * TODO decide whether this should exist or not
+     * and if it does add documentation
+     * And even if we remove jequals, it might be good to add documentation on Dafny's == somewhere
+     * To clarify when it resolves to:
+     * - reference equality
+     * - shallow equality
+     * - undefined equality
+     */
+    public static <T> boolean jequals(T left, T right) {
+        throw new VerificationMethodExecutedException();
+    }
+    
+    /**
      * Returns true if the given object were allocated during the current method call.
      */
     public static <T> boolean fresh(Object object) {

@@ -1,9 +1,11 @@
 package com.aws.jverify.builtin;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.*;
-
 import static com.aws.jverify.JVerify.*;
+import com.aws.jverify.Pure;
+import com.aws.jverify.Nat;
+import com.aws.jverify.Verify;
+import com.aws.jverify.ContractException;
 
 @Contract(Object.class)
 class ObjectContract {
@@ -11,13 +13,12 @@ class ObjectContract {
 }
 
 @Contract(value = Record.class, immutable = true)
-abstract class RecordContract {
-//    @Pure
-//    @Override
-//    public boolean equals(Object obj)
-//    {
-//        return JVerify.jequals(this, obj);
-//    }
+class RecordContract {
+    @Pure
+    public boolean equals(Object obj)
+    {
+        return jequals(this, obj);
+    }
 }
 
 @Verify(false)
@@ -44,7 +45,7 @@ class JArray<TArrayElement> {
         modifies(this);
         precondition(index <= length());
         //noinspection ConstantValue
-        postcondition(get(index) == value && JVerify.forall(
+        postcondition(get(index) == value && forall(
                 (int i) -> implies(i != index && i >= 0, old(get(i)) == get(i))));
     }
 }

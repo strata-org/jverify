@@ -387,7 +387,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         };
     }
 
-    private static final Pattern JVERIFY_TEST_ANNOTATION_PATTERN = Pattern.compile("@JVerifyTest\\s*\\([^)]*\\)");
+    private static final Pattern JVERIFY_TEST_ANNOTATION_PATTERN = Pattern.compile("@JVerifyTest\\s*\\([^)]*\n");
 
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, VerificationResults verificationResults) throws IOException {
         try (BufferedReader reader = new BufferedReader(sourceFile.openReader(false))) {

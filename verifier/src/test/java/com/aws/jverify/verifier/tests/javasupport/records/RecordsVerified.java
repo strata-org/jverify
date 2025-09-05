@@ -5,12 +5,20 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 33, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 26, dafnyErrors = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
     }
-
+    
+    static void equalsOnRecords() {
+        var first = new IntRecord(1);
+        var second = new IntRecord(1);
+        var third = new IntRecord(2);
+        check(first.equals(second));
+        check(!first.equals(third));
+    }
+    
     static void primitiveRecords() {
         var neg = new IntRecord(-1);
         var pos = new IntRecord(2);

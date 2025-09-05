@@ -120,6 +120,11 @@ public class JVerifyGhostExpressionCompiler {
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
             }
+            case "jequals" -> {
+                var left = expressionCompiler.toExpr(args.getFirst());
+                var right = expressionCompiler.toExpr(args.get(1));
+                return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
+            }
         }
 
         compiler.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));

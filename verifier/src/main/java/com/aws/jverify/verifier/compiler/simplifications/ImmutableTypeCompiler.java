@@ -74,6 +74,7 @@ public class ImmutableTypeCompiler {
                     compiler.reportError(member, "notSupported", "explicit record component accessor method");
                     continue;
                 } else if ("equals".equals(methodName)
+                        && !isAbstract
                         && params.length() == 1
                         && params.getFirst().type.toString().equals(Object.class.getName())) {
                     compiler.reportError(member, "notSupported", "overridden equals method in record");
@@ -107,7 +108,9 @@ public class ImmutableTypeCompiler {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
-        members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
+        if (!classDecl.sym.isRecord()) {
+            members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
+        }
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }
