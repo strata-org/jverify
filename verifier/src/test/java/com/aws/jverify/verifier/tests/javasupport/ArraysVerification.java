@@ -1,4 +1,4 @@
-// ^ /object-contract.java(27:22-27:31) Related location: this is the precondition that could not be proved
+// ^ /object-contract.java(32:22-32:31) Related location: this is the precondition that could not be proved
 package com.aws.jverify.verifier.tests.javasupport;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -8,7 +8,7 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(exitCode = 4, dafnyVerified = 18, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 19, dafnyErrors = 2)
 class ArraysVerification {
     
     interface SupplyArray {

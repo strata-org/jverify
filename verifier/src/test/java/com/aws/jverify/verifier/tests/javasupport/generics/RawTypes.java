@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import java.util.HashMap;
 import java.util.function.Supplier;
 
-@JVerifyTest(dafnyVerified = 15, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 16, dafnyErrors = 0)
 public class RawTypes {
     interface T {}
 

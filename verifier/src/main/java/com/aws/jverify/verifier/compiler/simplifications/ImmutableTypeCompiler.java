@@ -7,7 +7,6 @@ import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Flags;
-import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -26,31 +25,37 @@ public class ImmutableTypeCompiler {
         this.compiler = typeDeclarationCompiler.compiler;
     }
 
-    public TopLevelDeclWithMembers translate(Symbol.ClassSymbol classSymbol, JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
+    public TopLevelDeclWithMembers translate(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
 
+        var classSymbol = classDecl.sym;
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
             javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParams = typeDeclarationCompiler.translateTypeParameters(javaTypeParams);
 
-        var traits = classDecl.sym
+        var traits = classSymbol
                 .getInterfaces().stream()
                 .map(baseType -> compiler.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
         var superClass = classDecl.sym.getSuperclass();
+        var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null));
         if (superClass != null) {
             Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
-            if (superClass.tsym == symtab.objectType.tsym || superClass.getKind() == TypeKind.NONE) {
-                traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+            if (superClass.tsym == symtab.objectType.tsym) {
+                traits.addFirst(pureObjectType);
+            } if (superClass.getKind() == TypeKind.NONE) {
+                if (classSymbol.isInterface()) {
+                    traits.addFirst(pureObjectType);
+                }
             } else {
                 if (JavaToDafnyCompiler.typeHasSource(compiler.index, superClass.tsym)) {
                     traits.addFirst(compiler.translateType(superClass, origin, null));
                 }
             }
         } else {
-            traits.addFirst(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+            traits.addFirst(pureObjectType);
         }
 
         var comps = TreeInfo.recordFields(classDecl);
@@ -73,15 +78,16 @@ public class ImmutableTypeCompiler {
                 if (compNames.contains(methodName) && params.isEmpty()) {
                     compiler.reportError(member, "notSupported", "explicit record component accessor method");
                     continue;
-                } else if ("equals".equals(methodName)
-                        && !isAbstract
-                        && params.length() == 1
-                        && params.getFirst().type.toString().equals(Object.class.getName())) {
-                    compiler.reportError(member, "notSupported", "overridden equals method in record");
-                    continue;
-                } else if ("hashCode".equals(methodName) && params.isEmpty()) {
-                    compiler.reportError(member, "notSupported", "overridden hashCode method in record");
-                    continue;
+                } else if(classSymbol.isRecord()) {
+                    if ("equals".equals(methodName)
+                            && params.length() == 1
+                            && params.getFirst().type.toString().equals(Object.class.getName())) {
+                        compiler.reportError(member, "notSupported", "overridden equals method in record");
+                        continue;
+                    } else if ("hashCode".equals(methodName) && params.isEmpty()) {
+                        compiler.reportError(member, "notSupported", "overridden hashCode method in record");
+                        continue;
+                    }
                 }
             } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 fields.add(variableDecl);
@@ -108,10 +114,8 @@ public class ImmutableTypeCompiler {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
-        if (!classDecl.sym.isRecord()) {
-            members.add(JavaToDafnyCompiler.equalsFunctionDeclaration(origin));
-        }
-        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits, 
+        members.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, origin, false));
+        return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }
 

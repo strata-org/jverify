@@ -188,7 +188,7 @@ public class ExternalContractCompiler {
         }
 
         private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-            classDecl.type.tsym = contracteeSymbol; // Required before calling 'findOverriddenMethod'
+            classDecl.type.tsym = contracteeSymbol;
             
             var newMembers =  new ArrayList<JCTree>();
             for(var member : classDecl.getMembers()) {
@@ -234,14 +234,15 @@ public class ExternalContractCompiler {
         }
 
         private void handleLibraryContractMethod(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol, JCTree.JCMethodDecl methodDecl, ArrayList<JCTree> newMembers) {
-            var methodSymbol = methodDecl.sym;
+            var contracterSymbol = methodDecl.sym;
 
-            if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+            if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, contracterSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
                 return;
             }
 
-            var baseMethod = findContractee(contracteeSymbol, methodSymbol, types);
+            var baseMethod = findContractee(contracteeSymbol, contracterSymbol, types);
             if (baseMethod != null) {
+                updateLibraryContractAnnotations(methodDecl, baseMethod);
                 newMembers.add(methodDecl);
                 index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
                 contractSymbolToContractee.put(methodDecl.sym, baseMethod);
@@ -251,21 +252,19 @@ public class ExternalContractCompiler {
                 return;
             }
 
-            updateLibraryContractAnnotations(methodDecl, baseMethod, methodSymbol);
         }
 
-        private void updateLibraryContractAnnotations(JCTree.JCMethodDecl methodDecl, 
-                                                      Symbol.MethodSymbol baseMethod, 
-                                                      Symbol.MethodSymbol methodSymbol) {
-
+        private void updateLibraryContractAnnotations(JCTree.JCMethodDecl contracter, 
+                                                      Symbol.MethodSymbol contracteeSymbol) {
+            var contracterSymbol = contracter.sym;
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
-            newAnnotations.addAll(methodSymbol.getAnnotationMirrors());
-            if (!shouldVerify(methodDecl, methodSymbol)) {
-                methodDecl.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
+            newAnnotations.addAll(contracterSymbol.getAnnotationMirrors());
+            if (!shouldVerify(contracter, contracterSymbol)) {
+                contracter.mods.annotations = contracter.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
                 newAnnotations.add(jverifyUtils.getVerifyAnnotation());
             }
-            baseMethod.resetAnnotations();
-            baseMethod.setDeclarationAttributes(newAnnotations.toList());
+            contracteeSymbol.resetAnnotations();
+            contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
         }
 
         private boolean shouldVerify(JCTree.JCMethodDecl methodDecl, Symbol.MethodSymbol methodSymbol) {
@@ -374,19 +373,7 @@ public class ExternalContractCompiler {
     }
 
     public static Symbol.MethodSymbol findContractee(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
-        Symbol.MethodSymbol candidate = getCandidateForType(contractee, method, types);
-        if (candidate != null) {
-            return candidate;
-        }
-
-        for (Type baseType : types.closure(contractee.type)) {
-            Symbol.MethodSymbol baseCandidate = getCandidateForType(baseType.tsym, method, types);
-            if (baseCandidate != null) {
-                return baseCandidate;
-            }
-        }
-        
-        return null;
+        return getCandidateForType(contractee, method, types);
     }
 
     private static Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {

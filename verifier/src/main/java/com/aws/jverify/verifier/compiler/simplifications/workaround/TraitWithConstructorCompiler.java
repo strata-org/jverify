@@ -2,19 +2,18 @@ package com.aws.jverify.verifier.compiler.simplifications.workaround;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.sun.tools.javac.code.Symbol;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Since Dafny does not support traits with constructors,
  * this compiler splits such a trait into a trait and a class, moving the constructor to the class
  */
 public class TraitWithConstructorCompiler {
-    TypeDeclarationCompiler typeDeclarationCompiler;
+    private final TypeDeclarationCompiler typeDeclarationCompiler;
 
     public TraitWithConstructorCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
@@ -40,29 +39,14 @@ public class TraitWithConstructorCompiler {
             switch (member) {
                 case Method method when !method.getHasStaticKeyword() -> {
                     traitMembers.add(member);
-                    if (method.getBody() == null) {
-                        classMembers.add(member);
-                        // A bodyless trait in Dafny is abstract. 
-                        // You can not declare an assumed member in traits in Dafny
-                        // We add the assumed member to the class
-                    }
                 }
 
                 case Function function -> {
                     traitMembers.add(function);
-                    if (function.getBody() == null && !function.getHasStaticKeyword()) {
-                        // A bodyless trait in Dafny is abstract.
-                        // You can not declare an assumed member in traits in Dafny
-                        // We add the assumed member to the class
-                        classMembers.add(member);
-                    }
                 }
                 case Constructor constructor -> {
                     classNeeded = true;
-                    Method initMethod = constructorToInitMethod(traitDecl.getNameNode().getValue(), constructor);
-                    if (initMethod != null) {
-                        traitMembers.add(initMethod);
-                    }
+                    traitMembers.add(constructorToInitMethod(traitDecl.getNameNode().getValue(), constructor));
 
                     var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), 
                             null, JavaToDafnyCompiler.Ghostness, null,
@@ -77,7 +61,7 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
-            classMembers.add(JavaToDafnyCompiler.equalsFunctionDeclaration(traitDecl.getOrigin()));
+            classMembers.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, traitDecl.getOrigin()));
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();

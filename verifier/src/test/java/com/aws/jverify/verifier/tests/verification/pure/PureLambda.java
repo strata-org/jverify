@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import java.util.function.IntPredicate;
 
-@JVerifyTest(dafnyVerified = 16, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 17, dafnyErrors = 0)
 public class PureLambda {
 
     void lambdaBecomesPureWhenSamIs() {

@@ -22,7 +22,7 @@ public class TestUserProfileEdits {
         
         var first = keepAnnotations(outputParts);
 
-        var start = 16;
+        var start = 17;
         var path = Path.of("/AnnotatedUserProfile.java"); 
         var firstTestAnnotation = JVerifyTestEngine.makeJVerifyTestAnnotation(start, 1);
         JVerifyTestEngine.verifyFile(new SourceFile(path, first), firstTestAnnotation, List.of(TestMarkup.findHatAnnotationRanges(first).get(0)));
