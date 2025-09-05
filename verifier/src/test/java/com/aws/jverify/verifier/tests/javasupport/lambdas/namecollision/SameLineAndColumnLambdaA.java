@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.lambdas.namecollision;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 18, dafnyErrors = 0, additionalFiles = {"./SameLineAndColumnLambdaB.java"})
+@JVerifyTest(dafnyVerified = 8, dafnyErrors = 0, additionalFiles = {"./SameLineAndColumnLambdaB.java"})
 public class SameLineAndColumnLambdaA {
     void foo() {
         useI(() -> {});

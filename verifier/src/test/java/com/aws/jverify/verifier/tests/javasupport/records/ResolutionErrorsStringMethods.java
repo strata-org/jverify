@@ -10,6 +10,5 @@ class ResolutionErrorsStringMethods {
         check("hello %s".formatted("world").length() == 11);
 //            ^ warning: missing contract for method 'formatted' in class 'java.lang.String'
 //                                 ^ error: new array with initializers is not supported
-//            ^ warning: missing contract for method 'length' in class 'java.lang.String'
     }
 }

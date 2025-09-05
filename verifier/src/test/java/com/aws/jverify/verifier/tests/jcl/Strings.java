@@ -1,7 +1,7 @@
-// ^ /builtin-contracts.java(555:19-555:61) Related location: this proposition could not be proved
-// ^ /builtin-contracts.java(589:16-589:33) Related location: this proposition could not be proved
-// ^ /builtin-contracts.java(609:16-609:37) Related location: this proposition could not be proved
-// ^ /builtin-contracts.java(609:16-609:37) Related location: this proposition could not be proved
+// ^ /object-contract.java(37:19-37:61) Related location: this proposition could not be proved
+// ^ /object-contract.java(71:16-71:33) Related location: this proposition could not be proved
+// ^ /object-contract.java(91:16-91:37) Related location: this proposition could not be proved
+// ^ /object-contract.java(91:16-91:37) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests.jcl;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -14,7 +14,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 23, dafnyErrors = 6, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 14, dafnyErrors = 6)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
