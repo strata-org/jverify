@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications.workaround;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
 import com.sun.tools.javac.code.Symbol;
 

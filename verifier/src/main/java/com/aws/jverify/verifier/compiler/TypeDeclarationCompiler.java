@@ -387,13 +387,8 @@ public class TypeDeclarationCompiler {
         }
         applyInvariants(method.mods, method.sym, contract);
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
-<<<<<<< HEAD
 
-        Function result = new Function(origin, name, null, false, null, dafnyTypeParameters,
-=======
-        return new Function(origin, name, null, JavaToDafnyCompiler.Ghostness, 
-                null, dafnyTypeParameters,
->>>>>>> recordEquality
+        Function result = new Function(origin, name, null, JavaToDafnyCompiler.Ghostness, null, dafnyTypeParameters,
                 ins, contract.preconditions, contract.postconditions, contract.getReads(),
                 contract.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
                 returnType, contract.pureBody, null, null);
@@ -476,6 +471,7 @@ public class TypeDeclarationCompiler {
         definedMethodsCache.put(typeSymbol, result);
         return result;
     }
+    
     public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
         var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
@@ -484,6 +480,7 @@ public class TypeDeclarationCompiler {
         }
         return result;
     }
+    
     public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
         var result = new HashSet<MethodOrFunction>();
         var names = getBodiedMethods(typeSymbol, origin);
