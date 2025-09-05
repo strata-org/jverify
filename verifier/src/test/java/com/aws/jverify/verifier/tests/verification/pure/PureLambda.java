@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests.verification;
+package com.aws.jverify.verifier.tests.verification.pure;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import java.util.function.IntPredicate;
 
-@JVerifyTest(dafnyVerified = 8, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 16, dafnyErrors = 0)
 public class PureLambda {
 
     void lambdaBecomesPureWhenSamIs() {

@@ -12,6 +12,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class JVerifyGhostExpressionCompiler {
     final ExpressionCompiler expressionCompiler;
@@ -71,10 +72,10 @@ public class JVerifyGhostExpressionCompiler {
             }
             case "sequence" -> {
                 // array conversion to sequence by appending "[..]", optionally with lo/hi
+                assert args.size() == 1;
                 var array = args.get(0);
-                var fromIndex = args.length() > 1 ? args.get(1) : null;
-                var toIndex = args.length() > 2 ? args.get(2) : null;
-                return toSubsequence(origin, array, fromIndex, toIndex);
+                NameSegment callee = new NameSegment(origin, "toSequence", null);
+                return expressionCompiler.createCall(origin, callee, Stream.of(array));
             }
             case "get" -> {
                 var seq = expressionCompiler.toExpr(receiver);
@@ -111,8 +112,18 @@ public class JVerifyGhostExpressionCompiler {
                 var element = expressionCompiler.toExpr(args.getFirst());
                 return new FreshExpr(compiler.toOrigin(invocation), element, null);
             }
+            case "implies" -> {
+                var antecedent = expressionCompiler.toExpr(args.getFirst());
+                var consequent = expressionCompiler.toExpr(args.get(1));
+                return new BinaryExpr(origin, BinaryExprOpcode.Imp, antecedent, consequent);
+            }
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
+            }
+            case "jequals" -> {
+                var left = expressionCompiler.toExpr(args.getFirst());
+                var right = expressionCompiler.toExpr(args.get(1));
+                return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
             }
         }
 

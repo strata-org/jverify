@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests.verification;
+package com.aws.jverify.verifier.tests.verification.pure;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
@@ -25,6 +25,17 @@ public class PureMethodErrors {
 //       ^ error: pure method should have a return type
         var x = 3;
 //          ^ error: a pure block must end in a return or if-else statement
+    }
+
+    @Pure
+    int pureEndingWithIfNotElse(int x) {
+        if (x > 2) {
+            if (x > 3) {
+//          ^ error: a pure block may not end in an if statement without an else block    
+                return 3;
+            }
+        }
+        return 2;
     }
     
     void foo() {}

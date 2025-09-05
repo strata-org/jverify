@@ -47,7 +47,8 @@ public class TraitWithConstructorCompiler {
                     classNeeded = true;
                     traitMembers.add(constructorToInitMethod(traitDecl.getNameNode().getValue(), constructor));
 
-                    var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), null, false, null,
+                    var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), 
+                            null, JavaToDafnyCompiler.Ghostness, null,
                             constructor.getTypeArgs(), constructor.getIns(),
                             constructor.getReq(), constructor.getEns(), constructor.getReads(),
                             constructor.getDecreases(), constructor.getMod(),

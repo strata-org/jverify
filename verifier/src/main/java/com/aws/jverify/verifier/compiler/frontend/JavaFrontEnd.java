@@ -143,8 +143,10 @@ public class JavaFrontEnd {
                     var missingContractCompiler = new MissingContractCompiler(context);
                     var newMethodContractCompiler = MethodOrLoopContractCompiler.instance(context);
                     var verifyAnnotationCompiler = VerifyAnnotationCompiler.instance(context);
+                    var arrayCompiler = new ArrayCompiler(context);
                     units.addAll(
                             staticMover.translate(
+                                    arrayCompiler.transform(
                                     unsuspend(lower(suspend(
                                                 missingContractCompiler.compile(
                                                         verifyAnnotationCompiler.transform(
@@ -152,7 +154,7 @@ public class JavaFrontEnd {
                                                         newMethodContractCompiler.transform(
                                                                 unlambda(
                                                         toUnits(compiler.flow(compiler.attribute(todo)))
-                    ))))))))));
+                    )))))))))));
                 }
             }
         });

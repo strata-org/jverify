@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 1)
 class VerifyNumericOperators {
     public void foo() {
         var l = 3L;
@@ -62,6 +62,6 @@ class VerifyNumericOperators {
         check(l == 1L);
         
         check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     } 
 }

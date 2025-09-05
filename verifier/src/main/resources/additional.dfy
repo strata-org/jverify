@@ -7,7 +7,7 @@ trait Object {
     //
     // See also JavaToDafnyCompiler.equalsFunctionDeclaration
     // for more on overridding pure methods.
-    predicate equals(obj: Object)
+    ghost predicate equals(obj: Object)
 }
 
 type nat15 = x: int16 | x >= 0
@@ -52,7 +52,7 @@ datatype DString extends Object = JS(elements: seq<char16>) {
     {
       JS(this.elements[start..end])
     }
-    function equals(other: Object) : (b: bool)
+    ghost function equals(other: Object) : (b: bool)
     {
       other is DString && this.elements == (other as DString).elements
     }
@@ -74,3 +74,7 @@ type byte = x | 0 <= x < 256
 
 type float = real
 type double = real
+
+function toSequence<T>(arr: JArray<T> ): (r: seq<T>)
+  reads arr
+  ensures |r| == arr.length() && forall i: nat :: i < arr.length() ==> arr.get(i) == r[i] 

@@ -5,7 +5,7 @@ import com.aws.jverify.verifier.tests.javasupport.packages.a.Foo;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 1, additionalFiles = {"./a/Foo.java", "./b/Foo.java"})
+@JVerifyTest(exitCode = 4, dafnyVerified = 17, dafnyErrors = 1, additionalFiles = {"./a/Foo.java", "./b/Foo.java"})
 public class MultiPackageTest {
     void foo() {
         var f = new Foo();

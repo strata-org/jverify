@@ -10,12 +10,12 @@ public class NullCheck {
     void useFooer() {
         modifies(this);
         fooer.foo();
-//      ^^^^^ Error: target object might be null
+//      ^^^^^ Error: target object could not be proved to be non-null
         if (fooer != null) {
             fooer.foo();
             bar();
             fooer.foo();
-//          ^^^^^ Error: target object might be null
+//          ^^^^^ Error: target object could not be proved to be non-null
         }    
     }
     
