@@ -1,3 +1,7 @@
+// ^ /object-contract.java(37:19-37:61) Related location: this proposition could not be proved
+// ^ /object-contract.java(71:16-71:33) Related location: this proposition could not be proved
+// ^ /object-contract.java(91:16-91:37) Related location: this proposition could not be proved
+// ^ /object-contract.java(91:16-91:37) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests.jcl;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -10,7 +14,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 23, dafnyErrors = 6)
+@JVerifyTest(exitCode = 4, dafnyVerified = 14, dafnyErrors = 6)
 class Strings {
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
@@ -90,7 +94,8 @@ class Strings {
     static void testIndexOf() {
         var hello = "hello";
 
-        check(hello.charAt(4) == 'o');
+        char oChar = 'o';
+        check(hello.charAt(4) == oChar);
         check(hello.indexOf('o')==4);   // Proven thanks to the check above
         check(hello.indexOf('e')==1);
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
@@ -117,7 +122,7 @@ class Strings {
         check(s1.startsWith(s3));
         String s4 = s2.substring(1);
         check(s2.startsWith(s4));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//            ^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
     }
 
@@ -128,7 +133,12 @@ class Strings {
         check(s3.length() == 8);
         check(s3.startsWith(s1));
         check(s3.startsWith(s2));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//            ^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
+    }
+    
+    void castStringToCharSequence() {
+        var instant = java.time.Instant.parse("hello");
+//                    ^ warning: missing contract for method 'parse' in class 'java.time.Instant'
     }
 }

@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 24, dafnyErrors = 1, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 14, dafnyErrors = 1, verifyPrintedDafny = true)
 class OverloadsTest {
     
     private int f;

@@ -2,7 +2,6 @@ package com.aws.jverify;
 
 import java.util.Optional;
 import java.util.function.BiPredicate;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
@@ -197,6 +196,44 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public interface CharJSequence {
+        /**
+         * Returns the element at index {@code index}.
+         */
+        char get(int index);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        CharJSequence drop(int fromIndex);
+
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
+        CharJSequence take(int toIndex);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
+         */
+        CharJSequence subsequence(int fromIndex, int toIndex);
+
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
+        boolean contains(char element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        CharJSequence concat(CharJSequence next);
+    }
+    
     public interface Sequence<T> {
         /**
          * Returns the element at index {@code index}.
@@ -228,6 +265,11 @@ public class JVerify {
          * Returns the number of elements in this sequence.
          */
         @Unbounded int size();
+        
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        Sequence<T> concat(Sequence<T> next);
     }
 
     public interface IntSequence {

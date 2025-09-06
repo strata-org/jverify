@@ -18,14 +18,12 @@ import javax.lang.model.type.TypeKind;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
     public final JavaToDafnyCompiler compiler;
-    private static final Set<String> supportedStringMethods = Set.of("equals", "concat", "startsWith", "substring", "isEmpty", "charAt", "length", "indexOf");
 
     public ExpressionCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -391,14 +389,6 @@ public class ExpressionCompiler {
             }
         }
 
-        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
-                && ownerClass.fullname.contentEquals(String.class.getName())) {
-            if (!supportedStringMethods.contains(methodSymbol.name.toString())) {
-                compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
-                return JavaToDafnyCompiler.getHole(origin);
-            }
-        }
-        
         var target = toExpr(invocation.getMethodSelect());
         return createCall(origin, target, invocation.getArguments().stream());
     }
@@ -538,7 +528,7 @@ public class ExpressionCompiler {
                 // Fallback to sequence of numeric values
                 var charExprs = stringValue.chars().boxed()
                         .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
-                NameSegment callee = new NameSegment(origin, "JS", null);
+                NameSegment callee = new NameSegment(origin, "String", null);
                 SeqDisplayExpr actual = new SeqDisplayExpr(origin, charExprs);
                 return createCall2(origin, callee, Stream.of(actual));
             }

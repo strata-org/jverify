@@ -14,7 +14,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 32, dafnyErrors = 13)
+@JVerifyTest(exitCode = 4, dafnyVerified = 22, dafnyErrors = 13)
 class Operators {
     static void Plus() {
         int x = 3;

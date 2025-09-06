@@ -10,6 +10,7 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.util.Names;
 
 import javax.lang.model.type.TypeKind;
 import java.util.ArrayList;
@@ -19,10 +20,14 @@ import java.util.stream.Collectors;
 public class ImmutableTypeCompiler {
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final JavaToDafnyCompiler compiler;
+    private final Symtab symtab;
+    private final Names names;
 
     public ImmutableTypeCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
         this.compiler = typeDeclarationCompiler.compiler;
+        symtab = Symtab.instance(compiler.context);
+        names = Names.instance(compiler.context);
     }
 
     public TopLevelDeclWithMembers translate(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -78,7 +83,7 @@ public class ImmutableTypeCompiler {
                 if (compNames.contains(methodName) && params.isEmpty()) {
                     compiler.reportError(member, "notSupported", "explicit record component accessor method");
                     continue;
-                } else if(classSymbol.isRecord()) {
+                } else if(symtab.recordType.tsym != classDecl.sym && classSymbol.isRecord()) {
                     if ("equals".equals(methodName)
                             && params.length() == 1
                             && params.getFirst().type.toString().equals(Object.class.getName())) {
@@ -95,7 +100,7 @@ public class ImmutableTypeCompiler {
                     Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
                     var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
                     Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
-                    members.add(new ConstantField(fieldOrigin, fieldName, null, true, type, null, false, false));
+                    members.add(new ConstantField(fieldOrigin, fieldName, null, JavaToDafnyCompiler.Ghostness, type, null, false, false));
                 }
                 continue;
             } 

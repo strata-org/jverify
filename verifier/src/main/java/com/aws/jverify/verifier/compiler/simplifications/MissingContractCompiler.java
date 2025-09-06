@@ -151,6 +151,7 @@ public class MissingContractCompiler {
             if (tree.sym.isEnum()) {
                 return;
             }
+            visitReference(tree.sym, tree);
             super.visitClassDef(tree);
         }
 
@@ -212,12 +213,6 @@ public class MissingContractCompiler {
             
             if (symbol instanceof Symbol.MethodSymbol methodSymbol && isRecordAccessor(methodSymbol)) {
                 // records are translated to datatypes, which get implicit deconstructors
-                return;
-            }
-
-            var enclosingClass = symbol.enclClass();
-            if (enclosingClass != null && enclosingClass.fullname.contentEquals("java.lang.String")) {
-                // String is handled using custom code
                 return;
             }
 

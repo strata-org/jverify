@@ -80,7 +80,7 @@ public class JVerifyGhostExpressionCompiler {
             case "get" -> {
                 var seq = expressionCompiler.toExpr(receiver);
                 var index = expressionCompiler.toExpr(args.getFirst());
-                return new SeqSelectExpr(compiler.toOrigin(invocation), true, seq, index, null, null);
+                return new SeqSelectExpr(origin, true, seq, index, null, null);
             }
             case "drop" -> {
                 return toSubsequence(origin, receiver, args.getFirst(), null);
@@ -91,26 +91,31 @@ public class JVerifyGhostExpressionCompiler {
             case "subsequence" -> {
                 return toSubsequence(origin, receiver, args.get(0), args.get(1));
             }
+            case "concat" -> {
+                var left = expressionCompiler.toExpr(receiver);
+                var right = expressionCompiler.toExpr(args.getFirst());
+                return new BinaryExpr(origin, BinaryExprOpcode.Add, left, right);
+            }
             case "contains" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
                 var collection = expressionCompiler.toExpr(receiver);
-                return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, collection);
+                return new BinaryExpr(origin, BinaryExprOpcode.In, element, collection);
             }
             case "size" -> {
                 var collection = expressionCompiler.toExpr(receiver);
-                return new UnaryOpExpr(compiler.toOrigin(invocation), collection, UnaryOpExprOpcode.Cardinality);
+                return new UnaryOpExpr(origin, collection, UnaryOpExprOpcode.Cardinality);
             }
             case "entries" -> {
                 var collection = expressionCompiler.toExpr(receiver);
-                return new ExprDotName(compiler.toOrigin(invocation), collection, new Name(origin, "Items"), null);
+                return new ExprDotName(origin, collection, new Name(origin, "Items"), null);
             }
             case "old" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
-                return new OldExpr(compiler.toOrigin(invocation), element, null);
+                return new OldExpr(origin, element, null);
             }
             case "fresh" -> {
                 var element = expressionCompiler.toExpr(args.getFirst());
-                return new FreshExpr(compiler.toOrigin(invocation), element, null);
+                return new FreshExpr(origin, element, null);
             }
             case "implies" -> {
                 var antecedent = expressionCompiler.toExpr(args.getFirst());
@@ -166,13 +171,6 @@ public class JVerifyGhostExpressionCompiler {
      */
     public Type translateClassType(com.sun.tools.javac.code.Type.ClassType classType, IOrigin origin, boolean isNullable) {
         var className = classType.asElement().flatName();
-        if (className.toString().equals(String.class.getName())) {
-            if (!isNullable) {
-                return new UserDefinedType(origin, new NameSegment(origin, "DString", null));
-            }
-            compiler.reportError(origin, "notSupported", "nullable String type");
-            return null;
-        }
         if (className.toString().equals(JVerify.Sequence.class.getName())) {
             var typeArguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
             if (typeArguments.stream().anyMatch(Objects::isNull)) {
@@ -187,6 +185,9 @@ public class JVerifyGhostExpressionCompiler {
         if (className.toString().equals(JVerify.Map.class.getName())) {
             var arguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
             return new MapType(origin, arguments, true);
+        }
+        if (className.toString().equals(JVerify.CharJSequence.class.getName())) {
+            return new SeqType(origin, List.of(JavaToDafnyCompiler.getChar16Type(origin)));
         }
         return null;
     }

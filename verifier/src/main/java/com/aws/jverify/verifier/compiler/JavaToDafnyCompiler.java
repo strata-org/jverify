@@ -40,7 +40,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
-
     public static final boolean Ghostness = true;
     public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
     public static final String JVERIFY_CLASS = JVerify.class.getName();
@@ -64,7 +63,7 @@ public class JavaToDafnyCompiler {
     public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
     
     private boolean translatingVerifiedMethodSignature;
-    public SourceFile builtinSource;
+    public Set<SourceFile> builtinSources = new HashSet<>();
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
     
@@ -91,10 +90,12 @@ public class JavaToDafnyCompiler {
     
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
         if (options.includeBuiltinContracts()) {
-            builtinSource = new SourceFile(JavaToDafnyCompiler.builtinFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
+            var builtinSource = new SourceFile(JavaToDafnyCompiler.builtinFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
             files.add(builtinSource);
+            builtinSources.add(builtinSource);
         }
         var contractSource = new SourceFile(JavaToDafnyCompiler.objectFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
+        builtinSources.add(contractSource);
         files.add(contractSource);
         
         Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
@@ -154,7 +155,7 @@ public class JavaToDafnyCompiler {
     }
 
     private boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
-        return compilationUnit.getSourceFile() == builtinSource;
+        return builtinSources.contains(compilationUnit.getSourceFile());
     }
 
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
@@ -468,7 +469,7 @@ public class JavaToDafnyCompiler {
                 return new UserDefinedType(origin, new NameSegment(origin, "byte", null));
             }
             case CHAR -> {
-                return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
+                return getChar16Type(origin);
             }
             case FLOAT -> {
                 return new UserDefinedType(origin, new NameSegment(origin, "float", null));
@@ -480,6 +481,10 @@ public class JavaToDafnyCompiler {
 
         reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
         return null;
+    }
+
+    public static UserDefinedType getChar16Type(IOrigin origin) {
+        return new UserDefinedType(origin, new NameSegment(origin, "char16", null));
     }
 
     private Type translateWildcardType(IOrigin origin, com.sun.tools.javac.code.Type.WildcardType wildcardType) {

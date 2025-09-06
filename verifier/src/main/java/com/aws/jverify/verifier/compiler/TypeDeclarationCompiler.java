@@ -246,7 +246,7 @@ public class TypeDeclarationCompiler {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());
                 var isStatic = varFlags.contains(Modifier.STATIC);
-                return new ConstantField(origin, fieldName, null, false, type, rhs, isStatic, false);
+                return new ConstantField(origin, fieldName, null, JavaToDafnyCompiler.Ghostness, type, rhs, isStatic, false);
             }
 
             // Keep this variable declaration in the initializers list to be added to constructors laters
@@ -388,7 +388,8 @@ public class TypeDeclarationCompiler {
         applyInvariants(method.mods, method.sym, contract);
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
 
-        Function result = new Function(origin, name, null, JavaToDafnyCompiler.Ghostness, null, dafnyTypeParameters,
+        Function result = new Function(origin, name, null, JavaToDafnyCompiler.Ghostness, 
+                null, dafnyTypeParameters,
                 ins, contract.preconditions, contract.postconditions, contract.getReads(),
                 contract.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
                 returnType, contract.pureBody, null, null);
@@ -486,20 +487,17 @@ public class TypeDeclarationCompiler {
         var names = getBodiedMethods(typeSymbol, origin);
 
         var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
-        if (includeSelf) {
-            for(var member : decl.getMembers()) {
-                if (member instanceof JCTree.JCMethodDecl method) {
-                    var methodSymbol = method.sym;
-                    if (verifyAnnotationCompiler.removedImplementations.contains(methodSymbol)) {
-                        MethodOrFunction callable = callables.get(methodSymbol);
-                        if (callable != null) {
-                            if (callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
-                                            callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null) {
-                                result.add(callable);
-                            } else {
-                                names.add(nameCompiler.getCompiledName(methodSymbol, origin));
-                            }
-                        }
+        for(var member : decl.getMembers()) {
+            if (member instanceof JCTree.JCMethodDecl method) {
+                var methodSymbol = method.sym;
+                MethodOrFunction callable = callables.get(methodSymbol);
+                if (callable != null) {
+                    boolean bodiless = callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
+                            callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null;
+                    if (includeSelf && bodiless) {
+                        result.add(callable);
+                    } else {
+                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
                     }
                 }
             }
