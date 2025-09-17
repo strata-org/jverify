@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.tests.javasupport.interfaces;
 
-import com.aws.jverify.Contract;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
@@ -12,14 +11,17 @@ public class NullableInterfacesVerification {
     }
     
     @SuppressWarnings("DataFlowIssue")
-    void usePureInterface(PureInterface p,
+    void usePureInterface(PureInterface nonNullP,
                           @Nullable PureInterface nullableP) {
-        p.foo();
+        PureInterface p;
         if (nullableP == null) {
+            p = nonNullP;
             nullableP.foo();
         } else {
+            p = nullableP;
             nullableP.foo();
         }
+        p.foo();
     }
     
     @Modifiable
