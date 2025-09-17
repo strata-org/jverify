@@ -1,6 +1,9 @@
-package com.aws.jverify.verifier.compiler;
+package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
+import com.aws.jverify.verifier.compiler.dafnygenerator.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -12,13 +15,13 @@ import java.util.stream.Collectors;
 
 public class BlockCompiler {
 
-    public final JavaToDafnyCompiler compiler;
+    public final BaseDafnyGenerator compiler;
     private final ExpressionCompiler expressionCompiler;
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
 
-    public BlockCompiler(JavaToDafnyCompiler compiler, Symbol.MethodSymbol methodSymbol) {
+    public BlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
         this.compiler = compiler;
         expressionCompiler = compiler.expressionCompiler;
         this.methodSymbol = methodSymbol;
@@ -152,7 +155,7 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
-        Type translatedType = compiler.translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
+        Type translatedType = compiler.getFinalGenerator().translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
         LocalVariable localVariable = new LocalVariable(origin, compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
@@ -219,7 +222,7 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateStatementMethodInvocation(JCTree.JCMethodInvocation invocation) {
-        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod != null) {
             return translateJVerifyMethodInvocation(invocation, jverifyMethod);
         } else {
@@ -236,7 +239,7 @@ public class BlockCompiler {
             return List.of(new AssertStmt(compiler.toOrigin(invocation), null,
                     expressionCompiler.toExpr(invocation.args.getFirst()), null));
         } else {
-            if (JavaToDafnyCompiler.isConstructor(methodSymbol)) {
+            if (BaseDafnyGenerator.isConstructor(methodSymbol)) {
                 compiler.reportError(invocation, "contractForConstructor");
             } else {
                 compiler.reportError(invocation, "contractAfterBody");

@@ -1,0 +1,83 @@
+package com.aws.jverify.verifier.compiler.dafnygenerator;
+
+import com.aws.jverify.generated.IOrigin;
+import com.aws.jverify.generated.NameSegment;
+import com.aws.jverify.generated.Type;
+import com.aws.jverify.generated.UserDefinedType;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.Reporter;
+import com.sun.tools.javac.tree.JCTree;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+public class NullableGenerator extends WrappingDafnyGenerator {
+    private final BaseDafnyGenerator bottomGenerator;
+    private final Reporter reporter;
+    
+    public NullableGenerator(BaseDafnyGenerator bottomGenerator, DafnyGenerator next) {
+        super(next);
+        this.bottomGenerator = bottomGenerator;
+        reporter = bottomGenerator.reporter;
+    }
+
+    @Override
+    public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
+
+        var isNullable = isNullable(type, additionalModifiers);
+        var primitiveTypeKind = bottomGenerator.toPrimitiveType(type);
+        if (primitiveTypeKind != null && isNullable) {
+            reporter.reportError(origin, "notSupported", "nullable primitive type");
+        }
+        return super.translateType(type, origin, additionalModifiers);
+    }
+
+    private static String getNullableSuffix(boolean isNullable) {
+        return isNullable ? "?" : "";
+    }
+
+    private boolean isNullable(com.sun.tools.javac.code.Type type, JCTree.JCModifiers additionalModifiers) {
+        // In several cases annotations that come right before types
+        // end up bound to tree nodes such as variable declarations instead of the type.
+        // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
+        // we apply the modifier to the innermost element type of an array type.
+        return isNullable(type) || (isNullable(additionalModifiers) && !(type instanceof com.sun.tools.javac.code.Type.ArrayType));
+    }
+
+    @Override
+    public UserDefinedType translateArrayType(com.sun.tools.javac.code.Type.ArrayType arrayType, 
+                                              IOrigin origin, 
+                                              JCTree.JCModifiers additionalModifiers) {
+        var isNullable = isNullable(arrayType, additionalModifiers);
+        var result = super.translateArrayType(arrayType, origin, additionalModifiers);
+        return makeUserDefinedTypeNullable(result, isNullable);
+    }
+
+    private static UserDefinedType makeUserDefinedTypeNullable(UserDefinedType original, boolean nullable) {
+        if (!nullable) {
+            return original;
+        }
+        var nullableSuffix = getNullableSuffix(nullable);
+        var originalNamePath = (NameSegment) original.getNamePath();
+        return new UserDefinedType(original.getOrigin(), new NameSegment(originalNamePath.getOrigin(),
+                originalNamePath.getName() + nullableSuffix, originalNamePath.getOptTypeArguments()));
+    }
+
+    @Override
+    public Type translateClassType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ClassType type) {
+        var isNullable = isNullable(type, additionalModifiers);
+        if (BaseDafnyGenerator.isRecord(type) && isNullable) {
+            reporter.reportError(origin, "notSupported", "nullable record type");
+            return null;
+        }
+        
+        var originalResult = (UserDefinedType) next.translateClassType(origin, additionalModifiers, type);
+        return makeUserDefinedTypeNullable(originalResult, isNullable);
+    }
+
+    private boolean isNullable(JCTree.JCModifiers modifiers) {
+        return BaseDafnyGenerator.isAnnotated(modifiers, com.aws.jverify.Nullable.class);
+    }
+
+    private boolean isNullable(com.sun.tools.javac.code.Type type) {
+        return BaseDafnyGenerator.isAnnotated(type, com.aws.jverify.Nullable.class);
+    }
+}

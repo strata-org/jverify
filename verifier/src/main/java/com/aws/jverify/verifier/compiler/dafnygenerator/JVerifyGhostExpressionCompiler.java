@@ -1,13 +1,12 @@
-package com.aws.jverify.verifier.compiler.simplifications;
+package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.BlockCompiler;
-import com.aws.jverify.verifier.compiler.ExpressionCompiler;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
@@ -16,7 +15,7 @@ import java.util.stream.Stream;
 
 public class JVerifyGhostExpressionCompiler {
     final ExpressionCompiler expressionCompiler;
-    final JavaToDafnyCompiler compiler;
+    final BaseDafnyGenerator compiler;
 
     public JVerifyGhostExpressionCompiler(ExpressionCompiler expressionCompiler) {
         this.expressionCompiler = expressionCompiler;
@@ -34,7 +33,7 @@ public class JVerifyGhostExpressionCompiler {
      */
     @Nullable
     public Expression jverifyLibMethodToExpr(JCTree.JCMethodInvocation invocation) {
-        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return null;
         }
@@ -52,12 +51,12 @@ public class JVerifyGhostExpressionCompiler {
                 }
                 if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
                     compiler.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
-                    return JavaToDafnyCompiler.getHole(origin);
+                    return BaseDafnyGenerator.getHole(origin);
                 }
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = compiler.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = compiler.translateType(param.getType().type, paramOrigin, param.getModifiers());
+                    var paramType = compiler.getFinalGenerator().translateType(param.getType().type, paramOrigin, param.getModifiers());
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = expressionCompiler.toExpr(lambda.getBody());
@@ -133,7 +132,7 @@ public class JVerifyGhostExpressionCompiler {
         }
 
         compiler.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
-        return JavaToDafnyCompiler.getHole(origin);
+        return BaseDafnyGenerator.getHole(origin);
     }
 
     private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
@@ -153,7 +152,7 @@ public class JVerifyGhostExpressionCompiler {
         }
         var parameter = lambda.params.getFirst();
         var paramName = parameter.getName().toString();
-        var type = compiler.translateType(parameter.type, compiler.toOrigin(parameter), null);
+        var type = compiler.getFinalGenerator().translateType(parameter.type, compiler.toOrigin(parameter), null);
         var boundVar = new BoundVar(origin, new Name(origin, paramName), type, false);
         var body = compiler.expressionCompiler.toExpr(lambda.getBody());
         if ("all".equals(methodName)) {
@@ -169,7 +168,7 @@ public class JVerifyGhostExpressionCompiler {
      * Handles Java types from the JVerify library that are stand-ins
      * for Dafny types defined in the JVerify prelude or built-in to Dafny.
      */
-    public Type translateClassType(com.sun.tools.javac.code.Type.ClassType classType, IOrigin origin, boolean isNullable) {
+    public Type translateClassType(com.sun.tools.javac.code.Type.ClassType classType, IOrigin origin) {
         var className = classType.asElement().flatName();
         if (className.toString().equals(JVerify.Sequence.class.getName())) {
             var typeArguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
@@ -187,7 +186,7 @@ public class JVerifyGhostExpressionCompiler {
             return new MapType(origin, arguments, true);
         }
         if (className.toString().equals(JVerify.CharJSequence.class.getName())) {
-            return new SeqType(origin, List.of(JavaToDafnyCompiler.getChar16Type(origin)));
+            return new SeqType(origin, List.of(BaseDafnyGenerator.getChar16Type(origin)));
         }
         return null;
     }

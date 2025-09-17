@@ -1,7 +1,11 @@
-package com.aws.jverify.verifier.compiler;
+package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
+import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.ModifiableObjectCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
@@ -22,7 +26,7 @@ import java.util.stream.Stream;
 
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
-    public final JavaToDafnyCompiler compiler;
+    public final BaseDafnyGenerator compiler;
     private final VerifyAnnotationCompiler verifyAnnotationCompiler;
     private final Types types;
     private final NameCompiler nameCompiler;
@@ -36,7 +40,7 @@ public class TypeDeclarationCompiler {
 
     private final TraitWithConstructorCompiler traitWithConstructorCompiler;
 
-    public TypeDeclarationCompiler(JavaToDafnyCompiler compiler) {
+    public TypeDeclarationCompiler(BaseDafnyGenerator compiler) {
         this.compiler = compiler;
         index = JVerifyIndex.instance(compiler.context);
         reporter = Reporter.instance(compiler.context);
@@ -85,7 +89,7 @@ public class TypeDeclarationCompiler {
             compiler.reportError(jcTree, "notSupported", "type declaration " + tree.getClass().getSimpleName());
             return List.of();
         } else {
-            throw new JavaToDafnyCompiler.NotImplementedException(tree.getClass().getName());
+            throw new BaseDafnyGenerator.NotImplementedException(tree.getClass().getName());
         }
     }
 
@@ -164,15 +168,15 @@ public class TypeDeclarationCompiler {
                         // A class that extends 'Object' will extend '@Modifiable Object' instead
                         return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectCompiler.REFERENCE_OBJECT_NAME, null));
                     }
-                    return compiler.translateType(type, origin, null);
+                    return compiler.getFinalGenerator().translateType(type, origin, null);
                 })
                 .collect(Collectors.<Type>toList());
 
         if (superTraits.isEmpty()) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
 
-        var mutable = !JavaToDafnyCompiler.isInterface(definingSymbol)
+        var mutable = !BaseDafnyGenerator.isInterface(definingSymbol)
                 || compiler.isAnnotated(definingSymbol.type, Modifiable.class);
         if (mutable) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
@@ -189,7 +193,7 @@ public class TypeDeclarationCompiler {
         boolean createArrayParameter = name.getValue().equals("TCreateArrayElement");
         if (bounds.isEmpty() && !arrayParameter && !createArrayParameter) {
             bounds = bounds.append(new UserDefinedType(origin,
-                    new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+                    new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
         }
         return new TypeParameter(origin,
                 name, null, TPVarianceSyntax.NonVariant_Strict,
@@ -227,10 +231,10 @@ public class TypeDeclarationCompiler {
                 if (block.stats.isEmpty()) {
                     return null;
                 } else {
-                    throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
+                    throw new BaseDafnyGenerator.NotImplementedException(member.getClass().getName());
                 }
             }
-            default -> throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
+            default -> throw new BaseDafnyGenerator.NotImplementedException(member.getClass().getName());
         }
     }
 
@@ -238,7 +242,7 @@ public class TypeDeclarationCompiler {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.translateType(variableDecl.type, 
+        Type type = compiler.getFinalGenerator().translateType(variableDecl.type, 
                 compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
         
@@ -246,20 +250,20 @@ public class TypeDeclarationCompiler {
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer());
                 var isStatic = varFlags.contains(Modifier.STATIC);
-                return new ConstantField(origin, fieldName, null, JavaToDafnyCompiler.Ghostness, type, rhs, isStatic, false);
+                return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
             }
 
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
         }
-        return new Field(origin, fieldName, null, JavaToDafnyCompiler.Ghostness, type);
+        return new Field(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type);
     }
 
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         var methodSymbol = method.sym;
         compiler.symbolsWithAContract.add(methodSymbol);
-        var annotationsByName = JavaToDafnyCompiler.getAnnotationsByName(method.mods);
+        var annotationsByName = BaseDafnyGenerator.getAnnotationsByName(method.mods);
         if (method.body == null) {
             return null;
         }
@@ -296,7 +300,7 @@ public class TypeDeclarationCompiler {
         var blockCompiler = new BlockCompiler(compiler, method.sym);
         var name = compiler.getName(method, method.sym);
         var origin = compiler.declToOrigin(method, name);
-        var isStatic = JavaToDafnyCompiler.isStatic(method.mods);
+        var isStatic = BaseDafnyGenerator.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         applyInvariants(method.mods, method.sym, contract);
@@ -319,7 +323,7 @@ public class TypeDeclarationCompiler {
             }
         }
 
-        if (JavaToDafnyCompiler.isConstructor(method.sym)) {
+        if (BaseDafnyGenerator.isConstructor(method.sym)) {
             DividedBlockStmt body;
             if (shouldVerify) {
                 var treeMaker = TreeMaker.instance(compiler.context);
@@ -345,7 +349,7 @@ public class TypeDeclarationCompiler {
                 body = null;
             }
 
-            return new Constructor(origin, name, null, JavaToDafnyCompiler.Ghostness, 
+            return new Constructor(origin, name, null, BaseDafnyGenerator.Ghostness, 
                     null, dafnyTypeParameters, ins,
                     contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
@@ -361,7 +365,7 @@ public class TypeDeclarationCompiler {
                 bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
             }
             var body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
-            var result = new Method(origin, name, null, JavaToDafnyCompiler.Ghostness, null, dafnyTypeParameters,
+            var result = new Method(origin, name, null, BaseDafnyGenerator.Ghostness, null, dafnyTypeParameters,
                     ins, contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
                     isStatic, outs,
@@ -378,7 +382,7 @@ public class TypeDeclarationCompiler {
 
         var name = compiler.getName(method, method.sym);
         var origin = compiler.declToOrigin(method, name);
-        var isStatic = JavaToDafnyCompiler.isStatic(method.mods);
+        var isStatic = BaseDafnyGenerator.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, sourceOrigin);
         var returnType = compiler.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, shouldVerify);
         if (returnType == null) {
@@ -388,7 +392,7 @@ public class TypeDeclarationCompiler {
         applyInvariants(method.mods, method.sym, contract);
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
 
-        Function result = new Function(origin, name, null, JavaToDafnyCompiler.Ghostness, 
+        Function result = new Function(origin, name, null, BaseDafnyGenerator.Ghostness, 
                 null, dafnyTypeParameters,
                 ins, contract.preconditions, contract.postconditions, contract.getReads(),
                 contract.getDecreases(), isStatic, false, makeReturnFormal(origin, returnType),
@@ -399,7 +403,7 @@ public class TypeDeclarationCompiler {
 
     private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopContract header) {
         boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
-        boolean isStaticMethod = JavaToDafnyCompiler.isStatic(modifiers);
+        boolean isStaticMethod = BaseDafnyGenerator.isStatic(modifiers);
 
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {
@@ -410,7 +414,7 @@ public class TypeDeclarationCompiler {
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                         memberName, null), null, new ActualBindings(List.of()), null);
                 var invariantCall = new AttributedExpression(call, null, null);
-                if (!JavaToDafnyCompiler.isConstructor(methodSymbol)) {
+                if (!BaseDafnyGenerator.isConstructor(methodSymbol)) {
                     header.preconditions.add(invariantCall);
                 }
                 header.postconditions.add(invariantCall);

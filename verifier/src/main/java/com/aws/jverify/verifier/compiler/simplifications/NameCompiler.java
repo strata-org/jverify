@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.IOrigin;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.ModifiableObjectCompiler;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Symtab;
@@ -20,7 +21,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Flow;
 
 /**
  * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness at the Dafny level.

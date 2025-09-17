@@ -1,7 +1,9 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Position;
-import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -52,13 +54,13 @@ public class Driver {
         TypesWithoutErasure.preRegister(context);
         context.put(VerifierOptions.class, verifierOptions);
         
-        var compiler = new JavaToDafnyCompiler(context);
+        var generator = DafnyGenerator.getGenerator(context);
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles);
+        var dafnyEquivalent = new JavaToDafnyCompiler(context, generator).analyzeJavaCode(verifierOptions, readFiles);
         var hasErrors = false;
-        for (var diagnostic : compiler.reporter.diagnostics.getDiagnostics()) {
+        for (var diagnostic : Reporter.instance(context).diagnostics.getDiagnostics()) {
             verificationResults.getJverifyDiagnostics().add(diagnostic);
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 hasErrors = true;
@@ -74,7 +76,7 @@ public class Driver {
                 Files.createDirectories(verifierOptions.printBinaryDafny().getParent());
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
-            runDafnyProcess(compiler.getNameCompiler(), program, verifierOptions, verificationResults);
+            runDafnyProcess(NameCompiler.instance(context), program, verifierOptions, verificationResults);
         }
         return verificationResults;
     }

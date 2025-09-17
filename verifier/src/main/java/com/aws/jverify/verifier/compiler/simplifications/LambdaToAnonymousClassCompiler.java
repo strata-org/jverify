@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
@@ -38,7 +38,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
-        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             super.visitApply(invocation);
         } else {

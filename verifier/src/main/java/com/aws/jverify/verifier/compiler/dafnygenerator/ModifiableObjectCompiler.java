@@ -1,11 +1,11 @@
-package com.aws.jverify.verifier.compiler.simplifications;
+package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.IOrigin;
 import com.aws.jverify.generated.NameSegment;
 import com.aws.jverify.generated.Type;
 import com.aws.jverify.generated.UserDefinedType;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
@@ -30,11 +30,11 @@ import com.sun.tools.javac.util.JCDiagnostic;
 public class ModifiableObjectCompiler {
     public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
     
-    private final JavaToDafnyCompiler compiler;
+    private final BaseDafnyGenerator compiler;
     private final Reporter reporter;
     public final Context context;
 
-    public ModifiableObjectCompiler(JavaToDafnyCompiler compiler) {
+    public ModifiableObjectCompiler(BaseDafnyGenerator compiler) {
         this.compiler = compiler;
         reporter = Reporter.instance(compiler.context);
         context = compiler.context;
@@ -45,7 +45,7 @@ public class ModifiableObjectCompiler {
         
         var mirrors = classType.getAnnotationMirrors();
         var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
-        if (modifiableAnnotation.isPresent() || compiler.isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
+        if (modifiableAnnotation.isPresent() || BaseDafnyGenerator.isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
             } else {
@@ -53,7 +53,7 @@ public class ModifiableObjectCompiler {
             }
         }
         if (classType.tsym == symtab.objectType.tsym) {
-            return new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null));
+            return new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null));
         }
         return null;
     }
@@ -63,7 +63,7 @@ public class ModifiableObjectCompiler {
         var baseType = (UserDefinedType)compiler.translateType(type, compiler.toOrigin(newClass));
         var baseNameSegment = (NameSegment)baseType.getNamePath();
         var baseName = baseNameSegment.getName();
-        if (baseName.contains(JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME)) {
+        if (baseName.contains(BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME)) {
             // 'new Object' should always create a Dafny ModifiableObject
             baseName = REFERENCE_OBJECT_NAME;
         }
