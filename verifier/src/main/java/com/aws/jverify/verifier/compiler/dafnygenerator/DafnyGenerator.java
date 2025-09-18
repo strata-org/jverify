@@ -29,6 +29,8 @@ public interface DafnyGenerator {
                        com.sun.tools.javac.code.Type.ClassType classType);
 
     AssignmentRhs translateNewClassToAssignmentRhs(BlockCompiler blockCompiler, JCTree.JCNewClass newClass, IOrigin origin);
+
+    Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin);
     
     static DafnyGenerator getGenerator(Context context) {
         var base = new BaseDafnyGenerator(context);

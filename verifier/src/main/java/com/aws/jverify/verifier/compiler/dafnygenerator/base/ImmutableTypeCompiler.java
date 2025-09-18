@@ -221,22 +221,22 @@ public class ImmutableTypeCompiler {
      */
     public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
 
-        BaseDafnyGenerator compiler = expressionCompiler.compiler;
+        BaseDafnyGenerator compiler = expressionCompiler.baseGenerator;
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
             typeArgs = compiler.getOwnAndEnclosedTypeParameters(newClass.type.tsym).map(
                     tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
         }
-        typeArgs.addAll(newClass.type.getTypeArguments().map(t -> expressionCompiler.compiler.translateType(t, origin)));
+        typeArgs.addAll(newClass.type.getTypeArguments().map(t -> expressionCompiler.baseGenerator.translateType(t, origin)));
 
-        JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.compiler.context);
+        JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.baseGenerator.context);
         boolean callDatatypeConstructor = isCanonicalRecordConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
             
-        var datatypeName = expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor.enclClass(), origin);
-        var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.compiler.getNameCompiler().getCompiledName(newClass.constructor, origin);
+        var datatypeName = expressionCompiler.baseGenerator.getNameCompiler().getCompiledName(newClass.constructor.enclClass(), origin);
+        var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.baseGenerator.getNameCompiler().getCompiledName(newClass.constructor, origin);
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
-        var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.compiler.getName(newClass, constructorName), null);
+        var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.baseGenerator.getName(newClass, constructorName), null);
 
         return expressionCompiler.createCall(origin, dafnyConstructor, newClass.args.stream());
     }

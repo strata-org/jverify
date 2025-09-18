@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator;
 
-import com.aws.jverify.generated.IOrigin;
-import com.aws.jverify.generated.NameSegment;
-import com.aws.jverify.generated.Type;
-import com.aws.jverify.generated.UserDefinedType;
+import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.sun.tools.javac.code.Symbol;
@@ -11,6 +8,7 @@ import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 public class NullableGenerator extends WrappingDafnyGenerator {
     private final BaseDafnyGenerator baseGenerator;
@@ -69,7 +67,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         var isNullable = isNullable(type, additionalModifiers);
         var immutable = this.baseGenerator.isImmutable((Symbol.ClassSymbol) type.tsym);
         var originalResult = (UserDefinedType) next.translateClassType(origin, additionalModifiers, type);
-        if (immutable) {
+        if (isNullable && immutable) {
             return new UserDefinedType(origin, new NameSegment(origin, "Nullable", List.of(originalResult)));
         } else {
             return addQuestionMarkToUserDefinedType(originalResult, isNullable);
@@ -83,4 +81,18 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     private boolean isNullable(com.sun.tools.javac.code.Type type) {
         return BaseDafnyGenerator.isAnnotated(type, com.aws.jverify.Nullable.class);
     }
+
+    @Override
+    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin) {
+        var immutable = expr.type.tsym instanceof Symbol.ClassSymbol classSymbol &&
+                this.baseGenerator.isImmutable(classSymbol);
+        if (immutable && literal.getValue() == null) {
+            var type = baseGenerator.translateType(expr.type, origin);
+            return baseGenerator.expressionCompiler.createCall(origin, 
+                    new NameSegment(origin, "Null", List.of(type)), Stream.empty());
+        }
+        return super.translateLiteral(expr, literal, origin);
+    }
+    
+    
 }

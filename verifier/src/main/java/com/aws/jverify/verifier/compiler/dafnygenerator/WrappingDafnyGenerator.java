@@ -48,4 +48,9 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     public AssignmentRhs translateNewClassToAssignmentRhs(BlockCompiler blockCompiler, JCTree.JCNewClass newClass, IOrigin origin) {
         return next.translateNewClassToAssignmentRhs(blockCompiler, newClass, origin);
     }
+
+    @Override
+    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin) {
+        return next.translateLiteral(expr, literal, origin);
+    }
 }

@@ -522,6 +522,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return blockCompiler.translateNewClassToAssignmentRhs(newClass, origin);
     }
 
+    @Override
+    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin) {
+        return expressionCompiler.translateLiteral(expr, literal, origin);
+    }
+
     /**
      * If the specified tree represents a primitive type,
      * returns the corresponding {@link TypeKind},
