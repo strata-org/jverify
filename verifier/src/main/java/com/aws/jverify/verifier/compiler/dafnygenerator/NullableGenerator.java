@@ -6,24 +6,27 @@ import com.aws.jverify.generated.Type;
 import com.aws.jverify.generated.UserDefinedType;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.List;
+
 public class NullableGenerator extends WrappingDafnyGenerator {
-    private final BaseDafnyGenerator bottomGenerator;
+    private final BaseDafnyGenerator baseGenerator;
     private final Reporter reporter;
     
-    public NullableGenerator(BaseDafnyGenerator bottomGenerator, DafnyGenerator next) {
+    public NullableGenerator(BaseDafnyGenerator baseGenerator, DafnyGenerator next) {
         super(next);
-        this.bottomGenerator = bottomGenerator;
-        reporter = bottomGenerator.reporter;
+        this.baseGenerator = baseGenerator;
+        reporter = baseGenerator.reporter;
     }
 
     @Override
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
 
         var isNullable = isNullable(type, additionalModifiers);
-        var primitiveTypeKind = bottomGenerator.toPrimitiveType(type);
+        var primitiveTypeKind = baseGenerator.toPrimitiveType(type);
         if (primitiveTypeKind != null && isNullable) {
             reporter.reportError(origin, "notSupported", "nullable primitive type");
         }
@@ -48,10 +51,10 @@ public class NullableGenerator extends WrappingDafnyGenerator {
                                               JCTree.JCModifiers additionalModifiers) {
         var isNullable = isNullable(arrayType, additionalModifiers);
         var result = super.translateArrayType(arrayType, origin, additionalModifiers);
-        return makeUserDefinedTypeNullable(result, isNullable);
+        return addQuestionMarkToUserDefinedType(result, isNullable);
     }
 
-    private static UserDefinedType makeUserDefinedTypeNullable(UserDefinedType original, boolean nullable) {
+    private static UserDefinedType addQuestionMarkToUserDefinedType(UserDefinedType original, boolean nullable) {
         if (!nullable) {
             return original;
         }
@@ -64,13 +67,13 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     @Override
     public Type translateClassType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ClassType type) {
         var isNullable = isNullable(type, additionalModifiers);
-        if (BaseDafnyGenerator.isRecord(type) && isNullable) {
-            reporter.reportError(origin, "notSupported", "nullable record type");
-            return null;
-        }
-        
+        var immutable = this.baseGenerator.isImmutable((Symbol.ClassSymbol) type.tsym);
         var originalResult = (UserDefinedType) next.translateClassType(origin, additionalModifiers, type);
-        return makeUserDefinedTypeNullable(originalResult, isNullable);
+        if (immutable) {
+            return new UserDefinedType(origin, new NameSegment(origin, "Nullable", List.of(originalResult)));
+        } else {
+            return addQuestionMarkToUserDefinedType(originalResult, isNullable);
+        }
     }
 
     private boolean isNullable(JCTree.JCModifiers modifiers) {
