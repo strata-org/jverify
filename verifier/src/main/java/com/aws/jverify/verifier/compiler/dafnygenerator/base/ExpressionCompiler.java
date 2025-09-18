@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.dafnygenerator.JVerifyGhostExpressionCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -165,7 +164,7 @@ public class ExpressionCompiler {
                 return translateLiteral(expr, literal, origin);
             }
             case JCTree.JCMethodInvocation invocation -> {
-                return translateMethodInvocation(invocation, origin);
+                return compiler.getFinalGenerator().translateMethodInvocation(invocation, origin);
             }
             case JCTree.JCFieldAccess fieldAccess -> {
                 return translateFieldAccess(fieldAccess, origin);
@@ -354,12 +353,7 @@ public class ExpressionCompiler {
         }
     }
 
-    private Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
-        var jverifyMethodExpr = new JVerifyGhostExpressionCompiler(this).jverifyLibMethodToExpr(invocation);
-        if (jverifyMethodExpr != null) {
-            return jverifyMethodExpr;
-        }
-
+    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
         var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
 
         if (!((invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) ||

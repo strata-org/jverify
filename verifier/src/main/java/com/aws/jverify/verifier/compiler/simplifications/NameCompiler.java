@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.IOrigin;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.ModifiableObjectCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.ModifiableObjectGenerator;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Symtab;
@@ -134,7 +134,7 @@ public class NameCompiler extends TreeScanner {
 
     private String getClassName(Symbol.ClassSymbol classSymbol) {
         if (classSymbol.type == symtab.objectType) {
-            return ModifiableObjectCompiler.REFERENCE_OBJECT_NAME;
+            return ModifiableObjectGenerator.REFERENCE_OBJECT_NAME;
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
         var hasEmptyDotName = classSymbol.isAnonymous();

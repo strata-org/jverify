@@ -5,7 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.ModifiableObjectCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.ModifiableObjectGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
@@ -166,7 +166,7 @@ public class TypeDeclarationCompiler {
                 .map((com.sun.tools.javac.code.Type type) -> {
                     if (type.baseType() == symtab.objectType) {
                         // A class that extends 'Object' will extend '@Modifiable Object' instead
-                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectCompiler.REFERENCE_OBJECT_NAME, null));
+                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectGenerator.REFERENCE_OBJECT_NAME, null));
                     }
                     return compiler.getFinalGenerator().translateType(type, origin, null);
                 })

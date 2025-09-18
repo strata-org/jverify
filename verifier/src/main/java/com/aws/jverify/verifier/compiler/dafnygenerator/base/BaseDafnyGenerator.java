@@ -141,6 +141,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return new FilesContainer(filesStarts);
     }
 
+    @Override
+    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
+        return expressionCompiler.translateMethodInvocation(invocation, origin);
+    }
+
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
         var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();
@@ -515,6 +520,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
         }
         return new UserDefinedType(origin, new NameSegment(origin, compiledName, typeArguments));
+    }
+
+    @Override
+    public AssignmentRhs translateNewClassToAssignmentRhs(BlockCompiler blockCompiler, JCTree.JCNewClass newClass, IOrigin origin) {
+        return blockCompiler.toAssignmentRhs(newClass, origin);
     }
 
     /**

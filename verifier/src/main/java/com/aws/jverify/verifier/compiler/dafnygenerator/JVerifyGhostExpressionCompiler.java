@@ -13,13 +13,34 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-public class JVerifyGhostExpressionCompiler {
+public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     final ExpressionCompiler expressionCompiler;
-    final BaseDafnyGenerator compiler;
+    final BaseDafnyGenerator baseGenerator;
 
-    public JVerifyGhostExpressionCompiler(ExpressionCompiler expressionCompiler) {
-        this.expressionCompiler = expressionCompiler;
-        this.compiler = expressionCompiler.compiler;
+    public JVerifyGhostExpressionCompiler(DafnyGenerator next, 
+                                          BaseDafnyGenerator baseGenerator) {
+        super(next);
+        this.baseGenerator = baseGenerator;
+        this.expressionCompiler = baseGenerator.expressionCompiler;
+    }
+
+    @Override
+    public Type translateClassType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ClassType classType) {
+        var builtinType = translateClassType(classType, origin);
+        if (builtinType != null) {
+            return builtinType;
+        }
+        return next.translateClassType(origin, additionalModifiers, classType);
+    }
+
+    @Override
+    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
+        // TODO inline jverifyLibMethodToExpr?
+        var jverifyMethodExpr = jverifyLibMethodToExpr(invocation);
+        if (jverifyMethodExpr != null) {
+            return jverifyMethodExpr;
+        }
+        return super.translateMethodInvocation(invocation, origin);
     }
 
     /**
@@ -38,7 +59,7 @@ public class JVerifyGhostExpressionCompiler {
             return null;
         }
 
-        var origin = compiler.toOrigin(invocation);
+        var origin = baseGenerator.toOrigin(invocation);
         var receiver = invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
                 ? fieldAccess.selected
                 : null;
@@ -50,13 +71,13 @@ public class JVerifyGhostExpressionCompiler {
                     throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
                 }
                 if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-                    compiler.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+                    baseGenerator.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
                     return BaseDafnyGenerator.getHole(origin);
                 }
                 var boundVars = lambda.params.stream().map(param -> {
-                    var paramOrigin = compiler.toOrigin(lambda);
+                    var paramOrigin = baseGenerator.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = compiler.getFinalGenerator().translateType(param.getType().type, paramOrigin, param.getModifiers());
+                    var paramType = baseGenerator.getFinalGenerator().translateType(param.getType().type, paramOrigin, param.getModifiers());
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = expressionCompiler.toExpr(lambda.getBody());
@@ -131,7 +152,7 @@ public class JVerifyGhostExpressionCompiler {
             }
         }
 
-        compiler.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
+        baseGenerator.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
         return BaseDafnyGenerator.getHole(origin);
     }
 
@@ -147,18 +168,18 @@ public class JVerifyGhostExpressionCompiler {
             throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
         }
         if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-            compiler.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+            baseGenerator.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
             return null;
         }
         var parameter = lambda.params.getFirst();
         var paramName = parameter.getName().toString();
-        var type = compiler.getFinalGenerator().translateType(parameter.type, compiler.toOrigin(parameter), null);
+        var type = baseGenerator.getFinalGenerator().translateType(parameter.type, baseGenerator.toOrigin(parameter), null);
         var boundVar = new BoundVar(origin, new Name(origin, paramName), type, false);
-        var body = compiler.expressionCompiler.toExpr(lambda.getBody());
+        var body = baseGenerator.expressionCompiler.toExpr(lambda.getBody());
         if ("all".equals(methodName)) {
             return new SetComprehension(origin, List.of(boundVar), body, new IdentifierExpr(origin, paramName), null, true);
         } else {
-            var source = compiler.expressionCompiler.toExpr(receiver);
+            var source = baseGenerator.expressionCompiler.toExpr(receiver);
             var range = new BinaryExpr(origin, BinaryExprOpcode.In, new IdentifierExpr(origin, paramName), source);
             return new SetComprehension(origin, List.of(boundVar), range, body, null, true);
         }
@@ -171,18 +192,18 @@ public class JVerifyGhostExpressionCompiler {
     public Type translateClassType(com.sun.tools.javac.code.Type.ClassType classType, IOrigin origin) {
         var className = classType.asElement().flatName();
         if (className.toString().equals(JVerify.Sequence.class.getName())) {
-            var typeArguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
+            var typeArguments = classType.getTypeArguments().stream().map(a -> baseGenerator.translateType(a, origin)).toList();
             if (typeArguments.stream().anyMatch(Objects::isNull)) {
                 return null;
             }
             return new SeqType(origin, typeArguments);
         }
         if (className.toString().equals(JVerify.Set.class.getName())) {
-            var arguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
+            var arguments = classType.getTypeArguments().stream().map(a -> baseGenerator.translateType(a, origin)).toList();
             return new SetType(origin, arguments, true);
         }
         if (className.toString().equals(JVerify.Map.class.getName())) {
-            var arguments = classType.getTypeArguments().stream().map(a -> compiler.translateType(a, origin)).toList();
+            var arguments = classType.getTypeArguments().stream().map(a -> baseGenerator.translateType(a, origin)).toList();
             return new MapType(origin, arguments, true);
         }
         if (className.toString().equals(JVerify.CharJSequence.class.getName())) {

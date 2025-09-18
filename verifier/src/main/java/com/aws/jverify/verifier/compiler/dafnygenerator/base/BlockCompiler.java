@@ -50,13 +50,13 @@ public class BlockCompiler {
         var labels = this.labels.stream().toList();
         this.labels.clear();
 
-        for(var compiler : statementCompilers) {
+        for (var compiler : statementCompilers) {
             var result = compiler.compile(statement, labels);
             if (result != null) {
                 return result;
             }
         }
-        
+
         switch (statement) {
             case JCTree.JCExpressionStatement expressionStatement -> {
                 return translateExpressionStatement(expressionStatement, originOverride);
@@ -138,7 +138,7 @@ public class BlockCompiler {
             var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.RETURN_VARIABLE_NAME, null);
             var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
             var returnStmt = new ReturnStmt(origin, null, null);
-            return List.of(assignment,returnStmt);
+            return List.of(assignment, returnStmt);
         }
     }
 
@@ -176,7 +176,7 @@ public class BlockCompiler {
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
         var origin = compiler.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = methodOrLoopContractCompiler.extractContract(compiler, (JCTree.JCBlock)body, header);
+        var postHeader = methodOrLoopContractCompiler.extractContract(compiler, (JCTree.JCBlock) body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -193,7 +193,7 @@ public class BlockCompiler {
         checkEmptyExpressions(loop, header.postconditions, "postconditions", "loop");
 
         outerLoop = loop;
-        for(var label : labels) {
+        for (var label : labels) {
             labelToLoop.put(label.getName(), loop);
         }
     }
@@ -293,7 +293,8 @@ public class BlockCompiler {
             // A switch rule introduces either an expression, a block, or a throw statement.
             // Within a switch statement, a switch rule expression must be a statement expression.
             List<Statement> translatedBody = switch (body) {
-                case null -> List.of(); // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
+                case null ->
+                        List.of(); // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
                 case JCTree.JCExpressionStatement bodyStatement -> translateStatement(bodyStatement);
                 case JCTree.JCBlock bodyBlock -> translateStatement(bodyBlock);
                 case JCTree.JCThrow ignored -> {
@@ -338,7 +339,7 @@ public class BlockCompiler {
      * Returns the specified statement as-is if it's already a {@link BlockStmt},
      * or wraps it in a singleton block otherwise.
      */
-    public static BlockStmt blockifyStatements(IOrigin origin,  List<Statement> statements) {
+    public static BlockStmt blockifyStatements(IOrigin origin, List<Statement> statements) {
         if (statements.isEmpty()) {
             return new BlockStmt(origin, null, List.of(), statements);
         }
@@ -346,7 +347,6 @@ public class BlockCompiler {
                 ? block
                 : new BlockStmt(origin, null, List.of(), statements);
     }
-
 
 
     public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr) {
@@ -357,23 +357,7 @@ public class BlockCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                Symtab symtab = Symtab.instance(compiler.context);
-                if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType) {
-                    throw new RuntimeException("not supported. should have already been lowered");
-                }
-                Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-                if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
-                    var datatypeValue = ImmutableTypeCompiler.translateNewRecord(expressionCompiler, origin, newClass);
-                    return new ExprRhs(origin, null, datatypeValue);
-                }
-                NameSegment classBaseType = new ModifiableObjectCompiler(compiler).getNewClassType(newClass);
-
-                String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor, origin);
-                Name ctorName = new Name(origin, ctorNameStr);
-                var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName,null));
-
-                var argBindings = expressionCompiler.createBindings(newClass.getArguments().stream().map(expressionCompiler::toExpr));
-                return new AllocateClass(origin, null, ty, argBindings);
+                return translateNewClassToAssignmentRhs(newClass, origin);
             }
             case JCTree.JCNewArray _ -> {
                 throw new RuntimeException("not supported. should have already been lowered");
@@ -384,4 +368,40 @@ public class BlockCompiler {
         var dafnyExpr = expressionCompiler.toExpr(expr, originOverride);
         return new ExprRhs(origin, null, dafnyExpr);
     }
+
+    private AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin) {
+        Symtab symtab = Symtab.instance(compiler.context);
+        if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType) {
+            throw new RuntimeException("not supported. should have already been lowered");
+        }
+        Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
+        if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
+            var datatypeValue = ImmutableTypeCompiler.translateNewRecord(expressionCompiler, origin, newClass);
+            return new ExprRhs(origin, null, datatypeValue);
+        }
+        NameSegment classBaseType = getNewClassType(newClass);
+
+        String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor, origin);
+        Name ctorName = new Name(origin, ctorNameStr);
+        var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
+
+        var argBindings = ExpressionCompiler.createBindings(newClass.getArguments().stream().map(expressionCompiler::toExpr));
+        return new AllocateClass(origin, null, ty, argBindings);
+    }
+
+    private NameSegment getNewClassType(JCTree.JCNewClass newClass) {
+        var baseType = (UserDefinedType) compiler.translateType(newClass.type, compiler.toOrigin(newClass));
+        var baseNameSegment = (NameSegment)baseType.getNamePath();
+        var baseName = baseNameSegment.getName();
+        return new NameSegment(baseNameSegment.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseName,
+                baseNameSegment.getOptTypeArguments());
+    }
+}
+
+class Static1 {
+    static int y = Static2.x; 
+}
+
+class Static2 {
+    static int x = Static1.y;
 }
