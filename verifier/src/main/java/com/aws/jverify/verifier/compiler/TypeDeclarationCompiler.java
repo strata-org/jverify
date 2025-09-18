@@ -227,7 +227,8 @@ public class TypeDeclarationCompiler {
                 if (block.stats.isEmpty()) {
                     return null;
                 } else {
-                    throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
+                    compiler.reportError(block, "notSupported", "an initializer block");
+                    return null;
                 }
             }
             default -> throw new JavaToDafnyCompiler.NotImplementedException(member.getClass().getName());
