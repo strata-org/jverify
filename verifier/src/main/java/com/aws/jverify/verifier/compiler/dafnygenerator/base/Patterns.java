@@ -23,7 +23,7 @@ public class Patterns {
      * such as if the input tree uses unsupported features.
      */
     @Nullable
-    public List<SwitchLabelPatternAndBody> translateSwitchLabels(JCTree switchTree) {
+    public List<SwitchLabelPatternAndBody> translateSwitchLabels(JCTree switchTree, ExpressionContext expressionContext) {
         // JCTree is the first common superclass of JCSwitch and JCSwitchExpression,
         // so we settle for dynamically checking that the argument is one of them.
         var cases = switch (switchTree) {
@@ -34,14 +34,14 @@ public class Patterns {
         };
 
         return cases.stream()
-                .map(cas -> new SwitchLabelPatternAndBody(cas, translateSwitchLabel(cas), cas.getBody()))
+                .map(cas -> new SwitchLabelPatternAndBody(cas, translateSwitchLabel(cas, expressionContext), cas.getBody()))
                 .toList();
     }
 
     /**
      * Translates the given switch label into a pattern.
      */
-    private ExtendedPattern translateSwitchLabel(JCTree.JCCase cas) {
+    private ExtendedPattern translateSwitchLabel(JCTree.JCCase cas, ExpressionContext context) {
 
         // A switch block consists of either *switch rules* (label -> body)
         // or *switch labeled statement groups* (label: {label:} stmts).
@@ -66,7 +66,7 @@ public class Patterns {
                 .findFirst();
 
         if (caseConstants.nonEmpty()) {
-            var literals = caseConstants.stream().map(this::translateCaseConstant).toList();
+            var literals = caseConstants.stream().map(c -> this.translateCaseConstant(c, context)).toList();
             return new DisjunctivePattern(compiler.toOrigin(cas), false, literals);
         } else if (defaultLabel.isPresent()) {
             return makeWildPattern(compiler.toOrigin(defaultLabel.get()));
@@ -80,11 +80,11 @@ public class Patterns {
     /**
      * Translates the given switch label case constant into a pattern.
      */
-    private ExtendedPattern translateCaseConstant(JCTree.JCExpression expr) {
+    private ExtendedPattern translateCaseConstant(JCTree.JCExpression expr, ExpressionContext context) {
         var origin = compiler.toOrigin(expr);
         final LiteralExpr litExpr;
         if (expr instanceof JCTree.JCLiteral) {
-            litExpr = (LiteralExpr)compiler.expressionCompiler.toExpr(expr);
+            litExpr = (LiteralExpr)compiler.expressionCompiler.toExpr(expr, context);
         } else {
             compiler.reportError(expr, "notSupported", "non-literal case constant");
             litExpr = BaseDafnyGenerator.getHole(origin);

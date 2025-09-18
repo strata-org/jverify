@@ -4,6 +4,7 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 
@@ -17,15 +18,16 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
     }
 
     @Override
-    public @Nullable List<Statement> compile(JCTree.JCStatement statement, List<Label> labels) {
+    public @Nullable List<Statement> compile(JCTree.JCStatement statement, List<Label> labels, ExpressionContext context) {
+        context = context.forbidImpure();
         if (statement instanceof JCTree.JCExpressionStatement expressionStatement) {
             var expr = expressionStatement.getExpression();
             switch (expr) {
                 case JCTree.JCAssignOp assignOp -> {
-                    return translateAssignOp(assignOp);
+                    return translateAssignOp(assignOp, context);
                 }
                 case JCTree.JCUnary unary -> {
-                    return translateUnaryExpressionStatement(unary);
+                    return translateUnaryExpressionStatement(unary, context);
                 }
                 default -> {}
             }
@@ -34,7 +36,7 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
     }
 
 
-    private List<Statement> translateUnaryExpressionStatement(JCTree.JCUnary unary) {
+    private List<Statement> translateUnaryExpressionStatement(JCTree.JCUnary unary, ExpressionContext context) {
         var origin = blockCompiler.generator.toOrigin(unary);
         var tag = unary.getTag();
         switch (tag) {
@@ -43,7 +45,7 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
                     blockCompiler.generator.reportError(unary, "notSupported", "operator " + unary.getOperator());
                     return List.of();
                 } else {
-                    Expression target = blockCompiler.generator.expressionCompiler.toExpr(unary.getExpression());
+                    Expression target = blockCompiler.generator.expressionCompiler.toExpr(unary.getExpression(), context);
                     List<Expression> lhss = List.of(target);
 
                     var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
@@ -61,13 +63,13 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
         }
     }
 
-    private List<Statement> translateAssignOp(JCTree.JCAssignOp assignOp) {
+    private List<Statement> translateAssignOp(JCTree.JCAssignOp assignOp, ExpressionContext context) {
         var origin = blockCompiler.generator.toOrigin(assignOp);
-        Expression target = blockCompiler.generator.expressionCompiler.toExpr(assignOp.getVariable());
+        Expression target = blockCompiler.generator.expressionCompiler.toExpr(assignOp.getVariable(), context);
         List<Expression> lhss = List.of(target);
         var operated = blockCompiler.generator.expressionCompiler.translateBinary(
                 assignOp, assignOp.getVariable().type, null,
-                assignOp.getOperator(), target, blockCompiler.generator.expressionCompiler.toExpr(assignOp.getExpression()));
+                assignOp.getOperator(), target, blockCompiler.generator.expressionCompiler.toExpr(assignOp.getExpression(), context));
         List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }

@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -61,10 +62,10 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      * not here.
      */
     @Override
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
+    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
-            return super.translateMethodInvocation(invocation, origin);
+            return super.translateMethodInvocation(invocation, origin, context);
         }
         
         var receiver = invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
@@ -87,7 +88,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                     var paramType = baseGenerator.getFinalGenerator().translateType(param.getType().type, paramOrigin, param.getModifiers());
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
-                var body = expressionCompiler.toExpr(lambda.getBody());
+                var body = expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
                 if (body == null) {
                     return null;
                 }
@@ -102,11 +103,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 assert args.size() == 1;
                 var array = args.get(0);
                 NameSegment callee = new NameSegment(origin, "toSequence", null);
-                return expressionCompiler.createCall(origin, callee, Stream.of(array));
+                return expressionCompiler.createCall(origin, callee, Stream.of(array), ExpressionContext.Pure);
             }
             case "get" -> {
-                var seq = expressionCompiler.toExpr(receiver);
-                var index = expressionCompiler.toExpr(args.getFirst());
+                var seq = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
+                var index = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
                 return new SeqSelectExpr(origin, true, seq, index, null, null);
             }
             case "drop" -> {
@@ -119,42 +120,42 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 return toSubsequence(origin, receiver, args.get(0), args.get(1));
             }
             case "concat" -> {
-                var left = expressionCompiler.toExpr(receiver);
-                var right = expressionCompiler.toExpr(args.getFirst());
+                var left = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
+                var right = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
                 return new BinaryExpr(origin, BinaryExprOpcode.Add, left, right);
             }
             case "contains" -> {
-                var element = expressionCompiler.toExpr(args.getFirst());
-                var collection = expressionCompiler.toExpr(receiver);
+                var element = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                var collection = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
                 return new BinaryExpr(origin, BinaryExprOpcode.In, element, collection);
             }
             case "size" -> {
-                var collection = expressionCompiler.toExpr(receiver);
+                var collection = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
                 return new UnaryOpExpr(origin, collection, UnaryOpExprOpcode.Cardinality);
             }
             case "entries" -> {
-                var collection = expressionCompiler.toExpr(receiver);
+                var collection = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
                 return new ExprDotName(origin, collection, new Name(origin, "Items"), null);
             }
             case "old" -> {
-                var element = expressionCompiler.toExpr(args.getFirst());
+                var element = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
                 return new OldExpr(origin, element, null);
             }
             case "fresh" -> {
-                var element = expressionCompiler.toExpr(args.getFirst());
+                var element = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
                 return new FreshExpr(origin, element, null);
             }
             case "implies" -> {
-                var antecedent = expressionCompiler.toExpr(args.getFirst());
-                var consequent = expressionCompiler.toExpr(args.get(1));
+                var antecedent = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                var consequent = expressionCompiler.toExpr(args.get(1), ExpressionContext.Pure);
                 return new BinaryExpr(origin, BinaryExprOpcode.Imp, antecedent, consequent);
             }
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
             }
             case "jequals" -> {
-                var left = expressionCompiler.toExpr(args.getFirst());
-                var right = expressionCompiler.toExpr(args.get(1));
+                var left = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                var right = expressionCompiler.toExpr(args.get(1), ExpressionContext.Pure);
                 return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
             }
         }
@@ -164,9 +165,9 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     }
 
     private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
-        var seqOrArrayExpr = expressionCompiler.toExpr(seqOrArray);
-        var loExpr = lo == null ? null : expressionCompiler.toExpr(lo);
-        var hiExpr = hi == null ? null : expressionCompiler.toExpr(hi);
+        var seqOrArrayExpr = expressionCompiler.toExpr(seqOrArray, ExpressionContext.Pure);
+        var loExpr = lo == null ? null : expressionCompiler.toExpr(lo, ExpressionContext.Pure);
+        var hiExpr = hi == null ? null : expressionCompiler.toExpr(hi, ExpressionContext.Pure);
         return new SeqSelectExpr(origin, false, seqOrArrayExpr, loExpr, hiExpr, null);
     }
 
@@ -182,11 +183,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         var paramName = parameter.getName().toString();
         var type = baseGenerator.getFinalGenerator().translateType(parameter.type, baseGenerator.toOrigin(parameter), null);
         var boundVar = new BoundVar(origin, new Name(origin, paramName), type, false);
-        var body = baseGenerator.expressionCompiler.toExpr(lambda.getBody());
+        var body = baseGenerator.expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
         if ("all".equals(methodName)) {
             return new SetComprehension(origin, List.of(boundVar), body, new IdentifierExpr(origin, paramName), null, true);
         } else {
-            var source = baseGenerator.expressionCompiler.toExpr(receiver);
+            var source = baseGenerator.expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
             var range = new BinaryExpr(origin, BinaryExprOpcode.In, new IdentifierExpr(origin, paramName), source);
             return new SetComprehension(origin, List.of(boundVar), range, body, null, true);
         }

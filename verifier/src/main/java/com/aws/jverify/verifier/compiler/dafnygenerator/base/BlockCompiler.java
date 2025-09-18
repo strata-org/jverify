@@ -6,9 +6,7 @@ import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.dafnygenerator.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -50,53 +48,60 @@ public class BlockCompiler {
         var labels = this.labels.stream().toList();
         this.labels.clear();
 
+
+        List<Statement> statements = new ArrayList<>();
+        var expressionContext = new ExpressionContext(statements::add, true);
+        
         for (var compiler : statementCompilers) {
-            var result = compiler.compile(statement, labels);
+            var result = compiler.compile(statement, labels, expressionContext);
             if (result != null) {
                 return result;
             }
         }
 
-        switch (statement) {
+        List<Statement> rhsStatements = switch (statement) {
             case JCTree.JCExpressionStatement expressionStatement -> {
-                return translateExpressionStatement(expressionStatement, originOverride);
+                yield translateExpressionStatement(expressionStatement, originOverride, expressionContext);
             }
             case JCTree.JCAssert assertStmt -> {
-                return List.of(new AssertStmt(origin, null, expressionCompiler.toExpr(assertStmt.getCondition()), null));
+                yield List.of(new AssertStmt(origin, null, expressionCompiler.toExpr(assertStmt.getCondition(), expressionContext), null));
             }
             case JCTree.JCIf ifStatement -> {
-                return translateIfStatement(ifStatement);
+                yield translateIfStatement(ifStatement, expressionContext);
             }
             case JCTree.JCBlock blockStatement -> {
-                return List.of(new BlockStmt(origin, null, List.of(),
+                yield List.of(new BlockStmt(origin, null, List.of(),
                         translateStatements(blockStatement.getStatements())));
             }
             case JCTree.JCReturn returnStatement -> {
-                return translateReturn(returnStatement);
+                yield translateReturn(returnStatement, expressionContext);
             }
             case JCTree.JCVariableDecl variableDecl -> {
-                return translateVariableDeclaration(origin, variableDecl);
+                yield translateVariableDeclaration(origin, variableDecl, expressionContext);
             }
             case JCTree.JCWhileLoop whileLoop -> {
-                return List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x));
+                yield List.of(translateLoop(whileLoop, whileLoop.getCondition(), whileLoop.body, labels, x -> x, expressionContext));
             }
             case JCTree.JCContinue jcContinue -> {
-                return translateContinue(jcContinue);
+                yield translateContinue(jcContinue);
             }
             case JCTree.JCBreak jcBreak -> {
-                return translateBreak(jcBreak);
+                yield translateBreak(jcBreak);
             }
             case JCTree.JCSwitch jcSwitch -> {
-                return translateSwitchStatement(jcSwitch);
+                yield translateSwitchStatement(jcSwitch, expressionContext);
             }
             case JCTree.JCSkip _ -> {
-                return List.of();
+                yield List.of();
             }
             default -> {
+                generator.reportError(statement, "notSupported", "statement " + statement.getClass().getSimpleName());
+                yield List.of();
             }
-        }
-        generator.reportError(statement, "notSupported", "statement " + statement.getClass().getSimpleName());
-        return List.of();
+        };
+        
+        statements.addAll(rhsStatements);
+        return statements;
     }
 
     private List<Statement> translateBreak(JCTree.JCBreak jcBreak) {
@@ -121,30 +126,20 @@ public class BlockCompiler {
         }
     }
 
-    private List<Statement> translateReturn(JCTree.JCReturn returnStatement) {
+    private List<Statement> translateReturn(JCTree.JCReturn returnStatement, ExpressionContext expressionContext) {
         var origin = generator.toOrigin(returnStatement);
         var expr = returnStatement.getExpression();
         if (expr == null) {
             return List.of(new ReturnStmt(origin, null, null));
         } else {
-            // Replace
-            //   return e;
-            // by
-            //   var tmp := e;
-            //   return tmp;
-            // so that we can have allocation in e.
-            var exprOrigin = generator.toOrigin(expr);
-            var returnExpr = toAssignmentRhs(expr);
-            var newLocalVarExpr = new NameSegment(exprOrigin, generator.nameCompiler.RETURN_VARIABLE_NAME, null);
-            var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
-            var returnStmt = new ReturnStmt(origin, null, null);
-            return List.of(assignment, returnStmt);
+            var returnExpr = toAssignmentRhs(expr, expressionContext);
+            return List.of(new ReturnStmt(origin, null, List.of(returnExpr)));
         }
     }
 
-    private List<Statement> translateIfStatement(JCTree.JCIf ifStatement) {
+    private List<Statement> translateIfStatement(JCTree.JCIf ifStatement, ExpressionContext expressionContext) {
         var origin = generator.toOrigin(ifStatement);
-        var condition = expressionCompiler.toExpr(ifStatement.getCondition());
+        var condition = expressionCompiler.toExpr(ifStatement.getCondition(), expressionContext);
         var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
         BlockStmt elseBranch = null;
         if (ifStatement.getElseStatement() != null) {
@@ -154,13 +149,13 @@ public class BlockCompiler {
                 thenBranch, elseBranch));
     }
 
-    private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
+    private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl, ExpressionContext expressionContext) {
         Type translatedType = generator.getFinalGenerator().translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
         LocalVariable localVariable = new LocalVariable(origin, generator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
-            var rhs = toAssignmentRhs(variableDecl.getInitializer());
+            var rhs = toAssignmentRhs(variableDecl.getInitializer(), expressionContext);
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
             dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
@@ -173,14 +168,15 @@ public class BlockCompiler {
                                    JCTree.JCExpression condition,
                                    JCTree.JCStatement body,
                                    List<Label> labels,
-                                   java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
+                                   java.util.function.Function<List<Statement>, List<Statement>> transformBody, 
+                                   ExpressionContext expressionContext) {
         var origin = generator.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
         var postHeader = methodOrLoopContractCompiler.extractContract(generator, (JCTree.JCBlock) body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
-        var dafnyCondition = expressionCompiler.toExpr(condition);
+        var dafnyCondition = expressionCompiler.toExpr(condition, expressionContext);
         var bodyStatements = translateStatements(postHeader);
         var newBodyStatements = transformBody.apply(bodyStatements);
         return new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
@@ -198,14 +194,14 @@ public class BlockCompiler {
         }
     }
 
-    private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride) {
+    private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride, ExpressionContext expressionContext) {
         var expr = statement.getExpression();
         switch (expr) {
             case JCTree.JCMethodInvocation invocation -> {
-                return translateStatementMethodInvocation(invocation);
+                return translateStatementMethodInvocation(invocation, expressionContext);
             }
             case JCTree.JCAssign assign -> {
-                return translateAssign(assign, originOverride);
+                return translateAssign(assign, originOverride, expressionContext);
             }
             default -> {
                 generator.reportError(statement, "notSupported", "expression statement with expr " + expr.getClass().getSimpleName());
@@ -214,30 +210,31 @@ public class BlockCompiler {
         }
     }
 
-    private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride) {
+    private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride, ExpressionContext expressionContext) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> generator.toOrigin(assign));
-        List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), originOverride));
-        List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride));
+        List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), origin, expressionContext));
+        List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride, expressionContext));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
 
-    private List<Statement> translateStatementMethodInvocation(JCTree.JCMethodInvocation invocation) {
+    private List<Statement> translateStatementMethodInvocation(JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext) {
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod != null) {
-            return translateJVerifyMethodInvocation(invocation, jverifyMethod);
+            return translateJVerifyMethodInvocation(invocation, jverifyMethod, expressionContext);
         } else {
-            return translateVanillaJavaMethodInvocation(invocation);
+            return translateVanillaJavaMethodInvocation(invocation, expressionContext);
         }
     }
 
-    private List<Statement> translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation, Symbol.MethodSymbol jverifyMethod) {
+    private List<Statement> translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation, 
+                                                             Symbol.MethodSymbol jverifyMethod, ExpressionContext expressionContext) {
         var name = jverifyMethod.getQualifiedName().toString();
         if (name.equals("check")) {
             if (invocation.args.size() != 1) {
                 throw new JavaViolationException("Check should have a single argument");
             }
             return List.of(new AssertStmt(generator.toOrigin(invocation), null,
-                    expressionCompiler.toExpr(invocation.args.getFirst()), null));
+                    expressionCompiler.toExpr(invocation.args.getFirst(), expressionContext), null));
         } else {
             if (BaseDafnyGenerator.isConstructor(methodSymbol)) {
                 generator.reportError(invocation, "contractForConstructor");
@@ -248,7 +245,7 @@ public class BlockCompiler {
         }
     }
 
-    private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
+    private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext) {
         var origin = generator.toOrigin(invocation);
         var superIdent = getSuperIdent(invocation);
         com.sun.tools.javac.util.List<JCTree.JCExpression> javaArguments = invocation.getArguments();
@@ -263,25 +260,29 @@ public class BlockCompiler {
             var baseConstructorClassName = generator.nameCompiler.getCompiledName(baseConstructor.enclClass(), superIdent);
             var initName = generator.nameCompiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
             NameSegment callee = new NameSegment(origin, initName, null);
-            var applySuffix = expressionCompiler.createCall(origin, callee, javaArguments.stream());
+            var applySuffix = expressionCompiler.createCall(origin, callee, javaArguments.stream(), expressionContext);
             var initCall = new AssignStatement(origin, null, List.of(),
                     List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false);
 
             return List.of(initCall);
         }
-        Expression callee = expressionCompiler.toExpr(invocation.getMethodSelect());
-        ApplySuffix applySuffix = expressionCompiler.createCall(origin, callee, javaArguments.stream());
+        Expression callee = expressionCompiler.toExpr(invocation.getMethodSelect(), expressionContext);
+
+        var arguments = javaArguments.stream().map(e -> expressionCompiler.toExpr(e, origin, expressionContext));
+        ApplySuffix applySuffix = ExpressionCompiler.createCall2(origin, callee, arguments);
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
     }
+    
+    List<Statement> additionalStatements;
 
     public static JCTree.JCIdent getSuperIdent(JCTree.JCMethodInvocation invocation) {
         return invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name == ident.name.table.names._super ? ident : null;
     }
 
-    public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt) {
+    public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt, ExpressionContext expressionContext) {
         var origin = generator.toOrigin(switchStmt);
-        var patternBodies = new Patterns(generator).translateSwitchLabels(switchStmt);
+        var patternBodies = new Patterns(generator).translateSwitchLabels(switchStmt, expressionContext);
         if (patternBodies == null) {
             return List.of();
         }
@@ -314,7 +315,7 @@ public class BlockCompiler {
                     origin, Patterns.makeWildPattern(origin), List.of(), null));
         }
 
-        var source = expressionCompiler.toExpr(switchStmt.getExpression());
+        var source = expressionCompiler.toExpr(switchStmt.getExpression(), expressionContext);
         return List.of(new NestedMatchStmt(origin, null, source, translatedCases, true));
     }
 
@@ -349,15 +350,15 @@ public class BlockCompiler {
     }
 
 
-    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr) {
-        return toAssignmentRhs(expr, null);
+    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, ExpressionContext expressionContext) {
+        return toAssignmentRhs(expr, null, expressionContext);
     }
 
-    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, IOrigin originOverride) {
+    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext expressionContext) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> generator.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                return this.generator.getFinalGenerator().translateNewClassToAssignmentRhs(this, newClass, origin);
+                return this.generator.getFinalGenerator().translateNewClassToAssignmentRhs(newClass, origin, expressionContext);
             }
             case JCTree.JCNewArray _ -> {
                 throw new RuntimeException("not supported. should have already been lowered");
@@ -365,36 +366,8 @@ public class BlockCompiler {
             default -> {
             }
         }
-        var dafnyExpr = expressionCompiler.toExpr(expr, originOverride);
+        var dafnyExpr = expressionCompiler.toExpr(expr, originOverride, expressionContext);
         return new ExprRhs(origin, null, dafnyExpr);
-    }
-
-    public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin) {
-        Symtab symtab = Symtab.instance(generator.context);
-        if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType) {
-            throw new RuntimeException("not supported. should have already been lowered");
-        }
-        Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-        if (classSymbol.type != symtab.objectType && generator.isImmutable(classSymbol)) {
-            var datatypeValue = ImmutableTypeCompiler.translateNewRecord(expressionCompiler, origin, newClass);
-            return new ExprRhs(origin, null, datatypeValue);
-        }
-        NameSegment classBaseType = getNewClassType(newClass);
-
-        String ctorNameStr = generator.nameCompiler.getCompiledName(newClass.constructor, origin);
-        Name ctorName = new Name(origin, ctorNameStr);
-        var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
-
-        var argBindings = ExpressionCompiler.createBindings(newClass.getArguments().stream().map(expressionCompiler::toExpr));
-        return new AllocateClass(origin, null, ty, argBindings);
-    }
-
-    private NameSegment getNewClassType(JCTree.JCNewClass newClass) {
-        var baseType = (UserDefinedType) generator.translateType(newClass.type, generator.toOrigin(newClass));
-        var baseNameSegment = (NameSegment)baseType.getNamePath();
-        var baseName = baseNameSegment.getName();
-        return new NameSegment(baseNameSegment.getOrigin(), generator.nameCompiler.CLASS_PREFIX + baseName,
-                baseNameSegment.getOptTypeArguments());
     }
 }
 
