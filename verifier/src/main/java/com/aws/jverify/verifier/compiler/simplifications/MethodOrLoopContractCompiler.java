@@ -260,7 +260,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A precondition call may have only one argument");
                 }
-                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), null), null, null));
             }
             case "postcondition" -> {
                 if (invocation.args.size() != 1) {
@@ -272,15 +272,15 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("invariant should have a single argument");
                 }
-                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), null), null, null));
             }
             case "decreases" -> {
                 for(var decrease : invocation.getArguments()) {
                     // The LOWER javac phase inserts an explicit NewArray for varargs
                     if (decrease instanceof JCTree.JCNewArray newArray) {
-                        contract.decreases.addAll(newArray.getInitializers().map(compiler.expressionCompiler::toExpr));
+                        contract.decreases.addAll(newArray.getInitializers().map(i -> compiler.expressionCompiler.toExpr(i, null)));
                     } else {
-                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease));
+                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease, null));
                     }
                 }
             }
@@ -290,7 +290,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
-                var expr = compiler.expressionCompiler.toExpr(origExpr);
+                var expr = compiler.expressionCompiler.toExpr(origExpr, null);
                 contract.reads.add(new FrameExpression(origin, expr, null));
             }
             case "modifies" -> {
@@ -299,7 +299,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
-                var expr = compiler.expressionCompiler.toExpr(origExpr);
+                var expr = compiler.expressionCompiler.toExpr(origExpr, null);
                 contract.modifies.add(new FrameExpression(origin, expr, null));
             }
             default -> {
@@ -325,7 +325,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
                     : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
+            var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody(), null);
             var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 
@@ -333,7 +333,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var origin = compiler.toOrigin(memberReference);
             NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
-                    compiler.expressionCompiler.toExpr(memberReference.expr),
+                    compiler.expressionCompiler.toExpr(memberReference.expr, null),
                     compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
             var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
             header.postconditions.add(new AttributedExpression(call, null, null));
@@ -341,7 +341,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             // Casts like (IntPredicate) are sometimes necessary to disambiguate
             handlePostcondition(compiler, header, typeCast.getExpression());
         } else {
-            var dafnyExpr = compiler.expressionCompiler.toExpr(expr);
+            var dafnyExpr = compiler.expressionCompiler.toExpr(expr, null);
             header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
         }
     }

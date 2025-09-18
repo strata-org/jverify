@@ -11,6 +11,7 @@ import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.units.qual.N;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
@@ -32,9 +33,9 @@ public class ExpressionCompiler {
         return baseGenerator.getFinalGenerator();
     }
 
-    public Expression toExpr(JCTree tree) {
+    public Expression toExpr(JCTree tree, com.sun.tools.javac.code.@Nullable Type typeFallback) {
         if (tree instanceof JCTree.JCExpression expression) {
-            return toExpr(expression);
+            return toExpr(expression, typeFallback);
         }
         baseGenerator.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
         return BaseDafnyGenerator.getHole(baseGenerator.toOrigin(tree));
@@ -80,7 +81,7 @@ public class ExpressionCompiler {
                 // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
                 translatedBody = BaseDafnyGenerator.getHole(origin);
             } else if (body instanceof JCTree.JCExpression) {
-                translatedBody = toExpr(body);
+                translatedBody = toExpr(body, switchExpr.type);
             } else {
                 var bodyKind = body instanceof JCTree.JCBlock ? "block" : "throw statement";
                 baseGenerator.reportError(body, "notSupported", "switch rule %s".formatted(bodyKind));
@@ -89,7 +90,7 @@ public class ExpressionCompiler {
             return new NestedMatchCaseExpr(caseOrigin, patternBody.pattern(), translatedBody, null);
         }).toList();
 
-        var source = toExpr(switchExpr.getExpression());
+        var source = toExpr(switchExpr.getExpression(), null);
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
@@ -108,11 +109,11 @@ public class ExpressionCompiler {
                 String name = baseGenerator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
                 var returnVar = new BoundVar(origin, new Name(origin, name), type, false);
                 var lhs = new CasePattern<>(origin, name, returnVar, null);
-                result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init)), result, true, null); 
+                result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init, null)), result, true, null); 
             } else if (statement instanceof JCTree.JCIf ifStatement && ifStatement.getElseStatement() == null) {
                 var thenExpression = toExpr(ifStatement.getThenStatement());
                 result = new ITEExpr(baseGenerator.toOrigin(ifStatement), false, 
-                        toExpr(ifStatement.getCondition()), thenExpression, result);
+                        toExpr(ifStatement.getCondition(), null), thenExpression, result);
             } else {
                 baseGenerator.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
                 return result;
@@ -131,23 +132,24 @@ public class ExpressionCompiler {
                     yield BaseDafnyGenerator.getHole(origin);
                 }
                 yield new ITEExpr(origin, false,
-                    toExpr(ifStatement.getCondition()),
+                    toExpr(ifStatement.getCondition(), null),
                     toExpr(ifStatement.getThenStatement()),
                     toExpr(ifStatement.getElseStatement()));
             }
-            case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr);
+            case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr, null); // TODO specify fallback?
             default -> {
                 baseGenerator.reportError(statement, "pureMethodLastStatement");
                 yield BaseDafnyGenerator.getHole(origin);
             }
         };
     }
-    
-    public Expression toExpr(JCTree.JCExpression expr) {
-        return toExpr(expr, null);
+
+    public Expression toExpr(JCTree.JCExpression expr, com.sun.tools.javac.code.@Nullable Type typeFallback) {
+        return toExpr(expr, null, typeFallback);
     }
 
-    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride) {
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, 
+                             com.sun.tools.javac.code.Type typeFallback) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(expr));
         switch (expr) {
             case JCTree.JCConditional conditional -> {
@@ -166,10 +168,10 @@ public class ExpressionCompiler {
                 return translateIdentifier(identifier, origin);
             }
             case JCTree.JCLiteral literal -> {
-                return getDafnyGenerator().translateLiteral(expr, literal, origin);
+                return getDafnyGenerator().translateLiteral(expr, literal, origin, typeFallback);
             }
             case JCTree.JCMethodInvocation invocation -> {
-                return getDafnyGenerator().translateMethodInvocation(invocation, origin);
+                return getDafnyGenerator().translateExpressionMethodInvocation(invocation, origin);
             }
             case JCTree.JCFieldAccess fieldAccess -> {
                 return translateFieldAccess(fieldAccess, origin);
@@ -178,7 +180,7 @@ public class ExpressionCompiler {
                 return translateArrayAccess(arrayAccess, origin);
             }
             case JCTree.JCParens parens -> {
-                return toExpr(parens.getExpression());
+                return toExpr(parens.getExpression(), typeFallback);
             }
             case JCTree.JCAssignOp assignOp -> {
                 baseGenerator.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
@@ -218,13 +220,13 @@ public class ExpressionCompiler {
     }
 
     private TypeTestExpr translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin) {
-        var expression = toExpr(instanceOf.getExpression());
+        var expression = toExpr(instanceOf.getExpression(), null);
         var jcType = baseGenerator.translateType(instanceOf.getType());
         return new TypeTestExpr(origin, expression, jcType);
     }
 
     private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin) {
-        var castExpr = toExpr(cast.getExpression());
+        var castExpr = toExpr(cast.getExpression(), null);
 
         var type = baseGenerator.translateType(cast);
         return new ConversionExpr(origin, castExpr, type, "");
@@ -235,14 +237,14 @@ public class ExpressionCompiler {
     }
 
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin) {
-        var condition = toExpr(conditional.getCondition());
-        var thenBranch = toExpr(conditional.getTrueExpression());
-        var elseBranch = toExpr(conditional.getFalseExpression());
+        var condition = toExpr(conditional.getCondition(), null);
+        var thenBranch = toExpr(conditional.getTrueExpression(), conditional.type);
+        var elseBranch = toExpr(conditional.getFalseExpression(), conditional.type);
         return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
     }
 
     private Expression translateUnary(JCTree.JCExpression expr, JCTree.JCUnary unary, IOrigin origin) {
-        var innerExpr = toExpr(unary.getExpression());
+        var innerExpr = toExpr(unary.getExpression(), null);
         switch (unary.getTag()) {
             case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
                 baseGenerator.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
@@ -265,8 +267,8 @@ public class ExpressionCompiler {
     }
 
     private Expression translateBinary(JCTree.JCBinary binary) {
-        var left = toExpr(binary.getLeftOperand());
-        var right = toExpr(binary.getRightOperand());
+        var left = toExpr(binary.getLeftOperand(), binary.getRightOperand().type);
+        var right = toExpr(binary.getRightOperand(), binary.getLeftOperand().type);
         Symbol.OperatorSymbol operator = binary.getOperator();
         return translateBinary(
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,
@@ -313,7 +315,7 @@ public class ExpressionCompiler {
     }
 
     private NameSegment translateTypeApplication(JCTree.JCTypeApply typeApply, IOrigin origin) {
-        var type = toExpr(typeApply.getType());
+        var type = toExpr(typeApply.getType(), null);
         if (type instanceof NameSegment nameSegment) {
             List<Type> arguments;
             if (typeApply.getTypeArguments().isEmpty()) {
@@ -333,7 +335,7 @@ public class ExpressionCompiler {
             // Ignore package qualification
             return new NameSegment(origin, baseGenerator.nameCompiler.getCompiledName(classSymbol, origin), List.of());
         }
-        var selectedExpr = toExpr(fieldAccess.selected);
+        var selectedExpr = toExpr(fieldAccess.selected, null);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
             ExprDotName callee = new ExprDotName(origin, selectedExpr, baseGenerator.getName(fieldAccess, "length"), null);
@@ -373,7 +375,7 @@ public class ExpressionCompiler {
             if (component.isPresent()) {
                 final Expression receiver;
                 if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-                    receiver = toExpr(fieldAccess.selected);
+                    receiver = toExpr(fieldAccess.selected, null);
                 } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
                     receiver = null;
                 } else {
@@ -385,7 +387,7 @@ public class ExpressionCompiler {
             }
         }
 
-        var target = toExpr(invocation.getMethodSelect());
+        var target = toExpr(invocation.getMethodSelect(), null);
         return createCall(origin, target, invocation.getArguments().stream());
     }
 
@@ -547,7 +549,7 @@ public class ExpressionCompiler {
 
 
     public ApplySuffix createCall(IOrigin origin, Expression callee, Stream<JCTree.JCExpression> arguments) {
-        return createCall2(origin, callee, arguments.map(this::toExpr));
+        return createCall2(origin, callee, arguments.map(a -> toExpr(a, null)));
     }
 
     public static ApplySuffix createCall2(IOrigin origin, Expression callee, Stream<Expression> bindingList) {

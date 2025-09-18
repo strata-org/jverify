@@ -22,6 +22,8 @@ public class NullableInterfacesVerification {
             nullableP.foo();
         }
         p.foo();
+        @Nullable PureInterface nullableP2;
+        nullableP2 = p;
     }
     
     @Modifiable

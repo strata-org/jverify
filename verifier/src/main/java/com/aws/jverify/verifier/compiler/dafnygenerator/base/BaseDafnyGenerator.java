@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.*;
 
-import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
@@ -10,7 +9,6 @@ import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.code.TypeMetadata;
@@ -32,7 +30,6 @@ import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
-import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
@@ -137,7 +134,17 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
+    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
+        return blockCompiler.translateStatementAfterlabel(statement, labels, origin);
+    }
+
+    @Override
+    public List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation) {
+        return blockCompiler.translateStatementMethodInvocation(invocation);
+    }
+
+    @Override
+    public Expression translateExpressionMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
         return expressionCompiler.translateMethodInvocation(invocation, origin);
     }
 
@@ -523,7 +530,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin) {
+    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin, com.sun.tools.javac.code.Type typeDefault) {
         return expressionCompiler.translateLiteral(expr, literal, origin);
     }
 

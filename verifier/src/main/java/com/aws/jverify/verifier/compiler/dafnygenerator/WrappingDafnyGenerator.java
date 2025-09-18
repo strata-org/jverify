@@ -6,6 +6,7 @@ import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public class WrappingDafnyGenerator implements DafnyGenerator {
@@ -21,8 +22,18 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
-        return next.translateMethodInvocation(invocation, origin);
+    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
+        return next.translateStatementAfterLabel(blockCompiler, statement, labels, originOverride);
+    }
+
+    @Override
+    public List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation) {
+        return next.translateStatementMethodInvocation(blockCompiler, invocation);
+    }
+
+    @Override
+    public Expression translateExpressionMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
+        return next.translateExpressionMethodInvocation(invocation, origin);
     }
 
     @Override
@@ -50,7 +61,7 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin) {
-        return next.translateLiteral(expr, literal, origin);
+    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin, com.sun.tools.javac.code.Type typeFallback) {
+        return next.translateLiteral(expr, literal, origin, typeFallback);
     }
 }

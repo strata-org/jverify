@@ -43,7 +43,7 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
                     blockCompiler.generator.reportError(unary, "notSupported", "operator " + unary.getOperator());
                     return List.of();
                 } else {
-                    Expression target = blockCompiler.generator.expressionCompiler.toExpr(unary.getExpression());
+                    Expression target = blockCompiler.generator.expressionCompiler.toExpr(unary.getExpression(), null);
                     List<Expression> lhss = List.of(target);
 
                     var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
@@ -63,11 +63,11 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
 
     private List<Statement> translateAssignOp(JCTree.JCAssignOp assignOp) {
         var origin = blockCompiler.generator.toOrigin(assignOp);
-        Expression target = blockCompiler.generator.expressionCompiler.toExpr(assignOp.getVariable());
+        Expression target = blockCompiler.generator.expressionCompiler.toExpr(assignOp.getVariable(), null);
         List<Expression> lhss = List.of(target);
         var operated = blockCompiler.generator.expressionCompiler.translateBinary(
                 assignOp, assignOp.getVariable().type, null,
-                assignOp.getOperator(), target, blockCompiler.generator.expressionCompiler.toExpr(assignOp.getExpression()));
+                assignOp.getOperator(), target, blockCompiler.generator.expressionCompiler.toExpr(assignOp.getExpression(), assignOp.getVariable().type));
         List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }

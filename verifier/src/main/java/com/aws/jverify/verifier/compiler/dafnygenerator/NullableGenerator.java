@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -83,16 +84,45 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     @Override
-    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin) {
-        var immutable = expr.type.tsym instanceof Symbol.ClassSymbol classSymbol &&
-                this.baseGenerator.isImmutable(classSymbol);
-        if (immutable && literal.getValue() == null) {
-            var type = baseGenerator.translateType(expr.type, origin);
-            return baseGenerator.expressionCompiler.createCall(origin, 
-                    new NameSegment(origin, "Null", List.of(type)), Stream.empty());
+    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin, 
+                                       com.sun.tools.javac.code.Type typeFallback) {
+        if (literal.getValue() == null) {
+            var immutable = typeFallback.tsym instanceof Symbol.ClassSymbol classSymbol &&
+                    this.baseGenerator.isImmutable(classSymbol);
+            if (immutable) {
+                return baseGenerator.expressionCompiler.createCall(origin,
+                        new NameSegment(origin, "Null", null), Stream.empty());
+            }
         }
-        return super.translateLiteral(expr, literal, origin);
+        return super.translateLiteral(expr, literal, origin, typeFallback);
     }
-    
-    
+
+    @Override
+    public List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation) {
+        if (invocation.meth instanceof JCTree.JCFieldAccess fieldAccess) {
+            var isNullable = isNullable(fieldAccess.getExpression().type);
+            var isImmutable = baseGenerator.isImmutable((Symbol.ClassSymbol) fieldAccess.getExpression().type.tsym);
+            if (isNullable && isImmutable) {
+                var origin = baseGenerator.toOrigin(invocation);
+                Expression nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(fieldAccess.getExpression(), null);
+                Expression nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
+                Expression nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, baseGenerator.getName(fieldAccess, fieldAccess.name), null);
+                ApplySuffix applySuffix = baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream());
+                return List.of(new AssignStatement(origin, null, List.of(),
+                        List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+            }
+        }
+        return super.translateStatementMethodInvocation(blockCompiler, invocation);
+    }
+
+    @Override
+    public Expression translateExpressionMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
+        return super.translateExpressionMethodInvocation(invocation, origin);
+    }
+
+    @Override
+    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
+        
+        return super.translateStatementAfterLabel(blockCompiler, statement, labels, originOverride);
+    }
 }

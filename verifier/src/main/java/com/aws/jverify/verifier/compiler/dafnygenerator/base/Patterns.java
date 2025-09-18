@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.generated.*;
+import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -66,7 +67,7 @@ public class Patterns {
                 .findFirst();
 
         if (caseConstants.nonEmpty()) {
-            var literals = caseConstants.stream().map(this::translateCaseConstant).toList();
+            var literals = caseConstants.stream().map(c -> this.translateCaseConstant(c, cas.type)).toList();
             return new DisjunctivePattern(compiler.toOrigin(cas), false, literals);
         } else if (defaultLabel.isPresent()) {
             return makeWildPattern(compiler.toOrigin(defaultLabel.get()));
@@ -80,11 +81,11 @@ public class Patterns {
     /**
      * Translates the given switch label case constant into a pattern.
      */
-    private ExtendedPattern translateCaseConstant(JCTree.JCExpression expr) {
+    private ExtendedPattern translateCaseConstant(JCTree.JCExpression expr, com.sun.tools.javac.code.Type typeFallback) {
         var origin = compiler.toOrigin(expr);
         final LiteralExpr litExpr;
         if (expr instanceof JCTree.JCLiteral) {
-            litExpr = (LiteralExpr)compiler.expressionCompiler.toExpr(expr);
+            litExpr = (LiteralExpr)compiler.expressionCompiler.toExpr(expr, typeFallback);
         } else {
             compiler.reportError(expr, "notSupported", "non-literal case constant");
             litExpr = BaseDafnyGenerator.getHole(origin);
