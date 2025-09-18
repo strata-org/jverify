@@ -15,14 +15,14 @@ import java.util.stream.Collectors;
 
 public class BlockCompiler {
 
-    public final BaseDafnyGenerator compiler;
+    public final BaseDafnyGenerator generator;
     private final ExpressionCompiler expressionCompiler;
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
 
     public BlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
-        this.compiler = compiler;
+        this.generator = compiler;
         expressionCompiler = compiler.expressionCompiler;
         this.methodSymbol = methodSymbol;
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
@@ -42,7 +42,7 @@ public class BlockCompiler {
     }
 
     public List<Statement> translateStatement(JCTree.JCStatement statement, IOrigin originOverride) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(statement));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> generator.toOrigin(statement));
         if (statement instanceof JCTree.JCLabeledStatement labeledStatement) {
             labels.add(new Label(origin, labeledStatement.getLabel().toString()));
             return translateStatement(labeledStatement.getStatement());
@@ -95,34 +95,34 @@ public class BlockCompiler {
             default -> {
             }
         }
-        compiler.reportError(statement, "notSupported", "statement " + statement.getClass().getSimpleName());
+        generator.reportError(statement, "notSupported", "statement " + statement.getClass().getSimpleName());
         return List.of();
     }
 
     private List<Statement> translateBreak(JCTree.JCBreak jcBreak) {
-        var origin = compiler.toOrigin(jcBreak);
+        var origin = generator.toOrigin(jcBreak);
         Statement result;
         if (jcBreak.label == null) {
             result = new BreakOrContinueStmt(origin, null, null, 1, false);
         } else {
-            var targetLabel = compiler.getName(jcBreak, jcBreak.label);
+            var targetLabel = generator.getName(jcBreak, jcBreak.label);
             result = new BreakOrContinueStmt(origin, null, targetLabel, 0, false);
         }
         return List.of(result);
     }
 
     public List<Statement> translateContinue(JCTree.JCContinue jcContinue) {
-        var origin = compiler.toOrigin(jcContinue);
+        var origin = generator.toOrigin(jcContinue);
         if (jcContinue.label == null) {
             return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
         } else {
-            var targetLabel = compiler.getName(jcContinue, jcContinue.label);
+            var targetLabel = generator.getName(jcContinue, jcContinue.label);
             return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));
         }
     }
 
     private List<Statement> translateReturn(JCTree.JCReturn returnStatement) {
-        var origin = compiler.toOrigin(returnStatement);
+        var origin = generator.toOrigin(returnStatement);
         var expr = returnStatement.getExpression();
         if (expr == null) {
             return List.of(new ReturnStmt(origin, null, null));
@@ -133,9 +133,9 @@ public class BlockCompiler {
             //   var tmp := e;
             //   return tmp;
             // so that we can have allocation in e.
-            var exprOrigin = compiler.toOrigin(expr);
+            var exprOrigin = generator.toOrigin(expr);
             var returnExpr = toAssignmentRhs(expr);
-            var newLocalVarExpr = new NameSegment(exprOrigin, compiler.nameCompiler.RETURN_VARIABLE_NAME, null);
+            var newLocalVarExpr = new NameSegment(exprOrigin, generator.nameCompiler.RETURN_VARIABLE_NAME, null);
             var assignment = new AssignStatement(exprOrigin, null, List.of(newLocalVarExpr), List.of(returnExpr), false);
             var returnStmt = new ReturnStmt(origin, null, null);
             return List.of(assignment, returnStmt);
@@ -143,7 +143,7 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateIfStatement(JCTree.JCIf ifStatement) {
-        var origin = compiler.toOrigin(ifStatement);
+        var origin = generator.toOrigin(ifStatement);
         var condition = expressionCompiler.toExpr(ifStatement.getCondition());
         var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
         BlockStmt elseBranch = null;
@@ -155,8 +155,8 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl) {
-        Type translatedType = compiler.getFinalGenerator().translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
-        LocalVariable localVariable = new LocalVariable(origin, compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
+        Type translatedType = generator.getFinalGenerator().translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
+        LocalVariable localVariable = new LocalVariable(origin, generator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
@@ -174,9 +174,9 @@ public class BlockCompiler {
                                    JCTree.JCStatement body,
                                    List<Label> labels,
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody) {
-        var origin = compiler.toOrigin(loop);
+        var origin = generator.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = methodOrLoopContractCompiler.extractContract(compiler, (JCTree.JCBlock) body, header);
+        var postHeader = methodOrLoopContractCompiler.extractContract(generator, (JCTree.JCBlock) body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -208,14 +208,14 @@ public class BlockCompiler {
                 return translateAssign(assign, originOverride);
             }
             default -> {
-                compiler.reportError(statement, "notSupported", "expression statement with expr " + expr.getClass().getSimpleName());
+                generator.reportError(statement, "notSupported", "expression statement with expr " + expr.getClass().getSimpleName());
                 return List.of();
             }
         }
     }
 
     private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(assign));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> generator.toOrigin(assign));
         List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), originOverride));
         List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
@@ -236,32 +236,32 @@ public class BlockCompiler {
             if (invocation.args.size() != 1) {
                 throw new JavaViolationException("Check should have a single argument");
             }
-            return List.of(new AssertStmt(compiler.toOrigin(invocation), null,
+            return List.of(new AssertStmt(generator.toOrigin(invocation), null,
                     expressionCompiler.toExpr(invocation.args.getFirst()), null));
         } else {
             if (BaseDafnyGenerator.isConstructor(methodSymbol)) {
-                compiler.reportError(invocation, "contractForConstructor");
+                generator.reportError(invocation, "contractForConstructor");
             } else {
-                compiler.reportError(invocation, "contractAfterBody");
+                generator.reportError(invocation, "contractAfterBody");
             }
             return List.of();
         }
     }
 
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation) {
-        var origin = compiler.toOrigin(invocation);
+        var origin = generator.toOrigin(invocation);
         var superIdent = getSuperIdent(invocation);
         com.sun.tools.javac.util.List<JCTree.JCExpression> javaArguments = invocation.getArguments();
         if (superIdent != null) {
             Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) superIdent.sym;
 
-            if (!compiler.symbolsWithAContract.contains(baseConstructor)) {
+            if (!generator.symbolsWithAContract.contains(baseConstructor)) {
                 return List.of();
             }
 
-            var baseConstructorName = compiler.nameCompiler.getCompiledName(baseConstructor, superIdent);
-            var baseConstructorClassName = compiler.nameCompiler.getCompiledName(baseConstructor.enclClass(), superIdent);
-            var initName = compiler.nameCompiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
+            var baseConstructorName = generator.nameCompiler.getCompiledName(baseConstructor, superIdent);
+            var baseConstructorClassName = generator.nameCompiler.getCompiledName(baseConstructor.enclClass(), superIdent);
+            var initName = generator.nameCompiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
             NameSegment callee = new NameSegment(origin, initName, null);
             var applySuffix = expressionCompiler.createCall(origin, callee, javaArguments.stream());
             var initCall = new AssignStatement(origin, null, List.of(),
@@ -280,14 +280,14 @@ public class BlockCompiler {
     }
 
     public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt) {
-        var origin = compiler.toOrigin(switchStmt);
-        var patternBodies = new Patterns(compiler).translateSwitchLabels(switchStmt);
+        var origin = generator.toOrigin(switchStmt);
+        var patternBodies = new Patterns(generator).translateSwitchLabels(switchStmt);
         if (patternBodies == null) {
             return List.of();
         }
 
         var translatedCases = patternBodies.stream().map(patternBody -> {
-            var caseOrigin = compiler.toOrigin(patternBody.cas());
+            var caseOrigin = generator.toOrigin(patternBody.cas());
             var body = patternBody.body();
 
             // A switch rule introduces either an expression, a block, or a throw statement.
@@ -298,7 +298,7 @@ public class BlockCompiler {
                 case JCTree.JCExpressionStatement bodyStatement -> translateStatement(bodyStatement);
                 case JCTree.JCBlock bodyBlock -> translateStatement(bodyBlock);
                 case JCTree.JCThrow ignored -> {
-                    compiler.reportError(body, "notSupported", "switch rule throw");
+                    generator.reportError(body, "notSupported", "switch rule throw");
                     yield List.of();
                 }
                 default -> throw new JavaViolationException();
@@ -331,7 +331,7 @@ public class BlockCompiler {
                                       String typeName,
                                       String containerName) {
         for (var _ : expressions) {
-            compiler.reportError(tree, "wrongContract", typeName, containerName);
+            generator.reportError(tree, "wrongContract", typeName, containerName);
         }
     }
 
@@ -354,10 +354,10 @@ public class BlockCompiler {
     }
 
     public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, IOrigin originOverride) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> generator.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                return translateNewClassToAssignmentRhs(newClass, origin);
+                return this.generator.getFinalGenerator().translateNewClassToAssignmentRhs(this, newClass, origin);
             }
             case JCTree.JCNewArray _ -> {
                 throw new RuntimeException("not supported. should have already been lowered");
@@ -369,19 +369,19 @@ public class BlockCompiler {
         return new ExprRhs(origin, null, dafnyExpr);
     }
 
-    private AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin) {
-        Symtab symtab = Symtab.instance(compiler.context);
+    public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin) {
+        Symtab symtab = Symtab.instance(generator.context);
         if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType) {
             throw new RuntimeException("not supported. should have already been lowered");
         }
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-        if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
+        if (classSymbol.type != symtab.objectType && generator.isImmutable(classSymbol)) {
             var datatypeValue = ImmutableTypeCompiler.translateNewRecord(expressionCompiler, origin, newClass);
             return new ExprRhs(origin, null, datatypeValue);
         }
         NameSegment classBaseType = getNewClassType(newClass);
 
-        String ctorNameStr = compiler.nameCompiler.getCompiledName(newClass.constructor, origin);
+        String ctorNameStr = generator.nameCompiler.getCompiledName(newClass.constructor, origin);
         Name ctorName = new Name(origin, ctorNameStr);
         var ty = new UserDefinedType(origin, new ExprDotName(origin, classBaseType, ctorName, null));
 
@@ -390,10 +390,10 @@ public class BlockCompiler {
     }
 
     private NameSegment getNewClassType(JCTree.JCNewClass newClass) {
-        var baseType = (UserDefinedType) compiler.translateType(newClass.type, compiler.toOrigin(newClass));
+        var baseType = (UserDefinedType) generator.translateType(newClass.type, generator.toOrigin(newClass));
         var baseNameSegment = (NameSegment)baseType.getNamePath();
         var baseName = baseNameSegment.getName();
-        return new NameSegment(baseNameSegment.getOrigin(), compiler.nameCompiler.CLASS_PREFIX + baseName,
+        return new NameSegment(baseNameSegment.getOrigin(), generator.nameCompiler.CLASS_PREFIX + baseName,
                 baseNameSegment.getOptTypeArguments());
     }
 }

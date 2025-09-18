@@ -32,7 +32,7 @@ public class ForLoopCompiler implements StatementCompiler {
     }
     
     private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels) {
-        var origin = blockCompiler.compiler.toOrigin(forLoop);
+        var origin = blockCompiler.generator.toOrigin(forLoop);
         var loop = blockCompiler.translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
             List<Statement> outerBody;
             List<Statement> steps = blockCompiler.translateStatements(forLoop.step);
@@ -86,15 +86,15 @@ public class ForLoopCompiler implements StatementCompiler {
      */
     private List<Statement> translateContinueForForLoop(JCTree.JCContinue jcContinue,
                                                         JCTree.JCForLoop forLoop) {
-        var origin = blockCompiler.compiler.toOrigin(jcContinue);
+        var origin = blockCompiler.generator.toOrigin(jcContinue);
         forLoopsWithContinue.add(forLoop);
         var label = getForLoopContinueLabel(forLoop);
-        return List.of(new BreakOrContinueStmt(origin, null, blockCompiler.compiler.getName(jcContinue, label),
+        return List.of(new BreakOrContinueStmt(origin, null, blockCompiler.generator.getName(jcContinue, label),
                 0, false));
     }
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> 
-                blockCompiler.compiler.nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
+                blockCompiler.generator.nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
     }
 }

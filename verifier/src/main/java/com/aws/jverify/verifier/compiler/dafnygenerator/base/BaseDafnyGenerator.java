@@ -74,11 +74,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         this.context = context;
         this.verifierOptions = context.get(VerifierOptions.class);
 
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        context.put(DiagnosticListener.class, diagnostics);
-        
-        JavacFileManager.preRegister(context);
-
         elements = JavacElements.instance(context);
         reporter = Reporter.instance(context);
         nameCompiler = NameCompiler.instance(context);
@@ -524,7 +519,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
 
     @Override
     public AssignmentRhs translateNewClassToAssignmentRhs(BlockCompiler blockCompiler, JCTree.JCNewClass newClass, IOrigin origin) {
-        return blockCompiler.toAssignmentRhs(newClass, origin);
+        return blockCompiler.translateNewClassToAssignmentRhs(newClass, origin);
     }
 
     /**

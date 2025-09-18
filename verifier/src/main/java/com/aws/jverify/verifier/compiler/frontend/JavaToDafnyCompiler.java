@@ -12,6 +12,7 @@ import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.comp.*;
+import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.JCTree;
@@ -45,9 +46,14 @@ public class JavaToDafnyCompiler {
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
+
+        JavacFileManager.preRegister(context);
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        context.put(DiagnosticListener.class, diagnostics);
+        
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
-        this.dafnyGenerator = DafnyGenerator.getGenerator(context);;
+        this.dafnyGenerator = DafnyGenerator.getGenerator(context);
     }
 
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files) {
