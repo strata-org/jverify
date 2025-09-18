@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static com.aws.jverify.testengine.JVerifyTestEngine.testMarkedSource;
@@ -15,7 +16,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
-
+    
     @Test
     public void verifyFibonacci() {
         var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
@@ -28,7 +29,39 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
                 "--dafny=" + dafnyPath);
-        Assertions.assertEquals(0, exitCode);
+        Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
+    }
+
+    @Test
+    public void verifyBinarySearch() {
+        var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
+
+        var command = new CommandLine(new AppCommand());
+        StringWriter out = new StringWriter();
+        command.setOut(new PrintWriter(out));
+        command.setErr(new PrintWriter(out));
+
+        var exitCode = command.execute(
+                Path.of("../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java").toString(),
+                "--dafny=" + dafnyPath,
+                "--print-dafny=../build/temp.dfy");
+        Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
+    }
+
+    @Test
+    public void checkPathsOutput() {
+        var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
+
+        var command = new CommandLine(new AppCommand());
+        StringWriter out = new StringWriter();
+        command.setOut(new PrintWriter(out));
+        command.setErr(new PrintWriter(out));
+
+        var exitCode = command.execute(
+                Path.of("./src/test/resources/AssertFalse.java").toString(),
+                "--dafny=" + dafnyPath, "--paths");
+        Assertions.assertTrue(out.toString().startsWith("src/test/resources/AssertFalse.java"), out.toString());
+        Assertions.assertEquals(4, exitCode);
     }
 
     @Test
@@ -43,8 +76,9 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("./src/main/resources/builtin-contracts.java").toString(),
                 "--dafny=" + dafnyPath,
+                "--print-dafny=../build/temp.dfy",
                 "--builtin-contracts=false");
-        Assertions.assertEquals(0, exitCode);
+        Assertions.assertEquals(0, exitCode, out.toString());
     }
     
     @Test
@@ -70,7 +104,7 @@ public class TestVerifier {
             exitCode = process.waitFor();
         }
         var output = canonicalizeNewlines(writer.toString());
-        assertThat(output, containsString("Dafny program verifier finished with 4 verified, 0 errors"));
+        assertThat(output, containsString("Dafny program verifier finished with 6 verified, 0 errors"));
         Assertions.assertEquals(0, exitCode);
     }
 

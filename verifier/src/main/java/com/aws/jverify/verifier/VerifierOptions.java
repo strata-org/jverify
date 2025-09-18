@@ -5,7 +5,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import java.nio.file.Path;
 import java.util.Collection;
 
-public record VerifierOptions(Path dafnyPath,
+public record VerifierOptions(Path workingDirectory,
+                              Path dafnyPath,
                               Collection<Path> extraClassPathEntries,
                               Path additionalDafnyFile,
                               boolean testDafnyVersion,
@@ -16,4 +17,5 @@ public record VerifierOptions(Path dafnyPath,
                               boolean showFilepaths,
                               String[] additionalDafnyArguments,
                               boolean verifyByDefault,
-                              boolean avoidCollisionsUsingUnderscores) {}
+                              boolean continueOnErrors) {
+}

@@ -1,7 +1,10 @@
 package com.aws.jverify;
 
-import java.util.function.BiFunction;
+import java.util.Optional;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class JVerify {
@@ -36,23 +39,48 @@ public class JVerify {
      * also known as a lexicographical comparison.
      */
     public static void decreases(Object... values) {}
-    
+    public static void decreases(int value) {}
+    public static void decreases(int value1, int value2) {}
+
     public static void invariant(boolean condition) {
     }
     
-    public static <T> void postcondition(Function<T, Boolean> predicate) {
-    }
-
-    /**
-     * The given function must evaluate to true after this method call
-     */
-    public static <T> void postcondition(Supplier<Boolean> predicate) {
+    public static <T> void postcondition(Predicate<T> predicate) {
     }
 
     /**
      * The given expression must evaluate to true after this method call
      */
     public static void postcondition(boolean predicate) {
+    }
+
+    public static void postcondition(BooleanPredicate predicate) {
+    }
+
+    public static void postcondition(IntPredicate predicate) {
+    }
+
+    /** 
+     * Takes the precondition of the given expression
+     * and applies that to the current method 
+     */
+    public static <T> void copyPrecondition(T value) {
+    }
+
+    public static <T> Optional<T> callIfAble(Supplier<T> supplier) {
+        throw new ContractException();
+    }
+
+    public static boolean callIfAble(Runnable action) {
+        throw new ContractException();
+    }
+
+    public static interface BooleanPredicate {
+        boolean test(boolean value);
+    }
+
+    public static interface IntBiPredicate {
+        boolean test(int value1, int value2);
     }
 
     /**
@@ -76,7 +104,23 @@ public class JVerify {
     public static <T> T old(T value) {
         throw new ContractException();
     }
+    public static int old(int value) {
+        throw new ContractException();
+    }
 
+    /**
+     * TODO decide whether this should exist or not
+     * and if it does add documentation
+     * And even if we remove jequals, it might be good to add documentation on Dafny's == somewhere
+     * To clarify when it resolves to:
+     * - reference equality
+     * - shallow equality
+     * - undefined equality
+     */
+    public static <T> boolean jequals(T left, T right) {
+        throw new VerificationMethodExecutedException();
+    }
+    
     /**
      * Returns true if the given object were allocated during the current method call.
      */
@@ -88,7 +132,23 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
-    public static <T1, T2> boolean forall(BiFunction<T1, T2, Boolean> predicate) {
+    public static <T1, T2> boolean forall(BiPredicate<T1, T2> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean forall(IntPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean forall(IntBiPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static <T> boolean exists(Predicate<T> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean exists(IntPredicate predicate) {
         throw new VerificationMethodExecutedException();
     }
 
@@ -118,53 +178,163 @@ public class JVerify {
     /**
      * Same as {@link #sequence(Object[])}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array) {
+    public static IntSequence sequence(int[] array) {
         throw new VerificationMethodExecutedException();
     }
 
     /**
      * Same as {@link #sequence(Object[], int)}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array, int fromIndex) {
+    public static IntSequence sequence(int[] array, int fromIndex) {
         throw new VerificationMethodExecutedException();
     }
 
     /**
      * Same as {@link #sequence(Object[], int, int)}, but for a primitive {@code int} array.
      */
-    public static Sequence<Integer> sequence(int[] array, int fromIndex, int toIndex) {
+    public static IntSequence sequence(int[] array, int fromIndex, int toIndex) {
         throw new VerificationMethodExecutedException();
     }
 
-    public interface Sequence<T> {
+    public interface CharJSequence {
+        /**
+         * Returns the element at index {@code index}.
+         */
+        char get(int index);
+
         /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
          */
-        default Sequence<T> drop(int fromIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        CharJSequence drop(int fromIndex);
 
         /**
          * Returns the subsequence ending at {@code toIndex}, inclusive.
          */
-        default Sequence<T> take(int toIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        CharJSequence take(int toIndex);
 
         /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive,
          * and ending at {@code toIndex}, exclusive.
          */
-        default Sequence<T> subsequence(int fromIndex, int toIndex) {
-            throw new VerificationMethodExecutedException();
-        }
+        CharJSequence subsequence(int fromIndex, int toIndex);
 
         /**
          * Returns {@code true} if this sequence contains the specified element.
          */
-        default boolean contains(T element) {
-            throw new VerificationMethodExecutedException();
+        boolean contains(char element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        CharJSequence concat(CharJSequence next);
+    }
+    
+    public interface Sequence<T> {
+        /**
+         * Returns the element at index {@code index}.
+         */
+        T get(int index);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        Sequence<T> drop(int fromIndex);
+
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
+        Sequence<T> take(int toIndex);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
+         */
+        Sequence<T> subsequence(int fromIndex, int toIndex);
+
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
+        boolean contains(T element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
+        
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        Sequence<T> concat(Sequence<T> next);
+    }
+
+    public interface IntSequence {
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        IntSequence drop(int fromIndex);
+
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
+        IntSequence take(int toIndex);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
+         */
+        IntSequence subsequence(int fromIndex, int toIndex);
+
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
+        boolean contains(int element);
+    }
+
+    public interface Set<T> {
+        /**
+         * Returns the set of all {@code T} values that satisfy the given predicate.
+         */
+        static <T> Set<T> all(Predicate<T> filter) {
+            throw new ContractException();
         }
+
+        /**
+         * Returns {@code true} if this set contains the specified element.
+         */
+        boolean contains(T element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
+
+        /**
+         * Returns the set found by applying the given mapping to every element.
+         */
+        <R> Set<R> map(Function<T, R> mapping);
+    }
+
+    public interface Map<K, V> {
+        /**
+         * Returns {@code true} if this map contains the specified key.
+         */
+        boolean contains(K element);
+
+        /**
+         * Returns the value mapped to the given {@code key},
+         * which must exist in the map.
+         */
+        V get(K key);
+
+        /**
+         * Returns the number of key/value pairs in this map.
+         */
+        @Unbounded int size();
     }
 
     public static class VerificationMethodExecutedException extends UnsupportedOperationException {

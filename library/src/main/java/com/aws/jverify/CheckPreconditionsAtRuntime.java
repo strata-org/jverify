@@ -10,6 +10,6 @@ import java.lang.annotation.Target;
  * If a precondition check fails, a PreconditionFailure exception is thrown.
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.METHOD)
+@Target({ElementType.METHOD, ElementType.TYPE})
 public @interface CheckPreconditionsAtRuntime {
 }

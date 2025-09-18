@@ -1,10 +1,8 @@
 package com.aws.jverify.examples;
 
 import static com.aws.jverify.JVerify.*;
-import com.aws.jverify.Invariant;
-import com.aws.jverify.Nullable;
-import com.aws.jverify.Erased;
-import com.aws.jverify.Pure;
+
+import com.aws.jverify.*;
 
 class UserProfile {
     public enum AccountType { Free, Premium }
@@ -26,7 +24,7 @@ class UserProfile {
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
         reads(this);
-        return (Object)this != premiumFeatures && 
+        return (@Modifiable Object)this != premiumFeatures &&
                 (accountType != AccountType.Premium || premiumFeatures != null);
     }
 

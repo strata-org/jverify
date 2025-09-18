@@ -3,7 +3,6 @@ name: PR build
 on:
   workflow_dispatch:
   pull_request:
-    branches: [ main ]
   merge_group:
 
     
@@ -72,6 +71,10 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           ./gradlew installDist
+      - name: Gradle test
+        working-directory: ./jverify-collection
+        run: |
+          ./gradlew test --info
       - name: Getting started command (non-Windows)
         if: runner.os != 'Windows'
         working-directory: ./jverify-collection
@@ -82,10 +85,6 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           ./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Binaries/Dafny.exe
-      - name: Gradle test
-        working-directory: ./jverify-collection
-        run: |
-          ./gradlew test --info
       - name: Publish packages locally
         working-directory: ./jverify-collection
         run: |

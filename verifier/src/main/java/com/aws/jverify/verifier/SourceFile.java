@@ -16,7 +16,7 @@ public class SourceFile extends SimpleJavaFileObject {
      * in order to ensure correct functionality across different operating systems.
      */
     public SourceFile(String path, String content) {
-        super(URI.create("string:///" + path), Kind.SOURCE);
+        super(URI.create("string://" + path), Kind.SOURCE);
         this.content = content;
     }
 

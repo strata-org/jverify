@@ -117,7 +117,7 @@ public class PositionCalculator {
                 }
 
                 // Verify we've found the correct position by checking if the text matches the class name
-                String className = classDecl.name.toString();
+                String className = classDecl.sym.name.toString();
                 if (sourceText.regionMatches(nameStart, className, 0, className.length())) {
                     return nameStart;
                 }

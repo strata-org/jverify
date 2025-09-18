@@ -1,8 +1,9 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.JVerify;
+import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.simplifications.RecordCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyGhostExpressionCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.ImmutableTypeCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -17,10 +18,12 @@ import javax.lang.model.type.TypeKind;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
-     public final JavaToDafnyCompiler compiler;
+    public final JavaToDafnyCompiler compiler;
 
     public ExpressionCompiler(JavaToDafnyCompiler compiler) {
         this.compiler = compiler;
@@ -70,7 +73,10 @@ public class ExpressionCompiler {
             final Expression translatedBody;
 
             // A switch rule introduces either an expression, a block, or a throw statement.
-            if (body instanceof JCTree.JCExpression) {
+            if (body == null) {
+                // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
+                translatedBody = JavaToDafnyCompiler.getHole(origin);
+            } else if (body instanceof JCTree.JCExpression) {
                 translatedBody = toExpr(body);
             } else {
                 var bodyKind = body instanceof JCTree.JCBlock ? "block" : "throw statement";
@@ -84,6 +90,56 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
+    public Expression toExpr(List<JCTree.JCStatement> statements) {
+        var last = statements.getLast();
+        var result = toExpr(last);
+        for(int index = statements.size() - 2; index >= 0; index--) {
+            var statement = statements.get(index);
+            if (statement instanceof JCTree.JCVariableDecl variableDecl) {
+                if (variableDecl.init == null) {
+                    compiler.reportError(statement, "pureAssignmentNeedsInitializer", variableDecl.name.toString());
+                    return result;
+                }
+                var origin = compiler.toOrigin(statement);
+                var type = compiler.translateType(variableDecl.type, compiler.toOrigin(variableDecl));
+                String name = compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
+                var returnVar = new BoundVar(origin, new Name(origin, name), type, false);
+                var lhs = new CasePattern<>(origin, name, returnVar, null);
+                result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init)), result, true, null); 
+            } else if (statement instanceof JCTree.JCIf ifStatement && ifStatement.getElseStatement() == null) {
+                var thenExpression = toExpr(ifStatement.getThenStatement());
+                result = new ITEExpr(compiler.toOrigin(ifStatement), false, 
+                        toExpr(ifStatement.getCondition()), thenExpression, result);
+            } else {
+                compiler.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
+                return result;
+            }
+        }
+        return result;
+    }
+
+    private Expression toExpr(JCTree.JCStatement statement) {
+        IOrigin origin = compiler.toOrigin(statement);
+        return switch (statement) {
+            case JCTree.JCBlock block -> toExpr(block.getStatements());
+            case JCTree.JCIf ifStatement -> {
+                if (ifStatement.getElseStatement() == null) {
+                    compiler.reportError(statement, "pureMethodEndingIfThen");
+                    yield JavaToDafnyCompiler.getHole(origin);
+                }
+                yield new ITEExpr(origin, false,
+                    toExpr(ifStatement.getCondition()),
+                    toExpr(ifStatement.getThenStatement()),
+                    toExpr(ifStatement.getElseStatement()));
+            }
+            case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr);
+            default -> {
+                compiler.reportError(statement, "pureMethodLastStatement");
+                yield JavaToDafnyCompiler.getHole(origin);
+            }
+        };
+    }
+    
     public Expression toExpr(JCTree.JCExpression expr) {
         return toExpr(expr, null);
     }
@@ -92,158 +148,31 @@ public class ExpressionCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> compiler.toOrigin(expr));
         switch (expr) {
             case JCTree.JCConditional conditional -> {
-                var condition = toExpr(conditional.getCondition());
-                var thenBranch = toExpr(conditional.getTrueExpression());
-                var elseBranch = toExpr(conditional.getFalseExpression());
-                return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
+                return translateConditional(conditional, origin);
             }
             case JCTree.JCSwitchExpression switchExpr -> {
                 return translateSwitchExpression(switchExpr);
             }
             case JCTree.JCUnary unary -> {
-                var innerExpr = toExpr(unary.getExpression());
-                switch (unary.getTag()) {
-                    case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
-                        compiler.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
-                        return JavaToDafnyCompiler.getHole(origin);
-                    }
-                    case JCTree.Tag.NOT -> {
-                        return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
-                    }
-                    case JCTree.Tag.NEG -> {
-                        return new NegationExpression(origin, innerExpr);
-                    }
-                    case JCTree.Tag.POS -> {
-                        return innerExpr;
-                    }
-                    default -> {
-                        compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                        return JavaToDafnyCompiler.getHole(origin);
-                    }
-                }
+                return translateUnary(expr, unary, origin);
             }
             case JCTree.JCBinary binary -> {
-                var left = toExpr(binary.getLeftOperand());
-                var right = toExpr(binary.getRightOperand());
-                Symbol.OperatorSymbol operator = binary.getOperator();
-                return translateBinary(
-                        binary, binary.getLeftOperand().type, binary.getRightOperand().type,
-                        operator, left, right);
+                return translateBinary(binary);
             }
             case JCTree.JCIdent identifier -> {
-                var identName = compiler.nameCompiler.getCompiledName(identifier.sym);
-                if (identName.contentEquals("this")) {
-                    return new ThisExpr(origin);
-                }
-                return new NameSegment(origin, identName, null);
+                return translateIdentifier(identifier, origin);
             }
             case JCTree.JCLiteral literal -> {
-                if (literal.typetag == TypeTag.BOOLEAN) {
-                    return new LiteralExpr(compiler.toOrigin(literal), literal.getValue());
-                }
-                if (literal.typetag == TypeTag.CHAR) {
-                    var intValue = Integer.valueOf((char) literal.getValue());
-                    return new LiteralExpr(compiler.toOrigin(literal), intValue);
-                }
-                if (expr.getKind().equals(Tree.Kind.STRING_LITERAL)) {
-                    return translateStringLiteral(compiler.toOrigin(literal), literal);
-                }
-                return new LiteralExpr(origin, literal.getValue());
+                return translateLiteral(expr, literal, origin);
             }
             case JCTree.JCMethodInvocation invocation -> {
-                var jverifyMethodExpr = jverifyLibMethodToExpr(invocation);
-                if (jverifyMethodExpr != null) {
-                    return jverifyMethodExpr;
-                }
-
-                var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
-                var argBindings = invocation.getArguments().stream().map(a -> new ActualBinding(null, toExpr(a), false)).toList();
-
-                final Expression receiver;
-                if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-                    receiver = toExpr(fieldAccess.selected);
-                } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
-                    receiver = null;
-                } else {
-                    compiler.reportError(invocation, "notSupported", "call via method reference");
-                    receiver = JavaToDafnyCompiler.getHole(origin);
-                }
-
-                if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
-                        && ownerClass.isRecord()
-                        && invocation.getArguments().isEmpty()
-                ) {
-                    var component = ownerClass.getRecordComponents().stream()
-                            .filter(comp -> comp.name.equals(methodSymbol.name))
-                            .findAny();
-                    if (component.isPresent()) {
-                        var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get());
-                        var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
-                        return new ExprDotName(origin, receiver, fieldName, null);
-                    }
-                }
-
-                if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
-                        && ownerClass.fullname.contentEquals(String.class.getName())) {
-                    return switch (methodSymbol.name.toString()) {
-                        case "charAt" -> new SeqSelectExpr(origin, true, receiver,
-                                argBindings.getFirst().getActual(), null, null);
-                        case "equals" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
-                                argBindings.getFirst().getActual());
-                        case "isEmpty" -> new BinaryExpr(origin, BinaryExprOpcode.Eq, receiver,
-                                new SeqDisplayExpr(origin, List.of()));
-                        case "length" -> new UnaryOpExpr(
-                                origin, receiver, UnaryOpExprOpcode.Cardinality);
-                        case "substring" -> {
-                            var endIndex = argBindings.size() == 2
-                                    ? argBindings.get(1).getActual()
-                                    : new UnaryOpExpr(origin, receiver, UnaryOpExprOpcode.Cardinality);
-                            yield new SeqSelectExpr(origin, false, receiver,
-                                    argBindings.getFirst().getActual(), endIndex, null);
-                        }
-                        default -> {
-                            compiler.reportError(invocation, "notSupported", "String method " + methodSymbol);
-                            yield compiler.getHole(origin);
-                        }
-                    };
-                }
-
-                var target = toExpr(invocation.getMethodSelect());
-                return new ApplySuffix(origin, target, null,
-                        new ActualBindings(argBindings), null);
+                return translateMethodInvocation(invocation, origin);
             }
             case JCTree.JCFieldAccess fieldAccess -> {
-                if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
-                    return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol), List.of());
-                }
-                if (fieldAccess.sym instanceof Symbol.DynamicMethodSymbol dynamicMethodSymbol) {
-                    return compiler.lambdaCompiler.translateDynamicMethod(origin, fieldAccess, dynamicMethodSymbol);
-                }
-                var selectedExpr = toExpr(fieldAccess.selected);
-                // TODO does this work if the selected expression isn't trivially of array type?
-                if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
-                    return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "Length"), null);
-                }
-
-                var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym);
-                if (compiler.isEnum(fieldAccess.selected)) {
-                    return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
-                            null, new ActualBindings(List.of()), null);
-                } else {
-                    Expression selectedDafnyExpr = toExpr(fieldAccess.selected);
-                    boolean methodContainerTypeIsParameter = fieldAccess.selected.type instanceof com.sun.tools.javac.code.Type.TypeVar;
-                    if (methodContainerTypeIsParameter) {
-                        var classType = fieldAccess.sym.enclClass().type;
-                        // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
-                        selectedDafnyExpr = new ConversionExpr(origin, selectedDafnyExpr, compiler.translateType(classType, origin), "");
-                    }
-                    return new ExprDotName(origin, selectedDafnyExpr, compiler.getName(fieldAccess, fieldName), null);
-                }
+                return translateFieldAccess(fieldAccess, origin);
             }
             case JCTree.JCArrayAccess arrayAccess -> {
-                var arrayExpr = toExpr(arrayAccess.getExpression());
-                var indexExpr = toExpr(arrayAccess.getIndex());
-                return new SeqSelectExpr(origin, true, arrayExpr, indexExpr, null, null);
+                return translateArrayAccess(arrayAccess, origin);
             }
             case JCTree.JCParens parens -> {
                 return toExpr(parens.getExpression());
@@ -253,46 +182,215 @@ public class ExpressionCompiler {
                 return JavaToDafnyCompiler.getHole(origin);
             }
             case JCTree.JCInstanceOf instanceOf -> {
-                var expression = toExpr(instanceOf.getExpression());
-                var jcType = compiler.translateType(instanceOf.getType());
-                return new TypeTestExpr(origin, expression, jcType);
+                return translateInstanceOf(instanceOf, origin);
             }
             case JCTree.JCTypeCast cast -> {
-                var castExpr = toExpr(cast.getExpression());
-                var type = compiler.translateType(cast.getType());
-                return new ConversionExpr(origin, castExpr, type, "");
+                return translateCast(cast, origin);
             }
             case JCTree.JCLambda _ ->
                 throw new RuntimeException("Lambdas should have been rewritten, but found one at " + origin);
             case JCTree.JCMemberReference _ ->
                 throw new RuntimeException("Member references should have been rewritten, but found one at " + origin);
             case JCTree.JCTypeApply typeApply -> {
-                var type = toExpr(typeApply.getType());
-                if (type instanceof NameSegment nameSegment) {
-                    List<Type> arguments;
-                    if (typeApply.getTypeArguments().isEmpty()) {
-                        // Occurs when the type arguments were inferred
-                        arguments = typeApply.type.getTypeArguments().stream().map(t -> compiler.translateType(null, t, origin)).toList();
-                    } else {
-                        arguments = typeApply.getTypeArguments().stream().map(compiler::translateType).toList();
-                    }
-                    return new NameSegment(origin, nameSegment.getName(), arguments);
-                }
-                throw new RuntimeException("All Dafny type references are NameSegments, since we do not use Dafny modules");
+                return translateTypeApplication(typeApply, origin);
             }
             case JCTree.JCNewClass newClass -> {
-                if (compiler.isRecord(newClass.type)) {
-                    return RecordCompiler.translateNewRecord(this, origin, newClass);
-                }
-                compiler.reportError(expr, "notSupported",
-                        "using 'new' in an expression to create an instance of a non-record class");
-                return JavaToDafnyCompiler.getHole(origin);
+                return translateNew(expr, newClass, origin);
             }
-            case null, default -> {
-            }
+            default -> { }
         }
         compiler.reportError(expr, "notSupported", expr.getClass().getSimpleName() + " in an expression");
         return JavaToDafnyCompiler.getHole(origin);
+    }
+
+    private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin) {
+        Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
+        Symtab symtab = Symtab.instance(compiler.context);
+        if (classSymbol.type != symtab.objectType && compiler.isImmutable(classSymbol)) {
+            return ImmutableTypeCompiler.translateNewRecord(this, origin, newClass);
+        }
+        compiler.reportError(expr, "notSupported",
+                "using 'new' in an expression to create an instance of a mutable type");
+        return JavaToDafnyCompiler.getReferenceHole(origin);
+    }
+
+    private TypeTestExpr translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin) {
+        var expression = toExpr(instanceOf.getExpression());
+        var jcType = compiler.translateType(instanceOf.getType());
+        return new TypeTestExpr(origin, expression, jcType);
+    }
+
+    private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin) {
+        var castExpr = toExpr(cast.getExpression());
+
+        var type = compiler.translateType(cast);
+        return new ConversionExpr(origin, castExpr, type, "");
+    }
+
+    private Expression translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
+        throw new RuntimeException("not supported. should have already been lowered");
+    }
+
+    private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin) {
+        var condition = toExpr(conditional.getCondition());
+        var thenBranch = toExpr(conditional.getTrueExpression());
+        var elseBranch = toExpr(conditional.getFalseExpression());
+        return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
+    }
+
+    private Expression translateUnary(JCTree.JCExpression expr, JCTree.JCUnary unary, IOrigin origin) {
+        var innerExpr = toExpr(unary.getExpression());
+        switch (unary.getTag()) {
+            case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
+                compiler.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
+                return JavaToDafnyCompiler.getHole(origin);
+            }
+            case JCTree.Tag.NOT -> {
+                return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
+            }
+            case JCTree.Tag.NEG -> {
+                return new NegationExpression(origin, innerExpr);
+            }
+            case JCTree.Tag.POS -> {
+                return innerExpr;
+            }
+            default -> {
+                compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
+                return JavaToDafnyCompiler.getHole(origin);
+            }
+        }
+    }
+
+    private Expression translateBinary(JCTree.JCBinary binary) {
+        var left = toExpr(binary.getLeftOperand());
+        var right = toExpr(binary.getRightOperand());
+        Symbol.OperatorSymbol operator = binary.getOperator();
+        return translateBinary(
+                binary, binary.getLeftOperand().type, binary.getRightOperand().type,
+                operator, left, right);
+    }
+    
+    private BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
+
+    public <T> T withOverrideTranslateIdentifier(Supplier<T> supplier, 
+                                                 BiFunction<JCTree.JCIdent, IOrigin, Expression> override) 
+    {
+        var previous = handleIdentifier;
+        handleIdentifier = override;
+        var result = supplier.get();
+        handleIdentifier = previous;
+        return result;
+    }
+    
+    public Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
+        if (handleIdentifier == null) {
+            return translateIdentifierNoOverride(identifier, origin);
+        } else {
+            return handleIdentifier.apply(identifier, origin);
+        }
+    }
+    
+    public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
+        var identName = compiler.nameCompiler.getCompiledName(identifier.sym, identifier);
+        if (identName.contentEquals("this")) {
+            return new ThisExpr(origin);
+        }
+        return new NameSegment(origin, identName, null);
+    }
+
+    private Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin) {
+        if (literal.typetag == TypeTag.BOOLEAN) {
+            return new LiteralExpr(compiler.toOrigin(literal), literal.getValue());
+        }
+        if (literal.typetag == TypeTag.CHAR) {
+            var intValue = Integer.valueOf((char) literal.getValue());
+            return new LiteralExpr(compiler.toOrigin(literal), intValue);
+        }
+        if (expr.getKind().equals(Tree.Kind.STRING_LITERAL)) {
+            return translateStringLiteral(compiler.toOrigin(literal), literal);
+        }
+        return new LiteralExpr(origin, literal.getValue());
+    }
+
+    private NameSegment translateTypeApplication(JCTree.JCTypeApply typeApply, IOrigin origin) {
+        var type = toExpr(typeApply.getType());
+        if (type instanceof NameSegment nameSegment) {
+            List<Type> arguments;
+            if (typeApply.getTypeArguments().isEmpty()) {
+                // Occurs when the type arguments were inferred
+                arguments = typeApply.type.getTypeArguments().stream().map(t -> compiler.translateType(t, origin, null)).toList();
+            } else {
+                arguments = typeApply.getTypeArguments().stream().map(compiler::translateType).toList();
+            }
+            return new NameSegment(origin, nameSegment.getName(), arguments);
+        }
+        throw new RuntimeException("All Dafny type references are NameSegments, since we do not use Dafny modules");
+    }
+
+    private Expression translateFieldAccess(JCTree.JCFieldAccess fieldAccess, IOrigin origin) {
+        if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
+            // Ignore package qualification
+            return new NameSegment(origin, compiler.nameCompiler.getCompiledName(classSymbol, origin), List.of());
+        }
+        var selectedExpr = toExpr(fieldAccess.selected);
+        // TODO does this work if the selected expression isn't trivially of array type?
+        if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
+            ExprDotName callee = new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, "length"), null);
+            return createCall(origin, callee, Stream.of());
+        }
+        
+        var fieldName = compiler.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);
+        if (compiler.isEnum(fieldAccess.selected)) {
+            return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
+                    null, new ActualBindings(List.of()), null);
+        } else {
+            boolean methodContainerTypeIsParameter = fieldAccess.selected.type instanceof com.sun.tools.javac.code.Type.TypeVar;
+            if (methodContainerTypeIsParameter) {
+                var classType = fieldAccess.sym.enclClass().type;
+                // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
+                selectedExpr = new ConversionExpr(origin, selectedExpr, compiler.translateType(classType, origin), "");
+            }
+            return new ExprDotName(origin, selectedExpr, compiler.getName(fieldAccess, fieldName), null);
+        }
+    }
+
+    private Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
+        var jverifyMethodExpr = new JVerifyGhostExpressionCompiler(this).jverifyLibMethodToExpr(invocation);
+        if (jverifyMethodExpr != null) {
+            return jverifyMethodExpr;
+        }
+
+        var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
+
+        if (!((invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) ||
+             (invocation.getMethodSelect() instanceof JCTree.JCIdent))) {
+            compiler.reportError(invocation, "notSupported", "call via method reference");
+        }
+
+        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
+                && ownerClass.isRecord()
+                && invocation.getArguments().isEmpty()
+        ) {
+            var component = ownerClass.getRecordComponents().stream()
+                    .filter(comp -> comp.name.equals(methodSymbol.name))
+                    .findAny();
+            if (component.isPresent()) {
+                final Expression receiver;
+                if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
+                    receiver = toExpr(fieldAccess.selected);
+                } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
+                    receiver = null;
+                } else {
+                    receiver = JavaToDafnyCompiler.getHole(origin);
+                }
+                var fieldNameStr = compiler.nameCompiler.getCompiledName(component.get(), origin);
+                var fieldName = compiler.getName(invocation.getMethodSelect(), fieldNameStr);
+                return new ExprDotName(origin, receiver, fieldName, null);
+            }
+        }
+
+        var target = toExpr(invocation.getMethodSelect());
+        return createCall(origin, target, invocation.getArguments().stream());
     }
 
     /**
@@ -311,6 +409,11 @@ public class ExpressionCompiler {
         var opName = operator.name.toString();
         if (leftType.getTag() == TypeTag.FLOAT || leftType.getTag() == TypeTag.DOUBLE) {
             compiler.reportError(node, "notSupported", "operator " + operator);
+        }
+
+        if (opName.equals("+") && leftType.toString().contentEquals(String.class.getName())) {
+            var callee = new ExprDotName(origin, left, new Name(origin, "concat"), null);
+            return createCall2(origin, callee, Stream.of(right));
         }
 
         if (opName.equals("==") || opName.equals("!=")) {
@@ -373,6 +476,11 @@ public class ExpressionCompiler {
             return false;
         }
 
+        var symtab = Symtab.instance(this.compiler.context);
+        if (type.baseType() == symtab.objectType) {
+            return !compiler.isAnnotated(type, Modifiable.class);
+        }
+
         var types = Types.instance(this.compiler.context);
         return Stream.concat(primitiveTypes().stream(), jrdvTypes().stream())
                 .anyMatch(t -> types.isAssignable(type, t) || types.isAssignable(t, type));
@@ -401,94 +509,6 @@ public class ExpressionCompiler {
     }
 
     /**
-     * Translates the specified library method invocation to a Dafny expression,
-     * or returns {@code null} if the invocation is not a JVerify library method.
-     *
-     * <p>Note: header methodContracts like {@link JVerify#precondition(boolean)}
-     * and {@link JVerify#postcondition(boolean)}
-     * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
-     * not here.
-     */
-    private @Nullable Expression jverifyLibMethodToExpr(JCTree.JCMethodInvocation invocation) {
-        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
-        if (jverifyMethod == null) {
-            return null;
-        }
-
-        var origin = compiler.toOrigin(invocation);
-        var receiver = invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
-                ? fieldAccess.selected
-                : null;
-        var methodName = jverifyMethod.getQualifiedName().toString();
-        var args = invocation.getArguments();
-        switch (methodName) {
-            case "forall", "exists" -> {
-                if (args.size() != 1) {
-                    throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
-                }
-                if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-                    compiler.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
-                    return null;
-                }
-                var boundVars = lambda.params.stream().map(param -> {
-                    var paramOrigin = compiler.toOrigin(lambda);
-                    var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = compiler.translateType(param.getModifiers(), param.getType().type, paramOrigin);
-                    return new BoundVar(paramOrigin, paramName, paramType, false);
-                }).toList();
-                var body = toExpr(lambda.getBody());
-                if (body == null) {
-                    return null;
-                }
-                if ("forall".equals(methodName)) {
-                    return new ForallExpr(origin, boundVars, null, body, null);
-                } else {
-                    return new ExistsExpr(origin, boundVars, null, body, null);
-                }
-            }
-            case "sequence" -> {
-                // array conversion to sequence by appending "[..]", optionally with lo/hi
-                var array = args.get(0);
-                var fromIndex = args.length() > 1 ? args.get(1) : null;
-                var toIndex = args.length() > 2 ? args.get(2) : null;
-                return toSubsequence(origin, array, fromIndex, toIndex);
-            }
-            case "drop" -> {
-                return toSubsequence(origin, receiver, args.getFirst(), null);
-            }
-            case "take" -> {
-                return toSubsequence(origin, receiver, null, args.getFirst());
-            }
-            case "subsequence" -> {
-                return toSubsequence(origin, receiver, args.get(0), args.get(1));
-            }
-            case "contains" -> {
-                var element = toExpr(args.getFirst());
-                var seq = toExpr(receiver);
-                return new BinaryExpr(compiler.toOrigin(invocation), BinaryExprOpcode.In, element, seq);
-            }
-            case "old" -> {
-                var element = toExpr(args.getFirst());
-                return new OldExpr(compiler.toOrigin(invocation), element, null);
-            }
-            case "fresh" -> {
-                var element = toExpr(args.getFirst());
-                return new FreshExpr(compiler.toOrigin(invocation), element, null);
-            }
-        }
-
-        compiler.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
-        return null;
-    }
-
-    private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
-        var seqOrArrayExpr = toExpr(seqOrArray);
-        var loExpr = lo == null ? null : toExpr(lo);
-        var hiExpr = hi == null ? null : toExpr(hi);
-        return new SeqSelectExpr(origin, false, seqOrArrayExpr, loExpr, hiExpr, null);
-    }
-
-    /**
      * Translates the given string literal to a Dafny expression (of type {@code jstring}).
      * For ease of debugging, the translation is the equivalent Dafny string literal
      * if all characters in the string are printable ASCII or have (non-Unicode) escape sequences.
@@ -508,13 +528,15 @@ public class ExpressionCompiler {
                 // Fallback to sequence of numeric values
                 var charExprs = stringValue.chars().boxed()
                         .map(c -> (Expression) new LiteralExpr(origin, c)).toList();
-                return new SeqDisplayExpr(origin, charExprs);
+                NameSegment callee = new NameSegment(origin, "String", null);
+                SeqDisplayExpr actual = new SeqDisplayExpr(origin, charExprs);
+                return createCall2(origin, callee, Stream.of(actual));
             }
         }
 
         var stringExpr = new StringLiteralExpr(origin, translatedChars.toString(), false);
-        return new ApplySuffix(origin, new NameSegment(origin, "JString", null), null,
-                new ActualBindings(List.of(new ActualBinding(null, stringExpr, false))), null);
+        NameSegment callee = new NameSegment(origin, "JString", null);
+        return createCall2(origin, callee, Stream.of(stringExpr));
     }
 
     private static final Map<Character, String> ESCAPED_CHARS = Map.of(
@@ -526,4 +548,19 @@ public class ExpressionCompiler {
             '\r', "\\r",
             '\t', "\\t"
     );
+
+
+    public ApplySuffix createCall(IOrigin origin, Expression callee, Stream<JCTree.JCExpression> arguments) {
+        return createCall2(origin, callee, arguments.map(this::toExpr));
+    }
+
+    public static ApplySuffix createCall2(IOrigin origin, Expression callee, Stream<Expression> bindingList) {
+        return new ApplySuffix(origin, callee, null,
+                createBindings(bindingList), null);
+    }
+
+    public static ActualBindings createBindings(Stream<Expression> bindingList) {
+        return new ActualBindings(bindingList.map(expression ->
+                new ActualBinding(null, expression, false)).toList());
+    }
 }

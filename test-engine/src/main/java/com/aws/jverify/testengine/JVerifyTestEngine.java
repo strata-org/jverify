@@ -3,12 +3,7 @@ package com.aws.jverify.testengine;
 import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
-import com.aws.jverify.verifier.DafnyDiagnostic;
-import com.aws.jverify.verifier.Driver;
-import com.aws.jverify.verifier.SourceFile;
-import com.aws.jverify.verifier.VerifierOptions;
-import com.aws.jverify.verifier.compiler.JavaFrontEnd;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.*;
 import com.google.auto.service.AutoService;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
@@ -32,18 +27,20 @@ import org.junit.platform.engine.support.hierarchical.Node;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -160,7 +157,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         verifyFile(markedSourceFile, annotation, ranges);
     }
 
-    public static void verifyFile(SourceFile markedSourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
+    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
         assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
@@ -169,27 +166,35 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var options = getVerifierOptions(annotation);
         var inputs = Arrays.stream(annotation.additionalFiles()).map(f -> {
             try {
-                var p = Path.of(markedSourceFile.toUri()).getParent().resolve(f);
+                var p = Path.of(sourceFile.toUri()).getParent().resolve(f);
                 String markedSource = Files.readString(p);
                 return (JavaFileObject)new SourceFile(p, markedSource);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }).collect(Collectors.toList());
-        inputs.add(markedSourceFile);
+        inputs.add(sourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
-        
-        if (annotation.resolvePrintedDafny()) {
-            resolvePrintedDafny(options);
-        }
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))
-                .map(d -> diagnosticAsAnnotatedRange(markedSourceFile.toUri(), d))
+                // Remove diagnostics from "additional.dfy" file as they cannot be checked now by
+                // our test engine. And we probably want to localize them elsewhere anyway
+                .filter(d -> d instanceof DafnyDiagnostic dafnyDiagnostic
+                        ? !dafnyDiagnostic.location.filename().contentEquals("additional.dfy")
+                        : true)
+                .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
                 .sorted()
                 .toList();
+
+        if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
+            if (verificationResults.getExitCode() == 0 || verificationResults.getExitCode() == 4) {
+                updateTestAnnotation(sourceFile, annotation, verificationResults);
+            }
+        }
+
         var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
@@ -206,17 +211,24 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         verificationResults.getDafnyErrorCount(),
                         is(expectedDafnyErrorCount))
         );
+
+        if (annotation.verifyPrintedDafny()) {
+            verifyPrintedDafny(verificationResults, options);
+        }
     }
 
-    private static void resolvePrintedDafny(VerifierOptions verifierOptions) 
+    private static void verifyPrintedDafny(VerificationResults previousResults, VerifierOptions verifierOptions)
             throws IOException {
-        if (verifierOptions.printDafny() == null) {
+        boolean jverifyCompilationFailed = previousResults.getExitCode() == 2;
+        if (jverifyCompilationFailed) {
+            return;
+        } else if (verifierOptions.printDafny() == null) {
             throw new RuntimeException("");
         }
-        
+
         var processBuilder = new ProcessBuilder(
                 verifierOptions.dafnyPath().toString(),
-                "resolve",
+                "verify",
                 verifierOptions.printDafny().toString(),
                 "--allow-axioms",
                 "--type-system-refresh",
@@ -224,11 +236,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 "--general-traits=datatype"
         );
         var process = processBuilder.redirectErrorStream(true).start();
-        int resolveExitCode = 0;
         try(var stdout = process.inputReader()) {
-            resolveExitCode = process.waitFor();
+            var dafnyExitCode = process.waitFor();
+            var exitCode = Driver.getExitCodeFromDafny(dafnyExitCode);
             String content = readerToString(stdout);
-            Assertions.assertEquals(0, resolveExitCode, content);
+            Assertions.assertEquals(previousResults.getExitCode(), exitCode, content);
         } catch (InterruptedException e) {
             Assertions.fail();
         }
@@ -276,11 +288,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     private static VerifierOptions getVerifierOptions(JVerifyTest annotation) {
         var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
+        var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
+        var workingDirectory = Path.of(System.getProperty("user.dir"));
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
         return new VerifierOptions(
+                workingDirectory,
                 dafnyPath,
-                List.of(libraryJar, testEngineClassPath),
+                List.of(libraryJar, testEngineClassPath, libraryForTestingClassPath),
                 prelude,
                 false,
                 Path.of("../build/temp.dfy"),
@@ -293,7 +308,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         //"--wait-for-debugger",
                 },
                 annotation.verifyByDefault(),
-                annotation.avoidNameCollisions()
+                annotation.continueOnErrors()
         );
     }
 
@@ -306,10 +321,18 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      * For creating a JVerifyTest annotation without having it in source code.
      * Useful for testing things like examples where we don't want the explicit annotation.
      */
-    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode, 
+    public static JVerifyTest makeJVerifyTestAnnotation(int dafnyVerified, int dafnyErrors) {
+        return makeJVerifyTestAnnotation(true, dafnyErrors > 0 ? 4 : 0, dafnyVerified, dafnyErrors, false, false, true);
+    }
+
+    /**
+     * For creating a JVerifyTest annotation without having it in source code.
+     * Useful for testing things like examples where we don't want the explicit annotation.
+     */
+    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
                                                         int dafnyVerified, int dafnyErrors,
-                                                        boolean resolvePrintedDafny,
-                                                        boolean avoidNameCollisions,
+                                                        boolean verifyPrintedDafny,
+                                                        boolean continueOnErrors,
                                                         boolean useBuiltinContracts) {
         return new JVerifyTest() {
             @Override
@@ -333,6 +356,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
 
             @Override
+            public boolean continueOnErrors() {
+                return continueOnErrors;
+            }
+
+            @Override
             public int exitCode() {
                 return exitCode;
             }
@@ -353,14 +381,36 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
 
             @Override
-            public boolean resolvePrintedDafny() {
-                return resolvePrintedDafny;
-            }
-
-            @Override
-            public boolean avoidNameCollisions() {
-                return avoidNameCollisions;
+            public boolean verifyPrintedDafny() {
+                return verifyPrintedDafny;
             }
         };
+    }
+
+    public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, VerificationResults verificationResults) throws IOException {
+        try (BufferedReader reader = new BufferedReader(sourceFile.openReader(false))) {
+            var allLines = reader.lines().toArray(String[]::new);
+            var maybeAnnotationIndex = IntStream.range(0, allLines.length)
+                    .filter(index -> allLines[index].startsWith("@JVerifyTest"))
+                    .findFirst();
+            if (maybeAnnotationIndex.isPresent()) {
+                int annotationIndex = maybeAnnotationIndex.getAsInt();
+                var newLine = allLines[annotationIndex].
+                        replaceFirst("exitCode = \\d", "exitCode = " + verificationResults.getExitCode()).
+                        replaceFirst("dafnyVerified = \\d+", "dafnyVerified = " + verificationResults.getDafnyVerifiedCount()).
+                        replaceFirst("dafnyErrors = \\d+", "dafnyErrors = " + verificationResults.getDafnyErrorCount());
+                allLines[annotationIndex] = newLine;
+            }
+
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(sourceFile.toUri().getPath()))) {
+                for (String line : allLines) {
+                    writer.write(line);
+                    writer.newLine();
+                }
+                writer.flush();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
