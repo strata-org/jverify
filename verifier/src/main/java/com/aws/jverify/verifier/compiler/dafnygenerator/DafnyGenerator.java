@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Set;
 
 public interface DafnyGenerator {
-    FilesContainer compileParsedSet(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries);
+    FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries);
 
     Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin);
     

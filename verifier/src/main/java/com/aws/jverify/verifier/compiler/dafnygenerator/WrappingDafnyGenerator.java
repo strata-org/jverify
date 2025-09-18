@@ -16,8 +16,8 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public FilesContainer compileParsedSet(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries) {
-        return next.compileParsedSet(parsed, libraries);
+    public FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries) {
+        return next.generateDafny(parsed, libraries);
     }
 
     @Override

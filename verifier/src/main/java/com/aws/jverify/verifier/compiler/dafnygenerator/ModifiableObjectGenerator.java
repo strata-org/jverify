@@ -28,7 +28,6 @@ import java.util.stream.Stream;
  *   new Object -> new ModifiableObject
  *   extends Object -> extends ModifiableObject
  *
- * Ideally this would be a separate pass that updates types in the AST
  */
 public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
     public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";

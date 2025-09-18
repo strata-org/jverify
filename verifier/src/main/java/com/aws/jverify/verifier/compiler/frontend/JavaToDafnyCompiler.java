@@ -43,11 +43,11 @@ public class JavaToDafnyCompiler {
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
 
-    public JavaToDafnyCompiler(Context context, DafnyGenerator dafnyGenerator) {
+    public JavaToDafnyCompiler(Context context) {
         this.context = context;
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
-        this.dafnyGenerator = dafnyGenerator;
+        this.dafnyGenerator = DafnyGenerator.getGenerator(context);;
     }
 
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files) {
@@ -68,7 +68,7 @@ public class JavaToDafnyCompiler {
         var parsed = new ArrayList<>(parsedSet);
         var libraries = parsed.stream().filter(u -> builtinSources.contains(u.getSourceFile())).collect(Collectors.toSet());
 
-        return dafnyGenerator.compileParsedSet(parsed, libraries);
+        return dafnyGenerator.generateDafny(parsed, libraries);
     }
 
 

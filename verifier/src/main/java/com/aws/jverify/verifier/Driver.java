@@ -3,7 +3,6 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -54,11 +53,10 @@ public class Driver {
         TypesWithoutErasure.preRegister(context);
         context.put(VerifierOptions.class, verifierOptions);
         
-        var generator = DafnyGenerator.getGenerator(context);
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var dafnyEquivalent = new JavaToDafnyCompiler(context, generator).analyzeJavaCode(verifierOptions, readFiles);
+        var dafnyEquivalent = new JavaToDafnyCompiler(context).analyzeJavaCode(verifierOptions, readFiles);
         var hasErrors = false;
         for (var diagnostic : Reporter.instance(context).diagnostics.getDiagnostics()) {
             verificationResults.getJverifyDiagnostics().add(diagnostic);

@@ -91,7 +91,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return nameCompiler;
     }
 
-    public FilesContainer compileParsedSet(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries) {
+    public FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries) {
         /*
          * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
          * To work around this bug, the built-in contracts file must be serialized after 
