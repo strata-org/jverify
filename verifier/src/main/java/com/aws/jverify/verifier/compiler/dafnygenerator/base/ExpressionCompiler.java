@@ -452,7 +452,7 @@ public class ExpressionCompiler {
         if (!isPure && !context.allowImpure()) {
             return isolateAssignmentRhs(invocation.type, new ExprRhs(origin, null, call), context);
         }
-        return createCall(origin, target, invocation.getArguments().stream(), context);
+        return call;
     }
 
     /**

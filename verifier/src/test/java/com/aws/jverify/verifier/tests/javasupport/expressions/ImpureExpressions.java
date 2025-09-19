@@ -4,12 +4,15 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(dafnyVerified = 4, dafnyErrors = 0)
 public class ImpureExpressions {
-    void nestedImpureExpression() {
-        var x = impure(impure(3));
+    int nestedImpureExpression() {
+        if (impureM(1) == 1) {
+            var x = impureM(impureM(2));
+        }
+        return impureM(3);
     }
     
     // impure because it is not marked as Pure
-    int impure(int input) {
-        return 3;
+    int impureM(int input) {
+        return input;
     }
 }
