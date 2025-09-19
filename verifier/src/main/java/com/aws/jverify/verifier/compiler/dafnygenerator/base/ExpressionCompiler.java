@@ -482,7 +482,7 @@ public class ExpressionCompiler {
         var target = toExpr(invocation.getMethodSelect(), context);
         var isPure = utils.isPure(methodSymbol);
         var call = createCall(origin, target, invocation.getArguments().stream(), context);
-        if (!isPure && !context.allowImpure()) {
+        if (context.statementWriter() != null && !isPure && !context.allowImpure()) {
             return isolateAssignmentRhs(invocation.type, new ExprRhs(origin, null, call), context);
         }
         return call;
