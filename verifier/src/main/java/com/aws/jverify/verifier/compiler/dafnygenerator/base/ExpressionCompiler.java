@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -185,9 +186,12 @@ public class ExpressionCompiler {
                 return toExpr(parens.getExpression(), context);
             }
             case JCTree.JCAssignOp assignOp -> {
-                // TODO allow. Look at ImpureExpressionStatementCompiler
-                baseGenerator.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
-                return BaseDafnyGenerator.getHole(origin);
+                if (context.statementWriter() == null) {
+                    baseGenerator.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
+                    return BaseDafnyGenerator.getHole(origin);
+                } else {
+                    return translateAssignOp(assignOp, context);
+                }
             }
             case JCTree.JCInstanceOf instanceOf -> {
                 return translateInstanceOf(instanceOf, origin, context);
@@ -209,6 +213,18 @@ public class ExpressionCompiler {
         }
         baseGenerator.reportError(expr, "notSupported", expr.getClass().getSimpleName() + " in an expression");
         return BaseDafnyGenerator.getHole(origin);
+    }
+
+    private Expression translateAssignOp(JCTree.JCAssignOp assignOp, ExpressionContext context) {
+        var origin = baseGenerator.toOrigin(assignOp);
+        Expression target = toExpr(assignOp.getVariable(), context);
+        List<Expression> lhss = List.of(target);
+        var operated = translateBinary(
+                assignOp, assignOp.getVariable().type, null,
+                assignOp.getOperator(), target, toExpr(assignOp.getExpression(), context));
+        List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
+        context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
+        return target;
     }
 
     private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin, 
@@ -295,14 +311,31 @@ public class ExpressionCompiler {
         var elseBranch = toExpr(conditional.getFalseExpression(), context);
         return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
     }
-
+    
     private Expression translateUnary(JCTree.JCExpression expr, JCTree.JCUnary unary, IOrigin origin, ExpressionContext context) {
         context = context.forbidImpure();
         var innerExpr = toExpr(unary.getExpression(), context);
-        switch (unary.getTag()) {
+        JCTree.Tag tag = unary.getTag();
+        switch (tag) {
             case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
-                baseGenerator.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
-                return BaseDafnyGenerator.getHole(origin);
+                if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
+                    baseGenerator.reportError(unary, "notSupported", "operator " + unary.getOperator());
+                    return BaseDafnyGenerator.getHole(origin);
+                }
+                if (context.statementWriter() == null) {
+                    baseGenerator.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
+                    return BaseDafnyGenerator.getHole(origin);
+                }
+
+                Expression target = toExpr(unary.getExpression(), context);
+                List<Expression> lhss = List.of(target);
+
+                var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
+                        ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
+                var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
+                List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
+                context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
+                return target;
             }
             case JCTree.Tag.NOT -> {
                 return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);

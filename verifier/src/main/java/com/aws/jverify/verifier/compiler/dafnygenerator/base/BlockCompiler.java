@@ -26,7 +26,6 @@ public class BlockCompiler {
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         statementCompilers.add(new ForLoopCompiler(this));
         statementCompilers.add(new DoWhileLoopCompiler(this));
-        statementCompilers.add(new ImpureExpressionStatementCompiler(this));
     }
 
     private final Queue<Label> labels = new LinkedList<>();
