@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -23,11 +24,13 @@ import java.util.stream.Stream;
 
 public class ExpressionCompiler {
     public final BaseDafnyGenerator baseGenerator;
+    private final JVerifyUtils utils;
     
     DafnyGenerator getGenerator() { return baseGenerator.getFinalGenerator();}
 
     public ExpressionCompiler(BaseDafnyGenerator baseGenerator) {
         this.baseGenerator = baseGenerator;
+        utils = JVerifyUtils.instance(baseGenerator.context);
     }
 
     public Expression toExpr(JCTree tree, ExpressionContext context) {
@@ -407,7 +410,7 @@ public class ExpressionCompiler {
     }
 
     public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
-        var methodSymbol = TreeInfo.symbol(invocation.getMethodSelect());
+        var methodSymbol = (Symbol.MethodSymbol)TreeInfo.symbol(invocation.getMethodSelect());
 
         if (!((invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) ||
              (invocation.getMethodSelect() instanceof JCTree.JCIdent))) {
@@ -437,8 +440,19 @@ public class ExpressionCompiler {
         }
 
         var target = toExpr(invocation.getMethodSelect(), context);
-        // TODO if target is impure, and !context.allowImpure
-        // Then assign temporary variable to statements
+        var isPure = utils.isPure(methodSymbol);
+        var call = createCall(origin, target, invocation.getArguments().stream(), context);
+        if (!isPure && !context.allowImpure()) {
+            Type translatedType = this.baseGenerator.getFinalGenerator().translateType(invocation.type, origin, null);
+            LocalVariable localVariable = new LocalVariable(origin, this.baseGenerator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
+                    translatedType, false);
+            List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
+            List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, call));
+
+            context.statementWriter().accept(new VarDeclStmt(origin, null, List.of(localVariable), 
+                    new AssignStatement(origin, null, lhss, rhss, false)));
+            return new NameSegment(origin, localVariable.getName(), null);
+        }
         return createCall(origin, target, invocation.getArguments().stream(), context);
     }
 
