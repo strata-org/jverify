@@ -4,6 +4,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -444,7 +445,7 @@ public class ExpressionCompiler {
         var call = createCall(origin, target, invocation.getArguments().stream(), context);
         if (!isPure && !context.allowImpure()) {
             Type translatedType = this.baseGenerator.getFinalGenerator().translateType(invocation.type, origin, null);
-            LocalVariable localVariable = new LocalVariable(origin, this.baseGenerator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
+            LocalVariable localVariable = new LocalVariable(origin, "impure" + NameCompiler.sep + context.getVariableSuffix(),
                     translatedType, false);
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, call));

@@ -50,7 +50,7 @@ public class BlockCompiler {
 
 
         List<Statement> statements = new ArrayList<>();
-        var expressionContext = new ExpressionContext(statements::add, true);
+        var expressionContext = new ExpressionContext(statements::add, true, this);
         
         for (var compiler : statementCompilers) {
             var result = compiler.compile(statement, labels, expressionContext);
