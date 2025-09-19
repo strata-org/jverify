@@ -129,7 +129,14 @@ public class ExpressionCompiler {
         IOrigin origin = baseGenerator.toOrigin(statement);
         context = context.forbidImpure();
         return switch (statement) {
-            case JCTree.JCBlock block -> toExpr(block.getStatements(), context);
+            case JCTree.JCBlock block -> {        
+                if (block.getStatements().isEmpty()) {
+                    baseGenerator.reportError(block, "pureMethodLastStatement");
+                    yield BaseDafnyGenerator.getHole(origin);
+                } else {
+                    yield toExpr(block.getStatements(), context);
+                }
+            }
             case JCTree.JCIf ifStatement -> {
                 if (ifStatement.getElseStatement() == null) {
                     baseGenerator.reportError(statement, "pureMethodEndingIfThen");
