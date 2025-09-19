@@ -31,15 +31,13 @@ import java.util.stream.Stream;
  */
 public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
     public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
-    
-    private final BaseDafnyGenerator baseGenerator;
+
     private final Symtab symtab;
     private final Reporter reporter;
     private final NameCompiler nameCompiler;
     
     public ModifiableObjectGenerator(Context context, BaseDafnyGenerator baseGenerator, DafnyGenerator original) {
         super(original);
-        this.baseGenerator = baseGenerator;
         symtab = Symtab.instance(context);
         reporter = Reporter.instance(context);
         nameCompiler = NameCompiler.instance(context);
