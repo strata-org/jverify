@@ -6,6 +6,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -80,7 +81,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 : List.nil();
         if (contract.isPure) {
             if (!implementationStatements.isEmpty()) {
-                contract.pureBody = compiler.expressionCompiler.toExpr(implementationStatements);
+                contract.pureBody = compiler.expressionCompiler.toExpr(implementationStatements, ExpressionContext.Pure);
             }
             return List.nil();
         }
@@ -260,7 +261,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A precondition call may have only one argument");
                 }
-                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), null), null, null));
+                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), ExpressionContext.Pure), null, null));
             }
             case "postcondition" -> {
                 if (invocation.args.size() != 1) {
@@ -272,15 +273,15 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("invariant should have a single argument");
                 }
-                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), null), null, null));
+                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), ExpressionContext.Pure), null, null));
             }
             case "decreases" -> {
                 for(var decrease : invocation.getArguments()) {
                     // The LOWER javac phase inserts an explicit NewArray for varargs
                     if (decrease instanceof JCTree.JCNewArray newArray) {
-                        contract.decreases.addAll(newArray.getInitializers().map(i -> compiler.expressionCompiler.toExpr(i, null)));
+                        contract.decreases.addAll(newArray.getInitializers().map(d -> compiler.expressionCompiler.toExpr(d, ExpressionContext.Pure)));
                     } else {
-                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease, null));
+                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease, ExpressionContext.Pure));
                     }
                 }
             }
@@ -290,7 +291,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
-                var expr = compiler.expressionCompiler.toExpr(origExpr, null);
+                var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
                 contract.reads.add(new FrameExpression(origin, expr, null));
             }
             case "modifies" -> {
@@ -299,7 +300,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
-                var expr = compiler.expressionCompiler.toExpr(origExpr, null);
+                var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
                 contract.modifies.add(new FrameExpression(origin, expr, null));
             }
             default -> {
@@ -325,7 +326,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
                     : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody(), null);
+            var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
             var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 
@@ -333,7 +334,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var origin = compiler.toOrigin(memberReference);
             NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
-                    compiler.expressionCompiler.toExpr(memberReference.expr, null),
+                    compiler.expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
                     compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
             var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
             header.postconditions.add(new AttributedExpression(call, null, null));
@@ -341,7 +342,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             // Casts like (IntPredicate) are sometimes necessary to disambiguate
             handlePostcondition(compiler, header, typeCast.getExpression());
         } else {
-            var dafnyExpr = compiler.expressionCompiler.toExpr(expr, null);
+            var dafnyExpr = compiler.expressionCompiler.toExpr(expr, ExpressionContext.Pure);
             header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
         }
     }

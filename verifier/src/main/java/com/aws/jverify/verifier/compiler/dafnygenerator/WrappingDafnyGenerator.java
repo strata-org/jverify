@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -27,13 +28,12 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation) {
-        return next.translateStatementMethodInvocation(blockCompiler, invocation);
+    public List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext) {
+        return next.translateStatementMethodInvocation(blockCompiler, invocation, expressionContext);
     }
 
-    @Override
-    public Expression translateExpressionMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
-        return next.translateExpressionMethodInvocation(invocation, origin);
+    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
+        return next.translateMethodInvocation(invocation, origin, context);
     }
 
     @Override
@@ -56,12 +56,12 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public AssignmentRhs translateNewClassToAssignmentRhs(BlockCompiler blockCompiler, JCTree.JCNewClass newClass, IOrigin origin) {
-        return next.translateNewClassToAssignmentRhs(blockCompiler, newClass, origin);
+    public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context) {
+        return next.translateNewClassToAssignmentRhs(newClass, origin, context);
     }
 
     @Override
-    public Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin, com.sun.tools.javac.code.Type typeFallback) {
-        return next.translateLiteral(expr, literal, origin, typeFallback);
+    public Expression translateLiteral(JCTree.JCLiteral literal, IOrigin origin, ExpressionContext typeFallback) {
+        return next.translateLiteral(literal, origin, typeFallback);
     }
 }

@@ -77,6 +77,6 @@ class ClassesAreMutable {
     @Pure
     ClassesAreMutable createC() {
         return new ClassesAreMutable();
-//             ^ error: using 'new' in an expression to create an instance of a mutable type is not supported
+//             ^ error: using 'new' in a pure expression to create an instance of a mutable type is not supported
     }
 }

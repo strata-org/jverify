@@ -7,6 +7,7 @@ import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
@@ -22,16 +23,16 @@ public class ForLoopCompiler implements StatementCompiler {
     }
 
     @Override
-    public @Nullable List<Statement> compile(JCTree.JCStatement statement, List<Label> labels) {
+    public @Nullable List<Statement> compile(JCTree.JCStatement statement, List<Label> labels, ExpressionContext context) {
         if (statement instanceof JCTree.JCContinue jcContinue) {
             return translateContinue(jcContinue);
         } else if (statement instanceof JCTree.JCForLoop jcForLoop) {
-            return translateForLoop(jcForLoop, labels);
+            return translateForLoop(jcForLoop, labels, context);
         }
         return null;
     }
     
-    private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels) {
+    private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels, ExpressionContext context) {
         var origin = blockCompiler.generator.toOrigin(forLoop);
         var loop = blockCompiler.translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
             List<Statement> outerBody;
@@ -48,7 +49,7 @@ public class ForLoopCompiler implements StatementCompiler {
                 outerBody.addAll(steps);
             }
             return outerBody;
-        });
+        }, context);
 
         var initializer = blockCompiler.translateStatements(forLoop.getInitializer());
         var result = new ArrayList<Statement>(initializer.size() + 1);

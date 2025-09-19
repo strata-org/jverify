@@ -3,7 +3,6 @@ JVerify intends to support the full Java language, but is currently being develo
 # Currently unsupported Java features
 
 #### Java 1-9
-- Use of mutating operators such as `=` in a nested expression
 - Enhanced for loop: `for(var x : xs) { ... }`
 - Verification of constructors
 - static fields

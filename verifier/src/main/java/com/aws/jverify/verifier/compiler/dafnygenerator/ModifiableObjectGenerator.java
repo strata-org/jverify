@@ -3,8 +3,8 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
@@ -31,15 +31,13 @@ import java.util.stream.Stream;
  */
 public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
     public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
-    
-    private final BaseDafnyGenerator baseGenerator;
+
     private final Symtab symtab;
     private final Reporter reporter;
     private final NameCompiler nameCompiler;
     
     public ModifiableObjectGenerator(Context context, BaseDafnyGenerator baseGenerator, DafnyGenerator original) {
         super(original);
-        this.baseGenerator = baseGenerator;
         symtab = Symtab.instance(context);
         reporter = Reporter.instance(context);
         nameCompiler = NameCompiler.instance(context);
@@ -79,9 +77,7 @@ public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
     }
 
     @Override
-    public AssignmentRhs translateNewClassToAssignmentRhs(BlockCompiler blockCompiler, 
-                                                          JCTree.JCNewClass newClass, 
-                                                          IOrigin origin) {
+    public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context) {
         if (newClass.type == symtab.objectType) {
             NameSegment classBaseType = new NameSegment(origin, 
                     nameCompiler.CLASS_PREFIX + REFERENCE_OBJECT_NAME, null);
@@ -93,6 +89,6 @@ public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
             var argBindings = ExpressionCompiler.createBindings(Stream.empty());
             return new AllocateClass(origin, null, ty, argBindings);
         }
-        return super.translateNewClassToAssignmentRhs(blockCompiler, newClass, origin);
+        return super.translateNewClassToAssignmentRhs(newClass, origin, context);
     }
 }

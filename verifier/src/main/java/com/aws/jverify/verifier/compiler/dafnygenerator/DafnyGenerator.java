@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -16,9 +17,9 @@ public interface DafnyGenerator {
     
     List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride);
     
-    List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation);
-        
-    Expression translateExpressionMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin);
+    List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext);
+
+    Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context);
     
     @Nullable
     Type translateType(com.sun.tools.javac.code.Type type, 
@@ -33,9 +34,9 @@ public interface DafnyGenerator {
                        JCTree.JCModifiers additionalModifiers,
                        com.sun.tools.javac.code.Type.ClassType classType);
 
-    AssignmentRhs translateNewClassToAssignmentRhs(BlockCompiler blockCompiler, JCTree.JCNewClass newClass, IOrigin origin);
-
-    Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin, com.sun.tools.javac.code.Type typeDefault);
+    Expression translateLiteral(JCTree.JCLiteral literal, IOrigin origin, ExpressionContext context);
+    
+    AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context);
     
     static DafnyGenerator getGenerator(Context context) {
         var base = new BaseDafnyGenerator(context);

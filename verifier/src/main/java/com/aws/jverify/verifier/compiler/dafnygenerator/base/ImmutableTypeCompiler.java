@@ -219,7 +219,7 @@ public class ImmutableTypeCompiler {
      * Translates the given {@code new RecordType(...)} invocation into a {@link DatatypeValue}
      * that can be used in pure contexts.
      */
-    public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
+    public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass, ExpressionContext expressionContext) {
 
         BaseDafnyGenerator compiler = expressionCompiler.baseGenerator;
         List<Type> typeArgs = new ArrayList<>();
@@ -238,6 +238,6 @@ public class ImmutableTypeCompiler {
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
         var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.baseGenerator.getName(newClass, constructorName), null);
 
-        return expressionCompiler.createCall(origin, dafnyConstructor, newClass.args.stream());
+        return expressionCompiler.createCall(origin, dafnyConstructor, newClass.args.stream(), expressionContext);
     }
 }

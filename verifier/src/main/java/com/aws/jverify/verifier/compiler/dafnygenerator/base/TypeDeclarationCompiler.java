@@ -231,7 +231,8 @@ public class TypeDeclarationCompiler {
                 if (block.stats.isEmpty()) {
                     return null;
                 } else {
-                    throw new BaseDafnyGenerator.NotImplementedException(member.getClass().getName());
+                    compiler.reportError(block, "notSupported", "an initializer block");
+                    return null;
                 }
             }
             default -> throw new BaseDafnyGenerator.NotImplementedException(member.getClass().getName());
@@ -248,7 +249,7 @@ public class TypeDeclarationCompiler {
         
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
-                var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer(), null);
+                var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
                 var isStatic = varFlags.contains(Modifier.STATIC);
                 return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
             }
