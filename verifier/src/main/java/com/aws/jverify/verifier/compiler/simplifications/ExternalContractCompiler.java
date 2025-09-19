@@ -4,7 +4,7 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.AttrContext;
@@ -20,7 +20,7 @@ import com.sun.tools.javac.util.List;
 import javax.lang.model.element.ElementKind;
 import java.util.*;
 
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
+import static com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator.isConstructor;
 
 /**
  * Handles @Contract annotations, so that further passes can be agnostic to them.
@@ -88,7 +88,7 @@ public class ExternalContractCompiler {
 
         @Override
         public void visitClassDef(JCTree.JCClassDecl classDecl) {
-            var classAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
+            var classAnnotationsByName = BaseDafnyGenerator.getAnnotationsByName(classDecl.getModifiers());
             var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
             if (contractAnnotation != null) {
                 var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
@@ -123,7 +123,7 @@ public class ExternalContractCompiler {
                 if (contracteeSource == null) {
                     handleLibraryContract(classDecl, contracteeSymbol);
                 } else {
-                    if (JavaToDafnyCompiler.typeHasSource(index, contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
+                    if (BaseDafnyGenerator.typeHasSource(index, contracteeSymbol) && !BaseDafnyGenerator.isInterfaceOrAbstract(contracteeSymbol)) {
                         reporter.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
                         classesToRemove.add(classDecl);
                         return;
@@ -165,7 +165,7 @@ public class ExternalContractCompiler {
                     }
 
                     // TODO can the next line be removed?
-                    if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+                    if (BaseDafnyGenerator.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
                         continue;
                     }
 
@@ -236,7 +236,7 @@ public class ExternalContractCompiler {
         private void handleLibraryContractMethod(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol, JCTree.JCMethodDecl methodDecl, ArrayList<JCTree> newMembers) {
             var contracterSymbol = methodDecl.sym;
 
-            if (JavaToDafnyCompiler.isSynthetic(index, methodDecl, contracterSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+            if (BaseDafnyGenerator.isSynthetic(index, methodDecl, contracterSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
                 return;
             }
 
@@ -292,8 +292,8 @@ public class ExternalContractCompiler {
                 return null;
             }
 
-            var arguments = JavaToDafnyCompiler.getArguments(contractAnnotation);
-            var symbol = JavaToDafnyCompiler.getClassSymbol(names,  arguments.get("value"));
+            var arguments = BaseDafnyGenerator.getArguments(contractAnnotation);
+            var symbol = BaseDafnyGenerator.getClassSymbol(names,  arguments.get("value"));
             if (symbol == null || symbol.getQualifiedName().contentEquals("com.aws.jverify.Contract")) {
                 var superClass = classDecl.sym.getSuperclass();
                 if (classDecl.extending != null && superClass != null) {

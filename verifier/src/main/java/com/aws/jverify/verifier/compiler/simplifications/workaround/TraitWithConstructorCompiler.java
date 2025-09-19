@@ -2,8 +2,8 @@ package com.aws.jverify.verifier.compiler.simplifications.workaround;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.TypeDeclarationCompiler;
 import com.sun.tools.javac.code.Symbol;
 
 import java.util.*;
@@ -49,7 +49,7 @@ public class TraitWithConstructorCompiler {
                     traitMembers.add(constructorToInitMethod(traitDecl.getNameNode().getValue(), constructor));
 
                     var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), 
-                            null, JavaToDafnyCompiler.Ghostness, null,
+                            null, BaseDafnyGenerator.Ghostness, null,
                             constructor.getTypeArgs(), constructor.getIns(),
                             constructor.getReq(), constructor.getEns(), constructor.getReads(),
                             constructor.getDecreases(), constructor.getMod(),

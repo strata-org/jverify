@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.IOrigin;
 import com.aws.jverify.generated.TokenRangeOrigin;
-import com.sun.tools.javac.code.Symbol;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -13,8 +13,6 @@ import com.sun.tools.javac.util.Position;
 
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaFileObject;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Stack;
 
@@ -42,7 +40,7 @@ public class Reporter {
     }
 
     public JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
-        return new DiagnosticPositionFromOrigin(JavaToDafnyCompiler.originToRange(origin), compilationUnit.lineMap);
+        return new DiagnosticPositionFromOrigin(BaseDafnyGenerator.originToRange(origin), compilationUnit.lineMap);
     }
     
     public void reportError(JCTree tree, String key, Object... args) {

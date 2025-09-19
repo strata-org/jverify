@@ -1,8 +1,8 @@
-package com.aws.jverify.verifier.compiler.simplifications;
+package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
-import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;

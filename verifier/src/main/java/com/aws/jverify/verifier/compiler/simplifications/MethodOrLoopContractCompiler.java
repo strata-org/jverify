@@ -4,6 +4,8 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -60,9 +62,9 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return envs;
     }
     
-    public List<JCTree.JCStatement> extractContract(JavaToDafnyCompiler compiler, 
-                                                              JCTree.JCBlock block,
-                                                              MethodOrLoopContract contract) {
+    public List<JCTree.JCStatement> extractContract(BaseDafnyGenerator compiler,
+                                                    JCTree.JCBlock block,
+                                                    MethodOrLoopContract contract) {
         if (block.getStatements().size() != 2) {
             throw new RuntimeException("Method body is not in contract + implementation format");
         }
@@ -125,7 +127,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         if (tree.body != null) {
-            var allowFooter = JavaToDafnyCompiler.isConstructor(tree.sym);
+            var allowFooter = BaseDafnyGenerator.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
         }
         super.visitMethodDef(tree);
@@ -206,7 +208,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
         }
-        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return false;
         }
@@ -239,12 +241,12 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
 
-    public static boolean handleStatement(JavaToDafnyCompiler compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
+    public static boolean handleStatement(BaseDafnyGenerator compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
         }
-        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return false;
         }
@@ -308,7 +310,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return true;
     }
 
-    private static void handlePostcondition(JavaToDafnyCompiler compiler,  MethodOrLoopContract header, JCTree.JCExpression expr) {
+    private static void handlePostcondition(BaseDafnyGenerator compiler, MethodOrLoopContract header, JCTree.JCExpression expr) {
         if (expr instanceof JCTree.JCLambda lambda) {
             if (lambda.getParameters().size() != 1) {
                 throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
@@ -316,7 +318,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var parameter = lambda.params.getFirst();
             var origin = compiler.toOrigin(lambda);
             var paramName = parameter.getName().toString();
-            var type = compiler.translateType(parameter.type, compiler.toOrigin(parameter), null);
+            var type = compiler.getFinalGenerator().translateType(parameter.type, compiler.toOrigin(parameter), null);
 
             var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
             var lhs = new CasePattern<>(origin, paramName, returnVar, null);

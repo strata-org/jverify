@@ -1,8 +1,8 @@
-package com.aws.jverify.verifier.compiler.simplifications;
+package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
@@ -35,15 +35,15 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
 
 
     private List<Statement> translateUnaryExpressionStatement(JCTree.JCUnary unary) {
-        var origin = blockCompiler.compiler.toOrigin(unary);
+        var origin = blockCompiler.generator.toOrigin(unary);
         var tag = unary.getTag();
         switch (tag) {
             case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
                 if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
-                    blockCompiler.compiler.reportError(unary, "notSupported", "operator " + unary.getOperator());
+                    blockCompiler.generator.reportError(unary, "notSupported", "operator " + unary.getOperator());
                     return List.of();
                 } else {
-                    Expression target = blockCompiler.compiler.expressionCompiler.toExpr(unary.getExpression());
+                    Expression target = blockCompiler.generator.expressionCompiler.toExpr(unary.getExpression());
                     List<Expression> lhss = List.of(target);
 
                     var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
@@ -62,12 +62,12 @@ public class ImpureExpressionStatementCompiler implements StatementCompiler {
     }
 
     private List<Statement> translateAssignOp(JCTree.JCAssignOp assignOp) {
-        var origin = blockCompiler.compiler.toOrigin(assignOp);
-        Expression target = blockCompiler.compiler.expressionCompiler.toExpr(assignOp.getVariable());
+        var origin = blockCompiler.generator.toOrigin(assignOp);
+        Expression target = blockCompiler.generator.expressionCompiler.toExpr(assignOp.getVariable());
         List<Expression> lhss = List.of(target);
-        var operated = blockCompiler.compiler.expressionCompiler.translateBinary(
+        var operated = blockCompiler.generator.expressionCompiler.translateBinary(
                 assignOp, assignOp.getVariable().type, null,
-                assignOp.getOperator(), target, blockCompiler.compiler.expressionCompiler.toExpr(assignOp.getExpression()));
+                assignOp.getOperator(), target, blockCompiler.generator.expressionCompiler.toExpr(assignOp.getExpression()));
         List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, operated));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }

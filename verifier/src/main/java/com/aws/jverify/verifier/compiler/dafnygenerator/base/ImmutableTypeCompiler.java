@@ -1,11 +1,10 @@
-package com.aws.jverify.verifier.compiler.simplifications;
+package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.Modifiable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.TypeDeclarationCompiler;
-import com.aws.jverify.verifier.compiler.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
@@ -19,7 +18,7 @@ import java.util.stream.Collectors;
 
 public class ImmutableTypeCompiler {
     final TypeDeclarationCompiler typeDeclarationCompiler;
-    final JavaToDafnyCompiler compiler;
+    final BaseDafnyGenerator compiler;
     private final Symtab symtab;
     private final Names names;
 
@@ -41,11 +40,11 @@ public class ImmutableTypeCompiler {
 
         var traits = classSymbol
                 .getInterfaces().stream()
-                .map(baseType -> compiler.translateType(baseType, origin, null))
+                .map(baseType -> compiler.getFinalGenerator().translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
         var superClass = classDecl.sym.getSuperclass();
-        var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, JavaToDafnyCompiler.REFERENCE_OR_VALUE_OBJECT_NAME, null));
+        var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null));
         if (superClass != null) {
             Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym) {
@@ -55,8 +54,8 @@ public class ImmutableTypeCompiler {
                     traits.addFirst(pureObjectType);
                 }
             } else {
-                if (JavaToDafnyCompiler.typeHasSource(compiler.index, superClass.tsym)) {
-                    traits.addFirst(compiler.translateType(superClass, origin, null));
+                if (BaseDafnyGenerator.typeHasSource(compiler.index, superClass.tsym)) {
+                    traits.addFirst(compiler.getFinalGenerator().translateType(superClass, origin, null));
                 }
             }
         } else {
@@ -99,8 +98,8 @@ public class ImmutableTypeCompiler {
                 if (isAbstract) {
                     Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
                     var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
-                    Type type = compiler.translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
-                    members.add(new ConstantField(fieldOrigin, fieldName, null, JavaToDafnyCompiler.Ghostness, type, null, false, false));
+                    Type type = compiler.getFinalGenerator().translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
+                    members.add(new ConstantField(fieldOrigin, fieldName, null, BaseDafnyGenerator.Ghostness, type, null, false, false));
                 }
                 continue;
             } 
@@ -173,7 +172,7 @@ public class ImmutableTypeCompiler {
         
         if (dafnyMember instanceof Constructor constructor && 
                 (classDecl.sym.isAnonymous() || 
-                        JavaToDafnyCompiler.isSynthetic(classDecl.sym.flags()) || 
+                        BaseDafnyGenerator.isSynthetic(classDecl.sym.flags()) || 
                         !MethodOrLoopContractCompiler.hasImplementation(methodDecl))) {
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
@@ -192,7 +191,7 @@ public class ImmutableTypeCompiler {
                 }).toList();
             }
             var staticFunction = new Function(constructor.getOrigin(), constructor.getNameNode(), constructor.getAttributes(), 
-                    JavaToDafnyCompiler.Ghostness, null,
+                    BaseDafnyGenerator.Ghostness, null,
                 constructor.getTypeArgs(), constructor.getIns(), constructor.getReq(), ens, constructor.getReads(), constructor.getDecreases(),
             true, false, result, outType, null, null, null);
 
@@ -222,7 +221,7 @@ public class ImmutableTypeCompiler {
      */
     public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass) {
 
-        JavaToDafnyCompiler compiler = expressionCompiler.compiler;
+        BaseDafnyGenerator compiler = expressionCompiler.compiler;
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
             typeArgs = compiler.getOwnAndEnclosedTypeParameters(newClass.type.tsym).map(

@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.Scope;
 import com.sun.tools.javac.code.Symbol;
@@ -18,7 +18,7 @@ import com.sun.tools.javac.util.Names;
 import javax.lang.model.util.Elements;
 import java.util.*;
 
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_CLASS;
+import static com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator.JVERIFY_CLASS;
 
 /**
  * In Java, static methods ignore the type parameters of any enclosing types
@@ -118,7 +118,7 @@ public class MoveStaticMethodsToStaticType {
                         continue;
                     }
                 } else if (member instanceof JCTree.JCVariableDecl varDecl) {
-                    if (JavaToDafnyCompiler.isStatic(varDecl.mods)) {
+                    if (BaseDafnyGenerator.isStatic(varDecl.mods)) {
                         staticMembers = staticMembers.append(varDecl);
                         var varSymbol = varDecl.sym;
 

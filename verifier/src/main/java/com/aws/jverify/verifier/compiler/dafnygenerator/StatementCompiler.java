@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.simplifications;
+package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.Label;
