@@ -16,6 +16,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
+import java.security.spec.RSAKeyGenParameterSpec;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -65,9 +66,8 @@ public class ExpressionCompiler {
         };
     }
 
-    private Expression translateSwitchExpression(JCTree.JCSwitchExpression switchExpr, ExpressionContext context) {
+    private Expression translateSwitchExpression(JCTree.JCSwitchExpression switchExpr, IOrigin origin,  ExpressionContext context) {
         var newContext = context.forbidImpure();
-        var origin = baseGenerator.toOrigin(switchExpr);
         var patternBodies = new Patterns(baseGenerator).translateSwitchLabels(switchExpr, context);
         if (patternBodies == null) {
             return BaseDafnyGenerator.getHole(origin);
@@ -126,6 +126,7 @@ public class ExpressionCompiler {
 
     private Expression toExpr(JCTree.JCStatement statement, ExpressionContext context) {
         IOrigin origin = baseGenerator.toOrigin(statement);
+        context = context.forbidImpure();
         return switch (statement) {
             case JCTree.JCBlock block -> toExpr(block.getStatements(), context);
             case JCTree.JCIf ifStatement -> {
@@ -157,7 +158,7 @@ public class ExpressionCompiler {
                 return translateConditional(conditional, origin, context);
             }
             case JCTree.JCSwitchExpression switchExpr -> {
-                return translateSwitchExpression(switchExpr, context);
+                return translateSwitchExpression(switchExpr, origin, context);
             }
             case JCTree.JCUnary unary -> {
                 return translateUnary(expr, unary, origin, context);
@@ -169,7 +170,7 @@ public class ExpressionCompiler {
                 return translateIdentifier(identifier, origin);
             }
             case JCTree.JCLiteral literal -> {
-                return translateLiteral(expr, literal, origin);
+                return translateLiteral(literal, origin);
             }
             case JCTree.JCMethodInvocation invocation -> {
                 return baseGenerator.getFinalGenerator().translateMethodInvocation(invocation, origin, context);
@@ -223,7 +224,7 @@ public class ExpressionCompiler {
             return BaseDafnyGenerator.getReferenceHole(origin);
         } else {
             var rhs = getGenerator().translateNewClassToAssignmentRhs(newClass, origin, context);
-            return isolateAssignmentRhs(rhs, context);
+            return isolateAssignmentRhs(newClass.type, rhs, context);
         }
     }
 
@@ -255,12 +256,17 @@ public class ExpressionCompiler {
                 baseNameSegment.getOptTypeArguments());
     }
 
-    Expression isolateAssignmentRhs(AssignmentRhs rhs, ExpressionContext context) {
-        throw new RuntimeException("not implemented");
-//        List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), originOverride));
-//        List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride));
-//        return List.of(new AssignStatement(rhs.getOrigin(), null, lhss, rhss, false));
+    Expression isolateAssignmentRhs(com.sun.tools.javac.code.Type type, AssignmentRhs rhs, ExpressionContext context) {
+        var origin = rhs.getOrigin();
+        Type translatedType = this.baseGenerator.getFinalGenerator().translateType(type, origin, null);
+        LocalVariable localVariable = new LocalVariable(origin, "impure" + NameCompiler.sep + context.getVariableSuffix(),
+                translatedType, false);
+        List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
+        List<AssignmentRhs> rhss = List.of(rhs);
 
+        context.statementWriter().accept(new VarDeclStmt(origin, null, List.of(localVariable),
+                new AssignStatement(origin, null, lhss, rhss, false)));
+        return new NameSegment(origin, localVariable.getName(), null);
     }
 
     private TypeTestExpr translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin, ExpressionContext context) {
@@ -352,7 +358,7 @@ public class ExpressionCompiler {
         return new NameSegment(origin, identName, null);
     }
 
-    private Expression translateLiteral(JCTree.JCExpression expr, JCTree.JCLiteral literal, IOrigin origin) {
+    private Expression translateLiteral(JCTree.JCLiteral literal, IOrigin origin) {
         if (literal.typetag == TypeTag.BOOLEAN) {
             return new LiteralExpr(baseGenerator.toOrigin(literal), literal.getValue());
         }
@@ -360,7 +366,7 @@ public class ExpressionCompiler {
             var intValue = Integer.valueOf((char) literal.getValue());
             return new LiteralExpr(baseGenerator.toOrigin(literal), intValue);
         }
-        if (expr.getKind().equals(Tree.Kind.STRING_LITERAL)) {
+        if (literal.getKind().equals(Tree.Kind.STRING_LITERAL)) {
             return translateStringLiteral(baseGenerator.toOrigin(literal), literal);
         }
         return new LiteralExpr(origin, literal.getValue());
@@ -444,15 +450,7 @@ public class ExpressionCompiler {
         var isPure = utils.isPure(methodSymbol);
         var call = createCall(origin, target, invocation.getArguments().stream(), context);
         if (!isPure && !context.allowImpure()) {
-            Type translatedType = this.baseGenerator.getFinalGenerator().translateType(invocation.type, origin, null);
-            LocalVariable localVariable = new LocalVariable(origin, "impure" + NameCompiler.sep + context.getVariableSuffix(),
-                    translatedType, false);
-            List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
-            List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, call));
-
-            context.statementWriter().accept(new VarDeclStmt(origin, null, List.of(localVariable), 
-                    new AssignStatement(origin, null, lhss, rhss, false)));
-            return new NameSegment(origin, localVariable.getName(), null);
+            return isolateAssignmentRhs(invocation.type, new ExprRhs(origin, null, call), context);
         }
         return createCall(origin, target, invocation.getArguments().stream(), context);
     }

@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.expressions;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 4, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 4, dafnyErrors = 0)
 public class ImpureExpressions {
     void nestedImpureExpression() {
         var x = impure(impure(3));

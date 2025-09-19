@@ -132,7 +132,7 @@ public class BlockCompiler {
         if (expr == null) {
             return List.of(new ReturnStmt(origin, null, null));
         } else {
-            var returnExpr = toAssignmentRhs(expr, expressionContext);
+            var returnExpr = toAssignmentRhs(expr, expressionContext.forbidImpure());
             return List.of(new ReturnStmt(origin, null, List.of(returnExpr)));
         }
     }
@@ -212,8 +212,8 @@ public class BlockCompiler {
 
     private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride, ExpressionContext expressionContext) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> generator.toOrigin(assign));
-        List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), origin, expressionContext));
-        List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), originOverride, expressionContext));
+        List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), expressionContext));
+        List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), origin, expressionContext));
         return List.of(new AssignStatement(origin, null, lhss, rhss, false));
     }
 
@@ -268,7 +268,7 @@ public class BlockCompiler {
         }
         Expression callee = expressionCompiler.toExpr(invocation.getMethodSelect(), expressionContext);
 
-        var arguments = javaArguments.stream().map(e -> expressionCompiler.toExpr(e, origin, expressionContext));
+        var arguments = javaArguments.stream().map(e -> expressionCompiler.toExpr(e, expressionContext));
         ApplySuffix applySuffix = ExpressionCompiler.createCall2(origin, callee, arguments);
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
