@@ -145,7 +145,7 @@ public class ExpressionCompiler {
                     toExpr(ifStatement.getThenStatement(), context),
                     toExpr(ifStatement.getElseStatement(), context));
             }
-            case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr, context); // TODO specify fallback?
+            case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr, context.withFallbackType(returnStatement.type));
             default -> {
                 baseGenerator.reportError(statement, "pureMethodLastStatement");
                 yield BaseDafnyGenerator.getHole(origin);
@@ -176,7 +176,7 @@ public class ExpressionCompiler {
                 return translateIdentifier(identifier, origin);
             }
             case JCTree.JCLiteral literal -> {
-                return translateLiteral(literal, origin);
+                return baseGenerator.getFinalGenerator().translateLiteral(literal, origin, context);
             }
             case JCTree.JCMethodInvocation invocation -> {
                 return baseGenerator.getFinalGenerator().translateMethodInvocation(invocation, origin, context);
@@ -395,8 +395,8 @@ public class ExpressionCompiler {
 
     private Expression translateBinary(JCTree.JCBinary binary, ExpressionContext context) {
         context = context.forbidImpure();
-        var left = toExpr(binary.getLeftOperand(), context);
-        var right = toExpr(binary.getRightOperand(), context);
+        var left = toExpr(binary.getLeftOperand(), context.withFallbackType(binary.getRightOperand().type));
+        var right = toExpr(binary.getRightOperand(), context.withFallbackType(binary.getLeftOperand().type));
         Symbol.OperatorSymbol operator = binary.getOperator();
         return translateBinary(
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,
