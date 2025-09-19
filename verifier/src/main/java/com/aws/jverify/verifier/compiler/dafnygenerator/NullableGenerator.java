@@ -37,7 +37,16 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         return isNullable ? "?" : "";
     }
 
-    private boolean isNullable(com.sun.tools.javac.code.Type type, JCTree.JCModifiers additionalModifiers) {
+    private boolean isNullable(JCTree.JCExpression expression) {
+        if (expression instanceof JCTree.JCIdent identifier) {
+            return isNullable(identifier.sym.type);
+        } else if (expression instanceof JCTree.JCFieldAccess access) {
+            return isNullable(access.sym.type);
+        }
+        return isNullable(expression.type);
+    }
+    
+    public static boolean isNullable(com.sun.tools.javac.code.Type type, JCTree.JCModifiers additionalModifiers) {
         // In several cases annotations that come right before types
         // end up bound to tree nodes such as variable declarations instead of the type.
         // Hence, for something like `@Nullable int[] foo;`, which should be interpreted as `(@Nullable int)[] foo;`,
@@ -76,11 +85,11 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         }
     }
 
-    private boolean isNullable(JCTree.JCModifiers modifiers) {
+    public static boolean isNullable(JCTree.JCModifiers modifiers) {
         return BaseDafnyGenerator.isAnnotated(modifiers, com.aws.jverify.Nullable.class);
     }
 
-    private boolean isNullable(com.sun.tools.javac.code.Type type) {
+    public static boolean isNullable(com.sun.tools.javac.code.Type type) {
         return BaseDafnyGenerator.isAnnotated(type, com.aws.jverify.Nullable.class);
     }
 
@@ -112,6 +121,20 @@ public class NullableGenerator extends WrappingDafnyGenerator {
                     return baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), context);
                 }
             }
+        } else if (expr instanceof JCTree.JCAssign assign) {
+            var isImmutable = baseGenerator.isImmutable((Symbol.ClassSymbol) assign.getExpression().type.tsym);
+            if (isImmutable) {
+                var nullableTarget = isNullable(assign.getVariable());
+                var nullableValue = isNullable(assign.getExpression());
+                if (!nullableTarget && nullableValue) {
+                    var nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), null);
+                    var nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
+                    var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, baseGenerator.getName(fieldAccess, fieldAccess.name), null);
+                    return baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), context);
+
+                }
+            }
+            assign.getExpression()
         }
         return super.toExpr(expr, originOverride, context);
     }
