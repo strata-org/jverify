@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.*;
 
-import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
@@ -10,7 +9,6 @@ import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.code.TypeMetadata;
@@ -32,7 +30,6 @@ import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
-import javax.tools.*;
 import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
@@ -66,7 +63,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
      */
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
-    public final ExpressionCompiler expressionCompiler = new ExpressionCompiler(this);
+    public final ExpressionCompiler expressionCompiler;
     
     private boolean translatingVerifiedMethodSignature;
     
@@ -74,6 +71,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         this.context = context;
         this.verifierOptions = context.get(VerifierOptions.class);
 
+        expressionCompiler = new ExpressionCompiler(this);
         elements = JavacElements.instance(context);
         reporter = Reporter.instance(context);
         nameCompiler = NameCompiler.instance(context);
@@ -137,8 +135,8 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin) {
-        return expressionCompiler.translateMethodInvocation(invocation, origin);
+    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
+        return expressionCompiler.translateMethodInvocation(invocation, origin, context);
     }
 
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
@@ -518,8 +516,8 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public AssignmentRhs translateNewClassToAssignmentRhs(BlockCompiler blockCompiler, JCTree.JCNewClass newClass, IOrigin origin) {
-        return blockCompiler.translateNewClassToAssignmentRhs(newClass, origin);
+    public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context) {
+        return expressionCompiler.translateNewClassToAssignmentRhs(newClass, origin, context);
     }
 
     /**
