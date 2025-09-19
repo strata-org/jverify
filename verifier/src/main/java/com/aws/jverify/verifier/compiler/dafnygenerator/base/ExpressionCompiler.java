@@ -102,12 +102,12 @@ public class ExpressionCompiler {
         var result = toExpr(last, context);
         for(int index = statements.size() - 2; index >= 0; index--) {
             var statement = statements.get(index);
+            var origin = baseGenerator.toOrigin(statement);
             if (statement instanceof JCTree.JCVariableDecl variableDecl) {
                 if (variableDecl.init == null) {
                     baseGenerator.reportError(statement, "pureAssignmentNeedsInitializer", variableDecl.name.toString());
                     return result;
                 }
-                var origin = baseGenerator.toOrigin(statement);
                 var type = baseGenerator.translateType(variableDecl.type, baseGenerator.toOrigin(variableDecl));
                 String name = baseGenerator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
                 var returnVar = new BoundVar(origin, new Name(origin, name), type, false);
@@ -119,7 +119,7 @@ public class ExpressionCompiler {
                         toExpr(ifStatement.getCondition(), context), thenExpression, result);
             } else {
                 baseGenerator.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
-                return result;
+                result = BaseDafnyGenerator.getHole(origin);
             }
         }
         return result;
