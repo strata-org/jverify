@@ -10,20 +10,20 @@ import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class NullableGenerator extends WrappingDafnyGenerator {
-    private final BaseDafnyGenerator bottomGenerator;
+    private final BaseDafnyGenerator baseGenerator;
     private final Reporter reporter;
     
-    public NullableGenerator(BaseDafnyGenerator bottomGenerator, DafnyGenerator next) {
+    public NullableGenerator(BaseDafnyGenerator baseGenerator, DafnyGenerator next) {
         super(next);
-        this.bottomGenerator = bottomGenerator;
-        reporter = bottomGenerator.reporter;
+        this.baseGenerator = baseGenerator;
+        reporter = baseGenerator.reporter;
     }
 
     @Override
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
 
         var isNullable = isNullable(type, additionalModifiers);
-        var primitiveTypeKind = bottomGenerator.toPrimitiveType(type);
+        var primitiveTypeKind = baseGenerator.toPrimitiveType(type);
         if (primitiveTypeKind != null && isNullable) {
             reporter.reportError(origin, "notSupported", "nullable primitive type");
         }
