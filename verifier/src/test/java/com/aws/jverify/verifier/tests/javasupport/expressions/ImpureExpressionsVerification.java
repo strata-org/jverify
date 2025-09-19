@@ -3,8 +3,20 @@ package com.aws.jverify.verifier.tests.javasupport.expressions;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
+@JVerifyTest(exitCode = 22)
 public class ImpureExpressionsVerification {
+    @Pure
+    int nestedImpureExpressionInPureContext() {
+        if (impureM(1) == 1) {
+//          ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
+            return impureM(impureM(2));
+//                 ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
+//                         ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
+        }
+        return impureM(3);
+//             ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
+    }
+    
     int nestedImpureExpression() {
         if (impureM(1) == 1) {
             var x = impureM(impureM(2));

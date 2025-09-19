@@ -258,8 +258,6 @@ public class BlockCompiler {
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
     }
-    
-    List<Statement> additionalStatements;
 
     public static JCTree.JCIdent getSuperIdent(JCTree.JCMethodInvocation invocation) {
         return invocation.getMethodSelect() instanceof JCTree.JCIdent ident && ident.name == ident.name.table.names._super ? ident : null;
