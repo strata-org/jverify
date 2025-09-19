@@ -131,7 +131,7 @@ public class BlockCompiler {
         if (expr == null) {
             return List.of(new ReturnStmt(origin, null, null));
         } else {
-            var returnExpr = toAssignmentRhs(expr, expressionContext.forbidImpure());
+            var returnExpr = expressionCompiler.toAssignmentRhs(expr, expressionContext.forbidImpure());
             return List.of(new ReturnStmt(origin, null, List.of(returnExpr)));
         }
     }
@@ -154,7 +154,7 @@ public class BlockCompiler {
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
-            var rhs = toAssignmentRhs(variableDecl.getInitializer(), expressionContext);
+            var rhs = expressionCompiler.toAssignmentRhs(variableDecl.getInitializer(), expressionContext);
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
             dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
@@ -195,25 +195,11 @@ public class BlockCompiler {
 
     private List<Statement> translateExpressionStatement(JCTree.JCExpressionStatement statement, IOrigin originOverride, ExpressionContext expressionContext) {
         var expr = statement.getExpression();
-        switch (expr) {
-            case JCTree.JCMethodInvocation invocation -> {
-                return translateStatementMethodInvocation(invocation, expressionContext);
-            }
-            case JCTree.JCAssign assign -> {
-                return translateAssign(assign, originOverride, expressionContext);
-            }
-            default -> {
-                generator.reportError(statement, "notSupported", "expression statement with expr " + expr.getClass().getSimpleName());
-                return List.of();
-            }
+        if (expr instanceof JCTree.JCMethodInvocation invocation) {
+            return translateStatementMethodInvocation(invocation, expressionContext);
         }
-    }
-
-    private List<Statement> translateAssign(JCTree.JCAssign assign, IOrigin originOverride, ExpressionContext expressionContext) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> generator.toOrigin(assign));
-        List<Expression> lhss = List.of(expressionCompiler.toExpr(assign.getVariable(), expressionContext));
-        List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), origin, expressionContext));
-        return List.of(new AssignStatement(origin, null, lhss, rhss, false));
+        expressionCompiler.toExpr(expr, originOverride, expressionContext);
+        return List.of();
     }
 
     private List<Statement> translateStatementMethodInvocation(JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext) {
@@ -346,27 +332,6 @@ public class BlockCompiler {
         return statements.getFirst() instanceof BlockStmt block
                 ? block
                 : new BlockStmt(origin, null, List.of(), statements);
-    }
-
-
-    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, ExpressionContext expressionContext) {
-        return toAssignmentRhs(expr, null, expressionContext);
-    }
-
-    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext expressionContext) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> generator.toOrigin(expr));
-        switch (expr) {
-            case JCTree.JCNewClass newClass -> {
-                return this.generator.getFinalGenerator().translateNewClassToAssignmentRhs(newClass, origin, expressionContext);
-            }
-            case JCTree.JCNewArray _ -> {
-                throw new RuntimeException("not supported. should have already been lowered");
-            }
-            default -> {
-            }
-        }
-        var dafnyExpr = expressionCompiler.toExpr(expr, originOverride, expressionContext);
-        return new ExprRhs(origin, null, dafnyExpr);
     }
 }
 

@@ -192,12 +192,15 @@ public class ExpressionCompiler {
             case JCTree.JCParens parens -> {
                 return toExpr(parens.getExpression(), context);
             }
+            case JCTree.JCAssign assign -> {
+                return translateAssign(assign, origin, context);
+            }
             case JCTree.JCAssignOp assignOp -> {
                 if (context.statementWriter() == null) {
                     baseGenerator.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
                     return BaseDafnyGenerator.getHole(origin);
                 } else {
-                    return translateAssignOp(assignOp, context);
+                    return translateAssignOp(assignOp, origin, context);
                 }
             }
             case JCTree.JCInstanceOf instanceOf -> {
@@ -222,8 +225,40 @@ public class ExpressionCompiler {
         return BaseDafnyGenerator.getHole(origin);
     }
 
-    private Expression translateAssignOp(JCTree.JCAssignOp assignOp, ExpressionContext context) {
-        var origin = baseGenerator.toOrigin(assignOp);
+    private Expression translateAssign(JCTree.JCAssign assign, IOrigin origin, ExpressionContext context) {
+        if (context.statementWriter() != null) {
+            Expression target = toExpr(assign.getVariable(), context);
+            List<Expression> lhss = List.of(target);
+            List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), context));
+            context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
+            return target;
+        } else {
+            baseGenerator.reportError(assign, "notSupported", assign.getClass().getSimpleName() + " in a pure expression");
+            return BaseDafnyGenerator.getHole(origin);
+        }
+    }
+
+    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, ExpressionContext expressionContext) {
+        return toAssignmentRhs(expr, null, expressionContext);
+    }
+
+    public AssignmentRhs toAssignmentRhs(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext expressionContext) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(expr));
+        switch (expr) {
+            case JCTree.JCNewClass newClass -> {
+                return baseGenerator.getFinalGenerator().translateNewClassToAssignmentRhs(newClass, origin, expressionContext);
+            }
+            case JCTree.JCNewArray _ -> {
+                throw new RuntimeException("not supported. should have already been lowered");
+            }
+            default -> {
+            }
+        }
+        var dafnyExpr = toExpr(expr, origin, expressionContext);
+        return new ExprRhs(origin, null, dafnyExpr);
+    }
+
+    private Expression translateAssignOp(JCTree.JCAssignOp assignOp, IOrigin origin, ExpressionContext context) {
         Expression target = toExpr(assignOp.getVariable(), context);
         List<Expression> lhss = List.of(target);
         var operated = translateBinary(
