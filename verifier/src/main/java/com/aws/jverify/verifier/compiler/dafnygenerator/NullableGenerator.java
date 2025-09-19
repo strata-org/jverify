@@ -99,21 +99,21 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext) {
-        if (invocation.meth instanceof JCTree.JCFieldAccess fieldAccess) {
-            var isNullable = isNullable(fieldAccess.getExpression().type);
-            var isImmutable = baseGenerator.isImmutable((Symbol.ClassSymbol) fieldAccess.getExpression().type.tsym);
-            if (isNullable && isImmutable) {
-                var origin = baseGenerator.toOrigin(invocation);
-                Expression nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(fieldAccess.getExpression(), null);
-                Expression nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
-                Expression nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, baseGenerator.getName(fieldAccess, fieldAccess.name), null);
-                ApplySuffix applySuffix = baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), expressionContext);
-                return List.of(new AssignStatement(origin, null, List.of(),
-                        List.of(new ExprRhs(applySuffix.getOrigin(), null, applySuffix)), false));
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        if (expr instanceof JCTree.JCMethodInvocation invocation) {
+            if (invocation.meth instanceof JCTree.JCFieldAccess fieldAccess) {
+                var isNullable = isNullable(fieldAccess.getExpression().type);
+                var isImmutable = baseGenerator.isImmutable((Symbol.ClassSymbol) fieldAccess.getExpression().type.tsym);
+                if (isNullable && isImmutable) {
+                    var origin = baseGenerator.toOrigin(invocation);
+                    var nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(fieldAccess.getExpression(), null);
+                    var nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
+                    var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, baseGenerator.getName(fieldAccess, fieldAccess.name), null);
+                    return baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), context);
+                }
             }
         }
-        return super.translateStatementMethodInvocation(blockCompiler, invocation, expressionContext);
+        return super.toExpr(expr, originOverride, context);
     }
 
     @Override

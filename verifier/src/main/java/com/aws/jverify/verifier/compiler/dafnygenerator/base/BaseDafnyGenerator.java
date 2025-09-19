@@ -148,6 +148,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return expressionCompiler.translateMethodInvocation(invocation, origin, context);
     }
 
+    @Override
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        return expressionCompiler.toExpr(expr, originOverride, context);
+    }
+
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
         var iterator = new TopologicalOrderIterator<>(this.typeHierarchy);
         var itemsFromChildrenToParents = new ArrayList<Symbol.ClassSymbol>();

@@ -154,7 +154,7 @@ public class ExpressionCompiler {
     }
     
     public Expression toExpr(JCTree.JCExpression expr, ExpressionContext context) {
-        return toExpr(expr, null, context);
+        return getGenerator().toExpr(expr, null, context);
     }
 
     public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
@@ -252,7 +252,7 @@ public class ExpressionCompiler {
             default -> {
             }
         }
-        var dafnyExpr = toExpr(expr, origin, expressionContext);
+        var dafnyExpr = getGenerator().toExpr(expr, origin, expressionContext);
         return new ExprRhs(origin, null, dafnyExpr);
     }
 

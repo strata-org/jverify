@@ -20,7 +20,9 @@ public interface DafnyGenerator {
     List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext);
 
     Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context);
-    
+
+    Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context);
+        
     @Nullable
     Type translateType(com.sun.tools.javac.code.Type type, 
                        IOrigin origin, 

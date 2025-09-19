@@ -37,6 +37,11 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        return next.toExpr(expr, originOverride, context);
+    }
+
+    @Override
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, 
                                         IOrigin origin, 
                                         JCTree.JCModifiers additionalModifiers) {
