@@ -179,7 +179,7 @@ public class TestVerifier {
                 "--dafny=" + dafnyPath,
                 "--print-dafny=" + "/Users/rwillems/SourceCode/GradleBased/build/temp2.dfy");
         Files.writeString(Path.of("/Users/rwillems/SourceCode/GradleBased/build/out.text"), out.toString());
-        Assertions.assertEquals(2, exitCode);
+        Assertions.assertEquals(2, exitCode, out.toString());
     }
     
     @Test
