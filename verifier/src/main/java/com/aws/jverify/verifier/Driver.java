@@ -185,7 +185,8 @@ public class Driver {
                     // Turned off while we're using a Dafny submodule
                     // Alternatively, we can check whether the submodule version matches the output
                     if (!output.equals(expectedVersion)) {
-                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output);
+                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output
+                        + " at location " + verifierOptions.dafnyPath());
                     }
                 }
             } catch (IOException | InterruptedException e) {

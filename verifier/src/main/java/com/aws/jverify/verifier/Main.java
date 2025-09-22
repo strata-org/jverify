@@ -58,6 +58,9 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--builtin-contracts", description = "Whether to include built-in contracts for the Java standard library", defaultValue = "true")
     private boolean builtinContracts;
 
+    @Option(names = "--verbose", description = "")
+    private boolean verbose;
+
     @Override
     public Integer call() throws IOException {
         Writer writer = spec.commandLine().getOut();
@@ -93,6 +96,9 @@ class AppCommand implements Callable<Integer> {
             }
         }
         if (dafnyPath == null || !Files.exists(dafnyPath)) {
+            if (verbose) {
+                System.out.println("Could not find a file at Dafny path '" + dafnyPath + "'");
+            }
             dafnyPath = Path.of("dafny");
         }
         return dafnyPath;
