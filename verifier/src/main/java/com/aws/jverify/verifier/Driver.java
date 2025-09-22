@@ -247,6 +247,7 @@ public class Driver {
                 outResults.setExitCode(exitCode);
             }
         } catch (InterruptedException | IOException e) {
+            System.out.println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
             e.printStackTrace();
             outResults.setExitCode(-1);
         }
