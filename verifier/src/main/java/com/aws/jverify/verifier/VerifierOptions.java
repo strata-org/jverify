@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.nio.file.Path;
@@ -17,5 +18,6 @@ public record VerifierOptions(Path workingDirectory,
                               boolean showFilepaths,
                               String[] additionalDafnyArguments,
                               boolean verifyByDefault,
-                              boolean continueOnErrors) {
+                              boolean continueOnErrors,
+                              @Nullable PositionFilter positionFilter) {
 }

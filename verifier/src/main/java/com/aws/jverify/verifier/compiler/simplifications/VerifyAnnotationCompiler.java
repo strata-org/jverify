@@ -1,7 +1,9 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Verify;
+import com.aws.jverify.verifier.PositionFilter;
 import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.sun.tools.javac.code.AnnoConstruct;
 import com.sun.tools.javac.code.Symbol;
@@ -11,24 +13,27 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.Stack;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Depends on MethodOrLoopContractCompiler
  */
 public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
+    private final VerifierOptions options;
+    private final Reporter reporter;
     public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
 
     public VerifyAnnotationCompiler(Context context) {
         context.put(VerifyAnnotationCompiler.class, this);
         jverifyUtils = JVerifyUtils.instance(context);
+        reporter = Reporter.instance(context);
         shouldVerifies.push(context.get(VerifierOptions.class).verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
+        options = context.get(VerifierOptions.class);
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -52,6 +57,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     @Override
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+        reporter.compilationUnit = tree;
         processVerifyAnnotation(tree.packge);
         super.visitTopLevel(tree);
         shouldVerifies.pop();
@@ -96,6 +102,22 @@ public class VerifyAnnotationCompiler extends TreeScanner {
             }
         }
         throw new RuntimeException("shouldVerify should never be empty");
+    }
+    
+    private boolean shouldVerify2(JCTree node) {
+        var filter = options.positionFilter();
+        if (filter == null) {
+            return true;
+        } else {
+            if (filter.fileEnding() != null
+                    && !reporter.compilationUnit.getSourceFile().getName().endsWith(filter.fileEnding())) {
+                return false;
+            }
+
+            var nodeRange = Reporter.getRange(reporter.toOrigin(node));
+            return nodeRange.getStartToken().getLine() <= filter.end()
+                    && filter.start() <= nodeRange.getEndToken().getLine();
+        }
     }
 
     public void addShouldVerify(ShouldVerifyMode mode) {
