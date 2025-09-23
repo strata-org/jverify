@@ -34,7 +34,7 @@ public class TypeDeclarationCompiler {
     private final Reporter reporter;
     private final JVerifyUtils jverifyUtils;
     JVerifyIndex index;
-    private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
+    private final List<JCTree.JCMethodDecl> typeInvariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     public final Map<Symbol.MethodSymbol, MethodOrFunction> callables = new HashMap<>();
 
@@ -53,7 +53,7 @@ public class TypeDeclarationCompiler {
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
-        invariants.clear();
+        typeInvariants.clear();
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
             if (classDecl.name.equals(classDecl.name.table.names.package_info)) {
@@ -117,7 +117,7 @@ public class TypeDeclarationCompiler {
                 if (methodDecl.getModifiers().getAnnotations().stream().
                         anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
                                 ident.name.contentEquals("Invariant"))) {
-                    invariants.add(methodDecl);
+                    typeInvariants.add(methodDecl);
                 }
             }
         }
@@ -246,14 +246,17 @@ public class TypeDeclarationCompiler {
         Type type = compiler.getFinalGenerator().translateType(variableDecl.type, 
                 compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
+
+        if (varFlags.contains(Modifier.FINAL)) {
+            Expression rhs = null;
+            if (variableDecl.getInitializer() != null) {
+                rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
+            }
+            var isStatic = varFlags.contains(Modifier.STATIC);
+            return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
+        }
         
         if (variableDecl.getInitializer() != null) {
-            if (varFlags.contains(Modifier.FINAL)) {
-                var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
-                var isStatic = varFlags.contains(Modifier.STATIC);
-                return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
-            }
-
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
         }
@@ -305,7 +308,7 @@ public class TypeDeclarationCompiler {
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         applyInvariants(method.mods, method.sym, contract);
-        blockCompiler.checkEmptyExpressions(method, contract.invariants, "invariants", "method");
+        blockCompiler.checkEmptyExpressions(method, contract.loopInvariants, "invariants", "method");
 
         var outs = new ArrayList<Formal>();
         if (method.sym.type.getReturnType() != null) {
@@ -356,16 +359,10 @@ public class TypeDeclarationCompiler {
                     contract.getDecreases(), contract.getModifies(),
                     body);
         } else {
-            List<Statement> bodyStatements;
+            BlockStmt body = null;
             if (shouldVerify) {
-                bodyStatements = blockCompiler.translateStatements(postHeader);
-            } else {
-                // Leaving out the body does not assume the body for traits
-                // So we need to have a body with an assume statement
-                // Would be nicer (and faster) if Dafny had explicit assumed bodies
-                bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
+                 body = new BlockStmt(methodOrigin, null, List.of(), blockCompiler.translateStatements(postHeader));
             }
-            var body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
             var result = new Method(origin, name, null, BaseDafnyGenerator.Ghostness, null, dafnyTypeParameters,
                     ins, contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
@@ -407,8 +404,8 @@ public class TypeDeclarationCompiler {
         boolean isStaticMethod = BaseDafnyGenerator.isStatic(modifiers);
 
         // Only apply invariants to public instance methods (not static methods)
-        if (isPublic && !isStaticMethod) {
-            for (var invariant : invariants) {
+        if (isPublic && !isStaticMethod && methodSymbol.getAnnotation(Invariant.class) == null) {
+            for (var invariant : typeInvariants) {
                 var memberName = compiler.nameCompiler.getCompiledName(invariant.sym, invariant);
                 var invariantName = compiler.getName(invariant, invariant.getName());
                 var invariantOrigin = compiler.declToOrigin(invariant, invariantName);

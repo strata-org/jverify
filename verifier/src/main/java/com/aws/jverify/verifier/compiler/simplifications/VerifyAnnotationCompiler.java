@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Verify;
+import com.aws.jverify.verifier.PositionFilter;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
@@ -71,8 +72,19 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
         if (!shouldVerify) {
             removeImplementation(tree);
+        } else if (!jverifyUtils.isPure(tree.sym) && !applyPositionFilter(tree)) {
+            removeImplementation(tree);
         }
         super.visitMethodDef(tree);
+    }
+
+    @Override
+    public void visitVarDef(JCTree.JCVariableDecl tree) {
+        boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
+        if (!shouldVerify) {
+            tree.init = null;
+        }
+        super.visitVarDef(tree);
     }
 
     public void removeImplementation(JCTree.JCMethodDecl tree) {
@@ -85,7 +97,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     public boolean processVerifyAnnotationAndPop(JCTree node, AnnoConstruct annoConstruct) {
         processVerifyAnnotation(annoConstruct);
-        boolean shouldVerify = shouldVerify() && applyPositionFilter(node);
+        boolean shouldVerify = shouldVerify();
         shouldVerifies.pop();
         return shouldVerify;
     }
