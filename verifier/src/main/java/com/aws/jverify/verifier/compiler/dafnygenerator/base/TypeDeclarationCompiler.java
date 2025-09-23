@@ -446,7 +446,7 @@ public class TypeDeclarationCompiler {
     }
 
 
-    private final Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
+    private final Map<Symbol.TypeSymbol, Map<String, MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
 
     private final Map<Symbol.TypeSymbol, Set<String>> definedMethodsCache = new HashMap<>();
     public Set<String> getBodiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
@@ -478,7 +478,7 @@ public class TypeDeclarationCompiler {
         return result;
     }
     
-    public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
+    public Map<String, MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
         var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
             result = getBodylessMethods(typeSymbol, origin, true);
@@ -487,8 +487,8 @@ public class TypeDeclarationCompiler {
         return result;
     }
     
-    public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
-        var result = new HashSet<MethodOrFunction>();
+    public Map<String, MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
+        var result = new HashMap<String, MethodOrFunction>();
         var names = getBodiedMethods(typeSymbol, origin);
 
         var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
@@ -499,10 +499,11 @@ public class TypeDeclarationCompiler {
                 if (callable != null) {
                     boolean bodiless = callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
                             callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null;
+                    String compiledName = nameCompiler.getCompiledName(methodSymbol, origin);
                     if (includeSelf && bodiless) {
-                        result.add(callable);
+                        result.putIfAbsent(compiledName, callable);
                     } else {
-                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
+                        names.add(compiledName);
                     }
                 }
             }
@@ -510,9 +511,9 @@ public class TypeDeclarationCompiler {
         
         for(var baseType : types.interfaces(typeSymbol.type).append(types.supertype(typeSymbol.type))) {
             if (baseType.tsym != null && baseType.tsym != typeSymbol) {
-                for(var unverified : getBodylessMethods(baseType.tsym, origin)) {
-                    if (!names.contains(unverified.getNameNode().getValue())) {
-                        result.add(unverified);
+                for(var entry : getBodylessMethods(baseType.tsym, origin).entrySet()) {
+                    if (!names.contains(entry.getKey())) {
+                        result.putIfAbsent(entry.getKey(), entry.getValue());
                     }
                 }
             }
