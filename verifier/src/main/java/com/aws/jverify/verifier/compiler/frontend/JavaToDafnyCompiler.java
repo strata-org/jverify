@@ -7,8 +7,10 @@ import com.aws.jverify.verifier.JavaMethodDetails;
 import com.aws.jverify.verifier.VerificationResults;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.DiagnosticPositionFromDiagnostic;
+import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
@@ -299,7 +301,7 @@ public class JavaToDafnyCompiler {
         ArrayList<JavaMethodDetails> combinedList = new ArrayList<>();
         if (canVerifyList != null && shouldVerifyList != null ) {
             combinedList = canVerifyList.stream()
-                    .filter(method -> !JavaToDafnyCompiler.isSynthetic(method.getModifiers().flags))
+                    .filter(method -> !BaseDafnyGenerator.isSynthetic(method.getModifiers().flags))
                     .map(method -> new JavaMethodDetails(method, null,
                             null, shouldVerifyList.contains(method), true))
                     .collect(Collectors.toCollection(ArrayList::new));

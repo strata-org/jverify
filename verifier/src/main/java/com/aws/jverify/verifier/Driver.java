@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Position;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
@@ -374,7 +375,7 @@ public class Driver {
         for (var distinctClass : distinctClasses) {
             MethodIntervalTree methodIntervalTree = new MethodIntervalTree();
             javaInSourceMethods.stream()
-                    .filter(method -> !JavaToDafnyCompiler.isSynthetic(method.getMethodTree().getModifiers().flags) && method.getMethodTree().sym.owner.enclClass().sourcefile.equals(distinctClass))
+                    .filter(method -> !BaseDafnyGenerator.isSynthetic(method.getMethodTree().getModifiers().flags) && method.getMethodTree().sym.owner.enclClass().sourcefile.equals(distinctClass))
                     .forEach(methodIntervalTree::insertMethod);
             intervalTrees.put(distinctClass.toUri().normalize(), methodIntervalTree);
         }
