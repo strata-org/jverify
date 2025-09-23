@@ -308,7 +308,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         //"--wait-for-debugger",
                 },
                 annotation.verifyByDefault(),
-                annotation.continueOnErrors()
+                annotation.continueOnErrors(),
+                null
         );
     }
 

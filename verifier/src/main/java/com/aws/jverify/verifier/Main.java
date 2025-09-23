@@ -116,33 +116,3 @@ class AppCommand implements Callable<Integer> {
     }
 }
 
-public record PositionFilter(@Nullable String fileEnding, int start, int end) {
-
-    public static PositionFilter getPositionFilter(String filterPosition) {
-        Pattern p = Pattern.compile("(.*)(?::(\\d*)(-?)(\\d*))?$");
-        Matcher matcher = p.matcher(filterPosition);
-
-        if (!matcher.find()) {
-            throw new RuntimeException("");
-        }
-
-        var filePart = matcher.group(1);
-        String lineStart = matcher.group(2);
-        boolean hasRange = Objects.equals(matcher.group(3), "-");
-        String lineEnd = matcher.group(3);
-
-        int start = Integer.MIN_VALUE;
-        int end = Integer.MAX_VALUE;
-        if (!lineEnd.isEmpty()) {
-            end = Integer.parseInt(lineEnd);
-            if (!hasRange) {
-                start = end;
-            }
-        }
-        if (!lineStart.isEmpty()) {
-            start = Integer.parseInt(lineStart);
-        }
-        return new PositionFilter(filePart, start ,end);
-    }
-}
-
