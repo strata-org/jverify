@@ -1,5 +1,7 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
+import com.aws.jverify.verifier.JavaMethodDetails;
+import com.aws.jverify.verifier.VerificationResults;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.aws.jverify.verifier.compiler.*;
@@ -16,6 +18,7 @@ import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.Log;
 import com.sun.tools.javac.util.Position;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
@@ -42,7 +45,7 @@ public class JavaFrontEnd {
      * Applies a subset of the javac compilation pipeline, to parse,
      * resolve, and partially rewrite some features away.
      */
-    public Set<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
+    public Set<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files, VerificationResults results) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
 
@@ -155,6 +158,8 @@ public class JavaFrontEnd {
                                                                 unlambda(
                                                         toUnits(compiler.flow(compiler.attribute(todo)))
                     )))))))))));
+                    results.setJavaInSourceMethods(processVerifyingMethods(verifyAnnotationCompiler.getShouldVerifyList(),
+                            missingContractCompiler.getCanVerifyMethodList(), units));
                 }
             }
         });
@@ -162,7 +167,7 @@ public class JavaFrontEnd {
         compiler.compile(files, List.of(), null, List.of());
 
         @SuppressWarnings("unchecked") var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
-        
+
         var hasErrors = false;
         for (Diagnostic<? extends JavaFileObject> diagnostic : javaFrontendDiagnostics.getDiagnostics()) {
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
@@ -248,4 +253,38 @@ public class JavaFrontEnd {
         }
         return envs;
     }
+
+    private @Nullable ArrayList<JavaMethodDetails> processVerifyingMethods(ArrayList<JCTree.JCMethodDecl> shouldVerifyList,
+                                                                           ArrayList<JCTree.JCMethodDecl> canVerifyList, Set<JCTree.JCCompilationUnit> units) {
+        ArrayList<JavaMethodDetails> combinedList = new ArrayList<>();
+        if (canVerifyList != null && shouldVerifyList != null ) {
+            combinedList = canVerifyList.stream()
+                    .filter(method -> !JavaToDafnyCompiler.isSynthetic(method.getModifiers().flags))
+                    .map(method -> new JavaMethodDetails(method, null,
+                            null, shouldVerifyList.contains(method), true))
+                    .collect(Collectors.toCollection(ArrayList::new));
+        }
+        var nonLibraryClasses = units.stream()
+                .filter(unit -> !unit.getSourceFile().toUri().getScheme().equals("string"))
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        for (var unit : nonLibraryClasses) {
+            var unitPostionCalculator = new PositionCalculator(unit);
+            var classesInThisUnit = unit.defs.stream().filter(JCTree.JCClassDecl.class::isInstance)
+                    .map(clazz -> ((JCTree.JCClassDecl) clazz).sym)
+                    .collect(Collectors.toSet());
+            combinedList.stream()
+                    .filter(method -> classesInThisUnit.contains(method.getMethodTree().sym.owner))
+                    .forEach(method -> {
+                        var startValue = unitPostionCalculator.toToken(unitPostionCalculator.getStartPos(method.getMethodTree()));
+                        var endValue = unitPostionCalculator.toToken(unitPostionCalculator.getEndPos(method.getMethodTree())) != null ?
+                                unitPostionCalculator.toToken(unitPostionCalculator.getEndPos(method.getMethodTree())) : startValue;
+                        method.setPosition(startValue, endValue);
+                            });
+
+        }
+
+        return combinedList;
+    }
+
 }

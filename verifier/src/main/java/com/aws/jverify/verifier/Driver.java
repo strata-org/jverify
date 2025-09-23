@@ -15,20 +15,23 @@ import picocli.CommandLine;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.*;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Locale;
+import java.util.HashMap;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Locale;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 public class Driver {
     public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
             try {
-                return new SourceFile(p, Files.readString(verifierOptions.workingDirectory().resolve(p)));
+                return new SourceFile(p, Files.readString(verifierOptions.workingDirectory().resolve(p).normalize()));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -56,7 +59,7 @@ public class Driver {
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles);
+        var dafnyEquivalent = compiler.analyzeJavaCode(verifierOptions, readFiles, verificationResults);
         var hasErrors = false;
         for (var diagnostic : compiler.reporter.diagnostics.getDiagnostics()) {
             verificationResults.getJverifyDiagnostics().add(diagnostic);
@@ -85,11 +88,21 @@ public class Driver {
             Writer outputWriter
     ) throws IOException {
         var verificationResults = verifyJavaFiles(readFiles, verifierOptions);
-        outputVerificationResults(verificationResults, verifierOptions, outputWriter);
+        var intervalTreeMap = getIntervalTreeMap(verificationResults);
+        outputVerificationResults(verificationResults, verifierOptions, outputWriter, intervalTreeMap);
         return verificationResults.getExitCode();
     }
 
-    private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
+    public static HashMap<URI, MethodIntervalTree> getIntervalTreeMap(VerificationResults verificationResults) {
+        HashMap<URI,MethodIntervalTree> intervalTreeMap = null;
+        if (verificationResults.getJavaInSourceMethods() != null) {
+            intervalTreeMap = getIntervalsFromVerifiableMethods(verificationResults.getJavaInSourceMethods());
+        }
+        return intervalTreeMap;
+    }
+
+    private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions,
+                                                  Writer outputWriter, HashMap<URI,MethodIntervalTree> intervalTreeMap) throws IOException {
         for (var diagnostic : verificationResults.getJverifyDiagnostics()) {
             outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), diagnostic));
             outputWriter.write('\n');
@@ -104,10 +117,35 @@ public class Driver {
                         outputWriter.write('\n');
                     }
                 }
+                var unverifiedJavaMethod = intervalTreeMap.get(((DafnyDiagnostic) dafnyOutput).getSource())
+                        .findMethodAtLine((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
+                if (unverifiedJavaMethod != null) {
+                    unverifiedJavaMethod.setVerified(false);
+                }
+
             }
         }
         if (verificationResults.getDafnyFinishedMessage() != null) {
             outputWriter.write(verificationResults.getDafnyFinishedMessage());
+        }
+
+        if (verificationResults.getJavaInSourceMethods() != null) {
+            outputWriter.write('\n');
+            outputWriter.write("Total Java methods in source code: ");
+            outputWriter.write(String.valueOf(verificationResults.getJavaInSourceMethods().size()));
+
+            outputWriter.write('\n');
+            outputWriter.write("Total Java methods under verification: ");
+            outputWriter.write(String.valueOf(verificationResults.getJavaInSourceMethods()
+                    .stream().filter(JavaMethodDetails::isVerifiable)
+                    .toList().size()));
+
+            outputWriter.write('\n');
+            outputWriter.write("Total Java methods not verified: ");
+            outputWriter.write(String.valueOf(verificationResults.getJavaInSourceMethods()
+                    .stream().filter(method -> method.isVerifiable() && !method.isVerified())
+                    .toList().size()));
+
         }
     }
 
@@ -325,4 +363,22 @@ public class Driver {
      */
     @JsonIgnoreProperties({"pos"})
     private static abstract class DafnyJsonPosition {}
+
+    private static HashMap<URI,MethodIntervalTree> getIntervalsFromVerifiableMethods(ArrayList<JavaMethodDetails> javaInSourceMethods) {
+
+        var distinctClasses = javaInSourceMethods.stream()
+                .map(method -> method.getMethodTree().sym.owner.enclClass().sourcefile)
+                .collect(Collectors.toSet());
+
+        HashMap<URI, MethodIntervalTree> intervalTrees = new HashMap<>();
+        for (var distinctClass : distinctClasses) {
+            MethodIntervalTree methodIntervalTree = new MethodIntervalTree();
+            javaInSourceMethods.stream()
+                    .filter(method -> !JavaToDafnyCompiler.isSynthetic(method.getMethodTree().getModifiers().flags) && method.getMethodTree().sym.owner.enclClass().sourcefile.equals(distinctClass))
+                    .forEach(methodIntervalTree::insertMethod);
+            intervalTrees.put(distinctClass.toUri().normalize(), methodIntervalTree);
+        }
+
+        return intervalTrees;
+    }
 }

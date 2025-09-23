@@ -87,8 +87,8 @@ public class JavaToDafnyCompiler {
     public NameCompiler getNameCompiler() {
         return nameCompiler;
     }
-    
-    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files) {
+
+    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, List<JavaFileObject> files, VerificationResults results) {
         if (options.includeBuiltinContracts()) {
             var builtinSource = new SourceFile(JavaToDafnyCompiler.builtinFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.builtinFile));
             files.add(builtinSource);
@@ -97,17 +97,17 @@ public class JavaToDafnyCompiler {
         var contractSource = new SourceFile(JavaToDafnyCompiler.objectFile, Common.getResourceFile(getClass(), JavaToDafnyCompiler.objectFile));
         builtinSources.add(contractSource);
         files.add(contractSource);
-        
-        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files);
+
+        Set<JCTree.JCCompilationUnit> parsedSet = new JavaFrontEnd(this).parseResolveAndDesugarJava(options, files, results);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
-        
+
         var parsed = new ArrayList<>(parsedSet);
 
-        /*
+        /* TODO: confirm this is solved
          * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
-         * To work around this bug, the built-in contracts file must be serialized after 
+         * To work around this bug, the built-in contracts file must be serialized after
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
         parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
@@ -122,7 +122,7 @@ public class JavaToDafnyCompiler {
                     super.visitClassDef(tree);
                 }
             };
-            
+
             declarationsForFile.put(compilationUnit, new ArrayList<>());
             nameCompiler.visitTopLevel(compilationUnit);
             hierarchyScanner.visitTopLevel(compilationUnit);

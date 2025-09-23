@@ -166,7 +166,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var options = getVerifierOptions(annotation);
         var inputs = Arrays.stream(annotation.additionalFiles()).map(f -> {
             try {
-                var p = Path.of(sourceFile.toUri()).getParent().resolve(f);
+                var p = Path.of(sourceFile.toUri()).getParent().resolve(f).normalize();
                 String markedSource = Files.readString(p);
                 return (JavaFileObject)new SourceFile(p, markedSource);
             } catch (IOException e) {
@@ -175,6 +175,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
         var verificationResults = Driver.verifyJavaFiles(inputs, options);
+        var intervalTreeMap = Driver.getIntervalTreeMap(verificationResults);
 
         var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
@@ -189,6 +190,16 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .sorted()
                 .toList();
 
+        verificationResults.getOutputs().stream()
+                .filter(dafnyOutput -> dafnyOutput instanceof DafnyDiagnostic)
+                .forEach(dafnyOutput -> {
+                    var unverifiedJavaMethod = intervalTreeMap.get(((DafnyDiagnostic) dafnyOutput).getSource())
+                            .findMethodAtLine((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
+                    if (unverifiedJavaMethod != null) {
+                        unverifiedJavaMethod.setVerified(false);
+                    }
+                } );
+
         if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
             if (verificationResults.getExitCode() == 0 || verificationResults.getExitCode() == 4) {
                 updateTestAnnotation(sourceFile, annotation, verificationResults);
@@ -200,6 +211,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
         Integer expectedDafnyVerifiedCount = annotation.dafnyVerified() >= 0 ? annotation.dafnyVerified() : null;
         Integer expectedDafnyErrorCount = annotation.dafnyErrors() >= 0 ? annotation.dafnyErrors() : null;
+        Integer expectedJavaVerifiedCount = annotation.javaVerified() >= 0 ? annotation.javaVerified() : null;
+        Integer expectedJavaErrorCount = annotation.javaErrors() >= 0 ? annotation.javaErrors() : null;
         Assertions.assertAll(
                 () -> assertThat("exit code",
                         verificationResults.getExitCode(),
@@ -209,7 +222,25 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         is(expectedDafnyVerifiedCount)),
                 () -> assertThat("Dafny error count",
                         verificationResults.getDafnyErrorCount(),
-                        is(expectedDafnyErrorCount))
+                        is(expectedDafnyErrorCount)),
+                () -> {
+                    if (expectedJavaVerifiedCount != null) {
+                        assertThat("Java unverified method count",
+                                verificationResults.getJavaInSourceMethods().stream()
+                                        .filter(method -> method.isVerifiable() && !method.isVerified())
+                                        .toArray().length,
+                                is(expectedJavaErrorCount));
+                    }
+                },
+                () -> {
+                    if (expectedJavaErrorCount != null) {
+                        assertThat("Java unverified method count",
+                                verificationResults.getJavaInSourceMethods().stream()
+                                        .filter(method -> method.isVerifiable() && !method.isVerified())
+                                        .toArray().length,
+                                is(expectedJavaErrorCount));
+                    }
+                }
         );
 
         if (annotation.verifyPrintedDafny()) {
@@ -384,6 +415,82 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             public boolean verifyPrintedDafny() {
                 return verifyPrintedDafny;
             }
+
+            @Override
+            public int javaErrors() {
+                return -1;
+            }
+
+            @Override
+            public int javaVerified() {
+                return -1;
+            }
+        };
+    }
+
+    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
+                                                        int dafnyVerified, int dafnyErrors,
+                                                        boolean verifyPrintedDafny,
+                                                        boolean continueOnErrors,
+                                                        boolean useBuiltinContracts,
+                                                        int javaVerified,
+                                                        int javaErrors) {
+        return new JVerifyTest() {
+            @Override
+            public Class<? extends Annotation> annotationType() {
+                return JVerifyTest.class;
+            }
+
+            @Override
+            public String skip() {
+                return "";
+            }
+
+            @Override
+            public boolean verifyByDefault() {
+                return verifyByDefault;
+            }
+
+            @Override
+            public boolean useBuiltinContracts() {
+                return useBuiltinContracts;
+            }
+
+            @Override
+            public boolean continueOnErrors() {
+                return continueOnErrors;
+            }
+
+            @Override
+            public int exitCode() {
+                return exitCode;
+            }
+
+            @Override
+            public int dafnyVerified() {
+                return dafnyVerified;
+            }
+
+            @Override
+            public int dafnyErrors() {
+                return dafnyErrors;
+            }
+
+            @Override
+            public String[] additionalFiles() {
+                return new String[0];
+            }
+
+            @Override
+            public boolean verifyPrintedDafny() {
+                return verifyPrintedDafny;
+            }
+
+            @Override
+            public int javaVerified() { return javaVerified; }
+
+            @Override
+            public int javaErrors() { return javaErrors; }
         };
     }
 

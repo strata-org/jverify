@@ -11,10 +11,8 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.Stack;
+import javax.tools.JavaFileObject;
+import java.util.*;
 
 /**
  * Depends on MethodOrLoopContractCompiler
@@ -22,6 +20,7 @@ import java.util.Stack;
 public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
     public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
+    private ArrayList<JCTree.JCMethodDecl> shouldVerifyList;
 
     public VerifyAnnotationCompiler(Context context) {
         context.put(VerifyAnnotationCompiler.class, this);
@@ -29,6 +28,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         shouldVerifies.push(context.get(VerifierOptions.class).verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
+        shouldVerifyList = new ArrayList<>();
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -41,7 +41,9 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
+            ArrayList<JCTree.JCMethodDecl> currentShouldVerifyList = new ArrayList<>(shouldVerifyList);
             visitTopLevel(env);
+            adjustShouldVerifyMethodList(env.getSourceFile(), currentShouldVerifyList);
         }
         return envs;
     }
@@ -69,6 +71,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         boolean shouldVerify = processVerifyAnnotationAndPop(tree.sym);
         if (!shouldVerify) {
             removeImplementation(tree);
+        } else {
+            shouldVerifyList.add(tree);
         }
         super.visitMethodDef(tree);
     }
@@ -165,6 +169,22 @@ public class VerifyAnnotationCompiler extends TreeScanner {
             } else {
                 return ShouldVerifyMode.DefaultNo;
             }
+        }
+    }
+
+    public ArrayList<JCTree.JCMethodDecl> getShouldVerifyList() {
+        return shouldVerifyList;
+    }
+
+    /*
+     *  This check is similar to the isLibrary() in JavaToDafnyCompiler, but we cannot reuse it
+     *  due to lack of the access to the list builtinSources used in that method. It resets any
+     *  JVerify library methods counted in the process
+     */
+    private void adjustShouldVerifyMethodList(JavaFileObject sourceFile,
+                                              ArrayList<JCTree.JCMethodDecl> previousShouldVerifyList) {
+        if (sourceFile.toUri().getScheme().equals("string")) {
+            shouldVerifyList = previousShouldVerifyList;
         }
     }
 }
