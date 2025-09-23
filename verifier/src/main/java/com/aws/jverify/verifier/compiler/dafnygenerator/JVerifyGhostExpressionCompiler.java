@@ -1,0 +1,195 @@
+package com.aws.jverify.verifier.compiler.dafnygenerator;
+
+import com.aws.jverify.JVerify;
+import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
+import com.sun.tools.javac.tree.JCTree;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
+
+public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
+    final ExpressionCompiler expressionCompiler;
+    final BaseDafnyGenerator baseGenerator;
+
+    public JVerifyGhostExpressionCompiler(DafnyGenerator next, 
+                                          BaseDafnyGenerator baseGenerator) {
+        super(next);
+        this.baseGenerator = baseGenerator;
+        this.expressionCompiler = baseGenerator.expressionCompiler;
+    }
+
+    /**
+     * Handles Java types from the JVerify library that are stand-ins
+     * for Dafny types defined in the JVerify prelude or built-in to Dafny.
+     */
+    @Override
+    public Type translateClassType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ClassType classType) {
+        var className = classType.asElement().flatName();
+        if (className.toString().equals(JVerify.Sequence.class.getName())) {
+            var typeArguments = classType.getTypeArguments().stream().map(a -> baseGenerator.translateType(a, origin)).toList();
+            if (typeArguments.stream().anyMatch(Objects::isNull)) {
+                return next.translateClassType(origin, additionalModifiers, classType);
+            }
+            return new SeqType(origin, typeArguments);
+        }
+        if (className.toString().equals(JVerify.Set.class.getName())) {
+            var arguments = classType.getTypeArguments().stream().map(a -> baseGenerator.translateType(a, origin)).toList();
+            return new SetType(origin, arguments, true);
+        }
+        if (className.toString().equals(JVerify.Map.class.getName())) {
+            var arguments = classType.getTypeArguments().stream().map(a -> baseGenerator.translateType(a, origin)).toList();
+            return new MapType(origin, arguments, true);
+        }
+        if (className.toString().equals(JVerify.CharJSequence.class.getName())) {
+            return new SeqType(origin, List.of(BaseDafnyGenerator.getChar16Type(origin)));
+        }
+        return next.translateClassType(origin, additionalModifiers, classType);
+    }
+
+    /**
+     * Handles translating JVerify library methods
+     *
+     * <p>Note: header methodContracts like {@link JVerify#precondition(boolean)}
+     * and {@link JVerify#postcondition(boolean)}
+     * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
+     * not here.
+     */
+    @Override
+    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+        if (jverifyMethod == null) {
+            return super.translateMethodInvocation(invocation, origin, context);
+        }
+        
+        var receiver = invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
+                ? fieldAccess.selected
+                : null;
+        var methodName = jverifyMethod.getQualifiedName().toString();
+        var args = invocation.getArguments();
+        switch (methodName) {
+            case "forall", "exists" -> {
+                if (args.size() != 1) {
+                    throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
+                }
+                if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
+                    baseGenerator.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+                    return BaseDafnyGenerator.getHole(origin);
+                }
+                var boundVars = lambda.params.stream().map(param -> {
+                    var paramOrigin = baseGenerator.toOrigin(lambda);
+                    var paramName = new Name(paramOrigin, param.getName().toString());
+                    var paramType = baseGenerator.getFinalGenerator().translateType(param.getType().type, paramOrigin, param.getModifiers());
+                    return new BoundVar(paramOrigin, paramName, paramType, false);
+                }).toList();
+                var body = expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
+                if (body == null) {
+                    return null;
+                }
+                if ("forall".equals(methodName)) {
+                    return new ForallExpr(origin, boundVars, null, body, null);
+                } else {
+                    return new ExistsExpr(origin, boundVars, null, body, null);
+                }
+            }
+            case "sequence" -> {
+                // array conversion to sequence by appending "[..]", optionally with lo/hi
+                assert args.size() == 1;
+                var array = args.get(0);
+                NameSegment callee = new NameSegment(origin, "toSequence", null);
+                return expressionCompiler.createCall(origin, callee, Stream.of(array), ExpressionContext.Pure);
+            }
+            case "get" -> {
+                var seq = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
+                var index = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                return new SeqSelectExpr(origin, true, seq, index, null, null);
+            }
+            case "drop" -> {
+                return toSubsequence(origin, receiver, args.getFirst(), null);
+            }
+            case "take" -> {
+                return toSubsequence(origin, receiver, null, args.getFirst());
+            }
+            case "subsequence" -> {
+                return toSubsequence(origin, receiver, args.get(0), args.get(1));
+            }
+            case "concat" -> {
+                var left = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
+                var right = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                return new BinaryExpr(origin, BinaryExprOpcode.Add, left, right);
+            }
+            case "contains" -> {
+                var element = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                var collection = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
+                return new BinaryExpr(origin, BinaryExprOpcode.In, element, collection);
+            }
+            case "size" -> {
+                var collection = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
+                return new UnaryOpExpr(origin, collection, UnaryOpExprOpcode.Cardinality);
+            }
+            case "entries" -> {
+                var collection = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
+                return new ExprDotName(origin, collection, new Name(origin, "Items"), null);
+            }
+            case "old" -> {
+                var element = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                return new OldExpr(origin, element, null);
+            }
+            case "fresh" -> {
+                var element = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                return new FreshExpr(origin, element, null);
+            }
+            case "implies" -> {
+                var antecedent = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                var consequent = expressionCompiler.toExpr(args.get(1), ExpressionContext.Pure);
+                return new BinaryExpr(origin, BinaryExprOpcode.Imp, antecedent, consequent);
+            }
+            case "all", "map" -> {
+                return toSetComprehension(origin, methodName, receiver, args);
+            }
+            case "jequals" -> {
+                var left = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
+                var right = expressionCompiler.toExpr(args.get(1), ExpressionContext.Pure);
+                return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
+            }
+        }
+
+        baseGenerator.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
+        return BaseDafnyGenerator.getHole(origin);
+    }
+
+    private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
+        var seqOrArrayExpr = expressionCompiler.toExpr(seqOrArray, ExpressionContext.Pure);
+        var loExpr = lo == null ? null : expressionCompiler.toExpr(lo, ExpressionContext.Pure);
+        var hiExpr = hi == null ? null : expressionCompiler.toExpr(hi, ExpressionContext.Pure);
+        return new SeqSelectExpr(origin, false, seqOrArrayExpr, loExpr, hiExpr, null);
+    }
+
+    private SetComprehension toSetComprehension(IOrigin origin, String methodName, JCTree.JCExpression receiver, List<JCTree.JCExpression> args) {
+        if (args.size() != 1) {
+            throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
+        }
+        if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
+            baseGenerator.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+            return null;
+        }
+        var parameter = lambda.params.getFirst();
+        var paramName = parameter.getName().toString();
+        var type = baseGenerator.getFinalGenerator().translateType(parameter.type, baseGenerator.toOrigin(parameter), null);
+        var boundVar = new BoundVar(origin, new Name(origin, paramName), type, false);
+        var body = baseGenerator.expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
+        if ("all".equals(methodName)) {
+            return new SetComprehension(origin, List.of(boundVar), body, new IdentifierExpr(origin, paramName), null, true);
+        } else {
+            var source = baseGenerator.expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
+            var range = new BinaryExpr(origin, BinaryExprOpcode.In, new IdentifierExpr(origin, paramName), source);
+            return new SetComprehension(origin, List.of(boundVar), range, body, null, true);
+        }
+    }
+}

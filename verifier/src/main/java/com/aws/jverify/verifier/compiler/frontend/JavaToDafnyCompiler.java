@@ -1,21 +1,27 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
+import com.aws.jverify.common.Common;
+import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.JavaMethodDetails;
 import com.aws.jverify.verifier.VerificationResults;
 import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.compiler.DiagnosticPositionFromDiagnostic;
+import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
-import com.aws.jverify.verifier.compiler.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.comp.*;
+import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.Log;
 import com.sun.tools.javac.util.Position;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -30,16 +36,49 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class JavaFrontEnd {
+public class JavaToDafnyCompiler {
     public final Context context;
     private final Reporter reporter;
     private final Enter enter;
 
-    public JavaFrontEnd(JavaToDafnyCompiler javaToDafnyCompiler) {
-        this.context = javaToDafnyCompiler.context;
+    private final DafnyGenerator dafnyGenerator;
+    public Set<SourceFile> builtinSources = new HashSet<>();
+    public static final String builtinFile = "/builtin-contracts.java";
+    public static final String objectFile = "/object-contract.java";
+
+    public JavaToDafnyCompiler(Context context) {
+        this.context = context;
+
+        JavacFileManager.preRegister(context);
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        context.put(DiagnosticListener.class, diagnostics);
+
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
+        this.dafnyGenerator = DafnyGenerator.getGenerator(context);
     }
+
+    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files, VerificationResults results) {
+        if (options.includeBuiltinContracts()) {
+            var builtinSource = new SourceFile(builtinFile, Common.getResourceFile(getClass(), builtinFile));
+            files.add(builtinSource);
+            builtinSources.add(builtinSource);
+        }
+        var contractSource = new SourceFile(objectFile, Common.getResourceFile(getClass(), objectFile));
+        builtinSources.add(contractSource);
+        files.add(contractSource);
+
+        Set<JCTree.JCCompilationUnit> parsedSet = parseResolveAndDesugarJava(options, files, results);
+        if (parsedSet == null) {
+            return new FilesContainer(List.of());
+        }
+
+        var parsed = new ArrayList<>(parsedSet);
+        var libraries = parsed.stream().filter(u -> builtinSources.contains(u.getSourceFile())).collect(Collectors.toSet());
+
+        return dafnyGenerator.generateDafny(parsed, libraries);
+    }
+
 
     /**
      * Applies a subset of the javac compilation pipeline, to parse,
@@ -140,7 +179,7 @@ public class JavaFrontEnd {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    
+
                     var staticMover = new MoveStaticMethodsToStaticType(context);
                     var externalContractCompiler = new ExternalContractCompiler(context);
                     var missingContractCompiler = new MissingContractCompiler(context);
@@ -150,21 +189,22 @@ public class JavaFrontEnd {
                     units.addAll(
                             staticMover.translate(
                                     arrayCompiler.transform(
-                                    unsuspend(lower(suspend(
-                                                missingContractCompiler.compile(
-                                                        verifyAnnotationCompiler.transform(
-                                                                externalContractCompiler.apply(
-                                                        newMethodContractCompiler.transform(
-                                                                unlambda(
-                                                        toUnits(compiler.flow(compiler.attribute(todo)))
-                    )))))))))));
+                                            unsuspend(lower(suspend(
+                                                    missingContractCompiler.compile(
+                                                            verifyAnnotationCompiler.transform(
+                                                                    externalContractCompiler.apply(
+                                                                            newMethodContractCompiler.transform(
+                                                                                    unlambda(
+                                                                                            toUnits(compiler.flow(compiler.attribute(todo)))
+                                                                                    )))))))))));
+
                     results.setJavaInSourceMethods(processVerifyingMethods(verifyAnnotationCompiler.getShouldVerifyList(),
                             missingContractCompiler.getCanVerifyMethodList(), units));
                 }
             }
         });
         // Applies the Java to Java part of our pipeline
-        compiler.compile(files, List.of(), null, List.of());
+        compiler.compile(files, java.util.List.of(), null, java.util.List.of());
 
         @SuppressWarnings("unchecked") var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
 
@@ -194,7 +234,7 @@ public class JavaFrontEnd {
         }
         return result;
     }
-    
+
     private Set<JCTree.JCCompilationUnit> unlambda(Set<JCTree.JCCompilationUnit> envs) {
         // Note JavaCompiler.desugar has some additional logic to
         // scan for classes that have lambdas first,

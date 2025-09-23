@@ -31,7 +31,8 @@ public class InvariantsAndStaticMethodsInSameClass {
     @Pure
     @Invariant
     private boolean balanceIsNonNegative() {
-        reads(this); return this.balance >= 0;
+        reads(this); 
+        return this.balance >= 0;
     }
     
     // Public instance method - should have invariant applied as pre/post condition

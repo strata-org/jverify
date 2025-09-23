@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.VerifierOptions;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.sun.tools.javac.code.AnnoConstruct;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
@@ -137,17 +137,17 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         ShouldVerifyMode mode;
         var verifyAnnotation = annotationsByName.get(Verify.class.getName());
         if (verifyAnnotation != null) {
-            var arguments = JavaToDafnyCompiler.getArguments(verifyAnnotation);
+            var arguments = BaseDafnyGenerator.getArguments(verifyAnnotation);
             var shouldArgument = arguments.get("value");
             var should = true;
             if (shouldArgument != null) {
-                should = (boolean) JavaToDafnyCompiler.getLiteralValue(shouldArgument);
+                should = (boolean) BaseDafnyGenerator.getLiteralValue(shouldArgument);
             }
 
             var pushDownArgument = arguments.get("overrideChildren");
             var includeMembers = true;
             if (pushDownArgument != null) {
-                includeMembers = (boolean) JavaToDafnyCompiler.getLiteralValue(pushDownArgument);
+                includeMembers = (boolean) BaseDafnyGenerator.getLiteralValue(pushDownArgument);
             }
             mode = getVerifyMode(should, includeMembers);
         } else {

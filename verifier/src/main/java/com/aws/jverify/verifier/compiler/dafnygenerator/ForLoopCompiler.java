@@ -1,12 +1,13 @@
-package com.aws.jverify.verifier.compiler.simplifications;
+package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.BlockStmt;
 import com.aws.jverify.generated.BreakOrContinueStmt;
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
-import com.aws.jverify.verifier.compiler.BlockCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
@@ -22,17 +23,17 @@ public class ForLoopCompiler implements StatementCompiler {
     }
 
     @Override
-    public @Nullable List<Statement> compile(JCTree.JCStatement statement, List<Label> labels) {
+    public @Nullable List<Statement> compile(JCTree.JCStatement statement, List<Label> labels, ExpressionContext context) {
         if (statement instanceof JCTree.JCContinue jcContinue) {
             return translateContinue(jcContinue);
         } else if (statement instanceof JCTree.JCForLoop jcForLoop) {
-            return translateForLoop(jcForLoop, labels);
+            return translateForLoop(jcForLoop, labels, context);
         }
         return null;
     }
     
-    private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels) {
-        var origin = blockCompiler.compiler.toOrigin(forLoop);
+    private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels, ExpressionContext context) {
+        var origin = blockCompiler.generator.toOrigin(forLoop);
         var loop = blockCompiler.translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
             List<Statement> outerBody;
             List<Statement> steps = blockCompiler.translateStatements(forLoop.step);
@@ -48,7 +49,7 @@ public class ForLoopCompiler implements StatementCompiler {
                 outerBody.addAll(steps);
             }
             return outerBody;
-        });
+        }, context);
 
         var initializer = blockCompiler.translateStatements(forLoop.getInitializer());
         var result = new ArrayList<Statement>(initializer.size() + 1);
@@ -86,15 +87,15 @@ public class ForLoopCompiler implements StatementCompiler {
      */
     private List<Statement> translateContinueForForLoop(JCTree.JCContinue jcContinue,
                                                         JCTree.JCForLoop forLoop) {
-        var origin = blockCompiler.compiler.toOrigin(jcContinue);
+        var origin = blockCompiler.generator.toOrigin(jcContinue);
         forLoopsWithContinue.add(forLoop);
         var label = getForLoopContinueLabel(forLoop);
-        return List.of(new BreakOrContinueStmt(origin, null, blockCompiler.compiler.getName(jcContinue, label),
+        return List.of(new BreakOrContinueStmt(origin, null, blockCompiler.generator.getName(jcContinue, label),
                 0, false));
     }
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> 
-                blockCompiler.compiler.nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
+                blockCompiler.generator.nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
     }
 }

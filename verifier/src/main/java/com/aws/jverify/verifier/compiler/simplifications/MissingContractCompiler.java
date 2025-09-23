@@ -17,7 +17,7 @@ import javax.lang.model.type.TypeKind;
 import javax.tools.JavaFileObject;
 import java.util.*;
 
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.JVERIFY_PACKAGE;
+import static com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator.JVERIFY_PACKAGE;
 
 public class MissingContractCompiler {
 

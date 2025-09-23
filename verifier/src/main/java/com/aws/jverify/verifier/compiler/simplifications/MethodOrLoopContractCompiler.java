@@ -4,6 +4,9 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -60,9 +63,9 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return envs;
     }
     
-    public List<JCTree.JCStatement> extractContract(JavaToDafnyCompiler compiler, 
-                                                              JCTree.JCBlock block,
-                                                              MethodOrLoopContract contract) {
+    public List<JCTree.JCStatement> extractContract(BaseDafnyGenerator compiler,
+                                                    JCTree.JCBlock block,
+                                                    MethodOrLoopContract contract) {
         if (block.getStatements().size() != 2) {
             throw new RuntimeException("Method body is not in contract + implementation format");
         }
@@ -78,7 +81,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 : List.nil();
         if (contract.isPure) {
             if (!implementationStatements.isEmpty()) {
-                contract.pureBody = compiler.expressionCompiler.toExpr(implementationStatements);
+                contract.pureBody = compiler.expressionCompiler.toExpr(implementationStatements, ExpressionContext.Pure);
             }
             return List.nil();
         }
@@ -125,7 +128,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         if (tree.body != null) {
-            var allowFooter = JavaToDafnyCompiler.isConstructor(tree.sym);
+            var allowFooter = BaseDafnyGenerator.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
         }
         super.visitMethodDef(tree);
@@ -206,7 +209,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
         }
-        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return false;
         }
@@ -239,12 +242,12 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
 
-    public static boolean handleStatement(JavaToDafnyCompiler compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
+    public static boolean handleStatement(BaseDafnyGenerator compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
         }
-        var jverifyMethod = JavaToDafnyCompiler.getJVerifyMethod(invocation);
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return false;
         }
@@ -258,7 +261,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A precondition call may have only one argument");
                 }
-                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), ExpressionContext.Pure), null, null));
             }
             case "postcondition" -> {
                 if (invocation.args.size() != 1) {
@@ -270,15 +273,15 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("invariant should have a single argument");
                 }
-                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst()), null, null));
+                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), ExpressionContext.Pure), null, null));
             }
             case "decreases" -> {
                 for(var decrease : invocation.getArguments()) {
                     // The LOWER javac phase inserts an explicit NewArray for varargs
                     if (decrease instanceof JCTree.JCNewArray newArray) {
-                        contract.decreases.addAll(newArray.getInitializers().map(compiler.expressionCompiler::toExpr));
+                        contract.decreases.addAll(newArray.getInitializers().map(d -> compiler.expressionCompiler.toExpr(d, ExpressionContext.Pure)));
                     } else {
-                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease));
+                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease, ExpressionContext.Pure));
                     }
                 }
             }
@@ -288,7 +291,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
-                var expr = compiler.expressionCompiler.toExpr(origExpr);
+                var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
                 contract.reads.add(new FrameExpression(origin, expr, null));
             }
             case "modifies" -> {
@@ -297,7 +300,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 var origExpr = invocation.getArguments().getFirst();
                 var origin = compiler.toOrigin(origExpr);
-                var expr = compiler.expressionCompiler.toExpr(origExpr);
+                var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
                 contract.modifies.add(new FrameExpression(origin, expr, null));
             }
             default -> {
@@ -308,7 +311,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return true;
     }
 
-    private static void handlePostcondition(JavaToDafnyCompiler compiler,  MethodOrLoopContract header, JCTree.JCExpression expr) {
+    private static void handlePostcondition(BaseDafnyGenerator compiler, MethodOrLoopContract header, JCTree.JCExpression expr) {
         if (expr instanceof JCTree.JCLambda lambda) {
             if (lambda.getParameters().size() != 1) {
                 throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
@@ -316,14 +319,14 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var parameter = lambda.params.getFirst();
             var origin = compiler.toOrigin(lambda);
             var paramName = parameter.getName().toString();
-            var type = compiler.translateType(parameter.type, compiler.toOrigin(parameter), null);
+            var type = compiler.getFinalGenerator().translateType(parameter.type, compiler.toOrigin(parameter), null);
 
             var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
             var lhs = new CasePattern<>(origin, paramName, returnVar, null);
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
                     : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody());
+            var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
             var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 
@@ -331,7 +334,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var origin = compiler.toOrigin(memberReference);
             NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
-                    compiler.expressionCompiler.toExpr(memberReference.expr),
+                    compiler.expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
                     compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
             var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
             header.postconditions.add(new AttributedExpression(call, null, null));
@@ -339,7 +342,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             // Casts like (IntPredicate) are sometimes necessary to disambiguate
             handlePostcondition(compiler, header, typeCast.getExpression());
         } else {
-            var dafnyExpr = compiler.expressionCompiler.toExpr(expr);
+            var dafnyExpr = compiler.expressionCompiler.toExpr(expr, ExpressionContext.Pure);
             header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
         }
     }
