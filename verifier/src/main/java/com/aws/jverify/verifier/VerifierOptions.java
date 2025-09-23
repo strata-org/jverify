@@ -19,5 +19,6 @@ public record VerifierOptions(Path workingDirectory,
                               String[] additionalDafnyArguments,
                               boolean verifyByDefault,
                               boolean continueOnErrors,
-                              @Nullable PositionFilter positionFilter) {
+                              @Nullable PositionFilter positionFilter,
+                              boolean verbose) {
 }

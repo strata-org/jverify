@@ -24,7 +24,7 @@ public record PositionFilter(@Nullable String fileEnding, int start, int end) {
         boolean hasRange = Objects.equals(matcher.group(3), "-");
         String lineEnd = matcher.group(3);
 
-        int start = Integer.MIN_VALUE;
+        int start = 0;
         int end = Integer.MAX_VALUE;
         if (lineEnd != null && !lineEnd.isEmpty()) {
             end = Integer.parseInt(lineEnd);

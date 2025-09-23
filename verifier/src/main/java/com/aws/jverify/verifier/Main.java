@@ -93,7 +93,7 @@ class AppCommand implements Callable<Integer> {
                 tempFile.toPath(), testDafnyVersion,
                 printDafny, printBinaryDafny, showRanges, builtinContracts, 
                 paths, new String[0], verifyByDefault, false, 
-                positionFilter);
+                positionFilter, verbose);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();
         return exitCode;

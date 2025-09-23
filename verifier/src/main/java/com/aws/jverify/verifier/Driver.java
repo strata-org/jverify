@@ -224,6 +224,17 @@ public class Driver {
         if (verifierOptions.printDafny() != null) {
             processBuilder.command().add("--print=" + verifierOptions.printDafny());
         }
+        PositionFilter positionFilter = verifierOptions.positionFilter();
+        if (positionFilter != null) {
+            var s = new StringBuilder();
+            s.append("--filter-position=");
+            if (positionFilter.fileEnding() != null) {
+                s.append(positionFilter.fileEnding());
+            }
+            s.append(":").append(positionFilter.start()).append("-");
+            s.append(positionFilter.end());
+            processBuilder.command().add(s.toString());
+        }
         if (verifierOptions.showRanges()) {
             // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
             processBuilder.command().add("--show-snippets=false");
@@ -232,6 +243,10 @@ public class Driver {
         processBuilder.command().add("--ignore-indentation");
         for (var option : verifierOptions.additionalDafnyArguments()) {
             processBuilder.command().add(option);
+        }
+        
+        if (verifierOptions.verbose()) {
+            System.out.println("Dafny options: " + String.join(", ", processBuilder.command()));
         }
 
         try {
