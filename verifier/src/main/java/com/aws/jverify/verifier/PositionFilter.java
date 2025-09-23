@@ -8,7 +8,10 @@ import java.util.regex.Pattern;
 
 public record PositionFilter(@Nullable String fileEnding, int start, int end) {
 
-    public static PositionFilter getPositionFilter(String filterPosition) {
+    public static @Nullable PositionFilter getPositionFilter(String filterPosition) {
+        if (filterPosition == null) {
+            return null;
+        }
         Pattern p = Pattern.compile("(.*)(?::(\\d*)(-?)(\\d*))?$");
         Matcher matcher = p.matcher(filterPosition);
 
