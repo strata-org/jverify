@@ -16,25 +16,23 @@ import java.util.Optional;
 import java.util.SequencedCollection;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
-
+@Pure
 @Contract(Comparable.class)
 class ComparableContract<T> {
 }
-
 @Pure
 @Contract(value = Number.class)
 class NumberContract {
 
 }
-
+@Pure
 @Contract(Collection.class)
 interface CollectionContract<E> {
 
 }
-
+@Pure
 @Contract(SequencedCollection.class)
 interface SequencedCollectionContract<E> extends Collection<E> { }
-
 @Pure
 @Contract(value = List.class)
 abstract class ListContract<E> implements List<E> {
@@ -99,14 +97,13 @@ abstract class ListContract<E> implements List<E> {
 
     @Override
     @Pure
-    public boolean contains(Object o) {
+    public boolean contains(@Pure Object o) {
         postcondition((boolean r) ->
                 r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));
         throw new ContractException();
     }
 }
-
 @Pure
 @Contract(value = Set.class)
 abstract class SetContract<E> implements Set<E> {
@@ -149,7 +146,7 @@ abstract class SetContract<E> implements Set<E> {
 
     @Override
     @Pure
-    public boolean contains(Object o) {
+    public boolean contains(@Pure Object o) {
         postcondition((boolean r) ->
                 r == JVerify.exists((E other) ->
                         elements.contains(other) && other.equals(o)));
@@ -171,12 +168,11 @@ abstract class SetContract<E> implements Set<E> {
     }
 }
 
-
 @Pure
 @Contract(value = Map.class)
 abstract class MapContract<K, V> implements Map<K, V> {
 
-    JVerify.Map<Object, V> elements;
+    JVerify.Map<@Pure Object, V> elements;
 
     @Pure
     static <K, V> Map<K, V> of() {
@@ -220,7 +216,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
 
     @Override
     @Pure
-    public boolean containsKey(Object key) {
+    public boolean containsKey(@Pure Object key) {
         postcondition((boolean r) ->
                 r == JVerify.exists((K other) ->
                         elements.contains(other) && other.equals(key)));
@@ -229,7 +225,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
 
     @Override
     @Pure
-    public V get(Object key) {
+    public V get(@Pure Object key) {
         precondition(containsKey(key));
         // TODO: postcondition needs something like :| to get a hold of the key
         // that actually exists in the map according to containsKey
@@ -267,7 +263,6 @@ abstract class MapContract<K, V> implements Map<K, V> {
         throw new ContractException();
     }
 }
-
 @Pure
 @Contract()
 abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
@@ -401,7 +396,6 @@ class HelperForBigIntegerContract {
         return (n == 0 ? 1 : x * pow(x, n-1));
     }
 }
-
 @Pure
 @Contract(value = BigInteger.class)
 class BigIntegerContract  {
@@ -503,7 +497,6 @@ class BigIntegerContract  {
     }
 
 }
-
 @Pure
 @Contract(value = Optional.class)
 class OptionalContract<T> {

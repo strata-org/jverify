@@ -17,7 +17,6 @@ class ObjectContract {
         throw new ContractException();
     }
 }
-
 @Pure
 @Contract(value = Record.class)
 class RecordContract {
@@ -26,7 +25,6 @@ class RecordContract {
         return jequals(this, obj);
     }
 }
-
 @Pure
 @Contract(value = String.class)
 class StringContract {

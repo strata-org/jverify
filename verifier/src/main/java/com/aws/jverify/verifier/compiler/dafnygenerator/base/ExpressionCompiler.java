@@ -481,8 +481,13 @@ public class ExpressionCompiler {
             boolean methodContainerTypeIsParameter = fieldAccess.selected.type instanceof com.sun.tools.javac.code.Type.TypeVar;
             if (methodContainerTypeIsParameter) {
                 var classType = fieldAccess.sym.enclClass().type;
-                // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
-                selectedExpr = new ConversionExpr(origin, selectedExpr, baseGenerator.translateType(classType, origin), "");
+                if (classType == Symtab.instance(baseGenerator.context).objectType && fieldAccess.name.contentEquals("equals")) {
+                    selectedExpr = new ConversionExpr(origin, selectedExpr, 
+                            new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null)), "");
+                } else {
+                    // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
+                    selectedExpr = new ConversionExpr(origin, selectedExpr, baseGenerator.translateType(classType, origin), "");
+                }
             }
             return new ExprDotName(origin, selectedExpr, baseGenerator.getName(fieldAccess, fieldName), null);
         }

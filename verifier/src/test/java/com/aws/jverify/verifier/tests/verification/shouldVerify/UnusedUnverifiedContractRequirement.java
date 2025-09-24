@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.tests.verification.shouldVerify;
 
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 import java.beans.IntrospectionException;
@@ -41,7 +42,9 @@ public class UnusedUnverifiedContractRequirement {
         var intersectionTypeList = listOf(new C(), new D());
     }
     
+    @Pure
     interface A {}
+    @Pure
     interface B {}
     record C() implements A, B {}
     record D() implements A, B {}

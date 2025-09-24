@@ -51,7 +51,7 @@ public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
             } else {
-                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Modifiable on a type other than Object");
+                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.ERROR, "notSupported", "@Pure on a type other than Object");
             }
         }
         if (classType.tsym == symtab.objectType.tsym) {

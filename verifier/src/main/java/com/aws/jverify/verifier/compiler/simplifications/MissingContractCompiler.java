@@ -15,6 +15,7 @@ import com.sun.tools.javac.util.List;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator.JVERIFY_PACKAGE;
 
@@ -122,14 +123,13 @@ public class MissingContractCompiler {
             return (JCTree.JCClassDecl) index.getTree(classSymbol);
         }
         List<JCTree.JCTypeParameter> typeParameters = classSymbol.getTypeParameters().map(tp ->
-                maker.TypeParameter(tp.name, tp.getBounds().map(maker::Type)));
+                maker.TypeParameter(tp.name, tp.getBounds().stream().filter(b -> b.tsym != symtab.objectType.tsym).map(maker::Type).collect(List.collector())));
         JCTree.JCExpression superClassExpr = classSymbol.getSuperclass() == Type.noType ? null : maker.Type(classSymbol.getSuperclass());
         JCTree.JCClassDecl classDecl = maker.ClassDef(maker.Modifiers(0, List.of(jverifyUtils.getPureAnnotation())),
                 classSymbol.name, typeParameters, superClassExpr,
                 classSymbol.getInterfaces().map(maker::Type), List.nil());
         compilationUnit.defs = compilationUnit.defs.append(classDecl);
         classDecl.sym = classSymbol;
-
 
         Symbol.ClassSymbol pureSymbol = elements.getTypeElement(Pure.class.getCanonicalName());
         ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
