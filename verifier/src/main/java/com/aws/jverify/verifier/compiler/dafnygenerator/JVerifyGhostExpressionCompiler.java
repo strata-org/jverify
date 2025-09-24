@@ -61,6 +61,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
      */
+    @Override
     public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {

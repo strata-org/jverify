@@ -13,22 +13,15 @@ enum Nullability { Nullable, NonNullable }
 public record ExpressionContext(@Nullable Consumer<Statement> statementWriter,
                                 boolean allowImpure,
                                 @Nullable BlockCompiler blockCompiler,
-                                @Nullable Type fallbackType,
-                                Nullability nullability) {
-    public final static ExpressionContext Pure =  new ExpressionContext(null, false, null, null, Nullability.NonNullable);
-
-    public ExpressionContext withNullability(Symbol.VarSymbol varSymbol) {
-        var nullable = NullableGenerator.isNullable(varSymbol.type, varSymbol.getModifiers());
-        return new ExpressionContext(statementWriter, false, blockCompiler, fallbackType, nullability);
-        varSymbol.getModifiers()
-    }
+                                @Nullable Type fallbackType) {
+    public final static ExpressionContext Pure =  new ExpressionContext(null, false, null, null);
     
     public ExpressionContext withFallbackType(Type fallbackType) {
-        return new ExpressionContext(statementWriter, false, blockCompiler, fallbackType, nullability);
+        return new ExpressionContext(statementWriter, false, blockCompiler, fallbackType);
     }
     
     public ExpressionContext forbidImpure() {
-        return new ExpressionContext(statementWriter, false, blockCompiler, fallbackType, nullability);
+        return new ExpressionContext(statementWriter, false, blockCompiler, fallbackType);
     }
 
     public String getVariableSuffix() {

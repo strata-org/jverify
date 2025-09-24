@@ -280,7 +280,7 @@ public class ExpressionCompiler {
             return BaseDafnyGenerator.getReferenceHole(origin);
         } else {
             var rhs = getGenerator().translateNewClassToAssignmentRhs(newClass, origin, context);
-            return isolateAssignmentRhs(newClass.type, rhs, context);
+            return placeRhsIntoTemporaryAssignmentAndReturnResult(newClass.type, rhs, context);
         }
     }
 
@@ -311,8 +311,8 @@ public class ExpressionCompiler {
         return new NameSegment(baseNameSegment.getOrigin(), baseGenerator.nameCompiler.CLASS_PREFIX + baseName,
                 baseNameSegment.getOptTypeArguments());
     }
-
-    Expression isolateAssignmentRhs(com.sun.tools.javac.code.Type type, AssignmentRhs rhs, ExpressionContext context) {
+    
+    Expression placeRhsIntoTemporaryAssignmentAndReturnResult(com.sun.tools.javac.code.Type type, AssignmentRhs rhs, ExpressionContext context) {
         var origin = rhs.getOrigin();
         Type translatedType = this.baseGenerator.getFinalGenerator().translateType(type, origin, null);
         LocalVariable localVariable = new LocalVariable(origin, "impure" + NameCompiler.sep + context.getVariableSuffix(),
@@ -367,15 +367,14 @@ public class ExpressionCompiler {
                     return BaseDafnyGenerator.getHole(origin);
                 }
 
-                Expression target = toExpr(unary.getExpression(), context);
-                List<Expression> lhss = List.of(target);
+                List<Expression> lhss = List.of(innerExpr);
 
                 var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
                         ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
-                var incremented = new BinaryExpr(origin, opCode, target, new LiteralExpr(origin, 1));
+                var incremented = new BinaryExpr(origin, opCode, innerExpr, new LiteralExpr(origin, 1));
                 List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
                 context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
-                return target;
+                return innerExpr;
             }
             case JCTree.Tag.NOT -> {
                 return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
@@ -523,7 +522,7 @@ public class ExpressionCompiler {
         var isPure = utils.isPure(methodSymbol);
         var call = createCall(origin, target, invocation.getArguments().stream(), context);
         if (context.statementWriter() != null && !isPure && !context.allowImpure()) {
-            return isolateAssignmentRhs(invocation.type, new ExprRhs(origin, null, call), context);
+            return placeRhsIntoTemporaryAssignmentAndReturnResult(invocation.type, new ExprRhs(origin, null, call), context);
         }
         return call;
     }

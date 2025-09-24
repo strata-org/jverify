@@ -121,21 +121,21 @@ public class NullableGenerator extends WrappingDafnyGenerator {
                     return baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), context);
                 }
             }
-        } else if (expr instanceof JCTree.JCAssign assign) {
-            var isImmutable = baseGenerator.isImmutable((Symbol.ClassSymbol) assign.getExpression().type.tsym);
-            if (isImmutable) {
-                var nullableTarget = isNullable(assign.getVariable());
-                var nullableValue = isNullable(assign.getExpression());
-                if (!nullableTarget && nullableValue) {
-                    var nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), null);
-                    var nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
-                    var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, baseGenerator.getName(fieldAccess, fieldAccess.name), null);
-                    return baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), context);
-
-                }
-            }
-            assign.getExpression()
-        }
+        } 
+//        else if (expr instanceof JCTree.JCAssign assign) {
+//            var isImmutable = baseGenerator.isImmutable((Symbol.ClassSymbol) assign.getExpression().type.tsym);
+//            if (isImmutable) {
+//                var nullableTarget = isNullable(assign.getVariable());
+//                var nullableValue = isNullable(assign.getExpression());
+//                if (!nullableTarget && nullableValue) {
+//                    var nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), null);
+//                    var nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
+//                    var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, baseGenerator.getName(fieldAccess, fieldAccess.name), null);
+//                    return baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), context);
+//
+//                }
+//            }
+//        }
         return super.toExpr(expr, originOverride, context);
     }
 

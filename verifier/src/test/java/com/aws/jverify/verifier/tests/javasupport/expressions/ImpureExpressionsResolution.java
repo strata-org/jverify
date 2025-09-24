@@ -19,11 +19,11 @@ public class ImpureExpressionsResolution {
     int nestedAssignment() {
         var x = 3;
         if ((x += 1) == 4) {
-//             ^ error: since += performs mutation, it may only be used where a statement is allowed
+//             ^ error: since += performs mutation, it may not be used in a pure context
 //                         ^ error: a pure block must end in a return or if-else statement
         }
         if (x++ == 4) {
-//           ^ error: since ++ performs mutation, it may only be used where a statement is allowed
+//           ^ error: since ++ performs mutation, it may not be used in a pure context
 //                    ^ error: a pure block must end in a return or if-else statement
         }
         return 3;

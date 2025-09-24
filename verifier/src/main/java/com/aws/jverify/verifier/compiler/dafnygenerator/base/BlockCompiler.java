@@ -52,7 +52,6 @@ public class BlockCompiler {
     public List<Statement> translateStatementAfterlabel(JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
         List<Statement> statements = new ArrayList<>();
         var expressionContext = new ExpressionContext(statements::add, true, this, null);
-        
         for (var compiler : statementCompilers) {
             var result = compiler.compile(statement, labels, expressionContext);
             if (result != null) {
