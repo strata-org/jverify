@@ -234,8 +234,10 @@ public class BlockCompiler {
 
             return List.of(initCall);
         }
-        generator.getFinalGenerator().toExpr(invocation, null, expressionContext);
-        return List.of();
+
+        var expr = generator.getFinalGenerator().toExpr(invocation, null, expressionContext);
+        return List.of(new AssignStatement(origin, null, List.of(),
+                List.of(new ExprRhs(expr.getOrigin(), null, expr)), false));
     }
 
     public static JCTree.JCIdent getSuperIdent(JCTree.JCMethodInvocation invocation) {

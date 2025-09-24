@@ -4,7 +4,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0)
+@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 2)
 public class NullableInterfacesVerification {
     interface PureInterface {
         default void foo() {}
@@ -17,6 +17,7 @@ public class NullableInterfacesVerification {
         if (nullableP == null) {
             p = nonNullP;
             nullableP.foo();
+//          ^^^^^^^^^^^^^^^ Error: destructor 'value' can only be applied to datatype values constructed by 'NonNull'
         } else {
             p = nullableP;
             nullableP.foo();
@@ -37,6 +38,7 @@ public class NullableInterfacesVerification {
         p.foo();
         if (nullableP == null) {
             nullableP.foo();
+//          ^^^^^^^^^ Error: target object could not be proved to be non-null
         } else {
             nullableP.foo();
         }

@@ -135,10 +135,8 @@ class TranslationErrors {
 
     @SuppressWarnings("unused")
     record IntWrapperWrapper(@Nullable IntWrapper inner) {}
-//                                     ^ error: nullable record type is not supported
 
     static boolean nullableRecord(@Nullable IntWrapper w) {
-//                                ^ error: nullable record type is not supported
         return w == null;
     }
 

@@ -11,6 +11,7 @@ import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 public class NullableGenerator extends WrappingDafnyGenerator {
@@ -94,8 +95,9 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         return BaseDafnyGenerator.isAnnotated(type, com.aws.jverify.Nullable.class);
     }
 
-    public Expression translateLiteral(JCTree.JCLiteral literal, IOrigin origin,
+    public Expression translateLiteral(JCTree.JCLiteral literal, IOrigin originOverride,
                                        ExpressionContext context) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(literal));
         if (literal.getValue() == null) {
             var immutable = context.expectedType() != null && context.expectedType().tsym instanceof Symbol.ClassSymbol classSymbol &&
                     this.baseGenerator.isImmutable(classSymbol);
@@ -120,7 +122,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     private Expression translateAssign(JCTree.JCAssign assign, IOrigin originOverride, ExpressionContext context) {
-        var origin = baseGenerator.toOrigin(assign);
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(assign));
         if (assign.getExpression().type.tsym instanceof Symbol.ClassSymbol valueClass) {
             var isImmutable = baseGenerator.isImmutable(valueClass);
             if (isImmutable) {
@@ -149,7 +151,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     private Expression translateInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
-        var origin = baseGenerator.toOrigin(invocation);
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(invocation));
         if (invocation.meth instanceof JCTree.JCFieldAccess fieldAccess && 
                 fieldAccess.getExpression().type.tsym instanceof Symbol.ClassSymbol valueClass) {
             var valueIsNullable = isNullable(fieldAccess.getExpression().type);
