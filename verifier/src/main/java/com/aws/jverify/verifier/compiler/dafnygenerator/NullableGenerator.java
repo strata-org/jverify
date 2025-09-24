@@ -121,26 +121,28 @@ public class NullableGenerator extends WrappingDafnyGenerator {
 
     private Expression translateAssign(JCTree.JCAssign assign, IOrigin originOverride, ExpressionContext context) {
         var origin = baseGenerator.toOrigin(assign);
-        var isImmutable = baseGenerator.isImmutable((Symbol.ClassSymbol) assign.getExpression().type.tsym);
-        if (isImmutable) {
-            var nullableTarget = isNullable(assign.getVariable());
-            var nullableValue = isNullable(assign.getExpression());
-            if (!nullableTarget && nullableValue) {
-                Expression target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
-                List<Expression> lhss = List.of(target);
-                var valueExpr = baseGenerator.getFinalGenerator().toExpr(assign.getExpression(), origin, context);
-                var nonNullValueExpr = new ExprDotName(origin, valueExpr, new Name(origin, "value"), null);
-                List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, nonNullValueExpr));
-                context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
-                return target;
-            } else if (nullableTarget && !nullableValue) {
-                Expression target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
-                List<Expression> lhss = List.of(target);
-                var nonNullValueExpr = baseGenerator.getFinalGenerator().toExpr(assign.getExpression(), origin, context);
-                var nullableValueExpr = ExpressionCompiler.createCall2(origin, new NameSegment(origin, "NonNull", null), Stream.of(nonNullValueExpr));
-                List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, nullableValueExpr));
-                context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
-                return target;
+        if (assign.getExpression().type.tsym instanceof Symbol.ClassSymbol valueClass) {
+            var isImmutable = baseGenerator.isImmutable(valueClass);
+            if (isImmutable) {
+                var nullableTarget = isNullable(assign.getVariable());
+                var nullableValue = isNullable(assign.getExpression());
+                if (!nullableTarget && nullableValue) {
+                    Expression target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
+                    List<Expression> lhss = List.of(target);
+                    var valueExpr = baseGenerator.getFinalGenerator().toExpr(assign.getExpression(), origin, context);
+                    var nonNullValueExpr = new ExprDotName(origin, valueExpr, new Name(origin, "value"), null);
+                    List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, nonNullValueExpr));
+                    context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
+                    return target;
+                } else if (nullableTarget && !nullableValue) {
+                    Expression target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
+                    List<Expression> lhss = List.of(target);
+                    var nonNullValueExpr = baseGenerator.getFinalGenerator().toExpr(assign.getExpression(), origin, context);
+                    var nullableValueExpr = ExpressionCompiler.createCall2(origin, new NameSegment(origin, "NonNull", null), Stream.of(nonNullValueExpr));
+                    List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, nullableValueExpr));
+                    context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
+                    return target;
+                }
             }
         }
         return super.toExpr(assign, originOverride, context);
