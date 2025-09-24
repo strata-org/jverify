@@ -32,7 +32,7 @@ public interface DafnyGenerator {
     
     static DafnyGenerator getGenerator(Context context) {
         var base = new BaseDafnyGenerator(context);
-        var result = new ModifiableObjectGenerator(context, base, 
+        var result = new ImpureObjectGenerator(context, base, 
                 new JVerifyGhostExpressionCompiler(new NullableGenerator(base, base), base));
         base.setFinalGenerator(result);
         return result;

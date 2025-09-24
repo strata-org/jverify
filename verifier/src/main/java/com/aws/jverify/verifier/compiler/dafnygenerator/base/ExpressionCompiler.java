@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
@@ -272,7 +272,7 @@ public class ExpressionCompiler {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
         Symtab symtab = Symtab.instance(baseGenerator.context);
         if (classSymbol.type != symtab.objectType && baseGenerator.isImmutable(classSymbol)) {
-            return ImmutableTypeCompiler.translateNewRecord(this, origin, newClass, context);
+            return PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
         }
         if (context.statementWriter() == null) {
             baseGenerator.reportError(expr, "notSupported",
@@ -291,7 +291,7 @@ public class ExpressionCompiler {
         }
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
         if (classSymbol.type != symtab.objectType && baseGenerator.isImmutable(classSymbol)) {
-            var datatypeValue = ImmutableTypeCompiler.translateNewRecord(this, origin, newClass, context);
+            var datatypeValue = PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
             return new ExprRhs(origin, null, datatypeValue);
         }
         NameSegment classBaseType = getNewClassType(newClass);
@@ -612,7 +612,7 @@ public class ExpressionCompiler {
 
         var symtab = Symtab.instance(this.baseGenerator.context);
         if (type.baseType() == symtab.objectType) {
-            return !baseGenerator.isAnnotated(type, Modifiable.class);
+            return !baseGenerator.isAnnotated(type, Impure.class);
         }
 
         var types = Types.instance(this.baseGenerator.context);

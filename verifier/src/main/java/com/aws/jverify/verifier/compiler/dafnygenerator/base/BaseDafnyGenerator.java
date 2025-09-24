@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 
 public class BaseDafnyGenerator implements DafnyGenerator {
     public static final boolean Ghostness = true;
-    public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
+    public static final String PURE_OBJECT_NAME = "Object";
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
     public final Context context;
@@ -484,7 +484,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
             return translateType(superBound, origin);
         }
-        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
+        return new UserDefinedType(origin, new NameSegment(origin, PURE_OBJECT_NAME, null));
     }
 
     public Type translateClassType(IOrigin origin,
@@ -599,7 +599,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         if (classSymbol.type == symtab.objectType) {
             return true;
         }
-        if (BaseDafnyGenerator.isInterface(classSymbol) && !isAnnotated(classSymbol.type, Modifiable.class)) {
+        if (BaseDafnyGenerator.isInterface(classSymbol) && !isAnnotated(classSymbol.type, Impure.class)) {
             return true;
         }
         boolean anonymousImmutableType = isAnonymousOrFinalImmutableType(classSymbol);
@@ -681,7 +681,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         if (decl != null) {
             var contract = classSymbol.getAnnotation(Contract.class);
             if (contract != null) {
-                immutableClass = contract.immutable();
+                immutableClass = contract.pure();
             }
         }
         return immutableClass;

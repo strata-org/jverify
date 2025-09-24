@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator;
 
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
@@ -29,14 +29,14 @@ import java.util.stream.Stream;
  *   extends Object -> extends ModifiableObject
  *
  */
-public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
-    public static final String REFERENCE_OBJECT_NAME = "ModifiableObject";
+public class ImpureObjectGenerator extends WrappingDafnyGenerator {
+    public static final String IMPURE_OBJECT_NAME = "ImpureObject";
 
     private final Symtab symtab;
     private final Reporter reporter;
     private final NameCompiler nameCompiler;
     
-    public ModifiableObjectGenerator(Context context, BaseDafnyGenerator baseGenerator, DafnyGenerator original) {
+    public ImpureObjectGenerator(Context context, BaseDafnyGenerator baseGenerator, DafnyGenerator original) {
         super(original);
         symtab = Symtab.instance(context);
         reporter = Reporter.instance(context);
@@ -46,32 +46,32 @@ public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
     @Override
     public Type translateClassType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ClassType classType) {
         var mirrors = classType.getAnnotationMirrors();
-        var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
-        if (modifiableAnnotation.isPresent() || BaseDafnyGenerator.isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
+        var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Impure.class.getName())).findFirst();
+        if (modifiableAnnotation.isPresent() || BaseDafnyGenerator.isAnnotated(additionalModifiers, Impure.class)) {
             if (classType.tsym == symtab.objectType.tsym) {
-                return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
+                return new UserDefinedType(origin, new NameSegment(origin, IMPURE_OBJECT_NAME, null));
             } else {
                 reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Modifiable on a type other than Object");
             }
         }
         if (classType.tsym == symtab.objectType.tsym) {
-            return new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null));
+            return new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
         }
         return super.translateClassType(origin, additionalModifiers, classType);
     }
 
     public Type getRemappedType(com.sun.tools.javac.code.Type.ClassType classType, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
         var mirrors = classType.getAnnotationMirrors();
-        var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Modifiable.class.getName())).findFirst();
-        if (modifiableAnnotation.isPresent() || BaseDafnyGenerator.isAnnotated(additionalModifiers, com.aws.jverify.Modifiable.class)) {
+        var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Impure.class.getName())).findFirst();
+        if (modifiableAnnotation.isPresent() || BaseDafnyGenerator.isAnnotated(additionalModifiers, Impure.class)) {
             if (classType.tsym == symtab.objectType.tsym) {
-                return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OBJECT_NAME, null));
+                return new UserDefinedType(origin, new NameSegment(origin, IMPURE_OBJECT_NAME, null));
             } else {
                 reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Modifiable on a type other than Object");
             }
         }
         if (classType.tsym == symtab.objectType.tsym) {
-            return new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null));
+            return new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
         }
         return null;
     }
@@ -80,7 +80,7 @@ public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
     public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context) {
         if (newClass.type == symtab.objectType) {
             NameSegment classBaseType = new NameSegment(origin, 
-                    nameCompiler.CLASS_PREFIX + REFERENCE_OBJECT_NAME, null);
+                    nameCompiler.CLASS_PREFIX + IMPURE_OBJECT_NAME, null);
 
             String ctorNameStr = nameCompiler.getCompiledName(newClass.constructor, origin);
             Name ctorName = new Name(origin, ctorNameStr);

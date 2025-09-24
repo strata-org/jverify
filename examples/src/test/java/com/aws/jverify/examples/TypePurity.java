@@ -1,17 +1,17 @@
 package com.aws.jverify.examples;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Impure;
 import com.aws.jverify.Pure;
 
 import static com.aws.jverify.JVerify.*;
 
-interface Immutable {
+interface PureInterface {
     void increment();
     int getX();
     
     @Contract
-    class MyContract implements Immutable {
+    class MyContract implements PureInterface {
         int x;
 
         public void increment() {
@@ -27,13 +27,13 @@ interface Immutable {
     }   
 }
 
-@Modifiable
-interface Mutable {
+@Impure
+interface ImpureInterface {
     void increment();
     int getX();
 
     @Contract
-    class MyContract implements Mutable {
+    class MyContract implements ImpureInterface {
         int x;
 
         public void increment() {
@@ -46,17 +46,17 @@ interface Mutable {
     }
 }
 
-   record RecordsAreImmutable(int x) 
-// ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
-        implements Mutable
+   record RecordsArePure(int x) 
+// ^ error: a record class may not be annotated with @Impure, or extend or implement a type annotated with @Impure
+        implements ImpureInterface
 {
     @Pure
-    static RecordsAreImmutable createR() {
-        return new RecordsAreImmutable(3); // legal
+    static RecordsArePure createR() {
+        return new RecordsArePure(3); // legal
     }
     
     @Pure
-    public boolean compare(RecordsAreImmutable other) {
+    public boolean compare(RecordsArePure other) {
         return this == other;
 //                  ^ error: '==' is only allowed when at least one operand's type is mutable
     }
@@ -73,10 +73,10 @@ interface Mutable {
     }
 }
 
-class ClassesAreMutable {
+class ClassesAreImpure {
     @Pure
-    ClassesAreMutable createC() {
-        return new ClassesAreMutable();
-//             ^ error: using 'new' in a pure expression to create an instance of a mutable type is not supported
+    ClassesAreImpure createC() {
+        return new ClassesAreImpure();
+//             ^ error: using 'new' in a pure expression to create an instance of an impure type is not supported
     }
 }

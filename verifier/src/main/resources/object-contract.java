@@ -18,7 +18,7 @@ class ObjectContract {
     }
 }
 
-@Contract(value = Record.class, immutable = true)
+@Contract(value = Record.class, pure = true)
 class RecordContract {
     @Pure
     public boolean equals(Object obj) {
@@ -26,7 +26,7 @@ class RecordContract {
     }
 }
 
-@Contract(value = String.class, immutable = true)
+@Contract(value = String.class, pure = true)
 class StringContract {
     JVerify.CharJSequence chars;
 

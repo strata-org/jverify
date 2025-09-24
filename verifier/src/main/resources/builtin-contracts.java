@@ -21,7 +21,7 @@ import java.util.function.Predicate;
 class ComparableContract<T> {
 }
 
-@Contract(value = Number.class, immutable = true)
+@Contract(value = Number.class, pure = true)
 class NumberContract {
 
 }
@@ -34,7 +34,7 @@ interface CollectionContract<E> {
 @Contract(SequencedCollection.class)
 interface SequencedCollectionContract<E> extends Collection<E> { }
 
-@Contract(value = List.class, immutable = true)
+@Contract(value = List.class, pure = true)
 abstract class ListContract<E> implements List<E> {
 
     JVerify.Sequence<E> elements;
@@ -105,7 +105,7 @@ abstract class ListContract<E> implements List<E> {
     }
 }
 
-@Contract(value = Set.class, immutable = true)
+@Contract(value = Set.class, pure = true)
 abstract class SetContract<E> implements Set<E> {
 
     JVerify.Set<E> elements;
@@ -169,7 +169,7 @@ abstract class SetContract<E> implements Set<E> {
 }
 
 
-@Contract(value = Map.class, immutable = true)
+@Contract(value = Map.class, pure = true)
 abstract class MapContract<K, V> implements Map<K, V> {
 
     JVerify.Map<Object, V> elements;
@@ -264,7 +264,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
     }
 }
 
-@Contract(immutable = true)
+@Contract(pure = true)
 abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
     @Override
     @Pure
@@ -397,7 +397,7 @@ class HelperForBigIntegerContract {
     }
 }
 
-@Contract(value = BigInteger.class, immutable = true)
+@Contract(value = BigInteger.class, pure = true)
 class BigIntegerContract  {
     // Field holding the value of the BigInteger
     @Unbounded int intValue;
@@ -498,7 +498,7 @@ class BigIntegerContract  {
 
 }
 
-@Contract(value = Optional.class, immutable = true)
+@Contract(value = Optional.class, pure = true)
 class OptionalContract<T> {
 
     private T value;

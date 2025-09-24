@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier.tests.javasupport.records;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Impure;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -65,13 +65,13 @@ class RecordsErrors {
         @Override public boolean close() { return false; }
     }
 
-    @Modifiable
+    @Impure
     interface IDoor {
         boolean open();
         boolean close();
     }
     
-    @Contract(value = WantsContract.class, immutable = true)
+    @Contract(value = WantsContract.class, pure = true)
 //  ^ error: class 'WantsContract' must not have an externally defined contract because all its contracts can be defined internally
     static class WantsContractContract {}
     
