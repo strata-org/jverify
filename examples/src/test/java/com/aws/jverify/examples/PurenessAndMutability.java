@@ -5,7 +5,7 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 /**
- * This container could be immutable or mutable, we don't know
+ * This interface can be implemented by both mutable and immutables types
  */
 interface Container<T> {
     default T get() {
