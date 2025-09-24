@@ -7,7 +7,7 @@ JVerify divides all types into two categories: pure and impure. Compared to pure
 
 Pure types are more reusable than mutable ones, since they can be instantiated in pure contexts. Impure types are useful when they are used to improve performance, which their mutable fields and reference equality can enable.
 
-Records are always pure and classes are impure with an exception (see below). Interfaces are impure by default, but can be made pure by annotating them with `@Pure`. An impure type may inherit from a pure one. A pure type can not inherit from an impure one.
+Records are always pure and classes are impure with an exception (see below). Interfaces are pure by default, but can be made impure by annotating them with `@Impure`. An impure type may inherit from a pure one. A pure type can not inherit from an impure one.
 
 The following file shows how pure and impure types can be used, and their relation to immutable and mutable types.
 
