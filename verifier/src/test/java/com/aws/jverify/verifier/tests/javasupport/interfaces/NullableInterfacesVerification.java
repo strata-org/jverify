@@ -4,7 +4,7 @@ import com.aws.jverify.Modifiable;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 23, dafnyErrors = 5)
+@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0)
 public class NullableInterfacesVerification {
     interface PureInterface {
         default void foo() {}
