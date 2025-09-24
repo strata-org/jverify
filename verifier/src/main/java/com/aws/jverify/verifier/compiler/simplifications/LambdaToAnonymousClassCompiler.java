@@ -196,11 +196,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         }
         return result;
     }
-    
-    private JCTree.JCAnnotation getPureAnnotation() {
-        var verifySymbol = elements.getTypeElement(Pure.class.getCanonicalName());
-        return maker.Annotation(maker.Ident(verifySymbol), List.nil());
-    }
 
     private JCBlock getMethodBody(JCLambda lambda, Symbol.MethodSymbol methodSymbol) {
         qualifyThisAndUpdateOwners(methodSymbol, lambda);

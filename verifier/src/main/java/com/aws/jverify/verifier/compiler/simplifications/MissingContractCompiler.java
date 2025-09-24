@@ -124,11 +124,20 @@ public class MissingContractCompiler {
         List<JCTree.JCTypeParameter> typeParameters = classSymbol.getTypeParameters().map(tp ->
                 maker.TypeParameter(tp.name, tp.getBounds().map(maker::Type)));
         JCTree.JCExpression superClassExpr = classSymbol.getSuperclass() == Type.noType ? null : maker.Type(classSymbol.getSuperclass());
-        JCTree.JCClassDecl classDecl = maker.ClassDef(maker.Modifiers(0),
+        JCTree.JCClassDecl classDecl = maker.ClassDef(maker.Modifiers(0, List.of(jverifyUtils.getPureAnnotation())),
                 classSymbol.name, typeParameters, superClassExpr,
                 classSymbol.getInterfaces().map(maker::Type), List.nil());
         compilationUnit.defs = compilationUnit.defs.append(classDecl);
         classDecl.sym = classSymbol;
+
+
+        Symbol.ClassSymbol pureSymbol = elements.getTypeElement(Pure.class.getCanonicalName());
+        ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
+        newAnnotations.addAll(classSymbol.getAnnotationMirrors());
+        newAnnotations.add(new Attribute.Compound(pureSymbol.type, List.nil()));
+        classSymbol.resetAnnotations();
+        classSymbol.setDeclarationAttributes(newAnnotations.toList());
+        
         classDecl.type = classSymbol.type;
         index.put(classSymbol, enter.classEnv(classDecl, enter.getTopLevelEnv(compilationUnit)));
 

@@ -30,7 +30,7 @@ import java.util.stream.Stream;
  *
  */
 public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
-    public static final String IMPURE_OBJECT_NAME = "ModifiableObject";
+    public static final String IMPURE_OBJECT_NAME = "Object";
 
     private final Symtab symtab;
     private final Reporter reporter;

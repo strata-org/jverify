@@ -1,13 +1,10 @@
-trait Object {
+trait PureObject {
     // This should have a non-empty reads clause,
     // but that will require something like the
     // Valid()/Repr idiom extended to allow non-reference types.
     // For now we only support equality definitions
     // that do not depend on mutable state.
-    //
-    // See also JavaToDafnyCompiler.equalsFunctionDeclaration
-    // for more on overridding pure methods.
-    ghost predicate equals(obj: Object)
+    ghost predicate equals(obj: PureObject)
 }
 
 type nat15 = x: int16 | x >= 0

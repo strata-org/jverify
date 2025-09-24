@@ -13,7 +13,7 @@ class ObjectContract {
     public ObjectContract() {}
 
     @Pure
-    public boolean equals(Object obj) {
+    public boolean equals(@Pure Object obj) {
         throw new ContractException();
     }
 }
@@ -22,7 +22,7 @@ class ObjectContract {
 @Contract(value = Record.class)
 class RecordContract {
     @Pure
-    public boolean equals(Object obj) {
+    public boolean equals(@Pure Object obj) {
         return jequals(this, obj);
     }
 }
@@ -34,7 +34,7 @@ class StringContract {
 
     @Pure
     @Override
-    public boolean equals(Object obj) {
+    public boolean equals(@Pure Object obj) {
         return obj instanceof StringContract
                 ? JVerify.jequals(this, (StringContract)obj)
                 : false;

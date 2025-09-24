@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 
 public class BaseDafnyGenerator implements DafnyGenerator {
     public static final boolean Ghostness = true;
-    public static final String PURE_OBJECT_NAME = "Object";
+    public static final String PURE_OBJECT_NAME = "PureObject";
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
     public final Context context;
@@ -54,9 +54,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public final JVerifyIndex index;
     private DafnyGenerator finalGenerator;
 
-    public boolean isPure(com.sun.tools.javac.code.Type type) {
-        var types = Types.instance(context);
-        return types.closure(type).stream().allMatch(t -> isAnnotated(t, Pure.class));
+    public boolean isPure(com.sun.tools.javac.code.Type type, boolean inExtendsClause) {
+        if (inExtendsClause && Symtab.instance(context).objectType == type) {
+            return true;
+        }
+        return isAnnotated(type, Pure.class) || isRecord(type);
     }
 
     public DafnyGenerator getFinalGenerator() {
@@ -681,7 +683,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
     
     public boolean isPureClass(Symbol.ClassSymbol classSymbol) {
-        return isPure(classSymbol.type);
+        return isPure(classSymbol.type, false);
     }
 }
 

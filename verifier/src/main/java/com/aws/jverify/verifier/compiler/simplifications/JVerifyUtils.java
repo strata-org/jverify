@@ -100,4 +100,9 @@ public class JVerifyUtils {
         
         return false;
     }
+
+    public JCTree.JCAnnotation getPureAnnotation() {
+        var verifySymbol = elements.getTypeElement(Pure.class.getCanonicalName());
+        return maker.Annotation(maker.Ident(verifySymbol), List.nil());
+    }
 }

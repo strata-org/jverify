@@ -50,7 +50,7 @@ public class PureTypeCompiler {
             Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym) {
                 traits.addFirst(pureObjectType);
-            } if (superClass.getKind() == TypeKind.NONE) {
+            } else if (superClass.getKind() == TypeKind.NONE) {
                 if (classSymbol.isInterface()) {
                     traits.addFirst(pureObjectType);
                 }
@@ -111,7 +111,7 @@ public class PureTypeCompiler {
         }
 
         for(com.sun.tools.javac.code.Type superTrait : classSymbol.getInterfaces()) {
-            if (!compiler.isPure(superTrait)) {
+            if (!compiler.isPure(superTrait, true)) {
                 compiler.reportError(origin, "pureInheritFromImpure", classDecl.name, superTrait.tsym.name);
                 traits.clear();
                 break;
