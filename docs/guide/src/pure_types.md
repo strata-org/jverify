@@ -19,7 +19,7 @@ The following file shows how pure and impure types can be used, and their relati
 
 In Java an important type is `java.lang.Object`. JVerify distinguishes between these two types of `Object`:
 - `Object`: no support for `==`
-- `@Impure Object`: supports `==`, inherits from `Object`
+- `@Impure Object`: supports `==`, conceptually inherits from `Object`
 
 Records, immutable interfaces and type parameters always inherit from `Object`. Classes and mutable interfaces always inherit from `@Modifiable Object`.
 
