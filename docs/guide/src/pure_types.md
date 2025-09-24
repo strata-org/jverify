@@ -12,7 +12,7 @@ Records are always pure and classes are impure with an exception (see below). In
 The following file shows how pure and impure types can be used, and their relation to immutable and mutable types.
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/PureAndImmutable.java}}
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/PurenessAndMutability.java}}
 ```
 
 ### Object
