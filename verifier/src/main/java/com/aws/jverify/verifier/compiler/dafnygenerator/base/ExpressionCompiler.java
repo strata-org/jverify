@@ -176,10 +176,10 @@ public class ExpressionCompiler {
                 return translateIdentifier(identifier, origin);
             }
             case JCTree.JCLiteral literal -> {
-                return baseGenerator.getFinalGenerator().translateLiteral(literal, origin, context);
+                return translateLiteral(literal, origin);
             }
             case JCTree.JCMethodInvocation invocation -> {
-                return baseGenerator.getFinalGenerator().translateMethodInvocation(invocation, origin, context);
+                return translateMethodInvocation(invocation, origin, context);
             }
             case JCTree.JCFieldAccess fieldAccess -> {
                 return translateFieldAccess(fieldAccess, origin, context);

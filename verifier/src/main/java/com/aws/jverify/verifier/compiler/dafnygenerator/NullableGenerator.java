@@ -94,7 +94,6 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         return BaseDafnyGenerator.isAnnotated(type, com.aws.jverify.Nullable.class);
     }
 
-    @Override
     public Expression translateLiteral(JCTree.JCLiteral literal, IOrigin origin,
                                        ExpressionContext context) {
         if (literal.getValue() == null) {
@@ -105,7 +104,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
                         new NameSegment(origin, "Null", null), Stream.empty(), context);
             }
         }
-        return super.translateLiteral(literal, origin, context);
+        return super.toExpr(literal, origin, context);
     }
 
     @Override
@@ -145,6 +144,8 @@ public class NullableGenerator extends WrappingDafnyGenerator {
                     return target;
                 }
             }
+        } else if (expr instanceof JCTree.JCLiteral literal) {
+            return translateLiteral(literal, origin, context);
         }
         return super.toExpr(expr, originOverride, context);
     }

@@ -140,15 +140,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementMethodInvocation(BlockCompiler blockCompiler, JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext) {
-        return blockCompiler.translateStatementMethodInvocation(invocation, expressionContext);
-    }
-
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
-        return expressionCompiler.translateMethodInvocation(invocation, origin, context);
-    }
-
-    @Override
     public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
         return expressionCompiler.toExpr(expr, originOverride, context);
     }
@@ -532,11 +523,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     @Override
     public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context) {
         return expressionCompiler.translateNewClassToAssignmentRhs(newClass, origin, context);
-    }
-
-    @Override
-    public Expression translateLiteral(JCTree.JCLiteral literal, IOrigin origin, ExpressionContext context) {
-        return expressionCompiler.translateLiteral(literal, origin);
     }
 
     /**
