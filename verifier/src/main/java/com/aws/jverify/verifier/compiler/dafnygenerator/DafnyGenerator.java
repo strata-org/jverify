@@ -31,7 +31,7 @@ public interface DafnyGenerator {
     Type translateClassType(IOrigin origin,
                        JCTree.JCModifiers additionalModifiers,
                        com.sun.tools.javac.code.Type.ClassType classType);
-    
+
     AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context);
     
     static DafnyGenerator getGenerator(Context context) {

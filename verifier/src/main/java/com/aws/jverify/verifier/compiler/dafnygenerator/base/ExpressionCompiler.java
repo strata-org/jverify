@@ -82,7 +82,7 @@ public class ExpressionCompiler {
                 // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
                 translatedBody = BaseDafnyGenerator.getHole(origin);
             } else if (body instanceof JCTree.JCExpression) {
-                translatedBody = toExpr(body, newContext.withFallbackType(switchExpr.type));
+                translatedBody = toExpr(body, newContext.withExpectedType(switchExpr.type));
             } else {
                 var bodyKind = body instanceof JCTree.JCBlock ? "block" : "throw statement";
                 baseGenerator.reportError(body, "notSupported", "switch rule %s".formatted(bodyKind));
@@ -145,7 +145,7 @@ public class ExpressionCompiler {
                     toExpr(ifStatement.getThenStatement(), context),
                     toExpr(ifStatement.getElseStatement(), context));
             }
-            case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr, context.withFallbackType(returnStatement.type));
+            case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr, context.withExpectedType(returnStatement.type));
             default -> {
                 baseGenerator.reportError(statement, "pureMethodLastStatement");
                 yield BaseDafnyGenerator.getHole(origin);
@@ -394,8 +394,8 @@ public class ExpressionCompiler {
 
     private Expression translateBinary(JCTree.JCBinary binary, ExpressionContext context) {
         context = context.forbidImpure();
-        var left = toExpr(binary.getLeftOperand(), context.withFallbackType(binary.getRightOperand().type));
-        var right = toExpr(binary.getRightOperand(), context.withFallbackType(binary.getLeftOperand().type));
+        var left = toExpr(binary.getLeftOperand(), context.withExpectedType(binary.getRightOperand().type));
+        var right = toExpr(binary.getRightOperand(), context.withExpectedType(binary.getLeftOperand().type));
         Symbol.OperatorSymbol operator = binary.getOperator();
         return translateBinary(
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,

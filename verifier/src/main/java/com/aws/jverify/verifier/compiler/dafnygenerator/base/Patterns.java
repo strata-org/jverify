@@ -1,7 +1,6 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.generated.*;
-import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -67,7 +66,7 @@ public class Patterns {
                 .findFirst();
 
         if (caseConstants.nonEmpty()) {
-            var literals = caseConstants.stream().map(c -> this.translateCaseConstant(c, context.withFallbackType(cas.type))).toList();
+            var literals = caseConstants.stream().map(c -> this.translateCaseConstant(c, context.withExpectedType(cas.type))).toList();
             return new DisjunctivePattern(compiler.toOrigin(cas), false, literals);
         } else if (defaultLabel.isPresent()) {
             return makeWildPattern(compiler.toOrigin(defaultLabel.get()));
