@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator;
 
-import com.aws.jverify.Pure;
+import com.aws.jverify.PureRef;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
@@ -36,7 +36,7 @@ public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
     private final Reporter reporter;
     private final NameCompiler nameCompiler;
     
-    public ModifiableObjectGenerator(Context context, BaseDafnyGenerator baseGenerator, DafnyGenerator original) {
+    public ModifiableObjectGenerator(Context context, DafnyGenerator original) {
         super(original);
         symtab = Symtab.instance(context);
         reporter = Reporter.instance(context);
@@ -46,8 +46,8 @@ public class ModifiableObjectGenerator extends WrappingDafnyGenerator {
     @Override
     public Type translateClassType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ClassType classType) {
         var mirrors = classType.getAnnotationMirrors();
-        var pureAnnotations = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Pure.class.getName())).findFirst();
-        if (pureAnnotations.isPresent() || BaseDafnyGenerator.isAnnotated(additionalModifiers, com.aws.jverify.Pure.class)) {
+        var pureAnnotations = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(PureRef.class.getName())).findFirst();
+        if (pureAnnotations.isPresent() || BaseDafnyGenerator.isAnnotated(additionalModifiers, com.aws.jverify.PureRef.class)) {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
             } else {

@@ -1,19 +1,19 @@
 package com.aws.jverify.builtin;
 
-import com.aws.jverify.Contract;
+import com.aws.jverify.*;
+
 import static com.aws.jverify.JVerify.*;
-import com.aws.jverify.Nat;
-import com.aws.jverify.JVerify;
-import com.aws.jverify.Verify;
-import com.aws.jverify.Pure;
-import com.aws.jverify.ContractException;
+
+
+
+
 
 @Contract(Object.class)
 class ObjectContract {
     public ObjectContract() {}
 
     @Pure
-    public boolean equals(@Pure Object obj) {
+    public boolean equals(@PureRef Object obj) {
         throw new ContractException();
     }
 }
@@ -21,7 +21,7 @@ class ObjectContract {
 @Contract(value = Record.class)
 class RecordContract {
     @Pure
-    public boolean equals(@Pure Object obj) {
+    public boolean equals(@PureRef Object obj) {
         return jequals(this, obj);
     }
 }
@@ -32,7 +32,7 @@ class StringContract {
 
     @Pure
     @Override
-    public boolean equals(@Pure Object obj) {
+    public boolean equals(@PureRef Object obj) {
         return obj instanceof StringContract
                 ? JVerify.jequals(this, (StringContract)obj)
                 : false;

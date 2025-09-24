@@ -97,7 +97,7 @@ abstract class ListContract<E> implements List<E> {
 
     @Override
     @Pure
-    public boolean contains(@Pure Object o) {
+    public boolean contains(@PureRef Object o) {
         postcondition((boolean r) ->
                 r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));
@@ -146,7 +146,7 @@ abstract class SetContract<E> implements Set<E> {
 
     @Override
     @Pure
-    public boolean contains(@Pure Object o) {
+    public boolean contains(@PureRef Object o) {
         postcondition((boolean r) ->
                 r == JVerify.exists((E other) ->
                         elements.contains(other) && other.equals(o)));
@@ -172,7 +172,7 @@ abstract class SetContract<E> implements Set<E> {
 @Contract(value = Map.class)
 abstract class MapContract<K, V> implements Map<K, V> {
 
-    JVerify.Map<@Pure Object, V> elements;
+    JVerify.Map<@PureRef Object, V> elements;
 
     @Pure
     static <K, V> Map<K, V> of() {
@@ -216,7 +216,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
 
     @Override
     @Pure
-    public boolean containsKey(@Pure Object key) {
+    public boolean containsKey(@PureRef Object key) {
         postcondition((boolean r) ->
                 r == JVerify.exists((K other) ->
                         elements.contains(other) && other.equals(key)));
@@ -225,7 +225,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
 
     @Override
     @Pure
-    public V get(@Pure Object key) {
+    public V get(@PureRef Object key) {
         precondition(containsKey(key));
         // TODO: postcondition needs something like :| to get a hold of the key
         // that actually exists in the map according to containsKey

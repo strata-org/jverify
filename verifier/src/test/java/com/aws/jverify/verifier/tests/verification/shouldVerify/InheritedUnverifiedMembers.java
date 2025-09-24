@@ -41,6 +41,8 @@ public class InheritedUnverifiedMembers {
     }
 
     static abstract class ThroughInterface implements I {}
+    
+    @Pure
     interface I {
         int pure();
 

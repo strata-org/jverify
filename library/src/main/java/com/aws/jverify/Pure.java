@@ -22,11 +22,8 @@ import java.lang.annotation.Target;
  * When used on an interface, makes this interface pure, 
  * meaning it can be implemented by a pure type such as a record.
  * However, this prevents using reference equality on types of that interface
- * <p>
- * When used on variables of type Object, allows assigning pure types to this variable.
- * However, prevent using references equality with such a variable.
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target({ElementType.METHOD, ElementType.TYPE, ElementType.TYPE_USE})
+@Target({ElementType.METHOD, ElementType.TYPE})
 public @interface Pure {
 }
