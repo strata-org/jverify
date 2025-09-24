@@ -28,5 +28,5 @@ public @interface Contract {
     Must only be added if this class is immutable, 
     and if its 'equals' and 'hashcode' methods implement structural equality
      */
-    boolean immutable() default false;
+    boolean pure() default false;
 }

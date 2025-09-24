@@ -6,12 +6,13 @@ import com.aws.jverify.Pure;
 
 import static com.aws.jverify.JVerify.*;
 
-interface Immutable {
+@Pure
+interface PureInterface {
     void increment();
     int getX();
     
     @Contract
-    class MyContract implements Immutable {
+    class MyContract implements PureInterface {
         int x;
 
         public void increment() {
@@ -27,7 +28,6 @@ interface Immutable {
     }   
 }
 
-@Modifiable
 interface Mutable {
     void increment();
     int getX();

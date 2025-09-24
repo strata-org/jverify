@@ -1,5 +1,6 @@
 package com.aws.jverify;
 
+import javax.management.modelmbean.InvalidTargetObjectTypeException;
 import java.util.Optional;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -95,7 +96,10 @@ public class JVerify {
      */
     public static void modifies(Object object) {
     }
-
+    
+    public static Object everything() {
+        throw new VerificationMethodExecutedException();
+    }
 
     /**
      * Evaluates the given value using the program state with which the current method was called with.

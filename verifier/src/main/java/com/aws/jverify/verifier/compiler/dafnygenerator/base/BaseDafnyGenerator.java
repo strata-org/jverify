@@ -681,7 +681,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         if (decl != null) {
             var contract = classSymbol.getAnnotation(Contract.class);
             if (contract != null) {
-                immutableClass = contract.immutable();
+                immutableClass = contract.pure();
             }
         }
         return immutableClass;

@@ -15,6 +15,6 @@ However, puts restrictions on what the method can do:
  The @Pure annotation is always inherited onto overriding methods 
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.METHOD)
+@Target({ElementType.METHOD, ElementType.TYPE})
 public @interface Pure {
 }

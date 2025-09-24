@@ -71,7 +71,7 @@ class RecordsErrors {
         boolean close();
     }
     
-    @Contract(value = WantsContract.class, immutable = true)
+    @Contract(value = WantsContract.class, pure = true)
 //  ^ error: class 'WantsContract' must not have an externally defined contract because all its contracts can be defined internally
     static class WantsContractContract {}
     

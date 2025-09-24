@@ -148,7 +148,7 @@ public class ExternalContractCompiler {
             }
 
             var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
-            if (contractAnnotation != null && contractAnnotation.immutable()) {
+            if (contractAnnotation != null && contractAnnotation.pure()) {
                 reporter.reportError(classDecl, "immutableInternalContract");
             }
 
