@@ -148,10 +148,11 @@ public class NullableGenerator extends WrappingDafnyGenerator {
 
     private Expression translateInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
         var origin = baseGenerator.toOrigin(invocation);
-        if (invocation.meth instanceof JCTree.JCFieldAccess fieldAccess) {
-            var isNullable = isNullable(fieldAccess.getExpression().type);
-            var isImmutable = baseGenerator.isImmutable((Symbol.ClassSymbol) fieldAccess.getExpression().type.tsym);
-            if (isNullable && isImmutable) {
+        if (invocation.meth instanceof JCTree.JCFieldAccess fieldAccess && 
+                fieldAccess.getExpression().type.tsym instanceof Symbol.ClassSymbol valueClass) {
+            var valueIsNullable = isNullable(fieldAccess.getExpression().type);
+            var valueIsImmutable = baseGenerator.isImmutable(valueClass);
+            if (valueIsNullable && valueIsImmutable) {
                 var nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(fieldAccess.getExpression(), null);
                 var nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
                 var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, baseGenerator.getName(fieldAccess, fieldAccess.name), null);
