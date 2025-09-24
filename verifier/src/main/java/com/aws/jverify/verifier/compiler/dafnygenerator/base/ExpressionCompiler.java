@@ -271,7 +271,7 @@ public class ExpressionCompiler {
                                     ExpressionContext context) {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
         Symtab symtab = Symtab.instance(baseGenerator.context);
-        if (classSymbol.type != symtab.objectType && baseGenerator.isImmutable(classSymbol)) {
+        if (classSymbol.type != symtab.objectType && baseGenerator.isPure(classSymbol)) {
             return PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
         }
         if (context.statementWriter() == null) {
@@ -290,7 +290,7 @@ public class ExpressionCompiler {
             throw new RuntimeException("not supported. should have already been lowered");
         }
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-        if (classSymbol.type != symtab.objectType && baseGenerator.isImmutable(classSymbol)) {
+        if (classSymbol.type != symtab.objectType && baseGenerator.isPure(classSymbol)) {
             var datatypeValue = PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
             return new ExprRhs(origin, null, datatypeValue);
         }

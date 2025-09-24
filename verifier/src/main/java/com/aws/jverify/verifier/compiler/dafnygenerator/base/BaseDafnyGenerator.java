@@ -601,7 +601,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
 
-    public boolean isImmutable(Symbol.ClassSymbol classSymbol) {
+    public boolean isPure(Symbol.ClassSymbol classSymbol) {
         Symtab symtab = Symtab.instance(context);
         if (classSymbol.type == symtab.objectType) {
             return true;
@@ -627,12 +627,12 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
             com.sun.tools.javac.code.Type superclass = classSymbol.getSuperclass();
             if (superclass != null && superclass.tsym != null) {
-                if (!isImmutable((Symbol.ClassSymbol) superclass.tsym)) {
+                if (!isPure((Symbol.ClassSymbol) superclass.tsym)) {
                     return false;
                 }
             }
             return classSymbol.getInterfaces().stream().
-                    allMatch(it -> isImmutable((Symbol.ClassSymbol) it.tsym));
+                    allMatch(it -> isPure((Symbol.ClassSymbol) it.tsym));
         }
         return false;
     }
@@ -683,7 +683,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
     
     public boolean isPureClass(Symbol.ClassSymbol classSymbol) {
-        return isPure(classSymbol.type, false);
+        return classSymbol.getAnnotation(Contract.class) != null && isPure(classSymbol.type, false);
     }
 }
 
