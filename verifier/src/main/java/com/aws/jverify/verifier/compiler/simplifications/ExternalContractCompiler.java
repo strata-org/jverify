@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
@@ -141,15 +141,10 @@ public class ExternalContractCompiler {
                                           Map<String, JCTree.JCAnnotation> classAnnotationsByName,
                                           JCTree.JCClassDecl contracteeSource,
                                           Symbol.ClassSymbol contracteeSymbol) {
-            var modifiableAnnotation = classAnnotationsByName.get(Modifiable.class.getName());
-            if (modifiableAnnotation != null) {
-                reporter.reportError(modifiableAnnotation, "annotationOnSourceContractClass",
-                        Modifiable.class.getSimpleName(), classDecl.name.toString());
-            }
-
-            var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
-            if (contractAnnotation != null && contractAnnotation.pure()) {
-                reporter.reportError(classDecl, "immutableInternalContract");
+            var pureAnnotation = classAnnotationsByName.get(Pure.class.getName());
+            if (pureAnnotation != null) {
+                reporter.reportError(pureAnnotation, "annotationOnSourceContractClass",
+                        Pure.class.getSimpleName(), classDecl.name.toString());
             }
 
             classesToRemove.add(classDecl);

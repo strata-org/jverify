@@ -134,7 +134,7 @@ public class NameCompiler extends TreeScanner {
 
     private String getClassName(Symbol.ClassSymbol classSymbol) {
         if (classSymbol.type == symtab.objectType) {
-            return ModifiableObjectGenerator.REFERENCE_OBJECT_NAME;
+            return ModifiableObjectGenerator.IMPURE_OBJECT_NAME;
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
         var hasEmptyDotName = classSymbol.isAnonymous();

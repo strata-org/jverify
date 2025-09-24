@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 
 public class BaseDafnyGenerator implements DafnyGenerator {
     public static final boolean Ghostness = true;
-    public static final String REFERENCE_OR_VALUE_OBJECT_NAME = "Object";
+    public static final String PURE_OBJECT_NAME = "Object";
     public static final String JVERIFY_CLASS = JVerify.class.getName();
     public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
     public final Context context;
@@ -53,6 +53,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public final VerifierOptions verifierOptions;
     public final JVerifyIndex index;
     private DafnyGenerator finalGenerator;
+
+    public boolean isPure(com.sun.tools.javac.code.Type type) {
+        var types = Types.instance(context);
+        return types.closure(type).stream().allMatch(t -> isAnnotated(t, Pure.class));
+    }
 
     public DafnyGenerator getFinalGenerator() {
         return finalGenerator;
@@ -484,7 +489,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
             return translateType(superBound, origin);
         }
-        return new UserDefinedType(origin, new NameSegment(origin, REFERENCE_OR_VALUE_OBJECT_NAME, null));
+        return new UserDefinedType(origin, new NameSegment(origin, PURE_OBJECT_NAME, null));
     }
 
     public Type translateClassType(IOrigin origin,
@@ -599,14 +604,14 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         if (classSymbol.type == symtab.objectType) {
             return true;
         }
-        if (BaseDafnyGenerator.isInterface(classSymbol) && !isAnnotated(classSymbol.type, Modifiable.class)) {
+        if (BaseDafnyGenerator.isInterface(classSymbol) && isAnnotated(classSymbol.type, Pure.class)) {
             return true;
         }
         boolean anonymousImmutableType = isAnonymousOrFinalImmutableType(classSymbol);
         if (anonymousImmutableType) {
             return true;
         }
-        return isRecord(classSymbol.type) || isImmutableClass(classSymbol);
+        return isRecord(classSymbol.type) || isPureClass(classSymbol);
     }
 
     /**
@@ -675,16 +680,8 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return Stream.concat(mine, getOwnAndEnclosedTypeParameters(methodSymbol.owner));
     }
     
-    public boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
-        var decl = (JCTree.JCClassDecl)index.getTree(classSymbol);
-        boolean immutableClass = false;
-        if (decl != null) {
-            var contract = classSymbol.getAnnotation(Contract.class);
-            if (contract != null) {
-                immutableClass = contract.pure();
-            }
-        }
-        return immutableClass;
+    public boolean isPureClass(Symbol.ClassSymbol classSymbol) {
+        return isPure(classSymbol.type);
     }
 }
 

@@ -64,7 +64,8 @@ public class InheritedUnverifiedMembers {
         }
     }
     
-    @Contract(value = LibraryClassA.class, pure = true)
+    @Pure
+    @Contract(value = LibraryClassA.class)
     class LibraryClassAContract {
         // assumed equals method is added
     }
@@ -75,7 +76,8 @@ public class InheritedUnverifiedMembers {
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
-    @Contract(value = LibraryClassB.class, pure = true)
+    @Pure
+    @Contract(value = LibraryClassB.class)
     static class LibraryClassBContract {
         @Pure
         @Override

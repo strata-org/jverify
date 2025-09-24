@@ -24,7 +24,7 @@ class UserProfile {
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
         reads(this);
-        return (@Modifiable Object)this != premiumFeatures &&
+        return (Object)this != premiumFeatures &&
                 (accountType != AccountType.Premium || premiumFeatures != null);
     }
 

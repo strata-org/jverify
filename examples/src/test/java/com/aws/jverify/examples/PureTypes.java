@@ -1,7 +1,6 @@
 package com.aws.jverify.examples;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.Modifiable;
 import com.aws.jverify.Pure;
 
 import static com.aws.jverify.JVerify.*;

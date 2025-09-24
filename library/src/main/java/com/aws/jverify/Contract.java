@@ -18,15 +18,4 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE})
 public @interface Contract {
     Class<?> value() default Contract.class;
-    
-    /*
-    Can only be used for contracts on classes that are defined in libraries
-    
-    Allows constructors for this type to be used in pure code.
-    Prevents using the `==` operator on values of this type
-    
-    Must only be added if this class is immutable, 
-    and if its 'equals' and 'hashcode' methods implement structural equality
-     */
-    boolean pure() default false;
 }

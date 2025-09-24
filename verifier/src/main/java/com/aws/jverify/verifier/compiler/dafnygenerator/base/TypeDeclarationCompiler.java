@@ -68,7 +68,7 @@ public class TypeDeclarationCompiler {
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
-                case RECORD -> new ImmutableTypeCompiler(this).translate(classDecl, origin, name);
+                case RECORD -> new PureTypeCompiler(this).translate(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -108,8 +108,8 @@ public class TypeDeclarationCompiler {
     }
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym) || compiler.isImmutableClass(classDecl.sym)) {
-            return new ImmutableTypeCompiler(this).translate(classDecl, origin, name);
+        if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym) || compiler.isPureClass(classDecl.sym)) {
+            return new PureTypeCompiler(this).translate(classDecl, origin, name);
         }
 
         for (var member : classDecl.getMembers()) {
@@ -166,19 +166,19 @@ public class TypeDeclarationCompiler {
                 .map((com.sun.tools.javac.code.Type type) -> {
                     if (type.baseType() == symtab.objectType) {
                         // A class that extends 'Object' will extend '@Modifiable Object' instead
-                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectGenerator.REFERENCE_OBJECT_NAME, null));
+                        return new UserDefinedType(origin, new NameSegment(origin, ModifiableObjectGenerator.IMPURE_OBJECT_NAME, null));
                     }
                     return compiler.getFinalGenerator().translateType(type, origin, null);
                 })
                 .collect(Collectors.<Type>toList());
 
         if (superTraits.isEmpty()) {
-            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+            superTraits.add(new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null)));
         }
 
-        var mutable = !BaseDafnyGenerator.isInterface(definingSymbol)
-                || compiler.isAnnotated(definingSymbol.type, Modifiable.class);
-        if (mutable) {
+        var impure = !BaseDafnyGenerator.isInterface(definingSymbol)
+                || !BaseDafnyGenerator.isAnnotated(definingSymbol.type, Pure.class);
+        if (impure) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
 
@@ -193,7 +193,7 @@ public class TypeDeclarationCompiler {
         boolean createArrayParameter = name.getValue().equals("TCreateArrayElement");
         if (bounds.isEmpty() && !arrayParameter && !createArrayParameter) {
             bounds = bounds.append(new UserDefinedType(origin,
-                    new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null)));
+                    new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null)));
         }
         return new TypeParameter(origin,
                 name, null, TPVarianceSyntax.NonVariant_Strict,
