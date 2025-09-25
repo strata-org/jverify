@@ -162,6 +162,10 @@ public class JVerify {
     public static <T> Sequence<T> elements(T element) {
         throw new VerificationMethodExecutedException();
     }
+
+    public static <T, U> U cast(T element, Class<U> clazz) {
+        throw new VerificationMethodExecutedException();
+    }
     
     /**
      * Returns a {@link Sequence} representing the contents of the specified array.

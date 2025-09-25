@@ -109,6 +109,9 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             case "everything" -> {
                 return new WildcardExpr(origin);
             }
+            case "cast" -> {
+                return baseGenerator.getFinalGenerator().toExpr(args.getFirst(), null, ExpressionContext.Pure);
+            }
             case "elements" -> {
                 return new SeqDisplayExpr(origin, args.map(e -> 
                         baseGenerator.getFinalGenerator().toExpr(e, null, ExpressionContext.Pure)));

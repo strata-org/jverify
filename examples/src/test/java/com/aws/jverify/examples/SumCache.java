@@ -5,13 +5,12 @@ import com.aws.jverify.Pure;
 
 import java.util.ArrayList;
 
-import static com.aws.jverify.JVerify.modifies;
-import static com.aws.jverify.JVerify.reads;
+import static com.aws.jverify.JVerify.*;
 
 public class SumCache {
     ArrayList<Integer> numbers = new ArrayList<>();
-    int sum;
-    
+    int sum = 0;
+
     @Pure
     @Invariant
     boolean validSum() {

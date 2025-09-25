@@ -26,6 +26,14 @@ class NumberContract {
 
 }
 
+@Contract(BiFunction.class)
+abstract class BiFunctionContract<T, U, R> implements BiFunction<T, U, R> {
+    @Pure
+    public R apply(T t, U u) {
+        throw new ContractException();
+    }
+}
+
 class SequenceHelper {
     @Pure
     public static <T> T reduce(Sequence<T> sequence, T identity, BinaryOperator<T> accumulator) {
@@ -40,25 +48,26 @@ class SequenceHelper {
 abstract class StreamContract<T> implements Stream<T> {
 
     public JVerify.Sequence<T> elements;
-    
+
     @Pure
     public T reduce(T identity, BinaryOperator<T> accumulator) {
         return SequenceHelper.reduce(elements, identity, accumulator);
     }
 }
 
-@Contract(BiFunction.class)
-abstract class BiFunctionContract<T, U, R> implements BiFunction<T, U, R> {
-    @Pure
-    public R apply(T t, U u) {
-        throw new ContractException();
-    }
-}
-
 @Contract(Collection.class)
 abstract class CollectionContract<E> implements Collection<E> {
+
+    @Override
+    @Pure
+    public int size() {
+        reads(everything());
+        throw new ContractException();
+    }
+    
     @Pure
     public Stream<E> stream() {
+        postcondition((Stream<E> s) -> cast(s, StreamContract.class).elements.size() == size());
         throw new ContractException();
     }
 }
@@ -96,13 +105,6 @@ abstract class ListContract<E> implements List<E> {
                         r.get(0) == e1 &&
                         r.get(1) == e2 &&
                         r.get(2) == e3);
-        throw new ContractException();
-    }
-
-    @Override
-    @Pure
-    public int size() {
-        reads(everything());
         throw new ContractException();
     }
     
