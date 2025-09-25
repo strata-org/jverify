@@ -35,4 +35,6 @@ type double = real
 
 function toSequence<T>(arr: JArray<T> ): (r: seq<T>)
   reads arr
-  ensures |r| == arr.length() && forall i: nat :: i < arr.length() ==> arr.get(i) == r[i] 
+  ensures |r| == arr.length() && forall i: nat :: i < arr.length() ==> arr.get(i) == r[i]
+  
+datatype Nullable<T> = NonNull(value: T) | Null

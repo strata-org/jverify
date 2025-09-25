@@ -1,11 +1,13 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public class WrappingDafnyGenerator implements DafnyGenerator {
@@ -21,8 +23,13 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
-        return next.translateMethodInvocation(invocation, origin, context);
+    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
+        return next.translateStatementAfterLabel(blockCompiler, statement, labels, originOverride);
+    }
+
+    @Override
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        return next.toExpr(expr, originOverride, context);
     }
 
     @Override

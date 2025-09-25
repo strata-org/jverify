@@ -135,8 +135,13 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
-        return expressionCompiler.translateMethodInvocation(invocation, origin, context);
+    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
+        return blockCompiler.translateStatementAfterlabel(statement, labels, origin);
+    }
+
+    @Override
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        return expressionCompiler.toExpr(expr, originOverride, context);
     }
 
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
