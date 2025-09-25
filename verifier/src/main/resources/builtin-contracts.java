@@ -111,6 +111,31 @@ abstract class ListContract<E> implements List<E> {
         precondition(0 <= index && index < size());
         throw new ContractException();
     }
+
+    @Override
+    @Pure
+    public int size() {
+        reads(everything());
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean isEmpty() {
+        reads(everything());
+        postcondition((boolean r) -> r == (size() == 0));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean contains(Object o) {
+        reads(everything());
+        postcondition((boolean r) ->
+                r == JVerify.exists((int i) ->
+                        0 <= i && i < size() && get(i).equals(o)));
+        throw new ContractException();
+    }
 }
 
 @Contract(ArrayList.class)

@@ -6,7 +6,7 @@ import static com.aws.jverify.JVerify.postcondition;
 
 @JVerifyTest(dafnyVerified = 4, dafnyErrors = 0)
 public class ConstructorsVerified {
-    class Box {
+    static class Box {
         private final int value;
 
         public Box(int value_) {
