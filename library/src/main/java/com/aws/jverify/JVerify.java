@@ -159,6 +159,10 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public static <T> Sequence<T> elements(T element) {
+        throw new VerificationMethodExecutedException();
+    }
+    
     /**
      * Returns a {@link Sequence} representing the contents of the specified array.
      */

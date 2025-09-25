@@ -8,12 +8,9 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.Map;
-import java.util.Optional;
-import java.util.SequencedCollection;
+import java.util.Set;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
@@ -37,27 +34,21 @@ interface SequencedCollectionContract<E> extends Collection<E> { }
 @Contract(value = List.class, pure = true)
 abstract class ListContract<E> implements List<E> {
 
-    JVerify.Sequence<E> elements;
-
     @Pure
     static <E> List<E> of() {
-        postcondition((List<E> r) ->
-                r.size() == 0);
+        postcondition((List<E> r) -> r.size() == 0);
         throw new ContractException();
     }
 
     @Pure
     static <E> List<E> of(E e1) {
-        postcondition((List<E> r) ->
-                r.size() == 1 &&
-                        r.get(0) == e1);
+        postcondition((List<E> r) -> r.size() == 1 && r.get(0) == e1);
         throw new ContractException();
     }
 
     @Pure
     static <E> List<E> of(E e1, E e2) {
-        postcondition((List<E> r) ->
-                r.size() == 2 &&
+        postcondition((List<E> r) -> r.size() == 2 &&
                         r.get(0) == e1 &&
                         r.get(1) == e2);
         throw new ContractException();
@@ -75,7 +66,29 @@ abstract class ListContract<E> implements List<E> {
 
     @Override
     @Pure
+    public int size() {
+        reads(everything());
+        throw new ContractException();
+    }
+    
+    @Override
+    @Pure
     public E get(int index) {
+        reads(everything());
+        precondition(0 <= index && index < size());
+        throw new ContractException();
+    }
+}
+
+@Contract(ArrayList.class)
+abstract class ArrayListContract<E> extends ArrayList<E>{
+
+    protected JVerify.Sequence<E> elements;
+
+    @Override
+    @Pure
+    public E get(int index) {
+        reads(this);
         precondition(0 <= index && index < size());
         postcondition((E e) -> e == elements.get(index));
         throw new ContractException();
@@ -84,6 +97,7 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public int size() {
+        reads(this);
         postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
@@ -91,6 +105,7 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public boolean isEmpty() {
+        reads(this);
         postcondition((boolean r) -> r == (elements.size() == 0));
         throw new ContractException();
     }
@@ -98,12 +113,20 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public boolean contains(Object o) {
+        reads(this);
         postcondition((boolean r) ->
                 r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));
         throw new ContractException();
     }
-}
+    
+    @Override
+    public boolean add(E element) {
+        modifies(this);
+        postcondition((boolean r) -> elements == old(elements.concat(JVerify.elements(element))));
+        throw new ContractException();
+    }
+} 
 
 @Contract(value = Set.class, pure = true)
 abstract class SetContract<E> implements Set<E> {

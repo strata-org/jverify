@@ -1,13 +1,16 @@
 package com.aws.jverify.examples;
 
 import com.aws.jverify.Invariant;
+import com.aws.jverify.Pure;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SumCache {
-    List<Integer> numbers;
+    ArrayList<Integer> numbers = new ArrayList<>();
     int sum;
     
+    @Pure
     @Invariant
     boolean validSum() {
 //          ^^^^^^^^ Related: this is the invariant that could not be proven
@@ -15,7 +18,7 @@ public class SumCache {
     }
     
     void addNumber(int value) {
-        numbers.add(value);
+        var x = numbers.add(value);
         // we forgot to update sum
         return;
 //      ^^^^^^ Error: could not prove invariant on return    
