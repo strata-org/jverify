@@ -62,10 +62,16 @@ public class NullableGenerator extends WrappingDafnyGenerator {
                                               JCTree.JCModifiers additionalModifiers) {
         var isNullable = isNullable(arrayType, additionalModifiers);
         var result = super.translateArrayType(arrayType, origin, additionalModifiers);
-        return addQuestionMarkToUserDefinedType(result, isNullable);
+        return makeUserDefinedTypeNullable(result, isNullable, false);
     }
 
-    private static UserDefinedType addQuestionMarkToUserDefinedType(UserDefinedType original, boolean nullable) {
+    private static UserDefinedType makeUserDefinedTypeNullable(UserDefinedType original, boolean nullable, boolean immutable) {
+
+        if (nullable && immutable) {
+            return new UserDefinedType(original.getOrigin(), 
+                    new NameSegment(original.getOrigin(), "Nullable", List.of(original)));
+        }
+        
         if (!nullable) {
             return original;
         }
@@ -80,11 +86,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         var isNullable = isNullable(type, additionalModifiers);
         var immutable = this.baseGenerator.isImmutable((Symbol.ClassSymbol) type.tsym);
         var originalResult = (UserDefinedType) next.translateClassType(origin, additionalModifiers, type);
-        if (isNullable && immutable) {
-            return new UserDefinedType(origin, new NameSegment(origin, "Nullable", List.of(originalResult)));
-        } else {
-            return addQuestionMarkToUserDefinedType(originalResult, isNullable);
-        }
+        return makeUserDefinedTypeNullable(originalResult, isNullable, immutable);
     }
 
     public static boolean isNullable(JCTree.JCModifiers modifiers) {

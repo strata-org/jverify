@@ -6,8 +6,6 @@ import com.sun.tools.javac.code.Type;
 
 import java.util.function.Consumer;
 
-enum Nullability { Nullable, NonNullable }
-
 public record ExpressionContext(@Nullable Consumer<Statement> statementWriter,
                                 boolean allowImpure,
                                 @Nullable BlockCompiler blockCompiler,
