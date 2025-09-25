@@ -84,11 +84,17 @@ abstract class ListContract<E> implements List<E> {
 abstract class ArrayListContract<E> extends ArrayList<E>{
 
     protected JVerify.Sequence<E> elements;
-
+    
+    public ArrayListContract() {
+        postcondition(elements.size() == 0);
+        throw new ContractException();
+    }
+    
     @Override
     @Pure
     public E get(int index) {
         reads(this);
+        decreases(0);
         precondition(0 <= index && index < size());
         postcondition((E e) -> e == elements.get(index));
         throw new ContractException();
@@ -98,6 +104,7 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     @Pure
     public int size() {
         reads(this);
+        decreases(0);
         postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
