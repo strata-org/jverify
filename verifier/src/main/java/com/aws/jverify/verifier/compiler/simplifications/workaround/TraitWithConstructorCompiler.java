@@ -61,7 +61,7 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
-            classMembers.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, traitDecl.getOrigin()));
+            classMembers.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, traitDecl.getOrigin()).values());
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();

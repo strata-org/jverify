@@ -1,7 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.generated.IOrigin;
-import com.aws.jverify.generated.TokenRangeOrigin;
+import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
@@ -99,5 +98,15 @@ public class Reporter {
                 ? positionCalculator.toToken(TreeInfo.getStartPos(node) + 1)
                 : positionCalculator.toToken(endPos);
         return new TokenRangeOrigin(startToken, endToken);
+    }
+    
+    public static TokenRange getRange(IOrigin origin) {
+        if (origin instanceof TokenRangeOrigin rangeOrigin) {
+            return new TokenRange(rangeOrigin.getStartToken(), rangeOrigin.getEndToken());
+        }
+        if (origin instanceof SourceOrigin sourceOrigin) {
+            return sourceOrigin.getReportingRange();
+        }
+        throw new RuntimeException("not supported");
     }
 }

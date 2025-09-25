@@ -185,7 +185,8 @@ public class Driver {
                     // Turned off while we're using a Dafny submodule
                     // Alternatively, we can check whether the submodule version matches the output
                     if (!output.equals(expectedVersion)) {
-                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output);
+                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output
+                        + " at location " + verifierOptions.dafnyPath());
                     }
                 }
             } catch (IOException | InterruptedException e) {
@@ -223,6 +224,17 @@ public class Driver {
         if (verifierOptions.printDafny() != null) {
             processBuilder.command().add("--print=" + verifierOptions.printDafny());
         }
+        PositionFilter positionFilter = verifierOptions.positionFilter();
+        if (positionFilter != null) {
+            var s = new StringBuilder();
+            s.append("--filter-position=");
+            if (positionFilter.fileEnding() != null) {
+                s.append(positionFilter.fileEnding());
+            }
+            s.append(":").append(positionFilter.start()).append("-");
+            s.append(positionFilter.end());
+            processBuilder.command().add(s.toString());
+        }
         if (verifierOptions.showRanges()) {
             // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
             processBuilder.command().add("--show-snippets=false");
@@ -231,6 +243,10 @@ public class Driver {
         processBuilder.command().add("--ignore-indentation");
         for (var option : verifierOptions.additionalDafnyArguments()) {
             processBuilder.command().add(option);
+        }
+        
+        if (verifierOptions.verbose()) {
+            System.out.println("Dafny options: " + String.join(", ", processBuilder.command()));
         }
 
         try {
@@ -247,6 +263,7 @@ public class Driver {
                 outResults.setExitCode(exitCode);
             }
         } catch (InterruptedException | IOException e) {
+            System.out.println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
             e.printStackTrace();
             outResults.setExitCode(-1);
         }

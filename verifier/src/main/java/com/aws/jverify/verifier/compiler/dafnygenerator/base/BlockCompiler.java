@@ -161,7 +161,7 @@ public class BlockCompiler {
         var dafnyCondition = expressionCompiler.toExpr(condition, expressionContext);
         var bodyStatements = translateStatements(postHeader);
         var newBodyStatements = transformBody.apply(bodyStatements);
-        return new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
+        return new WhileStmt(origin, null, labels, header.loopInvariants, new Specification<>(header.decreases, null),
                 new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),
                 dafnyCondition);
     }

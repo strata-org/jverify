@@ -500,19 +500,20 @@ public class ExpressionCompiler {
                 && ownerClass.isRecord()
                 && invocation.getArguments().isEmpty()
         ) {
+            // retrieving record component
             var component = ownerClass.getRecordComponents().stream()
                     .filter(comp -> comp.name.equals(methodSymbol.name))
                     .findAny();
             if (component.isPresent()) {
                 final Expression receiver;
+                var fieldNameStr = baseGenerator.nameCompiler.getCompiledName(component.get(), origin);
                 if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
                     receiver = toExpr(fieldAccess.selected, context);
-                } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
-                    receiver = null;
+                } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident) {
+                    return new NameSegment(origin, fieldNameStr, null);
                 } else {
                     receiver = BaseDafnyGenerator.getHole(origin);
                 }
-                var fieldNameStr = baseGenerator.nameCompiler.getCompiledName(component.get(), origin);
                 var fieldName = baseGenerator.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
             }

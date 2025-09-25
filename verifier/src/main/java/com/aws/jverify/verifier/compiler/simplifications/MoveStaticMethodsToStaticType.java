@@ -64,6 +64,7 @@ public class MoveStaticMethodsToStaticType {
                 var methodCollector = new StaticMethodCollector(classDecl);
                 methodCollector.translate(type);
                 if (!methodCollector.staticMembers.isEmpty()) {
+                    maker.pos = classDecl.pos;
                     JCTree.JCClassDecl staticClass = maker.ClassDef(classDecl.mods, methodCollector.staticClassSymbol.name,
                             List.nil(), null, List.nil(),
                             List.from(methodCollector.staticMembers));
@@ -176,6 +177,7 @@ public class MoveStaticMethodsToStaticType {
         public void visitIdent(JCTree.JCIdent tree) {
             if (staticSymbols.contains(tree.sym)) {
                 // reference to same class static, qualify with new type
+                maker.pos = tree.pos;
                 var select = maker.Select(maker.Ident(tree.sym.owner), tree.name);
                 select.sym = tree.sym;
                 select.type = tree.type;

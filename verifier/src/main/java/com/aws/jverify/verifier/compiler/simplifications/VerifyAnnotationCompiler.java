@@ -1,7 +1,9 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Verify;
+import com.aws.jverify.verifier.PositionFilter;
 import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.sun.tools.javac.code.AnnoConstruct;
 import com.sun.tools.javac.code.Symbol;
@@ -11,24 +13,24 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.Stack;
+import java.util.*;
 
 /**
  * Depends on MethodOrLoopContractCompiler
  */
 public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
-    public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
+    private final VerifierOptions options;
+    private final Reporter reporter;
 
     public VerifyAnnotationCompiler(Context context) {
         context.put(VerifyAnnotationCompiler.class, this);
         jverifyUtils = JVerifyUtils.instance(context);
+        reporter = Reporter.instance(context);
         shouldVerifies.push(context.get(VerifierOptions.class).verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
+        options = context.get(VerifierOptions.class);
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -52,6 +54,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     @Override
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+        reporter.compilationUnit = tree;
         processVerifyAnnotation(tree.packge);
         super.visitTopLevel(tree);
         shouldVerifies.pop();
@@ -66,20 +69,33 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
-        boolean shouldVerify = processVerifyAnnotationAndPop(tree.sym);
+        boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
         if (!shouldVerify) {
+            removeImplementation(tree);
+        } else if (!jverifyUtils.isPure(tree.sym) && !applyPositionFilter(tree)) {
             removeImplementation(tree);
         }
         super.visitMethodDef(tree);
     }
 
-    public void removeImplementation(JCTree.JCMethodDecl tree) {
-        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
-        tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
-        removedImplementations.add(tree.sym);
+    @Override
+    public void visitVarDef(JCTree.JCVariableDecl tree) {
+        boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
+        if (!shouldVerify) {
+            tree.init = null;
+        }
+        super.visitVarDef(tree);
     }
 
-    public boolean processVerifyAnnotationAndPop(AnnoConstruct annoConstruct) {
+    public void removeImplementation(JCTree.JCMethodDecl tree) {
+        if (tree.body == null || tree.body.getStatements().isEmpty()) {
+            return;
+        }
+        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
+        tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
+    }
+
+    public boolean processVerifyAnnotationAndPop(JCTree node, AnnoConstruct annoConstruct) {
         processVerifyAnnotation(annoConstruct);
         boolean shouldVerify = shouldVerify();
         shouldVerifies.pop();
@@ -96,6 +112,22 @@ public class VerifyAnnotationCompiler extends TreeScanner {
             }
         }
         throw new RuntimeException("shouldVerify should never be empty");
+    }
+    
+    private boolean applyPositionFilter(JCTree node) {
+        var filter = options.positionFilter();
+        if (filter == null) {
+            return true;
+        } else {
+            if (filter.fileEnding() != null
+                    && !reporter.compilationUnit.getSourceFile().getName().endsWith(filter.fileEnding())) {
+                return false;
+            }
+
+            var nodeRange = Reporter.getRange(reporter.toOrigin(node));
+            return nodeRange.getStartToken().getLine() <= filter.end()
+                    && filter.start() <= nodeRange.getEndToken().getLine();
+        }
     }
 
     public void addShouldVerify(ShouldVerifyMode mode) {
