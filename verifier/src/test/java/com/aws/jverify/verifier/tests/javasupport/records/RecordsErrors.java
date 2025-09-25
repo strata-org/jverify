@@ -60,7 +60,7 @@ class RecordsErrors {
     }
 
     record DoorStuck() implements IDoor {
-//  ^ error: a record class may not be annotated with @Impure, or extend or implement a type annotated with @Modifiable
+//  ^ error: a record class may not be annotated with @Impure, or extend or implement a type annotated with @Impure
         @Override public boolean open() { return false; }
         @Override public boolean close() { return false; }
     }

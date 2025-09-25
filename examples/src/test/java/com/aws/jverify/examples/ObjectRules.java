@@ -24,6 +24,6 @@ class ObjectRules {
     @Impure
     Object newObjectIsImpure() {
         return new Object();
-//             ^ error: using 'new' in a pure expression to create an instance of a mutable type is not supported
+//             ^ error: using 'new' in a pure expression to create an instance of an impure type is not supported
     }
 }
