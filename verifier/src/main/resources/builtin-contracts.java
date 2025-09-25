@@ -40,7 +40,9 @@ class SequenceHelper {
         if (sequence.size() == 0) {
             return identity;
         }
-        return reduce(sequence.drop(1), accumulator.apply(identity, sequence.get(0)), accumulator);
+        var sizeMin = sequence.size() - 1;
+        return accumulator.apply(reduce(sequence.subsequence(0, sizeMin), identity, accumulator), sequence.get(sizeMin));
+        // return reduce(sequence.drop(1), accumulator.apply(identity, sequence.get(0)), accumulator);
     }
 }
 
