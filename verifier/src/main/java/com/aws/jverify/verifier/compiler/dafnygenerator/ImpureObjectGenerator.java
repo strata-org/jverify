@@ -22,11 +22,11 @@ import java.util.stream.Stream;
  *
  * General transformations:
  *   Object -> Object
- *   @Modifiable Object -> ModifiableObject
+ *   @Impure Object -> ImpureObject
  *
  * Exceptional transformations:
- *   new Object -> new ModifiableObject
- *   extends Object -> extends ModifiableObject
+ *   new Object -> new ImpureObject
+ *   extends Object -> extends ImpureObject
  *
  */
 public class ImpureObjectGenerator extends WrappingDafnyGenerator {
@@ -51,7 +51,7 @@ public class ImpureObjectGenerator extends WrappingDafnyGenerator {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, IMPURE_OBJECT_NAME, null));
             } else {
-                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Modifiable on a type other than Object");
+                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Impure on a type other than Object");
             }
         }
         if (classType.tsym == symtab.objectType.tsym) {
@@ -67,7 +67,7 @@ public class ImpureObjectGenerator extends WrappingDafnyGenerator {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, IMPURE_OBJECT_NAME, null));
             } else {
-                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Modifiable on a type other than Object");
+                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Impure on a type other than Object");
             }
         }
         if (classType.tsym == symtab.objectType.tsym) {

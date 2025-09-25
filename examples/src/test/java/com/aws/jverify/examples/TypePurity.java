@@ -16,7 +16,7 @@ interface PureInterface {
 
         public void increment() {
             modifies(this); // error
-//                   ^^^^ Error: a modifies-clause expression must denote an object, a single field location like o`x or a`[i] of type (object, field)  (with `--referrers`), or a set/iset/multiset/seq of objects or single field locations (with `--referrers`) (instead got Immutable)
+//                   ^^^^ Error: a modifies-clause expression must denote an object, a single field location like o`x or a`[i] of type (object, field)  (with `--referrers`), or a set/iset/multiset/seq of objects or single field locations (with `--referrers`) (instead got PureInterface)
             postcondition(x == old(x) + 1);
         }
         
@@ -64,7 +64,7 @@ interface ImpureInterface {
     @Override
     public void increment() {
         modifies(this);
-//               ^^^^ Error: a modifies-clause expression must denote an object, a single field location like o`x or a`[i] of type (object, field)  (with `--referrers`), or a set/iset/multiset/seq of objects or single field locations (with `--referrers`) (instead got RecordsAreImmutable)
+//               ^^^^ Error: a modifies-clause expression must denote an object, a single field location like o`x or a`[i] of type (object, field)  (with `--referrers`), or a set/iset/multiset/seq of objects or single field locations (with `--referrers`) (instead got RecordsArePure)
     }
 
     @Override

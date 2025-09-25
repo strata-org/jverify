@@ -276,7 +276,7 @@ public class ExpressionCompiler {
         }
         if (context.statementWriter() == null) {
             baseGenerator.reportError(expr, "notSupported",
-                    "using 'new' in a pure expression to create an instance of a mutable type");
+                    "using 'new' in a pure expression to create an instance of an impure type");
             return BaseDafnyGenerator.getReferenceHole(origin);
         } else {
             var rhs = getGenerator().translateNewClassToAssignmentRhs(newClass, origin, context);

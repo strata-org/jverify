@@ -165,7 +165,7 @@ public class TypeDeclarationCompiler {
                 .filter(t -> t.tsym != null)
                 .map((com.sun.tools.javac.code.Type type) -> {
                     if (type.baseType() == symtab.objectType) {
-                        // A class that extends 'Object' will extend '@Modifiable Object' instead
+                        // A class that extends 'Object' will extend '@Impure Object' instead
                         return new UserDefinedType(origin, new NameSegment(origin, ImpureObjectGenerator.IMPURE_OBJECT_NAME, null));
                     }
                     return compiler.getFinalGenerator().translateType(type, origin, null);

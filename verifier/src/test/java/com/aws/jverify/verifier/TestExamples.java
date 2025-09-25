@@ -19,7 +19,7 @@ public class TestExamples {
     }
     
     @Test
-    public void testImmutableTypes() throws IOException {
+    public void testPurity() throws IOException {
         var markedSourcePath = Path.of("TypePurity.java");
         verifyPath(markedSourcePath, 22, -1, -1, true);
     }
