@@ -21,7 +21,7 @@ In Java an important type is `java.lang.Object`. JVerify distinguishes between t
 - `Object`: no support for `==`
 - `@Impure Object`: supports `==`, conceptually inherits from `Object`
 
-Records, immutable interfaces and type parameters always inherit from `Object`. Classes and mutable interfaces always inherit from `@Modifiable Object`.
+Records, pure interfaces and type parameters always inherit from `Object`. Classes and impure interfaces always inherit from `@Impure Object`.
 
 `Object` cannot be instantiated directly, so `new Object` is always interpreted as `new @Impure Object`.
 
