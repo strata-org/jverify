@@ -11,8 +11,11 @@ import com.aws.jverify.Pure;
 import java.util.*;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 @Contract(Comparable.class)
 class ComparableContract<T> {
@@ -23,9 +26,41 @@ class NumberContract {
 
 }
 
-@Contract(Collection.class)
-interface CollectionContract<E> {
+class SequenceHelper {
+    @Pure
+    public static <T> T reduce(Sequence<T> sequence, T identity, BinaryOperator<T> accumulator) {
+        if (sequence.size() == 0) {
+            return identity;
+        }
+        return reduce(sequence.drop(1), accumulator.apply(identity, sequence.get(0)), accumulator);
+    }
+}
 
+@Contract(value = Stream.class, pure = true)
+abstract class StreamContract<T> implements Stream<T> {
+
+    public JVerify.Sequence<T> elements;
+    
+    @Pure
+    public T reduce(T identity, BinaryOperator<T> accumulator) {
+        return SequenceHelper.reduce(elements, identity, accumulator);
+    }
+}
+
+@Contract(BiFunction.class)
+abstract class BiFunctionContract<T, U, R> implements BiFunction<T, U, R> {
+    @Pure
+    public R apply(T t, U u) {
+        throw new ContractException();
+    }
+}
+
+@Contract(Collection.class)
+abstract class CollectionContract<E> implements Collection<E> {
+    @Pure
+    public Stream<E> stream() {
+        throw new ContractException();
+    }
 }
 
 @Contract(SequencedCollection.class)
@@ -320,6 +355,11 @@ class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
 
+    @Pure
+    public static int sum(int a, int b) {
+        return a + b;
+    }
+    
     @Pure
     public static Integer valueOf(int i) {
         postcondition((Integer b) -> b.intValue() == i);
