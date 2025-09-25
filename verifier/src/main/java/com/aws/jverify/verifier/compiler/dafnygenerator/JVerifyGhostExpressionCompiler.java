@@ -53,6 +53,14 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         return next.translateClassType(origin, additionalModifiers, classType);
     }
 
+    @Override
+    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        if (expr instanceof JCTree.JCMethodInvocation invocation) {
+            return translateMethodInvocation(invocation, originOverride, context);
+        }
+        return super.toExpr(expr, originOverride, context);
+    }
+
     /**
      * Handles translating JVerify library methods
      *
@@ -61,11 +69,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
      */
-    @Override
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context) {
+    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(invocation));
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
-            return super.translateMethodInvocation(invocation, origin, context);
+            return super.toExpr(invocation, origin, context);
         }
         
         var receiver = invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
