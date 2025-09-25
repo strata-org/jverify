@@ -77,7 +77,6 @@ class RecordsErrors {
     
     static class WantsContract {}
 
-    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
     static boolean nullableString(@Nullable DoorStuck s) {
         return s == null;
     }
