@@ -64,12 +64,6 @@ abstract class CollectionContract<E> implements Collection<E> {
         reads(everything());
         throw new ContractException();
     }
-    
-    @Pure
-    public Stream<E> stream() {
-        postcondition((Stream<E> s) -> cast(s, StreamContract.class).elements.size() == size());
-        throw new ContractException();
-    }
 }
 
 @Contract(SequencedCollection.class)
@@ -124,6 +118,13 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     
     public ArrayListContract() {
         postcondition(elements.size() == 0);
+        throw new ContractException();
+    }
+
+    @Pure
+    public Stream<E> stream() {
+        reads(this);
+        postcondition((Stream<E> s) -> cast(s, StreamContract.class).elements.size() == size());
         throw new ContractException();
     }
     
