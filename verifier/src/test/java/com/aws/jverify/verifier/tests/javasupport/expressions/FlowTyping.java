@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.expressions;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 9, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 10, dafnyErrors = 0)
 public class FlowTyping {
     interface I {}
     static class C implements I {

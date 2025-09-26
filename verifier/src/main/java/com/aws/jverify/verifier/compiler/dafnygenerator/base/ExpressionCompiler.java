@@ -160,7 +160,7 @@ public class ExpressionCompiler {
         return getGenerator().toExpr(expr, null, context);
     }
 
-    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+    public Expression toExprBase(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(expr));
         switch (expr) {
             case JCTree.JCConditional conditional -> {
@@ -363,7 +363,7 @@ public class ExpressionCompiler {
         var condition = toExpr(conditional.getCondition(), context);
         var flowCasts = context.thenFlowCasts().stream().toList();
 
-        Expression thenWithoutFlow = toExpr(conditional.getTrueExpression(), null, context);
+        Expression thenWithoutFlow = toExpr(conditional.getTrueExpression(), context);
         var thenBranch = applyFlowCastsToExpr(thenWithoutFlow, flowCasts);
         var elseBranch = toExpr(conditional.getFalseExpression(), context);
         return new ITEExpr(origin, false, condition, thenBranch, elseBranch);

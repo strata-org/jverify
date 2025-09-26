@@ -141,7 +141,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
 
     @Override
     public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
-        return expressionCompiler.toExpr(expr, originOverride, context);
+        return expressionCompiler.toExprBase(expr, originOverride, context);
     }
 
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
