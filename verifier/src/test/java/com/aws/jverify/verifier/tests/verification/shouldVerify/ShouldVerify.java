@@ -8,7 +8,7 @@ import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 6,
+@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 6,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 

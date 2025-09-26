@@ -71,12 +71,21 @@ abstract class CollectionContract<E> implements Collection<E> {
 @Contract(SequencedCollection.class)
 interface SequencedCollectionContract<E> extends Collection<E> { }
 
+abstract class ImmutableList<E> implements List<E> {
+    @Override
+    @Pure
+    @Verify(false)
+    public int size() {
+        throw new ContractException();
+    }
+}
+
 @Contract(value = List.class, pure = true)
 abstract class ListContract<E> implements List<E> {
-
+    
     @Pure
-    static <E> List<E> of() {
-        postcondition((List<E> r) -> r.size() == 0);
+    static <E> ImmutableList<E> of() {
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && ((ImmutableList<E>)r).size() == 0);
         throw new ContractException();
     }
 
@@ -103,7 +112,7 @@ abstract class ListContract<E> implements List<E> {
                         r.get(2) == e3);
         throw new ContractException();
     }
-    
+
     @Override
     @Pure
     public E get(int index) {
