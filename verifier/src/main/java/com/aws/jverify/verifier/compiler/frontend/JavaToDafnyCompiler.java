@@ -3,14 +3,10 @@ package com.aws.jverify.verifier.compiler.frontend;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.SourceFile;
-import com.aws.jverify.verifier.JavaMethodDetails;
-import com.aws.jverify.verifier.VerificationResults;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.DiagnosticPositionFromDiagnostic;
-import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
@@ -42,6 +38,7 @@ public class JavaToDafnyCompiler {
     public final Context context;
     private final Reporter reporter;
     private final Enter enter;
+    private Set<JCTree.JCCompilationUnit> compilationUnits;
 
     private final DafnyGenerator dafnyGenerator;
     public Set<SourceFile> builtinSources = new HashSet<>();
@@ -54,13 +51,14 @@ public class JavaToDafnyCompiler {
         JavacFileManager.preRegister(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         context.put(DiagnosticListener.class, diagnostics);
+        context.put(JavaToDafnyCompiler.class, this);
 
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
         this.dafnyGenerator = DafnyGenerator.getGenerator(context);
     }
 
-    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files, VerificationResults results) {
+    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files) {
         if (options.includeBuiltinContracts()) {
             var builtinSource = new SourceFile(builtinFile, Common.getResourceFile(getClass(), builtinFile));
             files.add(builtinSource);
@@ -70,7 +68,7 @@ public class JavaToDafnyCompiler {
         builtinSources.add(contractSource);
         files.add(contractSource);
 
-        Set<JCTree.JCCompilationUnit> parsedSet = parseResolveAndDesugarJava(options, files, results);
+        Set<JCTree.JCCompilationUnit> parsedSet = parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {
             return new FilesContainer(List.of());
         }
@@ -81,12 +79,20 @@ public class JavaToDafnyCompiler {
         return dafnyGenerator.generateDafny(parsed, libraries);
     }
 
+    public boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
+        return builtinSources.contains(compilationUnit.getSourceFile());
+    }
+
+    public Set<JCTree.JCCompilationUnit> getCompilationUnit() {
+        return compilationUnits;
+    }
+
 
     /**
      * Applies a subset of the javac compilation pipeline, to parse,
      * resolve, and partially rewrite some features away.
      */
-    public Set<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files, VerificationResults results) {
+    public Set<JCTree.JCCompilationUnit> parseResolveAndDesugarJava(VerifierOptions options, List<JavaFileObject> files) {
         // don't assume the argument is modifiable
         files = new ArrayList<>(files);
 
@@ -199,9 +205,7 @@ public class JavaToDafnyCompiler {
                                                                                     unlambda(
                                                                                             toUnits(compiler.flow(compiler.attribute(todo)))
                                                                                     )))))))))));
-
-                    results.setJavaInSourceMethods(processVerifyingMethods(verifyAnnotationCompiler.getShouldVerifyList(),
-                            missingContractCompiler.getCanVerifyMethodList(), units));
+                    compilationUnits = units;
                 }
             }
         });
@@ -294,39 +298,6 @@ public class JavaToDafnyCompiler {
             env.defs = newDefs;
         }
         return envs;
-    }
-
-    private @Nullable ArrayList<JavaMethodDetails> processVerifyingMethods(ArrayList<JCTree.JCMethodDecl> shouldVerifyList,
-                                                                           ArrayList<JCTree.JCMethodDecl> canVerifyList, Set<JCTree.JCCompilationUnit> units) {
-        ArrayList<JavaMethodDetails> combinedList = new ArrayList<>();
-        if (canVerifyList != null && shouldVerifyList != null ) {
-            combinedList = canVerifyList.stream()
-                    .filter(method -> !BaseDafnyGenerator.isSynthetic(method.getModifiers().flags))
-                    .map(method -> new JavaMethodDetails(method, null,
-                            null, shouldVerifyList.contains(method), true))
-                    .collect(Collectors.toCollection(ArrayList::new));
-        }
-        var nonLibraryClasses = units.stream()
-                .filter(unit -> !unit.getSourceFile().toUri().getScheme().equals("string"))
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        for (var unit : nonLibraryClasses) {
-            var unitPostionCalculator = new PositionCalculator(unit);
-            var classesInThisUnit = unit.defs.stream().filter(JCTree.JCClassDecl.class::isInstance)
-                    .map(clazz -> ((JCTree.JCClassDecl) clazz).sym)
-                    .collect(Collectors.toSet());
-            combinedList.stream()
-                    .filter(method -> classesInThisUnit.contains(method.getMethodTree().sym.owner))
-                    .forEach(method -> {
-                        var startValue = unitPostionCalculator.toToken(unitPostionCalculator.getStartPos(method.getMethodTree()));
-                        var endValue = unitPostionCalculator.toToken(unitPostionCalculator.getEndPos(method.getMethodTree())) != null ?
-                                unitPostionCalculator.toToken(unitPostionCalculator.getEndPos(method.getMethodTree())) : startValue;
-                        method.setPosition(startValue, endValue);
-                            });
-
-        }
-
-        return combinedList;
     }
 
 }

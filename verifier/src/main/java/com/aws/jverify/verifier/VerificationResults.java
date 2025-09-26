@@ -88,4 +88,13 @@ public final class VerificationResults {
     public ArrayList<JavaMethodDetails> getJavaInSourceMethods() {
         return javaInSourceMethods;
     }
+
+    public void setVerifiedVerificationStatus() {
+        // marking any unskipped method that was not associated with any failure message to be successful
+        if (getJavaInSourceMethods() != null) {
+            getJavaInSourceMethods().stream()
+                    .filter(method -> method.getVerificationStatus() == JavaMethodDetails.VerificationStatus.Unknown)
+                    .forEach(method -> method.setVerificationStatus(JavaMethodDetails.VerificationStatus.Verified));
+        }
+    }
 }

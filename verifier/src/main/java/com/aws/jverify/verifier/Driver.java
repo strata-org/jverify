@@ -1,17 +1,24 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.common.Common;
 import com.aws.jverify.common.Position;
+import com.aws.jverify.generated.TokenRange;
+import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.*;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
@@ -20,13 +27,10 @@ import java.io.*;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.*;
 import java.util.List;
-import java.util.HashMap;
-import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Locale;
-import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 public class Driver {
@@ -60,7 +64,12 @@ public class Driver {
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var dafnyEquivalent = new JavaToDafnyCompiler(context).analyzeJavaCode(verifierOptions, readFiles, verificationResults);
+        var dafnyEquivalent = new JavaToDafnyCompiler(context).analyzeJavaCode(verifierOptions, readFiles);
+
+        verificationResults.setJavaInSourceMethods(processVerifyingMethods(context.get(VerifyAnnotationCompiler.class).getJavaMethodUnderVerification(),
+                context.get(JavaToDafnyCompiler.class).getCompilationUnit()));
+
+
         var hasErrors = false;
         for (var diagnostic : Reporter.instance(context).diagnostics.getDiagnostics()) {
             verificationResults.getJverifyDiagnostics().add(diagnostic);
@@ -89,21 +98,15 @@ public class Driver {
             Writer outputWriter
     ) throws IOException {
         var verificationResults = verifyJavaFiles(readFiles, verifierOptions);
-        var intervalTreeMap = getIntervalTreeMap(verificationResults);
+        var intervalTreeMap = IntervalTree.getIntervalTreeMap(verificationResults);
         outputVerificationResults(verificationResults, verifierOptions, outputWriter, intervalTreeMap);
         return verificationResults.getExitCode();
     }
 
-    public static HashMap<URI, MethodIntervalTree> getIntervalTreeMap(VerificationResults verificationResults) {
-        HashMap<URI,MethodIntervalTree> intervalTreeMap = null;
-        if (verificationResults.getJavaInSourceMethods() != null) {
-            intervalTreeMap = getIntervalsFromVerifiableMethods(verificationResults.getJavaInSourceMethods());
-        }
-        return intervalTreeMap;
-    }
+
 
     private static void outputVerificationResults(VerificationResults verificationResults, VerifierOptions verifierOptions,
-                                                  Writer outputWriter, HashMap<URI,MethodIntervalTree> intervalTreeMap) throws IOException {
+                                                  Writer outputWriter, HashMap<URI,IntervalTree<Integer, JavaMethodDetails>> intervalTreeMap) throws IOException {
         for (var diagnostic : verificationResults.getJverifyDiagnostics()) {
             outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), diagnostic));
             outputWriter.write('\n');
@@ -119,34 +122,52 @@ public class Driver {
                     }
                 }
                 var unverifiedJavaMethod = intervalTreeMap.get(((DafnyDiagnostic) dafnyOutput).getSource())
-                        .findMethodAtLine((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
+                        .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
                 if (unverifiedJavaMethod != null) {
-                    unverifiedJavaMethod.setVerified(false);
+                    unverifiedJavaMethod.setVerificationStatus(JavaMethodDetails.VerificationStatus.Failed);
                 }
-
             }
         }
+
         if (verificationResults.getDafnyFinishedMessage() != null) {
             outputWriter.write(verificationResults.getDafnyFinishedMessage());
         }
 
+        verificationResults.setVerifiedVerificationStatus();
+
         if (verificationResults.getJavaInSourceMethods() != null) {
             outputWriter.write('\n');
-            outputWriter.write("Total Java methods in source code: ");
-            outputWriter.write(String.valueOf(verificationResults.getJavaInSourceMethods().size()));
+            String bullet = "• ";
 
+            var attemptedCount = verificationResults.getJavaInSourceMethods().size();
+            outputWriter.write(String.format("Verification attempted for %s Java method%s", attemptedCount, Common.getExtraS(attemptedCount)));
             outputWriter.write('\n');
-            outputWriter.write("Total Java methods under verification: ");
-            outputWriter.write(String.valueOf(verificationResults.getJavaInSourceMethods()
-                    .stream().filter(JavaMethodDetails::isVerifiable)
-                    .toList().size()));
 
-            outputWriter.write('\n');
-            outputWriter.write("Total Java methods not verified: ");
-            outputWriter.write(String.valueOf(verificationResults.getJavaInSourceMethods()
-                    .stream().filter(method -> method.isVerifiable() && !method.isVerified())
-                    .toList().size()));
+            var skippedCount = verificationResults.getJavaInSourceMethods().stream()
+                    .filter(method -> method.getVerificationStatus() ==  JavaMethodDetails.VerificationStatus.Skipped)
+                    .toList().size();
+            if (skippedCount > 0) {
+                outputWriter.write(String.format("%sSkipped: %s",bullet, skippedCount));
+                outputWriter.write('\n');
+            }
 
+
+            var verifiedCount = verificationResults.getJavaInSourceMethods().stream()
+                    .filter(method -> method.getVerificationStatus() ==  JavaMethodDetails.VerificationStatus.Verified)
+                    .toList().size();
+            if (verifiedCount > 0) {
+                outputWriter.write(String.format("%sVerified: %s",bullet, verifiedCount));
+                outputWriter.write('\n');
+            }
+
+
+            var failedCount = verificationResults.getJavaInSourceMethods().stream()
+                    .filter(method -> method.getVerificationStatus() ==  JavaMethodDetails.VerificationStatus.Failed)
+                    .toList().size();
+            if (failedCount > 0) {
+                outputWriter.write(String.format("%sFailed: %s", bullet, failedCount));
+                outputWriter.write('\n');
+            }
         }
     }
 
@@ -365,21 +386,44 @@ public class Driver {
     @JsonIgnoreProperties({"pos"})
     private static abstract class DafnyJsonPosition {}
 
-    private static HashMap<URI,MethodIntervalTree> getIntervalsFromVerifiableMethods(ArrayList<JavaMethodDetails> javaInSourceMethods) {
+    private static @Nullable ArrayList<JavaMethodDetails> processVerifyingMethods(HashMap<JCTree.JCMethodDecl, VerifyAnnotationCompiler.MethodStatus> listOfMethodsUnderVerification,
+                                                                           Set<JCTree.JCCompilationUnit> units) {
+        ArrayList<JavaMethodDetails> combinedList = new ArrayList<>();
+        if (!listOfMethodsUnderVerification.isEmpty()) {
 
-        var distinctClasses = javaInSourceMethods.stream()
-                .map(method -> method.getMethodTree().sym.owner.enclClass().sourcefile)
-                .collect(Collectors.toSet());
+            var subset = listOfMethodsUnderVerification.entrySet().stream()
+                    .filter( entry -> !BaseDafnyGenerator.isSynthetic(entry.getKey().getModifiers().flags)
+                            && entry.getValue().hasImpl())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            combinedList = listOfMethodsUnderVerification.entrySet().stream()
+                    .filter( entry -> !BaseDafnyGenerator.isSynthetic(entry.getKey().getModifiers().flags)
+                            && entry.getValue().hasImpl())
+                    .map(entry -> new JavaMethodDetails(entry.getKey(), null,
+                            entry.getValue().hasVerify() ? JavaMethodDetails.VerificationStatus.Unknown
+                                    : JavaMethodDetails.VerificationStatus.Skipped))
+                    .collect(Collectors.toCollection(ArrayList::new));
+        }
+        var nonLibraryClasses = units.stream()
+                .filter(unit -> !unit.getSourceFile().toUri().getScheme().equals("string"))
+                .collect(Collectors.toCollection(ArrayList::new));
 
-        HashMap<URI, MethodIntervalTree> intervalTrees = new HashMap<>();
-        for (var distinctClass : distinctClasses) {
-            MethodIntervalTree methodIntervalTree = new MethodIntervalTree();
-            javaInSourceMethods.stream()
-                    .filter(method -> !BaseDafnyGenerator.isSynthetic(method.getMethodTree().getModifiers().flags) && method.getMethodTree().sym.owner.enclClass().sourcefile.equals(distinctClass))
-                    .forEach(methodIntervalTree::insertMethod);
-            intervalTrees.put(distinctClass.toUri().normalize(), methodIntervalTree);
+        for (var unit : nonLibraryClasses) {
+            var unitPostionCalculator = new PositionCalculator(unit);
+            var classesInThisUnit = unit.defs.stream().filter(JCTree.JCClassDecl.class::isInstance)
+                    .map(clazz -> ((JCTree.JCClassDecl) clazz).sym)
+                    .collect(Collectors.toSet());
+            combinedList.stream()
+                    .filter(method -> classesInThisUnit.contains(method.getMethodTree().sym.owner))
+                    .forEach(method -> {
+                        var startValue = unitPostionCalculator.toToken(unitPostionCalculator.getStartPos(method.getMethodTree()));
+                        var endValue = unitPostionCalculator.toToken(unitPostionCalculator.getEndPos(method.getMethodTree())) != null ?
+                                unitPostionCalculator.toToken(unitPostionCalculator.getEndPos(method.getMethodTree())) : startValue;
+                        method.setPosition(new TokenRange(startValue, endValue));
+                    });
+
         }
 
-        return intervalTrees;
+        return combinedList;
     }
+
 }

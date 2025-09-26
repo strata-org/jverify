@@ -3,9 +3,13 @@ package com.aws.jverify.verifier.compiler.simplifications;
 import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
+import com.sun.source.tree.MethodTree;
 import com.sun.tools.javac.code.AnnoConstruct;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeCopier;
+import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
@@ -20,7 +24,15 @@ import java.util.*;
 public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
     public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
-    private ArrayList<JCTree.JCMethodDecl> shouldVerifyList;
+    public final Context context;
+    /**
+     * This map stores verification status of methods in in-source files
+     * Maps methodDecl to true or false depending on whether method
+     * has an implementation and is being verified
+     */
+    public record MethodStatus(boolean hasImpl, boolean hasVerify) {}
+    private final HashMap<JCTree.JCMethodDecl, MethodStatus> javaMethodUnderVerification = new HashMap<>();
+    private boolean considerCurrentEnv;
 
     public VerifyAnnotationCompiler(Context context) {
         context.put(VerifyAnnotationCompiler.class, this);
@@ -28,7 +40,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         shouldVerifies.push(context.get(VerifierOptions.class).verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
-        shouldVerifyList = new ArrayList<>();
+        this.context = context;
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -41,9 +53,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
-            ArrayList<JCTree.JCMethodDecl> currentShouldVerifyList = new ArrayList<>(shouldVerifyList);
+            considerCurrentEnv = !context.get(JavaToDafnyCompiler.class).isLibrary(env);
             visitTopLevel(env);
-            adjustShouldVerifyMethodList(env.getSourceFile(), currentShouldVerifyList);
         }
         return envs;
     }
@@ -69,10 +80,12 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         boolean shouldVerify = processVerifyAnnotationAndPop(tree.sym);
+        if (considerCurrentEnv) {
+            javaMethodUnderVerification.put(tree, new MethodStatus(
+                    MethodOrLoopContractCompiler.hasImplementation(tree),shouldVerify));
+        }
         if (!shouldVerify) {
             removeImplementation(tree);
-        } else {
-            shouldVerifyList.add(tree);
         }
         super.visitMethodDef(tree);
     }
@@ -172,19 +185,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         }
     }
 
-    public ArrayList<JCTree.JCMethodDecl> getShouldVerifyList() {
-        return shouldVerifyList;
+    public HashMap<JCTree.JCMethodDecl, MethodStatus> getJavaMethodUnderVerification() {
+        return javaMethodUnderVerification;
     }
 
-    /*
-     *  This check is similar to the isLibrary() in JavaToDafnyCompiler, but we cannot reuse it
-     *  due to lack of the access to the list builtinSources used in that method. It resets any
-     *  JVerify library methods counted in the process
-     */
-    private void adjustShouldVerifyMethodList(JavaFileObject sourceFile,
-                                              ArrayList<JCTree.JCMethodDecl> previousShouldVerifyList) {
-        if (sourceFile.toUri().getScheme().equals("string")) {
-            shouldVerifyList = previousShouldVerifyList;
-        }
-    }
 }

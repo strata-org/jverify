@@ -34,8 +34,6 @@ public class MissingContractCompiler {
     private final Set<Symbol> foundSymbols = new HashSet<>();
     private final Reporter reporter;
 
-    private ArrayList<JCTree.JCMethodDecl> canVerifyMethodList;
-
     record Reference(Symbol symbol, JCTree.JCCompilationUnit compilationUnit, JCTree tree) {}
     
     public MissingContractCompiler(Context context) {
@@ -48,15 +46,12 @@ public class MissingContractCompiler {
         jverifyUtils = JVerifyUtils.instance(context);
         reporter = Reporter.instance(context);
         internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
-        canVerifyMethodList = new ArrayList<JCTree.JCMethodDecl>();
     }
     
     public Set<JCTree.JCCompilationUnit> compile(Set<JCTree.JCCompilationUnit> units) {
         var finder = new SymbolReferenceFinder();
         for(var unit : units) {
-            ArrayList<JCTree.JCMethodDecl> currentCanVerifyMethodList = new ArrayList<JCTree.JCMethodDecl>(canVerifyMethodList);
             finder.visitTopLevel(unit);
-            adjustCanVerifyMethodList(unit.getSourceFile(), currentCanVerifyMethodList);
         }
         addMissingSymbols();
         return units;
@@ -163,7 +158,6 @@ public class MissingContractCompiler {
 
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl tree) {
-            canVerifyMethodList.add(tree);
             if (tree.body != null) {
                 foundSymbols.add(tree.sym);
             }
@@ -319,16 +313,5 @@ public class MissingContractCompiler {
         }
 
         return false;
-    }
-
-    public ArrayList<JCTree.JCMethodDecl> getCanVerifyMethodList() {
-        return canVerifyMethodList;
-    }
-
-    private void adjustCanVerifyMethodList(JavaFileObject sourceFile,
-                                           ArrayList<JCTree.JCMethodDecl> previousCanVerifyMethodList) {
-        if (sourceFile.toUri().getScheme().equals("string")) {
-            canVerifyMethodList = previousCanVerifyMethodList;
-        }
     }
 }
