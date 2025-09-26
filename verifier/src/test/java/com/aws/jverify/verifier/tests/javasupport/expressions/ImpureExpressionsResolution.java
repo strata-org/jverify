@@ -5,6 +5,14 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(exitCode = 2)
 public class ImpureExpressionsResolution {
+    @Pure
+    int nestedImpureExpressionInPureContext() {
+        if (impureM(1) == 1) {
+            var x = impureM(impureM(2));
+//              ^ error: a pure block must end in a return or if-else statement
+        }
+        return impureM(3);
+    }
     
     @Pure
     @SuppressWarnings({"ConstantValue", "StatementWithEmptyBody"})

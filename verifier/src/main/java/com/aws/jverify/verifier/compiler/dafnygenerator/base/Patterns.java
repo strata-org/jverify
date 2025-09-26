@@ -66,7 +66,7 @@ public class Patterns {
                 .findFirst();
 
         if (caseConstants.nonEmpty()) {
-            var literals = caseConstants.stream().map(c -> this.translateCaseConstant(c, context)).toList();
+            var literals = caseConstants.stream().map(c -> this.translateCaseConstant(c, context.withExpectedType(cas.type))).toList();
             return new DisjunctivePattern(compiler.toOrigin(cas), false, literals);
         } else if (defaultLabel.isPresent()) {
             return makeWildPattern(compiler.toOrigin(defaultLabel.get()));

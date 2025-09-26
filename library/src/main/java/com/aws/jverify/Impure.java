@@ -16,5 +16,5 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target({ElementType.TYPE, ElementType.TYPE_USE})
-public @interface Modifiable {
+public @interface Impure {
 }

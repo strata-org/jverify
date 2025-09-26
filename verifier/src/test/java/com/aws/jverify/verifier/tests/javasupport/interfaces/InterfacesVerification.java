@@ -21,7 +21,7 @@ class InterfacesVerification {
     }
 }
 
-@Modifiable
+@Impure
 interface I {
     int f(int x);
     int m();

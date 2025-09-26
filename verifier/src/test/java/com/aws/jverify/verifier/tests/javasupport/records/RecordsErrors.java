@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier.tests.javasupport.records;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Impure;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -60,26 +60,24 @@ class RecordsErrors {
     }
 
     record DoorStuck() implements IDoor {
-//  ^ error: a record class may not be annotated with @Modifiable, or extend or implement a type annotated with @Modifiable
+//  ^ error: a record class may not be annotated with @Impure, or extend or implement a type annotated with @Impure
         @Override public boolean open() { return false; }
         @Override public boolean close() { return false; }
     }
 
-    @Modifiable
+    @Impure
     interface IDoor {
         boolean open();
         boolean close();
     }
     
-    @Contract(value = WantsContract.class, immutable = true)
+    @Contract(value = WantsContract.class, pure = true)
 //  ^ error: class 'WantsContract' must not have an externally defined contract because all its contracts can be defined internally
     static class WantsContractContract {}
     
     static class WantsContract {}
 
-    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
     static boolean nullableString(@Nullable DoorStuck s) {
-//                                ^ error: nullable record type is not supported
         return s == null;
     }
 }

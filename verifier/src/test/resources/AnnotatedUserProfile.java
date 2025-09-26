@@ -26,7 +26,7 @@ class UserProfile {
     private boolean valid() {
 //                  ^^^^^ Related location: this is the postcondition that could not be proved
         reads(this);
-        return (@Modifiable Object)this != premiumFeatures &&
+        return (@Impure Object)this != premiumFeatures &&
                 (accountType != AccountType.Premium || premiumFeatures != null);
 //               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
     }

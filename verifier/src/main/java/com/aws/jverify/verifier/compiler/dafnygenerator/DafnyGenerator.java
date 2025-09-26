@@ -2,19 +2,23 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public interface DafnyGenerator {
     FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries);
-
-    Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin origin, ExpressionContext context);
     
+    List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride);
+
+    Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context);
+        
     @Nullable
     Type translateType(com.sun.tools.javac.code.Type type, 
                        IOrigin origin, 
@@ -32,7 +36,7 @@ public interface DafnyGenerator {
     
     static DafnyGenerator getGenerator(Context context) {
         var base = new BaseDafnyGenerator(context);
-        var result = new ModifiableObjectGenerator(context, base, 
+        var result = new ImpureObjectGenerator(context, base, 
                 new JVerifyGhostExpressionCompiler(new NullableGenerator(base, base), base));
         base.setFinalGenerator(result);
         return result;
