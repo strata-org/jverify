@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
@@ -16,13 +16,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class ImmutableTypeCompiler {
+public class PureTypeCompiler {
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final BaseDafnyGenerator compiler;
     private final Symtab symtab;
     private final Names names;
 
-    public ImmutableTypeCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
+    public PureTypeCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
         this.compiler = typeDeclarationCompiler.compiler;
         symtab = Symtab.instance(compiler.context);
@@ -44,7 +44,7 @@ public class ImmutableTypeCompiler {
                 .collect(Collectors.toList());
         
         var superClass = classDecl.sym.getSuperclass();
-        var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.REFERENCE_OR_VALUE_OBJECT_NAME, null));
+        var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
         if (superClass != null) {
             Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym) {
@@ -109,7 +109,7 @@ public class ImmutableTypeCompiler {
             }
         }
 
-        if (compiler.isAnnotatedRecursive(classDecl.type, Modifiable.class)) {
+        if (compiler.isAnnotatedRecursive(classDecl.type, Impure.class)) {
             compiler.reportError(origin, "modifiableForbidden", "a record class");
             traits.clear();
         }

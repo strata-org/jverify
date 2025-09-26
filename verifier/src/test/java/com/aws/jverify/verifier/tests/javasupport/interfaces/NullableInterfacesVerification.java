@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.tests.javasupport.interfaces;
 
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Impure;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -27,7 +27,7 @@ public class NullableInterfacesVerification {
         nullableP2 = p;
     }
     
-    @Modifiable
+    @Impure
     interface ImpureInterface {
         default void foo() {}
     }
