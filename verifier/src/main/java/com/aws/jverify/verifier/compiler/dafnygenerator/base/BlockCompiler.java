@@ -51,7 +51,7 @@ public class BlockCompiler {
 
     public List<Statement> translateStatementAfterlabel(JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
         List<Statement> statements = new ArrayList<>();
-        var expressionContext = new ExpressionContext(statements::add, true, this, null, new ArrayList<>());
+        var expressionContext = new ExpressionContext(statements::add, true, this, null);
         for (var compiler : statementCompilers) {
             var result = compiler.compile(statement, labels, expressionContext);
             if (result != null) {
@@ -121,15 +121,13 @@ public class BlockCompiler {
 
     private List<Statement> translateIfStatement(JCTree.JCIf ifStatement, ExpressionContext expressionContext) {
         var origin = generator.toOrigin(ifStatement);
-        expressionContext.thenFlowCasts().clear();
-        var condition = expressionCompiler.toExpr(ifStatement.getCondition(), expressionContext);
-        var flowCasts = expressionContext.thenFlowCasts().stream().toList();
+        var conditionWithFlows = expressionCompiler.toExprWithFlows(ifStatement.getCondition(), expressionContext);
         var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
         BlockStmt elseBranch = null;
         if (ifStatement.getElseStatement() != null) {
             elseBranch = blockifyStatements(origin, translateStatement(ifStatement.getElseStatement()));
         }
-        for(var flowCast : flowCasts) {
+        for(var flowCast : conditionWithFlows.flows()) {
             Type translatedType = flowCast.type();
             LocalVariable localVariable = new LocalVariable(origin, flowCast.name(), translatedType, false);
 
@@ -144,7 +142,7 @@ public class BlockCompiler {
             statements.addAll(thenBranch.getBody());
             thenBranch = new BlockStmt(thenBranch.getOrigin(), thenBranch.getAttributes(), thenBranch.getLabels(), statements);
         }
-        return List.of(new IfStmt(origin, null, List.of(), false, condition,
+        return List.of(new IfStmt(origin, null, List.of(), false, conditionWithFlows.expression(),
                 thenBranch, elseBranch));
     }
 
@@ -198,7 +196,7 @@ public class BlockCompiler {
         if (expr instanceof JCTree.JCMethodInvocation invocation) {
             return translateStatementMethodInvocation(invocation, expressionContext);
         }
-        generator.getFinalGenerator().toExpr(expr, originOverride, expressionContext);
+        generator.getFinalGenerator().toExprWithFlows(expr, originOverride, expressionContext);
         return List.of();
     }
 

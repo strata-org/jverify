@@ -37,12 +37,12 @@ public class ExpressionCompiler {
         utils = JVerifyUtils.instance(baseGenerator.context);
     }
 
-    public Expression toExpr(JCTree tree, ExpressionContext context) {
+    public ExpressionWithFlows toExprWithFlows(JCTree tree, ExpressionContext context) {
         if (tree instanceof JCTree.JCExpression expression) {
-            return toExpr(expression, context);
+            return toExprWithFlows(expression, context);
         }
         baseGenerator.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
-        return BaseDafnyGenerator.getHole(baseGenerator.toOrigin(tree));
+        return new ExpressionWithFlows(BaseDafnyGenerator.getHole(baseGenerator.toOrigin(tree)));
     }
     
     @Nullable
@@ -84,8 +84,8 @@ public class ExpressionCompiler {
             if (body == null) {
                 // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
                 translatedBody = BaseDafnyGenerator.getHole(origin);
-            } else if (body instanceof JCTree.JCExpression) {
-                translatedBody = toExpr(body, newContext.withExpectedType(switchExpr.type));
+            } else if (body instanceof JCTree.JCExpression expr) {
+                translatedBody = toExpr(expr, newContext.withExpectedType(switchExpr.type));
             } else {
                 var bodyKind = body instanceof JCTree.JCBlock ? "block" : "throw statement";
                 baseGenerator.reportError(body, "notSupported", "switch rule %s".formatted(bodyKind));
@@ -98,7 +98,7 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
-    public Expression toExpr(List<JCTree.JCStatement> statements, ExpressionContext context) {
+    public Expression toExprWithFlows(List<JCTree.JCStatement> statements, ExpressionContext context) {
         var last = statements.getLast();
         var result = toExpr(last, context);
         for(int index = statements.size() - 2; index >= 0; index--) {
@@ -115,9 +115,11 @@ public class ExpressionCompiler {
                 var lhs = new CasePattern<>(origin, name, returnVar, null);
                 result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init, context)), result, true, null); 
             } else if (statement instanceof JCTree.JCIf ifStatement && ifStatement.getElseStatement() == null) {
+                ExpressionWithFlows conditionWithFlows = toExprWithFlows(ifStatement.getCondition(), context);
                 var thenExpression = toExpr(ifStatement.getThenStatement(), context);
-                result = new ITEExpr(baseGenerator.toOrigin(ifStatement), false, 
-                        toExpr(ifStatement.getCondition(), context), thenExpression, result);
+                thenExpression = applyFlowCastsToExpr(thenExpression, conditionWithFlows.flows());
+                result = new ITEExpr(baseGenerator.toOrigin(ifStatement), false,
+                        conditionWithFlows.expression(), thenExpression, result);
             } else {
                 baseGenerator.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
                 result = BaseDafnyGenerator.getHole(origin);
@@ -135,7 +137,7 @@ public class ExpressionCompiler {
                     baseGenerator.reportError(block, "pureMethodLastStatement");
                     yield BaseDafnyGenerator.getHole(origin);
                 } else {
-                    yield toExpr(block.getStatements(), context);
+                    yield toExprWithFlows(block.getStatements(), context);
                 }
             }
             case JCTree.JCIf ifStatement -> {
@@ -143,9 +145,10 @@ public class ExpressionCompiler {
                     baseGenerator.reportError(statement, "pureMethodEndingIfThen");
                     yield BaseDafnyGenerator.getHole(origin);
                 }
+                ExpressionWithFlows conditionWithFlows = toExprWithFlows(ifStatement.getCondition(), context);
                 yield new ITEExpr(origin, false,
-                    toExpr(ifStatement.getCondition(), context),
-                    toExpr(ifStatement.getThenStatement(), context),
+                        conditionWithFlows.expression(),
+                    applyFlowCastsToExpr(toExpr(ifStatement.getThenStatement(), context), conditionWithFlows.flows()),
                     toExpr(ifStatement.getElseStatement(), context));
             }
             case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr, context.withExpectedType(returnStatement.type));
@@ -155,75 +158,87 @@ public class ExpressionCompiler {
             }
         };
     }
+
+    public Expression toExpr(JCTree tree, ExpressionContext context) {
+        if (tree instanceof JCTree.JCExpression expression) {
+            return getGenerator().toExprWithFlows(expression, null, context).expression();
+        }
+        baseGenerator.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
+        return BaseDafnyGenerator.getHole(baseGenerator.toOrigin(tree));
+    }
     
     public Expression toExpr(JCTree.JCExpression expr, ExpressionContext context) {
-        return getGenerator().toExpr(expr, null, context);
+        return getGenerator().toExprWithFlows(expr, null, context).expression();
+    }
+    
+    public ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, ExpressionContext context) {
+        return getGenerator().toExprWithFlows(expr, null, context);
     }
 
-    public Expression toExprBase(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+    public ExpressionWithFlows toExprBase(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(expr));
         switch (expr) {
             case JCTree.JCConditional conditional -> {
-                return translateConditional(conditional, origin, context);
+                return new ExpressionWithFlows(translateConditional(conditional, origin, context));
             }
             case JCTree.JCSwitchExpression switchExpr -> {
-                return translateSwitchExpression(switchExpr, origin, context);
+                return new ExpressionWithFlows(translateSwitchExpression(switchExpr, origin, context));
             }
             case JCTree.JCUnary unary -> {
-                return translateUnary(expr, unary, origin, context);
+                return new ExpressionWithFlows(translateUnary(expr, unary, origin, context));
             }
             case JCTree.JCBinary binary -> {
-                return translateBinary(binary, context);
+                return new ExpressionWithFlows(translateBinary(binary, context));
             }
             case JCTree.JCIdent identifier -> {
-                return translateIdentifier(identifier, origin);
+                return new ExpressionWithFlows(translateIdentifier(identifier, origin));
             }
             case JCTree.JCLiteral literal -> {
-                return translateLiteral(literal, origin);
+                return new ExpressionWithFlows(translateLiteral(literal, origin));
             }
             case JCTree.JCMethodInvocation invocation -> {
-                return translateMethodInvocation(invocation, origin, context);
+                return new ExpressionWithFlows(translateMethodInvocation(invocation, origin, context));
             }
             case JCTree.JCFieldAccess fieldAccess -> {
-                return translateFieldAccess(fieldAccess, origin, context);
+                return new ExpressionWithFlows(translateFieldAccess(fieldAccess, origin, context));
             }
             case JCTree.JCArrayAccess arrayAccess -> {
-                return translateArrayAccess(arrayAccess, origin);
+                return new ExpressionWithFlows(translateArrayAccess(arrayAccess, origin));
             }
             case JCTree.JCParens parens -> {
-                return toExpr(parens.getExpression(), context);
+                return toExprWithFlows(parens.getExpression(), context);
             }
             case JCTree.JCAssign assign -> {
-                return translateAssign(assign, origin, context);
+                return new ExpressionWithFlows(translateAssign(assign, origin, context));
             }
             case JCTree.JCAssignOp assignOp -> {
                 if (context.statementWriter() == null) {
                     baseGenerator.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
-                    return BaseDafnyGenerator.getHole(origin);
+                    return new ExpressionWithFlows(BaseDafnyGenerator.getHole(origin));
                 } else {
-                    return translateAssignOp(assignOp, origin, context);
+                    return new ExpressionWithFlows(translateAssignOp(assignOp, origin, context));
                 }
             }
             case JCTree.JCInstanceOf instanceOf -> {
                 return translateInstanceOf(instanceOf, origin, context);
             }
             case JCTree.JCTypeCast cast -> {
-                return translateCast(cast, origin, context);
+                return new ExpressionWithFlows(translateCast(cast, origin, context));
             }
             case JCTree.JCLambda _ ->
                 throw new RuntimeException("Lambdas should have been rewritten, but found one at " + origin);
             case JCTree.JCMemberReference _ ->
                 throw new RuntimeException("Member references should have been rewritten, but found one at " + origin);
             case JCTree.JCTypeApply typeApply -> {
-                return translateTypeApplication(typeApply, origin, context);
+                return new ExpressionWithFlows(translateTypeApplication(typeApply, origin, context));
             }
             case JCTree.JCNewClass newClass -> {
-                return translateNew(expr, newClass, origin, context);
+                return new ExpressionWithFlows(translateNew(expr, newClass, origin, context));
             }
             default -> { }
         }
         baseGenerator.reportError(expr, "notSupported", expr.getClass().getSimpleName() + " in an expression");
-        return BaseDafnyGenerator.getHole(origin);
+        return new ExpressionWithFlows(BaseDafnyGenerator.getHole(origin));
     }
 
     private Expression translateAssign(JCTree.JCAssign assign, IOrigin origin, ExpressionContext context) {
@@ -328,21 +343,22 @@ public class ExpressionCompiler {
         return new NameSegment(origin, localVariable.getName(), null);
     }
 
-    private TypeTestExpr translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin, ExpressionContext context) {
+    private ExpressionWithFlows translateInstanceOf(JCTree.JCInstanceOf instanceOf, IOrigin origin, ExpressionContext context) {
         context = context.forbidImpure();
         var expression = toExpr(instanceOf.getExpression(), context);
         var jcType = baseGenerator.translateType(instanceOf.getType());
         TypeTestExpr result = new TypeTestExpr(origin, expression, jcType);
+        List<FlowCast> flows = List.of();
         if (instanceOf.getPattern() != null) {
             if (instanceOf.getPattern() instanceof JCTree.JCBindingPattern bindingPattern) {
                 Type translatedType = baseGenerator.translateType(instanceOf.getType());
                 String compiledName = baseGenerator.nameCompiler.getCompiledName(bindingPattern.var.sym, bindingPattern.var);
-                context.thenFlowCasts().add(new FlowCast(compiledName, new ConversionExpr(origin, expression, translatedType, ""), translatedType));
+                flows = List.of(new FlowCast(compiledName, new ConversionExpr(origin, expression, translatedType, ""), translatedType));
             } else {
                 reporter.reportError(instanceOf, "notSupported", "Record patterns");
             }
         }
-        return result;
+        return new ExpressionWithFlows(result, flows);
     }
 
     private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin, ExpressionContext context) {
@@ -359,14 +375,12 @@ public class ExpressionCompiler {
     
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin, ExpressionContext context) {
         context = context.forbidImpure();
-        context.thenFlowCasts().clear();
-        var condition = toExpr(conditional.getCondition(), context);
-        var flowCasts = context.thenFlowCasts().stream().toList();
+        var conditionWithFlows = toExprWithFlows(conditional.getCondition(), context);
 
         Expression thenWithoutFlow = toExpr(conditional.getTrueExpression(), context);
-        var thenBranch = applyFlowCastsToExpr(thenWithoutFlow, flowCasts);
+        var thenBranch = applyFlowCastsToExpr(thenWithoutFlow, conditionWithFlows.flows());
         var elseBranch = toExpr(conditional.getFalseExpression(), context);
-        return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
+        return new ITEExpr(origin, false, conditionWithFlows.expression(), thenBranch, elseBranch);
     }
 
     public Expression applyFlowCastsToExpr(Expression expression, List<FlowCast> flowCasts) {
@@ -423,18 +437,16 @@ public class ExpressionCompiler {
 
     private Expression translateBinary(JCTree.JCBinary binary, ExpressionContext context) {
         context = context.forbidImpure();
-        context.thenFlowCasts().clear();
-        var left = toExpr(binary.getLeftOperand(), context.withExpectedType(binary.getRightOperand().type));
-        var flowCasts = context.thenFlowCasts().stream().toList();
+        var leftWithFlows = toExprWithFlows(binary.getLeftOperand(), context.withExpectedType(binary.getRightOperand().type));
         var right = toExpr(binary.getRightOperand(), context.withExpectedType(binary.getLeftOperand().type));
         
         Symbol.OperatorSymbol operator = binary.getOperator();
         if (operator.name.contentEquals("&&")) {
-            right = applyFlowCastsToExpr(right, flowCasts);
+            right = applyFlowCastsToExpr(right, leftWithFlows.flows());
         }
         return translateBinary(
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,
-                operator, left, right);
+                operator, leftWithFlows.expression(), right);
     }
     
     private BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
@@ -480,7 +492,7 @@ public class ExpressionCompiler {
     }
 
     private NameSegment translateTypeApplication(JCTree.JCTypeApply typeApply, IOrigin origin, ExpressionContext context) {
-        var type = toExpr(typeApply.getType(), context);
+        var type = toExpr((JCTree.JCExpression)typeApply.getType(), context);
         if (type instanceof NameSegment nameSegment) {
             List<Type> arguments;
             if (typeApply.getTypeArguments().isEmpty()) {

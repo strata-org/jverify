@@ -140,7 +140,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+    public ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
         return expressionCompiler.toExprBase(expr, originOverride, context);
     }
 

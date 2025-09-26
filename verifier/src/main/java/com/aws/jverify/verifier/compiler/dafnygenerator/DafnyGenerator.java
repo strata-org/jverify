@@ -4,6 +4,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionWithFlows;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -17,7 +18,11 @@ public interface DafnyGenerator {
     
     List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride);
 
-    Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context);
+    default Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        return toExprWithFlows(expr, originOverride, context).expression();
+    }
+    
+    ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context);
         
     @Nullable
     Type translateType(com.sun.tools.javac.code.Type type, 
