@@ -78,6 +78,14 @@ abstract class ImmutableList<E> implements List<E> {
     public int size() {
         throw new ContractException();
     }
+
+    @Override
+    @Pure
+    @Verify(false)
+    public E get(int index) {
+        precondition(0 <= index && index < size());
+        throw new ContractException();
+    }
 }
 
 @Contract(value = List.class, pure = true)
@@ -85,31 +93,34 @@ abstract class ListContract<E> implements List<E> {
     
     @Pure
     static <E> ImmutableList<E> of() {
-        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && ((ImmutableList<E>)r).size() == 0);
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
+                il.size() == 0);
         throw new ContractException();
     }
 
     @Pure
     static <E> List<E> of(E e1) {
-        postcondition((List<E> r) -> r.size() == 1 && r.get(0) == e1);
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
+                il.size() == 1 && 
+                il.get(0) == e1);
         throw new ContractException();
     }
 
     @Pure
     static <E> List<E> of(E e1, E e2) {
-        postcondition((List<E> r) -> r.size() == 2 &&
-                        r.get(0) == e1 &&
-                        r.get(1) == e2);
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
+                il.size() == 2 && 
+                il.get(0) == e1 && 
+                il.get(1) == e2);
         throw new ContractException();
     }
 
     @Pure
     static <E> List<E> of(E e1, E e2, E e3) {
-        postcondition((List<E> r) ->
-                r.size() == 3 &&
-                        r.get(0) == e1 &&
-                        r.get(1) == e2 &&
-                        r.get(2) == e3);
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
+                il.size() == 3 && 
+                il.get(0) == e1 && il.get(1) == e2 && 
+                il.get(2) == e3);
         throw new ContractException();
     }
 
