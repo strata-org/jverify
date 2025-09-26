@@ -97,7 +97,7 @@ public class JVerify {
     }
 
     /**
-     * Can be used in reads and modifies clauses to refer to all objects
+     * Can be used in reads clauses to refer to all objects
      */
     public static Object everything() {
         throw new VerificationMethodExecutedException();
