@@ -159,10 +159,16 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    /**
+     * Create a Sequence with the given element(s)
+     */
     public static <T> Sequence<T> elements(T element) {
         throw new VerificationMethodExecutedException();
     }
 
+    /**
+     * Cast a Java type to its contract type, to enable accessing fields of the contract class
+     */
     public static <T, U> U cast(T element, Class<U> clazz) {
         throw new VerificationMethodExecutedException();
     }

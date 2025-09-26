@@ -224,17 +224,7 @@ public class Driver {
         if (verifierOptions.printDafny() != null) {
             processBuilder.command().add("--print=" + verifierOptions.printDafny());
         }
-        PositionFilter positionFilter = verifierOptions.positionFilter();
-        if (positionFilter != null) {
-            var s = new StringBuilder();
-            s.append("--filter-position=");
-            if (positionFilter.fileEnding() != null) {
-                s.append(positionFilter.fileEnding());
-            }
-            s.append(":").append(positionFilter.start()).append("-");
-            s.append(positionFilter.end());
-            processBuilder.command().add(s.toString());
-        }
+        applyPositionFilter(verifierOptions, processBuilder);
         if (verifierOptions.showRanges()) {
             // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
             processBuilder.command().add("--show-snippets=false");
@@ -266,6 +256,20 @@ public class Driver {
             System.out.println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
             e.printStackTrace();
             outResults.setExitCode(-1);
+        }
+    }
+
+    private static void applyPositionFilter(VerifierOptions verifierOptions, ProcessBuilder processBuilder) {
+        PositionFilter positionFilter = verifierOptions.positionFilter();
+        if (positionFilter != null) {
+            var s = new StringBuilder();
+            s.append("--filter-position=");
+            if (positionFilter.fileEnding() != null) {
+                s.append(positionFilter.fileEnding());
+            }
+            s.append(":").append(positionFilter.start()).append("-");
+            s.append(positionFilter.end());
+            processBuilder.command().add(s.toString());
         }
     }
 
