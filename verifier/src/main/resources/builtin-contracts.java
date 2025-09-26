@@ -64,6 +64,7 @@ abstract class CollectionContract<E> implements Collection<E> {
     @Pure
     public int size() {
         reads(everything());
+        decreases(0);
         throw new ContractException();
     }
 }
@@ -76,6 +77,7 @@ abstract class ImmutableList<E> implements List<E> {
     @Pure
     @Verify(false)
     public int size() {
+        decreases(0);
         throw new ContractException();
     }
 
@@ -128,6 +130,7 @@ abstract class ListContract<E> implements List<E> {
     @Pure
     public E get(int index) {
         reads(everything());
+        decreases(size());
         precondition(0 <= index && index < size());
         throw new ContractException();
     }
@@ -136,6 +139,7 @@ abstract class ListContract<E> implements List<E> {
     @Pure
     public int size() {
         reads(everything());
+        decreases(0);
         throw new ContractException();
     }
 
@@ -143,6 +147,7 @@ abstract class ListContract<E> implements List<E> {
     @Pure
     public boolean isEmpty() {
         reads(everything());
+        decreases(0);
         postcondition((boolean r) -> r == (size() == 0));
         throw new ContractException();
     }
@@ -151,6 +156,7 @@ abstract class ListContract<E> implements List<E> {
     @Pure
     public boolean contains(Object o) {
         reads(everything());
+        decreases(size());
         postcondition((boolean r) ->
                 r == JVerify.exists((int i) ->
                         0 <= i && i < size() && get(i).equals(o)));
@@ -163,6 +169,7 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
 
     protected JVerify.Sequence<E> elements;
     
+    @Verify(false)
     public ArrayListContract() {
         postcondition(elements.size() == 0);
         throw new ContractException();
@@ -198,6 +205,7 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     @Pure
     public boolean isEmpty() {
         reads(this);
+        decreases(0);
         postcondition((boolean r) -> r == (elements.size() == 0));
         throw new ContractException();
     }
@@ -206,9 +214,15 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     @Pure
     public boolean contains(Object o) {
         reads(this);
+        decreases(size());
         postcondition((boolean r) ->
                 r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));
+
+
+        postcondition((boolean r) ->
+                r == JVerify.exists((int i) ->
+                        0 <= i && i < size() && get(i).equals(o)));
         throw new ContractException();
     }
     
@@ -262,6 +276,7 @@ abstract class SetContract<E> implements Set<E> {
     @Override
     @Pure
     public boolean contains(Object o) {
+        decreases(0);
         postcondition((boolean r) ->
                 r == JVerify.exists((E other) ->
                         elements.contains(other) && other.equals(o)));
@@ -271,6 +286,7 @@ abstract class SetContract<E> implements Set<E> {
     @Override
     @Pure
     public int size() {
+        decreases(0);
         postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
@@ -400,6 +416,19 @@ class ShortContract {
     public static final short MAX_VALUE = 32767;
 }
 
+class IntegerContractHelper {
+    @Pure
+    public static boolean sumWillOverflow(int a, int b) {
+        if (a > 0 && b > 0) {
+            return a > Integer.MAX_VALUE - b;
+        }
+        if (a < 0 && b < 0) {
+            return a < Integer.MIN_VALUE - b;
+        }
+        return false; // Different signs won't overflow
+    }
+}
+
 @Contract(Integer.class)
 class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
@@ -407,6 +436,7 @@ class IntegerContract {
 
     @Pure
     public static int sum(int a, int b) {
+        precondition(!IntegerContractHelper.sumWillOverflow(a, b));
         return a + b;
     }
     
