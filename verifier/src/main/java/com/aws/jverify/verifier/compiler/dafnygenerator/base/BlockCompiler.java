@@ -127,6 +127,7 @@ public class BlockCompiler {
         if (ifStatement.getElseStatement() != null) {
             elseBranch = blockifyStatements(origin, translateStatement(ifStatement.getElseStatement()));
         }
+        var flowStatements = new ArrayList<Statement>();
         for(var flowCast : conditionWithFlows.flows()) {
             Type translatedType = flowCast.type();
             LocalVariable localVariable = new LocalVariable(origin, flowCast.name(), translatedType, false);
@@ -137,10 +138,11 @@ public class BlockCompiler {
             var dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
 
             var decl = new VarDeclStmt(origin, null, List.of(localVariable), dafnyInitializer);
-            var statements = new ArrayList<Statement>();
-            statements.add(decl);
-            statements.addAll(thenBranch.getBody());
-            thenBranch = new BlockStmt(thenBranch.getOrigin(), thenBranch.getAttributes(), thenBranch.getLabels(), statements);
+            flowStatements.add(decl);
+        }
+        if (!flowStatements.isEmpty()) {
+            flowStatements.addAll(thenBranch.getBody());
+            thenBranch = new BlockStmt(thenBranch.getOrigin(), thenBranch.getAttributes(), thenBranch.getLabels(), flowStatements);
         }
         return List.of(new IfStmt(origin, null, List.of(), false, conditionWithFlows.expression(),
                 thenBranch, elseBranch));

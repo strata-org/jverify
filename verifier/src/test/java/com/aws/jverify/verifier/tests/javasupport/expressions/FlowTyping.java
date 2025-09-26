@@ -1,10 +1,28 @@
 package com.aws.jverify.verifier.tests.javasupport.expressions;
 
+import com.aws.jverify.ContractException;
+import com.aws.jverify.Pure;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 10, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 12, dafnyErrors = 0)
 public class FlowTyping {
     interface I {}
+    interface J extends I {
+        @Pure
+        @Verify(false)
+        default I anotherI() {
+            throw new RuntimeException("Not implemented");
+        }
+        default int value() {
+            return 3;
+        }
+    }
+    interface G extends I {
+        default int value() {
+            return 0;
+        }
+    }
     static class C implements I {
         int x;
     }
@@ -24,7 +42,10 @@ public class FlowTyping {
     }
     
     boolean andOperatorFlow(I i) {
-        return i instanceof C c && c.x == 3; 
+        if (i instanceof J j && j.anotherI() instanceof G g) {
+            return j.value() + g.value() == 3;
+        }
+        return true;
     }
     
     int nested(I i) {

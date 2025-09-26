@@ -17,6 +17,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -188,7 +189,7 @@ public class ExpressionCompiler {
                 return new ExpressionWithFlows(translateUnary(expr, unary, origin, context));
             }
             case JCTree.JCBinary binary -> {
-                return new ExpressionWithFlows(translateBinary(binary, context));
+                return translateBinary(binary, context);
             }
             case JCTree.JCIdent identifier -> {
                 return new ExpressionWithFlows(translateIdentifier(identifier, origin));
@@ -435,18 +436,24 @@ public class ExpressionCompiler {
         }
     }
 
-    private Expression translateBinary(JCTree.JCBinary binary, ExpressionContext context) {
+    private ExpressionWithFlows translateBinary(JCTree.JCBinary binary, ExpressionContext context) {
         context = context.forbidImpure();
         var leftWithFlows = toExprWithFlows(binary.getLeftOperand(), context.withExpectedType(binary.getRightOperand().type));
-        var right = toExpr(binary.getRightOperand(), context.withExpectedType(binary.getLeftOperand().type));
+        var rightWithFlows = toExprWithFlows(binary.getRightOperand(), context.withExpectedType(binary.getLeftOperand().type));
+        Expression right;
         
         Symbol.OperatorSymbol operator = binary.getOperator();
         if (operator.name.contentEquals("&&")) {
-            right = applyFlowCastsToExpr(right, leftWithFlows.flows());
+            right = applyFlowCastsToExpr(rightWithFlows.expression(), leftWithFlows.flows());
+        } else {
+            right = rightWithFlows.expression();
         }
-        return translateBinary(
+        var combined = new ArrayList<FlowCast>();
+        combined.addAll(leftWithFlows.flows());
+        combined.addAll(rightWithFlows.flows());
+        return new ExpressionWithFlows(translateBinary(
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,
-                operator, leftWithFlows.expression(), right);
+                operator, leftWithFlows.expression(), right), combined);
     }
     
     private BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
