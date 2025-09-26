@@ -40,9 +40,7 @@ class SequenceHelper {
         if (sequence.size() == 0) {
             return identity;
         }
-        var sizeMin = sequence.size() - 1;
-        return accumulator.apply(reduce(sequence.subsequence(0, sizeMin), identity, accumulator), sequence.get(sizeMin));
-        // return reduce(sequence.drop(1), accumulator.apply(identity, sequence.get(0)), accumulator);
+        return accumulator.apply(reduce(sequence.subsequence(0, sequence.size() - 1), identity, accumulator), sequence.get(sequence.size() - 1));
     }
 }
 
@@ -169,7 +167,6 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
 
     protected JVerify.Sequence<E> elements;
     
-    @Verify(false)
     public ArrayListContract() {
         postcondition(elements.size() == 0);
         throw new ContractException();
