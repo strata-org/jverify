@@ -362,18 +362,25 @@ public class ExpressionCompiler {
         context.thenFlowCasts().clear();
         var condition = toExpr(conditional.getCondition(), context);
         var flowCasts = context.thenFlowCasts().stream().toList();
-        
-        var thenBranch = toExpr(conditional.getTrueExpression(), context);
-        for(var flowCast : flowCasts) {
-            String name = flowCast.name();
-            var returnVar = new BoundVar(origin, new Name(origin, name), flowCast.type(), false);
-            var lhs = new CasePattern<>(origin, name, returnVar, null);
-            thenBranch = new LetExpr(origin, List.of(lhs), List.of(flowCast.expression()), thenBranch, true, null);
-        }
+
+        Expression thenWithoutFlow = toExpr(conditional.getTrueExpression(), null, context);
+        var thenBranch = applyFlowCastsToExpr(thenWithoutFlow, flowCasts);
         var elseBranch = toExpr(conditional.getFalseExpression(), context);
         return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
     }
-    
+
+    public Expression applyFlowCastsToExpr(Expression expression, List<FlowCast> flowCasts) {
+        var result = expression;
+        for(var flowCast : flowCasts) {
+            String name = flowCast.name();
+            var origin = flowCast.expression().getOrigin();
+            var returnVar = new BoundVar(expression.getOrigin(), new Name(origin, name), flowCast.type(), false);
+            var lhs = new CasePattern<>(expression.getOrigin(), name, returnVar, null);
+            result = new LetExpr(origin, List.of(lhs), List.of(flowCast.expression()), result, true, null);
+        }
+        return result;
+    }
+
     private Expression translateUnary(JCTree.JCExpression expr, JCTree.JCUnary unary, IOrigin origin, ExpressionContext context) {
         context = context.forbidImpure();
         var innerExpr = toExpr(unary.getExpression(), context);
@@ -416,9 +423,15 @@ public class ExpressionCompiler {
 
     private Expression translateBinary(JCTree.JCBinary binary, ExpressionContext context) {
         context = context.forbidImpure();
+        context.thenFlowCasts().clear();
         var left = toExpr(binary.getLeftOperand(), context.withExpectedType(binary.getRightOperand().type));
+        var flowCasts = context.thenFlowCasts().stream().toList();
         var right = toExpr(binary.getRightOperand(), context.withExpectedType(binary.getLeftOperand().type));
+        
         Symbol.OperatorSymbol operator = binary.getOperator();
+        if (operator.name.contentEquals("&&")) {
+            right = applyFlowCastsToExpr(right, flowCasts);
+        }
         return translateBinary(
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,
                 operator, left, right);

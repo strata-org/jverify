@@ -23,6 +23,10 @@ public class FlowTyping {
         return 3;
     }
     
+    boolean andOperatorFlow(I i) {
+        return i instanceof C c && c.x == 3; 
+    }
+    
     int nested(I i) {
         if (i instanceof C c) {
             if (c instanceof D d) {

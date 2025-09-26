@@ -9,8 +9,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-record FlowCast(String name, Expression expression, com.aws.jverify.generated.Type type) {}
-
 public record ExpressionContext(@Nullable Consumer<Statement> statementWriter,
                                 boolean allowImpure,
                                 @Nullable BlockCompiler blockCompiler,
