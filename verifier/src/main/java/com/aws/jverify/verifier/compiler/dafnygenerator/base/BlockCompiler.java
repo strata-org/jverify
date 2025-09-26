@@ -51,7 +51,7 @@ public class BlockCompiler {
 
     public List<Statement> translateStatementAfterlabel(JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
         List<Statement> statements = new ArrayList<>();
-        var expressionContext = new ExpressionContext(statements::add, true, this, null, new ArrayList<>());
+        var expressionContext = new ExpressionContext(statements::add, true, this, null);
         for (var compiler : statementCompilers) {
             var result = compiler.compile(statement, labels, expressionContext);
             if (result != null) {
@@ -121,15 +121,14 @@ public class BlockCompiler {
 
     private List<Statement> translateIfStatement(JCTree.JCIf ifStatement, ExpressionContext expressionContext) {
         var origin = generator.toOrigin(ifStatement);
-        expressionContext.thenFlowCasts().clear();
-        var condition = expressionCompiler.toExpr(ifStatement.getCondition(), expressionContext);
-        var flowCasts = expressionContext.thenFlowCasts().stream().toList();
+        var conditionWithFlows = expressionCompiler.toExprWithFlows(ifStatement.getCondition(), expressionContext);
         var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
         BlockStmt elseBranch = null;
         if (ifStatement.getElseStatement() != null) {
             elseBranch = blockifyStatements(origin, translateStatement(ifStatement.getElseStatement()));
         }
-        for(var flowCast : flowCasts) {
+        var flowStatements = new ArrayList<Statement>();
+        for(var flowCast : conditionWithFlows.flows()) {
             Type translatedType = flowCast.type();
             LocalVariable localVariable = new LocalVariable(origin, flowCast.name(), translatedType, false);
 
@@ -139,12 +138,13 @@ public class BlockCompiler {
             var dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
 
             var decl = new VarDeclStmt(origin, null, List.of(localVariable), dafnyInitializer);
-            var statements = new ArrayList<Statement>();
-            statements.add(decl);
-            statements.addAll(thenBranch.getBody());
-            thenBranch = new BlockStmt(thenBranch.getOrigin(), thenBranch.getAttributes(), thenBranch.getLabels(), statements);
+            flowStatements.add(decl);
         }
-        return List.of(new IfStmt(origin, null, List.of(), false, condition,
+        if (!flowStatements.isEmpty()) {
+            flowStatements.addAll(thenBranch.getBody());
+            thenBranch = new BlockStmt(thenBranch.getOrigin(), thenBranch.getAttributes(), thenBranch.getLabels(), flowStatements);
+        }
+        return List.of(new IfStmt(origin, null, List.of(), false, conditionWithFlows.expression(),
                 thenBranch, elseBranch));
     }
 
@@ -198,7 +198,7 @@ public class BlockCompiler {
         if (expr instanceof JCTree.JCMethodInvocation invocation) {
             return translateStatementMethodInvocation(invocation, expressionContext);
         }
-        generator.getFinalGenerator().toExpr(expr, originOverride, expressionContext);
+        generator.getFinalGenerator().toExprWithFlows(expr, originOverride, expressionContext);
         return List.of();
     }
 

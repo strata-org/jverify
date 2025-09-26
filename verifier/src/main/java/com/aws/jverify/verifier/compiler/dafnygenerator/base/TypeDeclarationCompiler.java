@@ -259,7 +259,7 @@ public class TypeDeclarationCompiler {
         if (variableDecl.getInitializer() != null) {
             // This block should be removed when the above block is commented in.
             if (varFlags.contains(Modifier.FINAL)) {
-                var rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
+                var rhs = compiler.expressionCompiler.toExprWithFlows(variableDecl.getInitializer(), ExpressionContext.Pure).expression();
                 var isStatic = varFlags.contains(Modifier.STATIC);
                 return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
             }

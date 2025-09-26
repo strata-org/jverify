@@ -2,11 +2,9 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -54,11 +52,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     }
 
     @Override
-    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+    public ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
         if (expr instanceof JCTree.JCMethodInvocation invocation) {
             return translateMethodInvocation(invocation, originOverride, context);
         }
-        return super.toExpr(expr, originOverride, context);
+        return super.toExprWithFlows(expr, originOverride, context);
     }
 
     /**
@@ -69,13 +67,17 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
      */
-    public Expression translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
+    public ExpressionWithFlows translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(invocation));
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
-            return super.toExpr(invocation, origin, context);
+            return super.toExprWithFlows(invocation, origin, context);
         }
-        
+
+        return new ExpressionWithFlows(translateJVerifyMethodInvocation(invocation, jverifyMethod, origin));
+    }
+
+    private Expression translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation, Symbol.MethodSymbol jverifyMethod, IOrigin origin) {
         var receiver = invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
                 ? fieldAccess.selected
                 : null;
