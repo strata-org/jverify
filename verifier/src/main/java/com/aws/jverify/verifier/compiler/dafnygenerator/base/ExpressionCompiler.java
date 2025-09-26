@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -24,6 +25,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
+    public final Reporter reporter;
     public final BaseDafnyGenerator baseGenerator;
     private final JVerifyUtils utils;
     
@@ -31,6 +33,7 @@ public class ExpressionCompiler {
 
     public ExpressionCompiler(BaseDafnyGenerator baseGenerator) {
         this.baseGenerator = baseGenerator;
+        reporter = Reporter.instance(baseGenerator.context);
         utils = JVerifyUtils.instance(baseGenerator.context);
     }
 
@@ -329,7 +332,17 @@ public class ExpressionCompiler {
         context = context.forbidImpure();
         var expression = toExpr(instanceOf.getExpression(), context);
         var jcType = baseGenerator.translateType(instanceOf.getType());
-        return new TypeTestExpr(origin, expression, jcType);
+        TypeTestExpr result = new TypeTestExpr(origin, expression, jcType);
+        if (instanceOf.getPattern() != null) {
+            if (instanceOf.getPattern() instanceof JCTree.JCBindingPattern bindingPattern) {
+                Type translatedType = baseGenerator.translateType(instanceOf.getType());
+                String compiledName = baseGenerator.nameCompiler.getCompiledName(bindingPattern.var.sym, bindingPattern.var);
+                context.thenFlowCasts().add(new FlowCast(compiledName, new ConversionExpr(origin, expression, translatedType, ""), translatedType));
+            } else {
+                reporter.reportError(instanceOf, "notSupported", "Record patterns");
+            }
+        }
+        return result;
     }
 
     private ConversionExpr translateCast(JCTree.JCTypeCast cast, IOrigin origin, ExpressionContext context) {
@@ -346,8 +359,17 @@ public class ExpressionCompiler {
     
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin, ExpressionContext context) {
         context = context.forbidImpure();
+        context.thenFlowCasts().clear();
         var condition = toExpr(conditional.getCondition(), context);
+        var flowCasts = context.thenFlowCasts().stream().toList();
+        
         var thenBranch = toExpr(conditional.getTrueExpression(), context);
+        for(var flowCast : flowCasts) {
+            String name = flowCast.name();
+            var returnVar = new BoundVar(origin, new Name(origin, name), flowCast.type(), false);
+            var lhs = new CasePattern<>(origin, name, returnVar, null);
+            thenBranch = new LetExpr(origin, List.of(lhs), List.of(flowCast.expression()), thenBranch, true, null);
+        }
         var elseBranch = toExpr(conditional.getFalseExpression(), context);
         return new ITEExpr(origin, false, condition, thenBranch, elseBranch);
     }

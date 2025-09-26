@@ -51,7 +51,7 @@ public class BlockCompiler {
 
     public List<Statement> translateStatementAfterlabel(JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
         List<Statement> statements = new ArrayList<>();
-        var expressionContext = new ExpressionContext(statements::add, true, this, null);
+        var expressionContext = new ExpressionContext(statements::add, true, this, null, new ArrayList<>());
         for (var compiler : statementCompilers) {
             var result = compiler.compile(statement, labels, expressionContext);
             if (result != null) {
@@ -121,11 +121,28 @@ public class BlockCompiler {
 
     private List<Statement> translateIfStatement(JCTree.JCIf ifStatement, ExpressionContext expressionContext) {
         var origin = generator.toOrigin(ifStatement);
+        expressionContext.thenFlowCasts().clear();
         var condition = expressionCompiler.toExpr(ifStatement.getCondition(), expressionContext);
+        var flowCasts = expressionContext.thenFlowCasts().stream().toList();
         var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
         BlockStmt elseBranch = null;
         if (ifStatement.getElseStatement() != null) {
             elseBranch = blockifyStatements(origin, translateStatement(ifStatement.getElseStatement()));
+        }
+        for(var flowCast : flowCasts) {
+            Type translatedType = flowCast.type();
+            LocalVariable localVariable = new LocalVariable(origin, flowCast.name(), translatedType, false);
+
+            var rhs = new ExprRhs(origin, null, flowCast.expression());
+            List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
+            List<AssignmentRhs> rhss = List.of(rhs);
+            var dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
+
+            var decl = new VarDeclStmt(origin, null, List.of(localVariable), dafnyInitializer);
+            var statements = new ArrayList<Statement>();
+            statements.add(decl);
+            statements.addAll(thenBranch.getBody());
+            thenBranch = new BlockStmt(thenBranch.getOrigin(), thenBranch.getAttributes(), thenBranch.getLabels(), statements);
         }
         return List.of(new IfStmt(origin, null, List.of(), false, condition,
                 thenBranch, elseBranch));
