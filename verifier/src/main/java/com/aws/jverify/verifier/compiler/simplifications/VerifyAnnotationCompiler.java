@@ -80,15 +80,6 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         super.visitMethodDef(tree);
     }
 
-    @Override
-    public void visitVarDef(JCTree.JCVariableDecl tree) {
-        boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
-        if (!shouldVerify) {
-            tree.init = null;
-        }
-        super.visitVarDef(tree);
-    }
-
     public void removeImplementation(JCTree.JCMethodDecl tree) {
         if (tree.body == null || tree.body.getStatements().isEmpty()) {
             return;
