@@ -73,6 +73,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         if (!shouldVerify) {
             removeImplementation(tree);
         } else if (!jverifyUtils.isPure(tree.sym) && !applyPositionFilter(tree)) {
+            // this is a performance optimization. 
+            // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
             removeImplementation(tree);
         }
         super.visitMethodDef(tree);
@@ -114,7 +116,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         throw new RuntimeException("shouldVerify should never be empty");
     }
     
-    private boolean applyPositionFilter(JCTree node) {
+    private boolean applyPositionFilter(JCTree.JCMethodDecl method) {
         var filter = options.positionFilter();
         if (filter == null) {
             return true;
@@ -124,9 +126,9 @@ public class VerifyAnnotationCompiler extends TreeScanner {
                 return false;
             }
 
-            var nodeRange = Reporter.getRange(reporter.toOrigin(node));
-            return nodeRange.getStartToken().getLine() <= filter.end()
-                    && filter.start() <= nodeRange.getEndToken().getLine();
+            var nodeRange = Reporter.getRange(reporter.getName(method, method.name).getOrigin());
+            int line = nodeRange.getStartToken().getLine();
+            return filter.start() <= line && line <= filter.end();
         }
     }
 

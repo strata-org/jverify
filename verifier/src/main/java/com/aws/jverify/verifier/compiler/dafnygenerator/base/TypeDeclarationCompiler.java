@@ -98,7 +98,7 @@ public class TypeDeclarationCompiler {
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 var variableName = compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
-                Name constructorName = compiler.getName(variableDecl, variableName);
+                Name constructorName = reporter.getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(compiler.declToOrigin(variableDecl, constructorName), constructorName,
                         null, false, List.of()));
 
@@ -207,7 +207,7 @@ public class TypeDeclarationCompiler {
 
     public List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
         return typarams.stream().map(p -> {
-            var name = compiler.getName(p, p.getName());
+            var name = reporter.getName(p, p.getName());
             var bounds = p.bounds.map(compiler::translateType);
 
             IOrigin origin = compiler.toOrigin(p);
@@ -414,7 +414,7 @@ public class TypeDeclarationCompiler {
         if (isPublic && !isStaticMethod && methodSymbol.getAnnotation(Invariant.class) == null) {
             for (var invariant : typeInvariants) {
                 var memberName = compiler.nameCompiler.getCompiledName(invariant.sym, invariant);
-                var invariantName = compiler.getName(invariant, invariant.getName());
+                var invariantName = reporter.getName(invariant, invariant.getName());
                 var invariantOrigin = compiler.declToOrigin(invariant, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                         memberName, null), null, new ActualBindings(List.of()), null);

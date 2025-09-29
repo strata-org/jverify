@@ -523,7 +523,7 @@ public class ExpressionCompiler {
         var selectedExpr = toExpr(fieldAccess.selected, context);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
-            ExprDotName callee = new ExprDotName(origin, selectedExpr, baseGenerator.getName(fieldAccess, "length"), null);
+            ExprDotName callee = new ExprDotName(origin, selectedExpr, reporter.getName(fieldAccess, "length"), null);
             return createCall(origin, callee, Stream.of(), context);
         }
         
@@ -538,7 +538,7 @@ public class ExpressionCompiler {
                 // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
                 selectedExpr = new ConversionExpr(origin, selectedExpr, baseGenerator.translateType(classType, origin), "");
             }
-            return new ExprDotName(origin, selectedExpr, baseGenerator.getName(fieldAccess, fieldName), null);
+            return new ExprDotName(origin, selectedExpr, reporter.getName(fieldAccess, fieldName), null);
         }
     }
 
@@ -568,7 +568,7 @@ public class ExpressionCompiler {
                 } else {
                     receiver = BaseDafnyGenerator.getHole(origin);
                 }
-                var fieldName = baseGenerator.getName(invocation.getMethodSelect(), fieldNameStr);
+                var fieldName = reporter.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
             }
         }

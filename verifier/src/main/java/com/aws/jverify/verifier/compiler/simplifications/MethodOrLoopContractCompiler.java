@@ -339,7 +339,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
                     compiler.expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
-                    compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
+                    compiler.reporter.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
             var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
             header.postconditions.add(new AttributedExpression(call, null, null));
         } else if (expr instanceof JCTree.JCTypeCast typeCast) {

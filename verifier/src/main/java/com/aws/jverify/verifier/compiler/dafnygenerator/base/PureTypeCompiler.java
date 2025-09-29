@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class PureTypeCompiler {
+    private final Reporter reporter;
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final BaseDafnyGenerator compiler;
     private final Symtab symtab;
@@ -27,6 +29,7 @@ public class PureTypeCompiler {
         this.compiler = typeDeclarationCompiler.compiler;
         symtab = Symtab.instance(compiler.context);
         names = Names.instance(compiler.context);
+        reporter = Reporter.instance(compiler.context);
     }
 
     public TopLevelDeclWithMembers translate(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -159,7 +162,7 @@ public class PureTypeCompiler {
                     return resultReference;
                 } else {
                     var identName = compiler.nameCompiler.getCompiledName(identifier.sym, origin);
-                    return new ExprDotName(origin, resultReference, compiler.getName(identifier, identName), null);
+                    return new ExprDotName(origin, resultReference, reporter.getName(identifier, identName), null);
                 }
             } else {
                 return compiler.expressionCompiler.translateIdentifierNoOverride(identifier, innerOrigin);
@@ -236,7 +239,7 @@ public class PureTypeCompiler {
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.baseGenerator.getNameCompiler().getCompiledName(newClass.constructor, origin);
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
-        var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.baseGenerator.getName(newClass, constructorName), null);
+        var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.baseGenerator.reporter.getName(newClass, constructorName), null);
 
         return expressionCompiler.createCall(origin, dafnyConstructor, newClass.args.stream(), expressionContext);
     }

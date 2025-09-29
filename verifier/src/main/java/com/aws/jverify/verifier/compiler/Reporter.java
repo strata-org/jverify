@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -108,5 +109,22 @@ public class Reporter {
             return sourceOrigin.getReportingRange();
         }
         throw new RuntimeException("not supported");
+    }
+
+    public Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
+        return getName(tree, name.toString());
+    }
+
+    public Name getName(JCTree tree, String name) {
+        return getName(tree, name, name.length());
+    }
+
+    public Name getName(JCTree tree, String name, int length) {
+        var positionCalculator = new PositionCalculator(compilationUnit);
+        int startPos = positionCalculator.getStartPos(tree);
+        var startToken = positionCalculator.toToken(startPos);
+        var endToken = positionCalculator.toToken(startPos + length);
+        var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
+        return new Name(origin, name);
     }
 }

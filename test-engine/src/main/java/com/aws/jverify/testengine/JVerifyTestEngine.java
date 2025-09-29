@@ -30,14 +30,12 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -158,12 +156,15 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
+        verifyFile(sourceFile, annotation, ranges, getVerifierOptions(annotation, null));
+    }
+
+    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges, VerifierOptions options) throws IOException {
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
         assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
                 (annotation.dafnyVerified() >= 0) == (annotation.dafnyErrors() >= 0));
 
-        var options = getVerifierOptions(annotation);
         var inputs = Arrays.stream(annotation.additionalFiles()).map(f -> {
             try {
                 var p = Path.of(sourceFile.toUri()).getParent().resolve(f);
@@ -269,7 +270,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
                 : new Position(startPos.line(), startPos.character() + 1);
         var range = new Range(startPos, endPos);
-        if (sourceUri == null || sourceUri.equals(testFile)) {
+        if (sourceUri == null || sourceUri.equals(testFile.normalize())) {
             return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
         } else {
             Range zeroRange = new Range(new Position(1, 1), new Position(1, 2));
@@ -285,7 +286,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
-    private static VerifierOptions getVerifierOptions(JVerifyTest annotation) {
+    public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter) {
         var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
@@ -309,7 +310,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 },
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
-                null, false
+                positionFilter, false
         );
     }
 
@@ -325,7 +326,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     public static JVerifyTest makeJVerifyTestAnnotation(int dafnyVerified, int dafnyErrors) {
         return makeJVerifyTestAnnotation(true, dafnyErrors > 0 ? 4 : 0, dafnyVerified, dafnyErrors, false, false, true);
     }
-
+    
     /**
      * For creating a JVerifyTest annotation without having it in source code.
      * Useful for testing things like examples where we don't want the explicit annotation.
@@ -335,57 +336,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                                         boolean verifyPrintedDafny,
                                                         boolean continueOnErrors,
                                                         boolean useBuiltinContracts) {
-        return new JVerifyTest() {
-            @Override
-            public Class<? extends Annotation> annotationType() {
-                return JVerifyTest.class;
-            }
-
-            @Override
-            public String skip() {
-                return "";
-            }
-
-            @Override
-            public boolean verifyByDefault() {
-                return verifyByDefault;
-            }
-
-            @Override
-            public boolean useBuiltinContracts() {
-                return useBuiltinContracts;
-            }
-
-            @Override
-            public boolean continueOnErrors() {
-                return continueOnErrors;
-            }
-
-            @Override
-            public int exitCode() {
-                return exitCode;
-            }
-
-            @Override
-            public int dafnyVerified() {
-                return dafnyVerified;
-            }
-
-            @Override
-            public int dafnyErrors() {
-                return dafnyErrors;
-            }
-
-            @Override
-            public String[] additionalFiles() {
-                return new String[0];
-            }
-
-            @Override
-            public boolean verifyPrintedDafny() {
-                return verifyPrintedDafny;
-            }
-        };
+        return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors, 
+                exitCode, dafnyVerified, dafnyErrors, new String[0], verifyPrintedDafny);
     }
 
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, VerificationResults verificationResults) throws IOException {
@@ -415,3 +367,4 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }
     }
 }
+

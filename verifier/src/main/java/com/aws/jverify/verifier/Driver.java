@@ -278,7 +278,7 @@ public class Driver {
     }
 
     private static final Pattern dafnySummaryPattern = Pattern.compile(
-            "Dafny program verifier finished with (?<VerifiedCount>\\d+) verified, (?<ErrorCount>\\d+) errors?");
+            "Dafny program verifier finished with (?<VerifiedCount>\\d+) (assertions )?verified, (?<ErrorCount>\\d+) errors?");
 
     /**
      * Parses the given {@code dafny verify} output,
