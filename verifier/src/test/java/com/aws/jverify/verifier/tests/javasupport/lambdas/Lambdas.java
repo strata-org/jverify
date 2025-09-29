@@ -13,6 +13,18 @@ import static com.aws.jverify.JVerify.precondition;
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
 @JVerifyTest(exitCode = 4, dafnyVerified = 89, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
+    private static final SomethingDoer containsMethodReference = Lambdas::staticDoSomething;
+    private static final SomethingDoer containsLambda = (int x, int y) -> staticDoSomething(x, y);
+    private static final SomethingDoer containsInnerClass = new SomethingDoer() {
+        @Override
+        public int doSomething(int x, int y) {
+            return 0;
+        }
+    };
+    
+    static int staticDoSomething(int x, int y) {
+        return 3;
+    }
 
     // TODO: bring back once we support static fields
 //    private static int STATIC_FIELD = 100;
