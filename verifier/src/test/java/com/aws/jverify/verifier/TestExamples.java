@@ -8,6 +8,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class TestExamples {
+
+    @Test
+    public void testSumCache() throws IOException {
+        var markedSourcePath = Path.of("SumCache.java");
+        verifyPath(markedSourcePath, 22, -1, -1, true);
+    }
     
     /**
      * This is the only test that tests these rules.
