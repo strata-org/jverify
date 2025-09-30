@@ -74,4 +74,5 @@ public final class VerificationResults {
     public void setDafnyErrorCount(@Nullable Integer dafnyErrorCount) {
         this.dafnyErrorCount = dafnyErrorCount;
     }
+
 }

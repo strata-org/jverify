@@ -89,6 +89,7 @@ public class MoveStaticMethodsToStaticType {
             classType.supertype_field = Type.noType; //syms.objectType;
             staticClassSymbol.type = classType;
             classMap.put(classDecl.sym, staticClassSymbol);
+            staticClassSymbol.sourcefile = classDecl.sym.sourcefile;
         }
 
         @Override
