@@ -134,6 +134,10 @@ public class JVerify {
     public static <T> boolean fresh(Object object) {
         throw new ContractException();
     }
+
+    public static <T> boolean forall(Sequence<T> inputs, Function<T, Boolean> predicate) {
+        throw new VerificationMethodExecutedException();
+    }
     
     public static <T> boolean forall(Function<T, Boolean> predicate) {
         throw new VerificationMethodExecutedException();
