@@ -132,7 +132,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         if (tree.body != null) {
-            var allowFooter = BaseDafnyGenerator.isConstructor(tree.sym);
+            var allowFooter = JVerifyUtils.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
         }
         super.visitMethodDef(tree);

@@ -20,8 +20,6 @@ import com.sun.tools.javac.util.List;
 import javax.lang.model.element.ElementKind;
 import java.util.*;
 
-import static com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator.isConstructor;
-
 /**
  * Handles @Contract annotations, so that further passes can be agnostic to them.
  * Some remnants of the @Contract classes remain
@@ -311,7 +309,7 @@ public class ExternalContractCompiler {
 
     private String methodToString(JCTree tree) {
         if (tree instanceof JCTree.JCMethodDecl methodDecl){
-            if (isConstructor(methodDecl.sym)) {
+            if (JVerifyUtils.isConstructor(methodDecl.sym)) {
                 return "constructor";
             } else {
                 return "method '" + methodDecl.name + "'";

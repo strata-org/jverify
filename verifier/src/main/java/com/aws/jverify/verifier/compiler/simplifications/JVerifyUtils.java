@@ -269,4 +269,8 @@ public class JVerifyUtils {
         }
         return false;
     }
+
+    public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
+        return methodSymbol.name == methodSymbol.name.table.names.init;
+    }
 }

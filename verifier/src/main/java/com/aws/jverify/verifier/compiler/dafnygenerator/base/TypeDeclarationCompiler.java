@@ -334,7 +334,7 @@ public class TypeDeclarationCompiler {
             }
         }
 
-        if (BaseDafnyGenerator.isConstructor(method.sym)) {
+        if (JVerifyUtils.isConstructor(method.sym)) {
             DividedBlockStmt body;
             if (shouldVerify) {
 
@@ -424,7 +424,7 @@ public class TypeDeclarationCompiler {
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                         memberName, null), null, new ActualBindings(List.of()), null);
                 var invariantCall = new AttributedExpression(call, null, null);
-                if (!BaseDafnyGenerator.isConstructor(methodSymbol)) {
+                if (!JVerifyUtils.isConstructor(methodSymbol)) {
                     header.preconditions.add(invariantCall);
                 }
                 header.postconditions.add(invariantCall);

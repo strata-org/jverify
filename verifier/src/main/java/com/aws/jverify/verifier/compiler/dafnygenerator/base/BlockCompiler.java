@@ -226,7 +226,7 @@ public class BlockCompiler {
             return List.of(new AssertStmt(reporter.toOrigin(invocation), null,
                     expressionCompiler.toExpr(invocation.args.getFirst(), expressionContext), null));
         } else {
-            if (BaseDafnyGenerator.isConstructor(methodSymbol)) {
+            if (JVerifyUtils.isConstructor(methodSymbol)) {
                 reporter.reportError(invocation, "contractForConstructor");
             } else {
                 reporter.reportError(invocation, "contractAfterBody");

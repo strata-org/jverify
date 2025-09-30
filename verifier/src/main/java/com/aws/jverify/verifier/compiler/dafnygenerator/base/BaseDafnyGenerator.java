@@ -11,8 +11,6 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.TreeScanner;
-import com.sun.tools.javac.code.TypeMetadata;
-import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.JCTree;
@@ -30,10 +28,8 @@ import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
-import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -366,10 +362,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
 
         return null;
-    }
-
-    public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.name == methodSymbol.name.table.names.init;
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
