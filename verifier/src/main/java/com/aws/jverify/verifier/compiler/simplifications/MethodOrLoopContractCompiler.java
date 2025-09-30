@@ -243,6 +243,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
 
 
     public static boolean handleStatement(BaseDafnyGenerator compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
+        var reporter = compiler.reporter;
+        
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
@@ -291,7 +293,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     throw new JavaViolationException("A reads call must have exactly one argument");
                 }
                 var origExpr = invocation.getArguments().getFirst();
-                var origin = compiler.toOrigin(origExpr);
+                var origin = reporter.toOrigin(origExpr);
                 var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
                 contract.reads.add(new FrameExpression(origin, expr, null));
             }
@@ -300,12 +302,12 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     throw new JavaViolationException("A modifies call must have exactly one argument");
                 }
                 var origExpr = invocation.getArguments().getFirst();
-                var origin = compiler.toOrigin(origExpr);
+                var origin = reporter.toOrigin(origExpr);
                 var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
                 contract.modifies.add(new FrameExpression(origin, expr, null));
             }
             default -> {
-                compiler.reportError(invocation, "notSupported", methodName);
+                reporter.reportError(invocation, "notSupported", methodName);
                 return false;
             }
         }
@@ -313,14 +315,16 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
     private static void handlePostcondition(BaseDafnyGenerator compiler, MethodOrLoopContract header, JCTree.JCExpression expr) {
+        var reporter = compiler.reporter;
+        
         if (expr instanceof JCTree.JCLambda lambda) {
             if (lambda.getParameters().size() != 1) {
                 throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
             }
             var parameter = lambda.params.getFirst();
-            var origin = compiler.toOrigin(lambda);
+            var origin = reporter.toOrigin(lambda);
             var paramName = parameter.getName().toString();
-            var type = compiler.getFinalGenerator().translateType(parameter.type, compiler.toOrigin(parameter), null);
+            var type = compiler.getFinalGenerator().translateType(parameter.type, reporter.toOrigin(parameter), null);
 
             var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
             var lhs = new CasePattern<>(origin, paramName, returnVar, null);
@@ -332,7 +336,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             header.postconditions.add(new AttributedExpression(condition, null, null));
 
         } else if (expr instanceof JCTree.JCMemberReference memberReference) {
-            var origin = compiler.toOrigin(memberReference);
+            var origin = reporter.toOrigin(memberReference);
             NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
                     compiler.expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),

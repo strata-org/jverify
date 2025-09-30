@@ -61,7 +61,7 @@ public class TypeDeclarationCompiler {
             }
 
             Name name = compiler.getName(classDecl, classDecl.sym);
-            var origin = compiler.declToOrigin(classDecl, name);
+            var origin = reporter.declToOrigin(classDecl, name);
             reporter.contextOrigins.push(origin);
 
             var classSymbol = classDecl.sym;
@@ -70,7 +70,7 @@ public class TypeDeclarationCompiler {
                 case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
                 case RECORD -> new PureTypeCompiler(this).translate(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
-                    compiler.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
+                    reporter.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
                 }
                 // JCClassDecl#getKind returns one of the above five values
@@ -86,7 +86,7 @@ public class TypeDeclarationCompiler {
             return result;
         }
         if (tree instanceof JCTree jcTree) {
-            compiler.reportError(jcTree, "notSupported", "type declaration " + tree.getClass().getSimpleName());
+            reporter.reportError(jcTree, "notSupported", "type declaration " + tree.getClass().getSimpleName());
             return List.of();
         } else {
             throw new BaseDafnyGenerator.NotImplementedException(tree.getClass().getName());
@@ -99,7 +99,7 @@ public class TypeDeclarationCompiler {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 var variableName = compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
                 Name constructorName = compiler.getName(variableDecl, variableName);
-                constructors.add(new DatatypeCtor(compiler.declToOrigin(variableDecl, constructorName), constructorName,
+                constructors.add(new DatatypeCtor(reporter.declToOrigin(variableDecl, constructorName), constructorName,
                         null, false, List.of()));
 
             }
@@ -210,7 +210,7 @@ public class TypeDeclarationCompiler {
             var name = compiler.getName(p, p.getName());
             var bounds = p.bounds.map(compiler::translateType);
 
-            IOrigin origin = compiler.toOrigin(p);
+            IOrigin origin = reporter.toOrigin(p);
             return getTypeParameter(origin, bounds, name);
         }).toList();
     }
@@ -231,7 +231,7 @@ public class TypeDeclarationCompiler {
                 if (block.stats.isEmpty()) {
                     return null;
                 } else {
-                    compiler.reportError(block, "notSupported", "an initializer block");
+                    reporter.reportError(block, "notSupported", "an initializer block");
                     return null;
                 }
             }
@@ -242,9 +242,9 @@ public class TypeDeclarationCompiler {
     public Field translateField(JCTree.JCVariableDecl variableDecl) {
         var varFlags = variableDecl.getModifiers().getFlags();
         Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
-        IOrigin origin = compiler.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.getFinalGenerator().translateType(variableDecl.type, 
-                compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
+        IOrigin origin = reporter.declToOrigin(variableDecl, fieldName);
+        Type type = compiler.getFinalGenerator().translateType(variableDecl.type,
+                reporter.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
         
         if (variableDecl.getInitializer() != null) {
@@ -275,7 +275,7 @@ public class TypeDeclarationCompiler {
 //            var types = Types.instance(context);
 //            var container = method.sym.enclClass();
 //            var impl = method.sym.implemented(container, types);
-            compiler.reportError(method, "notSupported", "@InheritContract");
+            reporter.reportError(method, "notSupported", "@InheritContract");
             return null;
         }
 
@@ -294,13 +294,13 @@ public class TypeDeclarationCompiler {
                                                       boolean shouldVerify,
                                                       MethodOrLoopContract contract,
                                                       com.sun.tools.javac.util.List<JCTree.JCStatement> postHeader) {
-        var methodOrigin = compiler.toOrigin(method);
+        var methodOrigin = reporter.toOrigin(method);
 
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
 
         var blockCompiler = new BlockCompiler(compiler, method.sym);
         var name = compiler.getName(method, method.sym);
-        var origin = compiler.declToOrigin(method, name);
+        var origin = reporter.declToOrigin(method, name);
         var isStatic = BaseDafnyGenerator.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
@@ -316,7 +316,7 @@ public class TypeDeclarationCompiler {
                 returnOrigin = methodOrigin;
             } else {
                 var returnTypeDecl = methodDecl.getReturnType();
-                returnOrigin = compiler.toOrigin(returnTypeDecl);
+                returnOrigin = reporter.toOrigin(returnTypeDecl);
             }
             var returnType = compiler.translateMethodSignatureType(method.sym.type.getReturnType(), returnOrigin, shouldVerify);
             if (returnType != null) {
@@ -379,15 +379,15 @@ public class TypeDeclarationCompiler {
     private Function translatePureMethod(JCTree.JCMethodDecl method, 
                                          boolean shouldVerify,
                                          MethodOrLoopContract contract) {
-        var sourceOrigin = compiler.toOrigin(method);
+        var sourceOrigin = reporter.toOrigin(method);
 
         var name = compiler.getName(method, method.sym);
-        var origin = compiler.declToOrigin(method, name);
+        var origin = reporter.declToOrigin(method, name);
         var isStatic = BaseDafnyGenerator.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, sourceOrigin);
         var returnType = compiler.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, shouldVerify);
         if (returnType == null) {
-            compiler.reportError(method, "pureMethodsNeedsReturnType");
+            reporter.reportError(method, "pureMethodsNeedsReturnType");
             return null;
         }
         applyInvariants(method.mods, method.sym, contract);
@@ -411,7 +411,7 @@ public class TypeDeclarationCompiler {
             for (var invariant : invariants) {
                 var memberName = compiler.nameCompiler.getCompiledName(invariant.sym, invariant);
                 var invariantName = compiler.getName(invariant, invariant.getName());
-                var invariantOrigin = compiler.declToOrigin(invariant, invariantName);
+                var invariantOrigin = reporter.declToOrigin(invariant, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                         memberName, null), null, new ActualBindings(List.of()), null);
                 var invariantCall = new AttributedExpression(call, null, null);
@@ -431,7 +431,7 @@ public class TypeDeclarationCompiler {
         return IntStream.range(0, method.getParameters().size()).mapToObj(index -> {
             var parameter = method.getParameters().get(index);
             var parameterSymbol = parameterSymbols.get(index);
-            IOrigin parameterOrigin = compiler.toOrigin(parameter);
+            IOrigin parameterOrigin = reporter.toOrigin(parameter);
             Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym, parameter));
             // TODO use parameter.sym.type ?
             var syntacticType = compiler.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);

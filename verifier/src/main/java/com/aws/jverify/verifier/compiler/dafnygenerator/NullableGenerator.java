@@ -96,7 +96,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
 
     public ExpressionWithFlows translateLiteral(JCTree.JCLiteral literal, IOrigin originOverride,
                                        ExpressionContext context) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(literal));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(literal));
         if (literal.getValue() == null) {
             var immutable = context.expectedType() != null && context.expectedType().tsym instanceof Symbol.ClassSymbol classSymbol &&
                     this.baseGenerator.isImmutable(classSymbol);
@@ -121,7 +121,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     private ExpressionWithFlows translateAssign(JCTree.JCAssign assign, IOrigin originOverride, ExpressionContext context) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(assign));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(assign));
         if (assign.getExpression().type.tsym instanceof Symbol.ClassSymbol valueClass) {
             var isImmutable = baseGenerator.isImmutable(valueClass);
             if (isImmutable) {
@@ -150,7 +150,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     private ExpressionWithFlows translateInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(invocation));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(invocation));
         if (invocation.meth instanceof JCTree.JCFieldAccess fieldAccess && 
                 fieldAccess.getExpression().type.tsym instanceof Symbol.ClassSymbol valueClass) {
             var valueIsNullable = isNullable(fieldAccess.getExpression().type);

@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.sun.tools.javac.code.Symbol;
@@ -14,6 +15,7 @@ import java.util.stream.Stream;
 
 public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     final ExpressionCompiler expressionCompiler;
+    private final Reporter reporter;
     final BaseDafnyGenerator baseGenerator;
 
     public JVerifyGhostExpressionCompiler(DafnyGenerator next, 
@@ -21,6 +23,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         super(next);
         this.baseGenerator = baseGenerator;
         this.expressionCompiler = baseGenerator.expressionCompiler;
+        reporter = baseGenerator.reporter;
     }
 
     /**
@@ -68,7 +71,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      * not here.
      */
     public ExpressionWithFlows translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(invocation));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(invocation));
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return super.toExprWithFlows(invocation, origin, context);
@@ -89,11 +92,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                     throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
                 }
                 if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-                    baseGenerator.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+                    reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
                     return BaseDafnyGenerator.getHole(origin);
                 }
                 var boundVars = lambda.params.stream().map(param -> {
-                    var paramOrigin = baseGenerator.toOrigin(lambda);
+                    var paramOrigin = reporter.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
                     var paramType = baseGenerator.getFinalGenerator().translateType(param.getType().type, paramOrigin, param.getModifiers());
                     return new BoundVar(paramOrigin, paramName, paramType, false);
@@ -170,7 +173,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             }
         }
 
-        baseGenerator.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
+        reporter.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
         return BaseDafnyGenerator.getHole(origin);
     }
 
@@ -186,12 +189,12 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
         }
         if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-            baseGenerator.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+            reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
             return null;
         }
         var parameter = lambda.params.getFirst();
         var paramName = parameter.getName().toString();
-        var type = baseGenerator.getFinalGenerator().translateType(parameter.type, baseGenerator.toOrigin(parameter), null);
+        var type = baseGenerator.getFinalGenerator().translateType(parameter.type, reporter.toOrigin(parameter), null);
         var boundVar = new BoundVar(origin, new Name(origin, paramName), type, false);
         var body = baseGenerator.expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
         if ("all".equals(methodName)) {

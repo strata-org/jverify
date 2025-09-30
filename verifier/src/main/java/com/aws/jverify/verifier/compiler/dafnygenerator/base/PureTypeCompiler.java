@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 public class PureTypeCompiler {
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final BaseDafnyGenerator compiler;
+    private final Reporter reporter;
     private final Symtab symtab;
     private final Names names;
 
@@ -27,6 +29,7 @@ public class PureTypeCompiler {
         this.compiler = typeDeclarationCompiler.compiler;
         symtab = Symtab.instance(compiler.context);
         names = Names.instance(compiler.context);
+        reporter = compiler.reporter;
     }
 
     public TopLevelDeclWithMembers translate(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -80,16 +83,16 @@ public class PureTypeCompiler {
                 var methodName = methodDecl.getName().toString();
                 var params = methodDecl.getParameters();
                 if (compNames.contains(methodName) && params.isEmpty()) {
-                    compiler.reportError(member, "notSupported", "explicit record component accessor method");
+                    reporter.reportError(member, "notSupported", "explicit record component accessor method");
                     continue;
                 } else if(symtab.recordType.tsym != classDecl.sym && classSymbol.isRecord()) {
                     if ("equals".equals(methodName)
                             && params.length() == 1
                             && params.getFirst().type.toString().equals(Object.class.getName())) {
-                        compiler.reportError(member, "notSupported", "overridden equals method in record");
+                        reporter.reportError(member, "notSupported", "overridden equals method in record");
                         continue;
                     } else if ("hashCode".equals(methodName) && params.isEmpty()) {
-                        compiler.reportError(member, "notSupported", "overridden hashCode method in record");
+                        reporter.reportError(member, "notSupported", "overridden hashCode method in record");
                         continue;
                     }
                 }
@@ -97,8 +100,8 @@ public class PureTypeCompiler {
                 fields.add(variableDecl);
                 if (isAbstract) {
                     Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
-                    var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
-                    Type type = compiler.getFinalGenerator().translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
+                    var fieldOrigin = reporter.declToOrigin(variableDecl, fieldName);
+                    Type type = compiler.getFinalGenerator().translateType(variableDecl.vartype.type, reporter.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
                     members.add(new ConstantField(fieldOrigin, fieldName, null, BaseDafnyGenerator.Ghostness, type, null, false, false));
                 }
                 continue;
@@ -110,7 +113,7 @@ public class PureTypeCompiler {
         }
 
         if (compiler.isAnnotatedRecursive(classDecl.type, Impure.class)) {
-            compiler.reportError(origin, "modifiableForbidden", "a record class");
+            reporter.reportError(origin, "modifiableForbidden", "a record class");
             traits.clear();
         }
 
@@ -182,7 +185,7 @@ public class PureTypeCompiler {
                 ens = classDecl.getMembers().stream().filter(m -> m instanceof JCTree.JCVariableDecl).map(member ->
                 {
                     var field = (JCTree.JCVariableDecl)member;
-                    IOrigin fieldOrigin = compiler.toOrigin(field);
+                    IOrigin fieldOrigin = reporter.toOrigin(field);
                     var fieldName = new Name(fieldOrigin, compiler.nameCompiler.getCompiledName(field.sym, fieldOrigin));
                     BinaryExpr e = new BinaryExpr(fieldOrigin, BinaryExprOpcode.Eq, 
                             new ExprDotName(fieldOrigin, resultReference, fieldName, null),
@@ -198,7 +201,7 @@ public class PureTypeCompiler {
             members.add(staticFunction);
         } else {
             if (dafnyMember != null) {
-                compiler.reportError(methodDecl, "notSupported", "verified explicit record constructor");
+                reporter.reportError(methodDecl, "notSupported", "verified explicit record constructor");
             }
         }
     }
@@ -220,12 +223,12 @@ public class PureTypeCompiler {
      * that can be used in pure contexts.
      */
     public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass, ExpressionContext expressionContext) {
-
         BaseDafnyGenerator compiler = expressionCompiler.baseGenerator;
+        var reporter = compiler.reporter;
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
             typeArgs = compiler.getOwnAndEnclosedTypeParameters(newClass.type.tsym).map(
-                    tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
+                    tp -> compiler.translateType(tp.type, reporter.toOrigin(tp))).collect(Collectors.toList());
         }
         typeArgs.addAll(newClass.type.getTypeArguments().map(t -> expressionCompiler.baseGenerator.translateType(t, origin)));
 

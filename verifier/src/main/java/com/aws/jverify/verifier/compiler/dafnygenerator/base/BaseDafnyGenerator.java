@@ -343,7 +343,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
     
     public @Nullable Type translateType(JCTree tree) {
-        return finalGenerator.translateType(tree.type, toOrigin(tree), null);
+        return finalGenerator.translateType(tree.type, reporter.toOrigin(tree), null);
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
@@ -384,16 +384,8 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             default -> {
             }
         }
-        reportError(origin, "notSupported", "type " + type.getClass().getName());
+        reporter.reportError(origin, "notSupported", "type " + type.getClass().getName());
         return null;
-    }
-
-    public void reportError(JCTree tree, String key, Object... args) {
-        reporter.reportError(tree, key, args);
-    }
-    
-    public void reportError(IOrigin origin, String key, Object... args) {
-        reporter.reportError(origin, key, args);
     }
     
     public UserDefinedType translateArrayType(com.sun.tools.javac.code.Type.ArrayType arrayTypeTree,
@@ -438,7 +430,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                     }
                 } else {
                     if (primitiveTypeKind != TypeKind.INT) {
-                        reportError(origin, "unboundedNonInt", type.toString());
+                        reporter.reportError(origin, "unboundedNonInt", type.toString());
                     }
                     if (isNat) {
                         return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
@@ -461,7 +453,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
         }
 
-        reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
+        reporter.reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
         return null;
     }
 
@@ -481,7 +473,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         var superBound = wildcardType.getSuperBound();
         if (superBound != null) {
             if (translatingVerifiedMethodSignature) {
-                reportError(origin, "notSupported", "keyword 'super' in method signature");
+                reporter.reportError(origin, "notSupported", "keyword 'super' in method signature");
             }
             if (superBound instanceof com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType) {
                 // TODO add test
@@ -500,7 +492,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
         if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
             var ownerTypes = getOwnAndEnclosedTypeParameters(classType.tsym).toList();
-            Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, toOrigin(tp)));
+            Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, reporter.toOrigin(tp)));
             typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
         }
         var typeArguments = typeArgumentsStream.toList();
@@ -564,25 +556,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
 
     public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
         return methodSymbol.name == methodSymbol.name.table.names.init;
-    }
-
-    public SourceOrigin declToOrigin(JCTree node, Name name) {
-        var entireRange = toOrigin(node);
-        return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
-    }
-    
-    public IOrigin toOrigin(JCTree node) {
-        return reporter.toOrigin(node);
-    }
-
-    public static TokenRange originToRange(IOrigin tokenRangeOrigin) {
-        if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
-            return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
-        } else if (tokenRangeOrigin instanceof TokenRangeOrigin trOrigin) {
-            return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
-        } else {
-            throw new BaseDafnyGenerator.NotImplementedException(tokenRangeOrigin.getClass().getName());
-        }
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
