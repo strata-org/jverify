@@ -27,12 +27,16 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     private final TreeMaker maker;
     private final Reporter reporter;
     private final JVerifyUtils jverifyUtils;
+    private final NameCompiler nameCompiler;
+    private final ExpressionCompiler expressionCompiler;
 
     private MethodOrLoopContractCompiler(Context context) {
         context.put(MethodOrLoopContractCompiler.class, this);
         this.maker = TreeMaker.instance(context);
         this.reporter = Reporter.instance(context);
         this.jverifyUtils = JVerifyUtils.instance(context);
+        this.nameCompiler = NameCompiler.instance(context);
+        expressionCompiler = context.get(BaseDafnyGenerator.class).expressionCompiler;
     }
 
     public static JCTree.@Nullable JCBlock getImplementation(JCTree.JCMethodDecl method) {
@@ -314,8 +318,10 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return true;
     }
 
-    private static void handlePostcondition(BaseDafnyGenerator compiler, MethodOrLoopContract header, JCTree.JCExpression expr) {
-        var reporter = compiler.reporter;
+    private static void handlePostcondition(BaseDafnyGenerator baseGenerator, MethodOrLoopContract header, JCTree.JCExpression expr) {
+        var reporter = baseGenerator.reporter;
+        var nameCompiler = baseGenerator.nameCompiler;
+        var expressionCompiler = baseGenerator.expressionCompiler;
         
         if (expr instanceof JCTree.JCLambda lambda) {
             if (lambda.getParameters().size() != 1) {
@@ -324,14 +330,14 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var parameter = lambda.params.getFirst();
             var origin = reporter.toOrigin(lambda);
             var paramName = parameter.getName().toString();
-            var type = compiler.getFinalGenerator().translateType(parameter.type, reporter.toOrigin(parameter), null);
+            var type = baseGenerator.translateType(parameter.type, reporter.toOrigin(parameter), null);
 
             var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
             var lhs = new CasePattern<>(origin, paramName, returnVar, null);
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
                     : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var origCondition = compiler.expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
+            var origCondition = baseGenerator.expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
             var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 
@@ -339,15 +345,15 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var origin = reporter.toOrigin(memberReference);
             NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
-                    compiler.expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
-                    compiler.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
+                    expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
+                    nameCompiler.getName(memberReference, baseGenerator.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
             var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
             header.postconditions.add(new AttributedExpression(call, null, null));
         } else if (expr instanceof JCTree.JCTypeCast typeCast) {
             // Casts like (IntPredicate) are sometimes necessary to disambiguate
-            handlePostcondition(compiler, header, typeCast.getExpression());
+            handlePostcondition(baseGenerator, header, typeCast.getExpression());
         } else {
-            var dafnyExpr = compiler.expressionCompiler.toExpr(expr, ExpressionContext.Pure);
+            var dafnyExpr = baseGenerator.expressionCompiler.toExpr(expr, ExpressionContext.Pure);
             header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
         }
     }

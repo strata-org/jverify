@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -13,12 +14,16 @@ import java.util.stream.Stream;
 
 public class NullableGenerator extends WrappingDafnyGenerator {
     private final BaseDafnyGenerator baseGenerator;
+    private final DafnyGenerator generator;
+    private final NameCompiler nameCompiler;
     private final Reporter reporter;
     
     public NullableGenerator(BaseDafnyGenerator baseGenerator, DafnyGenerator next) {
         super(next);
         this.baseGenerator = baseGenerator;
         reporter = baseGenerator.reporter;
+        generator = baseGenerator.context.get(DafnyGenerator.class);
+        nameCompiler = NameCompiler.instance(baseGenerator.context);
     }
 
     @Override
@@ -130,7 +135,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
                 if (!nullableTarget && nullableValue) {
                     Expression target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
                     List<Expression> lhss = List.of(target);
-                    var valueExpr = baseGenerator.getFinalGenerator().toExpr(assign.getExpression(), origin, context);
+                    var valueExpr = generator.toExpr(assign.getExpression(), origin, context);
                     var nonNullValueExpr = new ExprDotName(origin, valueExpr, new Name(origin, "value"), null);
                     List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, nonNullValueExpr));
                     context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
@@ -138,7 +143,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
                 } else if (nullableTarget && !nullableValue) {
                     Expression target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
                     List<Expression> lhss = List.of(target);
-                    var nonNullValueExpr = baseGenerator.getFinalGenerator().toExpr(assign.getExpression(), origin, context);
+                    var nonNullValueExpr = generator.toExpr(assign.getExpression(), origin, context);
                     var nullableValueExpr = ExpressionCompiler.createCall2(origin, new NameSegment(origin, "NonNull", null), Stream.of(nonNullValueExpr));
                     List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, nullableValueExpr));
                     context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
@@ -158,7 +163,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
             if (valueIsNullable && valueIsImmutable) {
                 var nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(fieldAccess.getExpression(), null);
                 var nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
-                var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, baseGenerator.getName(fieldAccess, fieldAccess.name), null);
+                var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, nameCompiler.getName(fieldAccess, fieldAccess.name), null);
                 return new ExpressionWithFlows(baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), context));
             }
         }

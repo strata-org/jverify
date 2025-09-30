@@ -4,7 +4,9 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.TypeDeclarationCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.util.Context;
 
 import java.util.*;
 
@@ -14,9 +16,11 @@ import java.util.*;
  */
 public class TraitWithConstructorCompiler {
     private final TypeDeclarationCompiler typeDeclarationCompiler;
+    private final NameCompiler nameCompiler;
 
-    public TraitWithConstructorCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
+    public TraitWithConstructorCompiler(Context context, TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
+        nameCompiler = NameCompiler.instance(context);
     }
 
     public @Nullable List<TopLevelDecl> compile(TopLevelDecl clazz, Symbol.ClassSymbol symbol) {
@@ -74,7 +78,7 @@ public class TraitWithConstructorCompiler {
             var traitRef = new UserDefinedType(traitDecl.getOrigin(), 
                     new NameSegment(traitDecl.getOrigin(), nameNode.getValue(), typeArgs));
             var clazz = new ClassDecl(traitDecl.getOrigin(), new Name(nameNode.getOrigin(), 
-                    typeDeclarationCompiler.compiler.nameCompiler.CLASS_PREFIX + nameNode.getValue()), null,
+                    nameCompiler.CLASS_PREFIX + nameNode.getValue()), null,
                     typeParameters, classMembers, List.of(traitRef), false);
             return List.of(trait, clazz);
         } else {
@@ -95,7 +99,7 @@ public class TraitWithConstructorCompiler {
             body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(),
                     constructor.getBody().getBodyInit());
         }
-        Name nameNode = new Name(constructor.getNameNode().getOrigin(), typeDeclarationCompiler.compiler.nameCompiler.getInitMethodName(className, constructor.getNameNode().getValue()));
+        Name nameNode = new Name(constructor.getNameNode().getOrigin(), nameCompiler.getInitMethodName(className, constructor.getNameNode().getValue()));
         var frameExpressions = new ArrayList<>(constructor.getMod().getExpressions());
         var modClause = new Specification<>(frameExpressions, constructor.getMod().getAttributes());
         frameExpressions.add(new FrameExpression(constructor.getOrigin(), new ThisExpr(constructor.getOrigin()), null));

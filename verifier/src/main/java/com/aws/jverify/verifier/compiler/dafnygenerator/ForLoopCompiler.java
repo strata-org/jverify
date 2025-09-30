@@ -8,18 +8,20 @@ import com.aws.jverify.generated.Statement;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
 
 public class ForLoopCompiler implements StatementCompiler {
-
-    BlockCompiler blockCompiler;
+    private final BlockCompiler blockCompiler;
+    private final NameCompiler nameCompiler;
     private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
 
     public ForLoopCompiler(BlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
+        nameCompiler = NameCompiler.instance(blockCompiler.generator.context);
     }
 
     @Override
@@ -90,7 +92,7 @@ public class ForLoopCompiler implements StatementCompiler {
         var origin = blockCompiler.reporter.toOrigin(jcContinue);
         forLoopsWithContinue.add(forLoop);
         var label = getForLoopContinueLabel(forLoop);
-        return List.of(new BreakOrContinueStmt(origin, null, blockCompiler.generator.getName(jcContinue, label),
+        return List.of(new BreakOrContinueStmt(origin, null, nameCompiler.getName(jcContinue, label),
                 0, false));
     }
 

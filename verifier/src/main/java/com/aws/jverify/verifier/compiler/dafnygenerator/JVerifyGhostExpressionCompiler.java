@@ -7,6 +7,7 @@ import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
@@ -17,11 +18,13 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     final ExpressionCompiler expressionCompiler;
     private final Reporter reporter;
     final BaseDafnyGenerator baseGenerator;
+    DafnyGenerator generator;
 
-    public JVerifyGhostExpressionCompiler(DafnyGenerator next, 
-                                          BaseDafnyGenerator baseGenerator) {
+    public JVerifyGhostExpressionCompiler(Context context, 
+                                          DafnyGenerator next) {
         super(next);
-        this.baseGenerator = baseGenerator;
+        this.baseGenerator = context.get(BaseDafnyGenerator.class);
+        generator = context.get(DafnyGenerator.class);
         this.expressionCompiler = baseGenerator.expressionCompiler;
         reporter = baseGenerator.reporter;
     }
@@ -98,7 +101,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = reporter.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = baseGenerator.getFinalGenerator().translateType(param.getType().type, paramOrigin, param.getModifiers());
+                    var paramType = generator.translateType(param.getType().type, paramOrigin, param.getModifiers());
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
@@ -194,7 +197,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         }
         var parameter = lambda.params.getFirst();
         var paramName = parameter.getName().toString();
-        var type = baseGenerator.getFinalGenerator().translateType(parameter.type, reporter.toOrigin(parameter), null);
+        var type = generator.translateType(parameter.type, reporter.toOrigin(parameter), null);
         var boundVar = new BoundVar(origin, new Name(origin, paramName), type, false);
         var body = baseGenerator.expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
         if ("all".equals(methodName)) {

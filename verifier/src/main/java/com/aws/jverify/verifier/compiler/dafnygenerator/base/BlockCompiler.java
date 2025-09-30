@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 public class BlockCompiler {
     public final BaseDafnyGenerator generator;
     public final Reporter reporter;
+    private final NameCompiler nameCompiler;
     private final ExpressionCompiler expressionCompiler;
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
@@ -25,6 +26,7 @@ public class BlockCompiler {
         reporter = compiler.reporter;
         expressionCompiler = compiler.expressionCompiler;
         this.methodSymbol = methodSymbol;
+        nameCompiler = NameCompiler.instance(compiler.context);
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         statementCompilers.add(new ForLoopCompiler(this));
         statementCompilers.add(new DoWhileLoopCompiler(this));
@@ -49,7 +51,7 @@ public class BlockCompiler {
         var labels = this.labels.stream().toList();
         this.labels.clear();
         
-        return generator.getFinalGenerator().translateStatementAfterLabel(this, statement, labels, origin);
+        return generator.translateStatementAfterLabel(this, statement, labels, origin);
     }
 
     public List<Statement> translateStatementAfterlabel(JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
@@ -95,7 +97,7 @@ public class BlockCompiler {
         if (jcBreak.label == null) {
             result = new BreakOrContinueStmt(origin, null, null, 1, false);
         } else {
-            var targetLabel = generator.getName(jcBreak, jcBreak.label);
+            var targetLabel = nameCompiler.getName(jcBreak, jcBreak.label);
             result = new BreakOrContinueStmt(origin, null, targetLabel, 0, false);
         }
         return List.of(result);
@@ -106,7 +108,7 @@ public class BlockCompiler {
         if (jcContinue.label == null) {
             return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
         } else {
-            var targetLabel = generator.getName(jcContinue, jcContinue.label);
+            var targetLabel = nameCompiler.getName(jcContinue, jcContinue.label);
             return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));
         }
     }
@@ -152,7 +154,7 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl, ExpressionContext expressionContext) {
-        Type translatedType = generator.getFinalGenerator().translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
+        Type translatedType = generator.translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
         LocalVariable localVariable = new LocalVariable(origin, generator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
@@ -201,7 +203,7 @@ public class BlockCompiler {
         if (expr instanceof JCTree.JCMethodInvocation invocation) {
             return translateStatementMethodInvocation(invocation, expressionContext);
         }
-        generator.getFinalGenerator().toExprWithFlows(expr, originOverride, expressionContext);
+        generator.toExprWithFlows(expr, originOverride, expressionContext);
         return List.of();
     }
 
@@ -255,7 +257,7 @@ public class BlockCompiler {
             return List.of(initCall);
         }
 
-        var expr = generator.getFinalGenerator().toExpr(invocation, null, expressionContext);
+        var expr = generator.toExpr(invocation, null, expressionContext);
         return List.of(new AssignStatement(origin, null, List.of(),
                 List.of(new ExprRhs(expr.getOrigin(), null, expr)), false));
     }

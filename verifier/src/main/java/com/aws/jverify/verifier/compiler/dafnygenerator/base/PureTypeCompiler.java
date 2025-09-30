@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -10,6 +11,7 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Names;
 
 import javax.lang.model.type.TypeKind;
@@ -18,18 +20,22 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class PureTypeCompiler {
+    private final DafnyGenerator generator;
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final BaseDafnyGenerator compiler;
     private final Reporter reporter;
     private final Symtab symtab;
     private final Names names;
+    private final NameCompiler nameCompiler;
 
-    public PureTypeCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
+    public PureTypeCompiler(Context context, TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
-        this.compiler = typeDeclarationCompiler.compiler;
+        this.compiler = typeDeclarationCompiler.baseGenerator;
         symtab = Symtab.instance(compiler.context);
         names = Names.instance(compiler.context);
+        nameCompiler = NameCompiler.instance(compiler.context);
         reporter = compiler.reporter;
+        generator = context.get(DafnyGenerator.class);
     }
 
     public TopLevelDeclWithMembers translate(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -43,13 +49,12 @@ public class PureTypeCompiler {
 
         var traits = classSymbol
                 .getInterfaces().stream()
-                .map(baseType -> compiler.getFinalGenerator().translateType(baseType, origin, null))
+                .map(baseType -> generator.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
         var superClass = classDecl.sym.getSuperclass();
         var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
         if (superClass != null) {
-            Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym) {
                 traits.addFirst(pureObjectType);
             } if (superClass.getKind() == TypeKind.NONE) {
@@ -58,7 +63,7 @@ public class PureTypeCompiler {
                 }
             } else {
                 if (BaseDafnyGenerator.typeHasSource(compiler.index, superClass.tsym)) {
-                    traits.addFirst(compiler.getFinalGenerator().translateType(superClass, origin, null));
+                    traits.addFirst(generator.translateType(superClass, origin, null));
                 }
             }
         } else {
@@ -99,9 +104,9 @@ public class PureTypeCompiler {
             } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 fields.add(variableDecl);
                 if (isAbstract) {
-                    Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
+                    Name fieldName = nameCompiler.getName(variableDecl, variableDecl.sym);
                     var fieldOrigin = reporter.declToOrigin(variableDecl, fieldName);
-                    Type type = compiler.getFinalGenerator().translateType(variableDecl.vartype.type, reporter.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
+                    Type type = generator.translateType(variableDecl.vartype.type, reporter.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
                     members.add(new ConstantField(fieldOrigin, fieldName, null, BaseDafnyGenerator.Ghostness, type, null, false, false));
                 }
                 continue;
@@ -162,7 +167,7 @@ public class PureTypeCompiler {
                     return resultReference;
                 } else {
                     var identName = compiler.nameCompiler.getCompiledName(identifier.sym, origin);
-                    return new ExprDotName(origin, resultReference, compiler.getName(identifier, identName), null);
+                    return new ExprDotName(origin, resultReference, nameCompiler.getName(identifier, identName), null);
                 }
             } else {
                 return compiler.expressionCompiler.translateIdentifierNoOverride(identifier, innerOrigin);
@@ -239,7 +244,7 @@ public class PureTypeCompiler {
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.baseGenerator.getNameCompiler().getCompiledName(newClass.constructor, origin);
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
-        var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.baseGenerator.getName(newClass, constructorName), null);
+        var dafnyConstructor = new ExprDotName(origin, datatypeReference, compiler.nameCompiler.getName(newClass, constructorName), null);
 
         return expressionCompiler.createCall(origin, dafnyConstructor, newClass.args.stream(), expressionContext);
     }

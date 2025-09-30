@@ -13,6 +13,7 @@ import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
@@ -28,14 +29,16 @@ import java.util.stream.Stream;
 public class ExpressionCompiler {
     public final Reporter reporter;
     public final BaseDafnyGenerator baseGenerator;
+    public final DafnyGenerator generator;
+    private final NameCompiler nameCompiler;
     private final JVerifyUtils utils;
-    
-    DafnyGenerator getGenerator() { return baseGenerator.getFinalGenerator();}
 
-    public ExpressionCompiler(BaseDafnyGenerator baseGenerator) {
+    public ExpressionCompiler(Context context, BaseDafnyGenerator baseGenerator) {
         this.baseGenerator = baseGenerator;
-        reporter = Reporter.instance(baseGenerator.context);
-        utils = JVerifyUtils.instance(baseGenerator.context);
+        generator = context.get(DafnyGenerator.class);
+        reporter = Reporter.instance(context);
+        utils = JVerifyUtils.instance(context);
+        nameCompiler = NameCompiler.instance(context);
     }
 
     public ExpressionWithFlows toExprWithFlows(JCTree tree, ExpressionContext context) {
@@ -162,18 +165,18 @@ public class ExpressionCompiler {
 
     public Expression toExpr(JCTree tree, ExpressionContext context) {
         if (tree instanceof JCTree.JCExpression expression) {
-            return getGenerator().toExprWithFlows(expression, null, context).expression();
+            return generator.toExprWithFlows(expression, null, context).expression();
         }
         reporter.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
         return BaseDafnyGenerator.getHole(reporter.toOrigin(tree));
     }
     
     public Expression toExpr(JCTree.JCExpression expr, ExpressionContext context) {
-        return getGenerator().toExprWithFlows(expr, null, context).expression();
+        return generator.toExprWithFlows(expr, null, context).expression();
     }
     
     public ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, ExpressionContext context) {
-        return getGenerator().toExprWithFlows(expr, null, context);
+        return generator.toExprWithFlows(expr, null, context);
     }
 
     public ExpressionWithFlows toExprBase(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
@@ -263,7 +266,7 @@ public class ExpressionCompiler {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(expr));
         switch (expr) {
             case JCTree.JCNewClass newClass -> {
-                return baseGenerator.getFinalGenerator().translateNewClassToAssignmentRhs(newClass, origin, expressionContext);
+                return generator.translateNewClassToAssignmentRhs(newClass, origin, expressionContext);
             }
             case JCTree.JCNewArray _ -> {
                 throw new RuntimeException("not supported. should have already been lowered");
@@ -271,7 +274,7 @@ public class ExpressionCompiler {
             default -> {
             }
         }
-        var dafnyExpr = getGenerator().toExpr(expr, origin, expressionContext);
+        var dafnyExpr = generator.toExpr(expr, origin, expressionContext);
         return new ExprRhs(origin, null, dafnyExpr);
     }
 
@@ -298,7 +301,7 @@ public class ExpressionCompiler {
                     "using 'new' in a pure expression to create an instance of an impure type");
             return BaseDafnyGenerator.getReferenceHole(origin);
         } else {
-            var rhs = getGenerator().translateNewClassToAssignmentRhs(newClass, origin, context);
+            var rhs = generator.translateNewClassToAssignmentRhs(newClass, origin, context);
             return placeRhsIntoTemporaryAssignmentAndReturnResult(newClass.type, rhs, context);
         }
     }
@@ -333,7 +336,7 @@ public class ExpressionCompiler {
     
     Expression placeRhsIntoTemporaryAssignmentAndReturnResult(com.sun.tools.javac.code.Type type, AssignmentRhs rhs, ExpressionContext context) {
         var origin = rhs.getOrigin();
-        Type translatedType = this.baseGenerator.getFinalGenerator().translateType(type, origin, null);
+        Type translatedType = generator.translateType(type, origin, null);
         LocalVariable localVariable = new LocalVariable(origin, "impure" + NameCompiler.sep + context.getVariableSuffix(),
                 translatedType, false);
         List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
@@ -504,8 +507,8 @@ public class ExpressionCompiler {
             List<Type> arguments;
             if (typeApply.getTypeArguments().isEmpty()) {
                 // Occurs when the type arguments were inferred
-                arguments = typeApply.type.getTypeArguments().stream().map(t -> 
-                        baseGenerator.getFinalGenerator().translateType(t, origin, null)).toList();
+                arguments = typeApply.type.getTypeArguments().stream().map(t ->
+                        generator.translateType(t, origin, null)).toList();
             } else {
                 arguments = typeApply.getTypeArguments().stream().map(baseGenerator::translateType).toList();
             }
@@ -523,7 +526,7 @@ public class ExpressionCompiler {
         var selectedExpr = toExpr(fieldAccess.selected, context);
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
-            ExprDotName callee = new ExprDotName(origin, selectedExpr, baseGenerator.getName(fieldAccess, "length"), null);
+            ExprDotName callee = new ExprDotName(origin, selectedExpr, nameCompiler.getName(fieldAccess, "length"), null);
             return createCall(origin, callee, Stream.of(), context);
         }
         
@@ -538,7 +541,7 @@ public class ExpressionCompiler {
                 // Dafny needs an explicit cast otherwise it won't find the members from the type parameter bounds
                 selectedExpr = new ConversionExpr(origin, selectedExpr, baseGenerator.translateType(classType, origin), "");
             }
-            return new ExprDotName(origin, selectedExpr, baseGenerator.getName(fieldAccess, fieldName), null);
+            return new ExprDotName(origin, selectedExpr, nameCompiler.getName(fieldAccess, fieldName), null);
         }
     }
 
@@ -566,8 +569,8 @@ public class ExpressionCompiler {
                 } else {
                     receiver = BaseDafnyGenerator.getHole(origin);
                 }
-                var fieldNameStr = baseGenerator.nameCompiler.getCompiledName(component.get(), origin);
-                var fieldName = baseGenerator.getName(invocation.getMethodSelect(), fieldNameStr);
+                var fieldNameStr = nameCompiler.getCompiledName(component.get(), origin);
+                var fieldName = nameCompiler.getName(invocation.getMethodSelect(), fieldNameStr);
                 return new ExprDotName(origin, receiver, fieldName, null);
             }
         }

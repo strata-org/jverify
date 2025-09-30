@@ -2,6 +2,8 @@ package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;

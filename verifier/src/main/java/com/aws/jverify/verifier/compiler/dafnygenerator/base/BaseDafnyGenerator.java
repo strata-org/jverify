@@ -52,11 +52,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public final JavacElements elements;
     public final VerifierOptions verifierOptions;
     public final JVerifyIndex index;
-    private DafnyGenerator finalGenerator;
-
-    public DafnyGenerator getFinalGenerator() {
-        return finalGenerator;
-    }
+    private DafnyGenerator generator;
 
     /**
      * Edges are from child to parent types, similar to the references in the code
@@ -71,13 +67,14 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         this.context = context;
         this.verifierOptions = context.get(VerifierOptions.class);
 
-        expressionCompiler = new ExpressionCompiler(this);
+        expressionCompiler = new ExpressionCompiler(context, this);
         elements = JavacElements.instance(context);
         reporter = Reporter.instance(context);
         nameCompiler = NameCompiler.instance(context);
-        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
+        typeDeclarationCompiler = new TypeDeclarationCompiler(context);
         index = JVerifyIndex.instance(context);
         names = Names.instance(context);
+        generator = context.get(DafnyGenerator.class);
     }
 
     public NameCompiler getNameCompiler() {
@@ -259,10 +256,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                 && (classType.asElement().flags() & Flags.RECORD) != 0;
     }
 
-    public void setFinalGenerator(DafnyGenerator finalGenerator) {
-        this.finalGenerator = finalGenerator;
-    }
-
     static class NotImplementedException extends RuntimeException {
         public NotImplementedException(String message) {
             super(message);
@@ -343,18 +336,18 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
     
     public @Nullable Type translateType(JCTree tree) {
-        return finalGenerator.translateType(tree.type, reporter.toOrigin(tree), null);
+        return generator.translateType(tree.type, reporter.toOrigin(tree), null);
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
         translatingVerifiedMethodSignature = willVerify;
-        var result = finalGenerator.translateType(type, origin, null);
+        var result = generator.translateType(type, origin, null);
         translatingVerifiedMethodSignature = false;
         return result;
     }
     
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
-        return finalGenerator.translateType(type, origin, null);
+        return generator.translateType(type, origin, null);
     }
 
     @Nullable
@@ -367,13 +360,13 @@ public class BaseDafnyGenerator implements DafnyGenerator {
 
         switch (type) {
             case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
-                return finalGenerator.translateArrayType(arrayTypeTree, origin, additionalModifiers);
+                return generator.translateArrayType(arrayTypeTree, origin, additionalModifiers);
             }
             case com.sun.tools.javac.code.Type.IntersectionClassType _ -> {
                 return null;
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
-                return finalGenerator.translateClassType(origin, additionalModifiers, classType);
+                return generator.translateClassType(origin, additionalModifiers, classType);
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym, origin), null));
@@ -391,7 +384,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public UserDefinedType translateArrayType(com.sun.tools.javac.code.Type.ArrayType arrayTypeTree,
                                               IOrigin origin,
                                               JCTree.JCModifiers additionalModifiers) {
-        var elemType = finalGenerator.translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
+        var elemType = generator.translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
         if (elemType == null) {
             // should be unreachable
             throw new IllegalArgumentException("Array type without element type");
@@ -531,27 +524,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
 
         return null;
-    }
-
-    public Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
-        return getName(tree, name.toString());
-    }
-
-    public Name getName(JCTree tree, Symbol symbol) {
-        return getName(tree, nameCompiler.getCompiledName(symbol, tree), symbol.name.length());
-    }
-
-    public Name getName(JCTree tree, String name) {
-        return getName(tree, name, name.length());
-    }
-
-    public Name getName(JCTree tree, String name, int length) {
-        var positionCalculator = new PositionCalculator(reporter.compilationUnit);
-        int startPos = positionCalculator.getStartPos(tree);
-        var startToken = positionCalculator.toToken(startPos);
-        var endToken = positionCalculator.toToken(startPos + length);
-        var origin = startToken == null ? reporter.contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
-        return new Name(origin, name);
     }
 
     public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {

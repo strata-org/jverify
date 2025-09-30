@@ -2,6 +2,8 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.IOrigin;
+import com.aws.jverify.generated.TokenRangeOrigin;
+import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.ImpureObjectGenerator;
 import com.sun.tools.javac.code.Symbol;
@@ -274,5 +276,26 @@ public class NameCompiler extends TreeScanner {
 
     public String getInitMethodName(String className, String constructorName) {
         return constructorName.replace("ctor", INIT_METHOD_PREFIX) + className;
+    }
+
+    public com.aws.jverify.generated.Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
+        return getName(tree, name.toString());
+    }
+
+    public com.aws.jverify.generated.Name getName(JCTree tree, Symbol symbol) {
+        return getName(tree, getCompiledName(symbol, tree), symbol.name.length());
+    }
+
+    public com.aws.jverify.generated.Name getName(JCTree tree, String name) {
+        return getName(tree, name, name.length());
+    }
+
+    public com.aws.jverify.generated.Name getName(JCTree tree, String name, int length) {
+        var positionCalculator = new PositionCalculator(reporter.compilationUnit);
+        int startPos = positionCalculator.getStartPos(tree);
+        var startToken = positionCalculator.toToken(startPos);
+        var endToken = positionCalculator.toToken(startPos + length);
+        var origin = startToken == null ? reporter.contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
+        return new com.aws.jverify.generated.Name(origin, name);
     }
 }

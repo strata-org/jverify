@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.ImpureObjectGenerator;
@@ -16,6 +17,7 @@ import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.element.Modifier;
@@ -26,30 +28,40 @@ import java.util.stream.Stream;
 
 public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
-    public final BaseDafnyGenerator compiler;
+    public final DafnyGenerator generator;
+    public final BaseDafnyGenerator baseGenerator;
     private final VerifyAnnotationCompiler verifyAnnotationCompiler;
     private final Types types;
     private final NameCompiler nameCompiler;
+    private final ExpressionCompiler expressionCompiler;
     private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Reporter reporter;
+    private final JVerifyIndex index;
+    private final PureTypeCompiler pureTypeCompiler;
+    private final Symtab symtab;
+    private final TreeMaker treeMaker;
     private final JVerifyUtils jverifyUtils;
-    JVerifyIndex index;
     private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     public final Map<Symbol.MethodSymbol, MethodOrFunction> callables = new HashMap<>();
 
     private final TraitWithConstructorCompiler traitWithConstructorCompiler;
 
-    public TypeDeclarationCompiler(BaseDafnyGenerator compiler) {
-        this.compiler = compiler;
-        index = JVerifyIndex.instance(compiler.context);
-        reporter = Reporter.instance(compiler.context);
-        methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
-        jverifyUtils = JVerifyUtils.instance(compiler.context);
-        verifyAnnotationCompiler = new VerifyAnnotationCompiler(compiler.context);
-        types = Types.instance(compiler.context);
-        nameCompiler = NameCompiler.instance(compiler.context);
-        traitWithConstructorCompiler = new TraitWithConstructorCompiler(this);
+    public TypeDeclarationCompiler(Context context) {
+        this.generator = context.get(DafnyGenerator.class);
+        baseGenerator = context.get(BaseDafnyGenerator.class);
+        index = JVerifyIndex.instance(context);
+        reporter = Reporter.instance(context);
+        treeMaker = TreeMaker.instance(context);
+        symtab = Symtab.instance(context);
+        methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
+        jverifyUtils = JVerifyUtils.instance(context);
+        expressionCompiler = baseGenerator.expressionCompiler;
+        verifyAnnotationCompiler = new VerifyAnnotationCompiler(context);
+        types = Types.instance(context);
+        nameCompiler = NameCompiler.instance(context);
+        traitWithConstructorCompiler = new TraitWithConstructorCompiler(context, this);
+        pureTypeCompiler = new PureTypeCompiler(context, this);
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
@@ -60,7 +72,7 @@ public class TypeDeclarationCompiler {
                 return List.of();
             }
 
-            Name name = compiler.getName(classDecl, classDecl.sym);
+            Name name = nameCompiler.getName(classDecl, classDecl.sym);
             var origin = reporter.declToOrigin(classDecl, name);
             reporter.contextOrigins.push(origin);
 
@@ -68,7 +80,7 @@ public class TypeDeclarationCompiler {
             @Nullable TopLevelDecl intermediateResult = switch (classDecl.getKind()) {
                 case ENUM -> translateEnum(classDecl, origin, name);
                 case INTERFACE, CLASS -> translateInterfaceOrClass(classDecl, origin, name);
-                case RECORD -> new PureTypeCompiler(this).translate(classDecl, origin, name);
+                case RECORD -> pureTypeCompiler.translate(classDecl, origin, name);
                 case ANNOTATION_TYPE -> {
                     reporter.reportError(classDecl, "notSupported", "%s declaration".formatted(classDecl.getKind()));
                     yield null;
@@ -97,8 +109,8 @@ public class TypeDeclarationCompiler {
         List<DatatypeCtor> constructors = new ArrayList<>();
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
-                var variableName = compiler.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
-                Name constructorName = compiler.getName(variableDecl, variableName);
+                var variableName = nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
+                Name constructorName = nameCompiler.getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(reporter.declToOrigin(variableDecl, constructorName), constructorName,
                         null, false, List.of()));
 
@@ -108,8 +120,8 @@ public class TypeDeclarationCompiler {
     }
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        if (compiler.isAnonymousOrFinalImmutableType(classDecl.sym) || compiler.isImmutableClass(classDecl.sym)) {
-            return new PureTypeCompiler(this).translate(classDecl, origin, name);
+        if (baseGenerator.isAnonymousOrFinalImmutableType(classDecl.sym) || baseGenerator.isImmutableClass(classDecl.sym)) {
+            return pureTypeCompiler.translate(classDecl, origin, name);
         }
 
         for (var member : classDecl.getMembers()) {
@@ -144,7 +156,7 @@ public class TypeDeclarationCompiler {
 
         List<JCTree.JCTypeParameter> javaTypeParams = classDecl.typarams;
         if (classDecl.sym.isDirectlyOrIndirectlyLocal()) {
-            javaTypeParams = compiler.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
+            javaTypeParams = baseGenerator.getOwnAndEnclosedTypeParameters(classDecl.sym).toList();
         }
         var typeParameters = translateTypeParameters(javaTypeParams);
 
@@ -160,7 +172,6 @@ public class TypeDeclarationCompiler {
             baseTypes = Stream.concat(Stream.of(definingSymbol.getSuperclass()), baseTypes);
         }
 
-        var symtab = Symtab.instance(this.compiler.context);
         var superTraits = baseTypes
                 .filter(t -> t.tsym != null)
                 .map((com.sun.tools.javac.code.Type type) -> {
@@ -168,7 +179,7 @@ public class TypeDeclarationCompiler {
                         // A class that extends 'Object' will extend '@Impure Object' instead
                         return new UserDefinedType(origin, new NameSegment(origin, ImpureObjectGenerator.IMPURE_OBJECT_NAME, null));
                     }
-                    return compiler.getFinalGenerator().translateType(type, origin, null);
+                    return generator.translateType(type, origin, null);
                 })
                 .collect(Collectors.<Type>toList());
 
@@ -177,7 +188,7 @@ public class TypeDeclarationCompiler {
         }
 
         var mutable = !BaseDafnyGenerator.isInterface(definingSymbol)
-                || compiler.isAnnotated(definingSymbol.type, Impure.class);
+                || baseGenerator.isAnnotated(definingSymbol.type, Impure.class);
         if (mutable) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
@@ -207,8 +218,8 @@ public class TypeDeclarationCompiler {
 
     public List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
         return typarams.stream().map(p -> {
-            var name = compiler.getName(p, p.getName());
-            var bounds = p.bounds.map(compiler::translateType);
+            var name = nameCompiler.getName(p, p.getName());
+            var bounds = p.bounds.map(baseGenerator::translateType);
 
             IOrigin origin = reporter.toOrigin(p);
             return getTypeParameter(origin, bounds, name);
@@ -241,15 +252,15 @@ public class TypeDeclarationCompiler {
 
     public Field translateField(JCTree.JCVariableDecl variableDecl) {
         var varFlags = variableDecl.getModifiers().getFlags();
-        Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
+        Name fieldName = nameCompiler.getName(variableDecl, variableDecl.sym);
         IOrigin origin = reporter.declToOrigin(variableDecl, fieldName);
-        Type type = compiler.getFinalGenerator().translateType(variableDecl.type,
+        Type type = generator.translateType(variableDecl.type,
                 reporter.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
         
         if (variableDecl.getInitializer() != null) {
             if (varFlags.contains(Modifier.FINAL)) {
-                var rhs = compiler.expressionCompiler.toExprWithFlows(variableDecl.getInitializer(), ExpressionContext.Pure).expression();
+                var rhs = expressionCompiler.toExprWithFlows(variableDecl.getInitializer(), ExpressionContext.Pure).expression();
                 var isStatic = varFlags.contains(Modifier.STATIC);
                 return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
             }
@@ -263,7 +274,7 @@ public class TypeDeclarationCompiler {
 
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         var methodSymbol = method.sym;
-        compiler.symbolsWithAContract.add(methodSymbol);
+        baseGenerator.symbolsWithAContract.add(methodSymbol);
         var annotationsByName = BaseDafnyGenerator.getAnnotationsByName(method.mods);
         if (method.body == null) {
             return null;
@@ -281,7 +292,7 @@ public class TypeDeclarationCompiler {
 
         var contract = new MethodOrLoopContract(method, jverifyUtils.isPure(method.sym));
         var remainingStatements = methodOrLoopContractCompiler.
-                extractContract(compiler, method.body, contract);
+                extractContract(baseGenerator, method.body, contract);
 
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
@@ -298,8 +309,8 @@ public class TypeDeclarationCompiler {
 
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
 
-        var blockCompiler = new BlockCompiler(compiler, method.sym);
-        var name = compiler.getName(method, method.sym);
+        var blockCompiler = new BlockCompiler(baseGenerator, method.sym);
+        var name = nameCompiler.getName(method, method.sym);
         var origin = reporter.declToOrigin(method, name);
         var isStatic = BaseDafnyGenerator.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
@@ -309,7 +320,6 @@ public class TypeDeclarationCompiler {
 
         var outs = new ArrayList<Formal>();
         if (method.sym.type.getReturnType() != null) {
-            JVerifyIndex index = JVerifyIndex.instance(compiler.context);
             var methodDecl = (JCTree.JCMethodDecl) index.getTree(method.sym);
             IOrigin returnOrigin;
             if (methodDecl == null) {
@@ -318,7 +328,7 @@ public class TypeDeclarationCompiler {
                 var returnTypeDecl = methodDecl.getReturnType();
                 returnOrigin = reporter.toOrigin(returnTypeDecl);
             }
-            var returnType = compiler.translateMethodSignatureType(method.sym.type.getReturnType(), returnOrigin, shouldVerify);
+            var returnType = baseGenerator.translateMethodSignatureType(method.sym.type.getReturnType(), returnOrigin, shouldVerify);
             if (returnType != null) {
                 outs.add(makeReturnFormal(origin, returnType));
             }
@@ -327,7 +337,6 @@ public class TypeDeclarationCompiler {
         if (BaseDafnyGenerator.isConstructor(method.sym)) {
             DividedBlockStmt body;
             if (shouldVerify) {
-                var treeMaker = TreeMaker.instance(compiler.context);
 
                 var bodyStatements = new ArrayList<Statement>();
                 if (!postHeader.isEmpty()) {
@@ -381,11 +390,11 @@ public class TypeDeclarationCompiler {
                                          MethodOrLoopContract contract) {
         var sourceOrigin = reporter.toOrigin(method);
 
-        var name = compiler.getName(method, method.sym);
+        var name = nameCompiler.getName(method, method.sym);
         var origin = reporter.declToOrigin(method, name);
         var isStatic = BaseDafnyGenerator.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, sourceOrigin);
-        var returnType = compiler.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, shouldVerify);
+        var returnType = baseGenerator.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, shouldVerify);
         if (returnType == null) {
             reporter.reportError(method, "pureMethodsNeedsReturnType");
             return null;
@@ -409,8 +418,8 @@ public class TypeDeclarationCompiler {
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {
             for (var invariant : invariants) {
-                var memberName = compiler.nameCompiler.getCompiledName(invariant.sym, invariant);
-                var invariantName = compiler.getName(invariant, invariant.getName());
+                var memberName = nameCompiler.getCompiledName(invariant.sym, invariant);
+                var invariantName = nameCompiler.getName(invariant, invariant.getName());
                 var invariantOrigin = reporter.declToOrigin(invariant, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                         memberName, null), null, new ActualBindings(List.of()), null);
@@ -432,9 +441,9 @@ public class TypeDeclarationCompiler {
             var parameter = method.getParameters().get(index);
             var parameterSymbol = parameterSymbols.get(index);
             IOrigin parameterOrigin = reporter.toOrigin(parameter);
-            Name formalName = new Name(parameterOrigin, compiler.nameCompiler.getCompiledName(parameter.sym, parameter));
+            Name formalName = new Name(parameterOrigin, nameCompiler.getCompiledName(parameter.sym, parameter));
             // TODO use parameter.sym.type ?
-            var syntacticType = compiler.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);
+            var syntacticType = baseGenerator.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         }).toList();
