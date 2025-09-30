@@ -58,6 +58,12 @@ abstract class StreamContract<T> implements Stream<T> {
 @Contract(Collection.class)
 abstract class CollectionContract<E> implements Collection<E> {
 
+    @Pure
+    public Stream<E> stream() {
+        reads(everything());
+        throw new ContractException();
+    }
+    
     @Override
     @Pure
     public int size() {
@@ -175,7 +181,7 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     @Pure
     public Stream<E> stream() {
         reads(this);
-        postcondition((Stream<E> s) -> cast(s, StreamContract.class).elements.size() == size());
+        postcondition((Stream<E> s) -> cast(s, StreamContract.class).elements == elements);
         throw new ContractException();
     }
     
