@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
@@ -92,11 +93,11 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     public static boolean isNullable(JCTree.JCModifiers modifiers) {
-        return BaseDafnyGenerator.isAnnotated(modifiers, com.aws.jverify.Nullable.class);
+        return JVerifyUtils.isAnnotated(modifiers, com.aws.jverify.Nullable.class);
     }
 
     public static boolean isNullable(com.sun.tools.javac.code.Type type) {
-        return BaseDafnyGenerator.isAnnotated(type, com.aws.jverify.Nullable.class);
+        return JVerifyUtils.isAnnotated(type, com.aws.jverify.Nullable.class);
     }
 
     public ExpressionWithFlows translateLiteral(JCTree.JCLiteral literal, IOrigin originOverride,

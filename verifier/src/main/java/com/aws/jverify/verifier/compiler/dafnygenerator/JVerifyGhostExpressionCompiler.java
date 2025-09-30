@@ -5,6 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.Context;
@@ -96,7 +97,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 }
                 if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
                     reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
-                    return BaseDafnyGenerator.getHole(origin);
+                    return JVerifyUtils.getHole(origin);
                 }
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = reporter.toOrigin(lambda);
@@ -177,7 +178,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         }
 
         reporter.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
-        return BaseDafnyGenerator.getHole(origin);
+        return JVerifyUtils.getHole(origin);
     }
 
     private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {

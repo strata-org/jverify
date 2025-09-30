@@ -101,7 +101,7 @@ public class TypeDeclarationCompiler {
             reporter.reportError(jcTree, "notSupported", "type declaration " + tree.getClass().getSimpleName());
             return List.of();
         } else {
-            throw new BaseDafnyGenerator.NotImplementedException(tree.getClass().getName());
+            throw new RuntimeException(tree.getClass().getName());
         }
     }
 
@@ -187,8 +187,8 @@ public class TypeDeclarationCompiler {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null)));
         }
 
-        var mutable = !BaseDafnyGenerator.isInterface(definingSymbol)
-                || baseGenerator.isAnnotated(definingSymbol.type, Impure.class);
+        var mutable = !JVerifyUtils.isInterface(definingSymbol)
+                || JVerifyUtils.isAnnotated(definingSymbol.type, Impure.class);
         if (mutable) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
@@ -246,7 +246,7 @@ public class TypeDeclarationCompiler {
                     return null;
                 }
             }
-            default -> throw new BaseDafnyGenerator.NotImplementedException(member.getClass().getName());
+            default -> throw new RuntimeException(member.getClass().getName());
         }
     }
 
@@ -275,7 +275,7 @@ public class TypeDeclarationCompiler {
     private @Nullable MethodOrFunction translateMethodDecl(JCTree.JCMethodDecl method) {
         var methodSymbol = method.sym;
         baseGenerator.symbolsWithAContract.add(methodSymbol);
-        var annotationsByName = BaseDafnyGenerator.getAnnotationsByName(method.mods);
+        var annotationsByName = JVerifyUtils.getAnnotationsByName(method.mods);
         if (method.body == null) {
             return null;
         }
@@ -312,7 +312,7 @@ public class TypeDeclarationCompiler {
         var blockCompiler = new BlockCompiler(baseGenerator, method.sym);
         var name = nameCompiler.getName(method, method.sym);
         var origin = reporter.declToOrigin(method, name);
-        var isStatic = BaseDafnyGenerator.isStatic(method.mods);
+        var isStatic = JVerifyUtils.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         applyInvariants(method.mods, method.sym, contract);
@@ -392,7 +392,7 @@ public class TypeDeclarationCompiler {
 
         var name = nameCompiler.getName(method, method.sym);
         var origin = reporter.declToOrigin(method, name);
-        var isStatic = BaseDafnyGenerator.isStatic(method.mods);
+        var isStatic = JVerifyUtils.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, sourceOrigin);
         var returnType = baseGenerator.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, shouldVerify);
         if (returnType == null) {
@@ -413,7 +413,7 @@ public class TypeDeclarationCompiler {
 
     private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopContract header) {
         boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
-        boolean isStaticMethod = BaseDafnyGenerator.isStatic(modifiers);
+        boolean isStaticMethod = JVerifyUtils.isStatic(modifiers);
 
         // Only apply invariants to public instance methods (not static methods)
         if (isPublic && !isStaticMethod) {

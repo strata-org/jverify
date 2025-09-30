@@ -46,7 +46,7 @@ public class ExpressionCompiler {
             return toExprWithFlows(expression, context);
         }
         reporter.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
-        return new ExpressionWithFlows(BaseDafnyGenerator.getHole(reporter.toOrigin(tree)));
+        return new ExpressionWithFlows(JVerifyUtils.getHole(reporter.toOrigin(tree)));
     }
     
     @Nullable
@@ -76,7 +76,7 @@ public class ExpressionCompiler {
         var newContext = context.forbidImpure();
         var patternBodies = new Patterns(baseGenerator).translateSwitchLabels(switchExpr, context);
         if (patternBodies == null) {
-            return BaseDafnyGenerator.getHole(origin);
+            return JVerifyUtils.getHole(origin);
         }
 
         var translatedCases = patternBodies.stream().map(patternBody -> {
@@ -87,13 +87,13 @@ public class ExpressionCompiler {
             // A switch rule introduces either an expression, a block, or a throw statement.
             if (body == null) {
                 // This only happens for statement labels, which would have already raised an error in translateSwitchLabels
-                translatedBody = BaseDafnyGenerator.getHole(origin);
+                translatedBody = JVerifyUtils.getHole(origin);
             } else if (body instanceof JCTree.JCExpression expr) {
                 translatedBody = toExpr(expr, newContext.withExpectedType(switchExpr.type));
             } else {
                 var bodyKind = body instanceof JCTree.JCBlock ? "block" : "throw statement";
                 reporter.reportError(body, "notSupported", "switch rule %s".formatted(bodyKind));
-                translatedBody = BaseDafnyGenerator.getHole(caseOrigin);
+                translatedBody = JVerifyUtils.getHole(caseOrigin);
             }
             return new NestedMatchCaseExpr(caseOrigin, patternBody.pattern(), translatedBody, null);
         }).toList();
@@ -126,7 +126,7 @@ public class ExpressionCompiler {
                         conditionWithFlows.expression(), thenExpression, result);
             } else {
                 reporter.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
-                result = BaseDafnyGenerator.getHole(origin);
+                result = JVerifyUtils.getHole(origin);
             }
         }
         return result;
@@ -139,7 +139,7 @@ public class ExpressionCompiler {
             case JCTree.JCBlock block -> {        
                 if (block.getStatements().isEmpty()) {
                     reporter.reportError(block, "pureMethodLastStatement");
-                    yield BaseDafnyGenerator.getHole(origin);
+                    yield JVerifyUtils.getHole(origin);
                 } else {
                     yield toExprWithFlows(block.getStatements(), context);
                 }
@@ -147,7 +147,7 @@ public class ExpressionCompiler {
             case JCTree.JCIf ifStatement -> {
                 if (ifStatement.getElseStatement() == null) {
                     reporter.reportError(statement, "pureMethodEndingIfThen");
-                    yield BaseDafnyGenerator.getHole(origin);
+                    yield JVerifyUtils.getHole(origin);
                 }
                 ExpressionWithFlows conditionWithFlows = toExprWithFlows(ifStatement.getCondition(), context);
                 yield new ITEExpr(origin, false,
@@ -158,7 +158,7 @@ public class ExpressionCompiler {
             case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr, context.withExpectedType(returnStatement.type));
             default -> {
                 reporter.reportError(statement, "pureMethodLastStatement");
-                yield BaseDafnyGenerator.getHole(origin);
+                yield JVerifyUtils.getHole(origin);
             }
         };
     }
@@ -168,7 +168,7 @@ public class ExpressionCompiler {
             return generator.toExprWithFlows(expression, null, context).expression();
         }
         reporter.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
-        return BaseDafnyGenerator.getHole(reporter.toOrigin(tree));
+        return JVerifyUtils.getHole(reporter.toOrigin(tree));
     }
     
     public Expression toExpr(JCTree.JCExpression expr, ExpressionContext context) {
@@ -218,7 +218,7 @@ public class ExpressionCompiler {
             case JCTree.JCAssignOp assignOp -> {
                 if (context.statementWriter() == null) {
                     reporter.reportError(expr, "mutatingExpression", assignOp.getOperator().name.toString() + "=");
-                    return new ExpressionWithFlows(BaseDafnyGenerator.getHole(origin));
+                    return new ExpressionWithFlows(JVerifyUtils.getHole(origin));
                 } else {
                     return new ExpressionWithFlows(translateAssignOp(assignOp, origin, context));
                 }
@@ -242,7 +242,7 @@ public class ExpressionCompiler {
             default -> { }
         }
         reporter.reportError(expr, "notSupported", expr.getClass().getSimpleName() + " in an expression");
-        return new ExpressionWithFlows(BaseDafnyGenerator.getHole(origin));
+        return new ExpressionWithFlows(JVerifyUtils.getHole(origin));
     }
 
     private Expression translateAssign(JCTree.JCAssign assign, IOrigin origin, ExpressionContext context) {
@@ -254,7 +254,7 @@ public class ExpressionCompiler {
             return target;
         } else {
             reporter.reportError(assign, "notSupported", assign.getClass().getSimpleName() + " in a pure expression");
-            return BaseDafnyGenerator.getHole(origin);
+            return JVerifyUtils.getHole(origin);
         }
     }
 
@@ -299,7 +299,7 @@ public class ExpressionCompiler {
         if (context.statementWriter() == null) {
             reporter.reportError(expr, "notSupported",
                     "using 'new' in a pure expression to create an instance of an impure type");
-            return BaseDafnyGenerator.getReferenceHole(origin);
+            return JVerifyUtils.getReferenceHole(origin);
         } else {
             var rhs = generator.translateNewClassToAssignmentRhs(newClass, origin, context);
             return placeRhsIntoTemporaryAssignmentAndReturnResult(newClass.type, rhs, context);
@@ -407,11 +407,11 @@ public class ExpressionCompiler {
             case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
                 if (unary.type.getTag() == TypeTag.FLOAT || unary.type.getTag() == TypeTag.DOUBLE) {
                     reporter.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                    return BaseDafnyGenerator.getHole(origin);
+                    return JVerifyUtils.getHole(origin);
                 }
                 if (context.statementWriter() == null) {
                     reporter.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
-                    return BaseDafnyGenerator.getHole(origin);
+                    return JVerifyUtils.getHole(origin);
                 }
 
                 List<Expression> lhss = List.of(innerExpr);
@@ -434,7 +434,7 @@ public class ExpressionCompiler {
             }
             default -> {
                 reporter.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                return BaseDafnyGenerator.getHole(origin);
+                return JVerifyUtils.getHole(origin);
             }
         }
     }
@@ -531,7 +531,7 @@ public class ExpressionCompiler {
         }
         
         var fieldName = baseGenerator.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);
-        if (baseGenerator.isEnum(fieldAccess.selected)) {
+        if (JVerifyUtils.isEnum(fieldAccess.selected)) {
             return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
                     null, new ActualBindings(List.of()), null);
         } else {
@@ -567,7 +567,7 @@ public class ExpressionCompiler {
                 } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent) {
                     receiver = null;
                 } else {
-                    receiver = BaseDafnyGenerator.getHole(origin);
+                    receiver = JVerifyUtils.getHole(origin);
                 }
                 var fieldNameStr = nameCompiler.getCompiledName(component.get(), origin);
                 var fieldName = nameCompiler.getName(invocation.getMethodSelect(), fieldNameStr);
@@ -638,7 +638,7 @@ public class ExpressionCompiler {
 
             if (!isSafe) {
                 reporter.reportError(node, "equalityOperatorRestricted", opName);
-                return BaseDafnyGenerator.getHole(origin);
+                return JVerifyUtils.getHole(origin);
             }
         }
 
@@ -649,12 +649,12 @@ public class ExpressionCompiler {
 
         if (isBitwise) {
             reporter.reportError(node, "notSupported", "operator " + operator);
-            return BaseDafnyGenerator.getHole(origin);
+            return JVerifyUtils.getHole(origin);
         }
         BinaryExprOpcode dafnyOperator = toDafny(operator);
         if (dafnyOperator == null) {
             reporter.reportError(node, "notSupported", "operator " + operator);
-            return BaseDafnyGenerator.getHole(origin);
+            return JVerifyUtils.getHole(origin);
         }
         return new BinaryExpr(origin, dafnyOperator, left, right);
     }
@@ -669,7 +669,7 @@ public class ExpressionCompiler {
 
         var symtab = Symtab.instance(this.baseGenerator.context);
         if (type.baseType() == symtab.objectType) {
-            return !baseGenerator.isAnnotated(type, Impure.class);
+            return !JVerifyUtils.isAnnotated(type, Impure.class);
         }
 
         var types = Types.instance(this.baseGenerator.context);

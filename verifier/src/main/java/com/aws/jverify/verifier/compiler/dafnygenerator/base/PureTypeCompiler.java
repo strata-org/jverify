@@ -5,6 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Flags;
@@ -26,6 +27,7 @@ public class PureTypeCompiler {
     private final Reporter reporter;
     private final Symtab symtab;
     private final Names names;
+    private final JVerifyUtils jverifyUtils;
     private final NameCompiler nameCompiler;
 
     public PureTypeCompiler(Context context, TypeDeclarationCompiler typeDeclarationCompiler) {
@@ -36,6 +38,7 @@ public class PureTypeCompiler {
         nameCompiler = NameCompiler.instance(compiler.context);
         reporter = compiler.reporter;
         generator = context.get(DafnyGenerator.class);
+        jverifyUtils = context.get(JVerifyUtils.class);
     }
 
     public TopLevelDeclWithMembers translate(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -62,7 +65,7 @@ public class PureTypeCompiler {
                     traits.addFirst(pureObjectType);
                 }
             } else {
-                if (BaseDafnyGenerator.typeHasSource(compiler.index, superClass.tsym)) {
+                if (JVerifyUtils.typeHasSource(compiler.index, superClass.tsym)) {
                     traits.addFirst(generator.translateType(superClass, origin, null));
                 }
             }
@@ -117,7 +120,7 @@ public class PureTypeCompiler {
             }
         }
 
-        if (compiler.isAnnotatedRecursive(classDecl.type, Impure.class)) {
+        if (jverifyUtils.isAnnotatedRecursive(classDecl.type, Impure.class)) {
             reporter.reportError(origin, "modifiableForbidden", "a record class");
             traits.clear();
         }
@@ -180,7 +183,7 @@ public class PureTypeCompiler {
         
         if (dafnyMember instanceof Constructor constructor && 
                 (classDecl.sym.isAnonymous() || 
-                        BaseDafnyGenerator.isSynthetic(classDecl.sym.flags()) || 
+                        JVerifyUtils.isSynthetic(classDecl.sym.flags()) || 
                         !MethodOrLoopContractCompiler.hasImplementation(methodDecl))) {
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);

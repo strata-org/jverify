@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -90,7 +91,7 @@ public class Patterns {
             litExpr = (LiteralExpr)compiler.expressionCompiler.toExpr(expr, context);
         } else {
             reporter.reportError(expr, "notSupported", "non-literal case constant");
-            litExpr = BaseDafnyGenerator.getHole(origin);
+            litExpr = JVerifyUtils.getHole(origin);
         }
         return new LitPattern(origin, false, litExpr);
     }
