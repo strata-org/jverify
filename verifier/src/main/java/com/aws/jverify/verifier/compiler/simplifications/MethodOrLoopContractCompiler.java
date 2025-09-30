@@ -81,7 +81,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 : List.nil();
         if (contract.isPure) {
             if (!implementationStatements.isEmpty()) {
-                contract.pureBody = compiler.expressionCompiler.toExpr(implementationStatements, ExpressionContext.Pure);
+                contract.pureBody = compiler.expressionCompiler.toExprWithFlows(implementationStatements, ExpressionContext.Pure);
             }
             return List.nil();
         }
@@ -261,7 +261,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("A precondition call may have only one argument");
                 }
-                contract.preconditions.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), ExpressionContext.Pure), null, null));
+                Expression precondition = compiler.expressionCompiler.toExprWithFlows(invocation.getArguments().getFirst(), ExpressionContext.Pure).expression();
+                contract.preconditions.add(new AttributedExpression(precondition, null, null));
             }
             case "postcondition" -> {
                 if (invocation.args.size() != 1) {
@@ -326,7 +327,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
                     : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var origCondition = compiler.expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
+            var origCondition = compiler.expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
             var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 
