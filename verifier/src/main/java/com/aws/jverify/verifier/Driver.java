@@ -114,10 +114,10 @@ public class Driver {
                         outputWriter.write('\n');
                     }
                 }
-                var unverifiedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap.get(((DafnyDiagnostic) dafnyOutput).getSource())
+                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap.get(((DafnyDiagnostic) dafnyOutput).getSource())
                         .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
-                if (unverifiedJavaMethod != null) {
-                    unverifiedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                if (failedJavaMethod != null) {
+                    failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
                 }
             }
         }
