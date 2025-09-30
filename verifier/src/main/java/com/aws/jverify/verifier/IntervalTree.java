@@ -1,16 +1,15 @@
 package com.aws.jverify.verifier;
 
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 
-import java.net.URI;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.stream.Stream;
 
 public class IntervalTree<Key extends Comparable<Key>, Value> {
     private IntervalTreeNode root;
+    private int size;
 
-    class IntervalTreeNode {
+    public class IntervalTreeNode {
         Key start, end;
         Value value;
         Key maxEnd;
@@ -22,10 +21,16 @@ public class IntervalTree<Key extends Comparable<Key>, Value> {
             this.value = value;
             this.maxEnd = end;
         }
+
+        public Value getValue() {
+            return value;
+        }
+
     }
 
     public void insert(Key start, Key end, Value value) {
         root = insert(root, start, end, value);
+        size++;
     }
 
     private IntervalTreeNode insert(IntervalTreeNode node, Key start, Key end, Value value) {
@@ -66,35 +71,22 @@ public class IntervalTree<Key extends Comparable<Key>, Value> {
         return null;
     }
 
-
-    public static HashMap<URI, IntervalTree<Integer, JavaMethodDetails>> getIntervalTreeMap(VerificationResults verificationResults) {
-        HashMap<URI, IntervalTree<Integer, JavaMethodDetails>> intervalTreeMap = null;
-        if (verificationResults.getJavaInSourceMethods() != null) {
-            intervalTreeMap = getIntervalsFromVerifiableMethods(verificationResults.getJavaInSourceMethods());
-        }
-        return intervalTreeMap;
+    public Stream<IntervalTreeNode> streamNodes() {
+        List<IntervalTreeNode> nodes = new ArrayList<>();
+        collectNodes(root, nodes);
+        return nodes.stream();
     }
 
-    private static HashMap<URI,IntervalTree<Integer, JavaMethodDetails>> getIntervalsFromVerifiableMethods(ArrayList<JavaMethodDetails> javaInSourceMethods) {
-
-        var distinctClasses = javaInSourceMethods.stream()
-                .map(method -> method.getMethodTree().sym.owner.enclClass().sourcefile)
-                .collect(Collectors.toSet());
-
-        HashMap<URI,IntervalTree<Integer, JavaMethodDetails>> intervalTrees = new HashMap<>();
-        for (var distinctClass : distinctClasses) {
-            IntervalTree<Integer, JavaMethodDetails> methodIntervalTree = new IntervalTree<>();
-            javaInSourceMethods.stream()
-                    .filter(method -> !BaseDafnyGenerator.isSynthetic(method.getMethodTree().getModifiers().flags) && method.getMethodTree().sym.owner.enclClass().sourcefile.equals(distinctClass))
-                    .forEach(method -> {
-                        assert method.getPosition().getEndToken() != null;
-                        methodIntervalTree.insert(method.getPosition().getStartToken().getLine(),
-                                method.getPosition().getEndToken().getLine(), method);
-                    });
-            intervalTrees.put(distinctClass.toUri().normalize(), methodIntervalTree);
+    private void collectNodes(IntervalTreeNode node, List<IntervalTreeNode> nodes) {
+        if (node != null) {
+            nodes.add(node);
+            collectNodes(node.left, nodes);
+            collectNodes(node.right, nodes);
         }
+    }
 
-        return intervalTrees;
+    public int getSize() {
+        return size;
     }
 
 

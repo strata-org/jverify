@@ -3,19 +3,18 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.generated.TokenRange;
 import com.sun.tools.javac.tree.JCTree;
 
-public class JavaMethodDetails {
+public class JavaMethodVerificationStatus {
     private JCTree.JCMethodDecl methodTree;
     private TokenRange position;
     private VerificationStatus verificationStatus;
 
     public enum VerificationStatus {
-        Unknown,
         Skipped,
         Verified,
         Failed
     }
 
-    public JavaMethodDetails(JCTree.JCMethodDecl methodTree, TokenRange position, VerificationStatus status) {
+    public JavaMethodVerificationStatus(JCTree.JCMethodDecl methodTree, TokenRange position, VerificationStatus status) {
         this.methodTree = methodTree;
         this.position = position;
         this.verificationStatus = status;

@@ -1,21 +1,23 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Verify;
+import com.aws.jverify.generated.TokenRange;
+import com.aws.jverify.verifier.IntervalTree;
+import com.aws.jverify.verifier.JavaMethodVerificationStatus;
 import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.compiler.PositionCalculator;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
-import com.sun.source.tree.MethodTree;
 import com.sun.tools.javac.code.AnnoConstruct;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeCopier;
-import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.tools.JavaFileObject;
+import java.net.URI;
 import java.util.*;
 
 /**
@@ -25,14 +27,10 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
     public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
     public final Context context;
-    /**
-     * This map stores verification status of methods in in-source files
-     * Maps methodDecl to true or false depending on whether method
-     * has an implementation and is being verified
-     */
-    public record MethodStatus(boolean hasImpl, boolean hasVerify) {}
-    private final HashMap<JCTree.JCMethodDecl, MethodStatus> javaMethodUnderVerification = new HashMap<>();
-    private boolean considerCurrentEnv;
+    private final JavaToDafnyCompiler javaToDafnyCompiler;
+    private final Reporter reporter;
+    private PositionCalculator positionCalculator;
+    private final HashMap<URI, IntervalTree<Integer, JavaMethodVerificationStatus>> sourceFileToMethodIntervalTreeMap = new HashMap<>();
 
     public VerifyAnnotationCompiler(Context context) {
         context.put(VerifyAnnotationCompiler.class, this);
@@ -41,6 +39,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
         this.context = context;
+        javaToDafnyCompiler = context.get(JavaToDafnyCompiler.class);
+        reporter = context.get(Reporter.class);
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -53,7 +53,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
-            considerCurrentEnv = !context.get(JavaToDafnyCompiler.class).isLibrary(env);
+            reporter.compilationUnit = env;
             visitTopLevel(env);
         }
         return envs;
@@ -66,6 +66,12 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     @Override
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         processVerifyAnnotation(tree.packge);
+        if (!javaToDafnyCompiler.isLibrary(reporter.compilationUnit)) {
+            if (!sourceFileToMethodIntervalTreeMap.containsKey(reporter.compilationUnit.getSourceFile().toUri().normalize())) {
+                sourceFileToMethodIntervalTreeMap.put(reporter.compilationUnit.getSourceFile().toUri().normalize(), new IntervalTree<>());
+                positionCalculator = new PositionCalculator(tree);
+            }
+        }
         super.visitTopLevel(tree);
         shouldVerifies.pop();
     }
@@ -80,14 +86,35 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         boolean shouldVerify = processVerifyAnnotationAndPop(tree.sym);
-        if (considerCurrentEnv) {
-            javaMethodUnderVerification.put(tree, new MethodStatus(
-                    MethodOrLoopContractCompiler.hasImplementation(tree),shouldVerify));
-        }
+        addMethodToIntervalTree(tree, shouldVerify);
         if (!shouldVerify) {
             removeImplementation(tree);
         }
         super.visitMethodDef(tree);
+    }
+
+    private void addMethodToIntervalTree(JCTree.JCMethodDecl methodDecl, boolean shouldVerify) {
+        var sourceFileURI = reporter.compilationUnit.getSourceFile().toUri();
+        if (sourceFileToMethodIntervalTreeMap.containsKey(sourceFileURI) && !BaseDafnyGenerator.isSynthetic(methodDecl.getModifiers().flags)
+                && MethodOrLoopContractCompiler.hasImplementation(methodDecl)) {
+
+            var startPos = positionCalculator.toToken(positionCalculator.getStartPos(methodDecl));
+
+            /*
+              Note: setting end position to be start position in case there isn't any explicit end position
+              This happens for implicit constructors where start position is the start position for the class declaration
+             */
+            var endPos = positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) != null ?
+                    positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) : startPos;
+
+
+            var methodVerificationStatus = new JavaMethodVerificationStatus(methodDecl, new TokenRange(startPos,endPos), shouldVerify ?
+                    JavaMethodVerificationStatus.VerificationStatus.Verified :  JavaMethodVerificationStatus.VerificationStatus.Skipped);
+
+            sourceFileToMethodIntervalTreeMap.get(sourceFileURI)
+                    .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), methodVerificationStatus.getPosition().getEndToken().getLine(),
+                            methodVerificationStatus);
+        }
     }
 
     public void removeImplementation(JCTree.JCMethodDecl tree) {
@@ -185,8 +212,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         }
     }
 
-    public HashMap<JCTree.JCMethodDecl, MethodStatus> getJavaMethodUnderVerification() {
-        return javaMethodUnderVerification;
+    public HashMap<URI, IntervalTree<Integer, JavaMethodVerificationStatus>> getSourceFileToMethodIntervalTreeMap() {
+        return sourceFileToMethodIntervalTreeMap;
     }
 
 }

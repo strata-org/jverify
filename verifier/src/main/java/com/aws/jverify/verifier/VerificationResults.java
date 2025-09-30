@@ -29,12 +29,6 @@ public final class VerificationResults {
      */
     private @Nullable String dafnyFinishedMessage;
 
-    /**
-     * Tracks the java in-source methods that can be verified,
-     * their location in the source file, and if they are being verified
-     */
-    private @Nullable ArrayList<JavaMethodDetails> javaInSourceMethods = null;
-
     public int getExitCode() {
         return exitCode;
     }
@@ -81,20 +75,4 @@ public final class VerificationResults {
         this.dafnyErrorCount = dafnyErrorCount;
     }
 
-    public void setJavaInSourceMethods(@Nullable ArrayList<JavaMethodDetails> javaInSourceMethods) {
-        this.javaInSourceMethods = javaInSourceMethods;
-    }
-
-    public ArrayList<JavaMethodDetails> getJavaInSourceMethods() {
-        return javaInSourceMethods;
-    }
-
-    public void setVerifiedVerificationStatus() {
-        // marking any unskipped method that was not associated with any failure message to be successful
-        if (getJavaInSourceMethods() != null) {
-            getJavaInSourceMethods().stream()
-                    .filter(method -> method.getVerificationStatus() == JavaMethodDetails.VerificationStatus.Unknown)
-                    .forEach(method -> method.setVerificationStatus(JavaMethodDetails.VerificationStatus.Verified));
-        }
-    }
 }

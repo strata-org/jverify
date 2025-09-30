@@ -38,7 +38,6 @@ public class JavaToDafnyCompiler {
     public final Context context;
     private final Reporter reporter;
     private final Enter enter;
-    private Set<JCTree.JCCompilationUnit> compilationUnits;
 
     private final DafnyGenerator dafnyGenerator;
     public Set<SourceFile> builtinSources = new HashSet<>();
@@ -81,10 +80,6 @@ public class JavaToDafnyCompiler {
 
     public boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
         return builtinSources.contains(compilationUnit.getSourceFile());
-    }
-
-    public Set<JCTree.JCCompilationUnit> getCompilationUnit() {
-        return compilationUnits;
     }
 
 
@@ -205,7 +200,6 @@ public class JavaToDafnyCompiler {
                                                                                     unlambda(
                                                                                             toUnits(compiler.flow(compiler.attribute(todo)))
                                                                                     )))))))))));
-                    compilationUnits = units;
                 }
             }
         });

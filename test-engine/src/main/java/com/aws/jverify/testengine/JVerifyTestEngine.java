@@ -173,10 +173,9 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
-        var verificationResults = Driver.verifyJavaFiles(inputs, options);
-        var intervalTreeMap = IntervalTree.getIntervalTreeMap(verificationResults);
+        var verificationResultsWithIntervalTreeMap = Driver.verifyJavaFiles(inputs, options);
 
-        var diagnosticsAsAnnotations = verificationResults.getDiagnostics()
+        var diagnosticsAsAnnotations = verificationResultsWithIntervalTreeMap.verificationResults().getDiagnostics()
                 .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
                         ? dafnyDiagnostic.flattenRelated()
                         : Stream.of(diagnostic))
@@ -189,21 +188,19 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .sorted()
                 .toList();
 
-        verificationResults.getOutputs().stream()
+        verificationResultsWithIntervalTreeMap.verificationResults().getOutputs().stream()
                 .filter(dafnyOutput -> dafnyOutput instanceof DafnyDiagnostic)
                 .forEach(dafnyOutput -> {
-                    var unverifiedJavaMethod = intervalTreeMap.get(((DafnyDiagnostic) dafnyOutput).getSource())
+                    var failedVerificationMethod = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().get(((DafnyDiagnostic) dafnyOutput).getSource())
                             .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
-                    if (unverifiedJavaMethod != null) {
-                        unverifiedJavaMethod.setVerificationStatus(JavaMethodDetails.VerificationStatus.Failed);
+                    if (failedVerificationMethod != null) {
+                        failedVerificationMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
                     }
                 } );
 
-        verificationResults.setVerifiedVerificationStatus();
-
         if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
-            if (verificationResults.getExitCode() == 0 || verificationResults.getExitCode() == 4) {
-                updateTestAnnotation(sourceFile, annotation, verificationResults);
+            if (verificationResultsWithIntervalTreeMap.verificationResults().getExitCode() == 0 || verificationResultsWithIntervalTreeMap.verificationResults().getExitCode() == 4) {
+                updateTestAnnotation(sourceFile, annotation, verificationResultsWithIntervalTreeMap.verificationResults());
             }
         }
 
@@ -217,48 +214,54 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         Integer expectedJavaSkippedCount = annotation.javaSkipped() >= 0 ? annotation.javaSkipped() : null;
         Assertions.assertAll(
                 () -> assertThat("exit code",
-                        verificationResults.getExitCode(),
+                        verificationResultsWithIntervalTreeMap.verificationResults().getExitCode(),
                         is(annotation.exitCode())),
                 () -> assertThat("Dafny verified count",
-                        verificationResults.getDafnyVerifiedCount(),
+                        verificationResultsWithIntervalTreeMap.verificationResults().getDafnyVerifiedCount(),
                         is(expectedDafnyVerifiedCount)),
                 () -> assertThat("Dafny error count",
-                        verificationResults.getDafnyErrorCount(),
+                        verificationResultsWithIntervalTreeMap.verificationResults().getDafnyErrorCount(),
                         is(expectedDafnyErrorCount)),
                 () -> {
                     if (expectedJavaVerifiedCount != null) {
-                        assert verificationResults.getJavaInSourceMethods() != null;
+                        assert verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap() != null;
                         assertThat("Java verified method count",
-                                verificationResults.getJavaInSourceMethods().stream()
-                                        .filter(method ->  method.getVerificationStatus() == JavaMethodDetails.VerificationStatus.Verified)
-                                        .toArray().length,
+                                verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
+                                        .flatMap(IntervalTree::streamNodes)
+                                        .filter(node -> node.getValue().getVerificationStatus()
+                                                .equals(JavaMethodVerificationStatus.VerificationStatus.Verified))
+                                        .toList().size(),
                                 is(expectedJavaVerifiedCount));
                     }
                 },
                 () -> {
                     if (expectedJavaErrorCount != null) {
-                        assert verificationResults.getJavaInSourceMethods() != null;
-                        assertThat("Java unverified method count",
-                                verificationResults.getJavaInSourceMethods().stream()
-                                        .filter(method ->  method.getVerificationStatus() == JavaMethodDetails.VerificationStatus.Failed)
-                                        .toArray().length,
+                        assert verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap() != null;
+                        assertThat("Java verification failed method count",
+                                verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
+                                        .flatMap(IntervalTree::streamNodes)
+                                        .filter(node -> node.getValue().getVerificationStatus()
+                                                .equals(JavaMethodVerificationStatus.VerificationStatus.Failed))
+                                        .toList().size(),
                                 is(expectedJavaErrorCount));
                     }
                 },
                 () -> {
                     if (expectedJavaSkippedCount != null) {
-                        assert verificationResults.getJavaInSourceMethods() != null;
+                        assert verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap() != null;
                         assertThat("Java skipped method count",
-                                verificationResults.getJavaInSourceMethods().stream()
-                                        .filter(method ->  method.getVerificationStatus() == JavaMethodDetails.VerificationStatus.Skipped)
-                                        .toArray().length,
+                                verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
+                                        .flatMap(IntervalTree::streamNodes)
+                                        .filter(node -> node.getValue().getVerificationStatus()
+                                                .equals(JavaMethodVerificationStatus.VerificationStatus.Skipped))
+                                        .toList().size(),
                                 is(expectedJavaSkippedCount));
                     }
                 }
         );
 
         if (annotation.verifyPrintedDafny()) {
-            verifyPrintedDafny(verificationResults, options);
+            verifyPrintedDafny(verificationResultsWithIntervalTreeMap.verificationResults(), options);
         }
     }
 
