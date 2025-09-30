@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionWithFlows;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -28,8 +29,8 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
-        return next.toExpr(expr, originOverride, context);
+    public ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        return next.toExprWithFlows(expr, originOverride, context);
     }
 
     @Override
