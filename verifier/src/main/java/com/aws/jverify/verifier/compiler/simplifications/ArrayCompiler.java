@@ -65,7 +65,7 @@ public class ArrayCompiler extends TreeTranslator {
     public void visitAssign(JCTree.JCAssign tree) {
         if (tree.lhs instanceof JCTree.JCArrayAccess arrayAccess) {
             maker.pos = tree.pos;
-            tree.rhs = super.translate(tree.rhs);
+            tree.rhs = translate(tree.rhs);
 
             result = maker.App(maker.Select(arrayAccess.getExpression(), setMethodSymbol),
                     List.of(arrayAccess.getIndex(), tree.rhs));
