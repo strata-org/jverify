@@ -38,7 +38,7 @@ public class JavaToDafnyCompiler {
     public final Context context;
     private final Reporter reporter;
     private final Enter enter;
-    
+
     private final DafnyGenerator dafnyGenerator;
     public Set<SourceFile> builtinSources = new HashSet<>();
     public static final String builtinFile = "/builtin-contracts.java";
@@ -50,7 +50,8 @@ public class JavaToDafnyCompiler {
         JavacFileManager.preRegister(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         context.put(DiagnosticListener.class, diagnostics);
-        
+        context.put(JavaToDafnyCompiler.class, this);
+
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
         this.dafnyGenerator = DafnyGenerator.getGenerator(context);
@@ -75,6 +76,10 @@ public class JavaToDafnyCompiler {
         var libraries = parsed.stream().filter(u -> builtinSources.contains(u.getSourceFile())).collect(Collectors.toSet());
 
         return dafnyGenerator.generateDafny(parsed, libraries);
+    }
+
+    public boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
+        return builtinSources.contains(compilationUnit.getSourceFile());
     }
 
 
@@ -288,4 +293,5 @@ public class JavaToDafnyCompiler {
         }
         return envs;
     }
+
 }

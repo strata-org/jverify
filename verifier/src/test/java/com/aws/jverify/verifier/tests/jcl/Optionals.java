@@ -1,5 +1,5 @@
 // ^ /builtin-contracts.java(550:22-550:27) Related location: this proposition could not be proved
-package com.aws.jverify.verifier.tests;
+package com.aws.jverify.verifier.tests.jcl;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -7,7 +7,7 @@ import java.util.Optional;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 2, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 2, useBuiltinContracts = true, javaErrors = 2, javaVerified = 1)
 public class Optionals {
 
     void testEmpty() {

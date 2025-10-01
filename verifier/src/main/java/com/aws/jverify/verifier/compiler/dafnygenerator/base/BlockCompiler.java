@@ -121,13 +121,30 @@ public class BlockCompiler {
 
     private List<Statement> translateIfStatement(JCTree.JCIf ifStatement, ExpressionContext expressionContext) {
         var origin = generator.toOrigin(ifStatement);
-        var condition = expressionCompiler.toExpr(ifStatement.getCondition(), expressionContext);
+        var conditionWithFlows = expressionCompiler.toExprWithFlows(ifStatement.getCondition(), expressionContext);
         var thenBranch = blockifyStatements(origin, translateStatement(ifStatement.getThenStatement()));
         BlockStmt elseBranch = null;
         if (ifStatement.getElseStatement() != null) {
             elseBranch = blockifyStatements(origin, translateStatement(ifStatement.getElseStatement()));
         }
-        return List.of(new IfStmt(origin, null, List.of(), false, condition,
+        var flowStatements = new ArrayList<Statement>();
+        for(var flowCast : conditionWithFlows.flows()) {
+            Type translatedType = flowCast.type();
+            LocalVariable localVariable = new LocalVariable(origin, flowCast.name(), translatedType, false);
+
+            var rhs = new ExprRhs(origin, null, flowCast.expression());
+            List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
+            List<AssignmentRhs> rhss = List.of(rhs);
+            var dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
+
+            var decl = new VarDeclStmt(origin, null, List.of(localVariable), dafnyInitializer);
+            flowStatements.add(decl);
+        }
+        if (!flowStatements.isEmpty()) {
+            flowStatements.addAll(thenBranch.getBody());
+            thenBranch = new BlockStmt(thenBranch.getOrigin(), thenBranch.getAttributes(), thenBranch.getLabels(), flowStatements);
+        }
+        return List.of(new IfStmt(origin, null, List.of(), false, conditionWithFlows.expression(),
                 thenBranch, elseBranch));
     }
 
@@ -181,7 +198,7 @@ public class BlockCompiler {
         if (expr instanceof JCTree.JCMethodInvocation invocation) {
             return translateStatementMethodInvocation(invocation, expressionContext);
         }
-        generator.getFinalGenerator().toExpr(expr, originOverride, expressionContext);
+        generator.getFinalGenerator().toExprWithFlows(expr, originOverride, expressionContext);
         return List.of();
     }
 

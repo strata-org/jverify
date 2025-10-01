@@ -85,9 +85,9 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     public FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries) {
-        /*
+        /* TODO: confirm this is solved
          * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
-         * To work around this bug, the built-in contracts file must be serialized after 
+         * To work around this bug, the built-in contracts file must be serialized after
          * its users. Because the 's' of 'string://' comes after 'file://', sorting by name achieves this
          */
         parsed.sort(Comparator.comparing(f -> f.getSourceFile().toUri().toString()));
@@ -102,7 +102,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                     super.visitClassDef(tree);
                 }
             };
-            
+
             declarationsForFile.put(compilationUnit, new ArrayList<>());
             nameCompiler.visitTopLevel(compilationUnit);
             hierarchyScanner.visitTopLevel(compilationUnit);
@@ -140,8 +140,8 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
-        return expressionCompiler.toExpr(expr, originOverride, context);
+    public ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
+        return expressionCompiler.toExprBase(expr, originOverride, context);
     }
 
     private void compileSymbolsTopologically(Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> symbolToCompilationUnit) {
