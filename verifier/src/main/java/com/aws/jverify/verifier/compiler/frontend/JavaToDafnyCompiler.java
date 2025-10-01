@@ -160,9 +160,16 @@ public class JavaToDafnyCompiler {
             public void finished(TaskEvent e) {
                 TaskListener.super.finished(e);
 
+
+
+                
                 // Wait for the last event sent, after all compilation is complete
                 // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
+                    @SuppressWarnings("unchecked") var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
+                    if (!javaFrontendDiagnostics.getDiagnostics().isEmpty()) {
+                        return;
+                    }
                     // The earlier phases leave the queue of classes to process
                     // in this instance.
                     // JavaCompile.compile() would normally make a call equivalent to
