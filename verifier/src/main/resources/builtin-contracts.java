@@ -35,22 +35,8 @@ abstract class BiFunctionContract<T, U, R> implements BiFunction<T, U, R> {
 }
 
 class SequenceHelper {
-    @Erased
-    @Pure
-    public static <T> Sequence<T> reduced(Sequence<T> sequence, T identity, BinaryOperator<T> accumulator) {
-        precondition(preconditionOf(reduce(sequence.subsequence(0, sequence.size() - 1), identity, accumulator))
-                && 
-            );
-        if (sequence.size() == 0) {
-            return identity;
-        }
-        return accumulator.apply(reduce(sequence.subsequence(0, sequence.size() - 1), identity, accumulator), sequence.get(sequence.size() - 1));
-    }
-    
     @Pure
     public static <T> T reduce(Sequence<T> sequence, T identity, BinaryOperator<T> accumulator) {
-        var recurse = reduce(sequence.subsequence(0, sequence.size() - 1), identity, accumulator);
-        precondition(preconditionOf(recurse) && precondition(accumulator(recurse, )););
         if (sequence.size() == 0) {
             return identity;
         }
