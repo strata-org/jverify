@@ -169,6 +169,13 @@ public class JVerify {
     /**
      * Cast a Java type to its contract type, to enable accessing fields of the contract class
      */
+    public static <T, U> U cast(T element) {
+        throw new VerificationMethodExecutedException();
+    }
+    
+    /**
+     * Cast a Java type to its contract type, to enable accessing fields of the contract class
+     */
     public static <T, U> U cast(T element, Class<U> clazz) {
         throw new VerificationMethodExecutedException();
     }

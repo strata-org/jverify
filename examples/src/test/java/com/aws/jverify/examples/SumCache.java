@@ -1,11 +1,9 @@
 package com.aws.jverify.examples;
 
-import com.aws.jverify.Invariant;
-import com.aws.jverify.Pure;
-import com.aws.jverify.Verify;
-
+import com.aws.jverify.*;
 import java.util.ArrayList;
 import java.util.function.BinaryOperator;
+import java.util.stream.Stream;
 
 import static com.aws.jverify.JVerify.*;
 
@@ -28,7 +26,7 @@ public class SumCache {
         modifies(this);
         modifies(numbers);
 
-        sum = sum + value;
+        sum = integerSum.apply(sum, value); // TODO allow introspecting integerSum so we can replace this with 'sum = sum + value'
         var x = numbers.add(value);
         return;
 //      ^^^^^^ Error: could not prove invariant on return    

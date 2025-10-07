@@ -159,9 +159,6 @@ public class JavaToDafnyCompiler {
             @Override
             public void finished(TaskEvent e) {
                 TaskListener.super.finished(e);
-
-
-
                 
                 // Wait for the last event sent, after all compilation is complete
                 // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
