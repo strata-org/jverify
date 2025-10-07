@@ -34,7 +34,10 @@ For the Java standard library, JVerify provides contracts for the most commonly 
 You can use any Java IDE when working with JVerify.
 
 #### Will adding calls to the JVerify library slow down the execution of my program?
-No, more about that is in [erasing verification code during compilation](./erase_verification.md). 
+No, more about that is in [erasing verification code during compilation](./erase_verification.md).
+
+#### Can JVerify prove that code has a bug?
+No, currently JVerify can only prove the absence of bugs, but it can not prove their presence. If JVerify returns an error, this may be because of an actual bug or because it needs more proof hints.
 
 # This guide
 
