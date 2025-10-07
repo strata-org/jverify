@@ -69,6 +69,18 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         currentContainer = previous;
     }
 
+    @Override
+    public void visitVarDef(JCVariableDecl tree) {
+        if (currentContainer instanceof Symbol.ClassSymbol) {
+            var previous = currentContainer;
+            currentContainer = tree.sym;
+            super.visitVarDef(tree);
+            currentContainer = previous;
+        } else {
+            super.visitVarDef(tree);
+        }
+    }
+
     private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
         maker.pos = lambda.pos;
         
@@ -105,8 +117,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         boolean hasNoEnclosingType = (currentContainer.flags() & STATIC) != 0;
         if (hasNoEnclosingType) {
             flags |= STATIC;
-
         }
+        
         var classSymbol = new Symbol.ClassSymbol(flags, name, currentContainer);
 
         // Flatname should be globally unique. Qualified class name plus line and column achieves that.
