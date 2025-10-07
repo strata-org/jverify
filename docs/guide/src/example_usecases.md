@@ -13,8 +13,6 @@ Without instructions, JVerify will detect many common types of bugs. Here's some
 #### Keep a cache up to date
 We might store some data that is an aggregate of other data. With JVerify, we can check that the aggregate remains up to date. Here's an example:
 
-WARNING: this example does not work yet due to missing contracts for the standard library.
-
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/SumCache.java}}
 ```

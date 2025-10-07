@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
+import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
@@ -215,22 +216,18 @@ public class BlockCompiler {
     }
 
     private List<Statement> translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation, 
-                                                             Symbol.MethodSymbol jverifyMethod, ExpressionContext expressionContext) {
-        var name = jverifyMethod.getQualifiedName().toString();
-        if (name.equals("check")) {
-            if (invocation.args.size() != 1) {
-                throw new JavaViolationException("Check should have a single argument");
-            }
-            return List.of(new AssertStmt(generator.toOrigin(invocation), null,
-                    expressionCompiler.toExpr(invocation.args.getFirst(), expressionContext), null));
-        } else {
-            if (BaseDafnyGenerator.isConstructor(methodSymbol)) {
-                generator.reportError(invocation, "contractForConstructor");
-            } else {
-                generator.reportError(invocation, "contractAfterBody");
-            }
-            return List.of();
+                                                             Symbol.MethodSymbol jverifyMethod, 
+                                                             ExpressionContext expressionContext) {
+        var statement = expressionCompiler.getJVerifyStatement(invocation, jverifyMethod, expressionContext);
+        if (statement != null) {
+            return List.of(statement);
         }
+        if (BaseDafnyGenerator.isConstructor(methodSymbol)) {
+            generator.reportError(invocation, "contractForConstructor");
+        } else {
+            generator.reportError(invocation, "contractAfterBody");
+        }
+        return List.of();
     }
 
     private List<Statement> translateVanillaJavaMethodInvocation(JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext) {

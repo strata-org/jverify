@@ -12,6 +12,9 @@ public class JVerify {
     public static boolean implies(boolean antecedent, boolean consequent) {
         return !antecedent || consequent;
     }
+
+    public static void assume(boolean condition) {
+    }
     
     public static void check(boolean condition) {
     }

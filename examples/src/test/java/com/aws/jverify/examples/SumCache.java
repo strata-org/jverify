@@ -2,22 +2,19 @@ package com.aws.jverify.examples;
 
 import com.aws.jverify.*;
 import java.util.ArrayList;
-import java.util.function.BinaryOperator;
-import java.util.stream.Stream;
 
 import static com.aws.jverify.JVerify.*;
 
 public class SumCache {
     ArrayList<Integer> numbers = new ArrayList<>();
     int sum = 0;
-    final static BinaryOperator<Integer> integerSum = SumCache::unsafeSum;
 
     @Pure
     @Invariant
     boolean validSum() {
         reads(this);
         reads(numbers);
-        return this != (Object)numbers && numbers.stream().reduce(0, integerSum) == sum;
+        return this != (Object)numbers && numbers.stream().reduce(0, SumCache::unsafeSum) == sum;
 //          ^^^^^^^^ Related: this is the invariant that could not be proven
     }
     
@@ -26,8 +23,8 @@ public class SumCache {
         modifies(this);
         modifies(numbers);
 
-        sum = integerSum.apply(sum, value); // TODO allow introspecting integerSum so we can replace this with 'sum = sum + value'
-        var x = numbers.add(value);
+        sum = sum + value;
+        var x = numbers.add(value); // TODO: enable not having the 'var x = '
         return;
 //      ^^^^^^ Error: could not prove invariant on return    
     }
@@ -43,9 +40,9 @@ public class SumCache {
         return false; // Different signs won't overflow
     }
 
-    @Verify(false)
     @Pure 
     static int unsafeSum(int a, int b) {
+        assume(false); // TODO enable skipping the checks but keeping the functional body using @Verify(false)
         return a + b;
     }
 }

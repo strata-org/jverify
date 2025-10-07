@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
@@ -122,11 +123,42 @@ public class ExpressionCompiler {
                 result = new ITEExpr(baseGenerator.toOrigin(ifStatement), false,
                         conditionWithFlows.expression(), thenExpression, result);
             } else {
+                if (statement instanceof JCTree.JCExpressionStatement expressionStatement &&
+                        expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation) {
+                    var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+                    if (jverifyMethod != null) {
+                        var dafnyStatement = getJVerifyStatement(invocation, jverifyMethod, context);
+                        result = new StmtExpr(origin, dafnyStatement, result);
+                        continue;
+                    }
+                }
                 baseGenerator.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
                 result = BaseDafnyGenerator.getHole(origin);
             }
         }
         return result;
+    }
+
+    @Nullable
+    public Statement getJVerifyStatement(JCTree.JCMethodInvocation invocation,
+                                         Symbol.MethodSymbol jverifyMethod,
+                                         ExpressionContext expressionContext) {
+
+        var name = jverifyMethod.getQualifiedName().toString();
+        if (name.equals("check")) {
+            if (invocation.args.size() != 1) {
+                throw new JavaViolationException("Check should have a single argument");
+            }
+            return new AssertStmt(baseGenerator.toOrigin(invocation), null,
+                    toExpr(invocation.args.getFirst(), expressionContext), null);
+        } if (name.equals("assume")) {
+            if (invocation.args.size() != 1) {
+                throw new JavaViolationException("Check should have a single argument");
+            }
+            return new AssumeStmt(baseGenerator.toOrigin(invocation), null,
+                    toExpr(invocation.args.getFirst(), expressionContext));
+        }
+        return null;
     }
 
     private Expression toExpr(JCTree.JCStatement statement, ExpressionContext context) {
