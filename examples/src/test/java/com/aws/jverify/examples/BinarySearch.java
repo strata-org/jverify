@@ -5,6 +5,7 @@ import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
 
+@SuppressWarnings("ConstantValue")
 class BinarySearch {
 
     public static int findIndex(int[] arr, int key) {

@@ -13,16 +13,15 @@ public class SumCache {
     @Invariant
     boolean validSum() {
 //          ^^^^^^^^ Related location: this is the postcondition that could not be proved
-        reads(this);
-        reads(numbers);
-        return this != (Object)numbers && numbers.stream().reduce(0, SumCache::unsafeSum) == sum;
-//                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
+        reads(this); reads(numbers);
+        return this != (Object)numbers && 
+            numbers.stream().reduce(0, SumCache::unsafeSum) == sum;
+//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
     }
     
     public void addNumber(int value) {
         precondition(!willAddOverflow(sum, value));
-        modifies(this);
-        modifies(numbers);
+        modifies(this); modifies(numbers);
 
         sum = sum + value;
         // numbers.add(value);
