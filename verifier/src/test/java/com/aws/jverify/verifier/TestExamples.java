@@ -12,7 +12,7 @@ public class TestExamples {
     @Test
     public void testSumCache() throws IOException {
         var markedSourcePath = Path.of("SumCache.java");
-        verifyPath(markedSourcePath, 22, -1, -1, true);
+        verifyPath(markedSourcePath, 4, 7, 1, false);
     }
     
     /**

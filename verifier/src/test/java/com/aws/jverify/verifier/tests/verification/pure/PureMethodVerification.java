@@ -50,7 +50,6 @@ public class PureMethodVerification {
                 return c + 4;
             }
             var d = c + 5;
-            
             return d + 6;
         }
         var e = b + 1;

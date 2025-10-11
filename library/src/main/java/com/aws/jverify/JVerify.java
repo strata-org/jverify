@@ -106,6 +106,13 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public static Object isAbstract() {
+        throw new VerificationMethodExecutedException();
+    }
+    
+    public static Object readsOf(Object value) {
+        throw new VerificationMethodExecutedException();
+    }
 
     /**
      * Evaluates the given value using the program state with which the current method was called with.

@@ -8,6 +8,7 @@ import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.dafnygenerator.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
@@ -20,6 +21,7 @@ public class BlockCompiler {
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
+    private final Symtab symtab;
 
     public BlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
         this.generator = compiler;
@@ -29,6 +31,7 @@ public class BlockCompiler {
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         statementCompilers.add(new ForLoopCompiler(this));
         statementCompilers.add(new DoWhileLoopCompiler(this));
+        symtab = Symtab.instance(compiler.context);
     }
 
     private final Queue<Label> labels = new LinkedList<>();
@@ -253,8 +256,21 @@ public class BlockCompiler {
         }
 
         var expr = generator.getFinalGenerator().toExpr(invocation, null, expressionContext);
-        return List.of(new AssignStatement(origin, null, List.of(),
-                List.of(new ExprRhs(expr.getOrigin(), null, expr)), false));
+
+        List<AssignmentRhs> rhss = List.of(new ExprRhs(expr.getOrigin(), null, expr));
+        if (invocation.type == symtab.voidType) {
+            return List.of(new AssignStatement(origin, null, List.of(),
+                     rhss, false));
+        } else {
+            Type translatedType = this.generator.getFinalGenerator().translateType(invocation.type, origin, null);
+            LocalVariable localVariable = new LocalVariable(origin, 
+                    "impure" + NameCompiler.sep + expressionContext.getVariableSuffix(),
+                    translatedType, false);
+            var lhss = List.<Expression>of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
+            return List.of(new VarDeclStmt(origin, null, List.of(localVariable), 
+                    new AssignStatement(origin, null, lhss,
+                    rhss, false)));
+        }
     }
 
     public static JCTree.JCIdent getSuperIdent(JCTree.JCMethodInvocation invocation) {

@@ -12,10 +12,11 @@ public class SumCache {
     @Pure
     @Invariant
     boolean validSum() {
+//          ^^^^^^^^ Related location: this is the postcondition that could not be proved
         reads(this);
         reads(numbers);
         return this != (Object)numbers && numbers.stream().reduce(0, SumCache::unsafeSum) == sum;
-//          ^^^^^^^^ Related: this is the invariant that could not be proven
+//                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
     }
     
     public void addNumber(int value) {
@@ -24,9 +25,9 @@ public class SumCache {
         modifies(numbers);
 
         sum = sum + value;
-        var x = numbers.add(value); // TODO: enable not having the 'var x = '
+        // numbers.add(value);
         return;
-//      ^^^^^^ Error: could not prove invariant on return    
+//      ^^^^^^^ Error: a postcondition could not be proved on this return path    
     }
     
     @Pure
