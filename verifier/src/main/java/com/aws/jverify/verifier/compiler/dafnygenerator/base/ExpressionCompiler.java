@@ -278,7 +278,7 @@ public class ExpressionCompiler {
         if (context.statementWriter() != null) {
             Expression target = toExpr(assign.getVariable(), context);
             List<Expression> lhss = List.of(target);
-            List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), context));
+            List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), context.withExpectedType(assign.type)));
             context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
             return target;
         } else {
@@ -470,7 +470,7 @@ public class ExpressionCompiler {
 
     private ExpressionWithFlows translateBinary(JCTree.JCBinary binary, ExpressionContext context) {
         context = context.forbidImpure();
-        var leftWithFlows = toExprWithFlows(binary.getLeftOperand(), context.withExpectedType(binary.getRightOperand().type));
+        var leftWithFlows = toExprWithFlows(binary.getLeftOperand(), context.withExpectedType(binary.getLeftOperand().type));
         var rightWithFlows = toExprWithFlows(binary.getRightOperand(), context.withExpectedType(binary.getLeftOperand().type));
         Expression right;
         

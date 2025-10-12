@@ -41,6 +41,12 @@ public class TestExamples {
         var markedSourcePath = Path.of("Fibonacci.java");
         verifyPath(markedSourcePath, 0, 6, 0, false);
     }
+
+    @Test
+    public void testOrder() throws IOException {
+        var markedSourcePath = Path.of("Order.java");
+        verifyPath(markedSourcePath, 0, 6, 0, false);
+    }
     
     @Test
     public void testUserProfile() throws IOException {

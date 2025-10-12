@@ -110,14 +110,33 @@ public class NullableGenerator extends WrappingDafnyGenerator {
 
     @Override
     public ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
-        if (expr instanceof JCTree.JCMethodInvocation invocation) {
-            return translateInvocation(invocation, originOverride, context);
-        } else if (expr instanceof JCTree.JCAssign assign) {
-            return translateAssign(assign, originOverride, context);
-        } else if (expr instanceof JCTree.JCLiteral literal) {
+        if (expr instanceof JCTree.JCLiteral literal) {
             return translateLiteral(literal, originOverride, context);
         }
+        if (context.expectedType() != null && expr.type.tsym instanceof Symbol.ClassSymbol valueClass) {
+            var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(expr));
+            var nullableTarget = isNullable(context.expectedType());
+            var nullableValue = isNullable(expr.type);
+            if (!nullableTarget && nullableValue) {
+                var valueExpr = baseGenerator.getFinalGenerator().toExpr(expr, origin, context.withExpectedType(null));
+                return new ExpressionWithFlows(new ExprDotName(origin, valueExpr, new Name(origin, "value"), null));
+            } else if (nullableTarget && !nullableValue) {
+                var nonNullValueExpr = baseGenerator.getFinalGenerator().toExpr(expr, origin, context.withExpectedType(null));
+                return new ExpressionWithFlows(ExpressionCompiler.createCall2(origin, new NameSegment(origin, "NonNull", null), Stream.of(nonNullValueExpr)));
+            } else {
+                return super.toExprWithFlows(expr, originOverride, context);
+            }
+        }
         return super.toExprWithFlows(expr, originOverride, context);
+        
+//        if (expr instanceof JCTree.JCMethodInvocation invocation) {
+//            return translateInvocation(invocation, originOverride, context);
+//        } else if (expr instanceof JCTree.JCAssign assign) {
+//            return translateAssign(assign, originOverride, context);
+//        } else if (expr instanceof JCTree.JCLiteral literal) {
+//            return translateLiteral(literal, originOverride, context);
+//        }
+//        return super.toExpr(expr, originOverride, context);
     }
 
     private ExpressionWithFlows translateAssign(JCTree.JCAssign assign, IOrigin originOverride, ExpressionContext context) {
@@ -127,23 +146,23 @@ public class NullableGenerator extends WrappingDafnyGenerator {
             if (isImmutable) {
                 var nullableTarget = isNullable(assign.getVariable());
                 var nullableValue = isNullable(assign.getExpression());
+                Expression target;
+                Expression rhsValue;
                 if (!nullableTarget && nullableValue) {
-                    Expression target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
-                    List<Expression> lhss = List.of(target);
+                    target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
                     var valueExpr = baseGenerator.getFinalGenerator().toExpr(assign.getExpression(), origin, context);
-                    var nonNullValueExpr = new ExprDotName(origin, valueExpr, new Name(origin, "value"), null);
-                    List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, nonNullValueExpr));
-                    context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
-                    return new ExpressionWithFlows(target);
+                    rhsValue = new ExprDotName(origin, valueExpr, new Name(origin, "value"), null);
                 } else if (nullableTarget && !nullableValue) {
-                    Expression target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
-                    List<Expression> lhss = List.of(target);
+                    target = baseGenerator.expressionCompiler.toExpr(assign.getVariable(), context);
                     var nonNullValueExpr = baseGenerator.getFinalGenerator().toExpr(assign.getExpression(), origin, context);
-                    var nullableValueExpr = ExpressionCompiler.createCall2(origin, new NameSegment(origin, "NonNull", null), Stream.of(nonNullValueExpr));
-                    List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, nullableValueExpr));
-                    context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
-                    return new ExpressionWithFlows(target);
+                    rhsValue = ExpressionCompiler.createCall2(origin, new NameSegment(origin, "NonNull", null), Stream.of(nonNullValueExpr));
+                } else {
+                    return super.toExprWithFlows(assign, originOverride, context);
                 }
+                List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, rhsValue));
+                List<Expression> lhss = List.of(target);
+                context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
+                return new ExpressionWithFlows(target);
             }
         }
         return super.toExprWithFlows(assign, originOverride, context);

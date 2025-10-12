@@ -346,11 +346,3 @@ public class BlockCompiler {
                 : new BlockStmt(origin, null, List.of(), statements);
     }
 }
-
-class Static1 {
-    static int y = Static2.x; 
-}
-
-class Static2 {
-    static int x = Static1.y;
-}
