@@ -21,6 +21,7 @@ import java.io.*;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -114,8 +115,10 @@ public class Driver {
                         outputWriter.write('\n');
                     }
                 }
-                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap.get(((DafnyDiagnostic) dafnyOutput).getSource())
-                        .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
+                var baseUri = Paths.get(System.getProperty("user.dir")).toUri();
+                var relativeUri = baseUri.relativize(dafnyDiagnostic.getSource());
+                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap.get(relativeUri)
+                        .findAtPoint((int) dafnyDiagnostic.getLineNumber());
                 if (failedJavaMethod != null) {
                     failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
                 }

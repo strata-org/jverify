@@ -198,7 +198,9 @@ public class TestVerifier {
                 "/Users/rwillems/brazil-pkg-cache/packages/Jackson-databind/Jackson-databind-2.12.x.416784.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/jackson-databind-2.12.7.1.jar:/Users/rwillems/brazil-pkg-cache/packages/Jackson-annotations/Jackson-annotations-2.12.x.400243.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/jackson-annotations-2.12.7.jar:/Users/rwillems/brazil-pkg-cache/packages/Jackson-core/Jackson-core-2.12.x.397949.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/jackson-core-2.12.7.jar:/Users/rwillems/brazil-pkg-cache/packages/Maven-org-dafny_DafnyRuntime/Maven-org-dafny_DafnyRuntime-4.9.1.0.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/DafnyRuntime-4.9.1.jar:/Users/rwillems/brazil-pkg-cache/packages/Z3Prover/Z3Prover-z3_4.13.0.75.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/com.microsoft.z3.jar",
                 //"./test/java/com/amazonaws/billing/contracts/ContractsSerializerHelper.java",
                 //"./test/java/com/amazonaws/billing/contracts/ContractSerializerTest.java",
+                "--paths",
                 "--dafny=" + dafnyPath,
+                "--filter-position=/Users/rwillems/SourceCode/billing/src/AWSCPAgreementsModel/src/main/java/com/amazonaws/billing/Terms/DiscountTerm/DiscountTerm.java",
                 "--print-dafny=" + "/Users/rwillems/SourceCode/GradleBased/build/temp2.dfy");
         Files.writeString(Path.of("/Users/rwillems/SourceCode/GradleBased/build/out.text"), out.toString());
         Assertions.assertEquals(2, exitCode);

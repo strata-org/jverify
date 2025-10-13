@@ -39,6 +39,6 @@ public class Common {
     }
 
     public static String getExtraS(int count) {
-        return count > 1 ? "s" : "";
+        return count != 1 ? "s" : "";
     }
 }
