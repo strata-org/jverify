@@ -65,12 +65,16 @@ public class ArrayCompiler extends TreeTranslator {
     public void visitAssign(JCTree.JCAssign tree) {
         if (tree.lhs instanceof JCTree.JCArrayAccess arrayAccess) {
             maker.pos = tree.pos;
-            result = maker.App(maker.Select(arrayAccess.getExpression(), setMethodSymbol), 
-                    List.of(arrayAccess.getIndex(), tree.getExpression()));
+            tree.rhs = translate(tree.rhs);
+
+            result = maker.App(maker.Select(arrayAccess.getExpression(), setMethodSymbol),
+                    List.of(arrayAccess.getIndex(), tree.rhs));
             result.type = tree.type;
-        } else {
+        }
+        else {
             super.visitAssign(tree);
         }
+
     }
 
     @Override
@@ -120,4 +124,6 @@ public class ArrayCompiler extends TreeTranslator {
         result = maker.App(maker.Select(tree.getExpression(), getMethodSymbol), List.of(tree.getIndex()));
         result.type = tree.type;
     }
+
+
 }

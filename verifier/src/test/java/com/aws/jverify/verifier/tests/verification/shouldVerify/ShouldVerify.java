@@ -13,7 +13,8 @@ import static com.aws.jverify.JVerify.check;
         "./a/WontVerify.java", 
         "./a/package-info.java", 
         "./b/WillVerify.java", 
-        "./b/package-info.java" }
+        "./b/package-info.java" },
+        javaVerified = 3, javaSkipped = 6, javaErrors = 6
 )
 public class ShouldVerify {
 
