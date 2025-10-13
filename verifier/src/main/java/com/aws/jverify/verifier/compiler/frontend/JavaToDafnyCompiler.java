@@ -191,12 +191,12 @@ public class JavaToDafnyCompiler {
                     units.addAll(
                             staticMover.translate(
                                     arrayCompiler.transform(
-                                            unsuspend(lower(suspend(
                                                     missingContractCompiler.compile(
                                                             verifyAnnotationCompiler.transform(
                                                                     externalContractCompiler.apply(
                                                                             newMethodContractCompiler.transform(
-                                                                                    unlambda(
+                                                                                    unsuspend(lower(suspend(
+                                                                                    unlambda( /verifyAnnotationCompiler needs to go first to remove things that otherwise Lambda will copy
                                                                                             toUnits(compiler.flow(compiler.attribute(todo)))
                                                                                     )))))))))));
                 }

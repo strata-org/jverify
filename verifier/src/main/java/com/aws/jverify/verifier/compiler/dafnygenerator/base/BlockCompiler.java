@@ -178,6 +178,7 @@ public class BlockCompiler {
                                    ExpressionContext expressionContext) {
         var origin = generator.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
+        
         var postHeader = methodOrLoopContractCompiler.extractContract(generator, (JCTree.JCBlock) body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);

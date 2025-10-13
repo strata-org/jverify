@@ -16,6 +16,7 @@ import com.sun.tools.javac.util.List;
 
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /*
@@ -112,6 +113,19 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             tree.body = maker.Block(0, newStatements);
         }
         super.visitWhileLoop(tree);
+    }
+
+    @Override
+    public void visitForeachLoop(JCTree.JCEnhancedForLoop tree) {
+        if (tree.body != null) {
+            maker.pos = tree.body.pos;
+            List<JCTree.JCStatement> statements = getStatements(tree.body);
+            List<JCTree.JCStatement> newStatements = getNewStatements(tree, statements.stream().skip(1).collect(List.collector()), false);
+            var implementation = (JCTree.JCBlock)newStatements.get(1);
+            implementation.stats = implementation.stats.prepend(statements.getFirst());
+            tree.body = maker.Block(0, newStatements);
+        }
+        super.visitForeachLoop(tree);
     }
 
     @Override

@@ -3,11 +3,19 @@ package com.aws.jverify.verifier.tests.javasupport.statements;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import java.util.List;
+
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
 @JVerifyTest(dafnyVerified = 16, dafnyErrors = 0, verifyPrintedDafny = true)
 class VerifyStatements {
+    void enhancedFor(List<Integer> numbers) {
+        var sum = 0;
+        for(var x : numbers) {
+            sum += x;
+        }
+    }
     void whileWithBreak() {
         var x = 0;
         while(true) {
