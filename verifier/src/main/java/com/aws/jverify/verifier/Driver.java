@@ -135,7 +135,7 @@ public class Driver {
 
             var attemptedCount = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
                     .flatMap(IntervalTree::streamNodes).count();
-            outputWriter.write(String.format("Verification attempted for %s Java method%s", attemptedCount, Common.getExtraS((int) attemptedCount)));
+            outputWriter.write(String.format("Found %s verifiable Java method%s", attemptedCount, Common.getExtraS((int) attemptedCount)));
             outputWriter.write('\n');
 
             var skippedCount = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
