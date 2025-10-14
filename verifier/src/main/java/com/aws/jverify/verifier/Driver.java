@@ -115,8 +115,7 @@ public class Driver {
                         outputWriter.write('\n');
                     }
                 }
-                var baseUri = Paths.get(System.getProperty("user.dir")).toUri();
-                var relativeUri = baseUri.relativize(dafnyDiagnostic.getSource());
+                var relativeUri = VerifyAnnotationCompiler.reallyNormalizeUri(dafnyDiagnostic.getSource());
                 var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap.get(relativeUri)
                         .findAtPoint((int) dafnyDiagnostic.getLineNumber());
                 if (failedJavaMethod != null) {
