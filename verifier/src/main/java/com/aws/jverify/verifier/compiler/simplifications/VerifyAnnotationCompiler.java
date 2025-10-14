@@ -26,10 +26,10 @@ import java.util.*;
 public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
     private final VerifierOptions options;
+    private final Reporter reporter;
     public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
     public final Context context;
     private final JavaToDafnyCompiler javaToDafnyCompiler;
-    private final Reporter reporter;
     private PositionCalculator positionCalculator;
     private final HashMap<URI, IntervalTree<Integer, JavaMethodVerificationStatus>> sourceFileToMethodIntervalTreeMap = new HashMap<>();
 
@@ -40,8 +40,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         shouldVerifies.push(context.get(VerifierOptions.class).verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
-        options = context.get(VerifierOptions.class);
         this.context = context;
+        options = context.get(VerifierOptions.class);
         javaToDafnyCompiler = context.get(JavaToDafnyCompiler.class);
     }
     
