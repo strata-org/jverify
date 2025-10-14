@@ -7,14 +7,15 @@ import com.aws.jverify.testengine.JVerifyTest;
 import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.check;
+import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 6,
+@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 6,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 
         "./b/WillVerify.java", 
         "./b/package-info.java" },
-        javaVerified = 3, javaSkipped = 6, javaErrors = 6
+        javaVerified = 2, javaSkipped = 7, javaErrors = 6
 )
 public class ShouldVerify {
 
@@ -68,6 +69,12 @@ public class ShouldVerify {
             check(false);
 //          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
+    }
+
+    @Verify(false)
+    public ShouldVerify() {
+        // test that verify false works for constructors 
+        postcondition(false);
     }
 
 }

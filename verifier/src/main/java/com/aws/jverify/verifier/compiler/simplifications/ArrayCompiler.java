@@ -100,6 +100,7 @@ public class ArrayCompiler extends TreeTranslator {
             reporter.reportError(newArray, "notSupported", "multi-dimensional arrays");
         }
 
+        maker.pos = newArray.pos;
         JCTree.JCExpression size;
         if (newArray.getInitializers() != null && !newArray.getInitializers().isEmpty()) {
             reporter.reportError(newArray, "notSupported", "new array with initializers");
@@ -108,7 +109,6 @@ public class ArrayCompiler extends TreeTranslator {
             size = newArray.getDimensions().head;
         }
 
-        maker.pos = newArray.pos;
         JCTree.JCMethodInvocation create = maker.App(maker.Select(maker.Ident(arraySymbol), createMethodSymbol), 
                 List.of(size));
         create.typeargs = List.of(maker.Type(elementType));

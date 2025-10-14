@@ -110,7 +110,11 @@ class RecordsVerified {
 record UnitRecord() {}
 
 /** Primitive-type component */
-record IntRecord(int value) {}
+record IntRecord(int value) {
+    public void useValueInsideRecord() {
+        var b = value();
+    }
+}
 
 /** Reference-type component */
 record FoobarRecord(@Nullable Foobar foobar) {}

@@ -1,10 +1,10 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Verify;
+import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.generated.TokenRange;
 import com.aws.jverify.verifier.IntervalTree;
 import com.aws.jverify.verifier.JavaMethodVerificationStatus;
-import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
@@ -25,22 +25,24 @@ import java.util.*;
  */
 public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
+    private final VerifierOptions options;
+    private final Reporter reporter;
     public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
     public final Context context;
     private final JavaToDafnyCompiler javaToDafnyCompiler;
-    private final Reporter reporter;
     private PositionCalculator positionCalculator;
     private final HashMap<URI, IntervalTree<Integer, JavaMethodVerificationStatus>> sourceFileToMethodIntervalTreeMap = new HashMap<>();
 
     public VerifyAnnotationCompiler(Context context) {
         context.put(VerifyAnnotationCompiler.class, this);
         jverifyUtils = JVerifyUtils.instance(context);
+        reporter = Reporter.instance(context);
         shouldVerifies.push(context.get(VerifierOptions.class).verifyByDefault()
                 ? ShouldVerifyMode.DefaultYes
                 : ShouldVerifyMode.DefaultNo);
         this.context = context;
+        options = context.get(VerifierOptions.class);
         javaToDafnyCompiler = context.get(JavaToDafnyCompiler.class);
-        reporter = context.get(Reporter.class);
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -65,6 +67,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     @Override
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+        reporter.compilationUnit = tree;
         processVerifyAnnotation(tree.packge);
         if (!javaToDafnyCompiler.isLibrary(reporter.compilationUnit)) {
             if (!sourceFileToMethodIntervalTreeMap.containsKey(reporter.compilationUnit.getSourceFile().toUri().normalize())) {
@@ -85,9 +88,13 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
-        boolean shouldVerify = processVerifyAnnotationAndPop(tree.sym);
+        boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
         addMethodToIntervalTree(tree, shouldVerify);
         if (!shouldVerify) {
+            removeImplementation(tree);
+        } else if (!jverifyUtils.isPure(tree.sym) && !applyPositionFilter(tree)) {
+            // this is a performance optimization. 
+            // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
             removeImplementation(tree);
         }
         super.visitMethodDef(tree);
@@ -118,12 +125,14 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     }
 
     public void removeImplementation(JCTree.JCMethodDecl tree) {
+        if (tree.body == null || tree.body.getStatements().isEmpty()) {
+            return;
+        }
         var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
         tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
-        removedImplementations.add(tree.sym);
     }
 
-    public boolean processVerifyAnnotationAndPop(AnnoConstruct annoConstruct) {
+    public boolean processVerifyAnnotationAndPop(JCTree node, AnnoConstruct annoConstruct) {
         processVerifyAnnotation(annoConstruct);
         boolean shouldVerify = shouldVerify();
         shouldVerifies.pop();
@@ -140,6 +149,22 @@ public class VerifyAnnotationCompiler extends TreeScanner {
             }
         }
         throw new RuntimeException("shouldVerify should never be empty");
+    }
+    
+    private boolean applyPositionFilter(JCTree.JCMethodDecl method) {
+        var filter = options.positionFilter();
+        if (filter == null) {
+            return true;
+        } else {
+            if (filter.fileEnding() != null
+                    && !reporter.compilationUnit.getSourceFile().getName().endsWith(filter.fileEnding())) {
+                return false;
+            }
+
+            var nodeRange = Reporter.getRange(reporter.getName(method, method.name).getOrigin());
+            int line = nodeRange.getStartToken().getLine();
+            return filter.start() <= line && line <= filter.end();
+        }
     }
 
     public void addShouldVerify(ShouldVerifyMode mode) {

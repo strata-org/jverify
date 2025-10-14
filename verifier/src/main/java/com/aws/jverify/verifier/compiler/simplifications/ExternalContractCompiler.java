@@ -242,16 +242,22 @@ public class ExternalContractCompiler {
 
             var baseMethod = findContractee(contracteeSymbol, contracterSymbol, types);
             if (baseMethod != null) {
-                updateLibraryContractAnnotations(methodDecl, baseMethod);
+                if (baseMethod.owner == contracteeSymbol) {
+                    updateLibraryContractAnnotations(methodDecl, baseMethod);
+                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
+                    contractSymbolToContractee.put(methodDecl.sym, baseMethod);
+                    methodDecl.sym = baseMethod;
+                } else {
+                    var newSymbol = new Symbol.MethodSymbol(baseMethod.flags(), baseMethod.name, baseMethod.type, contracteeSymbol);
+                    updateLibraryContractAnnotations(methodDecl, newSymbol);
+                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
+                    contractSymbolToContractee.put(methodDecl.sym, newSymbol);
+                    methodDecl.sym = newSymbol;
+                }
                 newMembers.add(methodDecl);
-                index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
-                contractSymbolToContractee.put(methodDecl.sym, baseMethod);
-                methodDecl.sym = baseMethod;
             } else {
                 reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
-                return;
             }
-
         }
 
         private void updateLibraryContractAnnotations(JCTree.JCMethodDecl contracter,
@@ -377,10 +383,12 @@ public class ExternalContractCompiler {
     }
 
     private static Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {
-        for (Symbol member : contractee.members().getSymbolsByName(method.name)) {
-            if (member instanceof Symbol.MethodSymbol candidate) {
-                if (types.isSubSignature(types.erasure(member.type), types.erasure(method.type))) {
-                    return candidate;
+        for(var part : types.closure(contractee.type)) {
+            for (Symbol member : part.tsym.members().getSymbolsByName(method.name)) {
+                if (member instanceof Symbol.MethodSymbol candidate) {
+                    if (types.isSubSignature(types.erasure(member.type), types.erasure(method.type))) {
+                        return candidate;
+                    }
                 }
             }
         }

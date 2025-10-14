@@ -16,7 +16,7 @@ public class MethodOrLoopContract {
     public Expression pureBody;
     public List<AttributedExpression> preconditions;
     public List<AttributedExpression> postconditions;
-    public List<AttributedExpression> invariants;
+    public List<AttributedExpression> loopInvariants;
     public List<Expression> decreases;
     public List<FrameExpression> reads;
     public List<FrameExpression> modifies;
@@ -27,7 +27,7 @@ public class MethodOrLoopContract {
 
         preconditions = new ArrayList<>();
         postconditions = new ArrayList<>();
-        invariants = new ArrayList<>();
+        loopInvariants = new ArrayList<>();
         decreases = new ArrayList<>();
         reads = new ArrayList<>();
         modifies = new ArrayList<>();

@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.dafnygenerator.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
@@ -12,6 +13,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class BlockCompiler {
+    private final Reporter reporter;
     public final BaseDafnyGenerator generator;
     private final ExpressionCompiler expressionCompiler;
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
@@ -20,6 +22,7 @@ public class BlockCompiler {
 
     public BlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
         this.generator = compiler;
+        reporter = compiler.reporter;
         expressionCompiler = compiler.expressionCompiler;
         this.methodSymbol = methodSymbol;
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
@@ -92,24 +95,24 @@ public class BlockCompiler {
         if (jcBreak.label == null) {
             result = new BreakOrContinueStmt(origin, null, null, 1, false);
         } else {
-            var targetLabel = generator.getName(jcBreak, jcBreak.label);
+            var targetLabel = reporter.getName(jcBreak, jcBreak.label);
             result = new BreakOrContinueStmt(origin, null, targetLabel, 0, false);
         }
         return List.of(result);
     }
 
     public List<Statement> translateContinue(JCTree.JCContinue jcContinue) {
-        var origin = generator.toOrigin(jcContinue);
+        var origin = reporter.toOrigin(jcContinue);
         if (jcContinue.label == null) {
             return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
         } else {
-            var targetLabel = generator.getName(jcContinue, jcContinue.label);
+            var targetLabel = reporter.getName(jcContinue, jcContinue.label);
             return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));
         }
     }
 
     private List<Statement> translateReturn(JCTree.JCReturn returnStatement, ExpressionContext expressionContext) {
-        var origin = generator.toOrigin(returnStatement);
+        var origin = reporter.toOrigin(returnStatement);
         var expr = returnStatement.getExpression();
         if (expr == null) {
             return List.of(new ReturnStmt(origin, null, null));
@@ -178,7 +181,7 @@ public class BlockCompiler {
         var dafnyCondition = expressionCompiler.toExpr(condition, expressionContext);
         var bodyStatements = translateStatements(postHeader);
         var newBodyStatements = transformBody.apply(bodyStatements);
-        return new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
+        return new WhileStmt(origin, null, labels, header.loopInvariants, new Specification<>(header.decreases, null),
                 new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),
                 dafnyCondition);
     }

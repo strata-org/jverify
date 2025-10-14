@@ -200,13 +200,15 @@ public class Suspenders extends TreeTranslator {
             }
             rest = maybeRest.get();
         } else if (exhaustive) {
+            maker.pos = selector.pos;
             rest = maker.Assert(maker.Literal(false), null);
         } else {
             rest = null;
         }
-        return caseToExpression(selector, cases.head, cases.head.labels).map(head ->
-            maker.If(head, maker.Block(0, cases.head.stats), rest)
-        );
+        return caseToExpression(selector, cases.head, cases.head.labels).map(head -> {
+            maker.pos = head.pos;
+            return maker.If(head, maker.Block(0, cases.head.stats), rest);
+        });
     }
 
     private Optional<JCTree.JCSwitch> switchFromIf(JCTree.JCIf ifStmt) {
