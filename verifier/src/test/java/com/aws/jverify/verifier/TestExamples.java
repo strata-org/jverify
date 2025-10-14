@@ -8,7 +8,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class TestExamples {
-
+    @Test
+    public void testImpureObjectAndPure() throws IOException {
+        var markedSourcePath = Path.of("ImpureObjectAndPure.java");
+        verifyPath(markedSourcePath, 4, 7, 1, false);
+    }
+    
     @Test
     public void testSumCache() throws IOException {
         var markedSourcePath = Path.of("SumCache.java");

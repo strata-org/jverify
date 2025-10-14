@@ -2,10 +2,6 @@ package com.aws.jverify.examples;
 
 public class MultiplyAllOpenJml {
     /*@ requires arr != null;
-      @ requires (\forall int i; 0 <= i && i < arr.length; 
-      @           arr[i] >= Integer.MIN_VALUE / scalar && 
-      @           arr[i] <= Integer.MAX_VALUE / scalar);
-      @ ensures arr != null;
       @ ensures arr.length == \old(arr.length);
       @ ensures (\forall int i; 0 <= i && i < arr.length; 
       @           arr[i] == \old(arr[i]) * scalar);
