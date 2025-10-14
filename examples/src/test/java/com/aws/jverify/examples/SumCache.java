@@ -40,9 +40,10 @@ public class SumCache {
         return false; // Different signs won't overflow
     }
 
+    // Let this return an '@Unbounded int' once we implement https://github.com/aws/jverify/issues/340
     @Pure 
     static int unsafeSum(int a, int b) {
-        assume(false); // TODO enable skipping the checks but keeping the functional body using @Verify(false)
+        assume(false); // Skip the overflow check. Improve this when https://github.com/aws/jverify/issues/339 is resolved
         return a + b;
     }
 }
