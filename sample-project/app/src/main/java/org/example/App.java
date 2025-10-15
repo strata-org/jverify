@@ -37,8 +37,8 @@ abstract class S3ClientContract implements S3Client {
     public ListBucketsResponse listBuckets(ListBucketsRequest listBucketsRequest) throws AwsServiceException, SdkClientException {
         // @range(1, 1000)
         precondition(
-            implies(listBucketsRequest.maxBuckets() != null,
-                1 <= listBucketsRequest.maxBuckets() && listBucketsRequest.maxBuckets() <= 1000));
+                implies(listBucketsRequest.maxBuckets() != null,
+                        1 <= listBucketsRequest.maxBuckets() && listBucketsRequest.maxBuckets() <= 1000));
 
         throw new ContractException();
     }
@@ -110,8 +110,8 @@ class PutObjectRequestContract {
     public static PutObjectRequest.Builder builder() {
         postcondition((PutObjectRequestBuilderContract result) ->
                 fresh(result)
-                    && result.building.checksumAlgorithmAsString() == null
-                    && result.building.checksumCRC32() == null);
+                        && result.building.checksumAlgorithmAsString() == null
+                        && result.building.checksumCRC32() == null);
 
         throw new ContractException();
     }

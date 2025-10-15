@@ -266,6 +266,7 @@ public class JavaToDafnyCompiler {
     // Phase to undo the effects of suspend().
     private Set<JCTree.JCCompilationUnit> unsuspend(Set<JCTree.JCCompilationUnit> units) {
         var hider = Suspenders.instance(context);
+        LambdaToMethod
         units.forEach(topLevel -> {
             topLevel.defs = topLevel.defs.map(hider::unsuspend);
         });
