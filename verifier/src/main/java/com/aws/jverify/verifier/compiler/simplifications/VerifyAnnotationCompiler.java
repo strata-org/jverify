@@ -128,12 +128,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     }
 
     private URI getUri() {
-        return reallyNormalizeUri(reporter.compilationUnit.getSourceFile().toUri());
-    }
-
-    public static URI reallyNormalizeUri(URI uri) {
         var baseUri = Paths.get(System.getProperty("user.dir")).toUri();
-        return baseUri.relativize(uri);
+        return baseUri.resolve(reporter.compilationUnit.getSourceFile().toUri());
     }
 
     public void removeImplementation(JCTree.JCMethodDecl tree) {

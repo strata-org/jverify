@@ -128,15 +128,6 @@ public class NullableGenerator extends WrappingDafnyGenerator {
             }
         }
         return super.toExprWithFlows(expr, originOverride, context);
-        
-//        if (expr instanceof JCTree.JCMethodInvocation invocation) {
-//            return translateInvocation(invocation, originOverride, context);
-//        } else if (expr instanceof JCTree.JCAssign assign) {
-//            return translateAssign(assign, originOverride, context);
-//        } else if (expr instanceof JCTree.JCLiteral literal) {
-//            return translateLiteral(literal, originOverride, context);
-//        }
-//        return super.toExpr(expr, originOverride, context);
     }
 
     private ExpressionWithFlows translateAssign(JCTree.JCAssign assign, IOrigin originOverride, ExpressionContext context) {
