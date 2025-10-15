@@ -23,6 +23,10 @@ public record ExpressionContext(@Nullable Consumer<Statement> statementWriter,
     public ExpressionContext forbidImpure() {
         return new ExpressionContext(statementWriter, false, blockCompiler, expectedType);
     }
+    
+    public ExpressionContext withStatementWriter() {
+        return new ExpressionContext(statementWriter, false, blockCompiler, expectedType);
+    }
 
     public String getVariableSuffix() {
         return blockCompiler.generatedIndex++ + "";

@@ -365,14 +365,16 @@ public class ExpressionCompiler {
     
     Expression placeRhsIntoTemporaryAssignmentAndReturnResult(com.sun.tools.javac.code.Type type, AssignmentRhs rhs, ExpressionContext context) {
         var origin = rhs.getOrigin();
+        List<AssignmentRhs> rhss = List.of(rhs);
+        
         Type translatedType = this.baseGenerator.getFinalGenerator().translateType(type, origin, null);
         LocalVariable localVariable = new LocalVariable(origin, "impure" + NameCompiler.sep + context.getVariableSuffix(),
                 translatedType, false);
         List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
-        List<AssignmentRhs> rhss = List.of(rhs);
-
-        context.statementWriter().accept(new VarDeclStmt(origin, null, List.of(localVariable),
-                new AssignStatement(origin, null, lhss, rhss, false)));
+        VarDeclStmt varDeclStmt = new VarDeclStmt(origin, null, List.of(localVariable),
+                new AssignStatement(origin, null, lhss, rhss, false));
+        
+        context.statementWriter().accept(varDeclStmt);
         return new NameSegment(origin, localVariable.getName(), null);
     }
 

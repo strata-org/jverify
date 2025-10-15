@@ -11,6 +11,7 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 
+import javax.naming.Context;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -262,14 +263,10 @@ public class BlockCompiler {
             return List.of(new AssignStatement(origin, null, List.of(),
                      rhss, false));
         } else {
-            Type translatedType = this.generator.getFinalGenerator().translateType(invocation.type, origin, null);
-            LocalVariable localVariable = new LocalVariable(origin, 
-                    "impure" + NameCompiler.sep + expressionContext.getVariableSuffix(),
-                    translatedType, false);
-            var lhss = List.<Expression>of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
-            return List.of(new VarDeclStmt(origin, null, List.of(localVariable), 
-                    new AssignStatement(origin, null, lhss,
-                    rhss, false)));
+            ArrayList<Statement> statements = new ArrayList<>();
+            expressionCompiler.placeRhsIntoTemporaryAssignmentAndReturnResult(invocation.type, rhss.getFirst(), 
+                    new ExpressionContext(statements::add, false, this, null));
+            return List.of(statements.getFirst());
         }
     }
 
