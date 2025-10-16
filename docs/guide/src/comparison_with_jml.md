@@ -1,4 +1,4 @@
-### Comparison of JVerify and JML
+### Comparison of JVerify and OpenJML
 
 #### Syntax
 
@@ -9,7 +9,7 @@ JML introduces datatypes, which look like this:
 //@ model datatype LinkedList<T> { Nil, Cons(T head, List<T> tail) }
 ```
 
-While defining an equivaklent construct in JVerify requires users to use Java's sealed keyword, like this:
+While defining an equivalent construct in JVerify requires users to use Java's sealed keyword, like this:
 ```java
 sealed interface LinkedList<T> {}
 record Cons<T>(T head, LinkedList<T> tail) implements LinkedList<T> {}
