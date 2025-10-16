@@ -8,7 +8,7 @@ import com.aws.jverify.Pure;
 @SuppressWarnings("ConstantValue")
 class BinarySearch {
 
-    public static int findIndexBinarySearch(int[] arr, int key) {
+    public static int findIndex(int[] arr, int key) {
         postcondition((int res) ->
                 (res == -1 && !sequence(arr).contains(key))
                         || (0 <= res && res < arr.length && arr[res] == key)
@@ -23,10 +23,16 @@ class BinarySearch {
             invariant(lo <= hi);
             invariant(hi <= arr.length);
             invariant(!sequence(arr).take(lo).contains(key));
-//                    ^ this invariant could not be proved to be maintained by the loop
             invariant(!sequence(arr).drop(hi).contains(key));
 
-            lo = hi; // bad implementation
+            var mid = lo + (hi - lo) / 2;
+            if (key < arr[mid]) {
+                hi = mid;
+            } else if (arr[mid] < key) {
+                lo = mid + 1;
+            } else {
+                return mid;
+            }
         }
 
         return -1;
