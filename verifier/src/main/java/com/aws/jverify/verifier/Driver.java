@@ -126,7 +126,8 @@ public class Driver {
             outputWriter.write(verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage());
         }
 
-        if (verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap != null) {
+        if (verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap != null &&
+                verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != CommandLine.ExitCode.USAGE) {
             outputWriter.write('\n');
             String bullet = "• ";
 
