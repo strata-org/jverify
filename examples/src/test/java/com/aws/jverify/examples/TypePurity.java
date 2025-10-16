@@ -77,6 +77,6 @@ class ClassesAreImpure {
     @Pure
     ClassesAreImpure createC() {
         return new ClassesAreImpure();
-//             ^ error: using 'new' in a pure expression to create an instance of an impure type is not supported
+//             ^ error: using 'new' in a pure expression to create an instance of an impure type is not allowed
     }
 }

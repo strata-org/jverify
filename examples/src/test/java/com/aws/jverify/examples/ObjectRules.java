@@ -14,7 +14,7 @@ class ObjectRules {
     @Pure
     @Impure Object newObjectIsImpure() {
         return new Object(); // no cast needed
-//             ^ error: using 'new' in a pure expression to create an instance of an impure type is not supported
+//             ^ error: using 'new' in a pure expression to create an instance of an impure type is not allowed
     }
     
     <T> void typeParameterExtendsPureObject(T t) {
