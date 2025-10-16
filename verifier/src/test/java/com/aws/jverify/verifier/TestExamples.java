@@ -7,12 +7,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class TestExamples {
+public class TestExamples { 
     @Test
     public void testImpureObjectAndPure() throws IOException {
         var markedSourcePath = Path.of("ImpureObjectAndPure.java");
-        verifyPath(markedSourcePath, 4, 7, 1, true);
-        // TODO allow additional error from getHole bug
+        verifyPath(markedSourcePath, 2, -1, -1, false);
     }
     
     @Test

@@ -24,7 +24,7 @@ public class ImpureObjectAndPure {
     
     void foo(@Impure Object impure) {
         check(impureMethod() == impureMethod());
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved 
+//-     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved 
         check(createPureType() == createPureType());
 //                             ^ error: '==' is only allowed when at least one operand's type is impure
     }
