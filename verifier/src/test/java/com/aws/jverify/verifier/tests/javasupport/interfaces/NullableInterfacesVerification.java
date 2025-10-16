@@ -17,7 +17,7 @@ public class NullableInterfacesVerification {
         if (nullableP == null) {
             p = nonNullP;
             nullableP.foo();
-//          ^^^^^^^^^^^^^^^ Error: destructor 'value' can only be applied to datatype values constructed by 'NonNull'
+//          ^^^^^^^^^ Error: destructor 'value' can only be applied to datatype values constructed by 'NonNull'
         } else {
             p = nullableP;
             nullableP.foo();

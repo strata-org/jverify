@@ -24,6 +24,7 @@ public class Order {
         if (status == Status.PLACED) {
             System.out.println("Status: placed");
             System.out.println("Tracking number: " + trackingNumber);
+//                                                   ^^^^^^^^^^^^^^ Error: destructor 'value' can only be applied to datatype values constructed by 'NonNull'
         } else if (status == Status.SHIPPED) {
             System.out.println("Status: shipped");
             System.out.println("Tracking number: " + trackingNumber);

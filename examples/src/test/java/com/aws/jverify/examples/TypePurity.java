@@ -58,7 +58,7 @@ interface ImpureInterface {
     @Pure
     public boolean compare(RecordsArePure other) {
         return this == other;
-//                  ^ error: '==' is only allowed when at least one operand's type is mutable
+//                  ^ error: '==' is only allowed when at least one operand's type is impure
     }
 
     @Override

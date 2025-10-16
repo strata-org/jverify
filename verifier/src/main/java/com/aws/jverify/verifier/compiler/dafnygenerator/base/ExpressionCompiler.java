@@ -328,8 +328,7 @@ public class ExpressionCompiler {
             return PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
         }
         if (context.statementWriter() == null) {
-            baseGenerator.reportError(expr, "notSupported",
-                    "using 'new' in a pure expression to create an instance of an impure type");
+            baseGenerator.reportError(expr, "impureConstructorInPureContext");
             return BaseDafnyGenerator.getReferenceHole(origin);
         } else {
             var rhs = getGenerator().translateNewClassToAssignmentRhs(newClass, origin, context);

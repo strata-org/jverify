@@ -7,7 +7,7 @@ import com.aws.jverify.Pure;
 class ObjectRules {
     void impureInheritsFromPureObject(Object pureObject1) {
         @Impure Object impureObject = pureObject1;
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Object) not assignable to LHS (of type ImpureObject)
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type Object) not assignable to LHS (of type ImpureObject)
         Object pureObject2 = impureObject; // upcast is legal
     }
     
@@ -20,6 +20,6 @@ class ObjectRules {
     <T> void typeParameterExtendsPureObject(T t) {
         Object pureObject = t; // upcast is legal
         @Impure Object impureObject = t;
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type T) not assignable to LHS (of type ImpureObject)
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: RHS (of type T) not assignable to LHS (of type ImpureObject)
     }
 }
