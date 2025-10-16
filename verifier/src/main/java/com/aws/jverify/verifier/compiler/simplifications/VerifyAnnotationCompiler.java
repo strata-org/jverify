@@ -129,7 +129,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     private URI getUri() {
         var baseUri = Paths.get(System.getProperty("user.dir")).toUri();
-        return baseUri.resolve(reporter.compilationUnit.getSourceFile().toUri());
+        return baseUri.resolve(reporter.compilationUnit.getSourceFile().toUri()).normalize();
     }
 
     public void removeImplementation(JCTree.JCMethodDecl tree) {
