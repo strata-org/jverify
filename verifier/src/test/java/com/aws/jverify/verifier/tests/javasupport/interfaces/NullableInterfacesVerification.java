@@ -42,5 +42,6 @@ public class NullableInterfacesVerification {
         } else {
             nullableP.foo();
         }
+        @Nullable ImpureInterface nullableQ = p;
     }
 }
