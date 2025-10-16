@@ -5,6 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.NullableGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.source.tree.Tree;
@@ -278,7 +279,8 @@ public class ExpressionCompiler {
         if (context.statementWriter() != null) {
             Expression target = toExpr(assign.getVariable(), context);
             List<Expression> lhss = List.of(target);
-            List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), context.withExpectedType(assign.type)));
+            ExpressionContext rhsContext = context.withExpectedType(NullableGenerator.getNullableType(assign.getVariable()));
+            List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), rhsContext));
             context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
             return target;
         } else {
@@ -554,7 +556,7 @@ public class ExpressionCompiler {
             // Ignore package qualification
             return new NameSegment(origin, baseGenerator.nameCompiler.getCompiledName(classSymbol, origin), List.of());
         }
-        var selectedExpr = toExpr(fieldAccess.selected, context);
+        var selectedExpr = toExpr(fieldAccess.selected, context.withExpectedType(fieldAccess.sym.owner.type));
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
             ExprDotName callee = new ExprDotName(origin, selectedExpr, reporter.getName(fieldAccess, "length"), null);

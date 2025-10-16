@@ -36,13 +36,17 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         return isNullable ? "?" : "";
     }
 
-    private boolean isNullable(JCTree.JCExpression expression) {
+    public static com.sun.tools.javac.code.Type getNullableType(JCTree.JCExpression expression) {
         if (expression instanceof JCTree.JCIdent identifier) {
-            return isNullable(identifier.sym.type);
+            return identifier.sym.type;
         } else if (expression instanceof JCTree.JCFieldAccess access) {
-            return isNullable(access.sym.type);
+            return access.sym.type;
         }
-        return isNullable(expression.type);
+        return expression.type;
+    }
+    
+    private boolean isNullable(JCTree.JCExpression expression) {
+        return isNullable(getNullableType(expression));
     }
     
     public static boolean isNullable(com.sun.tools.javac.code.Type type, JCTree.JCModifiers additionalModifiers) {

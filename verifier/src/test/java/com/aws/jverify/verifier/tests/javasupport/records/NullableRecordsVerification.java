@@ -16,7 +16,7 @@ public class NullableRecordsVerification {
         if (nullableR == null) {
             p = nonNullR;
             nullableR.foo();
-//          ^^^^^^^^^^^^^^^ Error: destructor 'value' can only be applied to datatype values constructed by 'NonNull'
+//          ^^^^^^^^^ Error: destructor 'value' can only be applied to datatype values constructed by 'NonNull'
         } else {
             p = nullableR;
             nullableR.foo();
