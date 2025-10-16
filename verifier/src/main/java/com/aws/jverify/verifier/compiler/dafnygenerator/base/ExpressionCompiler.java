@@ -556,7 +556,8 @@ public class ExpressionCompiler {
             // Ignore package qualification
             return new NameSegment(origin, baseGenerator.nameCompiler.getCompiledName(classSymbol, origin), List.of());
         }
-        var selectedExpr = toExpr(fieldAccess.selected, context.withExpectedType(fieldAccess.sym.owner.type));
+        com.sun.tools.javac.code.Type nonNullFieldContainerType = fieldAccess.sym.owner.type;
+        var selectedExpr = toExpr(fieldAccess.selected, context.withExpectedType(nonNullFieldContainerType));
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
             ExprDotName callee = new ExprDotName(origin, selectedExpr, reporter.getName(fieldAccess, "length"), null);

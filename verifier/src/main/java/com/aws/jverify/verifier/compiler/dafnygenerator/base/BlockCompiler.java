@@ -259,7 +259,8 @@ public class BlockCompiler {
         var expr = generator.getFinalGenerator().toExpr(invocation, null, expressionContext);
 
         List<AssignmentRhs> rhss = List.of(new ExprRhs(expr.getOrigin(), null, expr));
-        if (invocation.type == symtab.voidType) {
+        var returnType = invocation.meth.type.asMethodType().getReturnType();
+        if (returnType == symtab.voidType) {
             return List.of(new AssignStatement(origin, null, List.of(),
                      rhss, false));
         } else {
