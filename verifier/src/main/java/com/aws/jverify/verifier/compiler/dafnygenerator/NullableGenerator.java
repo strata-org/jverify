@@ -81,7 +81,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     @Override
     public Type translateClassType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ClassType type) {
         var isNullable = isNullable(type, additionalModifiers);
-        var immutable = this.baseGenerator.isImmutable((Symbol.ClassSymbol) type.tsym);
+        var immutable = this.baseGenerator.isPure((Symbol.ClassSymbol) type.tsym);
         var originalResult = (UserDefinedType) next.translateClassType(origin, additionalModifiers, type);
         return makeUserDefinedTypeNullable(originalResult, isNullable, immutable);
     }
@@ -99,7 +99,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(literal));
         if (literal.getValue() == null) {
             var immutable = context.expectedType() != null && context.expectedType().tsym instanceof Symbol.ClassSymbol classSymbol &&
-                    this.baseGenerator.isImmutable(classSymbol);
+                    this.baseGenerator.isPure(classSymbol);
             if (immutable) {
                 return new ExpressionWithFlows(baseGenerator.expressionCompiler.createCall(origin,
                         new NameSegment(origin, "Null", null), Stream.empty(), context));
@@ -113,7 +113,8 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         if (expr instanceof JCTree.JCLiteral literal) {
             return translateLiteral(literal, originOverride, context);
         }
-        if (context.expectedType() != null && expr.type.tsym instanceof Symbol.ClassSymbol valueClass) {
+        if (context.expectedType() != null && expr.type.tsym instanceof Symbol.ClassSymbol valueClass
+            && baseGenerator.isPure(valueClass)) {
             var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(expr));
             var nullableTarget = isNullable(context.expectedType());
             var nullableValue = isNullable(expr.type);

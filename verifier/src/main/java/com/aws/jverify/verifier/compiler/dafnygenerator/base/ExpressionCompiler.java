@@ -322,7 +322,7 @@ public class ExpressionCompiler {
                                     ExpressionContext context) {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
         Symtab symtab = Symtab.instance(baseGenerator.context);
-        if (classSymbol.type != symtab.objectType && baseGenerator.isImmutable(classSymbol)) {
+        if (classSymbol.type != symtab.objectType && baseGenerator.isPure(classSymbol)) {
             return PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
         }
         if (context.statementWriter() == null) {
@@ -341,7 +341,7 @@ public class ExpressionCompiler {
             throw new RuntimeException("not supported. should have already been lowered");
         }
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-        if (classSymbol.type != symtab.objectType && baseGenerator.isImmutable(classSymbol)) {
+        if (classSymbol.type != symtab.objectType && baseGenerator.isPure(classSymbol)) {
             var datatypeValue = PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
             return new ExprRhs(origin, null, datatypeValue);
         }
@@ -596,7 +596,7 @@ public class ExpressionCompiler {
                 final Expression receiver;
                 var fieldNameStr = baseGenerator.nameCompiler.getCompiledName(component.get(), origin);
                 if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-                    receiver = toExpr(fieldAccess.selected, context);
+                    receiver = toExpr(fieldAccess.selected, context.withExpectedType(null));
                 } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident) {
                     return new NameSegment(origin, fieldNameStr, null);
                 } else {
@@ -607,7 +607,7 @@ public class ExpressionCompiler {
             }
         }
 
-        var target = toExpr(invocation.getMethodSelect(), context);
+        var target = toExpr(invocation.getMethodSelect(), context.withExpectedType(null));
         var isPure = utils.isPure(methodSymbol);
         var call = createCall(origin, target, invocation.getArguments().stream(), context);
         if (context.statementWriter() != null && !isPure && !context.allowImpure()) {
