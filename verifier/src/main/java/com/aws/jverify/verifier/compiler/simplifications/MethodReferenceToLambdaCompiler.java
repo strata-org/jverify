@@ -39,13 +39,15 @@ public class MethodReferenceToLambdaCompiler extends TreeTranslator {
         var paramTypes = types.findDescriptorType(reference.type).getParameterTypes();
         var params = getParameters(paramTypes).toList();
 
+        Type target = null;
         JCTree.JCExpression methodCall = switch (reference.kind) {
             case STATIC ->
                 // Static method reference: Class::method -> (args) -> Class.method(args)
                     replaceColonsWithDot(reference, params);
-            case BOUND ->
+            case BOUND -> {
                 // Bound instance method: obj::method -> (args) -> obj.method(args)
-                    replaceColonsWithDot(reference, params);
+                yield replaceColonsWithDot(reference, params);
+            }
             case UNBOUND ->
                 // Unbound instance method: Class::method -> (obj, args) -> obj.method(args)
                     addImplicitReceiverArgument(reference, params);
@@ -59,6 +61,7 @@ public class MethodReferenceToLambdaCompiler extends TreeTranslator {
 
         make.pos = reference.pos;
         var lambda = make.Lambda(params, methodCall);
+        lambda.target = reference.target;
         lambda.type = reference.type;
         return lambda;
     }

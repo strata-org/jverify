@@ -41,7 +41,7 @@ public class TypeDeclarationCompiler {
     private final Symtab symtab;
     private final TreeMaker treeMaker;
     private final JVerifyUtils jverifyUtils;
-    private final List<JCTree.JCMethodDecl> invariants = new ArrayList<>();
+    private final List<JCTree.JCMethodDecl> typeInvariants = new ArrayList<>();
     private final List<JCTree.JCVariableDecl> initializers = new ArrayList<>();
     public final Map<Symbol.MethodSymbol, MethodOrFunction> callables = new HashMap<>();
 
@@ -65,7 +65,7 @@ public class TypeDeclarationCompiler {
     }
 
     List<? extends TopLevelDecl> translateTypeDeclaration(Tree tree) {
-        invariants.clear();
+        typeInvariants.clear();
         if (tree instanceof JCTree.JCClassDecl classDecl) {
 
             if (classDecl.name.equals(classDecl.name.table.names.package_info)) {
@@ -110,10 +110,9 @@ public class TypeDeclarationCompiler {
         for (var member : classDecl.getMembers()) {
             if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 var variableName = nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
-                Name constructorName = nameCompiler.getName(variableDecl, variableName);
+                Name constructorName = reporter.getName(variableDecl, variableName);
                 constructors.add(new DatatypeCtor(reporter.declToOrigin(variableDecl, constructorName), constructorName,
                         null, false, List.of()));
-
             }
         }
         return new IndDatatypeDecl(origin, name, null, List.of(), List.of(), List.of(), constructors, false);
@@ -129,7 +128,7 @@ public class TypeDeclarationCompiler {
                 if (methodDecl.getModifiers().getAnnotations().stream().
                         anyMatch(a -> a.getAnnotationType() instanceof JCTree.JCIdent ident &&
                                 ident.name.contentEquals("Invariant"))) {
-                    invariants.add(methodDecl);
+                    typeInvariants.add(methodDecl);
                 }
             }
         }
@@ -218,7 +217,7 @@ public class TypeDeclarationCompiler {
 
     public List<TypeParameter> translateTypeParameters(List<JCTree.JCTypeParameter> typarams) {
         return typarams.stream().map(p -> {
-            var name = nameCompiler.getName(p, p.getName());
+            var name = reporter.getName(p, p.getName());
             var bounds = p.bounds.map(baseGenerator::translateType);
 
             IOrigin origin = reporter.toOrigin(p);
@@ -257,14 +256,24 @@ public class TypeDeclarationCompiler {
         Type type = generator.translateType(variableDecl.type,
                 reporter.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
+
+//        if (varFlags.contains(Modifier.FINAL)) {
+//            Expression rhs = null;
+//            if (variableDecl.getInitializer() != null) {
+//                rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
+//            }
+//            var isStatic = varFlags.contains(Modifier.STATIC);
+//            return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
+//        }
         
         if (variableDecl.getInitializer() != null) {
+            // This block should be removed when the above block is commented in.
             if (varFlags.contains(Modifier.FINAL)) {
                 var rhs = expressionCompiler.toExprWithFlows(variableDecl.getInitializer(), ExpressionContext.Pure).expression();
                 var isStatic = varFlags.contains(Modifier.STATIC);
                 return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
             }
-
+            
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
         }
@@ -316,7 +325,7 @@ public class TypeDeclarationCompiler {
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         applyInvariants(method.mods, method.sym, contract);
-        blockCompiler.checkEmptyExpressions(method, contract.invariants, "invariants", "method");
+        blockCompiler.checkEmptyExpressions(method, contract.loopInvariants, "invariants", "method");
 
         var outs = new ArrayList<Formal>();
         if (method.sym.type.getReturnType() != null) {
@@ -365,16 +374,10 @@ public class TypeDeclarationCompiler {
                     contract.getDecreases(), contract.getModifies(),
                     body);
         } else {
-            List<Statement> bodyStatements;
+            BlockStmt body = null;
             if (shouldVerify) {
-                bodyStatements = blockCompiler.translateStatements(postHeader);
-            } else {
-                // Leaving out the body does not assume the body for traits
-                // So we need to have a body with an assume statement
-                // Would be nicer (and faster) if Dafny had explicit assumed bodies
-                bodyStatements = List.of(new AssumeStmt(origin, null, new LiteralExpr(origin, false)));
+                 body = new BlockStmt(methodOrigin, null, List.of(), blockCompiler.translateStatements(postHeader));
             }
-            var body = new BlockStmt(methodOrigin, null, List.of(), bodyStatements);
             var result = new Method(origin, name, null, BaseDafnyGenerator.Ghostness, null, dafnyTypeParameters,
                     ins, contract.preconditions, contract.postconditions, contract.getReads(),
                     contract.getDecreases(), contract.getModifies(),
@@ -416,10 +419,10 @@ public class TypeDeclarationCompiler {
         boolean isStaticMethod = JVerifyUtils.isStatic(modifiers);
 
         // Only apply invariants to public instance methods (not static methods)
-        if (isPublic && !isStaticMethod) {
-            for (var invariant : invariants) {
+        if (isPublic && !isStaticMethod && methodSymbol.getAnnotation(Invariant.class) == null) {
+            for (var invariant : typeInvariants) {
                 var memberName = nameCompiler.getCompiledName(invariant.sym, invariant);
-                var invariantName = nameCompiler.getName(invariant, invariant.getName());
+                var invariantName = reporter.getName(invariant, invariant.getName());
                 var invariantOrigin = reporter.declToOrigin(invariant, invariantName);
                 ApplySuffix call = new ApplySuffix(invariantOrigin, new NameSegment(invariantOrigin,
                         memberName, null), null, new ActualBindings(List.of()), null);
@@ -455,7 +458,7 @@ public class TypeDeclarationCompiler {
     }
 
 
-    private final Map<Symbol.TypeSymbol, Set<MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
+    private final Map<Symbol.TypeSymbol, Map<String, MethodOrFunction>> inheritedUnverifiedMethodsForTypes = new HashMap<>();
 
     private final Map<Symbol.TypeSymbol, Set<String>> definedMethodsCache = new HashMap<>();
     public Set<String> getBodiedMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
@@ -487,7 +490,7 @@ public class TypeDeclarationCompiler {
         return result;
     }
     
-    public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
+    public Map<String, MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
         var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
             result = getBodylessMethods(typeSymbol, origin, true);
@@ -496,8 +499,8 @@ public class TypeDeclarationCompiler {
         return result;
     }
     
-    public Set<MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
-        var result = new HashSet<MethodOrFunction>();
+    public Map<String, MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
+        var result = new HashMap<String, MethodOrFunction>();
         var names = getBodiedMethods(typeSymbol, origin);
 
         var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
@@ -508,10 +511,11 @@ public class TypeDeclarationCompiler {
                 if (callable != null) {
                     boolean bodiless = callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
                             callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null;
+                    String compiledName = nameCompiler.getCompiledName(methodSymbol, origin);
                     if (includeSelf && bodiless) {
-                        result.add(callable);
+                        result.putIfAbsent(compiledName, callable);
                     } else {
-                        names.add(nameCompiler.getCompiledName(methodSymbol, origin));
+                        names.add(compiledName);
                     }
                 }
             }
@@ -519,9 +523,9 @@ public class TypeDeclarationCompiler {
         
         for(var baseType : types.interfaces(typeSymbol.type).append(types.supertype(typeSymbol.type))) {
             if (baseType.tsym != null && baseType.tsym != typeSymbol) {
-                for(var unverified : getBodylessMethods(baseType.tsym, origin)) {
-                    if (!names.contains(unverified.getNameNode().getValue())) {
-                        result.add(unverified);
+                for(var entry : getBodylessMethods(baseType.tsym, origin).entrySet()) {
+                    if (!names.contains(entry.getKey())) {
+                        result.putIfAbsent(entry.getKey(), entry.getValue());
                     }
                 }
             }

@@ -431,6 +431,8 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             return getOwnAndEnclosedTypeParameters(methodSymbol);
         } else if (symbol instanceof Symbol.PackageSymbol) {
             return Stream.empty();
+        } else if (symbol instanceof Symbol.VarSymbol varSymbol) {
+            return getOwnAndEnclosedTypeParameters(varSymbol.owner);
         }
         throw new RuntimeException();
     }

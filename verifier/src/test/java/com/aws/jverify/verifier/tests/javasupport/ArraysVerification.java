@@ -8,7 +8,7 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(exitCode = 4, dafnyVerified = 9, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 2)
 class ArraysVerification {
     
     interface SupplyArray {
@@ -29,6 +29,14 @@ class ArraysVerification {
             a[i] = i;
         }
         check(a[0]==0);
+    }
+
+    static void arrayCopy() {
+        int[] tab = new int[4];
+        int[] tab2 = new int[4];
+        tab2[1] = 10;
+        tab[1] = tab2[1];
+        check(tab[1]==10);
     }
     
     static void nullablePointArrayOfSize10() {

@@ -101,6 +101,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     @Override
     public void visitDoLoop(JCTree.JCDoWhileLoop tree) {
         if (tree.body != null) {
+            maker.pos = tree.body.pos;
             List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
             tree.body = maker.Block(0, newStatements);
         }
@@ -110,6 +111,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     @Override
     public void visitWhileLoop(JCTree.JCWhileLoop tree) {
         if (tree.body != null) {
+            maker.pos = tree.body.pos;
             List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
             tree.body = maker.Block(0, newStatements);
         }
@@ -119,6 +121,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     @Override
     public void visitForLoop(JCTree.JCForLoop tree) {
         if (tree.body != null) {
+            maker.pos = tree.body.pos;
             List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
             tree.body = maker.Block(0, newStatements);
         }
@@ -280,7 +283,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (invocation.args.size() != 1) {
                     throw new JavaViolationException("invariant should have a single argument");
                 }
-                contract.invariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), ExpressionContext.Pure), null, null));
+                contract.loopInvariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), ExpressionContext.Pure), null, null));
             }
             case "decreases" -> {
                 for(var decrease : invocation.getArguments()) {
@@ -346,7 +349,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
                     expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
-                    nameCompiler.getName(memberReference, baseGenerator.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
+                    reporter.getName(memberReference, nameCompiler.getCompiledName(memberReference.sym, origin)), null);
             var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
             header.postconditions.add(new AttributedExpression(call, null, null));
         } else if (expr instanceof JCTree.JCTypeCast typeCast) {

@@ -164,7 +164,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
             if (valueIsNullable && valueIsImmutable) {
                 var nullableCalleeTarget = baseGenerator.expressionCompiler.toExpr(fieldAccess.getExpression(), null);
                 var nonNullCalleeTarget = new ExprDotName(origin, nullableCalleeTarget, new Name(origin, "value"), null);
-                var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, nameCompiler.getName(fieldAccess, fieldAccess.name), null);
+                var nonNullCallee = new ExprDotName(origin, nonNullCalleeTarget, reporter.getName(fieldAccess, fieldAccess.name), null);
                 return new ExpressionWithFlows(baseGenerator.expressionCompiler.createCall(origin, nonNullCallee, invocation.getArguments().stream(), context));
             }
         }

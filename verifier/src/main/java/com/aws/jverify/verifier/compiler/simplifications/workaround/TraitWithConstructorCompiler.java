@@ -65,7 +65,7 @@ public class TraitWithConstructorCompiler {
         }
 
         if (classNeeded) {
-            classMembers.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, traitDecl.getOrigin()));
+            classMembers.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, traitDecl.getOrigin()).values());
 
             List<TypeParameter> typeParameters = traitDecl.getTypeArgs();
             Name nameNode = traitDecl.getNameNode();
@@ -94,7 +94,7 @@ public class TraitWithConstructorCompiler {
         BlockStmt body;
         if (constructor.getBody() == null) {
             body = new BlockStmt(constructor.getOrigin(), null, List.of(),
-                    List.of(/*new AssumeStmt()*/));
+                    List.of(new AssumeStmt(constructor.getOrigin(), null, new LiteralExpr(constructor.getOrigin(), false))));
         } else {
             body = new BlockStmt(constructor.getBody().getOrigin(), null, List.of(),
                     constructor.getBody().getBodyInit());

@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 public class BlockCompiler {
     public final BaseDafnyGenerator generator;
     public final Reporter reporter;
-    private final NameCompiler nameCompiler;
     private final ExpressionCompiler expressionCompiler;
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
@@ -26,7 +25,6 @@ public class BlockCompiler {
         reporter = compiler.reporter;
         expressionCompiler = compiler.expressionCompiler;
         this.methodSymbol = methodSymbol;
-        nameCompiler = NameCompiler.instance(compiler.context);
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         statementCompilers.add(new ForLoopCompiler(this));
         statementCompilers.add(new DoWhileLoopCompiler(this));
@@ -97,7 +95,7 @@ public class BlockCompiler {
         if (jcBreak.label == null) {
             result = new BreakOrContinueStmt(origin, null, null, 1, false);
         } else {
-            var targetLabel = nameCompiler.getName(jcBreak, jcBreak.label);
+            var targetLabel = reporter.getName(jcBreak, jcBreak.label);
             result = new BreakOrContinueStmt(origin, null, targetLabel, 0, false);
         }
         return List.of(result);
@@ -108,7 +106,7 @@ public class BlockCompiler {
         if (jcContinue.label == null) {
             return List.of(new BreakOrContinueStmt(origin, null, null, 1, true));
         } else {
-            var targetLabel = nameCompiler.getName(jcContinue, jcContinue.label);
+            var targetLabel = reporter.getName(jcContinue, jcContinue.label);
             return List.of(new BreakOrContinueStmt(origin, null, targetLabel, 0, true));
         }
     }
@@ -183,7 +181,7 @@ public class BlockCompiler {
         var dafnyCondition = expressionCompiler.toExpr(condition, expressionContext);
         var bodyStatements = translateStatements(postHeader);
         var newBodyStatements = transformBody.apply(bodyStatements);
-        return new WhileStmt(origin, null, labels, header.invariants, new Specification<>(header.decreases, null),
+        return new WhileStmt(origin, null, labels, header.loopInvariants, new Specification<>(header.decreases, null),
                 new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),
                 dafnyCondition);
     }

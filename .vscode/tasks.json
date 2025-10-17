@@ -6,7 +6,7 @@
       "label": "verify",
       "type": "shell",
       "command": "${workspaceFolder}/verifier/build/install/verifier/bin/verifier",
-      "args": ["--show-ranges", "--paths", "${file}", "--dafny", "${workspaceFolder}/dafny/Scripts/dafny"],
+      "args": ["--print-dafny=${workspaceFolder}/build/temp.dfy", "--show-ranges", "--paths", "${file}", "--dafny", "${workspaceFolder}/dafny/Scripts/dafny"],
       "problemMatcher": {
         "owner": "jverify",
         "fileLocation": ["relative", "${workspaceFolder}"],

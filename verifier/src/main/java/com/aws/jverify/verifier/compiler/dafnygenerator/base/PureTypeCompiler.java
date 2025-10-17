@@ -22,9 +22,9 @@ import java.util.stream.Collectors;
 
 public class PureTypeCompiler {
     private final DafnyGenerator generator;
+    private final Reporter reporter;
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final BaseDafnyGenerator compiler;
-    private final Reporter reporter;
     private final Symtab symtab;
     private final Names names;
     private final JVerifyUtils jverifyUtils;
@@ -36,9 +36,9 @@ public class PureTypeCompiler {
         symtab = Symtab.instance(compiler.context);
         names = Names.instance(compiler.context);
         nameCompiler = NameCompiler.instance(compiler.context);
-        reporter = compiler.reporter;
         generator = context.get(DafnyGenerator.class);
         jverifyUtils = context.get(JVerifyUtils.class);
+        reporter = Reporter.instance(compiler.context);
     }
 
     public TopLevelDeclWithMembers translate(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
@@ -129,7 +129,7 @@ public class PureTypeCompiler {
             return new TraitDecl(origin, name, null, typeParams, members, traits, false);
         }
 
-        members.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, origin, false));
+        members.addAll(typeDeclarationCompiler.getBodylessMethods(classSymbol, origin, false).values());
         return new IndDatatypeDecl(origin, name, null, typeParams, members, traits,
                 List.of(getDatatypeCtor(origin, name, fields)), false);
     }
@@ -170,7 +170,7 @@ public class PureTypeCompiler {
                     return resultReference;
                 } else {
                     var identName = compiler.nameCompiler.getCompiledName(identifier.sym, origin);
-                    return new ExprDotName(origin, resultReference, nameCompiler.getName(identifier, identName), null);
+                    return new ExprDotName(origin, resultReference, reporter.getName(identifier, identName), null);
                 }
             } else {
                 return compiler.expressionCompiler.translateIdentifierNoOverride(identifier, innerOrigin);
@@ -247,7 +247,7 @@ public class PureTypeCompiler {
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.baseGenerator.getNameCompiler().getCompiledName(newClass.constructor, origin);
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
-        var dafnyConstructor = new ExprDotName(origin, datatypeReference, compiler.nameCompiler.getName(newClass, constructorName), null);
+        var dafnyConstructor = new ExprDotName(origin, datatypeReference, reporter.getName(newClass, constructorName), null);
 
         return expressionCompiler.createCall(origin, dafnyConstructor, newClass.args.stream(), expressionContext);
     }

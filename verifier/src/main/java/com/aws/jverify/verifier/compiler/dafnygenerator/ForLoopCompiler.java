@@ -5,6 +5,7 @@ import com.aws.jverify.generated.BlockStmt;
 import com.aws.jverify.generated.BreakOrContinueStmt;
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
@@ -16,10 +17,12 @@ import java.util.*;
 public class ForLoopCompiler implements StatementCompiler {
     private final BlockCompiler blockCompiler;
     private final NameCompiler nameCompiler;
+    private final Reporter reporter;
     private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
 
     public ForLoopCompiler(BlockCompiler blockCompiler) {
+        reporter = blockCompiler.generator.reporter;
         this.blockCompiler = blockCompiler;
         nameCompiler = NameCompiler.instance(blockCompiler.generator.context);
     }
@@ -35,7 +38,7 @@ public class ForLoopCompiler implements StatementCompiler {
     }
     
     private List<Statement> translateForLoop(JCTree.JCForLoop forLoop, List<Label> labels, ExpressionContext context) {
-        var origin = blockCompiler.reporter.toOrigin(forLoop);
+        var origin = reporter.toOrigin(forLoop);
         var loop = blockCompiler.translateLoop(forLoop, forLoop.getCondition(), forLoop.body, labels, bodyStatements -> {
             List<Statement> outerBody;
             List<Statement> steps = blockCompiler.translateStatements(forLoop.step);
@@ -89,10 +92,10 @@ public class ForLoopCompiler implements StatementCompiler {
      */
     private List<Statement> translateContinueForForLoop(JCTree.JCContinue jcContinue,
                                                         JCTree.JCForLoop forLoop) {
-        var origin = blockCompiler.reporter.toOrigin(jcContinue);
+        var origin = reporter.toOrigin(jcContinue);
         forLoopsWithContinue.add(forLoop);
         var label = getForLoopContinueLabel(forLoop);
-        return List.of(new BreakOrContinueStmt(origin, null, nameCompiler.getName(jcContinue, label),
+        return List.of(new BreakOrContinueStmt(origin, null, reporter.getName(jcContinue, label),
                 0, false));
     }
 
