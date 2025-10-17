@@ -74,8 +74,8 @@ public class JavaToDafnyCompiler {
         if (simplifiedJavaSet == null) {
             return new FilesContainer(List.of());
         }
-        if (options.printSimplifiedDafny() != null) {
-            try (BufferedWriter writer = Files.newBufferedWriter(options.printSimplifiedDafny())) {
+        if (options.printSimplifiedJava() != null) {
+            try (BufferedWriter writer = Files.newBufferedWriter(options.printSimplifiedJava())) {
                 Pretty pretty = new Pretty(writer, true); // true for source output
                 for(var compilationUnit : simplifiedJavaSet) {
                     pretty.printUnit(compilationUnit, null);
