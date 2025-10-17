@@ -8,7 +8,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
-@JVerifyTest(dafnyVerified = 16, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(dafnyVerified = 18, dafnyErrors = 0, verifyPrintedDafny = true)
 class VerifyStatements {
     void whileWithBreak() {
         var x = 0;
