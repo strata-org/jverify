@@ -7,15 +7,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.common.Common;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -47,8 +43,8 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
     
-    @Option(names = "--print-strata", description = "Given a filepath, prints the Java code after it has been simplified to what we hope strata will be.")
-    private Path printStrata;
+    @Option(names = "--print-simplified-java", description = "Given a filepath, prints the Java code after it has been simplified as much as possible.")
+    private Path printSimplifiedJava;
     
     @Option(names = "--show-ranges", description = "Show source location ranges in diagnostics")
     private boolean showRanges;
@@ -94,7 +90,7 @@ class AppCommand implements Callable<Integer> {
         var positionFilter = PositionFilter.getPositionFilter(filterPositionString);
         var verifierOptions = new VerifierOptions(workingDirectory, dafnyPath, jars, 
                 tempFile.toPath(), testDafnyVersion,
-                printDafny, printBinaryDafny, showRanges, builtinContracts, 
+                printDafny, printSimplifiedJava, printBinaryDafny, showRanges, builtinContracts, 
                 paths, new String[0], verifyByDefault, false, 
                 positionFilter, verbose);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);

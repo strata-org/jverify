@@ -16,6 +16,7 @@ import com.sun.tools.javac.file.JavacFileManager;
 import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.Pretty;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -28,7 +29,9 @@ import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaFileObject;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -57,7 +60,7 @@ public class JavaToDafnyCompiler {
         this.dafnyGenerator = DafnyGenerator.getGenerator(context);
     }
 
-    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files) {
+    public @Nullable FilesContainer translateJavaToDafny(VerifierOptions options, java.util.List<JavaFileObject> files) {
         if (options.includeBuiltinContracts()) {
             var builtinSource = new SourceFile(builtinFile, Common.getResourceFile(getClass(), builtinFile));
             files.add(builtinSource);
@@ -67,15 +70,24 @@ public class JavaToDafnyCompiler {
         builtinSources.add(contractSource);
         files.add(contractSource);
 
-        Set<JCTree.JCCompilationUnit> parsedSet = parseResolveAndDesugarJava(options, files);
-        if (parsedSet == null) {
+        Set<JCTree.JCCompilationUnit> simplifiedJavaSet = parseResolveAndDesugarJava(options, files);
+        if (simplifiedJavaSet == null) {
             return new FilesContainer(List.of());
         }
+        if (options.printSimplifiedDafny() != null) {
+            try (BufferedWriter writer = Files.newBufferedWriter(options.printSimplifiedDafny())) {
+                Pretty pretty = new Pretty(writer, true); // true for source output
+                for(var compilationUnit : simplifiedJavaSet) {
+                    pretty.printUnit(compilationUnit, null);
+                }
+            } catch (IOException _) {
+            }
+        }
 
-        var parsed = new ArrayList<>(parsedSet);
-        var libraries = parsed.stream().filter(u -> builtinSources.contains(u.getSourceFile())).collect(Collectors.toSet());
+        var simplifiedJavaSources = new ArrayList<>(simplifiedJavaSet);
+        var libraries = simplifiedJavaSources.stream().filter(u -> builtinSources.contains(u.getSourceFile())).collect(Collectors.toSet());
 
-        return dafnyGenerator.generateDafny(parsed, libraries);
+        return dafnyGenerator.generateDafny(simplifiedJavaSources, libraries);
     }
 
     public boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {

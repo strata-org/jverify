@@ -349,6 +349,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 prelude,
                 false,
                 Path.of("../build/temp.dfy"),
+                Path.of("../build/temp.java"),
                 Path.of("../build/temp.dbin"),
                 true,
                 annotation.useBuiltinContracts(),
