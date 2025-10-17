@@ -27,16 +27,12 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     private final TreeMaker maker;
     private final Reporter reporter;
     private final JVerifyUtils jverifyUtils;
-    private final NameCompiler nameCompiler;
-    private final ExpressionCompiler expressionCompiler;
 
     private MethodOrLoopContractCompiler(Context context) {
         context.put(MethodOrLoopContractCompiler.class, this);
         this.maker = TreeMaker.instance(context);
         this.reporter = Reporter.instance(context);
         this.jverifyUtils = JVerifyUtils.instance(context);
-        this.nameCompiler = NameCompiler.instance(context);
-        expressionCompiler = context.get(BaseDafnyGenerator.class).expressionCompiler;
     }
 
     public static JCTree.@Nullable JCBlock getImplementation(JCTree.JCMethodDecl method) {

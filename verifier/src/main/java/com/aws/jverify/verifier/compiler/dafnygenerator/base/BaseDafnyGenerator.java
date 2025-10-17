@@ -60,6 +60,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     private boolean translatingVerifiedMethodSignature;
     
     public BaseDafnyGenerator(Context context) {
+        context.put(BaseDafnyGenerator.class, this);
         this.context = context;
         this.verifierOptions = context.get(VerifierOptions.class);
 

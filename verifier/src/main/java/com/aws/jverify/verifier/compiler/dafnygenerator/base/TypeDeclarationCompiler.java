@@ -30,7 +30,6 @@ public class TypeDeclarationCompiler {
     private static final String DAFNY_REFERENCE_BASE_TYPE = "object";
     public final DafnyGenerator generator;
     public final BaseDafnyGenerator baseGenerator;
-    private final VerifyAnnotationCompiler verifyAnnotationCompiler;
     private final Types types;
     private final NameCompiler nameCompiler;
     private final ExpressionCompiler expressionCompiler;
@@ -57,7 +56,6 @@ public class TypeDeclarationCompiler {
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
         jverifyUtils = JVerifyUtils.instance(context);
         expressionCompiler = baseGenerator.expressionCompiler;
-        verifyAnnotationCompiler = new VerifyAnnotationCompiler(context);
         types = Types.instance(context);
         nameCompiler = NameCompiler.instance(context);
         traitWithConstructorCompiler = new TraitWithConstructorCompiler(context, this);
