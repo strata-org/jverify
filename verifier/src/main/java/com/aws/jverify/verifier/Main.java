@@ -47,6 +47,9 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
     
+    @Option(names = "--print-strata", description = "Given a filepath, prints the Java code after it has been simplified to what we hope strata will be.")
+    private Path printStrata;
+    
     @Option(names = "--show-ranges", description = "Show source location ranges in diagnostics")
     private boolean showRanges;
     

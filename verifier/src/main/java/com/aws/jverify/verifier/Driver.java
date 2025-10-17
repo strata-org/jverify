@@ -122,6 +122,10 @@ public class Driver {
             }
         }
 
+        writerVerificationSummary(verificationResultsWithIntervalTreeMap, outputWriter);
+    }
+
+    private static void writerVerificationSummary(VerificationResultsWithIntervalTreeMap verificationResultsWithIntervalTreeMap, Writer outputWriter) throws IOException {
         if (verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage() != null) {
             outputWriter.write(verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage());
         }
@@ -145,7 +149,6 @@ public class Driver {
                 outputWriter.write(String.format("%sSkipped: %s",bullet, skippedCount));
                 outputWriter.write('\n');
             }
-
 
             var verifiedCount = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
                     .flatMap(IntervalTree::streamNodes)
