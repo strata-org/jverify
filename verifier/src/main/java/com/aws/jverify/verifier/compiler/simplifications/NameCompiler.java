@@ -2,6 +2,8 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.IOrigin;
+import com.aws.jverify.generated.TokenRangeOrigin;
+import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.ImpureObjectGenerator;
 import com.sun.tools.javac.code.Symbol;
@@ -275,5 +277,9 @@ public class NameCompiler extends TreeScanner {
 
     public String getInitMethodName(String className, String constructorName) {
         return constructorName.replace("ctor", INIT_METHOD_PREFIX) + className;
+    }
+
+    public com.aws.jverify.generated.Name getName(JCTree tree, Symbol symbol) {
+        return reporter.getName(tree, getCompiledName(symbol, tree), symbol.name.length());
     }
 }

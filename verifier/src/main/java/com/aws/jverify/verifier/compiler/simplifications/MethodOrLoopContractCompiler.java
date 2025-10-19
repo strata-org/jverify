@@ -131,7 +131,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         if (tree.body != null) {
-            var allowFooter = BaseDafnyGenerator.isConstructor(tree.sym);
+            var allowFooter = JVerifyUtils.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
         }
         super.visitMethodDef(tree);
@@ -246,6 +246,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
 
 
     public static boolean handleStatement(BaseDafnyGenerator compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
+        var reporter = compiler.reporter;
+        
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
@@ -294,7 +296,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     throw new JavaViolationException("A reads call must have exactly one argument");
                 }
                 var origExpr = invocation.getArguments().getFirst();
-                var origin = compiler.toOrigin(origExpr);
+                var origin = reporter.toOrigin(origExpr);
                 var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
                 contract.reads.add(new FrameExpression(origin, expr, null));
             }
@@ -303,50 +305,54 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     throw new JavaViolationException("A modifies call must have exactly one argument");
                 }
                 var origExpr = invocation.getArguments().getFirst();
-                var origin = compiler.toOrigin(origExpr);
+                var origin = reporter.toOrigin(origExpr);
                 var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
                 contract.modifies.add(new FrameExpression(origin, expr, null));
             }
             default -> {
-                compiler.reportError(invocation, "notSupported", methodName);
+                reporter.reportError(invocation, "notSupported", methodName);
                 return false;
             }
         }
         return true;
     }
 
-    private static void handlePostcondition(BaseDafnyGenerator compiler, MethodOrLoopContract header, JCTree.JCExpression expr) {
+    private static void handlePostcondition(BaseDafnyGenerator baseGenerator, MethodOrLoopContract header, JCTree.JCExpression expr) {
+        var reporter = baseGenerator.reporter;
+        var nameCompiler = baseGenerator.nameCompiler;
+        var expressionCompiler = baseGenerator.expressionCompiler;
+        
         if (expr instanceof JCTree.JCLambda lambda) {
             if (lambda.getParameters().size() != 1) {
                 throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
             }
             var parameter = lambda.params.getFirst();
-            var origin = compiler.toOrigin(lambda);
+            var origin = reporter.toOrigin(lambda);
             var paramName = parameter.getName().toString();
-            var type = compiler.getFinalGenerator().translateType(parameter.type, compiler.toOrigin(parameter), null);
+            var type = baseGenerator.translateType(parameter.type, reporter.toOrigin(parameter), null);
 
             var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
             var lhs = new CasePattern<>(origin, paramName, returnVar, null);
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
                     : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var origCondition = compiler.expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
+            var origCondition = baseGenerator.expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
             var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 
         } else if (expr instanceof JCTree.JCMemberReference memberReference) {
-            var origin = compiler.toOrigin(memberReference);
+            var origin = reporter.toOrigin(memberReference);
             NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
             var callee = new ExprDotName(origin,
-                    compiler.expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
-                    compiler.reporter.getName(memberReference, compiler.nameCompiler.getCompiledName(memberReference.sym, origin)), null);
+                    expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
+                    reporter.getName(memberReference, nameCompiler.getCompiledName(memberReference.sym, origin)), null);
             var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
             header.postconditions.add(new AttributedExpression(call, null, null));
         } else if (expr instanceof JCTree.JCTypeCast typeCast) {
             // Casts like (IntPredicate) are sometimes necessary to disambiguate
-            handlePostcondition(compiler, header, typeCast.getExpression());
+            handlePostcondition(baseGenerator, header, typeCast.getExpression());
         } else {
-            var dafnyExpr = compiler.expressionCompiler.toExpr(expr, ExpressionContext.Pure);
+            var dafnyExpr = baseGenerator.expressionCompiler.toExpr(expr, ExpressionContext.Pure);
             header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
         }
     }

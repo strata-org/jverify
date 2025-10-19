@@ -3,13 +3,16 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Names;
 
 import javax.lang.model.type.TypeKind;
@@ -18,17 +21,23 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class PureTypeCompiler {
+    private final DafnyGenerator generator;
     private final Reporter reporter;
     final TypeDeclarationCompiler typeDeclarationCompiler;
     final BaseDafnyGenerator compiler;
     private final Symtab symtab;
     private final Names names;
+    private final JVerifyUtils jverifyUtils;
+    private final NameCompiler nameCompiler;
 
-    public PureTypeCompiler(TypeDeclarationCompiler typeDeclarationCompiler) {
+    public PureTypeCompiler(Context context, TypeDeclarationCompiler typeDeclarationCompiler) {
         this.typeDeclarationCompiler = typeDeclarationCompiler;
-        this.compiler = typeDeclarationCompiler.compiler;
+        this.compiler = typeDeclarationCompiler.baseGenerator;
         symtab = Symtab.instance(compiler.context);
         names = Names.instance(compiler.context);
+        nameCompiler = NameCompiler.instance(compiler.context);
+        generator = context.get(DafnyGenerator.class);
+        jverifyUtils = context.get(JVerifyUtils.class);
         reporter = Reporter.instance(compiler.context);
     }
 
@@ -43,13 +52,12 @@ public class PureTypeCompiler {
 
         var traits = classSymbol
                 .getInterfaces().stream()
-                .map(baseType -> compiler.getFinalGenerator().translateType(baseType, origin, null))
+                .map(baseType -> generator.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
         
         var superClass = classDecl.sym.getSuperclass();
         var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
         if (superClass != null) {
-            Symtab symtab = Symtab.instance(typeDeclarationCompiler.compiler.context);
             if (superClass.tsym == symtab.objectType.tsym) {
                 traits.addFirst(pureObjectType);
             } if (superClass.getKind() == TypeKind.NONE) {
@@ -57,8 +65,8 @@ public class PureTypeCompiler {
                     traits.addFirst(pureObjectType);
                 }
             } else {
-                if (BaseDafnyGenerator.typeHasSource(compiler.index, superClass.tsym)) {
-                    traits.addFirst(compiler.getFinalGenerator().translateType(superClass, origin, null));
+                if (JVerifyUtils.typeHasSource(compiler.index, superClass.tsym)) {
+                    traits.addFirst(generator.translateType(superClass, origin, null));
                 }
             }
         } else {
@@ -83,25 +91,25 @@ public class PureTypeCompiler {
                 var methodName = methodDecl.getName().toString();
                 var params = methodDecl.getParameters();
                 if (compNames.contains(methodName) && params.isEmpty()) {
-                    compiler.reportError(member, "notSupported", "explicit record component accessor method");
+                    reporter.reportError(member, "notSupported", "explicit record component accessor method");
                     continue;
                 } else if(symtab.recordType.tsym != classDecl.sym && classSymbol.isRecord()) {
                     if ("equals".equals(methodName)
                             && params.length() == 1
                             && params.getFirst().type.toString().equals(Object.class.getName())) {
-                        compiler.reportError(member, "notSupported", "overridden equals method in record");
+                        reporter.reportError(member, "notSupported", "overridden equals method in record");
                         continue;
                     } else if ("hashCode".equals(methodName) && params.isEmpty()) {
-                        compiler.reportError(member, "notSupported", "overridden hashCode method in record");
+                        reporter.reportError(member, "notSupported", "overridden hashCode method in record");
                         continue;
                     }
                 }
             } else if (member instanceof JCTree.JCVariableDecl variableDecl) {
                 fields.add(variableDecl);
                 if (isAbstract) {
-                    Name fieldName = compiler.getName(variableDecl, variableDecl.sym);
-                    var fieldOrigin = compiler.declToOrigin(variableDecl, fieldName);
-                    Type type = compiler.getFinalGenerator().translateType(variableDecl.vartype.type, compiler.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
+                    Name fieldName = nameCompiler.getName(variableDecl, variableDecl.sym);
+                    var fieldOrigin = reporter.declToOrigin(variableDecl, fieldName);
+                    Type type = generator.translateType(variableDecl.vartype.type, reporter.toOrigin(variableDecl.vartype), variableDecl.getModifiers());
                     members.add(new ConstantField(fieldOrigin, fieldName, null, BaseDafnyGenerator.Ghostness, type, null, false, false));
                 }
                 continue;
@@ -112,8 +120,8 @@ public class PureTypeCompiler {
             }
         }
 
-        if (compiler.isAnnotatedRecursive(classDecl.type, Impure.class)) {
-            compiler.reportError(origin, "modifiableForbidden", "a record class");
+        if (jverifyUtils.isAnnotatedRecursive(classDecl.type, Impure.class)) {
+            reporter.reportError(origin, "modifiableForbidden", "a record class");
             traits.clear();
         }
 
@@ -175,7 +183,7 @@ public class PureTypeCompiler {
         
         if (dafnyMember instanceof Constructor constructor && 
                 (classDecl.sym.isAnonymous() || 
-                        BaseDafnyGenerator.isSynthetic(classDecl.sym.flags()) || 
+                        JVerifyUtils.isSynthetic(classDecl.sym.flags()) || 
                         !MethodOrLoopContractCompiler.hasImplementation(methodDecl))) {
             Type outType = compiler.translateType(classDecl.type, constructor.getOrigin());
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
@@ -185,7 +193,7 @@ public class PureTypeCompiler {
                 ens = classDecl.getMembers().stream().filter(m -> m instanceof JCTree.JCVariableDecl).map(member ->
                 {
                     var field = (JCTree.JCVariableDecl)member;
-                    IOrigin fieldOrigin = compiler.toOrigin(field);
+                    IOrigin fieldOrigin = reporter.toOrigin(field);
                     var fieldName = new Name(fieldOrigin, compiler.nameCompiler.getCompiledName(field.sym, fieldOrigin));
                     BinaryExpr e = new BinaryExpr(fieldOrigin, BinaryExprOpcode.Eq, 
                             new ExprDotName(fieldOrigin, resultReference, fieldName, null),
@@ -201,7 +209,7 @@ public class PureTypeCompiler {
             members.add(staticFunction);
         } else {
             if (dafnyMember != null) {
-                compiler.reportError(methodDecl, "notSupported", "verified explicit record constructor");
+                reporter.reportError(methodDecl, "notSupported", "verified explicit record constructor");
             }
         }
     }
@@ -223,12 +231,12 @@ public class PureTypeCompiler {
      * that can be used in pure contexts.
      */
     public static Expression translateNewRecord(ExpressionCompiler expressionCompiler, IOrigin origin, JCTree.JCNewClass newClass, ExpressionContext expressionContext) {
-
         BaseDafnyGenerator compiler = expressionCompiler.baseGenerator;
+        var reporter = compiler.reporter;
         List<Type> typeArgs = new ArrayList<>();
         if (newClass.type.tsym.isDirectlyOrIndirectlyLocal()) {
             typeArgs = compiler.getOwnAndEnclosedTypeParameters(newClass.type.tsym).map(
-                    tp -> compiler.translateType(tp.type, compiler.toOrigin(tp))).collect(Collectors.toList());
+                    tp -> compiler.translateType(tp.type, reporter.toOrigin(tp))).collect(Collectors.toList());
         }
         typeArgs.addAll(newClass.type.getTypeArguments().map(t -> expressionCompiler.baseGenerator.translateType(t, origin)));
 
@@ -239,7 +247,7 @@ public class PureTypeCompiler {
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.baseGenerator.getNameCompiler().getCompiledName(newClass.constructor, origin);
 
         NameSegment datatypeReference = new NameSegment(origin, datatypeName, typeArgs);
-        var dafnyConstructor = new ExprDotName(origin, datatypeReference, expressionCompiler.baseGenerator.reporter.getName(newClass, constructorName), null);
+        var dafnyConstructor = new ExprDotName(origin, datatypeReference, reporter.getName(newClass, constructorName), null);
 
         return expressionCompiler.createCall(origin, dafnyConstructor, newClass.args.stream(), expressionContext);
     }

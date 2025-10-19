@@ -5,6 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
@@ -47,7 +48,7 @@ public class ImpureObjectGenerator extends WrappingDafnyGenerator {
     public Type translateClassType(IOrigin origin, JCTree.JCModifiers additionalModifiers, com.sun.tools.javac.code.Type.ClassType classType) {
         var mirrors = classType.getAnnotationMirrors();
         var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Impure.class.getName())).findFirst();
-        if (modifiableAnnotation.isPresent() || BaseDafnyGenerator.isAnnotated(additionalModifiers, Impure.class)) {
+        if (modifiableAnnotation.isPresent() || JVerifyUtils.isAnnotated(additionalModifiers, Impure.class)) {
             if (classType.tsym == symtab.objectType.tsym) {
                 return new UserDefinedType(origin, new NameSegment(origin, IMPURE_OBJECT_NAME, null));
             } else {
@@ -59,7 +60,8 @@ public class ImpureObjectGenerator extends WrappingDafnyGenerator {
         }
         return super.translateClassType(origin, additionalModifiers, classType);
     }
-
+    
+    @Override
     public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context) {
         if (newClass.type == symtab.objectType) {
             NameSegment classBaseType = new NameSegment(origin, 

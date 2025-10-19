@@ -3,6 +3,8 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -13,12 +15,16 @@ import java.util.stream.Stream;
 
 public class NullableGenerator extends WrappingDafnyGenerator {
     private final BaseDafnyGenerator baseGenerator;
+    private final DafnyGenerator generator;
+    private final NameCompiler nameCompiler;
     private final Reporter reporter;
     
     public NullableGenerator(BaseDafnyGenerator baseGenerator, DafnyGenerator next) {
         super(next);
         this.baseGenerator = baseGenerator;
         reporter = baseGenerator.reporter;
+        generator = baseGenerator.context.get(DafnyGenerator.class);
+        nameCompiler = NameCompiler.instance(baseGenerator.context);
     }
 
     @Override
@@ -91,16 +97,16 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     public static boolean isNullable(JCTree.JCModifiers modifiers) {
-        return BaseDafnyGenerator.isAnnotated(modifiers, com.aws.jverify.Nullable.class);
+        return JVerifyUtils.isAnnotated(modifiers, com.aws.jverify.Nullable.class);
     }
 
     public static boolean isNullable(com.sun.tools.javac.code.Type type) {
-        return BaseDafnyGenerator.isAnnotated(type, com.aws.jverify.Nullable.class);
+        return JVerifyUtils.isAnnotated(type, com.aws.jverify.Nullable.class);
     }
 
     public ExpressionWithFlows translateLiteral(JCTree.JCLiteral literal, IOrigin originOverride,
                                        ExpressionContext context) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(literal));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(literal));
         if (literal.getValue() == null) {
             var immutable = context.expectedType() != null && context.expectedType().tsym instanceof Symbol.ClassSymbol classSymbol &&
                     this.baseGenerator.isPure(classSymbol);
@@ -119,14 +125,14 @@ public class NullableGenerator extends WrappingDafnyGenerator {
         }
         if (context.expectedType() != null && expr.type.tsym instanceof Symbol.ClassSymbol valueClass
             && baseGenerator.isPure(valueClass)) {
-            var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(expr));
+            var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(expr));
             var nullableTarget = isNullable(context.expectedType());
             var nullableValue = isNullable(expr.type);
             if (!nullableTarget && nullableValue) {
-                var valueExpr = baseGenerator.getFinalGenerator().toExpr(expr, origin, context.withExpectedType(null));
+                var valueExpr = generator.toExpr(expr, origin, context.withExpectedType(null));
                 return new ExpressionWithFlows(new ExprDotName(origin, valueExpr, new Name(origin, "value"), null));
             } else if (nullableTarget && !nullableValue) {
-                var nonNullValueExpr = baseGenerator.getFinalGenerator().toExpr(expr, origin, context.withExpectedType(null));
+                var nonNullValueExpr = generator.toExpr(expr, origin, context.withExpectedType(null));
                 return new ExpressionWithFlows(ExpressionCompiler.createCall2(origin, new NameSegment(origin, "NonNull", null), Stream.of(nonNullValueExpr)));
             } else {
                 return super.toExprWithFlows(expr, originOverride, context);

@@ -102,11 +102,26 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     }
 
     private void addMethodToIntervalTree(JCTree.JCMethodDecl methodDecl, boolean shouldVerify) {
-        var sourceFileURI = getUri();
-        if (!sourceFileToMethodIntervalTreeMap.containsKey(sourceFileURI) 
-                || BaseDafnyGenerator.isSynthetic(methodDecl.getModifiers().flags)
-                || !MethodOrLoopContractCompiler.hasImplementation(methodDecl)) {
-           return;
+        var sourceFileURI = reporter.compilationUnit.getSourceFile().toUri();
+        if (sourceFileToMethodIntervalTreeMap.containsKey(sourceFileURI) && !JVerifyUtils.isSynthetic(methodDecl.getModifiers().flags)
+                && MethodOrLoopContractCompiler.hasImplementation(methodDecl)) {
+
+            var startPos = positionCalculator.toToken(positionCalculator.getStartPos(methodDecl));
+
+            /*
+              Note: setting end position to be start position in case there isn't any explicit end position
+              This happens for implicit constructors where start position is the start position for the class declaration
+             */
+            var endPos = positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) != null ?
+                    positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) : startPos;
+
+
+            var methodVerificationStatus = new JavaMethodVerificationStatus(methodDecl, new TokenRange(startPos,endPos), shouldVerify ?
+                    JavaMethodVerificationStatus.VerificationStatus.Verified :  JavaMethodVerificationStatus.VerificationStatus.Skipped);
+
+            sourceFileToMethodIntervalTreeMap.get(sourceFileURI)
+                    .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), methodVerificationStatus.getPosition().getEndToken().getLine(),
+                            methodVerificationStatus);
         }
 
         var startPos = positionCalculator.toToken(positionCalculator.getStartPos(methodDecl));
@@ -210,17 +225,17 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         ShouldVerifyMode mode;
         var verifyAnnotation = annotationsByName.get(Verify.class.getName());
         if (verifyAnnotation != null) {
-            var arguments = BaseDafnyGenerator.getArguments(verifyAnnotation);
+            var arguments = JVerifyUtils.getArguments(verifyAnnotation);
             var shouldArgument = arguments.get("value");
             var should = true;
             if (shouldArgument != null) {
-                should = (boolean) BaseDafnyGenerator.getLiteralValue(shouldArgument);
+                should = (boolean) JVerifyUtils.getLiteralValue(shouldArgument);
             }
 
             var pushDownArgument = arguments.get("overrideChildren");
             var includeMembers = true;
             if (pushDownArgument != null) {
-                includeMembers = (boolean) BaseDafnyGenerator.getLiteralValue(pushDownArgument);
+                includeMembers = (boolean) JVerifyUtils.getLiteralValue(pushDownArgument);
             }
             mode = getVerifyMode(should, includeMembers);
         } else {
