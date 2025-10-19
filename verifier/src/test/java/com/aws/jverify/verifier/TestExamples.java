@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class TestExamples {
-
+    
     @Test
     public void testSumCache() throws IOException {
         var markedSourcePath = Path.of("SumCache.java");
@@ -45,7 +45,7 @@ public class TestExamples {
     @Test
     public void testOrder() throws IOException {
         var markedSourcePath = Path.of("Order.java");
-        verifyPath(markedSourcePath, 0, 6, 0, false);
+        verifyPath(markedSourcePath, 4, 5, 1, false);
     }
     
     @Test

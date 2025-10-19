@@ -21,17 +21,3 @@ record Percentage(BigDecimal percentage) {
                 percentage.compareTo(BigDecimal.valueOf(100)) <= 0;
     }
 }
-
-record ARN(String id)  {
-    @Invariant @Pure
-    public boolean isValid() {
-        return id().startsWith("arn:aws:");
-    }
-}
-
-record DocuSignId(String docuSignId) {
-    @Invariant @Pure
-    public boolean isValid() {
-        return !this.docuSignId().isEmpty() && this.docuSignId().length() <= 1000;
-    }
-}

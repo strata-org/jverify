@@ -13,6 +13,9 @@ public class JVerify {
         return !antecedent || consequent;
     }
 
+    /**
+     * Assume the provided condition.
+     */
     public static void assume(boolean condition) {
     }
     
@@ -106,10 +109,18 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    /**
+     * Can be used in a reads or modifies contract to make that clause abstract
+     * A subclass of the current clause can implement that abstract clause
+     * By redefining it any filling in a value
+     */
     public static Object isAbstract() {
         throw new VerificationMethodExecutedException();
     }
-    
+
+    /**
+     * Takes a fully applied method call and returns the reads clause of that call
+     */
     public static Object readsOf(Object value) {
         throw new VerificationMethodExecutedException();
     }

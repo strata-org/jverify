@@ -82,6 +82,6 @@ class MutableContainerImpl<T> implements MutableContainer<T> {
     @Pure
     public static <T> MutableContainer<T> createMe() {
         return new MutableContainerImpl<T>();
-//             ^ error: using 'new' in an expression to create an instance of an impure type is not supported
+//             ^ error: using 'new' in an expression to create an instance of an impure type is not allowed
     }
 }

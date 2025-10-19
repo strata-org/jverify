@@ -89,6 +89,7 @@ public class MoveStaticMethodsToStaticType {
             classType.supertype_field = Type.noType; //syms.objectType;
             staticClassSymbol.type = classType;
             classMap.put(classDecl.sym, staticClassSymbol);
+            staticClassSymbol.sourcefile = classDecl.sym.sourcefile;
         }
 
         @Override
@@ -119,7 +120,7 @@ public class MoveStaticMethodsToStaticType {
                         continue;
                     }
                 } else if (member instanceof JCTree.JCVariableDecl varDecl) {
-                    if (BaseDafnyGenerator.isStatic(varDecl.mods)) {
+                    if (JVerifyUtils.isStatic(varDecl.mods)) {
                         staticMembers = staticMembers.append(varDecl);
                         var varSymbol = varDecl.sym;
 

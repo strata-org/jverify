@@ -9,20 +9,22 @@ import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
 
 public class ForLoopCompiler implements StatementCompiler {
-
+    private final BlockCompiler blockCompiler;
+    private final NameCompiler nameCompiler;
     private final Reporter reporter;
-    BlockCompiler blockCompiler;
     private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
 
     public ForLoopCompiler(BlockCompiler blockCompiler) {
-        reporter = blockCompiler.generator.reporter;
+        reporter = blockCompiler.reporter;
         this.blockCompiler = blockCompiler;
+        nameCompiler = NameCompiler.instance(blockCompiler.baseGenerator.context);
     }
 
     @Override
@@ -99,6 +101,6 @@ public class ForLoopCompiler implements StatementCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> 
-                blockCompiler.generator.nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
+                nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
     }
 }

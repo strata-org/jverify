@@ -21,6 +21,4 @@ public class NullableClassesVerification {
             nullableC.foo();
         }
     }
-    // TODO assign 'null' to Nullable<String>
-    // use Nullable<String> as part of '+'
 }
