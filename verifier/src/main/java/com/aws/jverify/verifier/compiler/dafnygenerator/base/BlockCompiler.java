@@ -13,15 +13,19 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class BlockCompiler {
-    public final BaseDafnyGenerator generator;
+    public final BaseDafnyGenerator baseGenerator;
+    public final DafnyGenerator generator;
     public final Reporter reporter;
     private final ExpressionCompiler expressionCompiler;
+    private final NameCompiler nameCompiler;
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
 
     public BlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
-        this.generator = compiler;
+        this.generator = compiler.context.get(DafnyGenerator.class);
+        baseGenerator = compiler;
+        nameCompiler = NameCompiler.instance(compiler.context);
         reporter = compiler.reporter;
         expressionCompiler = compiler.expressionCompiler;
         this.methodSymbol = methodSymbol;
@@ -153,7 +157,7 @@ public class BlockCompiler {
 
     private List<Statement> translateVariableDeclaration(IOrigin origin, JCTree.JCVariableDecl variableDecl, ExpressionContext expressionContext) {
         Type translatedType = generator.translateType(variableDecl.getType().type, origin, variableDecl.getModifiers());
-        LocalVariable localVariable = new LocalVariable(origin, generator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
+        LocalVariable localVariable = new LocalVariable(origin, nameCompiler.getCompiledName(variableDecl.sym, variableDecl),
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
@@ -174,7 +178,7 @@ public class BlockCompiler {
                                    ExpressionContext expressionContext) {
         var origin = reporter.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
-        var postHeader = methodOrLoopContractCompiler.extractContract(generator, (JCTree.JCBlock) body, header);
+        var postHeader = methodOrLoopContractCompiler.extractContract(baseGenerator, (JCTree.JCBlock) body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
@@ -240,13 +244,13 @@ public class BlockCompiler {
         if (superIdent != null) {
             Symbol.MethodSymbol baseConstructor = (Symbol.MethodSymbol) superIdent.sym;
 
-            if (!generator.symbolsWithAContract.contains(baseConstructor)) {
+            if (!baseGenerator.symbolsWithAContract.contains(baseConstructor)) {
                 return List.of();
             }
 
-            var baseConstructorName = generator.nameCompiler.getCompiledName(baseConstructor, superIdent);
-            var baseConstructorClassName = generator.nameCompiler.getCompiledName(baseConstructor.enclClass(), superIdent);
-            var initName = generator.nameCompiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
+            var baseConstructorName = nameCompiler.getCompiledName(baseConstructor, superIdent);
+            var baseConstructorClassName = nameCompiler.getCompiledName(baseConstructor.enclClass(), superIdent);
+            var initName = nameCompiler.getInitMethodName(baseConstructorClassName, baseConstructorName);
             NameSegment callee = new NameSegment(origin, initName, null);
             var applySuffix = expressionCompiler.createCall(origin, callee, javaArguments.stream(), expressionContext);
             var initCall = new AssignStatement(origin, null, List.of(),
@@ -266,7 +270,7 @@ public class BlockCompiler {
 
     public List<Statement> translateSwitchStatement(JCTree.JCSwitch switchStmt, ExpressionContext expressionContext) {
         var origin = reporter.toOrigin(switchStmt);
-        var patternBodies = new Patterns(generator).translateSwitchLabels(switchStmt, expressionContext);
+        var patternBodies = new Patterns(baseGenerator).translateSwitchLabels(switchStmt, expressionContext);
         if (patternBodies == null) {
             return List.of();
         }
