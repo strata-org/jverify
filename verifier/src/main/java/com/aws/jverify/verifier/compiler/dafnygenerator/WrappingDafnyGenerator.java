@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 public class WrappingDafnyGenerator implements DafnyGenerator {
-    protected final DafnyGenerator next;
+    protected DafnyGenerator next;
 
     public WrappingDafnyGenerator(DafnyGenerator next) {
         this.next = next;

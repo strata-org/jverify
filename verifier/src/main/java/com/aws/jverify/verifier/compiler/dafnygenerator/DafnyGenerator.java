@@ -40,10 +40,12 @@ public interface DafnyGenerator {
     AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context);
     
     static DafnyGenerator getGenerator(Context context) {
+        var result = new WrappingDafnyGenerator(null);
+        context.put(DafnyGenerator.class, result);
+        
         var base = new BaseDafnyGenerator(context);
-        var result = new ImpureObjectGenerator(context, base, 
-                new JVerifyGhostExpressionCompiler(new NullableGenerator(base, base), base));
-        base.setFinalGenerator(result);
+        result.next = new ImpureObjectGenerator(context, base, 
+                new JVerifyGhostExpressionCompiler(context, new NullableGenerator(base, base)));
         return result;
     }
 }

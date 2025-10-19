@@ -11,8 +11,6 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.TreeScanner;
-import com.sun.tools.javac.code.TypeMetadata;
-import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.JCTree;
@@ -30,10 +28,8 @@ import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
-import java.lang.annotation.Annotation;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -52,11 +48,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public final JavacElements elements;
     public final VerifierOptions verifierOptions;
     public final JVerifyIndex index;
-    private DafnyGenerator finalGenerator;
-
-    public DafnyGenerator getFinalGenerator() {
-        return finalGenerator;
-    }
+    private final DafnyGenerator generator;
 
     /**
      * Edges are from child to parent types, similar to the references in the code
@@ -68,16 +60,18 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     private boolean translatingVerifiedMethodSignature;
     
     public BaseDafnyGenerator(Context context) {
+        context.put(BaseDafnyGenerator.class, this);
         this.context = context;
         this.verifierOptions = context.get(VerifierOptions.class);
 
-        expressionCompiler = new ExpressionCompiler(this);
+        expressionCompiler = new ExpressionCompiler(context, this);
         elements = JavacElements.instance(context);
         reporter = Reporter.instance(context);
         nameCompiler = NameCompiler.instance(context);
-        typeDeclarationCompiler = new TypeDeclarationCompiler(this);
+        typeDeclarationCompiler = new TypeDeclarationCompiler(context);
         index = JVerifyIndex.instance(context);
         names = Names.instance(context);
+        generator = context.get(DafnyGenerator.class);
     }
 
     public NameCompiler getNameCompiler() {
@@ -179,182 +173,20 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             typeHierarchy.addEdge(sym, baseClass);
         }
     }
-
-    public static Symbol.ClassSymbol getClassSymbol(Names names, JCTree.JCExpression valueArgument) {
-        if (valueArgument == null) {
-            return null;
-        }
-        if (valueArgument instanceof JCTree.JCFieldAccess fieldAccess) {
-            if (fieldAccess.name.contentEquals(names._class)) {
-                return getClassSymbol(names, fieldAccess.selected);
-            }
-            if (fieldAccess.sym instanceof Symbol.ClassSymbol classSymbol) {
-                 return classSymbol;
-            }
-        }
-        if (valueArgument instanceof JCTree.JCIdent ident &&
-                ident.sym instanceof Symbol.ClassSymbol classSymbol) {
-                return classSymbol;
-        } else {
-            throw new JavaViolationException();
-        }
-    }
-
-    public static Map<String, JCTree.JCAnnotation> getAnnotationsByName(JCTree.JCModifiers modifiers) {
-        var classAnnotations = modifiers.getAnnotations();
-        return classAnnotations.stream().collect(Collectors.toMap(
-                (JCTree.JCAnnotation a) -> a.getAnnotationType().type.toString(),
-                a -> a, 
-                (first, second) -> first));
-    }
-    
-    public static Map<String, JCTree.JCExpression> getArguments(JCTree.JCAnnotation annotation) {
-        var result = new HashMap<String, JCTree.JCExpression>();
-        for(var argument : annotation.getArguments()) {
-            if (argument instanceof JCTree.JCAssign assign &&
-                    assign.lhs instanceof JCTree.JCIdent ident) {
-                result.put(ident.name.toString(), assign.rhs);
-            } else {
-                throw new JavaViolationException();
-            }
-        }
-        return result;
-    }
-
-    public static boolean isInterface(Symbol.ClassSymbol classDecl) {
-        return (classDecl.flags() & Flags.INTERFACE) != 0;
-    }
-
-    private static boolean isAbstract(Symbol.ClassSymbol classDecl) {
-        return (classDecl.flags() & Flags.ABSTRACT) != 0;
-    }
-
-    public static boolean isInterfaceOrAbstract(Symbol.ClassSymbol classDecl) {
-        return isInterface(classDecl) || isAbstract(classDecl);
-    }
-
-    public static Object getLiteralValue(JCTree.JCExpression expression) {
-        if (expression instanceof JCTree.JCLiteral literal) {
-            return literal.getValue();
-        } else {
-            throw new JavaViolationException();
-        }
-    }
-
-    public static boolean typeHasSource(JVerifyIndex index, Symbol.TypeSymbol typeSymbol) {
-        return index.getTree(typeSymbol) != null;
-    }
-
-    private static boolean isEnum(com.sun.tools.javac.code.Type type) {
-        if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
-            return classType.supertype_field != null && 
-                    classType.supertype_field.tsym instanceof Symbol.ClassSymbol classSymbol &&
-                    classSymbol.fullname.contentEquals("java.lang.Enum");
-        }
-        return false;
-    }
-
-    public static boolean isRecord(com.sun.tools.javac.code.Type type) {
-        return type instanceof com.sun.tools.javac.code.Type.ClassType classType
-                && (classType.asElement().flags() & Flags.RECORD) != 0;
-    }
-
-    public void setFinalGenerator(DafnyGenerator finalGenerator) {
-        this.finalGenerator = finalGenerator;
-    }
-
-    static class NotImplementedException extends RuntimeException {
-        public NotImplementedException(String message) {
-            super(message);
-        }
-    }
-
-    private boolean isNullable(JCTree.JCModifiers modifiers) {
-        return isAnnotated(modifiers, com.aws.jverify.Nullable.class);
-    }
-
-    private boolean isNullable(com.sun.tools.javac.code.Type type) {
-        return isAnnotated(type, com.aws.jverify.Nullable.class);
-    }
-
-    /**
-     * Returns {@code true} if the given modifier tree contains an annotation of the given class.
-     */
-    public static boolean isAnnotated(JCTree.JCModifiers modifiers, Class<? extends Annotation> clazz) {
-        return modifiers != null && modifiers.getAnnotations().stream().anyMatch(a ->
-                TreeInfo.symbol(a.getAnnotationType()) instanceof Symbol symbol
-                        && symbol.flatName().contentEquals(clazz.getName()));
-    }
-
-    /**
-     * Returns {@code true} if the given type or any of its supertypes is annotated with the given annotation class.
-     */
-    public boolean isAnnotatedRecursive(com.sun.tools.javac.code.Type type, Class<? extends Annotation> clazz) {
-        var types = Types.instance(context);
-        return types.closure(type).stream().anyMatch(t -> isAnnotated(t, clazz));
-    }
-    
-    /**
-     * Returns {@code true} if the given type is annotated with the given annotation class.
-     */
-    public static boolean isAnnotated(com.sun.tools.javac.code.Type type, Class<? extends Annotation> clazz) {
-        var metadata = type.getMetadata(TypeMetadata.Annotations.class);
-        // In some JDK distributions, this conditional is necessary to detect the annotation.
-        if (metadata != null && metadata.annotationBuffer().stream()
-                .anyMatch(s -> s.type.tsym.getQualifiedName().contentEquals(clazz.getName()))) {
-            return true;
-        }
-        return type.getAnnotation(clazz) != null || type.tsym.getAnnotation(clazz) != null;
-    }
-
-    public static boolean isSynthetic(JVerifyIndex index,  JCTree methodNode, Symbol.MethodSymbol methodSymbol) {
-        var containerPos = index.getTree(methodSymbol.enclClass()).pos;
-        return methodNode.pos == containerPos;
-    }
-
-    public static boolean isSynthetic(long flags) {
-        return (flags & Flags.SYNTHETIC) != 0;
-    }
-    
-    public static boolean isStatic(JCTree.JCModifiers modifiers) {
-        return (modifiers.flags & Flags.STATIC) != 0;
-    }
-
-    public static boolean isStatic(Symbol symbol) {
-        return (symbol.flags() & Flags.STATIC) != 0;
-    }
-
-    public static LiteralExpr getReferenceHole(IOrigin origin) {
-        // TODO should be a typeless 'hole' expression, but Dafny does not have that.
-        return new LiteralExpr(origin, null);
-    }
-    public static LiteralExpr getHole(IOrigin origin) {
-        // TODO should be a typeless 'hole' expression, but Dafny does not have that.
-        return new LiteralExpr(origin, true);
-    }
-
-    public boolean isEnum(JCTree.JCExpression selected) {
-        if (selected instanceof JCTree.JCIdent jcIdent) {
-            if (jcIdent.sym instanceof Symbol.ClassSymbol classSymbol) {
-                return isEnum(classSymbol.type);
-            }
-        }
-        return false;
-    }
     
     public @Nullable Type translateType(JCTree tree) {
-        return finalGenerator.translateType(tree.type, toOrigin(tree), null);
+        return generator.translateType(tree.type, reporter.toOrigin(tree), null);
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
         translatingVerifiedMethodSignature = willVerify;
-        var result = finalGenerator.translateType(type, origin, null);
+        var result = generator.translateType(type, origin, null);
         translatingVerifiedMethodSignature = false;
         return result;
     }
     
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
-        return finalGenerator.translateType(type, origin, null);
+        return generator.translateType(type, origin, null);
     }
 
     @Nullable
@@ -367,13 +199,13 @@ public class BaseDafnyGenerator implements DafnyGenerator {
 
         switch (type) {
             case com.sun.tools.javac.code.Type.ArrayType arrayTypeTree -> {
-                return finalGenerator.translateArrayType(arrayTypeTree, origin, additionalModifiers);
+                return generator.translateArrayType(arrayTypeTree, origin, additionalModifiers);
             }
             case com.sun.tools.javac.code.Type.IntersectionClassType _ -> {
                 return null;
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
-                return finalGenerator.translateClassType(origin, additionalModifiers, classType);
+                return generator.translateClassType(origin, additionalModifiers, classType);
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym, origin), null));
@@ -384,22 +216,14 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             default -> {
             }
         }
-        reportError(origin, "notSupported", "type " + type.getClass().getName());
+        reporter.reportError(origin, "notSupported", "type " + type.getClass().getName());
         return null;
-    }
-
-    public void reportError(JCTree tree, String key, Object... args) {
-        reporter.reportError(tree, key, args);
-    }
-    
-    public void reportError(IOrigin origin, String key, Object... args) {
-        reporter.reportError(origin, key, args);
     }
     
     public UserDefinedType translateArrayType(com.sun.tools.javac.code.Type.ArrayType arrayTypeTree,
                                               IOrigin origin,
                                               JCTree.JCModifiers additionalModifiers) {
-        var elemType = finalGenerator.translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
+        var elemType = generator.translateType(arrayTypeTree.elemtype, origin, additionalModifiers);
         if (elemType == null) {
             // should be unreachable
             throw new IllegalArgumentException("Array type without element type");
@@ -438,7 +262,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                     }
                 } else {
                     if (primitiveTypeKind != TypeKind.INT) {
-                        reportError(origin, "unboundedNonInt", type.toString());
+                        reporter.reportError(origin, "unboundedNonInt", type.toString());
                     }
                     if (isNat) {
                         return new UserDefinedType(origin, new NameSegment(origin, "nat", null));
@@ -461,7 +285,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
         }
 
-        reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
+        reporter.reportError(origin, "notSupported", "Primitive type kind %s".formatted(primitiveTypeKind));
         return null;
     }
 
@@ -481,7 +305,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         var superBound = wildcardType.getSuperBound();
         if (superBound != null) {
             if (translatingVerifiedMethodSignature) {
-                reportError(origin, "notSupported", "keyword 'super' in method signature");
+                reporter.reportError(origin, "notSupported", "keyword 'super' in method signature");
             }
             if (superBound instanceof com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType) {
                 // TODO add test
@@ -500,7 +324,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         var typeArgumentsStream = classType.getTypeArguments().stream().map(a -> translateType(a, origin, null));
         if (classType.tsym.isDirectlyOrIndirectlyLocal()) {
             var ownerTypes = getOwnAndEnclosedTypeParameters(classType.tsym).toList();
-            Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, toOrigin(tp)));
+            Stream<Type> typeStream = ownerTypes.stream().map(tp -> translateType(tp.type, reporter.toOrigin(tp)));
             typeArgumentsStream = Stream.concat(typeStream, typeArgumentsStream);
         }
         var typeArguments = typeArgumentsStream.toList();
@@ -541,33 +365,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return null;
     }
 
-    public Name getName(JCTree tree, Symbol symbol) {
-        return reporter.getName(tree, nameCompiler.getCompiledName(symbol, tree), symbol.name.length());
-    }
-
-    public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.name == methodSymbol.name.table.names.init;
-    }
-
-    public SourceOrigin declToOrigin(JCTree node, Name name) {
-        var entireRange = toOrigin(node);
-        return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
-    }
-    
-    public IOrigin toOrigin(JCTree node) {
-        return reporter.toOrigin(node);
-    }
-
-    public static TokenRange originToRange(IOrigin tokenRangeOrigin) {
-        if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
-            return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
-        } else if (tokenRangeOrigin instanceof TokenRangeOrigin trOrigin) {
-            return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
-        } else {
-            throw new BaseDafnyGenerator.NotImplementedException(tokenRangeOrigin.getClass().getName());
-        }
-    }
-
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
         return methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
     }
@@ -587,14 +384,14 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         if (classSymbol.type == symtab.objectType) {
             return true;
         }
-        if (BaseDafnyGenerator.isInterface(classSymbol) && !isAnnotated(classSymbol.type, Impure.class)) {
+        if (JVerifyUtils.isInterface(classSymbol) && !JVerifyUtils.isAnnotated(classSymbol.type, Impure.class)) {
             return true;
         }
         boolean anonymousImmutableType = isAnonymousOrFinalImmutableType(classSymbol);
         if (anonymousImmutableType) {
             return true;
         }
-        return isRecord(classSymbol.type) || isImmutableClass(classSymbol);
+        return JVerifyUtils.isRecord(classSymbol.type) || isImmutableClass(classSymbol);
     }
 
     /**

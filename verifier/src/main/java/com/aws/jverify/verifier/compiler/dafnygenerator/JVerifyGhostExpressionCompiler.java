@@ -2,10 +2,13 @@ package com.aws.jverify.verifier.compiler.dafnygenerator;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
@@ -14,13 +17,17 @@ import java.util.stream.Stream;
 
 public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     final ExpressionCompiler expressionCompiler;
+    private final Reporter reporter;
     final BaseDafnyGenerator baseGenerator;
+    DafnyGenerator generator;
 
-    public JVerifyGhostExpressionCompiler(DafnyGenerator next, 
-                                          BaseDafnyGenerator baseGenerator) {
+    public JVerifyGhostExpressionCompiler(Context context, 
+                                          DafnyGenerator next) {
         super(next);
-        this.baseGenerator = baseGenerator;
+        this.baseGenerator = context.get(BaseDafnyGenerator.class);
+        generator = context.get(DafnyGenerator.class);
         this.expressionCompiler = baseGenerator.expressionCompiler;
+        reporter = baseGenerator.reporter;
     }
 
     /**
@@ -68,7 +75,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      * not here.
      */
     public ExpressionWithFlows translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
-        var origin = Objects.requireNonNullElseGet(originOverride, () -> baseGenerator.toOrigin(invocation));
+        var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(invocation));
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return super.toExprWithFlows(invocation, origin, context);
@@ -89,13 +96,13 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                     throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
                 }
                 if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-                    baseGenerator.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
-                    return BaseDafnyGenerator.getHole(origin);
+                    reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+                    return JVerifyUtils.getHole(origin);
                 }
                 var boundVars = lambda.params.stream().map(param -> {
-                    var paramOrigin = baseGenerator.toOrigin(lambda);
+                    var paramOrigin = reporter.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
-                    var paramType = baseGenerator.getFinalGenerator().translateType(param.getType().type, paramOrigin, param.getModifiers());
+                    var paramType = generator.translateType(param.getType().type, paramOrigin, param.getModifiers());
                     return new BoundVar(paramOrigin, paramName, paramType, false);
                 }).toList();
                 var body = expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
@@ -112,11 +119,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 return new WildcardExpr(origin);
             }
             case "cast" -> {
-                return baseGenerator.getFinalGenerator().toExpr(args.getFirst(), null, ExpressionContext.Pure);
+                return generator.toExpr(args.getFirst(), null, ExpressionContext.Pure);
             }
             case "elements" -> {
-                return new SeqDisplayExpr(origin, args.map(e -> 
-                        baseGenerator.getFinalGenerator().toExpr(e, null, ExpressionContext.Pure)));
+                return new SeqDisplayExpr(origin, args.map(e ->
+                        generator.toExpr(e, null, ExpressionContext.Pure)));
             }
             case "sequence" -> {
                 // array conversion to sequence by appending "[..]", optionally with lo/hi
@@ -180,8 +187,8 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             }
         }
 
-        baseGenerator.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
-        return BaseDafnyGenerator.getHole(origin);
+        reporter.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
+        return JVerifyUtils.getHole(origin);
     }
 
     private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {
@@ -196,12 +203,12 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
         }
         if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
-            baseGenerator.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
+            reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
             return null;
         }
         var parameter = lambda.params.getFirst();
         var paramName = parameter.getName().toString();
-        var type = baseGenerator.getFinalGenerator().translateType(parameter.type, baseGenerator.toOrigin(parameter), null);
+        var type = generator.translateType(parameter.type, reporter.toOrigin(parameter), null);
         var boundVar = new BoundVar(origin, new Name(origin, paramName), type, false);
         var body = baseGenerator.expressionCompiler.toExpr(lambda.getBody(), ExpressionContext.Pure);
         if ("all".equals(methodName)) {

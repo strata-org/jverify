@@ -1,6 +1,8 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -8,9 +10,11 @@ import java.util.List;
 
 public class Patterns {
     BaseDafnyGenerator compiler;
+    Reporter reporter;
 
     public Patterns(BaseDafnyGenerator compiler) {
         this.compiler = compiler;
+        reporter = compiler.reporter;
     }
 
     record SwitchLabelPatternAndBody(JCTree.JCCase cas, ExtendedPattern pattern, JCTree body) {}
@@ -49,8 +53,8 @@ public class Patterns {
         // but Dafny's match statement/expression can't express that easily.
         // So for now we only support switch blocks using switch rules.
         if (cas.getCaseKind().equals(JCTree.JCCase.STATEMENT)) {
-            compiler.reportError(cas, "notSupported", "switch labeled statement group");
-            return makeWildPattern(compiler.toOrigin(cas));
+            reporter.reportError(cas, "notSupported", "switch labeled statement group");
+            return makeWildPattern(reporter.toOrigin(cas));
         }
 
         // Each case has a *switch label*, which is either a *default label* or a *case label*.
@@ -67,13 +71,13 @@ public class Patterns {
 
         if (caseConstants.nonEmpty()) {
             var literals = caseConstants.stream().map(c -> this.translateCaseConstant(c, context.withExpectedType(cas.type))).toList();
-            return new DisjunctivePattern(compiler.toOrigin(cas), false, literals);
+            return new DisjunctivePattern(reporter.toOrigin(cas), false, literals);
         } else if (defaultLabel.isPresent()) {
-            return makeWildPattern(compiler.toOrigin(defaultLabel.get()));
+            return makeWildPattern(reporter.toOrigin(defaultLabel.get()));
         } else {
-            compiler.reportError(cas, "notSupported", "case pattern");
+            reporter.reportError(cas, "notSupported", "case pattern");
             // Return something sensible
-            return makeWildPattern(compiler.toOrigin(cas));
+            return makeWildPattern(reporter.toOrigin(cas));
         }
     }
 
@@ -81,13 +85,13 @@ public class Patterns {
      * Translates the given switch label case constant into a pattern.
      */
     private ExtendedPattern translateCaseConstant(JCTree.JCExpression expr, ExpressionContext context) {
-        var origin = compiler.toOrigin(expr);
+        var origin = reporter.toOrigin(expr);
         final LiteralExpr litExpr;
         if (expr instanceof JCTree.JCLiteral) {
             litExpr = (LiteralExpr)compiler.expressionCompiler.toExpr(expr, context);
         } else {
-            compiler.reportError(expr, "notSupported", "non-literal case constant");
-            litExpr = BaseDafnyGenerator.getHole(origin);
+            reporter.reportError(expr, "notSupported", "non-literal case constant");
+            litExpr = JVerifyUtils.getHole(origin);
         }
         return new LitPattern(origin, false, litExpr);
     }
