@@ -119,10 +119,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     public void visitForeachLoop(JCTree.JCEnhancedForLoop tree) {
         if (tree.body != null) {
             maker.pos = tree.body.pos;
-            List<JCTree.JCStatement> statements = getStatements(tree.body);
-            List<JCTree.JCStatement> newStatements = getNewStatements(tree, statements.stream().skip(1).collect(List.collector()), false);
-            var implementation = (JCTree.JCBlock)newStatements.get(1);
-            implementation.stats = implementation.stats.prepend(statements.getFirst());
+            List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
             tree.body = maker.Block(0, newStatements);
         }
         super.visitForeachLoop(tree);

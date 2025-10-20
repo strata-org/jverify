@@ -52,6 +52,7 @@ public class JavaToDafnyCompiler {
         context.put(DiagnosticListener.class, diagnostics);
         context.put(JavaToDafnyCompiler.class, this);
 
+        LowerWithPublicPatches.instance(context); // need to instance before Enter
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
         this.dafnyGenerator = DafnyGenerator.getGenerator(context);
@@ -278,7 +279,7 @@ public class JavaToDafnyCompiler {
 
     private Set<JCTree.JCCompilationUnit> lower(Set<JCTree.JCCompilationUnit> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
-        var lower = Lower.instance(context);
+        var lower = LowerWithPublicPatches.instance(context);
         var log = Log.instance(context);
         var index = JVerifyIndex.instance(context);
 

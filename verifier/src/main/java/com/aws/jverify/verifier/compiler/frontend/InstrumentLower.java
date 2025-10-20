@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.List;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
@@ -38,6 +39,10 @@ public class InstrumentLower {
                                 .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
                             .field(named("types"))
                                 .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
+
+                            .method(named("visitForeachLoop").
+                                    and(takesArgument(0, is(JCTree.JCEnhancedForLoop.class))))
+                            .intercept(MethodDelegation.to(LowerInterceptor.class))
                             .method(named("access").
                                     and(takesArgument(0, is(Symbol.class))))
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))

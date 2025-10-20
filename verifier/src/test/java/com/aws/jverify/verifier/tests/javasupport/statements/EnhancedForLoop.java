@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.tests.javasupport.statements;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import java.lang.foreign.SymbolLookup;
+import java.util.Iterator;
 import java.util.List;
 
 import static com.aws.jverify.JVerify.check;

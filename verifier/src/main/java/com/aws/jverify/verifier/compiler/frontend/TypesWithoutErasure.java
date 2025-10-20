@@ -18,10 +18,21 @@ public class TypesWithoutErasure extends Types {
     }
 
     @Override
+    public boolean isSameType(Type t, Type s) {
+        var previous = eraseTypes;
+        eraseTypes = false;
+        var result = super.isSameType(t, s);
+        eraseTypes = previous;
+        return result;
+    }
+
+    @Override
     public Type erasure(Type t) {
         if (eraseTypes) {
             return super.erasure(t);
         }
         return t;
     }
+    
+    
 }

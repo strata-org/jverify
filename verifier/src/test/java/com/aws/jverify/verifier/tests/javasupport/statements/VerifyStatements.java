@@ -15,6 +15,7 @@ class VerifyStatements {
             sum += x;
         }
     }
+    
     void whileWithBreak() {
         var x = 0;
         while(true) {
