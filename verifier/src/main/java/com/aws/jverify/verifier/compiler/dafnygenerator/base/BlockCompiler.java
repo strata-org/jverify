@@ -265,8 +265,18 @@ public class BlockCompiler {
         }
 
         var expr = generator.toExpr(invocation, null, expressionContext);
-        return List.of(new AssignStatement(origin, null, List.of(),
-                List.of(new ExprRhs(expr.getOrigin(), null, expr)), false));
+
+        List<AssignmentRhs> rhss = List.of(new ExprRhs(expr.getOrigin(), null, expr));
+        var returnType = invocation.meth.type.asMethodType().getReturnType();
+        if (returnType == symtab.voidType) {
+            return List.of(new AssignStatement(origin, null, List.of(),
+                    rhss, false));
+        } else {
+            ArrayList<Statement> statements = new ArrayList<>();
+            expressionCompiler.placeRhsIntoTemporaryAssignmentAndReturnResult(invocation.type, rhss.getFirst(),
+                    new ExpressionContext(statements::add, false, this, null));
+            return List.of(statements.getFirst());
+        }
     }
 
     public static JCTree.JCIdent getSuperIdent(JCTree.JCMethodInvocation invocation) {
