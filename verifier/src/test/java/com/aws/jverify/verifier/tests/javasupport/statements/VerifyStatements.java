@@ -3,8 +3,6 @@ package com.aws.jverify.verifier.tests.javasupport.statements;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import java.util.concurrent.ThreadPoolExecutor;
-
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
