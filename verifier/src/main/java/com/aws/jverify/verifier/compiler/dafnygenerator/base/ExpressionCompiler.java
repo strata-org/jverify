@@ -127,6 +127,15 @@ public class ExpressionCompiler {
                 result = new ITEExpr(reporter.toOrigin(ifStatement), false,
                         conditionWithFlows.expression(), thenExpression, result);
             } else {
+                if (statement instanceof JCTree.JCExpressionStatement expressionStatement &&
+                        expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation) {
+                    var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+                    if (jverifyMethod != null) {
+                        var dafnyStatement = getJVerifyStatement(invocation, jverifyMethod, context);
+                        result = new StmtExpr(origin, dafnyStatement, result);
+                        continue;
+                    }
+                }
                 reporter.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
                 result = JVerifyUtils.getHole(origin);
             }
@@ -322,8 +331,7 @@ public class ExpressionCompiler {
             return PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
         }
         if (context.statementWriter() == null) {
-            reporter.reportError(expr, "notSupported",
-                    "using 'new' in a pure expression to create an instance of an impure type");
+            reporter.reportError(expr, "impureConstructorInPureContext");
             return JVerifyUtils.getReferenceHole(origin);
         } else {
             var rhs = generator.translateNewClassToAssignmentRhs(newClass, origin, context);
