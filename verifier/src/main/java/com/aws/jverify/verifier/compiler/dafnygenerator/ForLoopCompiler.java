@@ -22,9 +22,9 @@ public class ForLoopCompiler implements StatementCompiler {
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
 
     public ForLoopCompiler(BlockCompiler blockCompiler) {
-        reporter = blockCompiler.generator.reporter;
+        reporter = blockCompiler.reporter;
         this.blockCompiler = blockCompiler;
-        nameCompiler = NameCompiler.instance(blockCompiler.generator.context);
+        nameCompiler = NameCompiler.instance(blockCompiler.baseGenerator.context);
     }
 
     @Override
@@ -101,6 +101,6 @@ public class ForLoopCompiler implements StatementCompiler {
 
     private String getForLoopContinueLabel(JCTree.JCForLoop forLoop) {
         return forLoopContinueLabels.computeIfAbsent(forLoop, _ -> 
-                blockCompiler.generator.nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
+                nameCompiler.LABEL_PREFIX + "loop" + blockCompiler.generatedIndex++);
     }
 }
