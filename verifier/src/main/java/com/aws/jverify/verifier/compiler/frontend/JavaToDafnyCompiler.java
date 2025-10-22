@@ -194,10 +194,6 @@ public class JavaToDafnyCompiler {
                     var newMethodContractCompiler = MethodOrLoopContractCompiler.instance(context);
                     var verifyAnnotationCompiler = VerifyAnnotationCompiler.instance(context);
                     var arrayCompiler = new ArrayCompiler(context);
-                    // It seems that verifyAnnotationCompiler should run before Lower, 
-                    // because unverified class closures are no longer deleted if it runs after
-                    // We would need a pruning step to still delete them if VAC runs after lower
-                    // We could modify lower so it insert the new statement in the body block
                     units.addAll(
                             staticMover.translate(
                                     arrayCompiler.transform(
