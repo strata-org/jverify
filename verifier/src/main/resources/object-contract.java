@@ -8,6 +8,8 @@ import com.aws.jverify.Verify;
 import com.aws.jverify.Pure;
 import com.aws.jverify.ContractException;
 
+import java.util.Iterator;
+
 @Contract(Object.class)
 class ObjectContract {
     public ObjectContract() {}
@@ -129,5 +131,42 @@ class JArray<TArrayElement> {
         //noinspection ConstantValue
         postcondition(get(index) == value && forall(
                 (int i) -> implies(i != index && i >= 0, old(get(i)) == get(i))));
+    }
+}
+
+@Contract(Iterator.class)
+abstract class IteratorContract<E> implements Iterator<E> {    /**
+ * Returns {@code true} if the iteration has more elements.
+ * (In other words, returns {@code true} if {@link #next} would
+ * return an element rather than throwing an exception.)
+ *
+ * @return {@code true} if the iteration has more elements
+ */
+
+    public boolean hasNext() {
+        reads(this);
+        throw new ContractException();
+    }
+
+    public E next() {
+        precondition(hasNext());
+        modifies(this);
+        throw new ContractException();
+    }
+    
+}
+
+
+@Contract(Iterable.class)
+abstract class IterableContract<T> implements Iterable<T> {    /**
+ * Returns {@code true} if the iteration has more elements.
+ * (In other words, returns {@code true} if {@link #next} would
+ * return an element rather than throwing an exception.)
+ *
+ * @return {@code true} if the iteration has more elements
+ */
+    public Iterator<T> iterator() {
+        reads(this);
+        throw new ContractException();
     }
 }

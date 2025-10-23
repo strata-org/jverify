@@ -39,6 +39,10 @@ public class InstrumentLower {
                                 .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
                             .field(named("types"))
                                 .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
+                            .field(named("attrEnv"))
+                                .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
+                            .field(named("currentMethodSym"))
+                                .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
 
                             .method(named("visitForeachLoop").
                                     and(takesArgument(0, is(JCTree.JCEnhancedForLoop.class))))

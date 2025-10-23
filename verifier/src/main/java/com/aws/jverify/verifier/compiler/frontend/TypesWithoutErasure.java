@@ -3,6 +3,8 @@ package com.aws.jverify.verifier.compiler.frontend;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.util.Context;
+
+import java.util.concurrent.RunnableFuture;
 import java.util.function.Supplier;
 
 public class TypesWithoutErasure extends Types {
@@ -15,15 +17,6 @@ public class TypesWithoutErasure extends Types {
     
     public TypesWithoutErasure(Context context) {
         super(context);
-    }
-
-    @Override
-    public boolean isSameType(Type t, Type s) {
-        var previous = eraseTypes;
-        eraseTypes = false;
-        var result = super.isSameType(t, s);
-        eraseTypes = previous;
-        return result;
     }
 
     @Override
