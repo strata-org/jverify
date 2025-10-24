@@ -196,6 +196,9 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .forEach(dafnyOutput -> {
                     URI source = ((DafnyDiagnostic) dafnyOutput).getSource();
                     var methodIntervals = verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().get(source);
+                    if (methodIntervals == null) {
+                        return;
+                    }
                     var failedVerificationMethod = methodIntervals
                             .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
                     if (failedVerificationMethod != null) {

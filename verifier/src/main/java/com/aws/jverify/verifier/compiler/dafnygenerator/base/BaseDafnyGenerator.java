@@ -391,7 +391,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         if (anonymousImmutableType) {
             return true;
         }
-        return JVerifyUtils.isRecord(classSymbol.type) || isImmutableClass(classSymbol);
+        return JVerifyUtils.isRecord(classSymbol.type) || isPureClass(classSymbol);
     }
 
     /**
@@ -462,16 +462,16 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return Stream.concat(mine, getOwnAndEnclosedTypeParameters(methodSymbol.owner));
     }
     
-    public boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
+    public boolean isPureClass(Symbol.ClassSymbol classSymbol) {
         var decl = (JCTree.JCClassDecl)index.getTree(classSymbol);
-        boolean immutableClass = false;
+        boolean isPureClass = false;
         if (decl != null) {
             var contract = classSymbol.getAnnotation(Contract.class);
             if (contract != null) {
-                immutableClass = contract.pure();
+                isPureClass = contract.pure();
             }
         }
-        return immutableClass;
+        return isPureClass;
     }
 }
 

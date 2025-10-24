@@ -117,7 +117,7 @@ public class TypeDeclarationCompiler {
     }
 
     private TopLevelDeclWithMembers translateInterfaceOrClass(JCTree.JCClassDecl classDecl, IOrigin origin, Name name) {
-        if (baseGenerator.isAnonymousOrFinalImmutableType(classDecl.sym) || baseGenerator.isImmutableClass(classDecl.sym)) {
+        if (baseGenerator.isAnonymousOrFinalImmutableType(classDecl.sym) || baseGenerator.isPureClass(classDecl.sym)) {
             return pureTypeCompiler.translate(classDecl, origin, name);
         }
 
@@ -184,9 +184,9 @@ public class TypeDeclarationCompiler {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null)));
         }
 
-        var mutable = !JVerifyUtils.isInterface(definingSymbol)
+        var impure = !JVerifyUtils.isInterface(definingSymbol)
                 || JVerifyUtils.isAnnotated(definingSymbol.type, Impure.class);
-        if (mutable) {
+        if (impure) {
             superTraits.add(new UserDefinedType(origin, new NameSegment(origin, DAFNY_REFERENCE_BASE_TYPE, null)));
         }
 

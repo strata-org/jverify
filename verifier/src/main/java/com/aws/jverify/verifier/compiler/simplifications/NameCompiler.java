@@ -58,7 +58,7 @@ public class NameCompiler extends TreeScanner {
     final Reporter reporter;
     
     public record FoundSymbol(Symbol symbol, IOrigin origin) {}
-    Set<String> reservedDafnyNames = Set.of("string", "class", "map", "function", "set", "seq", "type", "method", "predicate", "this");
+    Set<String> reservedDafnyNames = Set.of("iterator", "string", "class", "map", "function", "set", "seq", "type", "method", "predicate", "this");
     
     protected static final Context.Key<NameCompiler> myKey = new Context.Key<>();
     public static NameCompiler instance(Context context) {

@@ -143,6 +143,7 @@ abstract class IteratorContract<E> implements Iterator<E> {    /**
  * @return {@code true} if the iteration has more elements
  */
 
+    @Pure
     public boolean hasNext() {
         reads(this);
         throw new ContractException();
