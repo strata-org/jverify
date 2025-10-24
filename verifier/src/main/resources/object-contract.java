@@ -1,12 +1,8 @@
 package com.aws.jverify.builtin;
 
-import com.aws.jverify.Contract;
+import com.aws.jverify.*;
+
 import static com.aws.jverify.JVerify.*;
-import com.aws.jverify.Nat;
-import com.aws.jverify.JVerify;
-import com.aws.jverify.Verify;
-import com.aws.jverify.Pure;
-import com.aws.jverify.ContractException;
 
 import java.util.Iterator;
 
@@ -134,6 +130,7 @@ class JArray<TArrayElement> {
     }
 }
 
+@Impure
 @Contract(Iterator.class)
 abstract class IteratorContract<E> implements Iterator<E> {    /**
  * Returns {@code true} if the iteration has more elements.
@@ -167,7 +164,6 @@ abstract class IterableContract<T> implements Iterable<T> {    /**
  * @return {@code true} if the iteration has more elements
  */
     public Iterator<T> iterator() {
-        reads(this);
         throw new ContractException();
     }
 }

@@ -79,9 +79,9 @@ abstract class CollectionContract<E> implements Collection<E> {
 interface SequencedCollectionContract<E> extends Collection<E> { }
 
 abstract class ImmutableList<E> implements List<E> {
+    
     @Verify(false)
     public Iterator<E> iterator() {
-        reads(this);
         throw new ContractException();
     }
     
@@ -187,7 +187,6 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     }
 
     public Iterator<E> iterator() {
-        reads(this);
         throw new ContractException();
     }
     
