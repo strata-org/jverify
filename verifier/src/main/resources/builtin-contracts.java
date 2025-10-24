@@ -79,9 +79,11 @@ abstract class CollectionContract<E> implements Collection<E> {
 interface SequencedCollectionContract<E> extends Collection<E> { }
 
 abstract class ImmutableList<E> implements List<E> {
-    
+
+    @Override
     @Verify(false)
     public Iterator<E> iterator() {
+        postcondition((Iterator<E> r) -> fresh(r));
         throw new ContractException();
     }
     
@@ -186,7 +188,9 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
         throw new ContractException();
     }
 
+    @Override
     public Iterator<E> iterator() {
+        postcondition((Iterator<E> r) -> fresh(r));
         throw new ContractException();
     }
     

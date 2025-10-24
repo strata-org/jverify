@@ -164,6 +164,7 @@ abstract class IterableContract<T> implements Iterable<T> {    /**
  * @return {@code true} if the iteration has more elements
  */
     public Iterator<T> iterator() {
+        postcondition((Iterator<T> r) -> fresh(r));
         throw new ContractException();
     }
 }
