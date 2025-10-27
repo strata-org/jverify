@@ -3,7 +3,6 @@ JVerify intends to support the full Java language, but is currently being develo
 # Currently unsupported Java features
 
 #### Java 1-9
-- Enhanced for loop: `for(var x : xs) { ... }`
 - Verification of constructors
 - static fields
 - Multi-dimensional array instantiation: `new [,]`
