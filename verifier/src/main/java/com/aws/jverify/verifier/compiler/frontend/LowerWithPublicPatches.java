@@ -62,17 +62,6 @@ public class LowerWithPublicPatches extends Lower  {
     public void visitForeachLoop(JCTree.JCEnhancedForLoop tree) {
         //super.visitForeachLoop(tree);
         visitForEachLoopModified(tree);
-        var typedResult = (JCTree.JCForLoop)result;
-        var blockBody = (JCTree.JCBlock)typedResult.body;
-        var added1 = blockBody.stats.get(0);
-        var added2 = blockBody.stats.get(1);
-        var original = (JCTree.JCBlock)blockBody.stats.get(2);
-        var contract = (JCTree.JCBlock)original.stats.get(0);
-        contract.stats = contract.stats.prepend(added2);
-        var implementation = original.stats.get(1);
-        original.stats = List.of(contract, make.
-                Block(0, List.of(added1, implementation)));
-        typedResult.body = original;
     }
 
     void visitForEachLoopModified(JCTree.JCEnhancedForLoop tree) {
@@ -82,10 +71,31 @@ public class LowerWithPublicPatches extends Lower  {
             types.eraseTypes = false;
             
             if (types.elemtype(tree.expr.type) == null) {
-                    visitIterableForeachLoopModified(tree);
+                visitIterableForeachLoopModified(tree);
+                var typedResult = (JCTree.JCForLoop)result;
+                var blockBody = (JCTree.JCBlock)typedResult.body;
+                var added1 = blockBody.stats.get(0);
+                var added2 = blockBody.stats.get(1);
+                var original = (JCTree.JCBlock)blockBody.stats.get(2);
+                var contract = (JCTree.JCBlock)original.stats.get(0);
+                contract.stats = contract.stats.prepend(added2);
+                var implementation = original.stats.get(1);
+                original.stats = List.of(contract, make.
+                        Block(0, List.of(added1, implementation)));
+                typedResult.body = original;
             }
-            else
+            else {
                 super.visitForeachLoop(tree);
+                var typedResult = (JCTree.JCForLoop)result;
+                var blockBody = (JCTree.JCBlock)typedResult.body;
+                var added1 = blockBody.stats.get(0);
+                var original = (JCTree.JCBlock)blockBody.stats.get(1);
+                var contract = (JCTree.JCBlock)original.stats.get(0);
+                var implementation = original.stats.get(1);
+                original.stats = List.of(contract, make.
+                        Block(0, List.of(added1, implementation)));
+                typedResult.body = original;
+            }
             types.eraseTypes = previous;
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
