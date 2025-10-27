@@ -27,7 +27,6 @@ public class LowerWithPublicPatches extends Lower  {
     
     private final Target target;
 
-
     static Field attrEnvField;
     static Field currentMethodSymField;
 
@@ -65,12 +64,14 @@ public class LowerWithPublicPatches extends Lower  {
         visitForEachLoopModified(tree);
         var typedResult = (JCTree.JCForLoop)result;
         var blockBody = (JCTree.JCBlock)typedResult.body;
-        var added = blockBody.stats.get(0);
-        var original = (JCTree.JCBlock)blockBody.stats.get(1);
-        var contract = original.stats.get(0);
+        var added1 = blockBody.stats.get(0);
+        var added2 = blockBody.stats.get(1);
+        var original = (JCTree.JCBlock)blockBody.stats.get(2);
+        var contract = (JCTree.JCBlock)original.stats.get(0);
+        contract.stats = contract.stats.prepend(added2);
         var implementation = original.stats.get(1);
         original.stats = List.of(contract, make.
-                Block(0, List.of(added, implementation)));
+                Block(0, List.of(added1, implementation)));
         typedResult.body = original;
     }
 
@@ -92,7 +93,6 @@ public class LowerWithPublicPatches extends Lower  {
     }
 
     private void visitIterableForeachLoopModified(JCTree.JCEnhancedForLoop tree) throws IllegalAccessException {
-        var attrEnv = (Env<AttrContext>) attrEnvField.get(this);
         var currentMethodSym = (Symbol.MethodSymbol) currentMethodSymField.get(this);
         
         make_at(tree.expr.pos());
@@ -137,12 +137,62 @@ public class LowerWithPublicPatches extends Lower  {
             vardefinit = make.TypeCast(types.cvarUpperBound(iteratorTarget), vardefinit);
         else
             vardefinit = make.TypeCast(tree.var.type, vardefinit);
+        
         JCTree.JCVariableDecl indexDef = (JCTree.JCVariableDecl)make.VarDef(tree.var.mods,
                 tree.var.name,
                 tree.var.vartype,
                 vardefinit).setType(tree.var.type);
         indexDef.sym = tree.var.sym;
-        JCTree.JCBlock body = make.Block(0, List.of(indexDef, tree.body));
+
+
+        var jverifyClasses = syms.getClassesForName(names.fromString("com.aws.jverify.JVerify"));
+        // First, resolve the JVerify class symbol
+        Symbol.ClassSymbol jverifyClass = jverifyClasses.iterator().next();
+
+// Find the decreases method symbol
+        Symbol.MethodSymbol decreasesMethod = null;
+        for (Symbol sym : jverifyClass.members().getSymbolsByName(names.fromString("decreases"))) {
+            if (sym instanceof Symbol.MethodSymbol methodSymbol && methodSymbol.getParameters().size() == 1) {
+                decreasesMethod = methodSymbol;
+                break;
+            }
+        }
+
+// Create the resolved method call
+        JCTree.JCFieldAccess methodSelect = make.Select(
+                make.QualIdent(jverifyClass),
+                decreasesMethod
+        );
+        methodSelect.type = decreasesMethod.type;
+        methodSelect.sym = decreasesMethod;
+
+// Create the argument (assuming 'i' is already resolved)
+        JCTree.JCIdent iArg = make.Ident(itvar); // iSymbol should be the resolved symbol for 'i'
+        iArg.type = itvar.type;
+        iArg.sym = itvar;
+
+        var iteratorClasses = syms.getClassesForName(names.fromString("com.aws.jverify.builtin.IteratorContract"));
+        Symbol.ClassSymbol iteratorClass = iteratorClasses.iterator().next();
+
+// Find the decreases method symbol
+        Symbol.VarSymbol remainingEntries = null;
+        for (Symbol sym : iteratorClass.members().getSymbolsByName(names.fromString("remainingEntries"))) {
+            if (sym instanceof Symbol.VarSymbol varSymbol) {
+                remainingEntries = varSymbol;
+                break;
+            }
+        }
+
+// Create the method invocation
+        JCTree.JCMethodInvocation decreasesCall = make.Apply(
+                List.nil(),
+                methodSelect,
+                List.of(make.Select(iArg, remainingEntries))
+        );
+        decreasesCall.type = decreasesMethod.getReturnType();
+        var decreasesCallStatement = make.Exec(decreasesCall);        
+        
+        JCTree.JCBlock body = make.Block(0, List.of(indexDef, decreasesCallStatement, tree.body));
         body.endpos = TreeInfo.endPos(tree.body);
         result = translate(make.
                 ForLoop(List.of(init),

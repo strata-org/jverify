@@ -2,19 +2,12 @@ package com.aws.jverify.verifier.tests.javasupport.statements;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
-import java.util.List;
 
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
-@JVerifyTest(dafnyVerified = 18, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(dafnyVerified = 21, dafnyErrors = 0, verifyPrintedDafny = true)
 class VerifyStatements {
-    void enhancedFor(List<Integer> numbers) {
-        var sum = 0;
-        for(var x : numbers) {
-            sum += x;
-        }
-    }
     
     void whileWithBreak() {
         var x = 0;
@@ -23,6 +16,20 @@ class VerifyStatements {
             if (P(x)) {
                 break;
             }
+            x = x + 1;
+        }
+    }
+
+    static class Container {
+        int x;
+    } 
+    
+    void whileThatModifies() {
+        var x = 0;
+        var c = new Container();
+        while(x < 10) {
+            decreases(10 - x);
+            c.x += 0;
             x = x + 1;
         }
     }

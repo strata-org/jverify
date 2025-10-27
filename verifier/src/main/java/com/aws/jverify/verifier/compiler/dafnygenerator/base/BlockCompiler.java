@@ -191,7 +191,8 @@ public class BlockCompiler {
         var bodyStatements = translateStatements(postHeader);
         var newBodyStatements = transformBody.apply(bodyStatements);
         return new WhileStmt(origin, null, labels, header.loopInvariants, new Specification<>(header.decreases, null),
-                new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),
+                new Specification<>(header.modifies.isEmpty() ? null : header.modifies, null), 
+                new BlockStmt(origin, null, List.of(), newBodyStatements),
                 dafnyCondition);
     }
 

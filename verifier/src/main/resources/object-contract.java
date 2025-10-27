@@ -132,23 +132,26 @@ class JArray<TArrayElement> {
 
 @Impure
 @Contract(Iterator.class)
-abstract class IteratorContract<E> implements Iterator<E> {    /**
- * Returns {@code true} if the iteration has more elements.
- * (In other words, returns {@code true} if {@link #next} would
- * return an element rather than throwing an exception.)
- *
- * @return {@code true} if the iteration has more elements
- */
-
+abstract class IteratorContract<E> implements Iterator<E> {    
+    int remainingEntries;
+    
+    /**
+     * Returns {@code true} if the iteration has more elements.
+     * (In other words, returns {@code true} if {@link #next} would
+     * return an element rather than throwing an exception.)
+     *
+     * @return {@code true} if the iteration has more elements
+     */
     @Pure
     public boolean hasNext() {
         reads(this);
-        throw new ContractException();
+        return remainingEntries > 0;
     }
 
     public E next() {
         precondition(hasNext());
         modifies(this);
+        postcondition(remainingEntries == old(remainingEntries) - 1);
         throw new ContractException();
     }
     
@@ -156,13 +159,7 @@ abstract class IteratorContract<E> implements Iterator<E> {    /**
 
 
 @Contract(Iterable.class)
-abstract class IterableContract<T> implements Iterable<T> {    /**
- * Returns {@code true} if the iteration has more elements.
- * (In other words, returns {@code true} if {@link #next} would
- * return an element rather than throwing an exception.)
- *
- * @return {@code true} if the iteration has more elements
- */
+abstract class IterableContract<T> implements Iterable<T> {    
     public Iterator<T> iterator() {
         postcondition((Iterator<T> r) -> fresh(r));
         throw new ContractException();
