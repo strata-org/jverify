@@ -106,11 +106,13 @@ public class LowerWithPublicPatches extends Lower  {
         var currentMethodSym = (Symbol.MethodSymbol) currentMethodSymField.get(this);
         
         make_at(tree.expr.pos());
-        Type iteratorTarget = syms.objectType;
         Type iterableType = types.asSuper(types.cvarUpperBound(tree.expr.type),
                 syms.iterableType.tsym);
-        if (iterableType.getTypeArguments().nonEmpty())
+        Type iteratorTarget = syms.objectType;
+        if (iterableType.getTypeArguments().nonEmpty()) {
             iteratorTarget = types.erasure(iterableType.getTypeArguments().head);
+        }
+// Remove erasing calls
 //        tree.expr.type = types.erasure(types.skipTypeVars(tree.expr.type, false));
 //        tree.expr = transTypes.coerce(attrEnv, tree.expr, types.erasure(iterableType));
         Symbol iterator = lookupMethod(tree.expr.pos(),
@@ -132,11 +134,29 @@ public class LowerWithPublicPatches extends Lower  {
                 VarDef(itvar, make.App(make.Select(tree.expr, iterator)
                         .setType(types.erasure(iterator.type))));
 
+        var cond = getCondition(tree, itvar);
+        var indexDef = getElementVarDeclaration(tree, iteratorType, itvar, iteratorTarget);
+        var decreasesCallStatement = getDecreasesCallStatement(itvar);
+
+        JCTree.JCBlock body = make.Block(0, List.of(indexDef, decreasesCallStatement, tree.body));
+        body.endpos = TreeInfo.endPos(tree.body);
+        result = translate(make.
+                ForLoop(List.of(init),
+                        cond,
+                        List.nil(),
+                        body));
+        patchTargets(body, tree, result);
+    }
+
+    private JCTree.JCMethodInvocation getCondition(JCTree.JCEnhancedForLoop tree, Symbol.VarSymbol itvar) throws IllegalAccessException {
         Symbol hasNext = lookupMethod(tree.expr.pos(),
                 names.hasNext,
                 syms.iteratorType /* itvar.type */,
                 List.nil());
-        JCTree.JCMethodInvocation cond = make.App(make.Select(make.Ident(itvar), hasNext));
+        return make.App(make.Select(make.Ident(itvar), hasNext));
+    }
+
+    private JCTree.JCVariableDecl getElementVarDeclaration(JCTree.JCEnhancedForLoop tree, Type iteratorType, Symbol.VarSymbol itvar, Type iteratorTarget) throws IllegalAccessException {
         Symbol next = lookupMethod(tree.expr.pos(),
                 names.next,
                 iteratorType /* itvar.type */,
@@ -147,19 +167,19 @@ public class LowerWithPublicPatches extends Lower  {
             vardefinit = make.TypeCast(types.cvarUpperBound(iteratorTarget), vardefinit);
         else
             vardefinit = make.TypeCast(tree.var.type, vardefinit);
-        
+
         JCTree.JCVariableDecl indexDef = (JCTree.JCVariableDecl)make.VarDef(tree.var.mods,
                 tree.var.name,
                 tree.var.vartype,
                 vardefinit).setType(tree.var.type);
         indexDef.sym = tree.var.sym;
+        return indexDef;
+    }
 
-
+    private JCTree.JCExpressionStatement getDecreasesCallStatement(Symbol.VarSymbol itvar) {
         var jverifyClasses = syms.getClassesForName(names.fromString("com.aws.jverify.JVerify"));
-        // First, resolve the JVerify class symbol
         Symbol.ClassSymbol jverifyClass = jverifyClasses.iterator().next();
 
-// Find the decreases method symbol
         Symbol.MethodSymbol decreasesMethod = null;
         for (Symbol sym : jverifyClass.members().getSymbolsByName(names.fromString("decreases"))) {
             if (sym instanceof Symbol.MethodSymbol methodSymbol && methodSymbol.getParameters().size() == 1) {
@@ -168,7 +188,6 @@ public class LowerWithPublicPatches extends Lower  {
             }
         }
 
-// Create the resolved method call
         JCTree.JCFieldAccess methodSelect = make.Select(
                 make.QualIdent(jverifyClass),
                 decreasesMethod
@@ -176,7 +195,6 @@ public class LowerWithPublicPatches extends Lower  {
         methodSelect.type = decreasesMethod.type;
         methodSelect.sym = decreasesMethod;
 
-// Create the argument (assuming 'i' is already resolved)
         JCTree.JCIdent iArg = make.Ident(itvar); // iSymbol should be the resolved symbol for 'i'
         iArg.type = itvar.type;
         iArg.sym = itvar;
@@ -184,7 +202,6 @@ public class LowerWithPublicPatches extends Lower  {
         var iteratorClasses = syms.getClassesForName(names.fromString("com.aws.jverify.builtin.IteratorContract"));
         Symbol.ClassSymbol iteratorClass = iteratorClasses.iterator().next();
 
-// Find the decreases method symbol
         Symbol.VarSymbol remainingEntries = null;
         for (Symbol sym : iteratorClass.members().getSymbolsByName(names.fromString("remainingEntries"))) {
             if (sym instanceof Symbol.VarSymbol varSymbol) {
@@ -193,23 +210,13 @@ public class LowerWithPublicPatches extends Lower  {
             }
         }
 
-// Create the method invocation
         JCTree.JCMethodInvocation decreasesCall = make.Apply(
                 List.nil(),
                 methodSelect,
                 List.of(make.Select(iArg, remainingEntries))
         );
         decreasesCall.type = decreasesMethod.getReturnType();
-        var decreasesCallStatement = make.Exec(decreasesCall);        
-        
-        JCTree.JCBlock body = make.Block(0, List.of(indexDef, decreasesCallStatement, tree.body));
-        body.endpos = TreeInfo.endPos(tree.body);
-        result = translate(make.
-                ForLoop(List.of(init),
-                        cond,
-                        List.nil(),
-                        body));
-        patchTargets(body, tree, result);
+        return make.Exec(decreasesCall);
     }
 
     /** Look up a method in a given scope.
