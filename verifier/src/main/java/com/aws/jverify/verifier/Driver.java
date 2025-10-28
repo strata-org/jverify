@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 
 public class Driver {
     public record VerificationResultsWithIntervalTreeMap(VerificationResults verificationResults, HashMap<URI, IntervalTree<Integer,
-            JavaMethodVerificationStatus>> sourceFileToIntervalTreeMap) {}
+            JavaMethodVerificationStatus>> sourceFileToMethodIntervals) {}
 
     public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
@@ -114,8 +114,9 @@ public class Driver {
                         outputWriter.write('\n');
                     }
                 }
-                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap.get(((DafnyDiagnostic) dafnyOutput).getSource())
-                        .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
+                var relativeUri = dafnyDiagnostic.getSource();
+                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri)
+                        .findAtPoint((int) dafnyDiagnostic.getLineNumber());
                 if (failedJavaMethod != null) {
                     failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
                 }
@@ -126,17 +127,17 @@ public class Driver {
             outputWriter.write(verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage());
         }
 
-        if (verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap != null &&
+        if (verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals != null &&
                 verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != CommandLine.ExitCode.USAGE) {
             outputWriter.write('\n');
             String bullet = "• ";
 
-            var attemptedCount = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
+            var attemptedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
                     .flatMap(IntervalTree::streamNodes).count();
-            outputWriter.write(String.format("Verification attempted for %s Java method%s", attemptedCount, Common.getExtraS((int) attemptedCount)));
+            outputWriter.write(String.format("Found %s verifiable Java method%s", attemptedCount, Common.getExtraS((int) attemptedCount)));
             outputWriter.write('\n');
 
-            var skippedCount = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
+            var skippedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
                     .flatMap(IntervalTree::streamNodes)
                     .filter(node -> node.getValue().getVerificationStatus()
                             .equals(JavaMethodVerificationStatus.VerificationStatus.Skipped))
@@ -147,7 +148,7 @@ public class Driver {
             }
 
 
-            var verifiedCount = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
+            var verifiedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
                     .flatMap(IntervalTree::streamNodes)
                     .filter(node -> node.getValue().getVerificationStatus()
                             .equals(JavaMethodVerificationStatus.VerificationStatus.Verified))
@@ -158,7 +159,7 @@ public class Driver {
             }
 
 
-            var failedCount = verificationResultsWithIntervalTreeMap.sourceFileToIntervalTreeMap().values().stream()
+            var failedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
                     .flatMap(IntervalTree::streamNodes)
                     .filter(node -> node.getValue().getVerificationStatus()
                             .equals(JavaMethodVerificationStatus.VerificationStatus.Failed))

@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
+import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
@@ -7,8 +8,10 @@ import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.dafnygenerator.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 
+import javax.naming.Context;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -21,6 +24,7 @@ public class BlockCompiler {
     MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
+    private final Symtab symtab;
 
     public BlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
         this.generator = compiler.context.get(DafnyGenerator.class);
@@ -32,6 +36,7 @@ public class BlockCompiler {
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(compiler.context);
         statementCompilers.add(new ForLoopCompiler(this));
         statementCompilers.add(new DoWhileLoopCompiler(this));
+        symtab = Symtab.instance(compiler.context);
     }
 
     private final Queue<Label> labels = new LinkedList<>();
@@ -260,8 +265,18 @@ public class BlockCompiler {
         }
 
         var expr = generator.toExpr(invocation, null, expressionContext);
-        return List.of(new AssignStatement(origin, null, List.of(),
-                List.of(new ExprRhs(expr.getOrigin(), null, expr)), false));
+
+        List<AssignmentRhs> rhss = List.of(new ExprRhs(expr.getOrigin(), null, expr));
+        var returnType = invocation.meth.type.asMethodType().getReturnType();
+        if (returnType == symtab.voidType) {
+            return List.of(new AssignStatement(origin, null, List.of(),
+                    rhss, false));
+        } else {
+            ArrayList<Statement> statements = new ArrayList<>();
+            expressionCompiler.placeRhsIntoTemporaryAssignmentAndReturnResult(invocation.type, rhss.getFirst(),
+                    new ExpressionContext(statements::add, false, this, null));
+            return List.of(statements.getFirst());
+        }
     }
 
     public static JCTree.JCIdent getSuperIdent(JCTree.JCMethodInvocation invocation) {
@@ -336,12 +351,4 @@ public class BlockCompiler {
                 ? block
                 : new BlockStmt(origin, null, List.of(), statements);
     }
-}
-
-class Static1 {
-    static int y = Static2.x; 
-}
-
-class Static2 {
-    static int x = Static1.y;
 }

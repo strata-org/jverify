@@ -146,19 +146,19 @@ class TranslationErrors {
             IntWrapper w1, IntWrapper w2
     ) {
         if (o1 == o2) {
-//             ^ error: '==' is only allowed when at least one operand's type is mutable
+//             ^ error: '==' is only allowed when at least one operand's type is impure
             return 0;
         } else if (o1 == null) {
             return 1;
         } else if (null == o2) {
             return 2;
         } else if (i == o1) {
-//                   ^ error: '==' is only allowed when at least one operand's type is mutable
+//                   ^ error: '==' is only allowed when at least one operand's type is impure
             return 3;
         } else if (w1 == null) {
             return 4;
         } else if (w1 == w2) {
-//                    ^ error: '==' is only allowed when at least one operand's type is mutable
+//                    ^ error: '==' is only allowed when at least one operand's type is impure
             return 5;
         }
 

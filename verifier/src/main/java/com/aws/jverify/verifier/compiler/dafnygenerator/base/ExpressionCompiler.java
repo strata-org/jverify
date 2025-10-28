@@ -2,8 +2,10 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.NullableGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.source.tree.Tree;
@@ -125,11 +127,42 @@ public class ExpressionCompiler {
                 result = new ITEExpr(reporter.toOrigin(ifStatement), false,
                         conditionWithFlows.expression(), thenExpression, result);
             } else {
+                if (statement instanceof JCTree.JCExpressionStatement expressionStatement &&
+                        expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation) {
+                    var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+                    if (jverifyMethod != null) {
+                        var dafnyStatement = getJVerifyStatement(invocation, jverifyMethod, context);
+                        result = new StmtExpr(origin, dafnyStatement, result);
+                        continue;
+                    }
+                }
                 reporter.reportError(statement, "pureBlockNotLastMustBeVariableDeclaration");
                 result = JVerifyUtils.getHole(origin);
             }
         }
         return result;
+    }
+
+    @Nullable
+    public Statement getJVerifyStatement(JCTree.JCMethodInvocation invocation,
+                                         Symbol.MethodSymbol jverifyMethod,
+                                         ExpressionContext expressionContext) {
+
+        var name = jverifyMethod.getQualifiedName().toString();
+        if (name.equals("check")) {
+            if (invocation.args.size() != 1) {
+                throw new JavaViolationException("Check should have a single argument");
+            }
+            return new AssertStmt(reporter.toOrigin(invocation), null,
+                    toExpr(invocation.args.getFirst(), expressionContext), null);
+        } if (name.equals("assume")) {
+            if (invocation.args.size() != 1) {
+                throw new JavaViolationException("Check should have a single argument");
+            }
+            return new AssumeStmt(reporter.toOrigin(invocation), null,
+                    toExpr(invocation.args.getFirst(), expressionContext));
+        }
+        return null;
     }
 
     private Expression toExpr(JCTree.JCStatement statement, ExpressionContext context) {
@@ -249,7 +282,8 @@ public class ExpressionCompiler {
         if (context.statementWriter() != null) {
             Expression target = toExpr(assign.getVariable(), context);
             List<Expression> lhss = List.of(target);
-            List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), context));
+            ExpressionContext rhsContext = context.withExpectedType(NullableGenerator.getNullableType(assign.getVariable()));
+            List<AssignmentRhs> rhss = List.of(toAssignmentRhs(assign.getExpression(), rhsContext));
             context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
             return target;
         } else {
@@ -293,12 +327,11 @@ public class ExpressionCompiler {
                                     ExpressionContext context) {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
         Symtab symtab = Symtab.instance(baseGenerator.context);
-        if (classSymbol.type != symtab.objectType && baseGenerator.isImmutable(classSymbol)) {
+        if (classSymbol.type != symtab.objectType && baseGenerator.isPure(classSymbol)) {
             return PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
         }
         if (context.statementWriter() == null) {
-            reporter.reportError(expr, "notSupported",
-                    "using 'new' in a pure expression to create an instance of an impure type");
+            reporter.reportError(expr, "impureConstructorInPureContext");
             return JVerifyUtils.getReferenceHole(origin);
         } else {
             var rhs = generator.translateNewClassToAssignmentRhs(newClass, origin, context);
@@ -312,7 +345,7 @@ public class ExpressionCompiler {
             throw new RuntimeException("not supported. should have already been lowered");
         }
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
-        if (classSymbol.type != symtab.objectType && baseGenerator.isImmutable(classSymbol)) {
+        if (classSymbol.type != symtab.objectType && baseGenerator.isPure(classSymbol)) {
             var datatypeValue = PureTypeCompiler.translateNewRecord(this, origin, newClass, context);
             return new ExprRhs(origin, null, datatypeValue);
         }
@@ -341,9 +374,10 @@ public class ExpressionCompiler {
                 translatedType, false);
         List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
         List<AssignmentRhs> rhss = List.of(rhs);
-
-        context.statementWriter().accept(new VarDeclStmt(origin, null, List.of(localVariable),
-                new AssignStatement(origin, null, lhss, rhss, false)));
+        VarDeclStmt varDeclStmt = new VarDeclStmt(origin, null, List.of(localVariable),
+                new AssignStatement(origin, null, lhss, rhss, false));
+        
+        context.statementWriter().accept(varDeclStmt);
         return new NameSegment(origin, localVariable.getName(), null);
     }
 
@@ -441,7 +475,7 @@ public class ExpressionCompiler {
 
     private ExpressionWithFlows translateBinary(JCTree.JCBinary binary, ExpressionContext context) {
         context = context.forbidImpure();
-        var leftWithFlows = toExprWithFlows(binary.getLeftOperand(), context.withExpectedType(binary.getRightOperand().type));
+        var leftWithFlows = toExprWithFlows(binary.getLeftOperand(), context.withExpectedType(binary.getLeftOperand().type));
         var rightWithFlows = toExprWithFlows(binary.getRightOperand(), context.withExpectedType(binary.getLeftOperand().type));
         Expression right;
         
@@ -523,7 +557,8 @@ public class ExpressionCompiler {
             // Ignore package qualification
             return new NameSegment(origin, baseGenerator.nameCompiler.getCompiledName(classSymbol, origin), List.of());
         }
-        var selectedExpr = toExpr(fieldAccess.selected, context);
+        com.sun.tools.javac.code.Type nonNullFieldContainerType = fieldAccess.sym.owner.type;
+        var selectedExpr = toExpr(fieldAccess.selected, context.withExpectedType(nonNullFieldContainerType));
         // TODO does this work if the selected expression isn't trivially of array type?
         if (fieldAccess.selected.type instanceof ArrayType && fieldAccess.name.contentEquals("length")) {
             ExprDotName callee = new ExprDotName(origin, selectedExpr, reporter.getName(fieldAccess, "length"), null);
@@ -565,7 +600,7 @@ public class ExpressionCompiler {
                 final Expression receiver;
                 var fieldNameStr = nameCompiler.getCompiledName(component.get(), origin);
                 if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-                    receiver = toExpr(fieldAccess.selected, context);
+                    receiver = toExpr(fieldAccess.selected, context.withExpectedType(null));
                 } else if (invocation.getMethodSelect() instanceof JCTree.JCIdent ident) {
                     return new NameSegment(origin, fieldNameStr, null);
                 } else {
@@ -576,7 +611,7 @@ public class ExpressionCompiler {
             }
         }
 
-        var target = toExpr(invocation.getMethodSelect(), context);
+        var target = toExpr(invocation.getMethodSelect(), context.withExpectedType(null));
         var isPure = utils.isPure(methodSymbol);
         var call = createCall(origin, target, invocation.getArguments().stream(), context);
         if (context.statementWriter() != null && !isPure && !context.allowImpure()) {

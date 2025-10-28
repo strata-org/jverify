@@ -219,7 +219,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         
         var methodName = jverifyMethod.getQualifiedName().toString();
         switch (methodName) {
-            case "check" -> {
+            case "check", "assume" -> {
                 // not a header method, so stop here
                 return false;
             }
@@ -258,7 +258,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         }
         var methodName = jverifyMethod.getQualifiedName().toString();
         switch (methodName) {
-            case "check" -> {
+            case "check", "assume" -> {
                 // not a header method, so stop here
                 return false;
             }
