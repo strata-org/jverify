@@ -90,7 +90,7 @@ abstract class ImmutableList<E> implements List<E> {
     @Override
     @Pure
     @Verify(false)
-    public E get(int index) {
+    public E get(@Nat int index) {
         precondition(0 <= index && index < size());
         throw new ContractException();
     }
@@ -134,7 +134,7 @@ abstract class ListContract<E> implements List<E> {
 
     @Override
     @Pure
-    public E get(int index) {
+    public E get(@Nat int index) {
         reads(everything());
         decreases(size());
         precondition(0 <= index && index < size());
@@ -190,7 +190,7 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     
     @Override
     @Pure
-    public E get(int index) {
+    public E get(@Nat int index) {
         reads(this);
         decreases(0);
         precondition(0 <= index && index < size());

@@ -72,6 +72,7 @@ public class Driver {
         }
         if (dafnyEquivalent == null || (hasErrors && !verifierOptions.continueOnErrors())) {
             verificationResults.setExitCode(CommandLine.ExitCode.USAGE);
+            return new VerificationResultsWithIntervalTreeMap(verificationResults, new HashMap<>());
         } else {
             var programBuilder = new StringBuilder();
             new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
@@ -81,9 +82,9 @@ public class Driver {
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
             runDafnyProcess(NameCompiler.instance(context), program, verifierOptions, verificationResults);
+            return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
+                    .getSourceFileToMethodIntervalTreeMap());
         }
-        return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
-                .getSourceFileToMethodIntervalTreeMap());
     }
 
     public static int verifyJavaFiles(
@@ -115,10 +116,12 @@ public class Driver {
                     }
                 }
                 var relativeUri = dafnyDiagnostic.getSource();
-                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri)
-                        .findAtPoint((int) dafnyDiagnostic.getLineNumber());
-                if (failedJavaMethod != null) {
-                    failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                var uriMethods = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri);
+                if (uriMethods != null) {
+                    var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
+                    if (failedJavaMethod != null) {
+                        failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                    }
                 }
             }
         }
