@@ -112,7 +112,7 @@ public class JVerify {
     /**
      * Can be used in a reads or modifies contract to make that clause abstract
      * A subclass of the current clause can implement that abstract clause
-     * By redefining it any filling in a value
+     * By redefining it and filling in a value
      */
     public static Object isAbstract() {
         throw new VerificationMethodExecutedException();
