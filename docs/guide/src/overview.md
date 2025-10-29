@@ -11,10 +11,10 @@ To see examples of bugs that JVerify can detect, have a look at [this section](.
 
 # Frequently asked questions
 
-#### Can I use JVerify right now?
-No, JVerify is not yet ready for production use. 
+#### Should I use JVerify in production right now?
+No, JVerify is not yet ready for production use. The user experience, amount of support for the Java language and reliability is not yet at the level that we think it is likely to give you a good experience.
 
-However, you can use the [installation](./installation.md) and [Running JVerify](./first_verification.md) sections in this guide to explore what it can currently do. Note that you will run into poor error messages, unsupported features and bugs - that are not yours ;-).
+However, you can use the [installation](./installation.md) and [Running JVerify](./first_verification.md) sections in this guide to explore what it can currently do.
 
 #### Does JVerify support the entire Java language?
 Not yet, but it will support all Java language features. Note that we differentiate between Java the language, as documented in [its specification](https://docs.oracle.com/javase/specs/), and the Java standard library. More on JVerify's support for the latter is further down this FAQ.
