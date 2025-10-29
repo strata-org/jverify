@@ -7,6 +7,8 @@ import java.nio.file.Path;
 public class SourceFile extends SimpleJavaFileObject {
     final String content;
 
+    public static String URIprefix = "string://";
+
     /**
      * Constructs a {@link SourceFile} with the given path and content.
      * <p>
@@ -16,7 +18,7 @@ public class SourceFile extends SimpleJavaFileObject {
      * in order to ensure correct functionality across different operating systems.
      */
     public SourceFile(String path, String content) {
-        super(URI.create("string://" + path), Kind.SOURCE);
+        super(URI.create(URIprefix + path), Kind.SOURCE);
         this.content = content;
     }
 

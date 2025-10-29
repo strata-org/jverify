@@ -115,10 +115,17 @@ public class Driver {
                     }
                 }
                 var relativeUri = dafnyDiagnostic.getSource();
-                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri)
-                        .findAtPoint((int) dafnyDiagnostic.getLineNumber());
-                if (failedJavaMethod != null) {
-                    failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                if (relativeUri != null) {
+                    var relativeURIstring = relativeUri.toString();
+                    if (!relativeURIstring.equals(SourceFile.URIprefix + JavaToDafnyCompiler.builtinFile) &&
+                        !relativeURIstring.equals(SourceFile.URIprefix + JavaToDafnyCompiler.objectFile)) {
+
+                        var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri)
+                                .findAtPoint((int) dafnyDiagnostic.getLineNumber());
+                        if (failedJavaMethod != null) {
+                            failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                        }
+                    }
                 }
             }
         }
@@ -296,7 +303,7 @@ public class Driver {
         }
         
         if (verifierOptions.verbose()) {
-            System.out.println("Dafny options: " + String.join(", ", processBuilder.command()));
+            System.out.println("Dafny options: " + String.join(" ", processBuilder.command()));
         }
 
         try {
