@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.Token;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.util.Position;
@@ -23,6 +24,10 @@ public class PositionCalculator {
     }
 
     private int getMethodNamePosition(JCTree.JCMethodDecl methodDecl) {
+        if (JVerifyUtils.isSynthetic(methodDecl.mods.flags)) {
+            return methodDecl.pos;
+        }
+        
         CharSequence source;
         try {
             source = compilationUnit.getSourceFile().getCharContent(true);

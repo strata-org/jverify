@@ -34,7 +34,8 @@ public class Driver {
     public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
             try {
-                return new SourceFile(p, Files.readString(verifierOptions.workingDirectory().resolve(p).normalize()));
+                Path normalized = verifierOptions.workingDirectory().resolve(p).normalize();
+                return new SourceFile(normalized, Files.readString(normalized));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
