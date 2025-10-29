@@ -58,7 +58,7 @@ interface ImpureInterface {
     @Pure
     public boolean compare(RecordsArePure other) {
         return this == other;
-//                  ^ error: '==' is only allowed when at least one operand's type is mutable
+//                  ^ error: '==' is only allowed when at least one operand's type is impure
     }
 
     @Override
@@ -77,6 +77,6 @@ class ClassesAreImpure {
     @Pure
     ClassesAreImpure createC() {
         return new ClassesAreImpure();
-//             ^ error: using 'new' in a pure expression to create an instance of an impure type is not supported
+//             ^ error: using 'new' in a pure expression to create an instance of an impure type is not allowed
     }
 }

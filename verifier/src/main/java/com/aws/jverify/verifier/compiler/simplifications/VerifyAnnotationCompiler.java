@@ -16,8 +16,8 @@ import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
-
 import java.net.URI;
+import java.nio.file.Paths;
 import java.util.*;
 
 /**
@@ -70,8 +70,9 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         reporter.compilationUnit = tree;
         processVerifyAnnotation(tree.packge);
         if (!javaToDafnyCompiler.isLibrary(reporter.compilationUnit)) {
-            if (!sourceFileToMethodIntervalTreeMap.containsKey(reporter.compilationUnit.getSourceFile().toUri().normalize())) {
-                sourceFileToMethodIntervalTreeMap.put(reporter.compilationUnit.getSourceFile().toUri().normalize(), new IntervalTree<>());
+            var sourceUri = getUri();
+            if (!sourceFileToMethodIntervalTreeMap.containsKey(sourceUri)) {
+                sourceFileToMethodIntervalTreeMap.put(sourceUri, new IntervalTree<>());
                 positionCalculator = new PositionCalculator(tree);
             }
         }
@@ -102,26 +103,32 @@ public class VerifyAnnotationCompiler extends TreeScanner {
 
     private void addMethodToIntervalTree(JCTree.JCMethodDecl methodDecl, boolean shouldVerify) {
         var sourceFileURI = reporter.compilationUnit.getSourceFile().toUri();
-        if (sourceFileToMethodIntervalTreeMap.containsKey(sourceFileURI) && !JVerifyUtils.isSynthetic(methodDecl.getModifiers().flags)
-                && MethodOrLoopContractCompiler.hasImplementation(methodDecl)) {
-
-            var startPos = positionCalculator.toToken(positionCalculator.getStartPos(methodDecl));
-
-            /*
-              Note: setting end position to be start position in case there isn't any explicit end position
-              This happens for implicit constructors where start position is the start position for the class declaration
-             */
-            var endPos = positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) != null ?
-                    positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) : startPos;
-
-
-            var methodVerificationStatus = new JavaMethodVerificationStatus(methodDecl, new TokenRange(startPos,endPos), shouldVerify ?
-                    JavaMethodVerificationStatus.VerificationStatus.Verified :  JavaMethodVerificationStatus.VerificationStatus.Skipped);
-
-            sourceFileToMethodIntervalTreeMap.get(sourceFileURI)
-                    .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), methodVerificationStatus.getPosition().getEndToken().getLine(),
-                            methodVerificationStatus);
+        if (!sourceFileToMethodIntervalTreeMap.containsKey(sourceFileURI) || JVerifyUtils.isSynthetic(methodDecl.getModifiers().flags)
+                || !MethodOrLoopContractCompiler.hasImplementation(methodDecl)) {
+            return;
         }
+
+        var startPos = positionCalculator.toToken(positionCalculator.getStartPos(methodDecl));
+
+        /*
+          Note: setting end position to be start position in case there isn't any explicit end position
+          This happens for implicit constructors where start position is the start position for the class declaration
+         */
+        var endPos = positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) != null ?
+                positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) : startPos;
+
+
+        var methodVerificationStatus = new JavaMethodVerificationStatus(methodDecl, new TokenRange(startPos,endPos), shouldVerify ?
+                JavaMethodVerificationStatus.VerificationStatus.Verified :  JavaMethodVerificationStatus.VerificationStatus.Skipped);
+
+        sourceFileToMethodIntervalTreeMap.get(sourceFileURI)
+                .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), methodVerificationStatus.getPosition().getEndToken().getLine(),
+                        methodVerificationStatus);
+    }
+
+    private URI getUri() {
+        var baseUri = Paths.get(System.getProperty("user.dir")).toUri();
+        return baseUri.resolve(reporter.compilationUnit.getSourceFile().toUri()).normalize();
     }
 
     public void removeImplementation(JCTree.JCMethodDecl tree) {

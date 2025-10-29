@@ -5,6 +5,7 @@ import static com.aws.jverify.JVerify.*;
 import com.aws.jverify.Erased;
 import com.aws.jverify.Pure;
 
+@SuppressWarnings("ConstantValue")
 class BinarySearch {
 
     public static int findIndex(int[] arr, int key) {
@@ -12,13 +13,11 @@ class BinarySearch {
                 (res == -1 && !sequence(arr).contains(key))
                         || (0 <= res && res < arr.length && arr[res] == key)
         );
-        
         precondition(arr.length <= Integer.MAX_VALUE);
         precondition(sorted(arr));
 
         var lo = 0;
         var hi = arr.length;
-
         while (lo < hi) {
             invariant(0 <= lo);
             invariant(lo <= hi);

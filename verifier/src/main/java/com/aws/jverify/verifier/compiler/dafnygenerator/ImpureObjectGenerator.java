@@ -60,23 +60,7 @@ public class ImpureObjectGenerator extends WrappingDafnyGenerator {
         }
         return super.translateClassType(origin, additionalModifiers, classType);
     }
-
-    public Type getRemappedType(com.sun.tools.javac.code.Type.ClassType classType, IOrigin origin, JCTree.JCModifiers additionalModifiers) {
-        var mirrors = classType.getAnnotationMirrors();
-        var modifiableAnnotation = mirrors.stream().filter(t -> t.getAnnotationType().toString().equals(Impure.class.getName())).findFirst();
-        if (modifiableAnnotation.isPresent() || JVerifyUtils.isAnnotated(additionalModifiers, Impure.class)) {
-            if (classType.tsym == symtab.objectType.tsym) {
-                return new UserDefinedType(origin, new NameSegment(origin, IMPURE_OBJECT_NAME, null));
-            } else {
-                reporter.reportDiagnostic(origin, JCDiagnostic.DiagnosticType.WARNING, "notSupported", "@Impure on a type other than Object");
-            }
-        }
-        if (classType.tsym == symtab.objectType.tsym) {
-            return new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
-        }
-        return null;
-    }
-
+    
     @Override
     public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context) {
         if (newClass.type == symtab.objectType) {

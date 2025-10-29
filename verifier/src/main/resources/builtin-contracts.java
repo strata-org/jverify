@@ -3,6 +3,7 @@ package com.aws.jverify.builtin;
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
+import java.io.PrintStream;
 import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
@@ -58,6 +59,13 @@ abstract class StreamContract<T> implements Stream<T> {
 @Contract(Collection.class)
 abstract class CollectionContract<E> implements Collection<E> {
 
+    @Pure
+    public Stream<E> stream() {
+        reads(everything());
+        decreases(0);
+        throw new ContractException();
+    }
+    
     @Override
     @Pure
     public int size() {
@@ -175,7 +183,8 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     @Pure
     public Stream<E> stream() {
         reads(this);
-        postcondition((Stream<E> s) -> cast(s, StreamContract.class).elements.size() == size());
+        decreases(0);
+        postcondition((Stream<E> s) -> cast(s, StreamContract.class).elements == elements);
         throw new ContractException();
     }
     
@@ -696,6 +705,26 @@ class OptionalContract<T> {
     T get() {
         precondition(isSet);
         postcondition((T b) -> b == this.value);
+        throw new ContractException();
+    }
+}
+
+@Contract(System.class)
+class SystemContract {
+    public static final PrintStream out = SystemContractHelper.createPrintStream();
+    
+}
+class SystemContractHelper {
+    @Verify(false)
+    @Pure
+    public static PrintStream createPrintStream() {
+        throw new ContractException();
+    }
+}
+
+@Contract(value = PrintStream.class)
+class PrintStreamContracts {
+    public void println(String x) {
         throw new ContractException();
     }
 }

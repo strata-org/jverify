@@ -179,10 +179,11 @@ public class NameCompiler extends TreeScanner {
         if (reservedDafnyNames.contains(name)) {
             name = RESERVED_PREFIX + name;
         }
+        name = name.replace('$', '_');
         if (name.startsWith("_")) {
             name = UNDERSCORE_START_PREFIX + name;
         }
-        return name.replace('$', '_');
+        return name;
     }
     
     private void addArgumentTypes(Symbol.MethodSymbol method, StringBuilder result) {

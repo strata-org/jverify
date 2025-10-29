@@ -5,31 +5,39 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 /**
+ * Interfaces are pure by default
+ * Because the reads clause of get is abstract,
  * This interface can be implemented by both mutable and immutables types
  */
 interface Container<T> {
     default T get() {
-        // we use reads(everything()) so implementing methods can still decide whether to be mutable or not
-        reads(everything());
         decreases(0);
+        reads(isAbstract());
         throw new ContractException();
     }
 }
 
+/**
+ * Interfaces are pure by default
+ */
 interface ImmutableContainer<T> extends Container<T> {
     @Pure
     @Override
     default T get() {
         // no reads clause means its empty, 
-        // which means the result of this method for a particular instance, can not be modified 
+        // which means that for a particular instance, 
+        // the result of this method is constant
         throw new ContractException();
     }
 }
 
-@Impure
+/**
+ * Interfaces are pure by default
+ */
 interface MutableContainer<T> extends Container<T> {
     default void set(T value) {
-        modifies(this); // referring to 'this' is only allowed because this interface is impure
+        // Copy the reads clause of get
+        modifies(readsOf(get()));
         throw new ContractException();
     }
 }
@@ -62,7 +70,7 @@ class MutableContainerImpl<T> implements MutableContainer<T> {
     @Override
     public T get() {
         decreases(0);
-        reads(this); // refines the inherited reads clause from 'all' to 'this'
+        reads(this);
         return value;
     }
 
@@ -74,6 +82,6 @@ class MutableContainerImpl<T> implements MutableContainer<T> {
     @Pure
     public static <T> MutableContainer<T> createMe() {
         return new MutableContainerImpl<T>();
-//             ^ error: using 'new' in an expression to create an instance of an impure type is not supported
+//             ^ error: using 'new' in an expression to create an instance of an impure type is not allowed
     }
 }

@@ -4,11 +4,23 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
-import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(dafnyVerified = 10, dafnyErrors = 0)
+import javax.xml.XMLConstants;
+
+import static com.aws.jverify.JVerify.*;
+
+@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 1)
 public class PureMethodVerification {
 
+    @Pure
+    int pureMethodWithAssumeAndCheck(int x) {
+        assume(x > 3);
+        check(x > 2);
+        check(x > 4);
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
+        return x;
+    }
+    
     @Pure
     int pureMethodWithAssignments() {
         var x = 3;
@@ -50,7 +62,6 @@ public class PureMethodVerification {
                 return c + 4;
             }
             var d = c + 5;
-            
             return d + 6;
         }
         var e = b + 1;

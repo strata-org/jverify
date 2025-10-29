@@ -3,6 +3,7 @@ package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.Expression;
 import com.aws.jverify.generated.Statement;
+import com.aws.jverify.verifier.compiler.dafnygenerator.NullableGenerator;
 import com.sun.tools.javac.code.Type;
 
 import java.util.ArrayList;
@@ -15,12 +16,16 @@ public record ExpressionContext(@Nullable Consumer<Statement> statementWriter,
                                 @Nullable Type expectedType) {
     
     public final static ExpressionContext Pure =  new ExpressionContext(null, false, null, null);
-
+    
     public ExpressionContext withExpectedType(Type expectedType) {
         return new ExpressionContext(statementWriter, false, blockCompiler, expectedType);
     }
     
     public ExpressionContext forbidImpure() {
+        return new ExpressionContext(statementWriter, false, blockCompiler, expectedType);
+    }
+    
+    public ExpressionContext withStatementWriter() {
         return new ExpressionContext(statementWriter, false, blockCompiler, expectedType);
     }
 
