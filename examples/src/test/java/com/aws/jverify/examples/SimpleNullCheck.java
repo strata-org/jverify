@@ -3,7 +3,11 @@ package com.aws.jverify.examples;
 import com.aws.jverify.Nullable;
 import static com.aws.jverify.JVerify.modifies;
 
-public class NullCheck {    
+/**
+ * Unlike most existing null-checking tools that rely solely on nullness annotations,
+ * JVerify can detect all null reference exceptions without emitting false warnings.
+ */
+public class SimpleNullCheck {    
     @Nullable
     Fooer fooer;
     
@@ -13,13 +17,13 @@ public class NullCheck {
 //      ^^^^^ Error: target object could not be proved to be non-null
         if (fooer != null) {
             fooer.foo();
-            bar();
+            clear();
             fooer.foo();
 //          ^^^^^ Error: target object could not be proved to be non-null
         }    
     }
     
-    void bar() {
+    void clear() {
         modifies(this);
         fooer = null;
     }
