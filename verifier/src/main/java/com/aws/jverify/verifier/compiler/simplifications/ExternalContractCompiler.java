@@ -269,6 +269,17 @@ public class ExternalContractCompiler {
             }
             contracteeSymbol.resetAnnotations();
             contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
+
+            com.sun.tools.javac.util.List<Symbol.VarSymbol> parameters = contracteeSymbol.getParameters();
+            for (int i = 0; i < parameters.size(); i++) {
+                var parameter = parameters.get(i);
+                var parameterType = parameter.type;
+                var contracterParameter = contracterSymbol.getParameters().get(i).type;
+                ListBuffer<Attribute.TypeCompound> newParameterAnnotations = new ListBuffer<>();
+                newParameterAnnotations.addAll(parameterType.getAnnotationMirrors());
+                newParameterAnnotations.addAll(contracterParameter.getAnnotationMirrors());
+                parameter.type = parameterType.annotatedType(newParameterAnnotations.toList());
+            }
         }
 
         private boolean shouldVerify(JCTree.JCMethodDecl methodDecl, Symbol.MethodSymbol methodSymbol) {
