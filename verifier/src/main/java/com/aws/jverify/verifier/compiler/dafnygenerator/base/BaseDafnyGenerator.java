@@ -207,6 +207,10 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             case com.sun.tools.javac.code.Type.ClassType classType -> {
                 return generator.translateClassType(origin, additionalModifiers, classType);
             }
+            case com.sun.tools.javac.code.Type.CapturedType capturedType -> {
+                // TODO needs further investigation
+                return new UserDefinedType(origin, new NameSegment(origin, PURE_OBJECT_NAME, null));
+            }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym, origin), null));
             }
