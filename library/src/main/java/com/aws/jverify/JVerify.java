@@ -2,6 +2,7 @@ package com.aws.jverify;
 
 import java.util.Optional;
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
@@ -17,6 +18,9 @@ public class JVerify {
     }
 
     public static void precondition(boolean condition) {
+    }
+
+    public static void precondition(BooleanSupplier condition) {
     }
 
     /**

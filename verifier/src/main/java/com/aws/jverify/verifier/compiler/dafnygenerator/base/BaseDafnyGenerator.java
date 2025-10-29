@@ -178,9 +178,9 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return generator.translateType(tree.type, reporter.toOrigin(tree), null);
     }
 
-    public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
+    public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers, boolean willVerify) {
         translatingVerifiedMethodSignature = willVerify;
-        var result = generator.translateType(type, origin, null);
+        var result = generator.translateType(type, origin, additionalModifiers);
         translatingVerifiedMethodSignature = false;
         return result;
     }

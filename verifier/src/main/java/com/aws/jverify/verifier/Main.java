@@ -83,7 +83,7 @@ class AppCommand implements Callable<Integer> {
 
         var dafnyPath = getDafnyPath();
         additionalJars = additionalJars == null ? List.of() : additionalJars;
-        List<Path> jars = Stream.concat(additionalJars.stream().flatMap(p -> Arrays.stream(p.split(":")).map(Path::of)), 
+        List<Path> jars = Stream.concat(additionalJars.stream().flatMap(p -> Arrays.stream(p.split(File.pathSeparator)).map(Path::of)),
                 Stream.of(jverifyLibraryLocation)).toList();
         
         var testDafnyVersion = customDafny != null;

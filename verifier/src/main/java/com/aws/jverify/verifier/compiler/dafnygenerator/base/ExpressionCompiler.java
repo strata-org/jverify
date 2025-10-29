@@ -41,14 +41,6 @@ public class ExpressionCompiler {
         nameCompiler = NameCompiler.instance(context);
     }
 
-    public ExpressionWithFlows toExprWithFlows(JCTree tree, ExpressionContext context) {
-        if (tree instanceof JCTree.JCExpression expression) {
-            return toExprWithFlows(expression, context);
-        }
-        reporter.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
-        return new ExpressionWithFlows(JVerifyUtils.getHole(reporter.toOrigin(tree)));
-    }
-    
     @Nullable
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
         return switch (operator.name.toString()) {
@@ -166,7 +158,10 @@ public class ExpressionCompiler {
     public Expression toExpr(JCTree tree, ExpressionContext context) {
         if (tree instanceof JCTree.JCExpression expression) {
             return generator.toExprWithFlows(expression, null, context).expression();
+        } else if (tree instanceof JCTree.JCBlock block) {
+            return toExprWithFlows(block.stats, context);
         }
+
         reporter.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
         return JVerifyUtils.getHole(reporter.toOrigin(tree));
     }

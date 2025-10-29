@@ -335,7 +335,7 @@ public class TypeDeclarationCompiler {
                 var returnTypeDecl = methodDecl.getReturnType();
                 returnOrigin = reporter.toOrigin(returnTypeDecl);
             }
-            var returnType = baseGenerator.translateMethodSignatureType(method.sym.type.getReturnType(), returnOrigin, shouldVerify);
+            var returnType = baseGenerator.translateMethodSignatureType(method.sym.type.getReturnType(), returnOrigin, method.mods, shouldVerify);
             if (returnType != null) {
                 outs.add(makeReturnFormal(origin, returnType));
             }
@@ -395,7 +395,7 @@ public class TypeDeclarationCompiler {
         var origin = reporter.declToOrigin(method, name);
         var isStatic = JVerifyUtils.isStatic(method.mods);
         List<Formal> ins = getIns(method, shouldVerify, sourceOrigin);
-        var returnType = baseGenerator.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, shouldVerify);
+        var returnType = baseGenerator.translateMethodSignatureType(method.sym.type.getReturnType(), sourceOrigin, method.mods, shouldVerify);
         if (returnType == null) {
             reporter.reportError(method, "pureMethodsNeedsReturnType");
             return null;
@@ -444,7 +444,7 @@ public class TypeDeclarationCompiler {
             IOrigin parameterOrigin = reporter.toOrigin(parameter);
             Name formalName = new Name(parameterOrigin, nameCompiler.getCompiledName(parameter.sym, parameter));
             // TODO use parameter.sym.type ?
-            var syntacticType = baseGenerator.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, shouldVerify);
+            var syntacticType = baseGenerator.translateMethodSignatureType(parameterSymbol.type, parameterOrigin, parameter.mods, shouldVerify);
             return new Formal(parameterOrigin, formalName, syntacticType, false, true,
                     null, null, false, false, false, null);
         }).toList();

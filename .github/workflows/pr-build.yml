@@ -89,7 +89,16 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           ./gradlew publishToMavenLocal
-      - name: Sample project
+      - name: Add Dafny to path (non-Windows)
+        if: runner.os != 'Windows'
+        run: |
+          echo "$HOME/jverify-collection/dafny/Scripts" >> $GITHUB_PATH
+      - name: Add Dafny to path (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Add-Content $env:GITHUB_PATH "$HOME/jverify-collection/dafny/Scripts"
+      - name: Verify sample project
         working-directory: ./jverify-collection/sample-project
         run: |
-          ./gradlew test --info
+          ./gradlew verify --info
