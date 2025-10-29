@@ -21,6 +21,8 @@ import java.io.*;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -62,7 +64,11 @@ public class Driver {
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
+        var beforeCompilation = Instant.now(); 
         var dafnyEquivalent = new JavaToDafnyCompiler(context).analyzeJavaCode(verifierOptions, readFiles);
+        var afterCompilation = Instant.now();
+        var compilationDuration = Duration.between(beforeCompilation, afterCompilation);
+        System.out.println("Compiling Java to Dafny took " + compilationDuration.toMillis() + " ms");
 
         var hasErrors = false;
         for (var diagnostic : Reporter.instance(context).diagnostics.getDiagnostics()) {
@@ -75,6 +81,7 @@ public class Driver {
             verificationResults.setExitCode(CommandLine.ExitCode.USAGE);
             return new VerificationResultsWithIntervalTreeMap(verificationResults, new HashMap<>());
         } else {
+            var beforeSerialization = Instant.now();
             var programBuilder = new StringBuilder();
             new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
             var program = programBuilder.toString();
@@ -82,6 +89,9 @@ public class Driver {
                 Files.createDirectories(verifierOptions.printBinaryDafny().getParent());
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
+            var afterSerialization = Instant.now();
+            var serializationDuration = Duration.between(beforeSerialization, afterSerialization);
+            System.out.println("Serializing Dafny AST took " + serializationDuration.toMillis() + " ms");
             runDafnyProcess(NameCompiler.instance(context), program, verifierOptions, verificationResults);
             return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
                     .getSourceFileToMethodIntervalTreeMap());
@@ -306,6 +316,7 @@ public class Driver {
         try {
             // Redirect stderr into stdout, instead of reading one and then the other,
             // in order to preserve the order of output and to avoid potential deadlock.
+            var before = Instant.now();
             var process = processBuilder.redirectErrorStream(true).start();
             try (var stdin = process.outputWriter()) {
                 stdin.write(program);
@@ -316,6 +327,9 @@ public class Driver {
                 var exitCode = getExitCodeFromDafny(dafnyExitCode);
                 outResults.setExitCode(exitCode);
             }
+            var after = Instant.now();
+            var duration = Duration.between(before, after);
+            System.out.println("Running Dafny took " + duration.toMillis() + " ms");
         } catch (InterruptedException | IOException e) {
             System.out.println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
             e.printStackTrace();
