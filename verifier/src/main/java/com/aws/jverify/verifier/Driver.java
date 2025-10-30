@@ -122,7 +122,7 @@ public class Driver {
                     continue;
                 }
 
-                if (context.get(JavaToDafnyCompiler.class) != null && context.get(JavaToDafnyCompiler.class).isLibrary(relativeUri)) {
+                if (context.get(JavaToDafnyCompiler.class).isLibrary(relativeUri)) {
                     continue;
                 }
 
