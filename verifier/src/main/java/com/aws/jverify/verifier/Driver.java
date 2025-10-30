@@ -28,6 +28,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Driver {
+
+    public static Context context;
     public record VerificationResultsWithIntervalTreeMap(VerificationResults verificationResults, HashMap<URI, IntervalTree<Integer,
             JavaMethodVerificationStatus>> sourceFileToMethodIntervals) {}
 
@@ -54,7 +56,7 @@ public class Driver {
         var verificationResults = new VerificationResults();
 
         InstrumentLower.installModification();
-        Context context = new Context();
+        context = new Context();
         TypesWithoutErasure.preRegister(context);
         context.put(VerifierOptions.class, verifierOptions);
 
@@ -120,9 +122,7 @@ public class Driver {
                     continue;
                 }
 
-                var relativeURIstring = relativeUri.toString();
-                if (relativeURIstring.equals(SourceFile.URIprefix + JavaToDafnyCompiler.builtinFile) ||
-                        relativeURIstring.equals(SourceFile.URIprefix + JavaToDafnyCompiler.objectFile)) {
+                if (context.get(JavaToDafnyCompiler.class) != null && context.get(JavaToDafnyCompiler.class).isLibrary(relativeUri)) {
                     continue;
                 }
 
