@@ -115,17 +115,21 @@ public class Driver {
                     }
                 }
                 var relativeUri = dafnyDiagnostic.getSource();
-                if (relativeUri != null) {
-                    var relativeURIstring = relativeUri.toString();
-                    if (!relativeURIstring.equals(SourceFile.URIprefix + JavaToDafnyCompiler.builtinFile) &&
-                        !relativeURIstring.equals(SourceFile.URIprefix + JavaToDafnyCompiler.objectFile)) {
 
-                        var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri)
-                                .findAtPoint((int) dafnyDiagnostic.getLineNumber());
-                        if (failedJavaMethod != null) {
-                            failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
-                        }
-                    }
+                if (relativeUri == null) {
+                    continue;
+                }
+
+                var relativeURIstring = relativeUri.toString();
+                if (relativeURIstring.equals(SourceFile.URIprefix + JavaToDafnyCompiler.builtinFile) ||
+                        relativeURIstring.equals(SourceFile.URIprefix + JavaToDafnyCompiler.objectFile)) {
+                    continue;
+                }
+
+                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri)
+                        .findAtPoint((int) dafnyDiagnostic.getLineNumber());
+                if (failedJavaMethod != null) {
+                    failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
                 }
             }
         }
@@ -134,8 +138,19 @@ public class Driver {
             outputWriter.write(verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage());
         }
 
-        if (verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals != null &&
-                verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != CommandLine.ExitCode.USAGE) {
+
+        /*
+         * checks for the following:
+         *  - the presence of non-library methods,
+         *  - lack of errors in generated Dafny code
+         *  - Dafny did not fail to run
+         *  - lack of errors in Dafny run
+         */
+        if (verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals != null //there exists
+                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != CommandLine.ExitCode.USAGE
+                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != -1
+                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != getExitCodeFromDafny(2)
+        ) {
             outputWriter.write('\n');
             String bullet = "• ";
 
