@@ -10,6 +10,12 @@ Without instructions, JVerify will detect many common types of bugs. Here's some
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/NullCheck.java}}
 ```
 
+#### Prevent dereferencing null without checking it
+Here is a more complicated example showing how JVerify can prevent dereferencing null.
+```java
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/UserProfile.java}}
+```
+
 #### Ensures data satisfies constraints
 ```java
 {{#include ../../../examples/src/test/java/com/aws/jverify/examples/DataConsistency.java}}
