@@ -402,6 +402,9 @@ public class Driver {
                                 outResults.setDafnyErrorCount(Integer.parseInt(matcher.group("ErrorCount")));
                                 outResults.setDafnyFinishedMessage(statusMessage.getValue());
                             }
+                            if (statusMessage.getValue().trim().startsWith("Time to do")) {
+                                System.out.println(statusMessage.getValue());
+                            }
                         }
                     }
                     outResults.getOutputs().add(output);

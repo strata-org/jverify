@@ -255,8 +255,7 @@ abstract class SetContract<E> implements Set<E> {
     @Pure
     static <E> Set<E> of(E e1) {
         postcondition((Set<E> r) ->
-                r.size() == 1 &&
-                        r.contains(e1));
+                r.size() == 1 && r.contains(e1));
         throw new ContractException();
     }
 
@@ -284,8 +283,7 @@ abstract class SetContract<E> implements Set<E> {
     public boolean contains(Object o) {
         decreases(0);
         postcondition((boolean r) ->
-                r == JVerify.exists((E other) ->
-                        elements.contains(other) && other.equals(o)));
+                r == JVerify.exists((E other) -> elements.contains(other) && other.equals(o)));
         throw new ContractException();
     }
 
@@ -293,14 +291,12 @@ abstract class SetContract<E> implements Set<E> {
     @Pure
     public int size() {
         decreases(0);
-        postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
 
     @Override
     @Pure
     public boolean isEmpty() {
-        postcondition((boolean r) -> r == (elements.size() == 0));
         throw new ContractException();
     }
 }
