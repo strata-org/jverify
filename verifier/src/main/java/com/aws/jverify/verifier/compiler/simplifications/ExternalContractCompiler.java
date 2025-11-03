@@ -260,12 +260,12 @@ public class ExternalContractCompiler {
                     if (contracteeSymbol.isInterface() && methodDecl.sym.isConstructor()) {
                         return;
                     }
-//                    var newSymbol = new Symbol.MethodSymbol(methodDecl.sym.flags(), methodDecl.sym.name, methodDecl.sym.type, contracteeSymbol);
-//                    updateLibraryContractAnnotations(methodDecl, newSymbol);
-//                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
-//                    contractSymbolToContractee.put(methodDecl.sym, newSymbol);
-//                    methodDecl.sym = newSymbol;
-//                    newMembers.add(methodDecl);
+                    var newSymbol = new Symbol.MethodSymbol(methodDecl.sym.flags(), methodDecl.sym.name, methodDecl.sym.type, contracteeSymbol);
+                    updateLibraryContractAnnotations(methodDecl, newSymbol);
+                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
+                    contractSymbolToContractee.put(methodDecl.sym, newSymbol);
+                    methodDecl.sym = newSymbol;
+                    newMembers.add(methodDecl);
                 } else {
                     reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                 }
