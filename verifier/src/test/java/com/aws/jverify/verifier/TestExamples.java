@@ -32,7 +32,7 @@ public class TestExamples {
     
     @Test
     public void testNullCheck() throws IOException {
-        var markedSourcePath = Path.of("NullCheck.java");
+        var markedSourcePath = Path.of("SimpleNullCheck.java");
         verifyPath(markedSourcePath, 4, 5, 2, false);
     }
     
