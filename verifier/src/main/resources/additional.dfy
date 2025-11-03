@@ -39,13 +39,13 @@ function toSequence<T>(arr: JArray<T> ): (r: seq<T>)
   
 datatype Nullable<T> = NonNull(value: T) | Null
 
-function reduce<R, E>(values: seq<E>, seed: R, accumulator: BiFunction<E, R, R>): R {
+ghost function intStreamReduce<R extends Object>(values: seq<int>, seed: R, accumulator: BiFunction<Integer, R, R>): R {
   if |values| == 0 then seed else
     var minusOne := |values| - 1;
-    var rec := reduce(values[..minusOne], seed, accumulator); 
-    accumulator.apply(values[minusOne], rec)
+    var rec := intStreamReduce(values[..minusOne], seed, accumulator); 
+    accumulator.apply(Integer?static.valueOf(values[minusOne]), rec)
 }
 
-function sequenceRange(inclusiveFrom: int, exclusiveTo: int): seq<int> {
+ghost function sequenceRange(inclusiveFrom: int, exclusiveTo: int): seq<int> {
   seq(exclusiveTo - inclusiveFrom, i => i + inclusiveFrom)
 }

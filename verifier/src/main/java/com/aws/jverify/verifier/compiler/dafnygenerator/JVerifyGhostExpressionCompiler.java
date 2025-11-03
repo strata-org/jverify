@@ -184,7 +184,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 return toSetComprehension(origin, methodName, receiver, args);
             }
             case "reduce" -> {
-                NameSegment callee = new NameSegment(origin, "reduce", null);
+                NameSegment callee = new NameSegment(origin, "intStreamReduce", null);
                 return expressionCompiler.createCall(origin, callee, Stream.of(receiver, args.getFirst(), args.get(1)), ExpressionContext.Pure);
             }
             case "range" -> {
