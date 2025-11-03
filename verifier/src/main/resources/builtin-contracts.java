@@ -754,13 +754,7 @@ abstract class IntStreamContract implements IntStream {
                 cast(predicate, IntPredicateContract.class).testPrecondition(index)
             )
         ));
-        return values.<Boolean>reduce(true, new BiFunction<Integer, Boolean, Boolean>() {
-            @Override
-            public Boolean apply(Integer o, Boolean o2) {
-                return predicate.test(o) && o2;
-            }
-        });
-        //return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
+        return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
     }
 
     public static IntStream range(int startInclusive, int endExclusive) {
