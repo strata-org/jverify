@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -184,9 +185,15 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         : Stream.of(diagnostic))
                 // Remove diagnostics from "additional.dfy" file as they cannot be checked now by
                 // our test engine. And we probably want to localize them elsewhere anyway
-                .filter(d -> d instanceof DafnyDiagnostic dafnyDiagnostic
-                        ? !dafnyDiagnostic.location.filename().contentEquals("additional.dfy")
-                        : true)
+                .filter(d -> {
+                    if (d instanceof DafnyDiagnostic dafnyDiagnostic) {
+                        if (dafnyDiagnostic.location.filename().contentEquals("additional.dfy")) {
+                            throw new RuntimeException("error in additional.dfy:" + dafnyDiagnostic.getMessage(Locale.ENGLISH));
+                        }
+                        return true;
+                    }
+                    return true;
+                })
                 .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
                 .sorted()
                 .toList();

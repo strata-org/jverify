@@ -39,13 +39,13 @@ function toSequence<T>(arr: JArray<T> ): (r: seq<T>)
   
 datatype Nullable<T> = NonNull(value: T) | Null
 
-function reduce<R, E>(values: seq<E>, seed: R, accumulator: (R, E) -> R): T {
+function reduce<R, E>(values: seq<E>, seed: R, accumulator: BiFunction<E, R, R>): R {
   if |values| == 0 then seed else
     var minusOne := |values| - 1;
-    var rec := reduce([..minusOne], seed, accumulator); 
-    accumulator(rec, values[minusOne]);
+    var rec := reduce(values[..minusOne], seed, accumulator); 
+    accumulator.apply(values[minusOne], rec)
 }
 
-function range(inclusiveFrom: int, exclusiveTo: int): seq<int> {
+function sequenceRange(inclusiveFrom: int, exclusiveTo: int): seq<int> {
   seq(exclusiveTo - inclusiveFrom, i => i + inclusiveFrom)
 }
