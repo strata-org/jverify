@@ -745,7 +745,26 @@ abstract class IntStreamContract implements IntStream {
     public IntStreamContract(IntSequence values) {
         this.values = values;
     }
-
+    
+    @Pure
+    abstract class AllMatchPredicate {
+        public boolean isOwner(stream: IntStreamContract) {
+          return Stream == IntStreamContract.this;  
+        }
+        
+        @Pure
+        public boolean test(int value) {
+            precondition(values.contains(value));
+            throw new ContractException();
+        }
+    }
+    
+    @Pure
+    public boolean allMatch2(AllMatchPredicate predicate) {
+        precondition(predicate.isOwner(this));
+        return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
+    }
+    
     @Pure
     public boolean allMatch(IntPredicate predicate) {
         precondition(forall((int index) -> 
@@ -757,6 +776,7 @@ abstract class IntStreamContract implements IntStream {
         return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
     }
 
+    @Pure
     public static IntStream range(int startInclusive, int endExclusive) {
         postcondition((IntStreamContract c) -> jequals(c.values, JVerify.range(startInclusive, endExclusive)));
         throw new ContractException();
