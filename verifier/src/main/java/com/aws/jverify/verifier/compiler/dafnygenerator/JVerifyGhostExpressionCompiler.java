@@ -180,6 +180,14 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
             }
+            case "reduce" -> {
+                NameSegment callee = new NameSegment(origin, "reduce", null);
+                return expressionCompiler.createCall(origin, callee, Stream.of(args.getFirst(), args.get(1)), ExpressionContext.Pure);
+            }
+            case "range" -> {
+                NameSegment callee = new NameSegment(origin, "range", null);
+                return expressionCompiler.createCall(origin, callee, Stream.of(args.getFirst(), args.get(1)), ExpressionContext.Pure);
+            }
             case "jequals" -> {
                 var left = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
                 var right = expressionCompiler.toExpr(args.get(1), ExpressionContext.Pure);

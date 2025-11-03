@@ -38,3 +38,14 @@ function toSequence<T>(arr: JArray<T> ): (r: seq<T>)
   ensures |r| == arr.length() && forall i: nat :: i < arr.length() ==> arr.get(i) == r[i]
   
 datatype Nullable<T> = NonNull(value: T) | Null
+
+function reduce<R, E>(values: seq<E>, seed: R, accumulator: (R, E) -> R): T {
+  if |values| == 0 then seed else
+    var minusOne := |values| - 1;
+    var rec := reduce([..minusOne], seed, accumulator); 
+    accumulator(rec, values[minusOne]);
+}
+
+function range(inclusiveFrom: int, exclusiveTo: int): seq<int> {
+  seq(exclusiveTo - inclusiveFrom, i => i + inclusiveFrom)
+}

@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Erased;
 import com.aws.jverify.Impure;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
@@ -254,7 +255,20 @@ public class ExternalContractCompiler {
                 }
                 newMembers.add(methodDecl);
             } else {
-                reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                var isErased = methodDecl.sym.getAnnotation(Erased.class) != null;
+                if (isErased) {
+                    if (contracteeSymbol.isInterface() && methodDecl.sym.isConstructor()) {
+                        return;
+                    }
+//                    var newSymbol = new Symbol.MethodSymbol(methodDecl.sym.flags(), methodDecl.sym.name, methodDecl.sym.type, contracteeSymbol);
+//                    updateLibraryContractAnnotations(methodDecl, newSymbol);
+//                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
+//                    contractSymbolToContractee.put(methodDecl.sym, newSymbol);
+//                    methodDecl.sym = newSymbol;
+//                    newMembers.add(methodDecl);
+                } else {
+                    reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                }
             }
         }
 

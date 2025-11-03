@@ -36,10 +36,12 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         this.context = context;
     }
     
+    Set<String> ignoreMethods = Set.of("postcondition","precondition", "forall", "exists");
+    
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
-        if (jverifyMethod == null) {
+        if (jverifyMethod == null || !ignoreMethods.contains(jverifyMethod.name.toString())) {
             super.visitApply(invocation);
         } else {
             result = invocation;

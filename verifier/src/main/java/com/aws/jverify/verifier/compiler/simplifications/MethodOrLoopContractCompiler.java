@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.EmptyContract;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
@@ -133,6 +134,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         if (tree.body != null) {
             var allowFooter = JVerifyUtils.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
+        } if (tree.sym.getAnnotation(EmptyContract.class) != null) {
+            tree.body = maker.Block(0, getNewStatements(tree, List.nil(), false));        
         }
         super.visitMethodDef(tree);
     }

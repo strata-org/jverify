@@ -1,11 +1,7 @@
 package com.aws.jverify;
 
 import java.util.Optional;
-import java.util.function.BiPredicate;
-import java.util.function.Function;
-import java.util.function.IntPredicate;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.*;
 
 public class JVerify {
 
@@ -245,6 +241,10 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public static IntSequence range(int fromInclusive, int toExclusive) {
+        throw new VerificationMethodExecutedException();
+    }
+
     public interface CharJSequence {
         /**
          * Returns the element at index {@code index}.
@@ -322,6 +322,8 @@ public class JVerify {
     }
 
     public interface IntSequence {
+        <T> T reduce(T seed, BiFunction<Integer, T, T> accumulator);
+        
         /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
          */

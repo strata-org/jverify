@@ -16,6 +16,7 @@ import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 @Contract(Comparable.class)
@@ -500,6 +501,17 @@ class IntFunction<R> implements java.util.function.IntFunction<R> {
 
 @Contract
 abstract class IntPredicateContract implements IntPredicate {
+ 
+    @EmptyContract
+    @Erased
+    @Pure
+    public abstract boolean testPrecondition(int value);
+    
+    @Pure
+    public boolean test(int value) {
+        precondition(testPrecondition(value));
+        throw new ContractException();
+    }
 }
 
 @Contract
@@ -721,6 +733,38 @@ class SystemContractHelper {
 @Contract(value = PrintStream.class)
 class PrintStreamContracts {
     public void println(String x) {
+        throw new ContractException();
+    }
+}
+
+@Contract(IntStream.class)
+abstract class IntStreamContract implements IntStream {
+    private final IntSequence values;
+
+    @Erased
+    public IntStreamContract(IntSequence values) {
+        this.values = values;
+    }
+
+    @Pure
+    public boolean allMatch(IntPredicate predicate) {
+        precondition(forall((int index) -> 
+            implies(
+                values.contains(index),
+                cast(predicate, IntPredicateContract.class).testPrecondition(index)
+            )
+        ));
+        return values.<Boolean>reduce(true, new BiFunction<Integer, Boolean, Boolean>() {
+            @Override
+            public Boolean apply(Integer o, Boolean o2) {
+                return predicate.test(o) && o2;
+            }
+        });
+        //return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
+    }
+
+    public static IntStream range(int startInclusive, int endExclusive) {
+        postcondition((IntStreamContract c) -> jequals(c.values, JVerify.range(startInclusive, endExclusive)));
         throw new ContractException();
     }
 }
