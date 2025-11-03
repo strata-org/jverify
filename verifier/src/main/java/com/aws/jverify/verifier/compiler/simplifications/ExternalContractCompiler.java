@@ -352,6 +352,12 @@ public class ExternalContractCompiler {
 
     class ReferenceUpdater extends TreeTranslator {
         @Override
+        public void visitClassDef(JCTree.JCClassDecl tree) {
+            updateOwner(tree.sym);
+            super.visitClassDef(tree);
+        }
+
+        @Override
         public void visitIdent(JCTree.JCIdent tree) {
             updateOwner(tree.sym);
             var updatedSymbol = contractSymbolToContractee.get(tree.sym);
