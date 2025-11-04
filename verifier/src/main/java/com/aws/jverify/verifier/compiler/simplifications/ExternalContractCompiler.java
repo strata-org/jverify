@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.ContractException;
-import com.aws.jverify.Erased;
-import com.aws.jverify.Impure;
+import com.aws.jverify.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
@@ -19,6 +16,9 @@ import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.List;
 
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.MirroredTypeException;
+import javax.lang.model.type.TypeMirror;
 import java.util.*;
 
 /**
@@ -242,16 +242,22 @@ public class ExternalContractCompiler {
             var baseMethod = findContractee(contracteeSymbol, contracterSymbol, types);
             if (baseMethod != null) {
                 if (baseMethod.owner == contracteeSymbol) {
+                    // We're adding a contract to an existing method.
                     updateLibraryContractAnnotations(methodDecl, baseMethod);
                     index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
                     contractSymbolToContractee.put(methodDecl.sym, baseMethod);
+                    baseMethod.type = types.subst(methodDecl.type, methodDecl.sym.owner.type.allparams(), baseMethod.owner.type.allparams()); // allow changing types
                     methodDecl.sym = baseMethod;
+                    methodDecl.type = baseMethod.type;
                 } else {
+                    // We are adding an override through the contract class, and this needs its own symbol
                     var newSymbol = new Symbol.MethodSymbol(baseMethod.flags(), baseMethod.name, baseMethod.type, contracteeSymbol);
                     updateLibraryContractAnnotations(methodDecl, newSymbol);
                     index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
                     contractSymbolToContractee.put(methodDecl.sym, newSymbol);
+                    baseMethod.type = types.subst(methodDecl.type, methodDecl.sym.owner.type.allparams(), baseMethod.owner.type.allparams()); // allow changing types
                     methodDecl.sym = newSymbol;
+                    methodDecl.type = baseMethod.type;
                 }
                 newMembers.add(methodDecl);
             } else {
@@ -260,6 +266,7 @@ public class ExternalContractCompiler {
                     if (contracteeSymbol.isInterface() && methodDecl.sym.isConstructor()) {
                         return;
                     }
+                    // We added a method through the contract class
                     var newSymbol = new Symbol.MethodSymbol(methodDecl.sym.flags(), methodDecl.sym.name, methodDecl.sym.type, contracteeSymbol);
                     updateLibraryContractAnnotations(methodDecl, newSymbol);
                     index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
@@ -407,15 +414,28 @@ public class ExternalContractCompiler {
         }
     }
 
-    public static Symbol.MethodSymbol findContractee(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
+    public Symbol.MethodSymbol findContractee(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
         return getCandidateForType(contractee, method, types);
     }
 
-    private static Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {
+    private Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {
+        var methodType = types.createMethodTypeWithParameters(method.type,
+                method.params.stream().map(v -> {
+                    var originalType = v.type.getAnnotation(OriginalType.class);
+                    if (originalType == null) {
+                        return v.type;
+                    }
+                    try {
+                        originalType.value(); // This will throw
+                    } catch (MirroredTypeException mte) {
+                        return (Type.ClassType)mte.getTypeMirror();
+                    }
+                    return elements.getTypeElement(originalType.value().getCanonicalName()).type;
+                }).collect(List.collector()));
         for(var part : types.closure(contractee.type)) {
             for (Symbol member : part.tsym.members().getSymbolsByName(method.name)) {
                 if (member instanceof Symbol.MethodSymbol candidate) {
-                    if (types.isSubSignature(types.erasure(member.type), types.erasure(method.type))) {
+                    if (types.isSubSignature(types.erasure(member.type), types.erasure(methodType))) {
                         return candidate;
                     }
                 }

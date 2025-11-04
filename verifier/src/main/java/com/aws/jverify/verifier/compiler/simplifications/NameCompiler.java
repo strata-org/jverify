@@ -259,7 +259,7 @@ public class NameCompiler extends TreeScanner {
                     
                     if (member instanceof Symbol.VarSymbol) {
                         sameNameFields = true;
-                    }
+                    } 
                     if (member instanceof Symbol.MethodSymbol) {
                         methodsWithThisName += 1;
                     }

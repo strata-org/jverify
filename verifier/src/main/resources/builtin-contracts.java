@@ -501,15 +501,9 @@ class IntFunction<R> implements java.util.function.IntFunction<R> {
 
 @Contract
 abstract class IntPredicateContract implements IntPredicate {
- 
-    @EmptyContract
-    @Erased
-    @Pure
-    public abstract boolean testPrecondition(int value);
     
     @Pure
     public boolean test(int value) {
-        precondition(testPrecondition(value));
         throw new ContractException();
     }
 }
@@ -739,46 +733,43 @@ class PrintStreamContracts {
 
 @Contract(IntStream.class)
 abstract class IntStreamContract implements IntStream {
-    private final IntSequence values;
+    public final IntSequence values;
 
     @Erased
     public IntStreamContract(IntSequence values) {
         this.values = values;
     }
+    // TODO add error when putting a nested class inside a class that's contracting an interface.
+    // Since that will lead to downstream errors. Or else we need to fix that with a Lower patch
+    // Should I use interfaces to contract interfaces???
+    // But then you can't add fields.
     
+    // TODO: because the owner (IntStream) is an interface, this is automatically static and can't reference values without crashing Lower.class
     @Pure
-    abstract class AllMatchPredicate {
-        public boolean isOwner(stream: IntStreamContract) {
-          return Stream == IntStreamContract.this;  
-        }
-        
-        @Pure
-        public boolean test(int value) {
-            precondition(values.contains(value));
-            throw new ContractException();
-        }
-    }
-    
-    @Pure
-    public boolean allMatch2(AllMatchPredicate predicate) {
-        precondition(predicate.isOwner(this));
-        return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
-    }
-    
-    @Pure
-    public boolean allMatch(IntPredicate predicate) {
-        precondition(forall((int index) -> 
-            implies(
-                values.contains(index),
-                cast(predicate, IntPredicateContract.class).testPrecondition(index)
-            )
-        ));
+    public boolean allMatch(@OriginalType(IntPredicate.class) AllMatchPredicate predicate) {
+        precondition(predicate.intStream == this);
         return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
     }
 
     @Pure
     public static IntStream range(int startInclusive, int endExclusive) {
         postcondition((IntStreamContract c) -> jequals(c.values, JVerify.range(startInclusive, endExclusive)));
+        throw new ContractException();
+    }
+}
+
+abstract class AllMatchPredicate implements IntPredicate {
+    public final IntStreamContract intStream;
+
+    @Verify(false)
+    public AllMatchPredicate(com.aws.jverify.builtin.IntStreamContract intStream) {
+        this.intStream = intStream;
+    }
+
+    @Verify(false)
+    @Pure
+    public boolean test(int value) {
+        precondition(intStream.values.contains(value));
         throw new ContractException();
     }
 }
