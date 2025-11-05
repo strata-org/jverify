@@ -66,6 +66,14 @@ public class JVerify {
     public static void postcondition(IntPredicate predicate) {
     }
 
+    /**
+     * Takes the precondition of the given expression
+     * and applies that to the current method 
+     */
+    public static <T> boolean preconditionOf(T value) {
+        throw new ContractException();
+    }
+    
     /** 
      * Takes the precondition of the given expression
      * and applies that to the current method 
@@ -114,7 +122,7 @@ public class JVerify {
      * A subclass of the current clause can implement that abstract clause
      * By redefining it and filling in a value
      */
-    public static Object isAbstract() {
+    public static <T> T isAbstract() {
         throw new VerificationMethodExecutedException();
     }
 

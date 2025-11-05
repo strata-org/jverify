@@ -1,0 +1,53 @@
+package com.aws.jverify.verifier.tests.verification;
+
+import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
+import com.aws.jverify.JVerify;
+import com.aws.jverify.Pure;
+
+import java.util.function.IntPredicate;
+import java.util.stream.IntStream;
+
+import static com.aws.jverify.JVerify.*;
+
+public class AbstractContracts {
+    @Contract(IntPredicate.class)
+    static class IntPredicateContract implements IntPredicate {
+        @Pure
+        public boolean test(int value) {
+            precondition(isAbstract());
+            throw new ContractException();  
+        }
+    }
+
+    @Contract(IntStream.class)
+    static abstract class IntStreamContract implements IntStream {
+        public final JVerify.IntSequence values = isAbstract();
+
+        @Pure
+        public boolean allMatch(IntPredicate predicate) {
+            precondition(JVerify.forall((int i) ->
+                    implies(values.contains(i),
+                            preconditionOf(predicate.test(i)))
+            ));
+            throw new ContractException();
+        }
+
+        @Pure
+        public static IntStream range(int startInclusive, int endExclusive) {
+            // TODO
+            //postcondition((IntStreamContract r) -> jequals(r.values, JVerify.));
+            throw new ContractException();
+        }
+    }
+
+    @SuppressWarnings("ConstantValue")
+    void foo() {
+        var temp = IntStream.range(0, 10);
+        var r = temp.allMatch(value -> {
+            precondition(cast(temp, IntStreamContract.class).values.contains(value));
+            return value == 2;
+        });
+        check(!r);
+    }
+}
