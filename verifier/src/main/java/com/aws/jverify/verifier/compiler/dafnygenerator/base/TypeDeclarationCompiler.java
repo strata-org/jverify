@@ -4,7 +4,7 @@ import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
-import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopDafnyContract;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.ImpureObjectGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
@@ -297,7 +297,7 @@ public class TypeDeclarationCompiler {
             return null;
         }
 
-        var contract = new MethodOrLoopContract(method, jverifyUtils.isPure(method.sym));
+        var contract = new MethodOrLoopDafnyContract(method, jverifyUtils.isPure(method.sym));
         var remainingStatements = methodOrLoopContractCompiler.
                 extractContract(baseGenerator, method.body, contract);
 
@@ -310,7 +310,7 @@ public class TypeDeclarationCompiler {
 
     private MethodOrConstructor translateImpureMethod(JCTree.JCMethodDecl method,
                                                       boolean shouldVerify,
-                                                      MethodOrLoopContract contract,
+                                                      MethodOrLoopDafnyContract contract,
                                                       com.sun.tools.javac.util.List<JCTree.JCStatement> postHeader) {
         var methodOrigin = reporter.toOrigin(method);
 
@@ -388,7 +388,7 @@ public class TypeDeclarationCompiler {
 
     private Function translatePureMethod(JCTree.JCMethodDecl method, 
                                          boolean shouldVerify,
-                                         MethodOrLoopContract contract) {
+                                         MethodOrLoopDafnyContract contract) {
         var sourceOrigin = reporter.toOrigin(method);
 
         var name = nameCompiler.getName(method, method.sym);
@@ -412,7 +412,7 @@ public class TypeDeclarationCompiler {
         return result;
     }
 
-    private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopContract header) {
+    private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopDafnyContract header) {
         boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
         boolean isStaticMethod = JVerifyUtils.isStatic(modifiers);
 

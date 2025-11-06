@@ -1,17 +1,15 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
-import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopDafnyContract;
 import com.aws.jverify.verifier.compiler.dafnygenerator.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 
-import javax.naming.Context;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -182,7 +180,7 @@ public class BlockCompiler {
                                    java.util.function.Function<List<Statement>, List<Statement>> transformBody, 
                                    ExpressionContext expressionContext) {
         var origin = reporter.toOrigin(loop);
-        var header = new MethodOrLoopContract(loop, false);
+        var header = new MethodOrLoopDafnyContract(loop, false);
         var postHeader = methodOrLoopContractCompiler.extractContract(baseGenerator, (JCTree.JCBlock) body, header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
@@ -195,7 +193,7 @@ public class BlockCompiler {
                 dafnyCondition);
     }
 
-    private void checkLoopHeaderAndSetupLabels(JCTree.JCStatement loop, List<Label> labels, MethodOrLoopContract header) {
+    private void checkLoopHeaderAndSetupLabels(JCTree.JCStatement loop, List<Label> labels, MethodOrLoopDafnyContract header) {
         checkEmptyExpressions(loop, header.preconditions, "preconditions", "loop");
         checkEmptyExpressions(loop, header.postconditions, "postconditions", "loop");
 
