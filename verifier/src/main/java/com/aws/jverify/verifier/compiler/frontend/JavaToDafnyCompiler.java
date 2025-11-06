@@ -197,12 +197,13 @@ public class JavaToDafnyCompiler {
                     List<UnitsCompiler> phases = new ArrayList<>();
                     phases.add(JavaToDafnyCompiler.this::unlambda);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
-                    phases.add(new ExternalContractCompiler(context)::apply);
+                    phases.add(new ExternalContractCompiler(context)::transform);
                     phases.add(VerifyAnnotationCompiler.instance(context)::transform);
-                    phases.add(new MissingContractCompiler(context)::compile);
+                    phases.add(new MissingContractCompiler(context)::transform);
                     phases.add(us -> unsuspend(lower(suspend(us))));
                     phases.add(new ArrayCompiler(context)::transform);
                     phases.add(new MoveStaticMethodsToStaticType(context)::translate);
+                    phases.add(new IsAbstractCompiler(context)::transform);
                     
                     for(var phase : phases) {
                         remainingUnits = phase.transform(remainingUnits);

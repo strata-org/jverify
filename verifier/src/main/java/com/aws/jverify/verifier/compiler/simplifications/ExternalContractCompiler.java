@@ -4,7 +4,6 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Impure;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.AttrContext;
@@ -57,7 +56,7 @@ public class ExternalContractCompiler {
         this.elements = JavacElements.instance(context);
     }
 
-    public Set<JCTree.JCCompilationUnit> apply(Set<JCTree.JCCompilationUnit> compilationUnits) {
+    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit : compilationUnits) {
             var moveSourceContracts = new FindAndMoveContracts();
             moveSourceContracts.visitTopLevel(unit);
