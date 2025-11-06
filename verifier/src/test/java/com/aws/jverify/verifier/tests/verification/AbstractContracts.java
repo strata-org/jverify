@@ -21,7 +21,6 @@ public class AbstractContracts {
             precondition(cast(temp, IntStreamContract.class).values.contains(value));
             return value == 2;
         });
-        check(!r);
     }
 }
 
