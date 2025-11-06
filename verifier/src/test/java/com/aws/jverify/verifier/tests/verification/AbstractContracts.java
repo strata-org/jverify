@@ -36,7 +36,9 @@ class IntPredicateContract implements IntPredicate {
 
 @Contract(IntStream.class)
 abstract class IntStreamContract implements IntStream {
-    public final JVerify.IntSequence values = null;
+    // Temporarily assigning this fixed value here, since Dafny does not support abstract constants in traits
+    // And JVerify does not yet support writing this as an abstract method
+    public final JVerify.IntSequence values = JVerify.range(0, 10);
 
     @Pure
     public boolean allMatch(IntPredicate predicate) {

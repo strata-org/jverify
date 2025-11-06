@@ -42,5 +42,5 @@ datatype Nullable<T> = NonNull(value: T) | Null
 function intSeqRange(from: int, to: int): seq<int> 
   requires to >= from
 {
-  seq(to - from, i -> i + from)
+  seq(to - from, i => i + from)
 }
