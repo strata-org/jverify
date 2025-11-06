@@ -51,6 +51,7 @@ abstract class IntStreamContract implements IntStream {
 
     @Pure
     public static IntStream range(int startInclusive, int endExclusive) {
+        precondition(startInclusive <= endExclusive);
         postcondition((IntStreamContract r) -> jequals(r.values, JVerify.range(startInclusive, endExclusive)));
         throw new ContractException();
     }
