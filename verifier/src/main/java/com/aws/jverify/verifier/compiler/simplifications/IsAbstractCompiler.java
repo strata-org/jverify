@@ -113,7 +113,10 @@ public class IsAbstractCompiler extends TreeScanner {
 
         var preconditionMethodSymbol = new Symbol.MethodSymbol(Flags.PUBLIC, preconditionName, new Type.MethodType(
                 methodType.getParameterTypes(), symtab.booleanType, List.nil(), tree.type.tsym), clazzSymbol);
-
+        preconditionMethodSymbol.params = tree.sym.params.map(vs -> new Symbol.VarSymbol(
+                vs.flags(), vs.name, vs.type, preconditionMethodSymbol)
+        ).stream().collect(List.collector());
+        
         JCTree.JCBlock body = treeMaker.Block(0, contractCompiler.getOuterBlockStatements(
                 List.nil(), precondition == null ? List.nil() : java.util.List.of(treeMaker.Return(precondition))));
         

@@ -98,6 +98,10 @@ public class JVerify {
         throw new ContractException();
     }
 
+    public static IntSequence range(int startInclusive, int endExclusive) {
+        throw new VerificationMethodExecutedException();
+    }
+
     public static interface BooleanPredicate {
         boolean test(boolean value);
     }

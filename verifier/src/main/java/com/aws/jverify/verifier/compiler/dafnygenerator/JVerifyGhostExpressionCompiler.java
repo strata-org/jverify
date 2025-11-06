@@ -142,6 +142,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 NameSegment callee = new NameSegment(origin, "toSequence", null);
                 return expressionCompiler.createCall(origin, callee, Stream.of(array), ExpressionContext.Pure);
             }
+            case "range" -> {
+                NameSegment callee = new NameSegment(origin, "intSeqRange", null);
+                return expressionCompiler.createCall(origin, callee, 
+                        Stream.of(args.get(0), args.get(1)), ExpressionContext.Pure);
+            }
             case "get" -> {
                 var seq = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
                 var index = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);

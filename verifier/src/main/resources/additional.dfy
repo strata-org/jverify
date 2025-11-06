@@ -38,3 +38,9 @@ function toSequence<T>(arr: JArray<T> ): (r: seq<T>)
   ensures |r| == arr.length() && forall i: nat :: i < arr.length() ==> arr.get(i) == r[i]
   
 datatype Nullable<T> = NonNull(value: T) | Null
+
+function intSeqRange(from: int, to: int): seq<int> 
+  requires to >= from
+{
+  seq(to - from, i -> i + from)
+}
