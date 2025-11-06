@@ -4,42 +4,15 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.JVerify;
 import com.aws.jverify.Pure;
+import com.aws.jverify.testengine.JVerifyTest;
 
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
 import static com.aws.jverify.JVerify.*;
 
+@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
 public class AbstractContracts {
-    @Contract(IntPredicate.class)
-    static class IntPredicateContract implements IntPredicate {
-        @Pure
-        public boolean test(int value) {
-            precondition(isAbstract());
-            throw new ContractException();  
-        }
-    }
-
-    @Contract(IntStream.class)
-    static abstract class IntStreamContract implements IntStream {
-        public final JVerify.IntSequence values = isAbstract();
-
-        @Pure
-        public boolean allMatch(IntPredicate predicate) {
-            precondition(JVerify.forall((int i) ->
-                    implies(values.contains(i),
-                            preconditionOf(predicate.test(i)))
-            ));
-            throw new ContractException();
-        }
-
-        @Pure
-        public static IntStream range(int startInclusive, int endExclusive) {
-            // TODO
-            //postcondition((IntStreamContract r) -> jequals(r.values, JVerify.));
-            throw new ContractException();
-        }
-    }
 
     @SuppressWarnings("ConstantValue")
     void foo() {
@@ -49,5 +22,36 @@ public class AbstractContracts {
             return value == 2;
         });
         check(!r);
+    }
+}
+
+// TODO make inner classes.
+@Contract(IntPredicate.class)
+class IntPredicateContract implements IntPredicate {
+    @Pure
+    public boolean test(int value) {
+        precondition(isAbstract(this));
+        throw new ContractException();
+    }
+}
+
+@Contract(IntStream.class)
+abstract class IntStreamContract implements IntStream {
+    public final JVerify.IntSequence values = null;
+
+    @Pure
+    public boolean allMatch(IntPredicate predicate) {
+        precondition(JVerify.forall((int i) ->
+                implies(values.contains(i),
+                        preconditionOf(predicate.test(i)))
+        ));
+        throw new ContractException();
+    }
+
+    @Pure
+    public static IntStream range(int startInclusive, int endExclusive) {
+        // TODO
+        //postcondition((IntStreamContract r) -> jequals(r.values, JVerify.));
+        throw new ContractException();
     }
 }

@@ -127,12 +127,16 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         }
 
         maker.pos = tree.pos;
-        var contractBlock = maker.Block(0, List.from(contractStatements));
 
         if (superOrThis != null) {
             remainingStatements = new ArrayList<>(remainingStatements);
             remainingStatements.addFirst(superOrThis);
         }
+        return getOuterBlockStatements(contractStatements, remainingStatements);
+    }
+
+    public List<JCTree.JCStatement> getOuterBlockStatements(java.util.List<JCTree.JCStatement> contractStatements, java.util.List<JCTree.JCStatement> remainingStatements) {
+        var contractBlock = maker.Block(0, List.from(contractStatements));
         JCTree.JCBlock implementationBlock = maker.Block(0, List.from(remainingStatements));
         return List.<JCTree.JCStatement>of(implementationBlock).prepend(contractBlock);
     }
@@ -219,9 +223,11 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
     
     public MethodOrLoopContract getContract(JCTree.JCMethodDecl methodDecl) {
-        Property<JCTree.JCExpression> precondition = null;
-        Property<JCTree.JCExpression> postcondition = null;
-        Property<JCTree.JCExpression> loopInvariant = null;
+        JCTree.JCLiteral trueLiteral = maker.Literal(true);
+        Property<JCTree.JCExpression> trueProperty = finalProperty(trueLiteral);
+        Property<JCTree.JCExpression> precondition = trueProperty;
+        Property<JCTree.JCExpression> postcondition = trueProperty;
+        Property<JCTree.JCExpression> loopInvariant = trueProperty;
         ArrayList<JCTree.JCExpression> decreases = new ArrayList<>();
         Property<JCTree.JCExpression> reads = null;
         Property<JCTree.JCExpression> modifies = null;
@@ -292,7 +298,21 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 loopInvariant, decreases, reads, modifies);
     }
     
-    <T> Property<T> getElementProperty(List<T> list, int index) {
+    <T> Property<T> finalProperty(T value) {
+        return new Property<T>() {
+            @Override
+            public T get() {
+                return value;
+            }
+
+            @Override
+            public void set(T value) {
+                throw new RuntimeException("can not mutate final property");
+            }
+        };
+    }
+
+    <T> Property<T> getElementProperty(ArrayList<T> list, int index) {
         return new Property<T>() {
             @Override
             public T get() {
@@ -302,6 +322,24 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             @Override
             public void set(T value) {
                 list.set(index, value);
+            }
+        };
+    }
+    
+    <T> Property<T> getElementProperty(com.sun.tools.javac.util.List<T> list, int index) {
+        return new Property<T>() {
+            @Override
+            public T get() {
+                return list.get(index);
+            }
+
+            @Override
+            public void set(T value) {
+                List<T> current = list;
+                //noinspection StatementWithEmptyBody
+                for(var i = 0; i < index; i++, current = list.tail) {
+                }
+                current.head = value;
             }
         };
     }

@@ -52,6 +52,10 @@ public class JVerifyUtils {
                 maker.Assign(value, maker.Literal(false))));
     }
 
+    public Symbol.ClassSymbol getPureClassSymbol() {
+        return elements.getTypeElement(Pure.class.getCanonicalName());
+    }
+    
     public Symbol.ClassSymbol getVerifyClassSymbol() {
         return elements.getTypeElement(Verify.class.getCanonicalName());
     }

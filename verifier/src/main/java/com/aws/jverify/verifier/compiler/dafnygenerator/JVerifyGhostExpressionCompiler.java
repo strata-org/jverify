@@ -5,9 +5,12 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -20,11 +23,15 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     private final Reporter reporter;
     final BaseDafnyGenerator baseGenerator;
     DafnyGenerator generator;
+    MethodOrLoopContractCompiler contractCompiler;
+    JVerifyIndex index;
 
     public JVerifyGhostExpressionCompiler(Context context, 
                                           DafnyGenerator next) {
         super(next);
         this.baseGenerator = context.get(BaseDafnyGenerator.class);
+        contractCompiler = MethodOrLoopContractCompiler.instance(context);
+        index = JVerifyIndex.instance(context);
         generator = context.get(DafnyGenerator.class);
         this.expressionCompiler = baseGenerator.expressionCompiler;
         reporter = baseGenerator.reporter;
@@ -54,6 +61,9 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         }
         if (className.toString().equals(JVerify.CharJSequence.class.getName())) {
             return new SeqType(origin, List.of(BaseDafnyGenerator.getChar16Type(origin)));
+        }
+        if (className.toString().equals(JVerify.IntSequence.class.getName())) {
+            return new SeqType(origin, List.of(new IntType(origin)));
         }
         return next.translateClassType(origin, additionalModifiers, classType);
     }
@@ -184,6 +194,19 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 var left = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
                 var right = expressionCompiler.toExpr(args.get(1), ExpressionContext.Pure);
                 return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
+            }
+            case "preconditionOf" -> {
+                var call = args.getFirst();
+                if (call instanceof JCTree.JCMethodInvocation preconditionOwnerCall) {
+                    var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
+                    var method = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
+                    var contract = contractCompiler.getContract(method);
+                    var precondition = contract.precondition().get();
+                    // TODO use arguments of preconditionOwnerCall
+                    return expressionCompiler.toExpr(precondition, ExpressionContext.Pure);
+                }
+                reporter.reportError(invocation, "preconditionOf argument must be a method call");
+                return null;
             }
         }
 

@@ -6,23 +6,21 @@ import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.model.JavacElements;
-import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.tree.TreeTranslator;
-import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Name;
-import com.sun.tools.javac.util.Names;
-
+import com.sun.tools.javac.tree.*;
+import com.sun.tools.javac.util.*;
 import java.util.Set;
 
-public class IsAbstractCompiler extends TreeTranslator {
+/**
+ * Must run before lower
+ */
+public class IsAbstractCompiler extends TreeScanner {
     private final TreeMaker treeMaker;
     private final Reporter reporter;
     private final JVerifyIndex index;
+    private final JVerifyUtils utils;
     private final Symbol.MethodSymbol isAbstract;
     private final Names names;
+    private final Types types;
     private final Symtab symtab;
     private final MethodOrLoopContractCompiler contractCompiler;
 
@@ -31,6 +29,8 @@ public class IsAbstractCompiler extends TreeTranslator {
         names = Names.instance(context);
         treeMaker = TreeMaker.instance(context);
         reporter = Reporter.instance(context);
+        types = Types.instance(context);
+        utils = JVerifyUtils.instance(context);
         index = JVerifyIndex.instance(context);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
         JavacElements  elements = JavacElements.instance(context);
@@ -40,7 +40,7 @@ public class IsAbstractCompiler extends TreeTranslator {
     
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
-            translate(env);
+            scan(env);
         }
         return envs;
     }
@@ -49,7 +49,7 @@ public class IsAbstractCompiler extends TreeTranslator {
         if (!(expression instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
         }
-        return isAbstract == TreeInfo.symbol(invocation);
+        return isAbstract == TreeInfo.symbol(invocation.getMethodSelect());
     }
 
     @Override
@@ -81,16 +81,27 @@ public class IsAbstractCompiler extends TreeTranslator {
     }
 
     private JCTree.JCMethodDecl getBaseMethod(JCTree.JCMethodDecl tree) {
-        throw new RuntimeException("not implemented");
+        var baseSymbol = tree.sym.implemented(tree.sym.enclClass(), types);
+        if (baseSymbol == null) {
+            return null;
+        }
+        return (JCTree.JCMethodDecl) index.getTree(baseSymbol);
     }
 
     private void updatePrecondition(JCTree.JCMethodDecl tree, MethodOrLoopContract contract, 
                                     Symbol.MethodSymbol preconditionFunction) {
-        Symbol thisSymbol = null;
-        contract.precondition().set(
-            treeMaker.Apply(null /* TODO */, 
-            treeMaker.Select(treeMaker.Ident(thisSymbol), preconditionFunction),
-            tree.params.map(d -> treeMaker.Ident(d.sym)).stream().collect(List.collector())));
+        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(
+                Flags.FINAL | Flags.PARAMETER, // flags
+                names._this,                    // name
+                tree.sym.owner.type,          // type (the enclosing class type)
+                tree.sym                      // owner (the method)
+        );
+
+        JCTree.JCMethodInvocation application = treeMaker.Apply(null /* TODO */,
+                treeMaker.Select(treeMaker.Ident(thisSymbol), preconditionFunction),
+                tree.params.map(d -> treeMaker.Ident(d.sym)).stream().collect(List.collector()));
+        application.type = symtab.booleanType;
+        contract.precondition().set(application);
     }
 
     private Symbol.MethodSymbol addPreconditionFunctionFor(JCTree.JCMethodDecl tree, 
@@ -100,15 +111,23 @@ public class IsAbstractCompiler extends TreeTranslator {
         Name preconditionName = names.fromString("preconditionOf$").append(tree.name);
         Type methodType = tree.sym.type;
 
-        var methodSymbol = new Symbol.MethodSymbol(0, preconditionName, new Type.MethodType(
+        var preconditionMethodSymbol = new Symbol.MethodSymbol(Flags.PUBLIC, preconditionName, new Type.MethodType(
                 methodType.getParameterTypes(), symtab.booleanType, List.nil(), tree.type.tsym), clazzSymbol);
+
+        JCTree.JCBlock body = treeMaker.Block(0, contractCompiler.getOuterBlockStatements(
+                List.nil(), precondition == null ? List.nil() : java.util.List.of(treeMaker.Return(precondition))));
         
-        JCTree.JCBlock body = null;
-        if (precondition != null) {
-            body = treeMaker.Block(0, List.of(treeMaker.Exec(precondition)));
-        }
-        clazz.defs = clazz.defs.append(treeMaker.MethodDef(methodSymbol, body));
-        clazzSymbol.members().enter(methodSymbol);
-        return methodSymbol;
+        Symbol.ClassSymbol pureSymbol = utils.getPureClassSymbol();
+        JCTree.JCMethodDecl preconditionMethod = treeMaker.MethodDef(preconditionMethodSymbol, body);
+        preconditionMethod.mods.annotations = preconditionMethod.mods.annotations.append(
+                treeMaker.Annotation(treeMaker.Ident(pureSymbol), List.nil()));
+
+        ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
+        newAnnotations.add(new Attribute.Compound(pureSymbol.type, List.nil()));
+        preconditionMethodSymbol.setDeclarationAttributes(newAnnotations.toList());
+        
+        clazz.defs = clazz.defs.append(preconditionMethod);
+        clazz.sym.members().enter(preconditionMethodSymbol);
+        return preconditionMethodSymbol;
     }
 }
