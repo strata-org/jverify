@@ -51,6 +51,15 @@ public class JVerifyUtils {
         return maker.Annotation(maker.Ident(verifySymbol), List.of(
                 maker.Assign(value, maker.Literal(false))));
     }
+    
+    public Symbol.VarSymbol thisSymbol(Symbol.MethodSymbol methodSymbol) {
+        return new Symbol.VarSymbol(
+                Flags.FINAL | Flags.PARAMETER, // flags
+                names._this,                    // name
+                methodSymbol.owner.type,          // type (the enclosing class type)
+                methodSymbol                      // owner (the method)
+        );
+    }
 
     public Symbol.ClassSymbol getPureClassSymbol() {
         return elements.getTypeElement(Pure.class.getCanonicalName());

@@ -8,21 +8,29 @@ import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
+import com.sun.source.tree.IdentifierTree;
+import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     final ExpressionCompiler expressionCompiler;
     private final Reporter reporter;
     final BaseDafnyGenerator baseGenerator;
-    DafnyGenerator generator;
+    private final DafnyGenerator generator;
+    private final JVerifyUtils utils;
+    private final TreeMaker treeMaker;
+    private final Names names;
     MethodOrLoopContractCompiler contractCompiler;
     JVerifyIndex index;
 
@@ -31,7 +39,10 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         super(next);
         this.baseGenerator = context.get(BaseDafnyGenerator.class);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
+        utils = JVerifyUtils.instance(context);
         index = JVerifyIndex.instance(context);
+        treeMaker = TreeMaker.instance(context);
+        names = Names.instance(context);
         generator = context.get(DafnyGenerator.class);
         this.expressionCompiler = baseGenerator.expressionCompiler;
         reporter = baseGenerator.reporter;
@@ -201,22 +212,54 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
             }
             case "preconditionOf" -> {
-                var call = args.getFirst();
-                if (call instanceof JCTree.JCMethodInvocation preconditionOwnerCall) {
-                    var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
-                    var method = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
-                    var contract = contractCompiler.getContract(method);
-                    var precondition = contract.precondition().get();
-                    // TODO use arguments of preconditionOwnerCall
-                    return expressionCompiler.toExpr(precondition, ExpressionContext.Pure);
-                }
-                reporter.reportError(invocation, "preconditionOf argument must be a method call");
-                return null;
+                return handlePreconditionOf(invocation, args);
             }
         }
 
         reporter.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
         return JVerifyUtils.getHole(origin);
+    }
+
+    private Expression handlePreconditionOf(JCTree.JCMethodInvocation invocation, com.sun.tools.javac.util.List<JCTree.JCExpression> args) {
+        var call = args.getFirst();
+        if (call instanceof JCTree.JCMethodInvocation preconditionOwnerCall) {
+            var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
+            var method = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
+            var contract = contractCompiler.getContract(method);
+            var precondition = contract.precondition().get();
+            
+            JCTree.JCFieldAccess access = (JCTree.JCFieldAccess) preconditionOwnerCall.getMethodSelect();
+            Map<Symbol.VarSymbol, JCTree.JCExpression> mapping = new HashMap<>();
+            var params = method.getParameters();
+            for (int i = 0; i < params.size(); i++) {
+                var param = params.get(i);
+                var arg = preconditionOwnerCall.args.get(i);
+                mapping.put(param.sym, arg);
+            }
+            class ExpressionRewriter extends AttributedTreeCopier {
+                public ExpressionRewriter(TreeMaker maker) {
+                    super(maker);
+                }
+
+                @Override
+                public JCTree visitIdentifier(IdentifierTree node, Void p) {
+                    JCTree.JCIdent identifier = (JCTree.JCIdent) node;
+                    if (identifier.name == names._this) {
+                        return access.getExpression();
+                    }
+                    var newValue = mapping.get(identifier.sym);
+                    if (newValue != null) {
+                        return newValue;
+                    } else {
+                        return super.visitIdentifier(node, p);
+                    }
+                }
+            }
+            var newPrecondition = precondition.accept(new ExpressionRewriter(treeMaker), null);
+            return expressionCompiler.toExpr(newPrecondition, ExpressionContext.Pure);
+        }
+        reporter.reportError(invocation, "preconditionOf argument must be a method call");
+        return null;
     }
 
     private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {

@@ -11,7 +11,7 @@ import java.util.stream.IntStream;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 8, dafnyErrors = 0)
 public class AbstractContracts {
 
     @SuppressWarnings("ConstantValue")
@@ -21,6 +21,7 @@ public class AbstractContracts {
             precondition(cast(temp, IntStreamContract.class).values.contains(value));
             return value == 2;
         });
+        check(true);
     }
 }
 
