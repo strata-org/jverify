@@ -135,7 +135,7 @@ public class JVerify {
      * A subclass of the current clause can implement that abstract clause
      * By redefining it and filling in a value
      */
-    public static <T> T isAbstract(Object thisValue) {
+    public static <T> T isAbstract() {
         throw new VerificationMethodExecutedException();
     }
 
