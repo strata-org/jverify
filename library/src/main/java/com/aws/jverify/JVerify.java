@@ -158,13 +158,12 @@ public class JVerify {
     }
 
     /**
-     * TODO decide whether this should exist or not
-     * and if it does add documentation
-     * And even if we remove jequals, it might be good to add documentation on Dafny's == somewhere
-     * To clarify when it resolves to:
-     * - reference equality
-     * - shallow equality
-     * - undefined equality
+     * Provides observational equality. Two values are observational equal if they behave the same on all contexts.
+     * For primitive values, jequals behaves the same as `==`
+     * For objects such as records and classes,
+     * - If the type is impure, jequals behaves like `==`, reference equality
+     * - If the type is pure, jequals behaves as shallow structural equality. Because JVerify makes using `==`, 
+     * reference equality, illegal on pure types, structural equality also means observational equality. 
      */
     public static <T> boolean jequals(T left, T right) {
         throw new VerificationMethodExecutedException();

@@ -201,7 +201,6 @@ public class ExternalContractCompiler {
             classDecl.defs = List.from(newMembers);
 
             var oldSymbol = classDecl.sym;
-            // contracteeSymbol.name = oldSymbol.name;
             oldSymbol.name = contracteeSymbol.name;
             classDecl.sym = contracteeSymbol;
             classDecl.type = contracteeSymbol.type;

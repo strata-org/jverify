@@ -11,7 +11,7 @@ import java.util.stream.IntStream;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 8, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 9, dafnyErrors = 0)
 public class AbstractContracts {
 
     @SuppressWarnings("ConstantValue")
@@ -19,6 +19,7 @@ public class AbstractContracts {
         var temp = IntStream.range(0, 10);
         var r = temp.allMatch(value -> {
             precondition(cast(temp, IntStreamContract.class).values.contains(value));
+            check(0 <= value && value <= 10);
             return value == 2;
         });
         check(true);
