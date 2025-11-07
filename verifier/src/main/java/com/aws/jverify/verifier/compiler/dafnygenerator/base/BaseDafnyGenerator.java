@@ -485,14 +485,23 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         dafnyContract.preconditions.add(new AttributedExpression(
                 expressionCompiler.toExpr(contract.precondition().get(), ExpressionContext.Pure), null, null));
         handlePostcondition(dafnyContract, contract.postcondition().get());
-        dafnyContract.loopInvariants.add(new AttributedExpression(
-                expressionCompiler.toExpr(contract.loopInvariant().get(), ExpressionContext.Pure), null, null));
+        JCTree.JCExpression javaLoopInvariant = contract.loopInvariant().get();
+        if (javaLoopInvariant != null) {
+            dafnyContract.loopInvariants.add(new AttributedExpression(
+                    expressionCompiler.toExpr(javaLoopInvariant, ExpressionContext.Pure), null, null));
+        }
         dafnyContract.decreases.addAll(contract.decreases().stream().map(d ->
                 expressionCompiler.toExpr(d, ExpressionContext.Pure)).toList());
-        Expression readsExpr = expressionCompiler.toExpr(contract.reads().get(), ExpressionContext.Pure);
-        dafnyContract.reads.add(new FrameExpression(readsExpr.getOrigin(), readsExpr, null));
-        Expression modifiesExpr = expressionCompiler.toExpr(contract.modifies().get(), ExpressionContext.Pure);
-        dafnyContract.modifies.add(new FrameExpression(modifiesExpr.getOrigin(), modifiesExpr, null));
+        JCTree.JCExpression readsJavaExpr = contract.reads().get();
+        if (readsJavaExpr != null) {
+            Expression readsExpr = expressionCompiler.toExpr(readsJavaExpr, ExpressionContext.Pure);
+            dafnyContract.reads.add(new FrameExpression(readsExpr.getOrigin(), readsExpr, null));
+        }
+        JCTree.JCExpression modifiesJavaExpr = contract.modifies().get();
+        if (modifiesJavaExpr != null) {
+            Expression modifiesExpr = expressionCompiler.toExpr(modifiesJavaExpr, ExpressionContext.Pure);
+            dafnyContract.modifies.add(new FrameExpression(modifiesExpr.getOrigin(), modifiesExpr, null));
+        }
     }
 
     private void handlePostcondition(MethodOrLoopDafnyContract header, JCTree.JCExpression expr) {

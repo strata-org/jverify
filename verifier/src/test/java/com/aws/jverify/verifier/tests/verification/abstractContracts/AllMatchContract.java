@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests.verification;
+package com.aws.jverify.verifier.tests.verification.abstractContracts;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
@@ -12,7 +12,7 @@ import java.util.stream.IntStream;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(dafnyVerified = 9, dafnyErrors = 0)
-public class AbstractContracts {
+public class AllMatchContract {
 
     @SuppressWarnings("ConstantValue")
     void foo() {

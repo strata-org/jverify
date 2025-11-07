@@ -40,4 +40,18 @@ public interface Property<T> {
             }
         };
     }
+
+    public static <T> Property<T> finalProperty(T value) {
+        return new Property<T>() {
+            @Override
+            public T get() {
+                return value;
+            }
+
+            @Override
+            public void set(T value) {
+                throw new RuntimeException("can not mutate final property");
+            }
+        };
+    }
 }

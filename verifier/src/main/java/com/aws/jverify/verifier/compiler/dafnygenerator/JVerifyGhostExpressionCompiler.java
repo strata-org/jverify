@@ -214,6 +214,10 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             case "preconditionOf" -> {
                 return handlePreconditionOf(invocation, args);
             }
+            case "isAbstract" -> {
+                reporter.reportError(invocation.getMethodSelect(), "notSupported", "isAbstract() in clauses other than a precondition");
+                return JVerifyUtils.getHole(origin);
+            }
         }
 
         reporter.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
@@ -225,7 +229,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         if (call instanceof JCTree.JCMethodInvocation preconditionOwnerCall) {
             var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
             var method = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
-            var contract = contractCompiler.getContract(MethodOrLoopContractCompiler.getContractBlock(method.body));
+            var contract = contractCompiler.getContract(method.body);
             var precondition = contract.precondition().get();
             
             JCTree.JCFieldAccess access = (JCTree.JCFieldAccess) preconditionOwnerCall.getMethodSelect();

@@ -2,13 +2,9 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
-import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
@@ -16,7 +12,6 @@ import com.sun.tools.javac.util.List;
 
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /*
 Extracts contracts from constructor, method or loop bodies
@@ -43,7 +38,12 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return instance;
     }
 
-    public static JCTree.@Nullable JCBlock getImplementation(JCTree.JCStatement outerBlock) {
+    public static List<JCTree.JCStatement> getImplementationStatements(JCTree.JCStatement outerBlock) {
+        var implementationBlock = getImplementationBlock(outerBlock);
+        return implementationBlock == null ? List.nil() : implementationBlock.getStatements();
+    }
+    
+    public static JCTree.@Nullable JCBlock getImplementationBlock(JCTree.JCStatement outerBlock) {
         JCTree.JCStatement second = ((JCTree.JCBlock)outerBlock).getStatements().get(1);
         if (second instanceof JCTree.JCBlock block) {
             return block;
@@ -222,15 +222,16 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return (JCTree.JCBlock) ((JCTree.JCBlock)outerBlock).getStatements().get(0);
     }
     
-    public MethodOrLoopContract getContract(JCTree.JCBlock contractBlock) {
-        JCTree.JCLiteral trueLiteral = maker.Literal(true);
-        Property<JCTree.JCExpression> trueProperty = finalProperty(trueLiteral);
+    public MethodOrLoopContract getContract(JCTree.JCBlock outerBlock) {
+        var contractBlock = getContractBlock(outerBlock);
+        Property<JCTree.JCExpression> trueProperty = Property.finalProperty(maker.Literal(true));
         Property<JCTree.JCExpression> precondition = trueProperty;
         Property<JCTree.JCExpression> postcondition = trueProperty;
-        Property<JCTree.JCExpression> loopInvariant = trueProperty;
         ArrayList<JCTree.JCExpression> decreases = new ArrayList<>();
-        Property<JCTree.JCExpression> reads = null;
-        Property<JCTree.JCExpression> modifies = null;
+        Property<JCTree.JCExpression> nullProperty = Property.finalProperty(null);
+        Property<JCTree.JCExpression> loopInvariant = nullProperty;
+        Property<JCTree.JCExpression> reads = nullProperty;
+        Property<JCTree.JCExpression> modifies = nullProperty;
                 
         for(var contractStatement : contractBlock.getStatements()) {
             if (!((JCTree.JCStatement) contractStatement instanceof JCTree.JCExpressionStatement expressionStatement
@@ -279,7 +280,6 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A reads call must have exactly one argument");
                     }
-                    var origExpr = invocation.getArguments().getFirst();
                     reads = Property.fromElement(invocation.getArguments(), 0);
                 }
                 case "modifies" -> {
@@ -295,19 +295,5 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         }
         return new MethodOrLoopContract(precondition, postcondition, 
                 loopInvariant, decreases, reads, modifies);
-    }
-    
-    <T> Property<T> finalProperty(T value) {
-        return new Property<T>() {
-            @Override
-            public T get() {
-                return value;
-            }
-
-            @Override
-            public void set(T value) {
-                throw new RuntimeException("can not mutate final property");
-            }
-        };
     }
 }

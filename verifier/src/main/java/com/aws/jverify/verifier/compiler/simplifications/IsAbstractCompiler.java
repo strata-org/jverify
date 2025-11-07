@@ -55,12 +55,12 @@ public class IsAbstractCompiler extends TreeScanner {
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         super.visitMethodDef(tree);
-        var contract = contractCompiler.getContract(MethodOrLoopContractCompiler.getContractBlock(tree.body));
+        var contract = contractCompiler.getContract(tree.body);
         JCTree.JCMethodDecl baseMethod = getBaseMethod(tree);
         var isAbstract = isAbstract(contract.precondition().get());
         boolean isBaseAbstract = false;
         if (baseMethod != null) {
-            var baseContract = contractCompiler.getContract(MethodOrLoopContractCompiler.getContractBlock(baseMethod.body));
+            var baseContract = contractCompiler.getContract(baseMethod.body);
             isBaseAbstract = isAbstract(baseContract.precondition().get());
         }
 

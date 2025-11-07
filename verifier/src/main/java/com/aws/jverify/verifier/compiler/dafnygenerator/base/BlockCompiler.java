@@ -186,7 +186,7 @@ public class BlockCompiler {
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
         var dafnyCondition = expressionCompiler.toExpr(condition, expressionContext);
-        var bodyStatements = translateStatements(MethodOrLoopContractCompiler.getImplementation(body).getStatements());
+        var bodyStatements = translateStatements(MethodOrLoopContractCompiler.getImplementationStatements(body));
         var newBodyStatements = transformBody.apply(bodyStatements);
         return new WhileStmt(origin, null, labels, header.loopInvariants, new Specification<>(header.decreases, null),
                 new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),

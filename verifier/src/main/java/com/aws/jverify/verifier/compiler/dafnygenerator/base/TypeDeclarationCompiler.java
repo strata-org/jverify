@@ -303,7 +303,7 @@ public class TypeDeclarationCompiler {
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
         } else {
-            return translateImpureMethod(method, shouldVerify, contract, MethodOrLoopContractCompiler.getImplementation(method.body).stats);
+            return translateImpureMethod(method, shouldVerify, contract, MethodOrLoopContractCompiler.getImplementationStatements(method.body));
         }
     }
 
