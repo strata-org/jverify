@@ -298,13 +298,12 @@ public class TypeDeclarationCompiler {
         }
 
         var contract = new MethodOrLoopDafnyContract(method, jverifyUtils.isPure(method.sym));
-        var remainingStatements = methodOrLoopContractCompiler.
-                extractContract(baseGenerator, method.body, contract);
+        baseGenerator.toDafnyContract(method.body, contract);
 
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
         } else {
-            return translateImpureMethod(method, shouldVerify, contract, remainingStatements);
+            return translateImpureMethod(method, shouldVerify, contract, MethodOrLoopContractCompiler.getImplementation(method.body).stats);
         }
     }
 

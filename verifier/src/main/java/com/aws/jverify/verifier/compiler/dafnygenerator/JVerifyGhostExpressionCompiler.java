@@ -225,7 +225,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         if (call instanceof JCTree.JCMethodInvocation preconditionOwnerCall) {
             var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
             var method = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
-            var contract = contractCompiler.getContract(method);
+            var contract = contractCompiler.getContract(MethodOrLoopContractCompiler.getContractBlock(method.body));
             var precondition = contract.precondition().get();
             
             JCTree.JCFieldAccess access = (JCTree.JCFieldAccess) preconditionOwnerCall.getMethodSelect();

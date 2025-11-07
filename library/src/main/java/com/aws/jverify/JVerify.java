@@ -158,7 +158,7 @@ public class JVerify {
     }
 
     /**
-     * Provides observational equality. Two values are observational equal if they behave the same on all contexts.
+     * Provides observational equality. Two values are observationally equal if they behave the same on all contexts.
      * For primitive values, jequals behaves the same as `==`
      * For objects such as records and classes,
      * - If the type is impure, jequals behaves like `==`, reference equality

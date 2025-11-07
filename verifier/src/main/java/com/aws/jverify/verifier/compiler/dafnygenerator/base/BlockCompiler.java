@@ -19,7 +19,7 @@ public class BlockCompiler {
     public final Reporter reporter;
     private final ExpressionCompiler expressionCompiler;
     private final NameCompiler nameCompiler;
-    MethodOrLoopContractCompiler methodOrLoopContractCompiler;
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
     private final Symtab symtab;
@@ -181,12 +181,12 @@ public class BlockCompiler {
                                    ExpressionContext expressionContext) {
         var origin = reporter.toOrigin(loop);
         var header = new MethodOrLoopDafnyContract(loop, false);
-        var postHeader = methodOrLoopContractCompiler.extractContract(baseGenerator, (JCTree.JCBlock) body, header);
+        baseGenerator.toDafnyContract(MethodOrLoopContractCompiler.getContractBlock(body), header);
 
         checkLoopHeaderAndSetupLabels(loop, labels, header);
 
         var dafnyCondition = expressionCompiler.toExpr(condition, expressionContext);
-        var bodyStatements = translateStatements(postHeader);
+        var bodyStatements = translateStatements(MethodOrLoopContractCompiler.getImplementation(body).getStatements());
         var newBodyStatements = transformBody.apply(bodyStatements);
         return new WhileStmt(origin, null, labels, header.loopInvariants, new Specification<>(header.decreases, null),
                 new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),
