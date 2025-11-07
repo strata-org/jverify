@@ -35,7 +35,7 @@ public class IsAbstractCompiler extends TreeScanner {
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
         JavacElements  elements = JavacElements.instance(context);
         var jverify = elements.getTypeElement(JVerify.class.getCanonicalName());
-        isAbstract = (Symbol.MethodSymbol)jverify.members().findFirst(names.fromString("isAbstract"));
+        isAbstract = (Symbol.MethodSymbol) utils.findSymbol(JVerify.class, "isAbstract");
     }
     
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
@@ -68,13 +68,15 @@ public class IsAbstractCompiler extends TreeScanner {
             reporter.reportError(contract.precondition().get(), "staticAbstractContract");
             return;
         }
-        
-        if (!isAbstract && isBaseAbstract) {
+
+        boolean implementingAbstractClause = !isAbstract && isBaseAbstract;
+        if (implementingAbstractClause) {
             var preconditionFunction = addPreconditionFunctionFor(tree, contract.precondition().get());
             updatePrecondition(tree, contract, preconditionFunction);
         }
-        
-        if (isAbstract && !isBaseAbstract) {
+
+        boolean introducingAbstractClause = isAbstract && !isBaseAbstract;
+        if (introducingAbstractClause) {
             var preconditionFunction = addPreconditionFunctionFor(tree, null);
             updatePrecondition(tree, contract, preconditionFunction);
         }
@@ -108,7 +110,7 @@ public class IsAbstractCompiler extends TreeScanner {
                                                            JCTree.@Nullable JCExpression precondition) {
         var clazzSymbol = (Symbol.ClassSymbol)tree.sym.getEnclosingElement();
         var clazz = (JCTree.JCClassDecl)index.getTree(clazzSymbol);
-        Name preconditionName = names.fromString("preconditionOf$").append(tree.name);
+        Name preconditionName = names.fromString("thePreconditionOf$").append(tree.name);
         Type methodType = tree.sym.type;
 
         var preconditionMethodSymbol = new Symbol.MethodSymbol(Flags.PUBLIC, preconditionName, new Type.MethodType(

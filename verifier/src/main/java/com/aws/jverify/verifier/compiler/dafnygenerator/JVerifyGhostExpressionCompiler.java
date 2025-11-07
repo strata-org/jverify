@@ -211,9 +211,6 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 var right = expressionCompiler.toExpr(args.get(1), ExpressionContext.Pure);
                 return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
             }
-            case "preconditionOf" -> {
-                return handlePreconditionOf(invocation, args);
-            }
             case "isAbstract" -> {
                 reporter.reportError(invocation.getMethodSelect(), "notSupported", "isAbstract() in clauses other than a precondition");
                 return JVerifyUtils.getHole(origin);
@@ -222,48 +219,6 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
 
         reporter.reportError(invocation.getMethodSelect(), "notSupported", "library method %s".formatted(jverifyMethod));
         return JVerifyUtils.getHole(origin);
-    }
-
-    private Expression handlePreconditionOf(JCTree.JCMethodInvocation invocation, com.sun.tools.javac.util.List<JCTree.JCExpression> args) {
-        var call = args.getFirst();
-        if (call instanceof JCTree.JCMethodInvocation preconditionOwnerCall) {
-            var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
-            var method = (JCTree.JCMethodDecl)index.getTree(methodSymbol);
-            var contract = contractCompiler.getContract(method.body);
-            var precondition = contract.precondition().get();
-            
-            JCTree.JCFieldAccess access = (JCTree.JCFieldAccess) preconditionOwnerCall.getMethodSelect();
-            Map<Symbol.VarSymbol, JCTree.JCExpression> mapping = new HashMap<>();
-            var params = method.getParameters();
-            for (int i = 0; i < params.size(); i++) {
-                var param = params.get(i);
-                var arg = preconditionOwnerCall.args.get(i);
-                mapping.put(param.sym, arg);
-            }
-            class ExpressionRewriter extends AttributedTreeCopier {
-                public ExpressionRewriter(TreeMaker maker) {
-                    super(maker);
-                }
-
-                @Override
-                public JCTree visitIdentifier(IdentifierTree node, Void p) {
-                    JCTree.JCIdent identifier = (JCTree.JCIdent) node;
-                    if (identifier.name == names._this) {
-                        return access.getExpression();
-                    }
-                    var newValue = mapping.get(identifier.sym);
-                    if (newValue != null) {
-                        return newValue;
-                    } else {
-                        return super.visitIdentifier(node, p);
-                    }
-                }
-            }
-            var newPrecondition = precondition.accept(new ExpressionRewriter(treeMaker), null);
-            return expressionCompiler.toExpr(newPrecondition, ExpressionContext.Pure);
-        }
-        reporter.reportError(invocation, "preconditionOf argument must be a method call");
-        return null;
     }
 
     private SeqSelectExpr toSubsequence(IOrigin origin, JCTree.JCExpression seqOrArray, JCTree.@Nullable JCExpression lo, JCTree.@Nullable JCExpression hi) {

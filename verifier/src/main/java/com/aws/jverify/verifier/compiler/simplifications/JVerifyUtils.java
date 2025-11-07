@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.ContractException;
+import com.aws.jverify.JVerify;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.generated.IOrigin;
@@ -59,6 +60,11 @@ public class JVerifyUtils {
                 methodSymbol.owner.type,          // type (the enclosing class type)
                 methodSymbol                      // owner (the method)
         );
+    }
+    
+    public Symbol findSymbol(Class<?> container, String name) {
+        var jverify = elements.getTypeElement(container.getCanonicalName());
+        return jverify.members().findFirst(names.fromString(name));
     }
 
     public Symbol.ClassSymbol getPureClassSymbol() {

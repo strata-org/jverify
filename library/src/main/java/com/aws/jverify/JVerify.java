@@ -73,15 +73,6 @@ public class JVerify {
     public static <T> boolean preconditionOf(T value) {
         throw new ContractException();
     }
-
-    /**
-     * Takes the precondition of the given expression
-     * and applies that to the current method 
-     */
-    // TODO document why we can't use the generic 'preconditionOf': issue with the casting that Lower introduces
-    public static boolean preconditionOf(boolean value) {
-        throw new ContractException();
-    }
     
     /** 
      * Takes the precondition of the given expression
