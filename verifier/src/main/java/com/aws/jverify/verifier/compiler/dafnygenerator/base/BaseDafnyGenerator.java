@@ -478,10 +478,10 @@ public class BaseDafnyGenerator implements DafnyGenerator {
 
 
     public void toDafnyContract(
-        JCTree.JCBlock contractBlock,
+        JCTree.JCBlock outerBlock,
         MethodOrLoopDafnyContract dafnyContract)
     {
-        var contract = methodOrLoopContractCompiler.getContract(contractBlock);
+        var contract = methodOrLoopContractCompiler.getContract(outerBlock);
         dafnyContract.preconditions.add(new AttributedExpression(
                 expressionCompiler.toExpr(contract.precondition().get(), ExpressionContext.Pure), null, null));
         handlePostcondition(dafnyContract, contract.postcondition().get());
@@ -501,6 +501,13 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         if (modifiesJavaExpr != null) {
             Expression modifiesExpr = expressionCompiler.toExpr(modifiesJavaExpr, ExpressionContext.Pure);
             dafnyContract.modifies.add(new FrameExpression(modifiesExpr.getOrigin(), modifiesExpr, null));
+        }
+
+        var implementation = MethodOrLoopContractCompiler.getImplementationStatements(outerBlock);
+        if (dafnyContract.isPure) {
+            if (!implementation.isEmpty()) {
+                dafnyContract.pureBody = expressionCompiler.toExprWithFlows(implementation, ExpressionContext.Pure);
+            }
         }
     }
 

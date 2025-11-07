@@ -44,7 +44,11 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
     
     public static JCTree.@Nullable JCBlock getImplementationBlock(JCTree.JCStatement outerBlock) {
-        JCTree.JCStatement second = ((JCTree.JCBlock)outerBlock).getStatements().get(1);
+        List<JCTree.JCStatement> outerStatements = ((JCTree.JCBlock) outerBlock).getStatements();
+        if (outerStatements.size() < 2) {
+            return null;
+        }
+        JCTree.JCStatement second = outerStatements.get(1);
         if (second instanceof JCTree.JCBlock block) {
             return block;
         }

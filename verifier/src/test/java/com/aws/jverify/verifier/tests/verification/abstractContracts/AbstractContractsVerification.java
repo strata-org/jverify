@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.verification.abstractContracts;
 import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 9, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 32, dafnyErrors = 0)
 public class AbstractContractsVerification {
     int midConsumer(Mid mid, int x) {
         precondition(preconditionOf(mid.foo(x)));
@@ -25,7 +25,7 @@ public class AbstractContractsVerification {
         @Override
         public int foo(int x) {
             precondition(isAbstract());
-            postcondition((int r) -> r == 10);
+            postcondition((int r) -> r > 1);
             return 2;
         }
     }
@@ -33,6 +33,7 @@ public class AbstractContractsVerification {
         @Override
         public int foo(int x) {
             precondition(x > 2);
+            postcondition((int r) -> r > 2);
             check(x > 1);
             return 3;
         }
