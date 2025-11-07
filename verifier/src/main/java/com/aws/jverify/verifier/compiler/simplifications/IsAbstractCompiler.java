@@ -23,6 +23,7 @@ public class IsAbstractCompiler extends TreeScanner {
     private final Types types;
     private final Symtab symtab;
     private final MethodOrLoopContractCompiler contractCompiler;
+    private Name preconditionMethodPrefix;
 
     public IsAbstractCompiler(Context context) {
         symtab = Symtab.instance(context);
@@ -34,8 +35,8 @@ public class IsAbstractCompiler extends TreeScanner {
         index = JVerifyIndex.instance(context);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
         JavacElements  elements = JavacElements.instance(context);
-        var jverify = elements.getTypeElement(JVerify.class.getCanonicalName());
         isAbstract = (Symbol.MethodSymbol) utils.findSymbol(JVerify.class, "isAbstract");
+        preconditionMethodPrefix = names.fromString("thePreconditionOf$");
     }
     
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
@@ -49,7 +50,8 @@ public class IsAbstractCompiler extends TreeScanner {
         if (!(expression instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
         }
-        return isAbstract == TreeInfo.symbol(invocation.getMethodSelect());
+        Symbol calledMethod = TreeInfo.symbol(invocation.getMethodSelect());
+        return isAbstract == calledMethod || calledMethod.name.startsWith(preconditionMethodPrefix);
     }
 
     @Override
@@ -75,15 +77,14 @@ public class IsAbstractCompiler extends TreeScanner {
             updatePrecondition(tree, contract, preconditionFunction);
         }
 
-        boolean introducingAbstractClause = isAbstract && !isBaseAbstract;
-        if (introducingAbstractClause) {
+        if (isAbstract) {
             var preconditionFunction = addPreconditionFunctionFor(tree, null);
             updatePrecondition(tree, contract, preconditionFunction);
         }
     }
 
     private JCTree.JCMethodDecl getBaseMethod(JCTree.JCMethodDecl tree) {
-        var baseSymbol = tree.sym.implemented(tree.sym.enclClass(), types);
+        var baseSymbol = utils.getBase(tree.sym);
         if (baseSymbol == null) {
             return null;
         }
@@ -92,12 +93,7 @@ public class IsAbstractCompiler extends TreeScanner {
 
     private void updatePrecondition(JCTree.JCMethodDecl tree, MethodOrLoopContract contract, 
                                     Symbol.MethodSymbol preconditionFunction) {
-        Symbol.VarSymbol thisSymbol = new Symbol.VarSymbol(
-                Flags.FINAL | Flags.PARAMETER, // flags
-                names._this,                    // name
-                tree.sym.owner.type,          // type (the enclosing class type)
-                tree.sym                      // owner (the method)
-        );
+        var thisSymbol = utils.thisSymbol(tree.sym);
 
         JCTree.JCMethodInvocation application = treeMaker.Apply(null /* TODO */,
                 treeMaker.Select(treeMaker.Ident(thisSymbol), preconditionFunction),
@@ -110,7 +106,7 @@ public class IsAbstractCompiler extends TreeScanner {
                                                            JCTree.@Nullable JCExpression precondition) {
         var clazzSymbol = (Symbol.ClassSymbol)tree.sym.getEnclosingElement();
         var clazz = (JCTree.JCClassDecl)index.getTree(clazzSymbol);
-        Name preconditionName = names.fromString("thePreconditionOf$").append(tree.name);
+        Name preconditionName = preconditionMethodPrefix.append(tree.name);
         Type methodType = tree.sym.type;
 
         var preconditionMethodSymbol = new Symbol.MethodSymbol(Flags.PUBLIC, preconditionName, new Type.MethodType(
@@ -120,7 +116,8 @@ public class IsAbstractCompiler extends TreeScanner {
         ).stream().collect(List.collector());
         
         JCTree.JCBlock body = treeMaker.Block(0, contractCompiler.getOuterBlockStatements(
-                List.nil(), precondition == null ? List.nil() : java.util.List.of(treeMaker.Return(precondition))));
+                List.nil(), precondition == null ? List.nil() : 
+                        java.util.List.of(treeMaker.Return(precondition))));
         
         Symbol.ClassSymbol pureSymbol = utils.getPureClassSymbol();
         JCTree.JCMethodDecl preconditionMethod = treeMaker.MethodDef(preconditionMethodSymbol, body);

@@ -16,14 +16,14 @@ public class AbstractContractsVerification {
     }
     
     static class Inner {
-        int foo(int x) {
+        public int foo(int x) {
             precondition(isAbstract());
             return 1;
         }
     }
     static class Mid extends Inner {
         @Override
-        int foo(int x) {
+        public int foo(int x) {
             precondition(isAbstract());
             postcondition((int r) -> r == 10);
             return 2;
@@ -31,7 +31,7 @@ public class AbstractContractsVerification {
     }
     static class Outer extends Mid {
         @Override
-        int foo(int x) {
+        public int foo(int x) {
             precondition(x > 2);
             check(x > 1);
             return 3;

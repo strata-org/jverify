@@ -1,7 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.ContractException;
-import com.aws.jverify.JVerify;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.generated.IOrigin;
@@ -19,6 +18,7 @@ import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JVerifyUtils {
 
@@ -51,6 +51,22 @@ public class JVerifyUtils {
         value.sym = symtab.booleanType.tsym;
         return maker.Annotation(maker.Ident(verifySymbol), List.of(
                 maker.Assign(value, maker.Literal(false))));
+    }
+    
+    public Symbol.MethodSymbol getBase(Symbol.MethodSymbol method) {
+        for(var superType : types.closure(method.enclClass().type)) {
+            if (superType.tsym == method.enclClass()) {
+                continue;
+            }
+        
+            for (Symbol member : superType.tsym.members().getSymbolsByName(method.name)) {
+                if (member instanceof Symbol.MethodSymbol baseMethod &&
+                        elements.overrides(method, baseMethod, (Symbol.ClassSymbol)baseMethod.owner)) {
+                    return baseMethod;
+                }
+            }
+        }
+        return null;
     }
     
     public Symbol.VarSymbol thisSymbol(Symbol.MethodSymbol methodSymbol) {
