@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.*;
 class InterfacesVerification {
     public void root(I i) {
         var a = i.f(1);
-//              ^^^^^^ Error: function preconditions could not be proved
+//              ^^^^^^ Error: function precondition could not be proved
         var b = i.m();
         check(b > 2);
     }

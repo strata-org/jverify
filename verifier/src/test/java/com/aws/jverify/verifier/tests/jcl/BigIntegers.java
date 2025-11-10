@@ -48,8 +48,8 @@ class BigIntegers {
     static void testConstructorNegative() {
         BigInteger bi = new BigInteger("23456");
         check(bi.intValue() == 23456);
-//            ^^^^^^^^^^^^^ Error: function preconditions could not be proved
-//            ^^^^^^^^^^^^^ Error: function preconditions could not be proved        
+//            ^^^^^^^^^^^^^ Error: function precondition could not be proved
+//            ^^^^^^^^^^^^^ Error: function precondition could not be proved        
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 

@@ -31,7 +31,7 @@ public class CollectionsTest {
     void listPreconditionFails() {
         var s = List.of("one", "two");
         var x = s.get(2);
-//              ^^^^^^^^ Error: function preconditions could not be proved
+//              ^^^^^^^^ Error: function precondition could not be proved
     }
 
     void setVerifying() {
