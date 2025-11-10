@@ -31,9 +31,7 @@ public class AbstractContractsErrors {
         void usesPreconditionOf(int x) {
             precondition(
                     preconditionOf(noPrecondition()) && 
-//                                ^ error: target of preconditionOf must have a single precondition
                     preconditionOf(twoPreconditions(x)));
-//                                ^ error: target of preconditionOf must have a single precondition
         }
     }
 }
