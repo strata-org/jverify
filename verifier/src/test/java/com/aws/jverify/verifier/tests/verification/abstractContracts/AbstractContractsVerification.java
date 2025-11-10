@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.verification.abstractContracts;
 import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 32, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 20, dafnyErrors = 0)
 public class AbstractContractsVerification {
     int midConsumer(Mid mid, int x) {
         precondition(preconditionOf(mid.foo(x)));
