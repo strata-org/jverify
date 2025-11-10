@@ -48,3 +48,4 @@ ghost function intStreamReduce<R extends Object>(values: seq<int>, seed: R, accu
 
 ghost function intSequenceRange(inclusiveFrom: int, exclusiveTo: int): seq<int> {
   seq(exclusiveTo - inclusiveFrom, i => i + inclusiveFrom)
+}

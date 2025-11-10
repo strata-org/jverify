@@ -247,18 +247,18 @@ public class ExternalContractCompiler {
                     updateLibraryContractAnnotations(methodDecl, baseMethod);
                     index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
                     contractSymbolToContractee.put(methodDecl.sym, baseMethod);
-                    baseMethod.type = types.subst(methodDecl.type, methodDecl.sym.owner.type.allparams(), baseMethod.owner.type.allparams()); // allow changing types
+                    // baseMethod.type = types.subst(methodDecl.type, methodDecl.sym.owner.type.allparams(), baseMethod.owner.type.allparams()); // allow changing types
                     methodDecl.sym = baseMethod;
-                    methodDecl.type = baseMethod.type;
+                    // methodDecl.type = baseMethod.type;
                 } else {
                     // We are adding an override through the contract class, and this needs its own symbol
                     var newSymbol = new Symbol.MethodSymbol(baseMethod.flags(), baseMethod.name, baseMethod.type, contracteeSymbol);
                     updateLibraryContractAnnotations(methodDecl, newSymbol);
                     index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
                     contractSymbolToContractee.put(methodDecl.sym, newSymbol);
-                    baseMethod.type = types.subst(methodDecl.type, methodDecl.sym.owner.type.allparams(), baseMethod.owner.type.allparams()); // allow changing types
+                    // baseMethod.type = types.subst(methodDecl.type, methodDecl.sym.owner.type.allparams(), baseMethod.owner.type.allparams()); // allow changing types
                     methodDecl.sym = newSymbol;
-                    methodDecl.type = baseMethod.type;
+                    // methodDecl.type = baseMethod.type;
                 }
                 newMembers.add(methodDecl);
             } else {

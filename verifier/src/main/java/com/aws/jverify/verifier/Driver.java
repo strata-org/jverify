@@ -137,8 +137,11 @@ public class Driver {
                     continue;
                 }
 
-                var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri)
-                        .findAtPoint((int) dafnyDiagnostic.getLineNumber());
+                var uriMethods = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri);
+                if (uriMethods == null) {
+                    continue;
+                }
+                var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
                 if (failedJavaMethod != null) {
                     failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
                 }
@@ -148,7 +151,6 @@ public class Driver {
         if (verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage() != null) {
             outputWriter.write(verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage());
         }
-
 
         /*
          * checks for the following:
@@ -180,7 +182,6 @@ public class Driver {
                 outputWriter.write('\n');
             }
 
-
             var verifiedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
                     .flatMap(IntervalTree::streamNodes)
                     .filter(node -> node.getValue().getVerificationStatus()
@@ -190,7 +191,6 @@ public class Driver {
                 outputWriter.write(String.format("%sVerified: %s",bullet, verifiedCount));
                 outputWriter.write('\n');
             }
-
 
             var failedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
                     .flatMap(IntervalTree::streamNodes)
