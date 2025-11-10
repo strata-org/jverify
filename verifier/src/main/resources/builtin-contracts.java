@@ -504,6 +504,7 @@ abstract class IntPredicateContract implements IntPredicate {
     
     @Pure
     public boolean test(int value) {
+        precondition(isAbstract());
         throw new ContractException();
     }
 }
@@ -739,20 +740,19 @@ abstract class IntStreamContract implements IntStream {
     public IntStreamContract(IntSequence values) {
         this.values = values;
     }
-    // TODO add error when putting a nested class inside a class that's contracting an interface.
-    // Since that will lead to downstream errors. Or else we need to fix that with a Lower patch
-    // Should I use interfaces to contract interfaces???
-    // But then you can't add fields.
     
-    // TODO: because the owner (IntStream) is an interface, this is automatically static and can't reference values without crashing Lower.class
     @Pure
-    public boolean allMatch(@OriginalType(IntPredicate.class) AllMatchPredicate predicate) {
-        precondition(predicate.intStream == this);
+    public boolean allMatch(IntPredicate predicate) {
+        precondition(JVerify.forall((int i) ->
+                implies(values.contains(i),
+                        preconditionOf(predicate.test(i)))
+        ));
         return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
     }
 
     @Pure
     public static IntStream range(int startInclusive, int endExclusive) {
+        precondition(startInclusive <= endExclusive);
         postcondition((IntStreamContract c) -> jequals(c.values, JVerify.range(startInclusive, endExclusive)));
         throw new ContractException();
     }

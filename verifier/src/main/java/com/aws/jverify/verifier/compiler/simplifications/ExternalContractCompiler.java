@@ -420,23 +420,10 @@ public class ExternalContractCompiler {
     }
 
     private Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {
-        var methodType = types.createMethodTypeWithParameters(method.type,
-                method.params.stream().map(v -> {
-                    var originalType = v.type.getAnnotation(OriginalType.class);
-                    if (originalType == null) {
-                        return v.type;
-                    }
-                    try {
-                        originalType.value(); // This will throw
-                    } catch (MirroredTypeException mte) {
-                        return (Type.ClassType)mte.getTypeMirror();
-                    }
-                    return elements.getTypeElement(originalType.value().getCanonicalName()).type;
-                }).collect(List.collector()));
         for(var part : types.closure(contractee.type)) {
             for (Symbol member : part.tsym.members().getSymbolsByName(method.name)) {
                 if (member instanceof Symbol.MethodSymbol candidate) {
-                    if (types.isSubSignature(types.erasure(member.type), types.erasure(methodType))) {
+                    if (types.isSubSignature(types.erasure(member.type), types.erasure(method.type))) {
                         return candidate;
                     }
                 }
