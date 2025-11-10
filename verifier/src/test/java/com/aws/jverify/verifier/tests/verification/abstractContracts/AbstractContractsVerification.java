@@ -1,6 +1,9 @@
 package com.aws.jverify.verifier.tests.verification.abstractContracts;
 
 import com.aws.jverify.testengine.JVerifyTest;
+
+import javax.xml.XMLConstants;
+
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(dafnyVerified = 20, dafnyErrors = 0)
@@ -37,5 +40,33 @@ public class AbstractContractsVerification {
             check(x > 1);
             return 3;
         }
+    }
+    
+    static class OuterWithoutPrecondition extends Mid {
+        @Override
+        public int foo(int x) {
+            postcondition((int r) -> r > 2);
+            return 3;
+        }
+    }
+
+    int outerWithoutPreconditionConsumer(OuterWithoutPrecondition outer, int x) {
+        return midConsumer(outer, x);
+    }
+    
+    void testPreconditionOfOnMultiplePreconditions() {
+        usePreconditionOfOnMultiplePreconditions(0);
+        usePreconditionOfOnMultiplePreconditions(3);
+        usePreconditionOfOnMultiplePreconditions(11);
+    }
+
+    void usePreconditionOfOnMultiplePreconditions(int x) {
+        precondition(preconditionOf(multiplePreconditions(x)));
+    }
+
+    int multiplePreconditions(int x) {
+        precondition(x > 2);
+        precondition(x < 10);
+        return 3;
     }
 }
