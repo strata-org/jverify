@@ -1,6 +1,13 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.verifier.compiler.Reporter;
+import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.code.Type;
+import com.sun.tools.javac.comp.*;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.util.Context;
 
 import java.util.List;
 
@@ -11,4 +18,26 @@ public record MethodOrLoopContract(
         List<JCTree.JCExpression> decreases,
         List<Property<JCTree.JCExpression>> reads,
         List<Property<JCTree.JCExpression>> modifies) {
+    
+    public static JCTree.JCExpression combineClauses(Context context, 
+                                                     List<Property<JCTree.JCExpression>> clauses) {
+        var treeMaker = TreeMaker.instance(context);
+        Attr attr = Attr.instance(context);
+        Enter enter = Enter.instance(context);
+        Reporter reporter = Reporter.instance(context);
+
+        return clauses.stream().map(Property::get).
+                reduce((a,b) -> {
+                    // Use temporary arguments to binary so we can easily attribute Binary
+                    var trueLiteral = treeMaker.Literal(true);
+                    JCTree.JCBinary binary = treeMaker.Binary(JCTree.Tag.AND, trueLiteral, trueLiteral);
+                    Env<AttrContext> env = enter.getTopLevelEnv(reporter.compilationUnit);
+                    attr.attribExpr(binary, env, Type.noType);
+                    // Replace temporary arguments
+                    binary.lhs = a;
+                    binary.rhs = b;
+                    return binary;
+                }).
+                orElse(treeMaker.Literal(true));
+    }
 }

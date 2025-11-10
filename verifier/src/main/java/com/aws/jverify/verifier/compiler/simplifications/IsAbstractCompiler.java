@@ -25,9 +25,11 @@ public class IsAbstractCompiler extends TreeScanner {
     private final Types types;
     private final Symtab symtab;
     private final MethodOrLoopContractCompiler contractCompiler;
+    private final Context context;
     private Name preconditionMethodPrefix;
 
     public IsAbstractCompiler(Context context) {
+        this.context = context;
         symtab = Symtab.instance(context);
         names = Names.instance(context);
         treeMaker = TreeMaker.instance(context);
@@ -83,8 +85,11 @@ public class IsAbstractCompiler extends TreeScanner {
 
         boolean implementingAbstractClause = !isAbstract && isBaseAbstract;
         if (implementingAbstractClause) {
-            var preconditionFunction = addPreconditionFunctionFor(tree, contract.preconditions().getFirst().get());
-            updatePrecondition(tree, contract, preconditionFunction);
+            var precondition = MethodOrLoopContract.combineClauses(context, contract.preconditions());
+            var preconditionFunction = addPreconditionFunctionFor(tree, precondition);
+            if (!contract.preconditions().isEmpty()) {
+                updatePrecondition(tree, contract, preconditionFunction);
+            }
         }
 
         if (isAbstract) {

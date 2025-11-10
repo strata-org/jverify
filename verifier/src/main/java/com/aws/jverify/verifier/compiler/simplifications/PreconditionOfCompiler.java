@@ -23,12 +23,14 @@ public class PreconditionOfCompiler extends TreeTranslator {
     private final JVerifyIndex index;
     private final JVerifyUtils utils;
     private final Symtab symtab;
+    private final Context context;
     private final Names names;
     private final MethodOrLoopContractCompiler contractCompiler;
     
     private final Symbol preconditionOf;
 
     public PreconditionOfCompiler(Context context) {
+        this.context = context;
         names = Names.instance(context);
         treeMaker = TreeMaker.instance(context);
         reporter = Reporter.instance(context);
@@ -67,15 +69,9 @@ public class PreconditionOfCompiler extends TreeTranslator {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
         var method = (JCTree.JCMethodDecl) index.getTree(methodSymbol);
         var contract = contractCompiler.getContract(method.body);
-        if (contract.preconditions().size() != 1) {
-            reporter.reportError(invocation, "preconditionOfTargetMustHaveSinglePrecondition");
-            result = treeMaker.Literal(true);
-            result.type = symtab.booleanType;
-            return;
-        }
-        var precondition = contract.preconditions().getFirst().get();
+        var precondition = MethodOrLoopContract.combineClauses(context, contract.preconditions());
 
-        JCTree.JCFieldAccess access = (JCTree.JCFieldAccess) preconditionOwnerCall.getMethodSelect();
+        var fieldAccess = preconditionOwnerCall.getMethodSelect() instanceof JCTree.JCFieldAccess f ? f : null;
         Map<Symbol.VarSymbol, JCTree.JCExpression> replacements = new HashMap<>();
         var params = method.getParameters();
         for (int i = 0; i < params.size(); i++) {
@@ -91,8 +87,8 @@ public class PreconditionOfCompiler extends TreeTranslator {
             @Override
             public JCTree visitIdentifier(IdentifierTree node, Void p) {
                 JCTree.JCIdent identifier = (JCTree.JCIdent) node;
-                if (identifier.name == names._this) {
-                    return access.getExpression();
+                if (fieldAccess != null && identifier.name == names._this) {
+                    return fieldAccess.getExpression();
                 }
                 var newValue = replacements.get(identifier.sym);
                 if (newValue != null) {
