@@ -149,12 +149,15 @@ public class JVerify {
     }
 
     /**
-     * Provides observational equality. Two values are observationally equal if they behave the same on all contexts.
+     * Provides observational equality. Two values are observationally equal if they can not be distinguished.
      * For primitive values, jequals behaves the same as `==`
-     * For objects such as records and classes,
+     * For objects such as records and classes:
      * - If the type is impure, jequals behaves like `==`, reference equality
-     * - If the type is pure, jequals behaves as shallow structural equality. Because JVerify makes using `==`, 
-     * reference equality, illegal on pure types, structural equality also means observational equality. 
+     * - If the type is pure, jequals behaves as structural equality, 
+     * recursively testing for observational equality on all its fields. 
+     * For pure types, shallow structural equality implies observational equality, because:
+     * - JVerify makes using `==` (reference equality) illegal
+     * - pure types only have immutable fields
      */
     public static <T> boolean jequals(T left, T right) {
         throw new VerificationMethodExecutedException();
