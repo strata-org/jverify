@@ -252,7 +252,7 @@ public class NameCompiler extends TreeScanner {
             if (superType.tsym != clazz) {
                 for (Symbol member : superType.tsym.members().getSymbolsByName(name)) {
                     if (method != null && member instanceof Symbol.MethodSymbol methodSymbol && 
-                            elements.overrides(method, methodSymbol, (Symbol.ClassSymbol)method.owner)) {
+                            elements.overrides(method, methodSymbol, (Symbol.ClassSymbol)methodSymbol.owner)) {
                         // method overrides do not cause name collisions
                         continue;
                     }

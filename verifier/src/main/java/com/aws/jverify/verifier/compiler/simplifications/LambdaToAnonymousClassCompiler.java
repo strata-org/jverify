@@ -2,7 +2,9 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
+import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
@@ -10,6 +12,7 @@ import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
+import net.bytebuddy.asm.Advice;
 
 import java.util.*;
 
@@ -25,12 +28,16 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private final JavacElements elements;
     private final Names names;
     private final Types types;
+    private final Enter enter;
+    private final JVerifyIndex index;
     private final Context context;
 
     public LambdaToAnonymousClassCompiler(JCCompilationUnit compilationUnit, Context context) {
         this.compilationUnit = compilationUnit;
         this.maker = TreeMaker.instance(context);
         this.elements = JavacElements.instance(context);
+        index = JVerifyIndex.instance(context);
+        enter = Enter.instance(context);
         this.names = Names.instance(context);
         this.types = Types.instance(context);
         this.context = context;
@@ -153,6 +160,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         );
         classDef.sym = classSymbol;
         classDef.type = classSymbol.type;
+        index.put(classSymbol, enter.classEnv(classDef, enter.getTopLevelEnv(compilationUnit)));
         return classDef;
     }
 
@@ -204,6 +212,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 null
         );
         result.sym = methodSymbol;
+        result.type = methodSymbol.type;
 
         for(var param : lambda.params) {
             param.sym.owner = result.sym;

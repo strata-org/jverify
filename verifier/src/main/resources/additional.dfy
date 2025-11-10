@@ -46,6 +46,5 @@ ghost function intStreamReduce<R extends Object>(values: seq<int>, seed: R, accu
     accumulator.apply(Integer?static.valueOf(values[minusOne]), rec)
 }
 
-ghost function sequenceRange(inclusiveFrom: int, exclusiveTo: int): seq<int> {
+ghost function intSequenceRange(inclusiveFrom: int, exclusiveTo: int): seq<int> {
   seq(exclusiveTo - inclusiveFrom, i => i + inclusiveFrom)
-}

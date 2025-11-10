@@ -14,7 +14,6 @@ import com.sun.tools.javac.util.List;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
-import javax.tools.JavaFileObject;
 import java.util.*;
 
 import static com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator.JVERIFY_PACKAGE;
@@ -48,7 +47,7 @@ public class MissingContractCompiler {
         internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
     
-    public Set<JCTree.JCCompilationUnit> compile(Set<JCTree.JCCompilationUnit> units) {
+    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> units) {
         var finder = new SymbolReferenceFinder();
         for(var unit : units) {
             finder.visitTopLevel(unit);

@@ -62,6 +62,14 @@ public class JVerify {
     public static void postcondition(IntPredicate predicate) {
     }
 
+    /**
+     * Takes the precondition of the given expression
+     * and applies that to the current method 
+     */
+    public static <T> boolean preconditionOf(T value) {
+        throw new ContractException();
+    }
+    
     /** 
      * Takes the precondition of the given expression
      * and applies that to the current method 
@@ -75,6 +83,10 @@ public class JVerify {
 
     public static boolean callIfAble(Runnable action) {
         throw new ContractException();
+    }
+
+    public static IntSequence range(int startInclusive, int endExclusive) {
+        throw new VerificationMethodExecutedException();
     }
 
     public static interface BooleanPredicate {
@@ -110,7 +122,7 @@ public class JVerify {
      * A subclass of the current clause can implement that abstract clause
      * By redefining it and filling in a value
      */
-    public static Object isAbstract() {
+    public static <T> T isAbstract() {
         throw new VerificationMethodExecutedException();
     }
 
@@ -133,13 +145,15 @@ public class JVerify {
     }
 
     /**
-     * TODO decide whether this should exist or not
-     * and if it does add documentation
-     * And even if we remove jequals, it might be good to add documentation on Dafny's == somewhere
-     * To clarify when it resolves to:
-     * - reference equality
-     * - shallow equality
-     * - undefined equality
+     * Provides observational equality. Two values are observationally equal if they can not be distinguished.
+     * For primitive values, jequals behaves the same as `==`
+     * For objects such as records and classes:
+     * - If the type is impure, jequals behaves like `==`, reference equality
+     * - If the type is pure, jequals behaves as structural equality, 
+     * recursively testing for observational equality on all its fields. 
+     * For pure types, shallow structural equality implies observational equality, because:
+     * - JVerify makes using `==` (reference equality) illegal
+     * - pure types only have immutable fields
      */
     public static <T> boolean jequals(T left, T right) {
         throw new VerificationMethodExecutedException();
@@ -238,10 +252,6 @@ public class JVerify {
      * Same as {@link #sequence(Object[], int, int)}, but for a primitive {@code int} array.
      */
     public static IntSequence sequence(int[] array, int fromIndex, int toIndex) {
-        throw new VerificationMethodExecutedException();
-    }
-
-    public static IntSequence range(int fromInclusive, int toExclusive) {
         throw new VerificationMethodExecutedException();
     }
 

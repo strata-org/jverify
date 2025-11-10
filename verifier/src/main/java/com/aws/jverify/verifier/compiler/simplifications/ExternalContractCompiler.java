@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.*;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.AttrContext;
@@ -58,7 +57,7 @@ public class ExternalContractCompiler {
         this.elements = JavacElements.instance(context);
     }
 
-    public Set<JCTree.JCCompilationUnit> apply(Set<JCTree.JCCompilationUnit> compilationUnits) {
+    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit : compilationUnits) {
             var moveSourceContracts = new FindAndMoveContracts();
             moveSourceContracts.visitTopLevel(unit);
@@ -203,6 +202,8 @@ public class ExternalContractCompiler {
 
             var oldSymbol = classDecl.sym;
             oldSymbol.name = contracteeSymbol.name;
+            // If we don't change the name here, it is still changed in Lower.java
+            classDecl.name = oldSymbol.name;
             classDecl.sym = contracteeSymbol;
             classDecl.type = contracteeSymbol.type;
 
@@ -307,7 +308,7 @@ public class ExternalContractCompiler {
             var shouldVerify = false;
             boolean pure = jverifyUtils.isPure(methodSymbol);
             if (pure) {
-                var implementation = MethodOrLoopContractCompiler.getImplementation(methodDecl);
+                var implementation = MethodOrLoopContractCompiler.getImplementationBlock(methodDecl.body);
                 if (implementation != null)
                     if (implementation.getStatements().size() == 1) {
                         var statement = implementation.getStatements().getFirst();

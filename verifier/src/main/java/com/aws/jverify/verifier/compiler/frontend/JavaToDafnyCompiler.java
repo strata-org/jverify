@@ -68,12 +68,12 @@ public class JavaToDafnyCompiler {
         builtinSources.add(contractSource);
         files.add(contractSource);
 
-        Set<JCTree.JCCompilationUnit> parsedSet = parseResolveAndDesugarJava(options, files);
-        if (parsedSet == null) {
+        Set<JCTree.JCCompilationUnit> loweredJava = parseResolveAndDesugarJava(options, files);
+        if (loweredJava == null) {
             return new FilesContainer(List.of());
         }
 
-        var parsed = new ArrayList<>(parsedSet);
+        var parsed = new ArrayList<>(loweredJava);
         var libraries = parsed.stream().filter(u -> builtinSources.contains(u.getSourceFile())).collect(Collectors.toSet());
 
         return dafnyGenerator.generateDafny(parsed, libraries);
@@ -192,24 +192,25 @@ public class JavaToDafnyCompiler {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
+                    Set<JCTree.JCCompilationUnit> remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
+                    
+                    List<UnitsCompiler> phases = new ArrayList<>();
+                    phases.add(JavaToDafnyCompiler.this::unlambda);
+                    phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
+                    phases.add(new ExternalContractCompiler(context)::transform);
+                    phases.add(VerifyAnnotationCompiler.instance(context)::transform);
+                    phases.add(new MissingContractCompiler(context)::transform);
+                    phases.add(new IsAbstractCompiler(context)::transform);
+                    phases.add(new PreconditionOfCompiler(context)::transform);
+                    phases.add(us -> unsuspend(lower(suspend(us))));
+                    phases.add(new ArrayCompiler(context)::transform);
+                    phases.add(new MoveStaticMethodsToStaticType(context)::translate);
 
-                    var staticMover = new MoveStaticMethodsToStaticType(context);
-                    var externalContractCompiler = new ExternalContractCompiler(context);
-                    var missingContractCompiler = new MissingContractCompiler(context);
-                    var newMethodContractCompiler = MethodOrLoopContractCompiler.instance(context);
-                    var verifyAnnotationCompiler = VerifyAnnotationCompiler.instance(context);
-                    var arrayCompiler = new ArrayCompiler(context);
-                    units.addAll(
-                            staticMover.translate(
-                                    arrayCompiler.transform(
-                                            unsuspend(lower(suspend(
-                                                    missingContractCompiler.compile(
-                                                            verifyAnnotationCompiler.transform(
-                                                                    externalContractCompiler.apply(
-                                                                            newMethodContractCompiler.transform(
-                                                                                    unlambda(
-                                                                                            toUnits(compiler.flow(compiler.attribute(todo)))
-                                                                                    )))))))))));
+                    for (int i = 0; i < phases.size(); i++) {
+                        var phase = phases.get(i);
+                        remainingUnits = phase.transform(remainingUnits);
+                    }
+                    units.addAll(remainingUnits);
                 }
             }
         });
@@ -231,6 +232,10 @@ public class JavaToDafnyCompiler {
         }
 
         return hasErrors ? null : units;
+    }
+    
+    interface UnitsCompiler {
+        Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> units);
     }
 
     private Set<JCTree.JCCompilationUnit> toUnits(Queue<Env<AttrContext>> envs) {
