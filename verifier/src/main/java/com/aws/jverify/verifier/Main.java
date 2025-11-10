@@ -5,6 +5,8 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -71,6 +73,7 @@ class AppCommand implements Callable<Integer> {
     @Override
     public Integer call() throws IOException {
         Writer writer = spec.commandLine().getOut();
+        var start = Instant.now();
 
         // In the future we'll have to add an argument to specify jar files for dependencies of the input sources,
         // And those will include the JVerify library jar.
@@ -95,6 +98,9 @@ class AppCommand implements Callable<Integer> {
                 paths, new String[0], verifyByDefault, false, 
                 positionFilter, verbose);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
+        writer.flush();
+        var mainMethodDuration = Duration.between(start, Instant.now());
+        writer.append("Total jverify main method time was ").append(String.valueOf(mainMethodDuration.toMillis())).append(" ms\n");
         writer.flush();
         return exitCode;
     }
