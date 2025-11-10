@@ -240,7 +240,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 // not a header method, so stop here
                 return false;
             }
-            case Common.PRECONDITION, "postconditions", "invariant", "decreases", "reads", "modifies" -> {
+            case Common.PRECONDITION, "postcondition", "invariant", "decreases", "reads", "modifies" -> {
                 return true;
             }
             default -> {
@@ -291,7 +291,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     }
                     precondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }
-                case "postconditions" -> {
+                case "postcondition" -> {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A postconditions call may have only one argument");
                     }

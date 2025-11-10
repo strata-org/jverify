@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * Handle 'preconditionOf' calls
  * Must run before lower
  */
 public class PreconditionOfCompiler extends TreeTranslator {
@@ -21,6 +22,7 @@ public class PreconditionOfCompiler extends TreeTranslator {
     private final Reporter reporter;
     private final JVerifyIndex index;
     private final JVerifyUtils utils;
+    private final Symtab symtab;
     private final Names names;
     private final MethodOrLoopContractCompiler contractCompiler;
     
@@ -30,6 +32,7 @@ public class PreconditionOfCompiler extends TreeTranslator {
         names = Names.instance(context);
         treeMaker = TreeMaker.instance(context);
         reporter = Reporter.instance(context);
+        symtab = Symtab.instance(context);
         utils = JVerifyUtils.instance(context);
         index = JVerifyIndex.instance(context);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
@@ -38,6 +41,7 @@ public class PreconditionOfCompiler extends TreeTranslator {
     
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
+            reporter.compilationUnit = env;
             translate(env);
         }
         return envs;
@@ -55,7 +59,8 @@ public class PreconditionOfCompiler extends TreeTranslator {
         var call = invocation.args.getFirst();
         if (!(call instanceof JCTree.JCMethodInvocation preconditionOwnerCall)) {
             reporter.reportError(invocation, "preconditionArgumentMustBeCall");
-            super.visitApply(invocation);
+            result = treeMaker.Literal(true);
+            result.type = symtab.booleanType;
             return;
         }
         
@@ -64,6 +69,8 @@ public class PreconditionOfCompiler extends TreeTranslator {
         var contract = contractCompiler.getContract(method.body);
         if (contract.preconditions().size() != 1) {
             reporter.reportError(invocation, "preconditionOfTargetMustHaveSinglePrecondition");
+            result = treeMaker.Literal(true);
+            result.type = symtab.booleanType;
             return;
         }
         var precondition = contract.preconditions().getFirst().get();

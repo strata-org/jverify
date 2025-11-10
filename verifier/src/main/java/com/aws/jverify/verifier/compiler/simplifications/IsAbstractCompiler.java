@@ -12,6 +12,8 @@ import java.util.Set;
 
 /**
  * Must run before lower
+ * 
+ * Handles 'isAbstract()' calls that can be used at the root of contract clauses 
  */
 public class IsAbstractCompiler extends TreeScanner {
     private final TreeMaker treeMaker;
@@ -41,6 +43,7 @@ public class IsAbstractCompiler extends TreeScanner {
     
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
+            reporter.compilationUnit = env;
             scan(env);
         }
         return envs;

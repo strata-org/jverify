@@ -17,5 +17,23 @@ public class AbstractContractsErrors {
             modifies(isAbstract());
 //                   ^ error: isAbstract() in clauses other than a preconditions is not supported
         }
+        
+        int noPrecondition() {
+            return 1;
+        }
+        
+        int twoPreconditions(int x) {
+            precondition(x > 0);
+            precondition(x < 10);
+            return 1;
+        }
+        
+        void usesPreconditionOf(int x) {
+            precondition(
+                    preconditionOf(noPrecondition()) && 
+//                                ^ error: target of preconditionOf must have a single precondition
+                    preconditionOf(twoPreconditions(x)));
+//                                ^ error: target of preconditionOf must have a single precondition
+        }
     }
 }
