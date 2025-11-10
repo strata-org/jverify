@@ -322,7 +322,6 @@ public class TypeDeclarationCompiler {
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         applyInvariants(method.mods, method.sym, contract);
-        blockCompiler.checkEmptyExpressions(method, contract.loopInvariants, "invariants", "method");
 
         var outs = new ArrayList<Formal>();
         if (method.sym.type.getReturnType() != null) {

@@ -478,12 +478,15 @@ public class BaseDafnyGenerator implements DafnyGenerator {
 
 
     public void toDafnyContract(
-        JCTree.JCBlock outerBlock,
+        JCTree.JCStatement outerBlock,
         MethodOrLoopDafnyContract dafnyContract)
     {
         var contract = methodOrLoopContractCompiler.getContract(outerBlock);
-        dafnyContract.preconditions.add(new AttributedExpression(
-                expressionCompiler.toExpr(contract.precondition().get(), ExpressionContext.Pure), null, null));
+        JCTree.JCExpression preconditionJavaExpr = contract.precondition().get();
+        if (preconditionJavaExpr != null) {
+            dafnyContract.preconditions.add(new AttributedExpression(
+                    expressionCompiler.toExpr(preconditionJavaExpr, ExpressionContext.Pure), null, null));
+        }
         handlePostcondition(dafnyContract, contract.postcondition().get());
         JCTree.JCExpression javaLoopInvariant = contract.loopInvariant().get();
         if (javaLoopInvariant != null) {
@@ -512,39 +515,45 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     private void handlePostcondition(MethodOrLoopDafnyContract header, JCTree.JCExpression expr) {
-
-        if (expr instanceof JCTree.JCLambda lambda) {
-            if (lambda.getParameters().size() != 1) {
-                throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
+        switch (expr) {
+            case null -> {
+                return;
             }
-            var parameter = lambda.params.getFirst();
-            var origin = reporter.toOrigin(lambda);
-            var paramName = parameter.getName().toString();
-            var type = translateType(parameter.type, reporter.toOrigin(parameter), null);
+            case JCTree.JCLambda lambda -> {
+                if (lambda.getParameters().size() != 1) {
+                    throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
+                }
+                var parameter = lambda.params.getFirst();
+                var origin = reporter.toOrigin(lambda);
+                var paramName = parameter.getName().toString();
+                var type = translateType(parameter.type, reporter.toOrigin(parameter), null);
 
-            var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
-            var lhs = new CasePattern<>(origin, paramName, returnVar, null);
-            var rhs = TreeInfo.isConstructor(header.treeOrigin)
-                    ? new ThisExpr(origin)
-                    : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var origCondition = expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
-            var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
-            header.postconditions.add(new AttributedExpression(condition, null, null));
+                var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
+                var lhs = new CasePattern<>(origin, paramName, returnVar, null);
+                var rhs = TreeInfo.isConstructor(header.treeOrigin)
+                        ? new ThisExpr(origin)
+                        : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
+                var origCondition = expressionCompiler.toExpr((JCTree.JCExpression) lambda.getBody(), ExpressionContext.Pure);
+                var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
+                header.postconditions.add(new AttributedExpression(condition, null, null));
 
-        } else if (expr instanceof JCTree.JCMemberReference memberReference) {
-            var origin = reporter.toOrigin(memberReference);
-            NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var callee = new ExprDotName(origin,
-                    expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
-                    reporter.getName(memberReference, nameCompiler.getCompiledName(memberReference.sym, origin)), null);
-            var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
-            header.postconditions.add(new AttributedExpression(call, null, null));
-        } else if (expr instanceof JCTree.JCTypeCast typeCast) {
-            // Casts like (IntPredicate) are sometimes necessary to disambiguate
-            handlePostcondition(header, typeCast.getExpression());
-        } else {
-            var dafnyExpr = expressionCompiler.toExpr(expr, ExpressionContext.Pure);
-            header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
+            }
+            case JCTree.JCMemberReference memberReference -> {
+                var origin = reporter.toOrigin(memberReference);
+                NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
+                var callee = new ExprDotName(origin,
+                        expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
+                        reporter.getName(memberReference, nameCompiler.getCompiledName(memberReference.sym, origin)), null);
+                var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
+                header.postconditions.add(new AttributedExpression(call, null, null));
+            }
+            case JCTree.JCTypeCast typeCast ->
+                // Casts like (IntPredicate) are sometimes necessary to disambiguate
+                    handlePostcondition(header, typeCast.getExpression());
+            default -> {
+                var dafnyExpr = expressionCompiler.toExpr(expr, ExpressionContext.Pure);
+                header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
+            }
         }
     }
 }

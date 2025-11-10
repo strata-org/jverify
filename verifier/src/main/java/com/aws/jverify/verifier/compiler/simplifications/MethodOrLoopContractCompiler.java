@@ -73,33 +73,66 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
     @Override
-    public void visitDoLoop(JCTree.JCDoWhileLoop tree) {
-        if (tree.body != null) {
-            maker.pos = tree.body.pos;
-            List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
-            tree.body = maker.Block(0, newStatements);
+    public void visitDoLoop(JCTree.JCDoWhileLoop loop) {
+        if (loop.body != null) {
+            visitLoop(loop, new Property<JCTree.JCStatement>() {
+                @Override
+                public JCTree.JCStatement get() {
+                    return loop.body;
+                }
+
+                @Override
+                public void set(JCTree.JCStatement value) {
+                    loop.body = value;
+                }
+            });
         }
-        super.visitDoLoop(tree);
+        super.visitDoLoop(loop);
     }
 
     @Override
-    public void visitWhileLoop(JCTree.JCWhileLoop tree) {
-        if (tree.body != null) {
-            maker.pos = tree.body.pos;
-            List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
-            tree.body = maker.Block(0, newStatements);
+    public void visitWhileLoop(JCTree.JCWhileLoop loop) {
+        if (loop.body != null) {
+            visitLoop(loop, new Property<JCTree.JCStatement>() {
+                @Override
+                public JCTree.JCStatement get() {
+                    return loop.body;
+                }
+
+                @Override
+                public void set(JCTree.JCStatement value) {
+                    loop.body = value;
+                }
+            });
         }
-        super.visitWhileLoop(tree);
+        super.visitWhileLoop(loop);
     }
 
     @Override
-    public void visitForLoop(JCTree.JCForLoop tree) {
-        if (tree.body != null) {
-            maker.pos = tree.body.pos;
-            List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
-            tree.body = maker.Block(0, newStatements);
+    public void visitForLoop(JCTree.JCForLoop loop) {
+        if (loop.body != null) {
+            visitLoop(loop, new Property<JCTree.JCStatement>() {
+                @Override
+                public JCTree.JCStatement get() {
+                    return loop.body;
+                }
+
+                @Override
+                public void set(JCTree.JCStatement value) {
+                    loop.body = value;
+                }
+            });
         }
-        super.visitForLoop(tree);
+        super.visitForLoop(loop);
+    }
+
+    private void visitLoop(JCTree loop, Property<JCTree.JCStatement> loopBody) {
+        maker.pos = loopBody.get().pos;
+        List<JCTree.JCStatement> newStatements = getNewStatements(loop, getStatements(loopBody.get()), false);
+        loopBody.set(maker.Block(0, newStatements));
+        var contract = getContract(loopBody.get());
+        checkEmptyExpression(loop, contract.precondition(), "preconditions", "loop");
+        checkEmptyExpression(loop, contract.postcondition(), "postconditions", "loop");
     }
     
     List<JCTree.JCStatement> getStatements(JCTree.JCStatement statement) {
@@ -111,6 +144,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         if (tree.body != null) {
             var allowFooter = JVerifyUtils.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
+            var contract = getContract(tree.body);
+            checkEmptyExpression(tree, contract.loopInvariant(), "invariants", "method");
         }
         super.visitMethodDef(tree);
     }
@@ -226,13 +261,13 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return (JCTree.JCBlock) ((JCTree.JCBlock)outerBlock).getStatements().get(0);
     }
     
-    public MethodOrLoopContract getContract(JCTree.JCBlock outerBlock) {
+    public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock) {
         var contractBlock = getContractBlock(outerBlock);
         Property<JCTree.JCExpression> trueProperty = Property.finalProperty(maker.Literal(true));
-        Property<JCTree.JCExpression> precondition = trueProperty;
-        Property<JCTree.JCExpression> postcondition = trueProperty;
-        ArrayList<JCTree.JCExpression> decreases = new ArrayList<>();
         Property<JCTree.JCExpression> nullProperty = Property.finalProperty(null);
+        Property<JCTree.JCExpression> precondition = nullProperty;
+        Property<JCTree.JCExpression> postcondition = nullProperty;
+        ArrayList<JCTree.JCExpression> decreases = new ArrayList<>();
         Property<JCTree.JCExpression> loopInvariant = nullProperty;
         Property<JCTree.JCExpression> reads = nullProperty;
         Property<JCTree.JCExpression> modifies = nullProperty;
@@ -299,5 +334,14 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         }
         return new MethodOrLoopContract(precondition, postcondition, 
                 loopInvariant, decreases, reads, modifies);
+    }
+
+    public void checkEmptyExpression(JCTree tree,
+                                     Property<JCTree.JCExpression> expressions,
+                                     String typeName,
+                                     String containerName) {
+        if (expressions.get() != null) {
+            reporter.reportError(tree, "wrongContract", typeName, containerName);
+        }
     }
 }

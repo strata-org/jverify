@@ -181,9 +181,9 @@ public class BlockCompiler {
                                    ExpressionContext expressionContext) {
         var origin = reporter.toOrigin(loop);
         var header = new MethodOrLoopDafnyContract(loop, false);
-        baseGenerator.toDafnyContract(MethodOrLoopContractCompiler.getContractBlock(body), header);
+        baseGenerator.toDafnyContract(body, header);
 
-        checkLoopHeaderAndSetupLabels(loop, labels, header);
+        setupLabels(loop, labels, header);
 
         var dafnyCondition = expressionCompiler.toExpr(condition, expressionContext);
         var bodyStatements = translateStatements(MethodOrLoopContractCompiler.getImplementationStatements(body));
@@ -193,10 +193,7 @@ public class BlockCompiler {
                 dafnyCondition);
     }
 
-    private void checkLoopHeaderAndSetupLabels(JCTree.JCStatement loop, List<Label> labels, MethodOrLoopDafnyContract header) {
-        checkEmptyExpressions(loop, header.preconditions, "preconditions", "loop");
-        checkEmptyExpressions(loop, header.postconditions, "postconditions", "loop");
-
+    private void setupLabels(JCTree.JCStatement loop, List<Label> labels, MethodOrLoopDafnyContract header) {
         outerLoop = loop;
         for (var label : labels) {
             labelToLoop.put(label.getName(), loop);
@@ -326,15 +323,6 @@ public class BlockCompiler {
 
     public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements, IOrigin originOverride) {
         return statements.stream().flatMap(s -> translateStatement(s, originOverride).stream()).toList();
-    }
-
-    public void checkEmptyExpressions(JCTree tree,
-                                      List<AttributedExpression> expressions,
-                                      String typeName,
-                                      String containerName) {
-        for (var _ : expressions) {
-            reporter.reportError(tree, "wrongContract", typeName, containerName);
-        }
     }
 
     /**
