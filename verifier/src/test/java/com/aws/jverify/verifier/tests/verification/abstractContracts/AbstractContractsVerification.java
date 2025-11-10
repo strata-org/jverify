@@ -6,7 +6,7 @@ import javax.xml.XMLConstants;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 20, dafnyErrors = 0)
+@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 2)
 public class AbstractContractsVerification {
     int midConsumer(Mid mid, int x) {
         precondition(preconditionOf(mid.foo(x)));
@@ -54,14 +54,20 @@ public class AbstractContractsVerification {
         return midConsumer(outer, x);
     }
     
-    void testPreconditionOfOnMultiplePreconditions() {
-        usePreconditionOfOnMultiplePreconditions(0);
+    void testPreconditionOfOnMultiplePreconditions(int x) {
+        if (x > 0) {
+            usePreconditionOfOnMultiplePreconditions(0);
+//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: a precondition for this call could not be proved
+        }
         usePreconditionOfOnMultiplePreconditions(3);
         usePreconditionOfOnMultiplePreconditions(11);
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: a precondition for this call could not be proved
     }
 
     void usePreconditionOfOnMultiplePreconditions(int x) {
         precondition(preconditionOf(multiplePreconditions(x)));
+//                                                        ^ Related location: this is the precondition that could not be proved
+//                                                        ^ Related location: this is the precondition that could not be proved
     }
 
     int multiplePreconditions(int x) {
