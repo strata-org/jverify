@@ -46,7 +46,11 @@ public class IsAbstractCompiler extends TreeScanner {
         return envs;
     }
 
-    public boolean isAbstract(JCTree.JCExpression expression) {
+    public boolean isAbstract(java.util.List<Property<JCTree.JCExpression>> expressions) {
+        if (expressions.size() != 1) {
+            return false;
+        }
+        var expression = expressions.getFirst().get();
         if (!(expression instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
         }
@@ -59,21 +63,21 @@ public class IsAbstractCompiler extends TreeScanner {
         super.visitMethodDef(tree);
         var contract = contractCompiler.getContract(tree.body);
         JCTree.JCMethodDecl baseMethod = getBaseMethod(tree);
-        var isAbstract = isAbstract(contract.precondition().get());
+        var isAbstract = isAbstract(contract.precondition());
         boolean isBaseAbstract = false;
         if (baseMethod != null) {
             var baseContract = contractCompiler.getContract(baseMethod.body);
-            isBaseAbstract = isAbstract(baseContract.precondition().get());
+            isBaseAbstract = isAbstract(baseContract.precondition());
         }
 
         if (isAbstract && tree.sym.isStatic()) {
-            reporter.reportError(contract.precondition().get(), "staticAbstractContract");
+            reporter.reportError(contract.precondition().getFirst().get(), "staticAbstractContract");
             return;
         }
 
         boolean implementingAbstractClause = !isAbstract && isBaseAbstract;
         if (implementingAbstractClause) {
-            var preconditionFunction = addPreconditionFunctionFor(tree, contract.precondition().get());
+            var preconditionFunction = addPreconditionFunctionFor(tree, contract.precondition().getFirst().get());
             updatePrecondition(tree, contract, preconditionFunction);
         }
 
@@ -99,7 +103,7 @@ public class IsAbstractCompiler extends TreeScanner {
                 treeMaker.Select(treeMaker.Ident(thisSymbol), preconditionFunction),
                 tree.params.map(d -> treeMaker.Ident(d.sym)).stream().collect(List.collector()));
         application.type = symtab.booleanType;
-        contract.precondition().set(application);
+        contract.precondition().getFirst().set(application);
     }
 
     private Symbol.MethodSymbol addPreconditionFunctionFor(JCTree.JCMethodDecl tree, 

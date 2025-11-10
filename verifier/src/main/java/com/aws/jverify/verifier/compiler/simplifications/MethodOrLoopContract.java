@@ -6,10 +6,10 @@ import com.sun.tools.javac.tree.JCTree;
 import java.util.List;
 
 public record MethodOrLoopContract(
-        Property<JCTree.@Nullable JCExpression> precondition,
-        Property<JCTree.@Nullable JCExpression> postcondition,
-        Property<JCTree.@Nullable JCExpression> loopInvariant,
+        List<Property<JCTree.JCExpression>> precondition,
+        List<Property<JCTree.JCExpression>> postcondition,
+        List<Property<JCTree.JCExpression>> loopInvariant,
         List<JCTree.JCExpression> decreases,
-        Property<JCTree.@Nullable JCExpression> reads,
-        Property<JCTree.@Nullable JCExpression> modifies) {
+        List<Property<JCTree.JCExpression>> reads,
+        List<Property<JCTree.JCExpression>> modifies) {
 }

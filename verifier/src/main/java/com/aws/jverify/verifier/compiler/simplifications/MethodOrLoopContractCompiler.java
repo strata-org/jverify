@@ -265,12 +265,12 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         var contractBlock = getContractBlock(outerBlock);
         Property<JCTree.JCExpression> trueProperty = Property.finalProperty(maker.Literal(true));
         Property<JCTree.JCExpression> nullProperty = Property.finalProperty(null);
-        Property<JCTree.JCExpression> precondition = nullProperty;
-        Property<JCTree.JCExpression> postcondition = nullProperty;
+        ArrayList<Property<JCTree.JCExpression>> precondition = new ArrayList<>();
+        ArrayList<Property<JCTree.JCExpression>> postcondition = new ArrayList<>();
         ArrayList<JCTree.JCExpression> decreases = new ArrayList<>();
-        Property<JCTree.JCExpression> loopInvariant = nullProperty;
-        Property<JCTree.JCExpression> reads = nullProperty;
-        Property<JCTree.JCExpression> modifies = nullProperty;
+        ArrayList<Property<JCTree.JCExpression>> loopInvariant = new ArrayList<>();
+        ArrayList<Property<JCTree.JCExpression>> reads = new ArrayList<>();
+        ArrayList<Property<JCTree.JCExpression>> modifies = new ArrayList<>();
                 
         for(var contractStatement : contractBlock.getStatements()) {
             if (!((JCTree.JCStatement) contractStatement instanceof JCTree.JCExpressionStatement expressionStatement
@@ -291,19 +291,19 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A precondition call may have only one argument");
                     }
-                    precondition = Property.fromElement(invocation.getArguments(), 0);
+                    precondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }
                 case "postcondition" -> {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A postcondition call may have only one argument");
                     }
-                    postcondition = Property.fromElement(invocation.getArguments(), 0);
+                    postcondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }
                 case "invariant" -> {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("invariant should have a single argument");
                     }
-                    loopInvariant = Property.fromElement(invocation.getArguments(), 0);
+                    loopInvariant.add(Property.fromElement(invocation.getArguments(), 0));
                 }
                 case "decreases" -> {
                     for(var decrease : invocation.getArguments()) {
@@ -319,13 +319,13 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A reads call must have exactly one argument");
                     }
-                    reads = Property.fromElement(invocation.getArguments(), 0);
+                    reads.add(Property.fromElement(invocation.getArguments(), 0));
                 }
                 case "modifies" -> {
                     if (invocation.args.size() != 1) {
                         throw new JavaViolationException("A modifies call must have exactly one argument");
                     }
-                    modifies = Property.fromElement(invocation.getArguments(), 0);
+                    modifies.add(Property.fromElement(invocation.getArguments(), 0));
                 }
                 default -> {
                     reporter.reportError(invocation, "notSupported", methodName);
@@ -337,10 +337,10 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
     public void checkEmptyExpression(JCTree tree,
-                                     Property<JCTree.JCExpression> expressions,
+                                     java.util.List<Property<JCTree.JCExpression>> expressions,
                                      String typeName,
                                      String containerName) {
-        if (expressions.get() != null) {
+        for(var _ : expressions) {
             reporter.reportError(tree, "wrongContract", typeName, containerName);
         }
     }

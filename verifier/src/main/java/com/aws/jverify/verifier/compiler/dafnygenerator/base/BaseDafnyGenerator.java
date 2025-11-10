@@ -482,27 +482,23 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         MethodOrLoopDafnyContract dafnyContract)
     {
         var contract = methodOrLoopContractCompiler.getContract(outerBlock);
-        JCTree.JCExpression preconditionJavaExpr = contract.precondition().get();
-        if (preconditionJavaExpr != null) {
+        for(var preconditionJavaExpr : contract.precondition()) {
             dafnyContract.preconditions.add(new AttributedExpression(
-                    expressionCompiler.toExpr(preconditionJavaExpr, ExpressionContext.Pure), null, null));
+                    expressionCompiler.toExpr(preconditionJavaExpr.get(), ExpressionContext.Pure), null, null));
         }
-        handlePostcondition(dafnyContract, contract.postcondition().get());
-        JCTree.JCExpression javaLoopInvariant = contract.loopInvariant().get();
-        if (javaLoopInvariant != null) {
+        handlePostcondition(dafnyContract, contract.postcondition());
+        for(var javaLoopInvariant : contract.loopInvariant()) {
             dafnyContract.loopInvariants.add(new AttributedExpression(
-                    expressionCompiler.toExpr(javaLoopInvariant, ExpressionContext.Pure), null, null));
+                    expressionCompiler.toExpr(javaLoopInvariant.get(), ExpressionContext.Pure), null, null));
         }
         dafnyContract.decreases.addAll(contract.decreases().stream().map(d ->
                 expressionCompiler.toExpr(d, ExpressionContext.Pure)).toList());
-        JCTree.JCExpression readsJavaExpr = contract.reads().get();
-        if (readsJavaExpr != null) {
-            Expression readsExpr = expressionCompiler.toExpr(readsJavaExpr, ExpressionContext.Pure);
+        for(var readsJavaExpr : contract.loopInvariant()) {
+            Expression readsExpr = expressionCompiler.toExpr(readsJavaExpr.get(), ExpressionContext.Pure);
             dafnyContract.reads.add(new FrameExpression(readsExpr.getOrigin(), readsExpr, null));
         }
-        JCTree.JCExpression modifiesJavaExpr = contract.modifies().get();
-        if (modifiesJavaExpr != null) {
-            Expression modifiesExpr = expressionCompiler.toExpr(modifiesJavaExpr, ExpressionContext.Pure);
+        for(var modifiesJavaExpr : contract.loopInvariant()) {
+            Expression modifiesExpr = expressionCompiler.toExpr(modifiesJavaExpr.get(), ExpressionContext.Pure);
             dafnyContract.modifies.add(new FrameExpression(modifiesExpr.getOrigin(), modifiesExpr, null));
         }
 
@@ -514,10 +510,17 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
     }
 
-    private void handlePostcondition(MethodOrLoopDafnyContract header, JCTree.JCExpression expr) {
+    private void handlePostcondition(MethodOrLoopDafnyContract header, List<Property<JCTree.JCExpression>> exprs) {
+        for(var exprProp : exprs) {
+            var expr = exprProp.get();
+            if (handlePostcondition(header, expr)) return;
+        }
+    }
+
+    private boolean handlePostcondition(MethodOrLoopDafnyContract header, JCTree.JCExpression expr) {
         switch (expr) {
             case null -> {
-                return;
+                return true;
             }
             case JCTree.JCLambda lambda -> {
                 if (lambda.getParameters().size() != 1) {
@@ -555,6 +558,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                 header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
             }
         }
+        return false;
     }
 }
 

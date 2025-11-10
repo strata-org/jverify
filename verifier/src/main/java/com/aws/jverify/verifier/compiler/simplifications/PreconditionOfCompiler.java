@@ -55,7 +55,7 @@ public class PreconditionOfCompiler extends TreeTranslator {
 
         var call = invocation.args.getFirst();
         if (!(call instanceof JCTree.JCMethodInvocation preconditionOwnerCall)) {
-            reporter.reportError(invocation, "preconditionOf argument must be a method call");
+            reporter.reportError(invocation, "preconditionArgumentMustBeCall");
             super.visitApply(invocation);
             return;
         }
@@ -63,7 +63,11 @@ public class PreconditionOfCompiler extends TreeTranslator {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
         var method = (JCTree.JCMethodDecl) index.getTree(methodSymbol);
         var contract = contractCompiler.getContract(method.body);
-        var precondition = contract.precondition().get();
+        if (contract.precondition().size() != 1) {
+            reporter.reportError(invocation, "preconditionOfTargetMustHaveSinglePrecondition");
+            return;
+        }
+        var precondition = contract.precondition().getFirst().get();
 
         JCTree.JCFieldAccess access = (JCTree.JCFieldAccess) preconditionOwnerCall.getMethodSelect();
         Map<Symbol.VarSymbol, JCTree.JCExpression> replacements = new HashMap<>();
