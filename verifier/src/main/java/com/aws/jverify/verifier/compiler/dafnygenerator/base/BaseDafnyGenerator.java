@@ -493,11 +493,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
         dafnyContract.decreases.addAll(contract.decreases().stream().map(d ->
                 expressionCompiler.toExpr(d, ExpressionContext.Pure)).toList());
-        for(var readsJavaExpr : contract.loopInvariant()) {
+        for(var readsJavaExpr : contract.reads()) {
             Expression readsExpr = expressionCompiler.toExpr(readsJavaExpr.get(), ExpressionContext.Pure);
             dafnyContract.reads.add(new FrameExpression(readsExpr.getOrigin(), readsExpr, null));
         }
-        for(var modifiesJavaExpr : contract.loopInvariant()) {
+        for(var modifiesJavaExpr : contract.modifies()) {
             Expression modifiesExpr = expressionCompiler.toExpr(modifiesJavaExpr.get(), ExpressionContext.Pure);
             dafnyContract.modifies.add(new FrameExpression(modifiesExpr.getOrigin(), modifiesExpr, null));
         }
