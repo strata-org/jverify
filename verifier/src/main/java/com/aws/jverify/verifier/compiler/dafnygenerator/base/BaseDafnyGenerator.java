@@ -521,7 +521,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
             case JCTree.JCLambda lambda -> {
                 if (lambda.getParameters().size() != 1) {
-                    throw new JavaViolationException("A postconditions call lambda must take exactly one argument");
+                    throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
                 }
                 var parameter = lambda.params.getFirst();
                 var origin = reporter.toOrigin(lambda);

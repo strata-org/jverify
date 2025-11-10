@@ -678,7 +678,7 @@ class OptionalContract<T> {
     /*
     @Pure
     static <T> OptionalContract<T> ofNullable(T value) {
-        postconditions((OptionalContract<T> o) ->  o.isSet && o.value == value);
+        postcondition((OptionalContract<T> o) ->  o.isSet && o.value == value);
         throw new ContractException();
     }
     */

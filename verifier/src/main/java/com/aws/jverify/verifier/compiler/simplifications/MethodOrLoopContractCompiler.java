@@ -293,7 +293,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 case "postcondition" -> {
                     if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("A postconditions call may have only one argument");
+                        throw new JavaViolationException("A postcondition call may have only one argument");
                     }
                     postcondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }

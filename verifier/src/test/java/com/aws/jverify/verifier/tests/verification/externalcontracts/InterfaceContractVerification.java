@@ -39,9 +39,9 @@ public class InterfaceContractVerification {
         int externalContract(int x);
         default int internalContract() {
             postcondition((int r) -> r > 2);
-//                                   ^^^^^ Related location: this is the postconditions that could not be proved
+//                                   ^^^^^ Related location: this is the postcondition that could not be proved
             return 1;
-//          ^^^^^^^^^ Error: a postconditions could not be proved on this return path
+//          ^^^^^^^^^ Error: a postcondition could not be proved on this return path
         }
     }
 
