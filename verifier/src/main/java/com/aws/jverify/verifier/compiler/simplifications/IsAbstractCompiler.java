@@ -66,21 +66,21 @@ public class IsAbstractCompiler extends TreeScanner {
         }
         var contract = contractCompiler.getContract(tree.body);
         JCTree.JCMethodDecl baseMethod = getBaseMethod(tree);
-        var isAbstract = isAbstract(contract.precondition());
+        var isAbstract = isAbstract(contract.preconditions());
         boolean isBaseAbstract = false;
         if (baseMethod != null && baseMethod.body != null) {
             var baseContract = contractCompiler.getContract(baseMethod.body);
-            isBaseAbstract = isAbstract(baseContract.precondition());
+            isBaseAbstract = isAbstract(baseContract.preconditions());
         }
 
         if (isAbstract && tree.sym.isStatic()) {
-            reporter.reportError(contract.precondition().getFirst().get(), "staticAbstractContract");
+            reporter.reportError(contract.preconditions().getFirst().get(), "staticAbstractContract");
             return;
         }
 
         boolean implementingAbstractClause = !isAbstract && isBaseAbstract;
         if (implementingAbstractClause) {
-            var preconditionFunction = addPreconditionFunctionFor(tree, contract.precondition().getFirst().get());
+            var preconditionFunction = addPreconditionFunctionFor(tree, contract.preconditions().getFirst().get());
             updatePrecondition(tree, contract, preconditionFunction);
         }
 
@@ -106,7 +106,7 @@ public class IsAbstractCompiler extends TreeScanner {
                 treeMaker.Select(treeMaker.Ident(thisSymbol), preconditionFunction),
                 tree.params.map(d -> treeMaker.Ident(d.sym)).stream().collect(List.collector()));
         application.type = symtab.booleanType;
-        contract.precondition().getFirst().set(application);
+        contract.preconditions().getFirst().set(application);
     }
 
     private Symbol.MethodSymbol addPreconditionFunctionFor(JCTree.JCMethodDecl tree, 

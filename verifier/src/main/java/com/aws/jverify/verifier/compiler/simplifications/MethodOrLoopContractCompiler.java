@@ -131,8 +131,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         List<JCTree.JCStatement> newStatements = getNewStatements(loop, getStatements(loopBody.get()), false);
         loopBody.set(maker.Block(0, newStatements));
         var contract = getContract(loopBody.get());
-        checkEmptyExpression(loop, contract.precondition(), "preconditions", "loop");
-        checkEmptyExpression(loop, contract.postcondition(), "postconditions", "loop");
+        checkEmptyExpressions(loop, contract.preconditions(), "preconditions", "loop");
+        checkEmptyExpressions(loop, contract.postconditions(), "postconditions", "loop");
     }
     
     List<JCTree.JCStatement> getStatements(JCTree.JCStatement statement) {
@@ -145,7 +145,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var allowFooter = JVerifyUtils.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
             var contract = getContract(tree.body);
-            checkEmptyExpression(tree, contract.loopInvariant(), "invariants", "method");
+            checkEmptyExpressions(tree, contract.loopInvariants(), "invariants", "method");
         }
         super.visitMethodDef(tree);
     }
@@ -240,7 +240,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 // not a header method, so stop here
                 return false;
             }
-            case Common.PRECONDITION, "postcondition", "invariant", "decreases", "reads", "modifies" -> {
+            case Common.PRECONDITION, "postconditions", "invariant", "decreases", "reads", "modifies" -> {
                 return true;
             }
             default -> {
@@ -263,8 +263,6 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     
     public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock) {
         var contractBlock = getContractBlock(outerBlock);
-        Property<JCTree.JCExpression> trueProperty = Property.finalProperty(maker.Literal(true));
-        Property<JCTree.JCExpression> nullProperty = Property.finalProperty(null);
         ArrayList<Property<JCTree.JCExpression>> precondition = new ArrayList<>();
         ArrayList<Property<JCTree.JCExpression>> postcondition = new ArrayList<>();
         ArrayList<JCTree.JCExpression> decreases = new ArrayList<>();
@@ -289,13 +287,13 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 case Common.PRECONDITION -> {
                     if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("A precondition call may have only one argument");
+                        throw new JavaViolationException("A preconditions call may have only one argument");
                     }
                     precondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }
-                case "postcondition" -> {
+                case "postconditions" -> {
                     if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("A postcondition call may have only one argument");
+                        throw new JavaViolationException("A postconditions call may have only one argument");
                     }
                     postcondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }
@@ -336,10 +334,10 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 loopInvariant, decreases, reads, modifies);
     }
 
-    public void checkEmptyExpression(JCTree tree,
-                                     java.util.List<Property<JCTree.JCExpression>> expressions,
-                                     String typeName,
-                                     String containerName) {
+    public void checkEmptyExpressions(JCTree tree,
+                                      java.util.List<Property<JCTree.JCExpression>> expressions,
+                                      String typeName,
+                                      String containerName) {
         for(var _ : expressions) {
             reporter.reportError(tree, "wrongContract", typeName, containerName);
         }

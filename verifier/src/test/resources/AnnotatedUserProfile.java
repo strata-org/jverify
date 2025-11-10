@@ -24,7 +24,7 @@ class UserProfile {
     @Pure
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
-//                  ^^^^^ Related location: this is the postcondition that could not be proved
+//                  ^^^^^ Related location: this is the postconditions that could not be proved
         reads(this);
         return (@Impure Object)this != premiumFeatures &&
                 (accountType != AccountType.Premium || premiumFeatures != null);
@@ -37,7 +37,7 @@ class UserProfile {
         this.accountType = AccountType.Premium;[>
         this.premiumFeatures = new PremiumFeatures();<]
         return;
-//      ^^^^^^^ Error: a postcondition could not be proved on this return path
+//      ^^^^^^^ Error: a postconditions could not be proved on this return path
     }
 
     public boolean applyTheme(Theme theme) {

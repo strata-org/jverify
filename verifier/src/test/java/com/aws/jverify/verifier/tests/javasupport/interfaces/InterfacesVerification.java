@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.*;
 class InterfacesVerification {
     public void root(I i) {
         var a = i.f(1);
-//              ^^^^^^ Error: function precondition could not be proved
+//              ^^^^^^ Error: function preconditions could not be proved
         var b = i.m();
         check(b > 2);
     }
@@ -69,7 +69,7 @@ class CInvalidContract implements I {
 
     @Override
     public int m() {
-//             ^ Error: the method must provide an equal or more detailed postcondition than in its parent trait
+//             ^ Error: the method must provide an equal or more detailed postconditions than in its parent trait
         return 0;
     }
 }

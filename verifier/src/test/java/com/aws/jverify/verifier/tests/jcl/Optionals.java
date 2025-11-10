@@ -15,7 +15,7 @@ public class Optionals {
         check(opt.isEmpty());
         check(!opt.isPresent());
         var res = opt.get();
-//                ^^^^^^^^^ Error: function precondition could not be proved
+//                ^^^^^^^^^ Error: function preconditions could not be proved
         var res1 = opt.orElse("Hello");
         check(res1.equals("Hello"));
     }

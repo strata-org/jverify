@@ -482,12 +482,12 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         MethodOrLoopDafnyContract dafnyContract)
     {
         var contract = methodOrLoopContractCompiler.getContract(outerBlock);
-        for(var preconditionJavaExpr : contract.precondition()) {
+        for(var preconditionJavaExpr : contract.preconditions()) {
             dafnyContract.preconditions.add(new AttributedExpression(
                     expressionCompiler.toExpr(preconditionJavaExpr.get(), ExpressionContext.Pure), null, null));
         }
-        handlePostcondition(dafnyContract, contract.postcondition());
-        for(var javaLoopInvariant : contract.loopInvariant()) {
+        handlePostcondition(dafnyContract, contract.postconditions());
+        for(var javaLoopInvariant : contract.loopInvariants()) {
             dafnyContract.loopInvariants.add(new AttributedExpression(
                     expressionCompiler.toExpr(javaLoopInvariant.get(), ExpressionContext.Pure), null, null));
         }
@@ -524,7 +524,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
             case JCTree.JCLambda lambda -> {
                 if (lambda.getParameters().size() != 1) {
-                    throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
+                    throw new JavaViolationException("A postconditions call lambda must take exactly one argument");
                 }
                 var parameter = lambda.params.getFirst();
                 var origin = reporter.toOrigin(lambda);

@@ -34,13 +34,13 @@ public class MinimumPricePercentage {
                                            BigDecimal flatDiscount,
                                            BigDecimal discountFactor) {
         postcondition((BigDecimal result) -> {
-//      ^^^^^^^^^^^^^ Related: this is the postcondition that could not be proven
+//      ^^^^^^^^^^^^^ Related: this is the postconditions that could not be proven
             return result.compareTo(startingPrice.multiply(minimumRemainingPrice)) >= 0;
         });
 
         copyPrecondition(computeDiscountedPrice(startingPrice, flatDiscount, discountFactor));
         
         return computeDiscountedPrice(startingPrice, flatDiscount, discountFactor);
-//      ^^^^^^ Error: could not prove postcondition on this return path
+//      ^^^^^^ Error: could not prove postconditions on this return path
     }
 }

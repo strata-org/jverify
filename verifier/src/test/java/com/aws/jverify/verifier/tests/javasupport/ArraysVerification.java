@@ -1,4 +1,4 @@
-// ^ /object-contract.java(109:22-109:31) Related location: this is the precondition that could not be proved
+// ^ /object-contract.java(109:22-109:31) Related location: this is the preconditions that could not be proved
 package com.aws.jverify.verifier.tests.javasupport;
 
 import com.aws.jverify.testengine.JVerifyTest;
@@ -17,7 +17,7 @@ class ArraysVerification {
 
     SupplyArray arrayConstructorReference() {
         return int[]::new;
-//             ^ Error: a precondition for this call could not be proved
+//             ^ Error: a preconditions for this call could not be proved
     }
 
     static void intArrayOfSize10() {

@@ -25,7 +25,7 @@ public class PolymorphicStaticsVerification {
         var x = Generic.someStatic(new R(), true);
         check(x == 3);
         var y = Generic.someStatic(new R(), false);
-//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: function precondition could not be proved
+//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: function preconditions could not be proved
         // TODO add when we support static fields
         // check(Generic.staticFieldsAreNeverGeneric == 3);
     }

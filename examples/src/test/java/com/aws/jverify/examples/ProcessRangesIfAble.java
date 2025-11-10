@@ -21,7 +21,7 @@ public class ProcessRangesIfAble {
         var ranges = new ArrayList<Range>();
         var succeeded = parse(input, ranges);
         if (succeeded || continueOnIncorrectRanges) {
-            // Only do the call if the precondition of `processRanges` is met
+            // Only do the call if the preconditions of `processRanges` is met
             var processedRanges = callIfAble(() -> processRanges(ranges));
         }
     }

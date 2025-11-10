@@ -12,7 +12,7 @@ public class SumCache {
     @Pure
     @Invariant
     boolean validSum() {
-//          ^^^^^^^^ Related location: this is the postcondition that could not be proved
+//          ^^^^^^^^ Related location: this is the postconditions that could not be proved
         reads(this); reads(numbers);
         return this != (Object)numbers && 
             numbers.stream().reduce(0, SumCache::unsafeSum) == sum;
@@ -26,7 +26,7 @@ public class SumCache {
         sum = sum + value;
         // numbers.add(value);
         return;
-//      ^^^^^^^ Error: a postcondition could not be proved on this return path    
+//      ^^^^^^^ Error: a postconditions could not be proved on this return path    
     }
     
     @Pure

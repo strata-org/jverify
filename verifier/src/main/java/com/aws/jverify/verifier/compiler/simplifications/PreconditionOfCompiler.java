@@ -6,7 +6,6 @@ import com.aws.jverify.verifier.compiler.dafnygenerator.AttributedTreeCopier;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.tools.javac.code.*;
-import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.util.*;
 
@@ -63,11 +62,11 @@ public class PreconditionOfCompiler extends TreeTranslator {
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
         var method = (JCTree.JCMethodDecl) index.getTree(methodSymbol);
         var contract = contractCompiler.getContract(method.body);
-        if (contract.precondition().size() != 1) {
+        if (contract.preconditions().size() != 1) {
             reporter.reportError(invocation, "preconditionOfTargetMustHaveSinglePrecondition");
             return;
         }
-        var precondition = contract.precondition().getFirst().get();
+        var precondition = contract.preconditions().getFirst().get();
 
         JCTree.JCFieldAccess access = (JCTree.JCFieldAccess) preconditionOwnerCall.getMethodSelect();
         Map<Symbol.VarSymbol, JCTree.JCExpression> replacements = new HashMap<>();

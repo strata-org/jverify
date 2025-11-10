@@ -12,7 +12,7 @@ public class MultiPackageTest {
         var f = new Foo();
         var f2 = new com.aws.jverify.verifier.tests.javasupport.packages.b.Foo();
         check(f.bar(1) + f2.bar(2) == 3);
-//                       ^^^^^^^^^ Error: function precondition could not be proved
+//                       ^^^^^^^^^ Error: function preconditions could not be proved
     }
 
     /**
