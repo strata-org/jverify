@@ -181,7 +181,7 @@ public class BlockCompiler {
                                    ExpressionContext expressionContext) {
         var origin = reporter.toOrigin(loop);
         var header = new MethodOrLoopDafnyContract(loop, false);
-        baseGenerator.toDafnyContract(body, header);
+        baseGenerator.fillDafnyContract(body, header);
 
         setupLabels(loop, labels, header);
 

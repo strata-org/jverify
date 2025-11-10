@@ -19,7 +19,6 @@ import com.sun.tools.javac.util.List;
 import javax.lang.model.element.ElementKind;
 import java.util.*;
 
-// TODO more explanation of how the merging works, how its safe, what happens to the name, etc.
 /**
  * Handles @Contract annotations, so that further passes can be agnostic to them.
  * Some remnants of the @Contract classes remain
@@ -202,6 +201,8 @@ public class ExternalContractCompiler {
 
             var oldSymbol = classDecl.sym;
             oldSymbol.name = contracteeSymbol.name;
+            // If we don't change the name here, it is still changed in Lower.java
+            classDecl.name = oldSymbol.name;
             classDecl.sym = contracteeSymbol;
             classDecl.type = contracteeSymbol.type;
 

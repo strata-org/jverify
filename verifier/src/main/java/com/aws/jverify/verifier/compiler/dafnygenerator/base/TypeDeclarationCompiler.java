@@ -298,7 +298,7 @@ public class TypeDeclarationCompiler {
         }
 
         var contract = new MethodOrLoopDafnyContract(method, jverifyUtils.isPure(method.sym));
-        baseGenerator.toDafnyContract(method.body, contract);
+        baseGenerator.fillDafnyContract(method.body, contract);
 
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);

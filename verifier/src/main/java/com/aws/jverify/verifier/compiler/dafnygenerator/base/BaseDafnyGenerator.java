@@ -477,16 +477,20 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
 
-    public void toDafnyContract(
+    public void fillDafnyContract(
         JCTree.JCStatement outerBlock,
         MethodOrLoopDafnyContract dafnyContract)
     {
         var contract = methodOrLoopContractCompiler.getContract(outerBlock);
-        for(var preconditionJavaExpr : contract.preconditions()) {
+        for(var precondition : contract.preconditions()) {
             dafnyContract.preconditions.add(new AttributedExpression(
-                    expressionCompiler.toExpr(preconditionJavaExpr.get(), ExpressionContext.Pure), null, null));
+                    expressionCompiler.toExpr(precondition.get(), ExpressionContext.Pure), null, null));
         }
-        handlePostcondition(dafnyContract, contract.postconditions());
+        for(var postcondition : contract.postconditions()) {
+            if (handlePostcondition(dafnyContract, postcondition.get())) {
+                break;
+            }
+        }
         for(var javaLoopInvariant : contract.loopInvariants()) {
             dafnyContract.loopInvariants.add(new AttributedExpression(
                     expressionCompiler.toExpr(javaLoopInvariant.get(), ExpressionContext.Pure), null, null));
@@ -507,13 +511,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             if (!implementation.isEmpty()) {
                 dafnyContract.pureBody = expressionCompiler.toExprWithFlows(implementation, ExpressionContext.Pure);
             }
-        }
-    }
-
-    private void handlePostcondition(MethodOrLoopDafnyContract header, List<Property<JCTree.JCExpression>> exprs) {
-        for(var exprProp : exprs) {
-            var expr = exprProp.get();
-            if (handlePostcondition(header, expr)) return;
         }
     }
 
