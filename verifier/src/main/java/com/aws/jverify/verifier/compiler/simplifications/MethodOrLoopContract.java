@@ -28,10 +28,12 @@ public record MethodOrLoopContract(
 
         return clauses.stream().map(Property::get).
                 reduce((a,b) -> {
+                    // Use temporary arguments to binary so we can easily attribute Binary
                     var trueLiteral = treeMaker.Literal(true);
                     JCTree.JCBinary binary = treeMaker.Binary(JCTree.Tag.AND, trueLiteral, trueLiteral);
                     Env<AttrContext> env = enter.getTopLevelEnv(reporter.compilationUnit);
                     attr.attribExpr(binary, env, Type.noType);
+                    // Replace temporary arguments
                     binary.lhs = a;
                     binary.rhs = b;
                     return binary;
