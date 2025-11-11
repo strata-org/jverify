@@ -117,12 +117,12 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         var endPos = positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) != null ?
                 positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) : startPos;
 
-
         var methodVerificationStatus = new JavaMethodVerificationStatus(methodDecl, new TokenRange(startPos,endPos), shouldVerify ?
                 JavaMethodVerificationStatus.VerificationStatus.Verified :  JavaMethodVerificationStatus.VerificationStatus.Skipped);
 
         sourceFileToMethodIntervalTreeMap.get(sourceFileURI)
-                .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), methodVerificationStatus.getPosition().getEndToken().getLine(),
+                .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), 
+                        methodVerificationStatus.getPosition().getEndToken().getLine(),
                         methodVerificationStatus);
     }
 
@@ -163,13 +163,15 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         if (filter == null) {
             return true;
         } else {
-            if (!filter.unitPasses(reporter.compilationUnit)) {
+            if (!filter.unitPasses(options, reporter.compilationUnit)) {
                 return false;
             }
 
             var nodeRange = Reporter.getRange(reporter.getName(method, method.name).getOrigin());
             int line = nodeRange.getStartToken().getLine();
-            return filter.start() <= line && line <= filter.end();
+            var start = filter.start() == null ? 0 : filter.start();
+            var end = filter.end() == null ? Integer.MAX_VALUE : filter.end();
+            return start <= line && line <= end;
         }
     }
 

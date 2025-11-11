@@ -47,7 +47,8 @@ public class DropUnreachableUnits {
         var allDependencies = new LinkedHashSet<JCTree.JCCompilationUnit>();
         var visited = new HashSet<JCTree.JCCompilationUnit>();
         for(var unit : units) {
-            if (options.positionFilter().unitPasses(unit)) {
+            if (options.positionFilter().unitPasses(options, unit)) {
+                allDependencies.add(unit);
                 findDependenciesRecursive(unit, allDependencies, visited);
             }
         }

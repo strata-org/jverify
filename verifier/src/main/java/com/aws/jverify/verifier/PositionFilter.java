@@ -3,17 +3,17 @@ package com.aws.jverify.verifier;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public record PositionFilter(@Nullable String fileEnding, @Nullable Integer start, @Nullable Integer end) {
 
-    public boolean unitPasses(JCTree.JCCompilationUnit compilationUnit) {
-        return fileEnding == null || compilationUnit.getSourceFile().getName().endsWith(fileEnding());
+    public boolean unitPasses(VerifierOptions options,  JCTree.JCCompilationUnit compilationUnit) {
+        var resolved = options.workingDirectory().resolve(compilationUnit.getSourceFile().getName());
+        return fileEnding == null || resolved.endsWith(fileEnding());
     }
-    
-    
     
     public static @Nullable PositionFilter getPositionFilter(String filterPosition) {
         if (filterPosition == null) {
