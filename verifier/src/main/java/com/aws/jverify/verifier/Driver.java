@@ -364,8 +364,15 @@ public class Driver {
             if (positionFilter.fileEnding() != null) {
                 s.append(positionFilter.fileEnding());
             }
-            s.append(":").append(positionFilter.start()).append("-");
-            s.append(positionFilter.end());
+            boolean hasLineFilter = positionFilter.start() != null || positionFilter.end() != null;
+            if (hasLineFilter) {
+                s.append(":");
+            }
+            s.append(positionFilter.start() == null ? "" : positionFilter.start());
+            if (hasLineFilter) {
+                s.append("-");
+            }
+            s.append(positionFilter.end() == null ? "" : positionFilter.end());
             processBuilder.command().add(s.toString());
         }
     }

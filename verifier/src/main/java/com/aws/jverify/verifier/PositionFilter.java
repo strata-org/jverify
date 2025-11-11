@@ -7,11 +7,13 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public record PositionFilter(@Nullable String fileEnding, int start, int end) {
+public record PositionFilter(@Nullable String fileEnding, @Nullable Integer start, @Nullable Integer end) {
 
     public boolean unitPasses(JCTree.JCCompilationUnit compilationUnit) {
         return fileEnding == null || compilationUnit.getSourceFile().getName().endsWith(fileEnding());
     }
+    
+    
     
     public static @Nullable PositionFilter getPositionFilter(String filterPosition) {
         if (filterPosition == null) {
@@ -29,16 +31,13 @@ public record PositionFilter(@Nullable String fileEnding, int start, int end) {
         boolean hasRange = Objects.equals(matcher.group(3), "-");
         String lineEnd = matcher.group(3);
 
-        int start = 0;
-        int end = Integer.MAX_VALUE;
-        if (lineEnd != null && !lineEnd.isEmpty()) {
-            end = Integer.parseInt(lineEnd);
-            if (!hasRange) {
-                start = end;
-            }
-        }
+        Integer start = null;
+        Integer end = null;
         if (lineStart != null && !lineStart.isEmpty()) {
             start = Integer.parseInt(lineStart);
+        }
+        if (lineEnd != null && !lineEnd.isEmpty()) {
+            end = Integer.parseInt(lineEnd);
         }
         return new PositionFilter(filePart, start ,end);
     }
