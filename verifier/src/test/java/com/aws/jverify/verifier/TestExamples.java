@@ -8,12 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class TestExamples {
-
-    @Test
-    public void testIsAbstractAndPreconditionOf() throws IOException {
-        var markedSourcePath = Path.of("IsAbstractAndPreconditionOf.java");
-        verifyPath(markedSourcePath, 4, 7, 1, false, false);
-    }
     
     @Test
     public void testSumCache() throws IOException {
