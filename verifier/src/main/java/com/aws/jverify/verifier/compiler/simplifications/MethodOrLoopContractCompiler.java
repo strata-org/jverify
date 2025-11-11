@@ -287,7 +287,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
                 case Common.PRECONDITION -> {
                     if (invocation.args.size() != 1) {
-                        throw new JavaViolationException("A preconditions call may have only one argument");
+                        throw new JavaViolationException("A call to 'precondition' may have only one argument");
                     }
                     precondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }

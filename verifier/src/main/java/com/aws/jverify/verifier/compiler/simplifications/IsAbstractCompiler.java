@@ -60,7 +60,8 @@ public class IsAbstractCompiler extends TreeScanner {
             return false;
         }
         Symbol calledMethod = TreeInfo.symbol(invocation.getMethodSelect());
-        return isAbstract == calledMethod || calledMethod.name.startsWith(preconditionMethodPrefix);
+        boolean isAbstractCallWasAlreadyReplaced = calledMethod.name.startsWith(preconditionMethodPrefix);
+        return isAbstract == calledMethod || isAbstractCallWasAlreadyReplaced;
     }
 
     @Override

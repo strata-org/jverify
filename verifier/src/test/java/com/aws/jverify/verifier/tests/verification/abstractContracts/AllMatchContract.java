@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.tests.verification.abstractContracts;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.ContractException;
-import com.aws.jverify.JVerify;
-import com.aws.jverify.Pure;
+import com.aws.jverify.*;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import java.util.function.IntPredicate;
@@ -16,9 +13,8 @@ public class AllMatchContract {
 
     @SuppressWarnings("ConstantValue")
     void foo() {
-        var temp = IntStream.range(0, 10);
-        var r = temp.allMatch(value -> {
-            precondition(cast(temp, IntStreamContract.class).values.contains(value));
+        var r = IntStream.range(0, 10).allMatch(value -> {
+            precondition(cast(IntStream.range(0, 10), IntStreamContract.class).values().contains(value));
             check(0 <= value && value <= 10);
             return value == 2;
         });
@@ -36,14 +32,17 @@ public class AllMatchContract {
 
     @Contract(IntStream.class)
     static abstract class IntStreamContract implements IntStream {
-        // Temporarily assigning this fixed value here, since Dafny does not support abstract constants in traits
-        // And JVerify does not yet support writing this as an abstract method
-        public final JVerify.IntSequence values = JVerify.range(0, 10);
+        // Using a method instead of a final field, since Dafny does not support abstract constants in traits
+        @Erased
+        @Pure
+        public JVerify.IntSequence values() {
+            throw new ContractException();
+        }
 
         @Pure
         public boolean allMatch(IntPredicate predicate) {
             precondition(JVerify.forall((int i) ->
-                    implies(values.contains(i),
+                    implies(values().contains(i),
                             preconditionOf(predicate.test(i)))
             ));
             throw new ContractException();
@@ -52,7 +51,7 @@ public class AllMatchContract {
         @Pure
         public static IntStream range(int startInclusive, int endExclusive) {
             precondition(startInclusive <= endExclusive);
-            postcondition((IntStreamContract r) -> jequals(r.values, JVerify.range(startInclusive, endExclusive)));
+            postcondition((IntStreamContract r) -> jequals(r.values(), JVerify.range(startInclusive, endExclusive)));
             throw new ContractException();
         }
     }
