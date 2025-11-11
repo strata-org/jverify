@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier;
 
+import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Objects;
@@ -8,6 +9,10 @@ import java.util.regex.Pattern;
 
 public record PositionFilter(@Nullable String fileEnding, int start, int end) {
 
+    public boolean unitPasses(JCTree.JCCompilationUnit compilationUnit) {
+        return fileEnding == null || compilationUnit.getSourceFile().getName().endsWith(fileEnding());
+    }
+    
     public static @Nullable PositionFilter getPositionFilter(String filterPosition) {
         if (filterPosition == null) {
             return null;

@@ -198,6 +198,9 @@ public class JavaToDafnyCompiler {
                     phases.add(JavaToDafnyCompiler.this::unlambda);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
+                    if (options.positionFilter() != null && options.positionFilter().fileEnding() != null) {
+                        phases.add(new DropUnreachableUnits(context)::transform);
+                    }
                     phases.add(VerifyAnnotationCompiler.instance(context)::transform);
                     phases.add(new MissingContractCompiler(context)::transform);
                     phases.add(new IsAbstractCompiler(context)::transform);

@@ -163,8 +163,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         if (filter == null) {
             return true;
         } else {
-            if (filter.fileEnding() != null
-                    && !reporter.compilationUnit.getSourceFile().getName().endsWith(filter.fileEnding())) {
+            if (!filter.unitPasses(reporter.compilationUnit)) {
                 return false;
             }
 
