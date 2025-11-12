@@ -593,8 +593,9 @@ public class ExpressionCompiler {
             return new NameSegment(origin, baseGenerator.nameCompiler.getCompiledName(classSymbol, origin), List.of());
         }
 
-        if (fieldAccess.selected.type != null &&
-            fieldAccess.selected.type.toString().equals(Double.class.getName())) {
+        if (fieldAccess.sym instanceof Symbol.VarSymbol varSymbol &&
+            varSymbol.owner instanceof Symbol.ClassSymbol ownerClass &&
+            ownerClass.fullname.contentEquals(Double.class.getName())) {
             var fieldNameStr = fieldAccess.name.toString();
             return switch (fieldNameStr) {
                 case "NaN" -> fp64Method(origin, "NaN");
