@@ -1023,13 +1023,14 @@ public class ExpressionCompiler {
     }
 
     private static NameSegment fp64Segment(IOrigin origin) {
-        return new NameSegment(origin, "fp64", List.of());
+        return new NameSegment(origin, "fp64", null);
     }
 
     private static Expression fp64Constant(IOrigin origin, String constantName) {
-        // For constants, use ApplySuffix with empty args
-        var dotExpr = new ExprDotName(origin, fp64Segment(origin), new Name(origin, constantName), null);
-        return new ApplySuffix(origin, dotExpr, null, new ActualBindings(List.of()), null);
+        // For static members, use StaticReceiverExpr
+        var fp64Type = new Fp64Type(origin);
+        var staticReceiver = new StaticReceiverExpr(origin, fp64Type, false);
+        return new ExprDotName(origin, staticReceiver, new Name(origin, constantName), null);
     }
 
     private static Expression fp64Method(IOrigin origin, String methodName) {
