@@ -598,12 +598,12 @@ public class ExpressionCompiler {
             ownerClass.fullname.contentEquals(Double.class.getName())) {
             var fieldNameStr = fieldAccess.name.toString();
             return switch (fieldNameStr) {
-                case "NaN" -> fp64Method(origin, "NaN");
-                case "POSITIVE_INFINITY" -> fp64Method(origin, "PositiveInfinity");
-                case "NEGATIVE_INFINITY" -> fp64Method(origin, "NegativeInfinity");
-                case "MAX_VALUE" -> fp64Method(origin, "MaxValue");
-                case "MIN_VALUE" -> fp64Method(origin, "MinSubnormal");
-                case "MIN_NORMAL" -> fp64Method(origin, "MinNormal");
+                case "NaN" -> fp64Constant(origin, "NaN");
+                case "POSITIVE_INFINITY" -> fp64Constant(origin, "PositiveInfinity");
+                case "NEGATIVE_INFINITY" -> fp64Constant(origin, "NegativeInfinity");
+                case "MAX_VALUE" -> fp64Constant(origin, "MaxValue");
+                case "MIN_VALUE" -> fp64Constant(origin, "MinSubnormal");
+                case "MIN_NORMAL" -> fp64Constant(origin, "MinNormal");
                 default -> {
                     reporter.reportError(fieldAccess, "notSupported", "Double field " + fieldNameStr);
                     yield JVerifyUtils.getHole(origin);
@@ -984,22 +984,22 @@ public class ExpressionCompiler {
 
     public Expression translateFp64Literal(IOrigin origin, double value) {
         if (Double.isNaN(value)) {
-            return fp64Method(origin, "NaN");
+            return fp64Constant(origin, "NaN");
         }
         if (value == Double.POSITIVE_INFINITY) {
-            return fp64Method(origin, "PositiveInfinity");
+            return fp64Constant(origin, "PositiveInfinity");
         }
         if (value == Double.NEGATIVE_INFINITY) {
-            return fp64Method(origin, "NegativeInfinity");
+            return fp64Constant(origin, "NegativeInfinity");
         }
         if (value == Double.MAX_VALUE) {
-            return fp64Method(origin, "MaxValue");
+            return fp64Constant(origin, "MaxValue");
         }
         if (value == Double.MIN_VALUE) {
-            return fp64Method(origin, "MinSubnormal");
+            return fp64Constant(origin, "MinSubnormal");
         }
         if (value == Double.MIN_NORMAL) {
-            return fp64Method(origin, "MinNormal");
+            return fp64Constant(origin, "MinNormal");
         }
         return new LiteralExpr(origin, value);
     }
@@ -1023,7 +1023,13 @@ public class ExpressionCompiler {
     }
 
     private static NameSegment fp64Segment(IOrigin origin) {
-        return new NameSegment(origin, "fp64", null);
+        return new NameSegment(origin, "fp64", List.of());
+    }
+
+    private static Expression fp64Constant(IOrigin origin, String constantName) {
+        // For constants, use ApplySuffix with empty args
+        var dotExpr = new ExprDotName(origin, fp64Segment(origin), new Name(origin, constantName), null);
+        return new ApplySuffix(origin, dotExpr, null, new ActualBindings(List.of()), null);
     }
 
     private static Expression fp64Method(IOrigin origin, String methodName) {
