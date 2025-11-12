@@ -14,7 +14,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 20, dafnyErrors = 13)
+@JVerifyTest(exitCode = 4, dafnyVerified = 22, dafnyErrors = 13)
 class Operators {
     static void Plus() {
         int x = 3;
@@ -28,7 +28,7 @@ class Operators {
         int y = 4;
         int z = x + y;
         check(z==6);
-//      ^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Minus() {
@@ -43,7 +43,7 @@ class Operators {
         int y = 4;
         int z = y - x;
         check(z==0);
-//      ^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Mult() {
@@ -58,7 +58,7 @@ class Operators {
         int y = 4;
         int z = x * y;
         check(z==11);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Mod() {
@@ -73,7 +73,7 @@ class Operators {
         int y = 23;
         int z = y % x;
         check(z==1);
-//      ^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Gt() {
@@ -86,7 +86,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(y > x);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Lt() {
@@ -99,7 +99,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(x < y);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Leq() {
@@ -112,7 +112,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(x <= y);
-//      ^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Geq() {
@@ -125,7 +125,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(y >= x);
-//      ^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Eq() {
@@ -138,7 +138,7 @@ class Operators {
         int x = 4;
         int y = 3;
         check(x == y);
-//      ^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     void InstanceOfTrivial() {
@@ -153,7 +153,7 @@ class Operators {
     void InstanceOfKO() {
         DummyInterface di = DummyClass.create();
         check(di instanceof DummyClass2);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
     }
 
@@ -166,7 +166,7 @@ class Operators {
 
     void castNumInvalid(int i) {
         check(i == (short) i);
-//                 ^^^^^^^^^ Error: result of operation might violate subset type constraint for 'int16'
+//                 ^^^^^^^^^ Error: result of operation could not be proved to satisfy subset type constraint for 'int16'
     }
 
     void castRefTrivial() {
@@ -189,6 +189,6 @@ class Operators {
         var casted = (DummyClass) dc2;
 //                   ^^^^^^^^^^^^^^^^ Error: value of expression (of type 'DummyInterface') is not known to be an instance of type 'DummyClass'
         check(dc1 == casted);
-//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 }

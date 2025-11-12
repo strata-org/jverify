@@ -1,40 +1,44 @@
-// ^ b/WillVerify.java(10:9-10:21) Error: assertion might not hold
+// ^ b/WillVerify.java(10:9-10:21) Error: assertion could not be proved
 package com.aws.jverify.verifier.tests.verification.shouldVerify;
 
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import static com.aws.jverify.JVerify.check;
+import java.math.BigInteger;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 6,
+import static com.aws.jverify.JVerify.check;
+import static com.aws.jverify.JVerify.postcondition;
+
+@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 6,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 
         "./b/WillVerify.java", 
-        "./b/package-info.java" }
+        "./b/package-info.java" },
+        javaVerified = 2, javaSkipped = 7, javaErrors = 6
 )
 public class ShouldVerify {
 
     @Verify(value = true, overrideChildren = true)
-    static class ShouldVerify1 {
+    static class VerifiedConstructor {
 
         @Verify(false)
-        public ShouldVerify1() {
+        public VerifiedConstructor() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         @Verify(false)
-        void foo1() {
+        void isVerified() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
     }
 
     @Verify(value = false, overrideChildren = true)
     static class ShouldVerify2 {
         @Verify(true)
-        void foo2() {
+        void notVerified() {
             check(false);
         }
     }
@@ -42,12 +46,13 @@ public class ShouldVerify {
     @Verify(value = false, overrideChildren = false)
     static class ShouldVerify3 {
         @Verify(true)
-        void foo3() {
+        void isVerified() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
-        void foo4() {
+        void notVerifiedMethodCanUseCodeWithoutContracts() {
+            BigInteger bigInteger = new BigInteger("1");
             check(false);
         }
     }
@@ -57,13 +62,19 @@ public class ShouldVerify {
         @Verify(true)
         void foo5() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         void foo6() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
+    }
+
+    @Verify(false)
+    public ShouldVerify() {
+        // test that verify false works for constructors 
+        postcondition(false);
     }
 
 }

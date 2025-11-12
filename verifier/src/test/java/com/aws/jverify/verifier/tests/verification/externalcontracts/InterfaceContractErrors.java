@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.verification.externalcontracts;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
-import com.aws.jverify.Modifiable;
+import com.aws.jverify.Impure;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.postcondition;
@@ -15,14 +15,14 @@ public class InterfaceContractErrors {
         @Override
         public int redeclaredContract() {
 //                 ^ error: method 'redeclaredContract' already has an internally defined contract
-            postcondition((Integer r) -> true);
+            postcondition((int r) -> true);
             throw new ContractException();
         }
     }
 
     interface I {
         default int redeclaredContract() {
-            postcondition((Integer r) -> r > 2);
+            postcondition((int r) -> r > 2);
             return 1;
         }
     }
@@ -30,13 +30,13 @@ public class InterfaceContractErrors {
     interface IllegalAnnotationInterface {}
 
     @Contract
-    @Modifiable
-//  ^ error: annotation 'Modifiable' on @Contract class 'InterfaceContractErrors$IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
+    @Impure
+//  ^ error: annotation 'Impure' on @Contract class 'IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
     static class IllegalAnnotationContract implements IllegalAnnotationInterface {
     }
 
     interface HasGenericArgument<Bar> {}
     @Contract
     static class HasGenericArgumentContract<Foo> implements HasGenericArgument<Foo> {}
-//         ^ error: Contract class 'InterfaceContractErrors$HasGenericArgumentContract' has different type parameters than the contractee 'HasGenericArgument'. The parameters must have the same names
+//         ^ error: Contract class 'HasGenericArgumentContract' has different type parameters than the contractee 'HasGenericArgument'. The parameters must have the same names
 }

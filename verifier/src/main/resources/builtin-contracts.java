@@ -3,77 +3,196 @@ package com.aws.jverify.builtin;
 import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
+import java.io.PrintStream;
 import java.math.BigInteger;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
-import static com.aws.jverify.JVerify.check;
 
+import java.util.*;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
-import java.util.function.Function;
-import java.util.function.Consumer;
-import java.util.Collection;
-import java.util.List;
-import java.util.SequencedCollection;
+import java.util.stream.Stream;
 
 @Contract(Comparable.class)
 class ComparableContract<T> {
 }
 
-@Contract(value = Number.class, immutable = true)
+@Contract(value = Number.class, pure = true)
 class NumberContract {
-    
+
+}
+
+@Contract(BiFunction.class)
+abstract class BiFunctionContract<T, U, R> implements BiFunction<T, U, R> {
+    @Pure
+    public R apply(T t, U u) {
+        throw new ContractException();
+    }
+}
+
+class SequenceHelper {
+    @Pure
+    public static <T> T reduce(Sequence<T> sequence, T identity, BinaryOperator<T> accumulator) {
+        if (sequence.size() == 0) {
+            return identity;
+        }
+        return accumulator.apply(reduce(sequence.subsequence(0, sequence.size() - 1), identity, accumulator), sequence.get(sequence.size() - 1));
+    }
+}
+
+@Contract(value = Stream.class, pure = true)
+abstract class StreamContract<T> implements Stream<T> {
+
+    public JVerify.Sequence<T> elements;
+
+    @Pure
+    public T reduce(T identity, BinaryOperator<T> accumulator) {
+        return SequenceHelper.reduce(elements, identity, accumulator);
+    }
 }
 
 @Contract(Collection.class)
-interface CollectionContract<E> {
+abstract class CollectionContract<E> implements Collection<E> {
 
+    @Pure
+    public Stream<E> stream() {
+        reads(everything());
+        decreases(0);
+        throw new ContractException();
+    }
+    
+    @Override
+    @Pure
+    public int size() {
+        reads(everything());
+        decreases(0);
+        throw new ContractException();
+    }
 }
 
 @Contract(SequencedCollection.class)
 interface SequencedCollectionContract<E> extends Collection<E> { }
 
-@Contract(value = List.class, immutable = true)
+abstract class ImmutableList<E> implements List<E> {
+    @Override
+    @Pure
+    @Verify(false)
+    public int size() {
+        decreases(0);
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    @Verify(false)
+    public E get(int index) {
+        precondition(0 <= index && index < size());
+        throw new ContractException();
+    }
+}
+
+@Contract(value = List.class, pure = true)
 abstract class ListContract<E> implements List<E> {
-
-    JVerify.Sequence<E> elements;
-
-    static <E> List<E> of() {
-        postcondition((List<E> r) ->
-                r.size() == 0);
+    
+    @Pure
+    static <E> ImmutableList<E> of() {
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
+                il.size() == 0);
         throw new ContractException();
     }
 
+    @Pure
     static <E> List<E> of(E e1) {
-        postcondition((List<E> r) ->
-                r.size() == 1 &&
-                        r.get(0) == e1);
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
+                il.size() == 1 && 
+                il.get(0) == e1);
         throw new ContractException();
     }
 
+    @Pure
     static <E> List<E> of(E e1, E e2) {
-        postcondition((List<E> r) ->
-                r.size() == 2 &&
-                        r.get(0) == e1 &&
-                        r.get(1) == e2);
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
+                il.size() == 2 && 
+                il.get(0) == e1 && 
+                il.get(1) == e2);
         throw new ContractException();
     }
 
+    @Pure
     static <E> List<E> of(E e1, E e2, E e3) {
-        postcondition((List<E> r) ->
-                r.size() == 3 &&
-                        r.get(0) == e1 &&
-                        r.get(1) == e2 &&
-                        r.get(2) == e3);
+        postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
+                il.size() == 3 && 
+                il.get(0) == e1 && il.get(1) == e2 && 
+                il.get(2) == e3);
         throw new ContractException();
     }
 
     @Override
     @Pure
     public E get(int index) {
+        reads(everything());
+        decreases(size());
+        precondition(0 <= index && index < size());
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public int size() {
+        reads(everything());
+        decreases(0);
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean isEmpty() {
+        reads(everything());
+        decreases(0);
+        postcondition((boolean r) -> r == (size() == 0));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean contains(Object o) {
+        reads(everything());
+        decreases(size());
+        postcondition((boolean r) ->
+                r == JVerify.exists((int i) ->
+                        0 <= i && i < size() && get(i).equals(o)));
+        throw new ContractException();
+    }
+}
+
+@Contract(ArrayList.class)
+abstract class ArrayListContract<E> extends ArrayList<E>{
+
+    protected JVerify.Sequence<E> elements;
+    
+    public ArrayListContract() {
+        postcondition(elements.size() == 0);
+        throw new ContractException();
+    }
+
+    @Pure
+    public Stream<E> stream() {
+        reads(this);
+        decreases(0);
+        postcondition((Stream<E> s) -> cast(s, StreamContract.class).elements == elements);
+        throw new ContractException();
+    }
+    
+    @Override
+    @Pure
+    public E get(int index) {
+        reads(this);
+        decreases(0);
         precondition(0 <= index && index < size());
         postcondition((E e) -> e == elements.get(index));
         throw new ContractException();
@@ -82,6 +201,8 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public int size() {
+        reads(this);
+        decreases(0);
         postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
@@ -89,6 +210,8 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public boolean isEmpty() {
+        reads(this);
+        decreases(0);
         postcondition((boolean r) -> r == (elements.size() == 0));
         throw new ContractException();
     }
@@ -96,24 +219,40 @@ abstract class ListContract<E> implements List<E> {
     @Override
     @Pure
     public boolean contains(Object o) {
+        reads(this);
+        decreases(size());
         postcondition((boolean r) ->
                 r == JVerify.exists((int i) ->
                         0 <= i && i < elements.size() && elements.get(i).equals(o)));
+
+
+        postcondition((boolean r) ->
+                r == JVerify.exists((int i) ->
+                        0 <= i && i < size() && get(i).equals(o)));
         throw new ContractException();
     }
-}
+    
+    @Override
+    public boolean add(E element) {
+        modifies(this);
+        postcondition((boolean r) -> elements == old(elements.concat(JVerify.elements(element))));
+        throw new ContractException();
+    }
+} 
 
-@Contract(value = Set.class, immutable = true)
+@Contract(value = Set.class, pure = true)
 abstract class SetContract<E> implements Set<E> {
 
     JVerify.Set<E> elements;
 
+    @Pure
     static <E> Set<E> of() {
         postcondition((Set<E> r) ->
                 r.size() == 0);
         throw new ContractException();
     }
 
+    @Pure
     static <E> Set<E> of(E e1) {
         postcondition((Set<E> r) ->
                 r.size() == 1 &&
@@ -121,6 +260,7 @@ abstract class SetContract<E> implements Set<E> {
         throw new ContractException();
     }
 
+    @Pure
     static <E> Set<E> of(E e1, E e2) {
         postcondition((Set<E> r) ->
                 r.size() == 2 &&
@@ -129,6 +269,7 @@ abstract class SetContract<E> implements Set<E> {
         throw new ContractException();
     }
 
+    @Pure
     static <E> Set<E> of(E e1, E e2, E e3) {
         postcondition((Set<E> r) ->
                 r.size() == 3 &&
@@ -141,6 +282,7 @@ abstract class SetContract<E> implements Set<E> {
     @Override
     @Pure
     public boolean contains(Object o) {
+        decreases(0);
         postcondition((boolean r) ->
                 r == JVerify.exists((E other) ->
                         elements.contains(other) && other.equals(o)));
@@ -150,6 +292,7 @@ abstract class SetContract<E> implements Set<E> {
     @Override
     @Pure
     public int size() {
+        decreases(0);
         postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
@@ -163,17 +306,19 @@ abstract class SetContract<E> implements Set<E> {
 }
 
 
-@Contract(value = Map.class, immutable = true)
+@Contract(value = Map.class, pure = true)
 abstract class MapContract<K, V> implements Map<K, V> {
 
     JVerify.Map<Object, V> elements;
 
+    @Pure
     static <K, V> Map<K, V> of() {
         postcondition((Map<K, V> r) ->
                 r.size() == 0);
         throw new ContractException();
     }
 
+    @Pure
     static <K, V> Map<K, V> of(K k1, V v1) {
         postcondition((Map<K, V> r) ->
                 r.size() == 1 &&
@@ -182,6 +327,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
         throw new ContractException();
     }
 
+    @Pure
     static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2) {
         postcondition((Map<K, V> r) ->
                 r.size() == 2 &&
@@ -192,6 +338,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
         throw new ContractException();
     }
 
+    @Pure
     static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3) {
         postcondition((Map<K, V> r) ->
                 r.size() == 2 &&
@@ -243,7 +390,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
                 size() == r.size() &&
                         r.elements ==
                                 JVerify.Set.all((K k) -> elements.contains(k))
-                                        .map((K k) -> (java.util.Map.Entry<K,V>)new MapEntry<K, V>(k, elements.get(k))));
+                                        .map((K k) -> Map.entry(k, elements.get(k))));
         throw new ContractException();
     }
 
@@ -254,7 +401,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
     }
 }
 
-@Contract(immutable = true)
+@Contract(pure = true)
 abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
     @Override
     @Pure
@@ -269,34 +416,23 @@ abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
     }
 }
 
-// It would be better to use Map.entry(key, value) directly,
-// but that currently doesn't work because we end up with <K, V> type parameters
-// on both Map and Map.entry, and while Java ignores the outer type parameters
-// for static methods, Dafny gets confused and doesn't resolve.
-record MapEntry<K, V>(K key, V value) implements Map.Entry<K, V> {
-    @Override
-    @Pure
-    public K getKey() {
-        return key;
-    }
-
-    @Override
-    @Pure
-    public V getValue() {
-        return value;
-    }
-
-    @Override
-    @Verify(false)
-    public V setValue(V value) {
-        throw new UnsupportedOperationException();
-    }
-}
-
 @Contract(Short.class)
 class ShortContract {
     public static final short MIN_VALUE = -32768;
     public static final short MAX_VALUE = 32767;
+}
+
+class IntegerContractHelper {
+    @Pure
+    public static boolean sumWillOverflow(int a, int b) {
+        if (a > 0 && b > 0) {
+            return a > Integer.MAX_VALUE - b;
+        }
+        if (a < 0 && b < 0) {
+            return a < Integer.MIN_VALUE - b;
+        }
+        return false; // Different signs won't overflow
+    }
 }
 
 @Contract(Integer.class)
@@ -304,6 +440,13 @@ class IntegerContract {
     public static final int MAX_VALUE = 0x7fffffff;
     public static final int MIN_VALUE = 0x80000000;
 
+    @Pure
+    public static int sum(int a, int b) {
+        precondition(!IntegerContractHelper.sumWillOverflow(a, b));
+        return a + b;
+    }
+    
+    @Pure
     public static Integer valueOf(int i) {
         postcondition((Integer b) -> b.intValue() == i);
         throw new ContractException();
@@ -332,6 +475,7 @@ class LongContract {
     public static final long MIN_VALUE = 0x8000000000000000L;
     public static final long MAX_VALUE = 0x7fffffffffffffffL;
 
+    @Pure
     public static Long valueOf(long l) {
         postcondition((Long b) -> b.longValue() == l);
         throw new ContractException();
@@ -360,6 +504,7 @@ class BooleanContract {
 
 @Contract
 class IntFunction<R> implements java.util.function.IntFunction<R> {
+    @Pure
     public R apply(int value) {
         throw new ContractException();
     }
@@ -382,22 +527,30 @@ class HelperForBigIntegerContract {
 
     @Erased
     @Pure
-     static boolean isValidString(String v) {
+    static boolean isValidString(String v) {
         return (v.length() == 0 ||
                 ((v.charAt(0) == '+' || v.charAt(0) == '-') && isAllDigits(v.substring(1))) ||
                 isAllDigits(v));
     }
+    
     @Erased
     @Pure
     static @Unbounded int stringToInt(String v) {
         decreases(v.length());
-        return
-                v.length() == 0 ? 0 :
-                        (v.charAt(0) == '+' ?
-                        stringToInt(v.substring(1)) :
-                        (v.charAt(0) == '-' ? -stringToInt(v.substring(1)) :
-                                (v.charAt(v.length()-1)-'0') + 10*stringToInt(v.substring(0,v.length()-1))
-                                ));
+        if (v.length() == 0) {
+            return 0;
+        }
+
+        if (v.charAt(0) == '+') {
+            return stringToInt(v.substring(1));
+        }
+
+        if (v.charAt(0) == '-') {
+            return -stringToInt(v.substring(1));
+        }
+
+        return v.charAt(v.length()-1)-'0' + 
+                10*stringToInt(v.substring(0,v.length()-1));
     }
 
     @Erased
@@ -408,7 +561,7 @@ class HelperForBigIntegerContract {
     }
 }
 
-@Contract(value = BigInteger.class, immutable = true)
+@Contract(value = BigInteger.class, pure = true)
 class BigIntegerContract  {
     // Field holding the value of the BigInteger
     @Unbounded int intValue;
@@ -426,21 +579,25 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract add(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue + v.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract subtract(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue - v.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract multiply(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue * v.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract divide(BigIntegerContract v) {
         precondition(v.intValue != 0);
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue / v.intValue);
@@ -453,38 +610,45 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract abs() {
         postcondition((BigIntegerContract b) -> b.intValue == (this.intValue < 0 ? -this.intValue : this.intValue));
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract min(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == (this.intValue < v.intValue ? this.intValue : v.intValue));
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract max(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.intValue == (this.intValue > v.intValue ? this.intValue : v.intValue));
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract mod(BigIntegerContract v) {
         precondition(v.intValue != 0);
         postcondition((BigIntegerContract b) -> b.intValue == this.intValue % v.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract negate() {
         postcondition((BigIntegerContract b) -> b.intValue == -this.intValue);
         throw new ContractException();
     }
 
+    @Pure
     BigIntegerContract pow(int exponent) {
         precondition(exponent >= 0);
         postcondition((BigIntegerContract b) -> b.intValue == HelperForBigIntegerContract.pow(intValue, exponent));
         throw new ContractException();
     }
 
+    @Pure
     static BigIntegerContract valueOf(long val) {
         postcondition((BigIntegerContract b) -> b.intValue == val);
         throw new ContractException();
@@ -496,4 +660,79 @@ class BigIntegerContract  {
         throw new ContractException();
     }
 
+}
+
+@Contract(value = Optional.class, pure = true)
+class OptionalContract<T> {
+
+    private T value;
+    private boolean isSet;
+
+    //TODO: add precondition for null
+    @Pure
+    static <T> OptionalContract<T> of(T value) {
+        postcondition((OptionalContract<T> o) -> o.value == value && o.isSet);
+        throw new ContractException();
+    }
+
+    @Pure
+    static <T> OptionalContract<T> empty() {
+        postcondition((OptionalContract<T> o) -> !o.isSet);
+        throw new ContractException();
+    }
+
+    //Currently the same as of because we are not able to handle null cases
+    //TODO: add null check
+    /*
+    @Pure
+    static <T> OptionalContract<T> ofNullable(T value) {
+        postcondition((OptionalContract<T> o) ->  o.isSet && o.value == value);
+        throw new ContractException();
+    }
+    */
+
+    @Pure
+    boolean isEmpty() {
+        postcondition((boolean r) -> r == !isSet);
+        throw new ContractException();
+    }
+
+    @Pure
+    boolean isPresent() {
+        postcondition((boolean r) -> r == isSet);
+        throw new ContractException();
+    }
+
+    @Pure
+    T orElse(T value) {
+        postcondition((T b) -> isPresent()? b == this.value : b == value);
+        throw new ContractException();
+    }
+
+    @Pure
+    T get() {
+        precondition(isSet);
+        postcondition((T b) -> b == this.value);
+        throw new ContractException();
+    }
+}
+
+@Contract(System.class)
+class SystemContract {
+    public static final PrintStream out = SystemContractHelper.createPrintStream();
+    
+}
+class SystemContractHelper {
+    @Verify(false)
+    @Pure
+    public static PrintStream createPrintStream() {
+        throw new ContractException();
+    }
+}
+
+@Contract(value = PrintStream.class)
+class PrintStreamContracts {
+    public void println(String x) {
+        throw new ContractException();
+    }
 }

@@ -1,3 +1,5 @@
+// ^ /builtin-contracts.java(569:22-569:51) Related location: this proposition could not be proved
+// ^ /builtin-contracts.java(569:55-569:84) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests.jcl;
 
 import com.aws.jverify.Pure;
@@ -13,7 +15,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, dafnyVerified = 5, dafnyErrors = 2, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 5, dafnyErrors = 4, useBuiltinContracts = true, javaVerified = 4, javaErrors = 2)
 class BigIntegers {
     static void testConstructors() {
         BigInteger bi = new BigInteger("3");
@@ -46,7 +48,9 @@ class BigIntegers {
     static void testConstructorNegative() {
         BigInteger bi = new BigInteger("23456");
         check(bi.intValue() == 23456);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//            ^^^^^^^^^^^^^ Error: function precondition could not be proved
+//            ^^^^^^^^^^^^^ Error: function precondition could not be proved        
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     // Test all arithmetic operations on BigIntegers
@@ -74,7 +78,7 @@ class BigIntegers {
         BigInteger minusTwo = new BigInteger("-2");
         BigInteger fail = bi.add(minusTwo);
         check(fail.intValue() == 25);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
     
     @Pure

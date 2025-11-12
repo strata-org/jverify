@@ -3,7 +3,6 @@ JVerify intends to support the full Java language, but is currently being develo
 # Currently unsupported Java features
 
 #### Java 1-9
-- Use of mutating operators such as `=` in a nested expression
 - Enhanced for loop: `for(var x : xs) { ... }`
 - Verification of constructors
 - static fields
@@ -16,7 +15,7 @@ JVerify intends to support the full Java language, but is currently being develo
   - The keyword `synchronized` is ignored
 
 #### Java 14
-- `instanceof <pattern>`, only when using a pattern
+- Deconstructing a record using `instanceof`, for example `shape instanceof Circle(Point(var x, var y), var radius)`
 - Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
 - `yield` in switch expressions
 

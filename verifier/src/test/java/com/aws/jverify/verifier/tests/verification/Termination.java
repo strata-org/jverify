@@ -1,9 +1,10 @@
 package com.aws.jverify.verifier.tests.verification;
 
 import com.aws.jverify.Nat;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import static com.aws.jverify.JVerify.decreases;
+import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 4, dafnyVerified = 3, dafnyErrors = 1)
 class Termination {
@@ -28,7 +29,7 @@ class Termination {
             if (y == 0) {
             } else {
                 WrongOrder(y, y - 1);
-//              ^^^^^^^^^^^^^^^^^^^^ Error: decreases clause might not decrease
+//              ^^^^^^^^^^^^^^^^^^^^ Error: decreases clause could not be proved to decrease
             }
         }
         else {

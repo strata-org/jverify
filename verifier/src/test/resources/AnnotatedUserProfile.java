@@ -16,7 +16,7 @@ class UserProfile {
             this.premiumFeatures = new PremiumFeatures();
         } else {
             this.premiumFeatures = null;
-//                                 ^^^^ Error: value of expression (of type 'PremiumFeatures?') is not known to be an instance of type 'PremiumFeatures', because it might be null
+//                                 ^^^^ Error: value of expression (of type 'PremiumFeatures?') is not known to be an instance of type 'PremiumFeatures', because it could not be proved to be non-null
         }
     }[>
     
@@ -26,7 +26,7 @@ class UserProfile {
     private boolean valid() {
 //                  ^^^^^ Related location: this is the postcondition that could not be proved
         reads(this);
-        return (@Modifiable Object)this != premiumFeatures &&
+        return (@Impure Object)this != premiumFeatures &&
                 (accountType != AccountType.Premium || premiumFeatures != null);
 //               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Related location: this proposition could not be proved
     }
@@ -46,7 +46,7 @@ class UserProfile {
             // Checker framework will report this as a possible null pointer exception. 
             // JVerify accepts the code
             premiumFeatures.setTheme(theme);
-//          ^^^^^^^^^^^^^^^ Error: target object might be null
+//          ^^^^^^^^^^^^^^^ Error: target object could not be proved to be non-null
             return true;
         } else {
             return false;

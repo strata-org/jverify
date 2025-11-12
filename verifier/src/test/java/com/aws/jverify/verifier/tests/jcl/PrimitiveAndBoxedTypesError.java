@@ -11,6 +11,6 @@ class PrimitiveAndBoxedTypesError {
     boolean referenceEqualityOnBoxedPrimitive(Integer i, Integer j) {
         //noinspection NumberEquality
         return i == j;
-//               ^ error: '==' is only allowed when at least one operand's type is mutable
+//               ^ error: '==' is only allowed when at least one operand's type is impure
     }
 }

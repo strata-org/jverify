@@ -9,6 +9,12 @@ import java.nio.file.Path;
 
 public class TestExamples {
     
+    @Test
+    public void testSumCache() throws IOException {
+        var markedSourcePath = Path.of("SumCache.java");
+        verifyPath(markedSourcePath, 4, 7, 1, false);
+    }
+    
     /**
      * This is the only test that tests these rules.
      */
@@ -19,21 +25,27 @@ public class TestExamples {
     }
     
     @Test
-    public void testImmutableTypes() throws IOException {
-        var markedSourcePath = Path.of("ImmutableTypes.java");
+    public void testPurity() throws IOException {
+        var markedSourcePath = Path.of("TypePurity.java");
         verifyPath(markedSourcePath, 22, -1, -1, true);
     }
     
     @Test
     public void testNullCheck() throws IOException {
-        var markedSourcePath = Path.of("NullCheck.java");
-        verifyPath(markedSourcePath, 4, 4, 2, false);
+        var markedSourcePath = Path.of("SimpleNullCheck.java");
+        verifyPath(markedSourcePath, 4, 5, 2, false);
     }
     
     @Test
     public void testFibonacci() throws IOException {
         var markedSourcePath = Path.of("Fibonacci.java");
         verifyPath(markedSourcePath, 0, 6, 0, false);
+    }
+
+    @Test
+    public void testOrder() throws IOException {
+        var markedSourcePath = Path.of("Order.java");
+        verifyPath(markedSourcePath, 4, 5, 1, false);
     }
     
     @Test

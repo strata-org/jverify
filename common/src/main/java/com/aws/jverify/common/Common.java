@@ -37,4 +37,8 @@ public class Common {
             throw new RuntimeException("Failed to read " + name + " resource", e);
         }
     }
+
+    public static String getExtraS(int count) {
+        return count != 1 ? "s" : "";
+    }
 }

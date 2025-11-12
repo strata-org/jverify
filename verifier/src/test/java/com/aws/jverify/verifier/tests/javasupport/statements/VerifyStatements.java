@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
-@JVerifyTest(exitCode = 0, dafnyVerified = 16, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(dafnyVerified = 18, dafnyErrors = 0, verifyPrintedDafny = true)
 class VerifyStatements {
     void whileWithBreak() {
         var x = 0;
@@ -167,5 +167,11 @@ class VerifyStatements {
     void underscoreVariableName() {
         var _ = 3;
     }
-
+    
+    int methodWithResult() {
+        return 3;
+    }
+    void ignoreCallResult() {
+        methodWithResult();
+    }
 }

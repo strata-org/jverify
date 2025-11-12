@@ -5,9 +5,10 @@ import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.*;
 
-public class MethodReferenceToLambdaCompiler {
+public class MethodReferenceToLambdaCompiler extends TreeTranslator {
     private final TreeMaker make;
     private final Names names;
     private final Types types;
@@ -18,17 +19,35 @@ public class MethodReferenceToLambdaCompiler {
         this.types = Types.instance(context);
     }
 
+    Symbol currentContainer;
+    @Override
+    public void visitMethodDef(JCTree.JCMethodDecl tree) {
+        var previous = currentContainer;
+        currentContainer = tree.sym;
+        super.visitMethodDef(tree);
+        currentContainer = previous;
+    }
+    
+    @Override
+    public void visitReference(JCTree.JCMemberReference tree) {
+        result = referenceToLambda(tree);
+    }
+    
     public JCTree.JCLambda referenceToLambda(JCTree.JCMemberReference reference) {
+        make.pos = reference.pos;
+        
         var paramTypes = types.findDescriptorType(reference.type).getParameterTypes();
         var params = getParameters(paramTypes).toList();
 
+        Type target = null;
         JCTree.JCExpression methodCall = switch (reference.kind) {
             case STATIC ->
                 // Static method reference: Class::method -> (args) -> Class.method(args)
                     replaceColonsWithDot(reference, params);
-            case BOUND ->
+            case BOUND -> {
                 // Bound instance method: obj::method -> (args) -> obj.method(args)
-                    replaceColonsWithDot(reference, params);
+                yield replaceColonsWithDot(reference, params);
+            }
             case UNBOUND ->
                 // Unbound instance method: Class::method -> (obj, args) -> obj.method(args)
                     addImplicitReceiverArgument(reference, params);
@@ -42,20 +61,30 @@ public class MethodReferenceToLambdaCompiler {
 
         make.pos = reference.pos;
         var lambda = make.Lambda(params, methodCall);
+        lambda.target = reference.target;
         lambda.type = reference.type;
         return lambda;
     }
 
     private JCTree.JCExpression useLhsToConstructNewClass(JCTree.JCMemberReference reference, List<JCTree.JCVariableDecl> params) {
+        Type returnType = reference.referentType.getReturnType();
+        if (returnType.isPrimitiveOrVoid()) {
+            // The return type can be void for constructor references, so we use this backup 
+            // However, when the return type is an applied generic type
+            // Then reference.referentType.getReturnType() is set correctly
+            // And this backup will be the unapplied type, which we don't want
+            // So only do this when needed
+            returnType = reference.expr.type;
+        }
         JCTree.JCNewClass newClass = make.NewClass(
                 null,
-                null,
+                returnType.getTypeArguments().map(make::Type),
                 reference.expr,
                 makeIdentList(params),
                 null
         );
         newClass.constructor = reference.sym;
-        newClass.type = reference.sym.owner.type;
+        newClass.type = returnType;
         return newClass;
     }
 
@@ -76,7 +105,7 @@ public class MethodReferenceToLambdaCompiler {
                 args
         );
         
-        methodCall.type = reference.sym.type.getReturnType();
+        methodCall.type = reference.referentType.getReturnType();
         return methodCall;
     }
 
@@ -91,7 +120,7 @@ public class MethodReferenceToLambdaCompiler {
                 select,
                 makeIdentList(params)
         );
-        methodCall.type = reference.sym.type.getReturnType();
+        methodCall.type = reference.referentType.getReturnType();
         return methodCall;
     }
 
@@ -105,7 +134,8 @@ public class MethodReferenceToLambdaCompiler {
                     make.Type(paramTypes.get(i)),
                     null
             );
-            param.sym = new Symbol.VarSymbol(0, paramName, paramTypes.get(i), null);
+            param.sym = new Symbol.VarSymbol(0, paramName, paramTypes.get(i), currentContainer);
+            param.type = param.sym.type;
             params.append(param);
         }
         return params;

@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 1, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 14, dafnyErrors = 1, verifyPrintedDafny = true)
 class OverloadsTest {
     
     private int f;
@@ -91,7 +91,7 @@ class OverloadsTest {
             // Errors
             OverloadsTest c = new OverloadsTest(10, 15, 20);
             check(c.f()==11);
-//          ^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
             check(c.g()==16);
             check(c.h()==21);
         }

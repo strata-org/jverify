@@ -5,14 +5,15 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 4, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 6, dafnyErrors = 1)
 public class NestedStaticClass {
     @Nullable
     StaticNestee nestee;
+    
     public static class StaticNestee {
         void checkFalse() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion might not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
     }
 }

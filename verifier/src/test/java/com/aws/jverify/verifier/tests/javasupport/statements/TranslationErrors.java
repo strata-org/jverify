@@ -1,5 +1,7 @@
 package com.aws.jverify.verifier.tests.javasupport.statements;
 
+import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
@@ -10,9 +12,9 @@ import static com.aws.jverify.JVerify.*;
 class TranslationErrors {
     
     void quantifierNeedsLambdaArgument() {
-        check(forall((Integer i) -> i > 0));
-        java.util.function.Function<Integer, Boolean> f =
-                (Integer i) -> i > 0;
+        check(forall((int i) -> i > 0));
+        java.util.function.IntPredicate f =
+                (int i) -> i > 0;
         check(forall(f));
 //                   ^ error: the argument to a forall call must be a lambda
     }
@@ -68,6 +70,14 @@ class TranslationErrors {
         };
     }
 
+    @Contract(Integer.class)
+    static class IntegerContract {
+        @Pure
+        public int intValue() {
+            throw new ContractException();
+        }
+    }
+    
     int switchCasePattern(Integer i) {
         return switch (i) {
             case Integer ii when ii < 0 -> ii * 3;
@@ -97,12 +107,18 @@ class TranslationErrors {
 
     int switchThrowBody(int i) {
         return switch (i) {
-            case 0 -> throw new RuntimeException("");
+            case 0 -> throw new RuntimeException();
 //                    ^ error: switch rule throw statement is not supported
             case 1, 2 -> -i;
 //          ^ error: switch labeled statement group is not supported
             default -> i * i * i;
         };
+    }
+    
+    @Contract(RuntimeException.class)
+    static class RuntimeExceptionContract {
+        public RuntimeExceptionContract() {
+        }
     }
 
     // This is intentional: primitives aren't nullable in Java.
@@ -115,20 +131,12 @@ class TranslationErrors {
         return i == 0;
     }
 
-    // This is a limitation of the current implementation; we'd like to allow matching Java semantics more precisely.
-    static boolean nullableString(@Nullable String s) {
-//                                ^ error: nullable String type is not supported
-        return s == null;
-    }
-
     record IntWrapper(int value) {}
 
     @SuppressWarnings("unused")
     record IntWrapperWrapper(@Nullable IntWrapper inner) {}
-//                                     ^ error: nullable record type is not supported
 
     static boolean nullableRecord(@Nullable IntWrapper w) {
-//                                ^ error: nullable record type is not supported
         return w == null;
     }
 
@@ -138,19 +146,19 @@ class TranslationErrors {
             IntWrapper w1, IntWrapper w2
     ) {
         if (o1 == o2) {
-//             ^ error: '==' is only allowed when at least one operand's type is mutable
+//             ^ error: '==' is only allowed when at least one operand's type is impure
             return 0;
         } else if (o1 == null) {
             return 1;
         } else if (null == o2) {
             return 2;
         } else if (i == o1) {
-//                   ^ error: '==' is only allowed when at least one operand's type is mutable
+//                   ^ error: '==' is only allowed when at least one operand's type is impure
             return 3;
         } else if (w1 == null) {
             return 4;
         } else if (w1 == w2) {
-//                    ^ error: '==' is only allowed when at least one operand's type is mutable
+//                    ^ error: '==' is only allowed when at least one operand's type is impure
             return 5;
         }
 
@@ -166,14 +174,13 @@ class TranslationErrors {
         check(new DummyRecord() != null);
 
         check(new DummyClass() != null);
-//            ^ error: using 'new' in an expression to create an instance of a mutable type is not supported
     }
 
     void foo() {}
 
     void ifWithThrow(int x) {
         if (x > 0) {
-            throw new RuntimeException("");
+            throw new RuntimeException();
 //          ^ error: statement JCThrow is not supported
         }
     }

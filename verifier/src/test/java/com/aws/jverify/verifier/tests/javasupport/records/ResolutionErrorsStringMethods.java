@@ -8,7 +8,7 @@ import static com.aws.jverify.JVerify.*;
 class ResolutionErrorsStringMethods {
     static void stringFormatted() {
         check("hello %s".formatted("world").length() == 11);
-//                                ^ error: String method formatted(java.lang.Object...) is not supported
-//                                 ^ error: JCNewArray in an expression is not supported
+//            ^ warning: missing contract for method 'formatted' in class 'java.lang.String'
+//                                 ^ error: new array with initializers is not supported
     }
 }

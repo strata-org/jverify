@@ -11,13 +11,13 @@ To see examples of bugs that JVerify can detect, have a look at [this section](.
 
 # Frequently asked questions
 
-#### Can I use JVerify right now?
-No, JVerify is not yet ready for production use. 
+#### Should I use JVerify in production right now?
+No, JVerify is not yet ready for production use. The user experience, amount of support for the Java language and reliability is not yet at the level that we think it is likely to give you a good experience.
 
-However, you can use the [installation](./installation.md) and [Running JVerify](./first_verification.md) sections in this guide to explore what it can currently do. Note that you will run into poor error messages, unsupported features and bugs - that are not yours ;-).
+However, you can use the [installation](./installation.md) and [Running JVerify](./first_verification.md) sections in this guide to explore what it can currently do.
 
 #### Does JVerify support the entire Java language?
-Yes, it will support all Java language features. Note that we differentiate between Java the language, as documented in [its specification](https://docs.oracle.com/javase/specs/), and the Java standard library. More on JVerify's support for the latter is further down this FAQ.
+Not yet, but it will support all Java language features. Note that we differentiate between Java the language, as documented in [its specification](https://docs.oracle.com/javase/specs/), and the Java standard library. More on JVerify's support for the latter is further down this FAQ.
 
 Despite JVerify supporting all Java language features, there may be edge-cases where despite sufficient verification hints by the programmer, JVerify can not prove the correctness of a correct program. In these cases, you can either skip verification, or otherwise you will have to modify the program, even though it's already correct. One class of these edge-cases is where verification depends on information from the type system, and needs a downcast where the type system does not require one.
 
@@ -34,7 +34,10 @@ For the Java standard library, JVerify provides contracts for the most commonly 
 You can use any Java IDE when working with JVerify.
 
 #### Will adding calls to the JVerify library slow down the execution of my program?
-No, more about that is in [erasing verification code during compilation](./erase_verification.md). 
+No, more about that is in [erasing verification code during compilation](./erase_verification.md).
+
+#### Can JVerify prove that code has a bug?
+No, currently JVerify can only prove the absence of bugs, but it can not prove their presence. If JVerify returns an error, this may be because of an actual bug or because it needs more proof hints.
 
 # This guide
 

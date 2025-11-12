@@ -15,6 +15,7 @@ class Engine {
 class Car {
     Engine engine;
     
+    @Pure
     public int readHorsePower() {
         reads(this, engine); // without this line, the next line would emit an error
         return this.engine.horsePower;

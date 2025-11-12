@@ -13,7 +13,7 @@ public class VerifyOffByDefault {}
 class WithAttributeTrue {
     void foo() {
         check(false);
-//      ^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
 }
 

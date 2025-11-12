@@ -17,7 +17,7 @@ import static com.aws.jverify.JVerify.*;
  * After the fix, invariants should only be applied to public instance methods,
  * not to static methods.
  */
-@JVerifyTest(exitCode = 0, dafnyVerified = 6, dafnyErrors = 0)
+@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
 public class InvariantsAndStaticMethodsInSameClass {
     
     private @Unbounded int balance;
@@ -31,7 +31,8 @@ public class InvariantsAndStaticMethodsInSameClass {
     @Pure
     @Invariant
     private boolean balanceIsNonNegative() {
-        reads(this); return this.balance >= 0;
+        reads(this); 
+        return this.balance >= 0;
     }
     
     // Public instance method - should have invariant applied as pre/post condition

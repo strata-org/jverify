@@ -2,7 +2,6 @@ package com.aws.jverify;
 
 import java.util.Optional;
 import java.util.function.BiPredicate;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
@@ -12,6 +11,12 @@ public class JVerify {
 
     public static boolean implies(boolean antecedent, boolean consequent) {
         return !antecedent || consequent;
+    }
+
+    /**
+     * Assume the provided condition.
+     */
+    public static void assume(boolean condition) {
     }
     
     public static void check(boolean condition) {
@@ -97,6 +102,28 @@ public class JVerify {
     public static void modifies(Object object) {
     }
 
+    /**
+     * Can be used in reads clauses to refer to all objects
+     */
+    public static Object everything() {
+        throw new VerificationMethodExecutedException();
+    }
+
+    /**
+     * Can be used in a reads or modifies contract to make that clause abstract
+     * A subclass of the current clause can implement that abstract clause
+     * By redefining it and filling in a value
+     */
+    public static Object isAbstract() {
+        throw new VerificationMethodExecutedException();
+    }
+
+    /**
+     * Takes a fully applied method call and returns the reads clause of that call
+     */
+    public static Object readsOf(Object value) {
+        throw new VerificationMethodExecutedException();
+    }
 
     /**
      * Evaluates the given value using the program state with which the current method was called with.
@@ -109,6 +136,19 @@ public class JVerify {
         throw new ContractException();
     }
 
+    /**
+     * TODO decide whether this should exist or not
+     * and if it does add documentation
+     * And even if we remove jequals, it might be good to add documentation on Dafny's == somewhere
+     * To clarify when it resolves to:
+     * - reference equality
+     * - shallow equality
+     * - undefined equality
+     */
+    public static <T> boolean jequals(T left, T right) {
+        throw new VerificationMethodExecutedException();
+    }
+    
     /**
      * Returns true if the given object were allocated during the current method call.
      */
@@ -140,6 +180,27 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    /**
+     * Create a Sequence with the given element(s)
+     */
+    public static <T> Sequence<T> elements(T element) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    /**
+     * Cast a Java type to its contract type, to enable accessing fields of the contract class
+     */
+    public static <T, U> U cast(T element) {
+        throw new VerificationMethodExecutedException();
+    }
+    
+    /**
+     * Cast a Java type to its contract type, to enable accessing fields of the contract class
+     */
+    public static <T, U> U cast(T element, Class<U> clazz) {
+        throw new VerificationMethodExecutedException();
+    }
+    
     /**
      * Returns a {@link Sequence} representing the contents of the specified array.
      */
@@ -184,6 +245,44 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public interface CharJSequence {
+        /**
+         * Returns the element at index {@code index}.
+         */
+        char get(int index);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive.
+         */
+        CharJSequence drop(int fromIndex);
+
+        /**
+         * Returns the subsequence ending at {@code toIndex}, inclusive.
+         */
+        CharJSequence take(int toIndex);
+
+        /**
+         * Returns the subsequence starting at {@code fromIndex}, inclusive,
+         * and ending at {@code toIndex}, exclusive.
+         */
+        CharJSequence subsequence(int fromIndex, int toIndex);
+
+        /**
+         * Returns {@code true} if this sequence contains the specified element.
+         */
+        boolean contains(char element);
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
+
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        CharJSequence concat(CharJSequence next);
+    }
+    
     public interface Sequence<T> {
         /**
          * Returns the element at index {@code index}.
@@ -215,6 +314,11 @@ public class JVerify {
          * Returns the number of elements in this sequence.
          */
         @Unbounded int size();
+        
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        Sequence<T> concat(Sequence<T> next);
     }
 
     public interface IntSequence {

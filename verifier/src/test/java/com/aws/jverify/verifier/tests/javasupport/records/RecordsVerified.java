@@ -5,12 +5,20 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 25, dafnyErrors = 4)
+@JVerifyTest(exitCode = 4, dafnyVerified = 17, dafnyErrors = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
     }
-
+    
+    static void equalsOnRecords() {
+        var first = new IntRecord(1);
+        var second = new IntRecord(1);
+        var third = new IntRecord(2);
+        check(first.equals(second));
+        check(!first.equals(third));
+    }
+    
     static void primitiveRecords() {
         var neg = new IntRecord(-1);
         var pos = new IntRecord(2);
@@ -20,7 +28,7 @@ class RecordsVerified {
         check(pos.value() == 2);
 
         check(big.value() == 777);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void referenceRecords() {
@@ -33,7 +41,7 @@ class RecordsVerified {
         check(rec1.foobar().id == 1);
 
         check(rec2.foobar().id == 3);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void genericRecords() {
@@ -44,7 +52,7 @@ class RecordsVerified {
         var foobar = new Foobar(3);
         var foobarRecord = new FoobarRecord(foobar);
         check(foobarRecord.foobar() == null);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
         var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
         check(foobarFoobarRecord.b().foobar() == null);
@@ -56,18 +64,18 @@ class RecordsVerified {
     }
 
     static void recursiveRecords() {
-        var nodeC = new BasicConsList("C", null);
+        var nodeC = new BasicConsList(3, null);
         var contC = new Wrapper<>(nodeC);
-        var nodeB = new BasicConsList("B", contC);
+        var nodeB = new BasicConsList(2, contC);
         var contB = new Wrapper<>(nodeB);
-        var nodeA = new BasicConsList("A", contB);
+        var nodeA = new BasicConsList(1, contB);
 
-        check(nodeA.head().equals("A"));
-        check(nodeB.head().equals("B"));
-        check(nodeC.head().equals("C"));
+        check(nodeA.head() == 1);
+        check(nodeB.head() == 2);
+        check(nodeC.head() == 3);
 
         check(nodeA.tail() == null);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion might not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void memberFunctions() {
@@ -102,7 +110,11 @@ class RecordsVerified {
 record UnitRecord() {}
 
 /** Primitive-type component */
-record IntRecord(int value) {}
+record IntRecord(int value) {
+    public void useValueInsideRecord() {
+        var b = value();
+    }
+}
 
 /** Reference-type component */
 record FoobarRecord(@Nullable Foobar foobar) {}
@@ -114,7 +126,7 @@ record Pair<A, B>(A a, B b) {}
 record UnusedTypeParameter<A, B>(int x) {}
 
 /** Recursion */
-record BasicConsList(String head, @Nullable Wrapper<BasicConsList> tail) {}
+record BasicConsList(int head, @Nullable Wrapper<BasicConsList> tail) {}
 
 /** Members */
 @SuppressWarnings("ManualMinMaxCalculation")
