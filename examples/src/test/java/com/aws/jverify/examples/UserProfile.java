@@ -31,14 +31,15 @@ class UserProfile {
     public void upgradeAccount() {
         modifies(this);
         this.accountType = AccountType.Premium;
+        // Without the next line, 
+        // JVerify reports that this method invalidates the class's invariant
         this.premiumFeatures = new PremiumFeatures();
-        return;
     }
 
     public boolean applyTheme(Theme theme) {
         modifies(premiumFeatures);
         if (AccountType.Premium == accountType) {
-            // Checker framework will report this as a possible null pointer exception. 
+            // NullAway reports this as a possible null pointer exception. 
             // JVerify accepts the code
             premiumFeatures.setTheme(theme);
             return true;

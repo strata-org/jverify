@@ -29,6 +29,7 @@ import javax.tools.DiagnosticCollector;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaFileObject;
 import java.io.File;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -80,6 +81,11 @@ public class JavaToDafnyCompiler {
 
     public boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
         return builtinSources.contains(compilationUnit.getSourceFile());
+    }
+
+    public boolean isLibrary(URI sourceURI) {
+        return builtinSources.stream()
+                .anyMatch( file -> file.toUri().equals(sourceURI));
     }
 
 
