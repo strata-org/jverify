@@ -1002,8 +1002,15 @@ public class ExpressionCompiler {
         if (value == Double.MIN_NORMAL) {
             return fp64Constant(origin, "MinNormal");
         }
-        // Use plain double literal - Dafny will handle the conversion
-        return new LiteralExpr(origin, value);
+        
+        var literal = new DecimalLiteralExpr(origin, value);
+        
+        // Wrap non-integers in ApproximateExpr
+        if (value != Math.floor(value)) {
+            return new ApproximateExpr(origin, literal);
+        }
+        
+        return literal;
     }
 
     public Expression promoteToFp64(JCTree.@Nullable JCExpression javaExpr, Expression dafnyExpr, IOrigin origin) {
