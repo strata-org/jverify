@@ -1002,6 +1002,7 @@ public class ExpressionCompiler {
         if (value == Double.MIN_NORMAL) {
             return fp64Constant(origin, "MinNormal");
         }
+        // Use plain double literal - Dafny will handle the conversion
         return new LiteralExpr(origin, value);
     }
 
