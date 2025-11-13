@@ -595,7 +595,8 @@ public class ExpressionCompiler {
 
         if (fieldAccess.sym instanceof Symbol.VarSymbol varSymbol &&
             varSymbol.owner instanceof Symbol.ClassSymbol ownerClass &&
-            ownerClass.fullname.contentEquals(Double.class.getName())) {
+            (ownerClass.fullname.contentEquals(Double.class.getName()) ||
+             ownerClass.fullname.contentEquals(Double.class.getName() + "?static"))) {
             var fieldNameStr = fieldAccess.name.toString();
             return switch (fieldNameStr) {
                 case "NaN" -> fp64Constant(origin, "NaN");
@@ -1027,10 +1028,7 @@ public class ExpressionCompiler {
     }
 
     private static Expression fp64Constant(IOrigin origin, String constantName) {
-        // For static members, use StaticReceiverExpr
-        var fp64Type = new Fp64Type(origin);
-        var staticReceiver = new StaticReceiverExpr(origin, fp64Type, false);
-        return new ExprDotName(origin, staticReceiver, new Name(origin, constantName), null);
+        return new ExprDotName(origin, fp64Segment(origin), new Name(origin, constantName), null);
     }
 
     private static Expression fp64Method(IOrigin origin, String methodName) {
