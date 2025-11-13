@@ -28,6 +28,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Driver {
+
+    public static Context context;
     public record VerificationResultsWithIntervalTreeMap(VerificationResults verificationResults, HashMap<URI, IntervalTree<Integer,
             JavaMethodVerificationStatus>> sourceFileToMethodIntervals) {}
 
@@ -54,7 +56,7 @@ public class Driver {
         var verificationResults = new VerificationResults();
 
         InstrumentLower.installModification();
-        Context context = new Context();
+        context = new Context();
         TypesWithoutErasure.preRegister(context);
         context.put(VerifierOptions.class, verifierOptions);
 
@@ -115,6 +117,15 @@ public class Driver {
                     }
                 }
                 var relativeUri = dafnyDiagnostic.getSource();
+
+                if (relativeUri == null) {
+                    continue;
+                }
+
+                if (context.get(JavaToDafnyCompiler.class).isLibrary(relativeUri)) {
+                    continue;
+                }
+
                 var failedJavaMethod = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri)
                         .findAtPoint((int) dafnyDiagnostic.getLineNumber());
                 if (failedJavaMethod != null) {
@@ -127,8 +138,19 @@ public class Driver {
             outputWriter.write(verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage());
         }
 
-        if (verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals != null &&
-                verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != CommandLine.ExitCode.USAGE) {
+
+        /*
+         * checks for the following:
+         *  - the presence of non-library methods,
+         *  - lack of errors in generated Dafny code
+         *  - Dafny did not fail to run
+         *  - lack of errors in Dafny run
+         */
+        if (verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals != null //there exists
+                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != CommandLine.ExitCode.USAGE
+                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != -1
+                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != getExitCodeFromDafny(2)
+        ) {
             outputWriter.write('\n');
             String bullet = "• ";
 
@@ -296,7 +318,7 @@ public class Driver {
         }
         
         if (verifierOptions.verbose()) {
-            System.out.println("Dafny options: " + String.join(", ", processBuilder.command()));
+            System.out.println("Dafny options: " + String.join(" ", processBuilder.command()));
         }
 
         try {
