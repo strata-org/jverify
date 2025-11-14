@@ -100,5 +100,6 @@ jobs:
           Add-Content $env:GITHUB_PATH "${PWD}/jverify-collection/dafny/Scripts"
       - name: Verify sample project
         working-directory: ./jverify-collection/sample-project
+        shell: bash
         run: |
           ./gradlew verify --info
