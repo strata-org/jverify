@@ -693,62 +693,40 @@ public class ExpressionCompiler {
         if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
                 && ownerClass.fullname.contentEquals(Double.class.getName())) {
             var methodName = methodSymbol.name.toString();
-
+            
+            Expression result = null;
             if (methodSymbol.isStatic()) {
-                return switch (methodName) {
+                result = switch (methodName) {
                     case "isNaN", "isInfinite", "isFinite" -> {
-                        if (!invocation.getArguments().isEmpty()) {
-                            var arg = toExpr(invocation.getArguments().get(0), context.forbidImpure());
-                            if (arg instanceof LiteralExpr) {
-                                arg = new ParensExpression(origin, arg);
-                            }
-                            var propertyName = switch (methodName) {
-                                case "isNaN" -> "IsNaN";
-                                case "isInfinite" -> "IsInfinite";
-                                case "isFinite" -> "IsFinite";
-                                default -> throw new IllegalStateException();
-                            };
-                            yield new ExprDotName(origin, arg, new Name(origin, propertyName), null);
-                        }
-                        reporter.reportError(invocation, "notSupported", "Double." + methodName);
-                        yield JVerifyUtils.getHole(origin);
+                        if (invocation.getArguments().isEmpty()) yield null;
+                        var arg = toExpr(invocation.getArguments().get(0), context.forbidImpure());
+                        if (arg instanceof LiteralExpr) arg = new ParensExpression(origin, arg);
+                        // "isNaN" -> "IsNaN", "isFinite" -> "IsFinite"
+                        var propertyName = "Is" + methodName.substring(2);
+                        yield new ExprDotName(origin, arg, new Name(origin, propertyName), null);
                     }
-                    case "valueOf" -> {
-                        if (!invocation.getArguments().isEmpty()) {
-                            yield toExpr(invocation.getArguments().get(0), context.forbidImpure());
-                        }
-                        reporter.reportError(invocation, "notSupported", "Double.valueOf");
-                        yield JVerifyUtils.getHole(origin);
-                    }
-                    default -> {
-                        reporter.reportError(invocation, "notSupported", "Double method " + methodName);
-                        yield JVerifyUtils.getHole(origin);
-                    }
+                    case "valueOf" -> invocation.getArguments().isEmpty() ? null 
+                            : toExpr(invocation.getArguments().get(0), context.forbidImpure());
+                    default -> null;
                 };
             } else {
-                return switch (methodName) {
-                    case "doubleValue", "floatValue" -> {
-                        if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-                            yield toExpr(fieldAccess.selected, context);
-                        }
-                        reporter.reportError(invocation, "notSupported", "Double." + methodName);
-                        yield JVerifyUtils.getHole(origin);
-                    }
+                result = switch (methodName) {
+                    case "doubleValue", "floatValue" -> 
+                        invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
+                            ? toExpr(fieldAccess.selected, context) : null;
                     case "isNaN", "isInfinite" -> {
-                        if (invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess) {
-                            var receiver = toExpr(fieldAccess.selected, context);
-                            var propertyName = methodName.equals("isNaN") ? "IsNaN" : "IsInfinite";
-                            yield new ExprDotName(origin, receiver, new Name(origin, propertyName), null);
-                        }
-                        reporter.reportError(invocation, "notSupported", "Double." + methodName);
-                        yield JVerifyUtils.getHole(origin);
+                        if (!(invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess)) yield null;
+                        var receiver = toExpr(fieldAccess.selected, context);
+                        var propertyName = "Is" + methodName.substring(2);
+                        yield new ExprDotName(origin, receiver, new Name(origin, propertyName), null);
                     }
-                    default -> {
-                        reporter.reportError(invocation, "notSupported", "Double method " + methodName);
-                        yield JVerifyUtils.getHole(origin);
-                    }
+                    default -> null;
                 };
             }
+            
+            if (result != null) return result;
+            reporter.reportError(invocation, "notSupported", "Double." + methodName);
+            return JVerifyUtils.getHole(origin);
         }
 
         var target = toExpr(invocation.getMethodSelect(), context.withExpectedType(null));
