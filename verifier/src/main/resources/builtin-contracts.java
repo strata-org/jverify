@@ -458,13 +458,8 @@ class IntegerContract {
     }
 }
 
-// No DoubleContract or MathContract - Math and Double methods have special fp64 handling
-// in ExpressionCompiler and are skipped by MissingContractCompiler
-
-// Float support is not implemented - waiting for fp32 support in Dafny
-// @Contract(value = Float.class, immutable = true)
-// class FloatContract {
-// }
+// No DoubleContract, FloatContract, or MathContract - Math, Double, and Float methods
+// have special fp64/fp32 handling in ExpressionCompiler and are skipped by MissingContractCompiler
 
 @Contract(Long.class)
 class LongContract {
