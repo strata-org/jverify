@@ -1,6 +1,8 @@
 package com.aws.jverify.generated;
 
-public class ApproximateExpr extends Expression {
+// Generated ApproximateExpr.java:
+// Generated from C# class
+public class ApproximateExpr extends ConcreteSyntaxExpression {
   private final Expression expr;
 
   public ApproximateExpr(IOrigin origin, Expression expr) {
@@ -9,6 +11,6 @@ public class ApproximateExpr extends Expression {
   }
 
   public Expression getExpr() {
-    return expr;
+    return this.expr;
   }
 }
