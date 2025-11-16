@@ -29,10 +29,9 @@ class Doubles {
         check(!(nan == nan));
         check(nan != nan);
 
-        // Infinity checks - These comparisons are correct but Dafny verification times out
-        // when verifying them in the context of the full test class (they verify in isolation)
-        // check(posInf > maxVal);  // Infinity > any finite value  
-        // check(negInf < -maxVal); // -Infinity < any finite value
+        // Infinity checks
+        check(posInf > maxVal);  // Infinity > any finite value  
+        check(negInf < -maxVal); // -Infinity < any finite value
         check(posInf == posInf);
         check(negInf == negInf);
 
