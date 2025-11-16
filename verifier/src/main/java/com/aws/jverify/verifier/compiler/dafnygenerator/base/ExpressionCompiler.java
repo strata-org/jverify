@@ -681,17 +681,9 @@ public class ExpressionCompiler {
                     yield JVerifyUtils.getHole(origin);
                 }
                 case "min", "max" -> {
-                    if (argBindings.size() == 2) {
-                        var arg1 = argBindings.get(0).getActual();
-                        var arg2 = argBindings.get(1).getActual();
-                        if (invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
-                            var method = fp64Method(origin, methodName.equals("min") ? "Min" : "Max");
-                            yield new ApplySuffix(origin, method, null, new ActualBindings(argBindings), null);
-                        }
-                        var comparison = new BinaryExpr(origin,
-                                methodName.equals("min") ? BinaryExprOpcode.Lt : BinaryExprOpcode.Gt,
-                                arg1, arg2);
-                        yield new ITEExpr(origin, false, comparison, arg1, arg2);
+                    if (argBindings.size() == 2 && invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
+                        var method = fp64Method(origin, methodName.equals("min") ? "Min" : "Max");
+                        yield new ApplySuffix(origin, method, null, new ActualBindings(argBindings), null);
                     }
                     reporter.reportError(invocation, "notSupported", "Math." + methodName);
                     yield JVerifyUtils.getHole(origin);
