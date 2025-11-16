@@ -36,9 +36,8 @@ class Doubles {
         check(negInf == negInf);
 
         // Boundary values
-        // Use double literal to avoid fp64.FromReal() which causes timeouts
-        check(maxVal > 0.0);
-        check(minVal > 0.0);
+        check(maxVal > 0);
+        check(minVal > 0);
         check(minNormal > minVal); // Testing MIN_NORMAL > MIN_VALUE
     }
 
