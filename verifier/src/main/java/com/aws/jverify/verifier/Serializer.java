@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.generated.BigDec;
 import com.aws.jverify.generated.BoundVar;
 import com.aws.jverify.generated.Expression;
 import com.aws.jverify.generated.FrameExpression;
@@ -89,6 +90,7 @@ public class Serializer {
             case Double d -> encoder.writeDouble(d);
             case Boolean b -> encoder.writeBool(b);
             case Character c -> encoder.writeString(new String(new char[] {c}));
+            case BigDec bd -> encoder.writeDouble(bd.getValue());
             default -> serializeObject(value);
         }
     }

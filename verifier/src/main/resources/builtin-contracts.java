@@ -458,12 +458,8 @@ class IntegerContract {
     }
 }
 
-@Contract(value = Double.class, immutable = true)
-class DoubleContract {
-    // Note: Double implements Comparable<Double> in Java, but fp64 is a value type in Dafny
-    // and can't satisfy the Object bound required by Comparable<T>
-    // TODO: Handle boxed vs unboxed types properly
-}
+// No DoubleContract or MathContract - Math and Double methods have special fp64 handling
+// in ExpressionCompiler and are skipped by MissingContractCompiler
 
 // Float support is not implemented - waiting for fp32 support in Dafny
 // @Contract(value = Float.class, immutable = true)

@@ -20,6 +20,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +51,7 @@ public class ExpressionCompiler {
         reporter.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
         return new ExpressionWithFlows(JVerifyUtils.getHole(reporter.toOrigin(tree)));
     }
-    
+
     @Nullable
     BinaryExprOpcode toDafny(Symbol.OperatorSymbol operator) {
         return switch (operator.name.toString()) {
@@ -119,7 +120,7 @@ public class ExpressionCompiler {
                 String name = baseGenerator.nameCompiler.getCompiledName(variableDecl.sym, variableDecl);
                 var returnVar = new BoundVar(origin, new Name(origin, name), type, false);
                 var lhs = new CasePattern<>(origin, name, returnVar, null);
-                result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init, context)), result, true, null); 
+                result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init, context)), result, true, null);
             } else if (statement instanceof JCTree.JCIf ifStatement && ifStatement.getElseStatement() == null) {
                 ExpressionWithFlows conditionWithFlows = toExprWithFlows(ifStatement.getCondition(), context);
                 var thenExpression = toExpr(ifStatement.getThenStatement(), context);
@@ -169,7 +170,7 @@ public class ExpressionCompiler {
         IOrigin origin = reporter.toOrigin(statement);
         context = context.forbidImpure();
         return switch (statement) {
-            case JCTree.JCBlock block -> {        
+            case JCTree.JCBlock block -> {
                 if (block.getStatements().isEmpty()) {
                     reporter.reportError(block, "pureMethodLastStatement");
                     yield JVerifyUtils.getHole(origin);
@@ -203,11 +204,11 @@ public class ExpressionCompiler {
         reporter.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
         return JVerifyUtils.getHole(reporter.toOrigin(tree));
     }
-    
+
     public Expression toExpr(JCTree.JCExpression expr, ExpressionContext context) {
         return generator.toExprWithFlows(expr, null, context).expression();
     }
-    
+
     public ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, ExpressionContext context) {
         return generator.toExprWithFlows(expr, null, context);
     }
@@ -323,7 +324,7 @@ public class ExpressionCompiler {
         return target;
     }
 
-    private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin, 
+    private Expression translateNew(JCTree.JCExpression expr, JCTree.JCNewClass newClass, IOrigin origin,
                                     ExpressionContext context) {
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) newClass.type.tsym;
         Symtab symtab = Symtab.instance(baseGenerator.context);
@@ -366,7 +367,7 @@ public class ExpressionCompiler {
         return new NameSegment(baseNameSegment.getOrigin(), baseGenerator.nameCompiler.CLASS_PREFIX + baseName,
                 baseNameSegment.getOptTypeArguments());
     }
-    
+
     Expression placeRhsIntoTemporaryAssignmentAndReturnResult(com.sun.tools.javac.code.Type type, AssignmentRhs rhs, ExpressionContext context) {
         var origin = rhs.getOrigin();
         Type translatedType = generator.translateType(type, origin, null);
@@ -376,7 +377,7 @@ public class ExpressionCompiler {
         List<AssignmentRhs> rhss = List.of(rhs);
         VarDeclStmt varDeclStmt = new VarDeclStmt(origin, null, List.of(localVariable),
                 new AssignStatement(origin, null, lhss, rhss, false));
-        
+
         context.statementWriter().accept(varDeclStmt);
         return new NameSegment(origin, localVariable.getName(), null);
     }
@@ -432,7 +433,7 @@ public class ExpressionCompiler {
     private Expression translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
         throw new RuntimeException("not supported. should have already been lowered");
     }
-    
+
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin, ExpressionContext context) {
         context = context.forbidImpure();
         var conditionWithFlows = toExprWithFlows(conditional.getCondition(), context);
@@ -506,7 +507,7 @@ public class ExpressionCompiler {
         var leftWithFlows = toExprWithFlows(binary.getLeftOperand(), context.withExpectedType(binary.getLeftOperand().type));
         var rightWithFlows = toExprWithFlows(binary.getRightOperand(), context.withExpectedType(binary.getLeftOperand().type));
         Expression right;
-        
+
         Symbol.OperatorSymbol operator = binary.getOperator();
         if (operator.name.contentEquals("&&")) {
             right = applyFlowCastsToExpr(rightWithFlows.expression(), leftWithFlows.flows());
@@ -520,11 +521,11 @@ public class ExpressionCompiler {
                 binary, binary.getLeftOperand().type, binary.getRightOperand().type,
                 operator, leftWithFlows.expression(), right), combined);
     }
-    
+
     private BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifier;
 
-    public <T> T withOverrideTranslateIdentifier(Supplier<T> supplier, 
-                                                 BiFunction<JCTree.JCIdent, IOrigin, Expression> override) 
+    public <T> T withOverrideTranslateIdentifier(Supplier<T> supplier,
+                                                 BiFunction<JCTree.JCIdent, IOrigin, Expression> override)
     {
         var previous = handleIdentifier;
         handleIdentifier = override;
@@ -532,7 +533,7 @@ public class ExpressionCompiler {
         handleIdentifier = previous;
         return result;
     }
-    
+
     public Expression translateIdentifier(JCTree.JCIdent identifier, IOrigin origin) {
         if (handleIdentifier == null) {
             return translateIdentifierNoOverride(identifier, origin);
@@ -540,7 +541,7 @@ public class ExpressionCompiler {
             return handleIdentifier.apply(identifier, origin);
         }
     }
-    
+
     public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
         var identName = baseGenerator.nameCompiler.getCompiledName(identifier.sym, identifier);
         if (identName.contentEquals("this")) {
@@ -619,7 +620,7 @@ public class ExpressionCompiler {
             ExprDotName callee = new ExprDotName(origin, selectedExpr, reporter.getName(fieldAccess, "length"), null);
             return createCall(origin, callee, Stream.of(), context);
         }
-        
+
         var fieldName = baseGenerator.nameCompiler.getCompiledName(fieldAccess.sym, fieldAccess);
         if (JVerifyUtils.isEnum(fieldAccess.selected)) {
             return new ApplySuffix(origin, new NameSegment(origin, fieldName, null),
@@ -972,7 +973,7 @@ public class ExpressionCompiler {
             '\t', "\\t"
     );
 
-    public ApplySuffix createCall(IOrigin origin, Expression callee, 
+    public ApplySuffix createCall(IOrigin origin, Expression callee,
                                   Stream<JCTree.JCExpression> arguments,
                                   ExpressionContext context) {
         return createCall2(origin, callee, arguments.map(a -> toExpr(a, context.forbidImpure())));
@@ -1002,15 +1003,48 @@ public class ExpressionCompiler {
         if (value == Double.MIN_NORMAL) {
             return fp64Constant(origin, "MinNormal");
         }
-        
+
         var literal = new DecimalLiteralExpr(origin, value);
-        
-        // Wrap non-integers in ApproximateExpr
-        if (value != Math.floor(value)) {
-            return new ApproximateExpr(origin, literal);
+
+        // Use ~ prefix if the decimal representation is not exactly representable in fp64.
+        // A decimal is exact if its denominator (in lowest terms) is a power of 2.
+        if (isExactlyRepresentableInDecimal(value)) {
+            return literal;
         }
-        
-        return literal;
+
+        return new ApproximateExpr(origin, literal);
+    }
+
+    private boolean isExactlyRepresentableInDecimal(double value) {
+        if (value == 0.0) return true;
+
+        String str = Double.toString(Math.abs(value));
+        BigInteger numerator;
+        BigInteger denominator = BigInteger.ONE;
+
+        int eIndex = str.indexOf('E');
+        String mantissaStr = (eIndex >= 0) ? str.substring(0, eIndex) : str;
+        int exponent = (eIndex >= 0) ? Integer.parseInt(str.substring(eIndex + 1)) : 0;
+
+        int dotIndex = mantissaStr.indexOf('.');
+        if (dotIndex >= 0) {
+            int decimalPlaces = mantissaStr.length() - dotIndex - 1;
+            numerator = new BigInteger(mantissaStr.replace(".", ""));
+            denominator = BigInteger.TEN.pow(decimalPlaces);
+        } else {
+            numerator = new BigInteger(mantissaStr);
+        }
+
+        if (exponent > 0) {
+            numerator = numerator.multiply(BigInteger.TEN.pow(exponent));
+        } else if (exponent < 0) {
+            denominator = denominator.multiply(BigInteger.TEN.pow(-exponent));
+        }
+
+        BigInteger gcd = numerator.gcd(denominator);
+        denominator = denominator.divide(gcd);
+
+        return denominator.and(denominator.subtract(BigInteger.ONE)).equals(BigInteger.ZERO);
     }
 
     public Expression promoteToFp64(JCTree.@Nullable JCExpression javaExpr, Expression dafnyExpr, IOrigin origin) {
