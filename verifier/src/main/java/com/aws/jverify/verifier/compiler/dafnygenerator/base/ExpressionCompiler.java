@@ -406,28 +406,20 @@ public class ExpressionCompiler {
         var targetType = cast.type;
         var sourceType = cast.getExpression().type;
 
-        if (targetType.getTag() == TypeTag.DOUBLE) {
-            if (isIntegralType(sourceType)) {
-                var realCast = new ConversionExpr(origin, castExpr, new RealType(origin), "");
-                var fromRealMethod = fp64Method(origin, "FromReal");
-                return new ApplySuffix(origin, fromRealMethod, null,
-                        new ActualBindings(List.of(new ActualBinding(null, realCast, false))), null);
-            } else if (sourceType.getTag() == TypeTag.DOUBLE) {
-                return castExpr;
-            }
-        } else if (isIntegralType(targetType) && sourceType.getTag() == TypeTag.DOUBLE) {
-            var toIntMethod = fp64Method(origin, "ToInt");
-            var intResult = new ApplySuffix(origin, toIntMethod, null,
+        if (targetType.getTag() == TypeTag.DOUBLE && isIntegralType(sourceType)) {
+            var realCast = new ConversionExpr(origin, castExpr, new RealType(origin), "");
+            return new ApplySuffix(origin, fp64Method(origin, "FromReal"), null,
+                    new ActualBindings(List.of(new ActualBinding(null, realCast, false))), null);
+        }
+        
+        if (isIntegralType(targetType) && sourceType.getTag() == TypeTag.DOUBLE) {
+            var intResult = new ApplySuffix(origin, fp64Method(origin, "ToInt"), null,
                     new ActualBindings(List.of(new ActualBinding(null, castExpr, false))), null);
             var type = baseGenerator.translateType(cast);
-            if (!type.equals(new IntType(origin))) {
-                return new ConversionExpr(origin, intResult, type, "");
-            }
-            return intResult;
+            return type.equals(new IntType(origin)) ? intResult : new ConversionExpr(origin, intResult, type, "");
         }
 
-        var type = baseGenerator.translateType(cast);
-        return new ConversionExpr(origin, castExpr, type, "");
+        return new ConversionExpr(origin, castExpr, baseGenerator.translateType(cast), "");
     }
 
     private Expression translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
@@ -475,12 +467,9 @@ public class ExpressionCompiler {
 
                 var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
                         ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
-                Expression incrementValue;
-                if (unary.type.getTag() == TypeTag.DOUBLE) {
-                    incrementValue = translateFp64Literal(origin, 1.0);
-                } else {
-                    incrementValue = new LiteralExpr(origin, 1);
-                }
+                var incrementValue = (unary.type.getTag() == TypeTag.DOUBLE) 
+                        ? translateFp64Literal(origin, 1.0)
+                        : new LiteralExpr(origin, 1);
                 var incremented = new BinaryExpr(origin, opCode, innerExpr, incrementValue);
                 List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
                 context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
