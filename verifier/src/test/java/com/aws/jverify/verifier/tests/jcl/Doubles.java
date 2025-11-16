@@ -10,11 +10,11 @@ class Doubles {
         double d1 = 3.14;
         double d2 = -2.5;
         double d3 = 0.0;
-        double d4 = 10000000000.0;  // Could also write as 1.0e10
+        double d4 = 1.0e10;
         check(d1 == 3.14);
         check(d2 == -2.5);
         check(d3 == 0.0);
-        check(d4 == 10000000000.0);
+        check(d4 == 1.0e10);
     }
 
     static void testSpecialValues() {
