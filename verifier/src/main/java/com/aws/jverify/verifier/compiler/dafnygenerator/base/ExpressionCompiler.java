@@ -408,13 +408,11 @@ public class ExpressionCompiler {
 
         if (targetType.getTag() == TypeTag.DOUBLE && isIntegralType(sourceType)) {
             var realCast = new ConversionExpr(origin, castExpr, new RealType(origin), "");
-            return new ApplySuffix(origin, fp64Method(origin, "FromReal"), null,
-                    new ActualBindings(List.of(new ActualBinding(null, realCast, false))), null);
+            return callFp64Method(origin, "FromReal", List.of(new ActualBinding(null, realCast, false)));
         }
         
         if (isIntegralType(targetType) && sourceType.getTag() == TypeTag.DOUBLE) {
-            var intResult = new ApplySuffix(origin, fp64Method(origin, "ToInt"), null,
-                    new ActualBindings(List.of(new ActualBinding(null, castExpr, false))), null);
+            var intResult = callFp64Method(origin, "ToInt", List.of(new ActualBinding(null, castExpr, false)));
             var type = baseGenerator.translateType(cast);
             return type.equals(new IntType(origin)) ? intResult : new ConversionExpr(origin, intResult, type, "");
         }
@@ -666,24 +664,21 @@ public class ExpressionCompiler {
             return switch (methodName) {
                 case "abs" -> {
                     if (!argBindings.isEmpty() && invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
-                        var absMethod = fp64Method(origin, "Abs");
-                        yield new ApplySuffix(origin, absMethod, null, new ActualBindings(argBindings), null);
+                        yield callFp64Method(origin, "Abs", argBindings);
                     }
                     reporter.reportError(origin, "notSupported", "Math.abs for integers");
                     yield JVerifyUtils.getHole(origin);
                 }
                 case "sqrt" -> {
                     if (!argBindings.isEmpty()) {
-                        var sqrtMethod = fp64Method(origin, "Sqrt");
-                        yield new ApplySuffix(origin, sqrtMethod, null, new ActualBindings(argBindings), null);
+                        yield callFp64Method(origin, "Sqrt", argBindings);
                     }
                     reporter.reportError(invocation, "notSupported", "Math." + methodName);
                     yield JVerifyUtils.getHole(origin);
                 }
                 case "min", "max" -> {
                     if (argBindings.size() == 2 && invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
-                        var method = fp64Method(origin, methodName.equals("min") ? "Min" : "Max");
-                        yield new ApplySuffix(origin, method, null, new ActualBindings(argBindings), null);
+                        yield callFp64Method(origin, methodName.equals("min") ? "Min" : "Max", argBindings);
                     }
                     reporter.reportError(invocation, "notSupported", "Math." + methodName);
                     yield JVerifyUtils.getHole(origin);
@@ -800,15 +795,10 @@ public class ExpressionCompiler {
         }
 
         if ((opName.equals("==") || opName.equals("!=")) && leftType.getTag() == TypeTag.DOUBLE) {
-            var equalMethod = fp64Method(origin, "Equal");
             var args = List.of(new ActualBinding(null, left, false),
                               new ActualBinding(null, right, false));
-            var equalCall = new ApplySuffix(origin, equalMethod, null,
-                                           new ActualBindings(args), null);
-            if (opName.equals("!=")) {
-                return new UnaryOpExpr(origin, equalCall, UnaryOpExprOpcode.Not);
-            }
-            return equalCall;
+            var equalCall = callFp64Method(origin, "Equal", args);
+            return opName.equals("!=") ? new UnaryOpExpr(origin, equalCall, UnaryOpExprOpcode.Not) : equalCall;
         }
 
         if (opName.equals("%") && (leftType.getTag() == TypeTag.DOUBLE || leftType.getTag() == TypeTag.FLOAT)) {
@@ -1035,9 +1025,7 @@ public class ExpressionCompiler {
             return translateFp64Literal(origin, doubleValue);
         }
         var toReal = new ConversionExpr(origin, dafnyExpr, new RealType(origin), "");
-        var fromRealCall = fp64Method(origin, "FromReal");
-        var args = List.of(new ActualBinding(null, toReal, false));
-        return new ApplySuffix(origin, fromRealCall, null, new ActualBindings(args), null);
+        return callFp64Method(origin, "FromReal", List.of(new ActualBinding(null, toReal, false)));
     }
 
     public static boolean isIntegralType(com.sun.tools.javac.code.Type type) {
@@ -1056,6 +1044,10 @@ public class ExpressionCompiler {
 
     private static Expression fp64Method(IOrigin origin, String methodName) {
         return new ExprDotName(origin, fp64Segment(origin), new Name(origin, methodName), null);
+    }
+
+    private static Expression callFp64Method(IOrigin origin, String methodName, List<ActualBinding> args) {
+        return new ApplySuffix(origin, fp64Method(origin, methodName), null, new ActualBindings(args), null);
     }
 
 
