@@ -758,17 +758,14 @@ public class ExpressionCompiler {
             return createCall2(origin, callee, Stream.of(right));
         }
 
-        if (leftType.getTag() == TypeTag.DOUBLE && rightType != null && rightType.getTag() != TypeTag.DOUBLE) {
-            if (rightType.isPrimitive() && rightType.getTag() != TypeTag.BOOLEAN) {
-                JCTree.JCExpression rightOperand = (node instanceof JCTree.JCBinary binary)
-                    ? binary.getRightOperand() : null;
-                right = promoteToFp64(rightOperand, right, origin);
-            }
-        } else if (rightType != null && rightType.getTag() == TypeTag.DOUBLE && leftType.getTag() != TypeTag.DOUBLE) {
-            if (leftType.isPrimitive() && leftType.getTag() != TypeTag.BOOLEAN) {
-                JCTree.JCExpression leftOperand = (node instanceof JCTree.JCBinary binary)
-                    ? binary.getLeftOperand() : null;
-                left = promoteToFp64(leftOperand, left, origin);
+        // Promote int/long to double in mixed operations
+        if (rightType != null && node instanceof JCTree.JCBinary binary) {
+            if (leftType.getTag() == TypeTag.DOUBLE && rightType.getTag() != TypeTag.DOUBLE 
+                && rightType.isPrimitive() && rightType.getTag() != TypeTag.BOOLEAN) {
+                right = promoteToFp64(binary.getRightOperand(), right, origin);
+            } else if (rightType.getTag() == TypeTag.DOUBLE && leftType.getTag() != TypeTag.DOUBLE
+                && leftType.isPrimitive() && leftType.getTag() != TypeTag.BOOLEAN) {
+                left = promoteToFp64(binary.getLeftOperand(), left, origin);
             }
         }
 
