@@ -322,7 +322,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         var nameCompiler = baseGenerator.nameCompiler;
         var expressionCompiler = baseGenerator.expressionCompiler;
         
-        if (expr instanceof JCTree.JCLambda lambda) {
+        if (expr instanceof JCTree.JCNewClass lambdaContainer) {
+            var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(lambdaContainer);
             if (lambda.getParameters().size() != 1) {
                 throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
             }
@@ -336,14 +337,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
                     : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            Expression origCondition;
-            if (lambda.getBody() instanceof JCTree.JCExpression expressionBody) {
-                origCondition = baseGenerator.expressionCompiler.toExpr(expressionBody, ExpressionContext.Pure);
-            } else if (lambda.getBody() instanceof JCTree.JCStatement statementBody) {
-                origCondition = baseGenerator.expressionCompiler.stmtToExpr(statementBody, ExpressionContext.Pure);
-            } else {
-                throw new RuntimeException("impossible");
-            }
+            Expression origCondition = baseGenerator.expressionCompiler.stmtToExpr(lambda.getBody(), ExpressionContext.Pure);
             var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 

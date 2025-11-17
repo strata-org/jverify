@@ -12,6 +12,7 @@ import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 
 import java.util.*;
+import java.util.stream.Stream;
 
 import static com.sun.tools.javac.code.Flags.*;
 
@@ -35,16 +36,6 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         this.types = Types.instance(context);
         this.context = context;
     }
-    
-    @Override
-    public void visitApply(JCTree.JCMethodInvocation invocation) {
-        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
-        if (jverifyMethod == null) {
-            super.visitApply(invocation);
-        } else {
-            result = invocation;
-        }
-    }
 
     Symbol currentContainer;
     @Override
@@ -57,8 +48,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
     @Override
     public void visitLambda(JCLambda lambda) {
-        JCNewClass localClass = transformLambdaToAnonymousClass(lambda);
-        super.visitNewClass(localClass);
+        super.visitLambda(lambda);
+        result = transformLambdaToAnonymousClass((JCLambda) result);
     }
 
     @Override
@@ -152,6 +143,15 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         classDef.sym = classSymbol;
         classDef.type = classSymbol.type;
         return classDef;
+    }
+    
+    public static JCMethodDecl getImplementationMethod(JCNewClass newClass) {
+        return newClass.def.defs.stream().flatMap(t -> {
+            if (t instanceof JCMethodDecl methodDecl && !methodDecl.sym.isConstructor()) {
+                return Stream.of(methodDecl);
+            }
+            return Stream.empty();
+        }).findFirst().get();
     }
 
     private JCMethodDecl createConstructor(Symbol.ClassSymbol classSymbol) {
@@ -263,6 +263,10 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                     select.type = select.sym.type;
                     result = select;
                     return;
+                } else {
+//                    if (ident.sym.owner == currentContainer) {
+//                        ident.sym.owner = methodSymbol;
+//                    }
                 }
                 super.visitIdent(ident);
             }

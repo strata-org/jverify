@@ -6,6 +6,7 @@ import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
+import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.Context;
@@ -95,10 +96,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 if (args.size() != 1) {
                     throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
                 }
-                if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
+                if (!(args.getFirst() instanceof JCTree.JCNewClass lambdaContainer)) {
                     reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
                     return JVerifyUtils.getHole(origin);
                 }
+                var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(lambdaContainer);
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = reporter.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
@@ -202,10 +204,11 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         if (args.size() != 1) {
             throw new JavaViolationException("A %s call must have exactly one argument".formatted(methodName));
         }
-        if (!(args.getFirst() instanceof JCTree.JCLambda lambda)) {
+        if (!(args.getFirst() instanceof JCTree.JCNewClass lambdaContainer)) {
             reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
             return null;
         }
+        var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(lambdaContainer);
         var parameter = lambda.params.getFirst();
         var paramName = parameter.getName().toString();
         var type = generator.translateType(parameter.type, reporter.toOrigin(parameter), null);
