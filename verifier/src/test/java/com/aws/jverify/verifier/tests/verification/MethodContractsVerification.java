@@ -12,10 +12,10 @@ public class MethodContractsVerification {
     
     public int methodReferencePostCondition() {
         postcondition((IntPredicate)MethodContractsVerification::isEven);
-        
+
         // Include lambda based post-condition because it introduces a return value name
         postcondition((int r) -> r == 2);
-        
+
         return 2;
     }
 
@@ -36,5 +36,15 @@ public class MethodContractsVerification {
         int res;
         res = x;
         return res;
+    }
+
+    public Object outerMethodReturnsAnObject() {
+        // This was failing when we did not translate the lambda before reaching Lower
+        postcondition((Object r) -> {
+            // The block body is important to trigger Lower.visitReturn
+            return true;
+        });
+        // Returning a non-primitive type is important.
+        return new Object();
     }
 }
