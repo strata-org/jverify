@@ -109,7 +109,7 @@ public class ExpressionCompiler {
 
     public Expression toExprWithFlows(List<JCTree.JCStatement> statements, ExpressionContext context) {
         var last = statements.getLast();
-        var result = toExpr(last, context);
+        var result = stmtToExpr(last, context);
         for(int index = statements.size() - 2; index >= 0; index--) {
             var statement = statements.get(index);
             var origin = reporter.toOrigin(statement);
@@ -125,7 +125,7 @@ public class ExpressionCompiler {
                 result = new LetExpr(origin, List.of(lhs), List.of(toExpr(variableDecl.init, context)), result, true, null); 
             } else if (statement instanceof JCTree.JCIf ifStatement && ifStatement.getElseStatement() == null) {
                 ExpressionWithFlows conditionWithFlows = toExprWithFlows(ifStatement.getCondition(), context);
-                var thenExpression = toExpr(ifStatement.getThenStatement(), context);
+                var thenExpression = stmtToExpr(ifStatement.getThenStatement(), context);
                 thenExpression = applyFlowCastsToExpr(thenExpression, conditionWithFlows.flows());
                 result = new ITEExpr(reporter.toOrigin(ifStatement), false,
                         conditionWithFlows.expression(), thenExpression, result);
@@ -168,7 +168,7 @@ public class ExpressionCompiler {
         return null;
     }
 
-    private Expression toExpr(JCTree.JCStatement statement, ExpressionContext context) {
+    public Expression stmtToExpr(JCTree.JCStatement statement, ExpressionContext context) {
         IOrigin origin = reporter.toOrigin(statement);
         context = context.forbidImpure();
         return switch (statement) {
@@ -188,8 +188,8 @@ public class ExpressionCompiler {
                 ExpressionWithFlows conditionWithFlows = toExprWithFlows(ifStatement.getCondition(), context);
                 yield new ITEExpr(origin, false,
                         conditionWithFlows.expression(),
-                    applyFlowCastsToExpr(toExpr(ifStatement.getThenStatement(), context), conditionWithFlows.flows()),
-                    toExpr(ifStatement.getElseStatement(), context));
+                    applyFlowCastsToExpr(stmtToExpr(ifStatement.getThenStatement(), context), conditionWithFlows.flows()),
+                    stmtToExpr(ifStatement.getElseStatement(), context));
             }
             case JCTree.JCReturn returnStatement -> toExpr(returnStatement.expr, context.withExpectedType(returnStatement.type));
             default -> {

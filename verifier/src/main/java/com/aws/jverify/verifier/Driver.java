@@ -358,23 +358,25 @@ public class Driver {
 
     private static void applyPositionFilter(VerifierOptions verifierOptions, ProcessBuilder processBuilder) {
         PositionFilter positionFilter = verifierOptions.positionFilter();
-        if (positionFilter != null) {
-            var s = new StringBuilder();
-            s.append("--filter-position=");
-            if (positionFilter.fileEnding() != null) {
-                s.append(positionFilter.fileEnding());
-            }
-            boolean hasLineFilter = positionFilter.start() != null || positionFilter.end() != null;
-            if (hasLineFilter) {
-                s.append(":");
-            }
-            s.append(positionFilter.start() == null ? "" : positionFilter.start());
-            if (hasLineFilter) {
-                s.append("-");
-            }
-            s.append(positionFilter.end() == null ? "" : positionFilter.end());
-            processBuilder.command().add(s.toString());
+        if (positionFilter == null || positionFilter.includeDependencies()) {
+            return;
         }
+        
+        var s = new StringBuilder();
+        s.append("--filter-position=");
+        if (positionFilter.fileEnding() != null) {
+            s.append(positionFilter.fileEnding());
+        }
+        boolean hasLineFilter = positionFilter.start() != null || positionFilter.end() != null;
+        if (hasLineFilter) {
+            s.append(":");
+        }
+        s.append(positionFilter.start() == null ? "" : positionFilter.start());
+        if (hasLineFilter) {
+            s.append("-");
+        }
+        s.append(positionFilter.end() == null ? "" : positionFilter.end());
+        processBuilder.command().add(s.toString());
     }
 
     public static int getExitCodeFromDafny(int dafnyExitCode) {

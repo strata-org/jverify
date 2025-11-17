@@ -6,8 +6,10 @@ import com.aws.jverify.JVerify;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
+import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static com.aws.jverify.JVerify.*;
 
@@ -45,6 +47,15 @@ public class AllMatchContract {
             precondition(JVerify.forall((int i) ->
                     implies(values.contains(i),
                             preconditionOf(predicate.test(i)))
+            ));
+            throw new ContractException();
+        }
+        
+        @Pure
+        public <U> Stream<U> mapToObj(IntFunction<? extends U> mapper) {
+            precondition(JVerify.forall((int i) ->
+                    implies(values.contains(i),
+                            preconditionOf(mapper.apply(i)))
             ));
             throw new ContractException();
         }

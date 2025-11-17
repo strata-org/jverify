@@ -160,7 +160,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     
     private boolean applyPositionFilter(JCTree.JCMethodDecl method) {
         var filter = options.positionFilter();
-        if (filter == null) {
+        if (filter == null || filter.includeDependencies()) {
             return true;
         } else {
             if (!filter.unitPasses(options, reporter.compilationUnit)) {

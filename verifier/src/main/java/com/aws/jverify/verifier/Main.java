@@ -9,15 +9,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.common.Common;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -54,9 +50,12 @@ class AppCommand implements Callable<Integer> {
     
     @Option(names = "--paths", description = "Show file paths instead of names")
     private boolean paths;
-
+    
     @Option(names = "--filter-position", description = "Filter what gets verified based on a source location. The location is specified as a file path suffix, optionally followed by a colon and a line number or line range. For example, `jverify verify source1.java source2.java --filter-position=source1.dfy:5-7` will only verify things that between (and including) line 5 and 7 in the file `source1.dfy`. You can also use `:5`, `:5-`, `:-5` to specify individual lines or open ranges.")
     private String filterPositionString;
+    
+    @Option(names = "--include-filter-dependencies", description = "When filtering on just a file, also verify its transitive dependencies.")
+    private boolean includeFilterDependencies;
     
     @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
     private Path customDafny;
@@ -91,11 +90,14 @@ class AppCommand implements Callable<Integer> {
         
         var testDafnyVersion = customDafny != null;
         var workingDirectory = Path.of(System.getProperty("user.dir"));
-        var positionFilter = PositionFilter.getPositionFilter(filterPositionString);
+        var positionFilter = PositionFilter.getPositionFilter(includeFilterDependencies, filterPositionString);
+        String[] additionalDafnyArguments = { 
+                //"--wait-for-debugger"
+        };
         var verifierOptions = new VerifierOptions(workingDirectory, dafnyPath, jars, 
                 tempFile.toPath(), testDafnyVersion,
                 printDafny, printBinaryDafny, showRanges, builtinContracts, 
-                paths, new String[0], verifyByDefault, false, 
+                paths, additionalDafnyArguments, verifyByDefault, false, 
                 positionFilter, verbose);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
         writer.flush();

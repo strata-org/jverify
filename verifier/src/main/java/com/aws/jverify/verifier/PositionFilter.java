@@ -3,19 +3,21 @@ package com.aws.jverify.verifier;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.nio.file.Path;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public record PositionFilter(@Nullable String fileEnding, @Nullable Integer start, @Nullable Integer end) {
+public record PositionFilter(boolean includeDependencies, 
+                             @Nullable String fileEnding, 
+                             @Nullable Integer start, 
+                             @Nullable Integer end) {
 
     public boolean unitPasses(VerifierOptions options,  JCTree.JCCompilationUnit compilationUnit) {
         var resolved = options.workingDirectory().resolve(compilationUnit.getSourceFile().getName());
         return fileEnding == null || resolved.endsWith(fileEnding());
     }
     
-    public static @Nullable PositionFilter getPositionFilter(String filterPosition) {
+    public static @Nullable PositionFilter getPositionFilter(boolean includeFilterDependencies, String filterPosition) {
         if (filterPosition == null) {
             return null;
         }
@@ -28,7 +30,6 @@ public record PositionFilter(@Nullable String fileEnding, @Nullable Integer star
 
         var filePart = matcher.group(1);
         String lineStart = matcher.group(2);
-        boolean hasRange = Objects.equals(matcher.group(3), "-");
         String lineEnd = matcher.group(3);
 
         Integer start = null;
@@ -39,6 +40,9 @@ public record PositionFilter(@Nullable String fileEnding, @Nullable Integer star
         if (lineEnd != null && !lineEnd.isEmpty()) {
             end = Integer.parseInt(lineEnd);
         }
-        return new PositionFilter(filePart, start ,end);
+        if (includeFilterDependencies && start != null && end != null) {
+            throw new RuntimeException("Can not specify a line filter when also including transitive dependencies");
+        }
+        return new PositionFilter(includeFilterDependencies, filePart, start ,end);
     }
 }

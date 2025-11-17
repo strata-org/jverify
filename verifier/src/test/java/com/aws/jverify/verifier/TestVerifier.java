@@ -35,7 +35,8 @@ public class TestVerifier {
         List<AnnotatedRange> ranges = parsedMarkup.ranges();
         var remainingRanges = List.of(ranges.get(0), ranges.get(2));
         int filterLine = remainingRanges.get(1).range().start().line() - 3;
-        VerifierOptions options = JVerifyTestEngine.getVerifierOptions(annotation, new PositionFilter("MultiPackageTest.java", filterLine, filterLine));
+        VerifierOptions options = JVerifyTestEngine.getVerifierOptions(annotation, 
+                new PositionFilter(false, "MultiPackageTest.java", filterLine, filterLine));
         JVerifyTestEngine.verifyFile(markedSourceFile, annotation, remainingRanges, options);
     }
     
@@ -195,6 +196,11 @@ public class TestVerifier {
                 "main/java/com/amazonaws/billing/Primitives/ProductDescription.java",
                 "main/java/com/amazonaws/billing/Helpers/RuleBlox/defaultt.java",
                 "main/java/com/amazonaws/billing/Helpers/ImmutableList.java",
+                "main/java/com/amazonaws/billing/Helpers/ImmutableSet.java",
+                "main/java/com/amazonaws/billing/Helpers/builtin/builtins.java",
+                "main/java/com/amazonaws/billing/Helpers/builtin/StreamContract.java",
+                //"--filter-position=/Users/rwillems/SourceCode/billing/src/AWSCPAgreementsModel/src/main/java/com/amazonaws/billing/contracts/CrossServiceDiscountContract.java",
+                "--builtin-contracts=false",
                 "--jar",
                 "/Users/rwillems/brazil-pkg-cache/packages/Jackson-databind/Jackson-databind-2.12.x.416784.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/jackson-databind-2.12.7.1.jar:/Users/rwillems/brazil-pkg-cache/packages/Jackson-annotations/Jackson-annotations-2.12.x.400243.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/jackson-annotations-2.12.7.jar:/Users/rwillems/brazil-pkg-cache/packages/Jackson-core/Jackson-core-2.12.x.397949.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/jackson-core-2.12.7.jar:/Users/rwillems/brazil-pkg-cache/packages/Maven-org-dafny_DafnyRuntime/Maven-org-dafny_DafnyRuntime-4.9.1.0.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/DafnyRuntime-4.9.1.jar:/Users/rwillems/brazil-pkg-cache/packages/Z3Prover/Z3Prover-z3_4.13.0.75.0/AL2_x86_64/DEV.STD.PTHREAD/build/lib/com.microsoft.z3.jar",
                 //"./test/java/com/amazonaws/billing/contracts/ContractsSerializerHelper.java",

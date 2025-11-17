@@ -63,7 +63,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             return new SeqType(origin, typeArguments);
         }
         if (className.toString().equals(JVerify.IntSequence.class.getName())) {
-            return new SeqType(origin, List.of(new IntType(origin)));
+            return new SeqType(origin, List.of(new UserDefinedType(origin, new NameSegment(origin, "int32", null))));
         }
         if (className.toString().equals(JVerify.Set.class.getName())) {
             var arguments = classType.getTypeArguments().stream().map(a -> baseGenerator.translateType(a, origin)).toList();
@@ -203,10 +203,6 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             }
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
-            }
-            case "reduce" -> {
-                NameSegment callee = new NameSegment(origin, "intStreamReduce", null);
-                return expressionCompiler.createCall(origin, callee, Stream.of(receiver, args.getFirst(), args.get(1)), ExpressionContext.Pure);
             }
             case "range" -> {
                 NameSegment callee = new NameSegment(origin, "intSequenceRange", null);

@@ -40,7 +40,7 @@ public class JVerify {
      * in the same way as two tuples would be compared, 
      * also known as a lexicographical comparison.
      */
-    public static void decreases(Object... values) {}
+    public static void decreases(Object value) {}
     public static void decreases(int value) {}
     public static void decreases(int value1, int value2) {}
 
@@ -67,6 +67,13 @@ public class JVerify {
      * and applies that to the current method 
      */
     public static <T> boolean preconditionOf(T value) {
+        throw new ContractException();
+    }
+
+    /**
+     * Return the decreases clause of the given expression
+     */
+    public static <T> @Unbounded int decreasesOf(T value) {
         throw new ContractException();
     }
     
@@ -332,7 +339,12 @@ public class JVerify {
     }
 
     public interface IntSequence {
-        <T> T reduce(T seed, BiFunction<Integer, T, T> accumulator);
+        /**
+         * Returns the element at index {@code index}.
+         */
+        int get(int index);
+        
+        //<T> T reduce(T seed, BiFunction<Integer, T, T> accumulator);
         
         /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
@@ -354,6 +366,11 @@ public class JVerify {
          * Returns {@code true} if this sequence contains the specified element.
          */
         boolean contains(int element);
+        
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
     }
 
     public interface Set<T> {

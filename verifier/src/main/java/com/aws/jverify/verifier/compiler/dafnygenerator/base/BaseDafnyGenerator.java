@@ -537,7 +537,14 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                 var rhs = TreeInfo.isConstructor(header.treeOrigin)
                         ? new ThisExpr(origin)
                         : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-                var origCondition = expressionCompiler.toExpr((JCTree.JCExpression) lambda.getBody(), ExpressionContext.Pure);
+                Expression origCondition;
+                if (lambda.getBody() instanceof JCTree.JCExpression expressionBody) {
+                    origCondition = expressionCompiler.toExpr(expressionBody, ExpressionContext.Pure);
+                } else if (lambda.getBody() instanceof JCTree.JCBlock block) {
+                    origCondition = expressionCompiler.stmtToExpr(block, ExpressionContext.Pure);
+                } else {
+                    throw new RuntimeException("impossible");
+                }
                 var condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
                 header.postconditions.add(new AttributedExpression(condition, null, null));
 

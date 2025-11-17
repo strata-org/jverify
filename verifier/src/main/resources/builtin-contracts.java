@@ -12,10 +12,12 @@ import com.aws.jverify.Pure;
 import java.util.*;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
+import java.util.stream.Collector;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -26,6 +28,14 @@ class ComparableContract<T> {
 @Contract(value = Number.class, pure = true)
 class NumberContract {
 
+}
+
+@Contract(value = Function.class, pure = true)
+abstract class FunctionContract<T, R> implements Function<T, R> {
+    @Pure
+    public R apply(T t) {
+        throw new ContractException();
+    }
 }
 
 @Contract(BiFunction.class)
@@ -492,9 +502,10 @@ class BooleanContract {
 }
 
 @Contract
-class IntFunction<R> implements java.util.function.IntFunction<R> {
+class IntFunctionContract<R> implements java.util.function.IntFunction<R> {
     @Pure
     public R apply(int value) {
+        precondition(isAbstract());
         throw new ContractException();
     }
 }
@@ -747,29 +758,33 @@ abstract class IntStreamContract implements IntStream {
                 implies(values.contains(i),
                         preconditionOf(predicate.test(i)))
         ));
-        return values.<Boolean>reduce(true, (a,b) -> predicate.test(a) && b);
+        return reduce(values, true, (a,b) -> predicate.test(a) && b);
+    }
+
+    <U> Stream<U> mapToObj(IntFunction<? extends U> mapper) {
+        postcondition((Stream<U> r) -> {
+            var returnedContract = <Stream<U>,StreamContract<U>>.cast(r, StreamContract.class);
+            return returnedContract.elements.size() == values.size() &&
+              forall((int i) -> implies(0 <= i && i < values.size(), returnedContract.elements.get(i) == mapper.apply(values.get(i))));      
+        });
+        throw new ContractException();
+    }
+
+    @Erased
+    @Pure
+    public static <R> R reduce(IntSequence values, R seed, BiFunction<Integer, R, R> accumulator) {
+        if (values.size() == 0) {
+            return seed;
+        }
+        return accumulator.apply(
+                values.get(values.size() - 1), 
+                reduce(values.subsequence(0, values.size() - 1), seed, accumulator));
     }
 
     @Pure
     public static IntStream range(int startInclusive, int endExclusive) {
         precondition(startInclusive <= endExclusive);
         postcondition((IntStreamContract c) -> jequals(c.values, JVerify.range(startInclusive, endExclusive)));
-        throw new ContractException();
-    }
-}
-
-abstract class AllMatchPredicate implements IntPredicate {
-    public final IntStreamContract intStream;
-
-    @Verify(false)
-    public AllMatchPredicate(com.aws.jverify.builtin.IntStreamContract intStream) {
-        this.intStream = intStream;
-    }
-
-    @Verify(false)
-    @Pure
-    public boolean test(int value) {
-        precondition(intStream.values.contains(value));
         throw new ContractException();
     }
 }
