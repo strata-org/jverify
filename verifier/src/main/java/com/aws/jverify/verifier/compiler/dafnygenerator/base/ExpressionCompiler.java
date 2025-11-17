@@ -413,8 +413,9 @@ public class ExpressionCompiler {
         
         if (isIntegralType(targetType) && sourceType.getTag() == TypeTag.DOUBLE) {
             var intResult = callFp64Method(origin, "ToInt", List.of(new ActualBinding(null, castExpr, false)));
-            var type = baseGenerator.translateType(cast);
-            return type.equals(new IntType(origin)) ? intResult : new ConversionExpr(origin, intResult, type, "");
+            var dafnyTargetType = baseGenerator.translateType(cast);
+            boolean doneCasting = dafnyTargetType instanceof IntType;
+            return doneCasting ? intResult : new ConversionExpr(origin, intResult, dafnyTargetType, "");
         }
 
         return new ConversionExpr(origin, castExpr, baseGenerator.translateType(cast), "");
@@ -465,7 +466,7 @@ public class ExpressionCompiler {
 
                 var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
                         ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
-                var incrementValue = (unary.type.getTag() == TypeTag.DOUBLE) 
+                var incrementValue = unary.type.getTag() == TypeTag.DOUBLE 
                         ? translateFp64Literal(origin, 1.0)
                         : new LiteralExpr(origin, 1);
                 var incremented = new BinaryExpr(origin, opCode, innerExpr, incrementValue);
@@ -1004,9 +1005,9 @@ public class ExpressionCompiler {
     }
 
     public static boolean isIntegralType(com.sun.tools.javac.code.Type type) {
-        return type != null && type.isPrimitive() &&
-            (type.getTag() == TypeTag.INT || type.getTag() == TypeTag.LONG ||
-             type.getTag() == TypeTag.SHORT || type.getTag() == TypeTag.BYTE);
+        if (type == null || !type.isPrimitive()) return false;
+        return Stream.of(TypeTag.INT, TypeTag.LONG, TypeTag.SHORT, TypeTag.BYTE).
+                anyMatch(typeTag -> type.getTag() == typeTag);
     }
 
     private static NameSegment fp64Segment(IOrigin origin) {
