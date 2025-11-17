@@ -360,7 +360,6 @@ public class ExternalContractCompiler {
 
     class ReferenceUpdater extends TreeTranslator {
         
-        
         @Override
         public void visitClassDef(JCTree.JCClassDecl tree) {
             updateOwner(tree.sym);
@@ -415,8 +414,38 @@ public class ExternalContractCompiler {
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl tree) {
             updateOwner(tree.sym);
+            if (tree.type != null) {
+                new UpdateTypes().visit(tree.type, null);
+            }
             super.visitMethodDef(tree);
         }
+    }
+    
+    class UpdateTypes extends Types.SimpleVisitor<Void, Void> {
+        @Override
+        public Void visitMethodType(Type.MethodType t, Void ignored) {
+            // Visit parameter types
+            for (Type paramType : t.getParameterTypes()) {
+                paramType.accept(this, null);
+            }
+            // Visit return type
+            t.getReturnType().accept(this, null);
+            // Visit thrown types
+            for (Type thrownType : t.getThrownTypes()) {
+                thrownType.accept(this, null);
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitType(Type t, Void ignored) {
+            var updatedSymbol = contractSymbolToContractee.get(t.tsym);
+            if (updatedSymbol != null) {
+                t.tsym = (Symbol.TypeSymbol) updatedSymbol;
+            }
+            return null;
+        }
+        
     }
 
     public Symbol.MethodSymbol findContractee(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
