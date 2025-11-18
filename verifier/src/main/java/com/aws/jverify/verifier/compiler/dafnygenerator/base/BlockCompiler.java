@@ -57,7 +57,7 @@ public class BlockCompiler {
         }
         var labels = this.labels.stream().toList();
         this.labels.clear();
-        
+
         return generator.translateStatementAfterLabel(this, statement, labels, origin);
     }
 
@@ -93,11 +93,11 @@ public class BlockCompiler {
                 yield List.of();
             }
         };
-        
+
         statements.addAll(rhsStatements);
         return statements;
     }
-    
+
     private List<Statement> translateBreak(JCTree.JCBreak jcBreak) {
         var origin = reporter.toOrigin(jcBreak);
         Statement result;
@@ -168,7 +168,6 @@ public class BlockCompiler {
         if (variableDecl.getInitializer() != null) {
             var initExpr = variableDecl.getInitializer();
             AssignmentRhs rhs = expressionCompiler.toAssignmentRhs(initExpr, expressionContext);
-
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
             dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
@@ -181,7 +180,7 @@ public class BlockCompiler {
                                    JCTree.JCExpression condition,
                                    JCTree.JCStatement body,
                                    List<Label> labels,
-                                   java.util.function.Function<List<Statement>, List<Statement>> transformBody, 
+                                   java.util.function.Function<List<Statement>, List<Statement>> transformBody,
                                    ExpressionContext expressionContext) {
         var origin = reporter.toOrigin(loop);
         var header = new MethodOrLoopContract(loop, false);
@@ -225,7 +224,7 @@ public class BlockCompiler {
         }
     }
 
-    private List<Statement> translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation, 
+    private List<Statement> translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation,
                                                              Symbol.MethodSymbol jverifyMethod, ExpressionContext expressionContext) {
         var name = jverifyMethod.getQualifiedName().toString();
         if (name.equals("check")) {

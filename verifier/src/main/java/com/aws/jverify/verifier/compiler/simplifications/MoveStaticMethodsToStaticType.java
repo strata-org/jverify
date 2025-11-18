@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.verifier.compiler.dafnygenerator.NativeSymbols;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.Scope;
@@ -33,7 +32,6 @@ public class MoveStaticMethodsToStaticType {
     Elements elements;
     JVerifyIndex index;
     Enter enter;
-    NativeSymbols nativeSymbols;
     Set<Symbol> staticSymbols = new HashSet<>();
     Map<Symbol.ClassSymbol, Symbol.ClassSymbol> classMap = new HashMap<>();
 
@@ -44,7 +42,6 @@ public class MoveStaticMethodsToStaticType {
         enter = Enter.instance(context);
         index = JVerifyIndex.instance(context);
         elements = JavacElements.instance(context);
-        nativeSymbols = NativeSymbols.instance(context);
     }
 
     public Set<JCTree.JCCompilationUnit> translate(Set<JCTree.JCCompilationUnit> compilationUnits) {
@@ -113,7 +110,7 @@ public class MoveStaticMethodsToStaticType {
                 var member = members.head;
                 members = members.tail;
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
-                    if (methodDecl.sym.isStatic() && !nativeSymbols.isRegistered(methodDecl.sym)) {
+                    if (methodDecl.sym.isStatic()) {
                         staticMembers = staticMembers.append(methodDecl);
                         var methodSymbol = methodDecl.sym;
 
@@ -123,7 +120,7 @@ public class MoveStaticMethodsToStaticType {
                         continue;
                     }
                 } else if (member instanceof JCTree.JCVariableDecl varDecl) {
-                    if (JVerifyUtils.isStatic(varDecl.mods) && !nativeSymbols.isRegistered(varDecl.sym)) {
+                    if (JVerifyUtils.isStatic(varDecl.mods)) {
                         staticMembers = staticMembers.append(varDecl);
                         var varSymbol = varDecl.sym;
 
