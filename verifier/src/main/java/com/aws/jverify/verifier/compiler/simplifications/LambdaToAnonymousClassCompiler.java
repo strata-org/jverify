@@ -57,8 +57,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
     @Override
     public void visitLambda(JCLambda lambda) {
-        JCNewClass localClass = transformLambdaToAnonymousClass(lambda);
-        super.visitNewClass(localClass);
+        super.visitLambda(lambda);
+        result = transformLambdaToAnonymousClass((JCLambda) result);
     }
 
     @Override
@@ -114,8 +114,16 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         Name name = names.lambda.append(names.fromString(line + "_" + column));
 
         int flags = SYNTHETIC | FINAL;
-        boolean hasNoEnclosingType = (currentContainer.flags() & STATIC) != 0;
-        if (hasNoEnclosingType) {
+        boolean hasEnclosingType = false;
+        var thisContainer = currentContainer;
+        while(thisContainer != null) {
+            if ((thisContainer instanceof Symbol.TypeSymbol && (thisContainer.flags() & STATIC) == 0)) {
+                hasEnclosingType = true;
+                break;
+            }
+            thisContainer = thisContainer.owner;
+        }
+        if (!hasEnclosingType) {
             flags |= STATIC;
         }
         
@@ -123,7 +131,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
         // Flatname should be globally unique. Qualified class name plus line and column achieves that.
         classSymbol.flatname = currentContainer.owner.flatName().append(name);
-        Type enclosingType = hasNoEnclosingType ? Type.noType : currentContainer.enclClass().type;
+        Type enclosingType = hasEnclosingType ? thisContainer.type : Type.noType;
         Type.ClassType classType = new Type.ClassType(enclosingType, List.nil(), classSymbol);
         classType.interfaces_field = List.of(lambda.type);
         classSymbol.type = classType;

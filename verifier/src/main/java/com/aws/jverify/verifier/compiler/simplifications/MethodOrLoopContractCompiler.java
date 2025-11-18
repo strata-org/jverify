@@ -336,7 +336,12 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             var rhs = TreeInfo.isConstructor(header.treeOrigin)
                     ? new ThisExpr(origin)
                     : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var origCondition = baseGenerator.expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
+            Expression origCondition;
+            if (lambda.getBody() instanceof JCTree.JCStatement statementBody) {
+                origCondition = baseGenerator.expressionCompiler.stmtToExpr(statementBody, ExpressionContext.Pure);
+            } else {
+                origCondition = baseGenerator.expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
+            }
             var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
             header.postconditions.add(new AttributedExpression(condition, null, null));
 

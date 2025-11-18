@@ -202,10 +202,10 @@ public class JavaToDafnyCompiler {
                     units.addAll(
                             staticMover.translate(
                                     arrayCompiler.transform(
-                                            unsuspend(lower(suspend(
                                                     missingContractCompiler.compile(
                                                             verifyAnnotationCompiler.transform(
                                                                     externalContractCompiler.apply(
+                                                                            unsuspend(lower(suspend(
                                                                             newMethodContractCompiler.transform(
                                                                                     unlambda(
                                                                                             toUnits(compiler.flow(compiler.attribute(todo)))

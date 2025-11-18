@@ -37,4 +37,14 @@ public class MethodContractsVerification {
         res = x;
         return res;
     }
+
+    public Object outerMethodReturnsAnObject() {
+        // This was failing when we did not translate the lambda before reaching Lower
+        postcondition((Object r) -> {
+            // The block body is important to trigger Lower.visitReturn
+            return true;
+        });
+        // Returning a non-primitive type is important.
+        return new Object();
+    }
 }
