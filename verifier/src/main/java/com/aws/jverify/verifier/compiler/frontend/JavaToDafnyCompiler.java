@@ -208,9 +208,9 @@ public class JavaToDafnyCompiler {
                                                                     externalContractCompiler.apply(
                                                                             newMethodContractCompiler.transform(
                                                                                     unlambda(
-                                                                                            toUnits(compiler.flow(compiler.attribute(todo)))
-                                                                                    )))))))))));
-                }
+                                                                                            insertFloatingPointCasts(
+                                                                                                    toUnits(compiler.flow(compiler.attribute(todo)))
+                                                                                            ))))))))))));                }
             }
         });
         // Applies the Java to Java part of our pipeline
@@ -255,6 +255,14 @@ public class JavaToDafnyCompiler {
             new LambdaToAnonymousClassCompiler(env, context).translate(env);
         }
         return envs;
+    }
+    
+    private Set<JCTree.JCCompilationUnit> insertFloatingPointCasts(Set<JCTree.JCCompilationUnit> units) {
+        var inserter = new FloatingPointCastInserter(context);
+        for (var unit : units) {
+            inserter.translate(unit);
+        }
+        return units;
     }
 
     // Phase to hide/rewrite higher level features such as switches

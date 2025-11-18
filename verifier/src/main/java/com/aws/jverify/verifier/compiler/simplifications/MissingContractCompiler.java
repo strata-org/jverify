@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.NativeSymbols;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.Enter;
@@ -29,6 +30,7 @@ public class MissingContractCompiler {
     private final JavacElements elements;
     private final JVerifyUtils jverifyUtils;
     private final MethodOrLoopContractCompiler internalContractCompiler;
+    private final NativeSymbols nativeSymbols;
 
     private final Map<Symbol, Reference> symbolReferences = new HashMap<>();
     private final Set<Symbol> foundSymbols = new HashSet<>();
@@ -46,6 +48,7 @@ public class MissingContractCompiler {
         jverifyUtils = JVerifyUtils.instance(context);
         reporter = Reporter.instance(context);
         internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
+        nativeSymbols = NativeSymbols.instance(context);
     }
 
     public Set<JCTree.JCCompilationUnit> compile(Set<JCTree.JCCompilationUnit> units) {
@@ -227,10 +230,8 @@ public class MissingContractCompiler {
                 return;
             }
 
-            // Skip Math and Double methods - they have special fp64 handling in ExpressionCompiler
-            if (symbol.owner instanceof Symbol.ClassSymbol ownerClass &&
-                    (ownerClass.fullname.contentEquals("java.lang.Math") ||
-                     ownerClass.fullname.contentEquals("java.lang.Double"))) {
+            // Skip native symbols (Math/Double methods) - they have special handling in ExpressionCompiler
+            if (nativeSymbols.isRegistered(symbol)) {
                 return;
             }
 

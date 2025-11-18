@@ -5,6 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
+import com.aws.jverify.verifier.compiler.dafnygenerator.NativeSymbols;
 import com.aws.jverify.verifier.compiler.dafnygenerator.NullableGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -35,13 +36,18 @@ public class ExpressionCompiler {
     public final DafnyGenerator generator;
     private final NameCompiler nameCompiler;
     private final JVerifyUtils utils;
+    private final NativeSymbols nativeSymbols;
+    private final Context context;
 
     public ExpressionCompiler(Context context, BaseDafnyGenerator baseGenerator) {
+        this.context = context;
         this.baseGenerator = baseGenerator;
         generator = context.get(DafnyGenerator.class);
         reporter = Reporter.instance(context);
         utils = JVerifyUtils.instance(context);
         nameCompiler = NameCompiler.instance(context);
+        nativeSymbols = NativeSymbols.instance(context);
+        registerNativeSymbols();
     }
 
     public ExpressionWithFlows toExprWithFlows(JCTree tree, ExpressionContext context) {
@@ -582,23 +588,12 @@ public class ExpressionCompiler {
             return new NameSegment(origin, baseGenerator.nameCompiler.getCompiledName(classSymbol, origin), List.of());
         }
 
-        if (fieldAccess.sym instanceof Symbol.VarSymbol varSymbol &&
-            varSymbol.owner instanceof Symbol.ClassSymbol ownerClass &&
-            (ownerClass.fullname.contentEquals(Double.class.getName()) ||
-             ownerClass.fullname.contentEquals(Double.class.getName() + "?static"))) {
-            var fieldNameStr = fieldAccess.name.toString();
-            return switch (fieldNameStr) {
-                case "NaN" -> fp64Constant(origin, "NaN");
-                case "POSITIVE_INFINITY" -> fp64Constant(origin, "PositiveInfinity");
-                case "NEGATIVE_INFINITY" -> fp64Constant(origin, "NegativeInfinity");
-                case "MAX_VALUE" -> fp64Constant(origin, "MaxValue");
-                case "MIN_VALUE" -> fp64Constant(origin, "MinSubnormal");
-                case "MIN_NORMAL" -> fp64Constant(origin, "MinNormal");
-                default -> {
-                    reporter.reportError(fieldAccess, "notSupported", "Double field " + fieldNameStr);
-                    yield JVerifyUtils.getHole(origin);
-                }
-            };
+        // Check if this is a native field (Double constants) with special handling
+        if (fieldAccess.sym instanceof Symbol.VarSymbol varSymbol) {
+            Expression nativeResult = nativeSymbols.translateField(varSymbol, fieldAccess, origin);
+            if (nativeResult != null) {
+                return nativeResult;
+            }
         }
 
         com.sun.tools.javac.code.Type nonNullFieldContainerType = fieldAccess.sym.owner.type;
@@ -655,79 +650,10 @@ public class ExpressionCompiler {
             }
         }
 
-        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
-                && ownerClass.fullname.contentEquals(Math.class.getName())) {
-            var methodName = methodSymbol.name.toString();
-            var argBindings = invocation.getArguments().stream()
-                    .map(arg -> new ActualBinding(null, toExpr(arg, context.forbidImpure()), false))
-                    .toList();
-
-            return switch (methodName) {
-                case "abs" -> {
-                    if (!argBindings.isEmpty() && invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
-                        yield callFp64Method(origin, "Abs", argBindings);
-                    }
-                    reporter.reportError(origin, "notSupported", "Math.abs for integers");
-                    yield JVerifyUtils.getHole(origin);
-                }
-                case "sqrt" -> {
-                    if (!argBindings.isEmpty()) {
-                        yield callFp64Method(origin, "Sqrt", argBindings);
-                    }
-                    reporter.reportError(invocation, "notSupported", "Math." + methodName);
-                    yield JVerifyUtils.getHole(origin);
-                }
-                case "min", "max" -> {
-                    if (argBindings.size() == 2 && invocation.getArguments().get(0).type.getTag() == TypeTag.DOUBLE) {
-                        yield callFp64Method(origin, methodName.equals("min") ? "Min" : "Max", argBindings);
-                    }
-                    reporter.reportError(invocation, "notSupported", "Math." + methodName);
-                    yield JVerifyUtils.getHole(origin);
-                }
-                default -> {
-                    reporter.reportError(invocation, "notSupported", "Math method " + methodName);
-                    yield JVerifyUtils.getHole(origin);
-                }
-            };
-        }
-
-        if (methodSymbol.owner instanceof Symbol.ClassSymbol ownerClass
-                && ownerClass.fullname.contentEquals(Double.class.getName())) {
-            var methodName = methodSymbol.name.toString();
-            
-            Expression result = null;
-            if (methodSymbol.isStatic()) {
-                result = switch (methodName) {
-                    case "isNaN", "isInfinite", "isFinite" -> {
-                        if (invocation.getArguments().isEmpty()) yield null;
-                        var arg = toExpr(invocation.getArguments().get(0), context.forbidImpure());
-                        if (arg instanceof LiteralExpr) arg = new ParensExpression(origin, arg);
-                        // "isNaN" -> "IsNaN", "isFinite" -> "IsFinite"
-                        var propertyName = "Is" + methodName.substring(2);
-                        yield new ExprDotName(origin, arg, new Name(origin, propertyName), null);
-                    }
-                    case "valueOf" -> invocation.getArguments().isEmpty() ? null 
-                            : toExpr(invocation.getArguments().get(0), context.forbidImpure());
-                    default -> null;
-                };
-            } else {
-                result = switch (methodName) {
-                    case "doubleValue", "floatValue" -> 
-                        invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess
-                            ? toExpr(fieldAccess.selected, context) : null;
-                    case "isNaN", "isInfinite" -> {
-                        if (!(invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess)) yield null;
-                        var receiver = toExpr(fieldAccess.selected, context);
-                        var propertyName = "Is" + methodName.substring(2);
-                        yield new ExprDotName(origin, receiver, new Name(origin, propertyName), null);
-                    }
-                    default -> null;
-                };
-            }
-            
-            if (result != null) return result;
-            reporter.reportError(invocation, "notSupported", "Double." + methodName);
-            return JVerifyUtils.getHole(origin);
+        // Check if this is a native symbol (Math/Double methods) with special handling
+        Expression nativeResult = nativeSymbols.translateMethod(methodSymbol, invocation, origin, context);
+        if (nativeResult != null) {
+            return nativeResult;
         }
 
         var target = toExpr(invocation.getMethodSelect(), context.withExpectedType(null));
@@ -757,17 +683,6 @@ public class ExpressionCompiler {
         if (opName.equals("+") && leftType.toString().contentEquals(String.class.getName())) {
             var callee = new ExprDotName(origin, left, new Name(origin, "concat"), null);
             return createCall2(origin, callee, Stream.of(right));
-        }
-
-        // Promote int/long to double in mixed operations
-        if (rightType != null && node instanceof JCTree.JCBinary binary) {
-            if (leftType.getTag() == TypeTag.DOUBLE && rightType.getTag() != TypeTag.DOUBLE 
-                && rightType.isPrimitive() && rightType.getTag() != TypeTag.BOOLEAN) {
-                right = promoteToFp64(binary.getRightOperand(), right, origin);
-            } else if (rightType.getTag() == TypeTag.DOUBLE && leftType.getTag() != TypeTag.DOUBLE
-                && leftType.isPrimitive() && leftType.getTag() != TypeTag.BOOLEAN) {
-                left = promoteToFp64(binary.getLeftOperand(), left, origin);
-            }
         }
 
         if ((opName.equals("==") || opName.equals("!=")) && leftType.getTag() == TypeTag.DOUBLE) {
@@ -932,15 +847,6 @@ public class ExpressionCompiler {
     }
 
     public Expression translateFp64Literal(IOrigin origin, double value) {
-        if (Double.isNaN(value)) {
-            return fp64Constant(origin, "NaN");
-        }
-        if (value == Double.POSITIVE_INFINITY) {
-            return fp64Constant(origin, "PositiveInfinity");
-        }
-        if (value == Double.NEGATIVE_INFINITY) {
-            return fp64Constant(origin, "NegativeInfinity");
-        }
         if (value == Double.MAX_VALUE) {
             return fp64Constant(origin, "MaxValue");
         }
@@ -1030,5 +936,135 @@ public class ExpressionCompiler {
     public static ActualBindings createBindings(Stream<Expression> bindingList) {
         return new ActualBindings(bindingList.map(expression ->
                 new ActualBinding(null, expression, false)).toList());
+    }
+    
+    private void registerNativeSymbols() {
+        registerMathMethods();
+        registerDoubleFields();
+        registerDoubleMethods();
+    }
+    
+    private void registerMathMethods() {
+        var symtab = Symtab.instance(context);
+        var names = com.sun.tools.javac.util.Names.instance(context);
+        
+        var mathClass = symtab.enterClass(symtab.java_base, 
+            names.fromString(Math.class.getName()));
+        
+        // Register Math methods that map to fp64 methods
+        registerMathFp64Method(mathClass, names, "abs", "Abs", 1);
+        registerMathFp64Method(mathClass, names, "sqrt", "Sqrt", 1);
+        registerMathFp64Method(mathClass, names, "min", "Min", 2);
+        registerMathFp64Method(mathClass, names, "max", "Max", 2);
+    }
+    
+    private void registerMathFp64Method(Symbol.ClassSymbol mathClass, com.sun.tools.javac.util.Names names,
+                                        String methodName, String fp64Method, int paramCount) {
+        for (Symbol s : mathClass.members().getSymbolsByName(names.fromString(methodName))) {
+            if (s instanceof Symbol.MethodSymbol ms && 
+                ms.params().size() == paramCount &&
+                ms.params().get(0).type.getTag() == TypeTag.DOUBLE) {
+                nativeSymbols.registerMethod(ms, (invocation, origin, ctx) -> {
+                    var argBindings = invocation.getArguments().stream()
+                        .map(arg -> new ActualBinding(null, toExpr(arg, ctx.forbidImpure()), false))
+                        .toList();
+                    return callFp64Method(origin, fp64Method, argBindings);
+                });
+            }
+        }
+    }
+    
+    private void registerDoubleFields() {
+        var symtab = Symtab.instance(context);
+        var names = com.sun.tools.javac.util.Names.instance(context);
+        
+        var doubleClass = symtab.enterClass(symtab.java_base,
+            names.fromString(Double.class.getName()));
+        
+        // Map Java field names to Dafny fp64 constant names
+        var fieldMappings = Map.of(
+            "NaN", "NaN",
+            "POSITIVE_INFINITY", "PositiveInfinity",
+            "NEGATIVE_INFINITY", "NegativeInfinity",
+            "MAX_VALUE", "MaxValue",
+            "MIN_VALUE", "MinSubnormal",
+            "MIN_NORMAL", "MinNormal"
+        );
+        
+        fieldMappings.forEach((javaName, dafnyName) -> 
+            registerDoubleField(doubleClass, names, javaName, dafnyName));
+    }
+    
+    private void registerDoubleField(Symbol.ClassSymbol doubleClass, com.sun.tools.javac.util.Names names,
+                                     String javaName, String dafnyName) {
+        for (Symbol s : doubleClass.members().getSymbolsByName(names.fromString(javaName))) {
+            if (s instanceof Symbol.VarSymbol vs) {
+                nativeSymbols.registerField(vs, (fieldAccess, origin) -> 
+                    fp64Constant(origin, dafnyName));
+                break;
+            }
+        }
+    }
+    
+    private void registerDoubleMethods() {
+        var symtab = Symtab.instance(context);
+        var names = com.sun.tools.javac.util.Names.instance(context);
+        
+        var doubleClass = symtab.enterClass(symtab.java_base,
+            names.fromString(Double.class.getName()));
+        
+        // Static property methods: Double.isNaN(x) -> x.IsNaN
+        registerDoubleStaticPropertyMethod(doubleClass, names, "isNaN", "IsNaN");
+        registerDoubleStaticPropertyMethod(doubleClass, names, "isInfinite", "IsInfinite");
+        registerDoubleStaticPropertyMethod(doubleClass, names, "isFinite", "IsFinite");
+        
+        // Static identity: Double.valueOf(x) -> x
+        registerMethod(doubleClass, names, "valueOf", true, (invocation, origin, ctx) -> {
+            if (invocation.getArguments().isEmpty()) return null;
+            return toExpr(invocation.getArguments().get(0), ctx.forbidImpure());
+        });
+        
+        // Instance identity: x.doubleValue() -> x, x.floatValue() -> x
+        registerMethod(doubleClass, names, "doubleValue", false, (invocation, origin, ctx) -> {
+            if (!(invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fa)) return null;
+            return toExpr(fa.selected, ctx);
+        });
+        registerMethod(doubleClass, names, "floatValue", false, (invocation, origin, ctx) -> {
+            if (!(invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fa)) return null;
+            return toExpr(fa.selected, ctx);
+        });
+        
+        // Instance property methods: x.isNaN() -> x.IsNaN
+        registerDoubleInstanceProperty(doubleClass, names, "isNaN", "IsNaN");
+        registerDoubleInstanceProperty(doubleClass, names, "isInfinite", "IsInfinite");
+    }
+    
+    private void registerMethod(Symbol.ClassSymbol clazz, com.sun.tools.javac.util.Names names,
+                               String methodName, boolean isStatic, NativeSymbols.MethodTranslator translator) {
+        for (Symbol s : clazz.members().getSymbolsByName(names.fromString(methodName))) {
+            if (s instanceof Symbol.MethodSymbol ms && ms.isStatic() == isStatic) {
+                nativeSymbols.registerMethod(ms, translator);
+            }
+        }
+    }
+    
+    private void registerDoubleStaticPropertyMethod(Symbol.ClassSymbol doubleClass, 
+                                                    com.sun.tools.javac.util.Names names,
+                                                    String methodName, String propertyName) {
+        registerMethod(doubleClass, names, methodName, true, (invocation, origin, ctx) -> {
+            if (invocation.getArguments().isEmpty()) return null;
+            var arg = toExpr(invocation.getArguments().get(0), ctx.forbidImpure());
+            return new ExprDotName(origin, arg, new Name(origin, propertyName), null);
+        });
+    }
+    
+    private void registerDoubleInstanceProperty(Symbol.ClassSymbol doubleClass,
+                                                com.sun.tools.javac.util.Names names,
+                                                String methodName, String propertyName) {
+        registerMethod(doubleClass, names, methodName, false, (invocation, origin, ctx) -> {
+            if (!(invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fieldAccess)) return null;
+            var receiver = toExpr(fieldAccess.selected, ctx);
+            return new ExprDotName(origin, receiver, new Name(origin, propertyName), null);
+        });
     }
 }

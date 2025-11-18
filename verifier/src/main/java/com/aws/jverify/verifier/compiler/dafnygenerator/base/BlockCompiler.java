@@ -167,15 +167,7 @@ public class BlockCompiler {
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
             var initExpr = variableDecl.getInitializer();
-            AssignmentRhs rhs;
-            
-            if (variableDecl.getType().type.hasTag(com.sun.tools.javac.code.TypeTag.DOUBLE) && 
-                expressionCompiler.isIntegralType(initExpr.type)) {
-                var expr = expressionCompiler.toExpr(initExpr, expressionContext);
-                rhs = new ExprRhs(origin, null, expressionCompiler.promoteToFp64(initExpr, expr, origin));
-            } else {
-                rhs = expressionCompiler.toAssignmentRhs(initExpr, expressionContext);
-            }
+            AssignmentRhs rhs = expressionCompiler.toAssignmentRhs(initExpr, expressionContext);
 
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
