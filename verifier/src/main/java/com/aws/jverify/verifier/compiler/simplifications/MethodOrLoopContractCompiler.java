@@ -7,6 +7,7 @@ import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -27,10 +28,12 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     private final TreeMaker maker;
     private final Reporter reporter;
     private final JVerifyUtils jverifyUtils;
+    private final JVerifyIndex index;
 
     private MethodOrLoopContractCompiler(Context context) {
         context.put(MethodOrLoopContractCompiler.class, this);
         this.maker = TreeMaker.instance(context);
+        this.index = JVerifyIndex.instance(context);
         this.reporter = Reporter.instance(context);
         this.jverifyUtils = JVerifyUtils.instance(context);
     }
@@ -92,6 +95,16 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         reporter.compilationUnit = tree;
         super.visitTopLevel(tree);
+    }
+
+    @Override
+    public void visitApply(JCTree.JCMethodInvocation invocation) {
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+        if (jverifyMethod == null) {
+            super.visitApply(invocation);
+        } else {
+            result = invocation;
+        }
     }
 
     @Override
@@ -244,8 +257,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return (JCTree.JCBlock) tree.body.getStatements().get(0);
     }
 
-
-    public static boolean handleStatement(BaseDafnyGenerator compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
+    public boolean handleStatement(BaseDafnyGenerator compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
         var reporter = compiler.reporter;
         
         if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
@@ -317,13 +329,13 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return true;
     }
 
-    private static void handlePostcondition(BaseDafnyGenerator baseGenerator, MethodOrLoopContract header, JCTree.JCExpression expr) {
+    private void handlePostcondition(BaseDafnyGenerator baseGenerator, MethodOrLoopContract header, JCTree.JCExpression expr) {
         var reporter = baseGenerator.reporter;
         var nameCompiler = baseGenerator.nameCompiler;
         var expressionCompiler = baseGenerator.expressionCompiler;
         
         if (expr instanceof JCTree.JCNewClass lambdaContainer) {
-            var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(lambdaContainer);
+            var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(index, lambdaContainer);
             if (lambda.getParameters().size() != 1) {
                 throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
             }

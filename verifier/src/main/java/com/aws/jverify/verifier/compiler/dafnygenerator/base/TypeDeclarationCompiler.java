@@ -468,11 +468,14 @@ public class TypeDeclarationCompiler {
         result = new HashSet<>();
 
         var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
-        for(var member : decl.getMembers()) {
-            if (member instanceof JCTree.JCMethodDecl method) {
-                var methodSymbol = method.sym;
-                if (MethodOrLoopContractCompiler.hasImplementation(method)) {
-                    result.add(nameCompiler.getCompiledName(methodSymbol, origin));
+        if (decl != null) {
+            // Not sure when decl == null
+            for(var member : decl.getMembers()) {
+                if (member instanceof JCTree.JCMethodDecl method) {
+                    var methodSymbol = method.sym;
+                    if (MethodOrLoopContractCompiler.hasImplementation(method)) {
+                        result.add(nameCompiler.getCompiledName(methodSymbol, origin));
+                    }
                 }
             }
         }
@@ -501,19 +504,23 @@ public class TypeDeclarationCompiler {
         var result = new HashMap<String, MethodOrFunction>();
         var names = getBodiedMethods(typeSymbol, origin);
 
-        var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
-        for(var member : decl.getMembers()) {
-            if (member instanceof JCTree.JCMethodDecl method) {
-                var methodSymbol = method.sym;
-                MethodOrFunction callable = callables.get(methodSymbol);
-                if (callable != null) {
-                    boolean bodiless = callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
-                            callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null;
-                    String compiledName = nameCompiler.getCompiledName(methodSymbol, origin);
-                    if (includeSelf && bodiless) {
-                        result.putIfAbsent(compiledName, callable);
-                    } else {
-                        names.add(compiledName);
+
+        JCTree typeTree = index.getTree(typeSymbol);
+        if (typeTree != null) {
+            var decl = (JCTree.JCClassDecl) typeTree;
+            for(var member : decl.getMembers()) {
+                if (member instanceof JCTree.JCMethodDecl method) {
+                    var methodSymbol = method.sym;
+                    MethodOrFunction callable = callables.get(methodSymbol);
+                    if (callable != null) {
+                        boolean bodiless = callable instanceof Method dafnyMethod && dafnyMethod.getBody() == null ||
+                                callable instanceof Function dafnyFunction && dafnyFunction.getBody() == null;
+                        String compiledName = nameCompiler.getCompiledName(methodSymbol, origin);
+                        if (includeSelf && bodiless) {
+                            result.putIfAbsent(compiledName, callable);
+                        } else {
+                            names.add(compiledName);
+                        }
                     }
                 }
             }

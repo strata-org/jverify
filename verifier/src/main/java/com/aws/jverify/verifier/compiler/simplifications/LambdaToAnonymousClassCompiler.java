@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
@@ -145,8 +146,15 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         return classDef;
     }
     
-    public static JCMethodDecl getImplementationMethod(JCNewClass newClass) {
-        return newClass.def.defs.stream().flatMap(t -> {
+    public static JCMethodDecl getImplementationMethod(JVerifyIndex index,  JCNewClass newClass) {
+        JCClassDecl classDecl;
+        if (newClass.def != null) {
+            classDecl = newClass.def;
+        } else {
+            var classSymbol = newClass.type.tsym;
+            classDecl = (JCClassDecl)index.getTree(classSymbol);
+        }
+        return classDecl.defs.stream().flatMap(t -> {
             if (t instanceof JCMethodDecl methodDecl && !methodDecl.sym.isConstructor()) {
                 return Stream.of(methodDecl);
             }

@@ -5,6 +5,7 @@ import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.LambdaToAnonymousClassCompiler;
 import com.sun.tools.javac.code.Symbol;
@@ -20,6 +21,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
     final ExpressionCompiler expressionCompiler;
     private final Reporter reporter;
     final BaseDafnyGenerator baseGenerator;
+    private final JVerifyIndex index;
     DafnyGenerator generator;
 
     public JVerifyGhostExpressionCompiler(Context context, 
@@ -28,6 +30,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
         this.baseGenerator = context.get(BaseDafnyGenerator.class);
         generator = context.get(DafnyGenerator.class);
         this.expressionCompiler = baseGenerator.expressionCompiler;
+        this.index = JVerifyIndex.instance(context);
         reporter = baseGenerator.reporter;
     }
 
@@ -100,7 +103,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                     reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
                     return JVerifyUtils.getHole(origin);
                 }
-                var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(lambdaContainer);
+                var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(index, lambdaContainer);
                 var boundVars = lambda.params.stream().map(param -> {
                     var paramOrigin = reporter.toOrigin(lambda);
                     var paramName = new Name(paramOrigin, param.getName().toString());
@@ -208,7 +211,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             reporter.reportError(args.getFirst(), "argumentMustBeLambda", methodName);
             return null;
         }
-        var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(lambdaContainer);
+        var lambda = LambdaToAnonymousClassCompiler.getImplementationMethod(index, lambdaContainer);
         var parameter = lambda.params.getFirst();
         var paramName = parameter.getName().toString();
         var type = generator.translateType(parameter.type, reporter.toOrigin(parameter), null);
