@@ -341,7 +341,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                                       java.util.List<Property<JCTree.JCExpression>> expressions,
                                       String typeName,
                                       String containerName) {
-        for(var _ : expressions) {
+        for (var _ : expressions) {
             reporter.reportError(tree, "wrongContract", typeName, containerName);
         }
     }
