@@ -38,13 +38,18 @@ public class MethodContractsVerification {
         return res;
     }
 
+    /**
+     * There was previously a bug where the postcondition created for this method would return 
+     * a boxed boolean instead of a regular boolean.
+     * This was because the body of the lambda still thought it had to return a Object, instead of a boolean.
+     */
     public Object outerMethodReturnsAnObject() {
-        // This was failing when we did not translate the lambda before reaching Lower
+        // This was failing when we did not enable Lower to handle Lambdas
         postcondition((Object r) -> {
             // The block body is important to trigger Lower.visitReturn
             return true;
         });
-        // Returning a non-primitive type is important.
+        // Returning a non-primitive type is important to trigger boxing
         return new Object();
     }
 }
