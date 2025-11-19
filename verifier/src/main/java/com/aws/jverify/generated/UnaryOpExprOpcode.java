@@ -13,5 +13,7 @@ public enum UnaryOpExprOpcode {
 
   Lit,
 
-  Assigned
+  Assigned,
+
+  Negate
 }
