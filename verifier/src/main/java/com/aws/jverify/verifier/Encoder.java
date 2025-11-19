@@ -31,7 +31,8 @@ class TextEncoder implements Encoder {
 
     @Override
     public void writeDouble(double value) {
-        writer.append(value);
+        var bigDecimal = new java.math.BigDecimal(Double.toString(value));
+        writer.append(bigDecimal.toPlainString());
         writer.append(";");
         writer.append(' ');
     }
