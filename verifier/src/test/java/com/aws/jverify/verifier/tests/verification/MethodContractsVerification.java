@@ -7,7 +7,7 @@ import java.util.function.IntPredicate;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 6, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(dafnyVerified = 7, dafnyErrors = 0, verifyPrintedDafny = true)
 public class MethodContractsVerification {
     
     public int methodReferencePostCondition() {
@@ -36,5 +36,20 @@ public class MethodContractsVerification {
         int res;
         res = x;
         return res;
+    }
+
+    /**
+     * There was previously a bug where the postcondition created for this method would return 
+     * a boxed boolean instead of a regular boolean.
+     * This was because the body of the lambda still thought it had to return a Object, instead of a boolean.
+     */
+    public Object outerMethodReturnsAnObject() {
+        // This was failing when we did not enable Lower to handle Lambdas
+        postcondition((Object r) -> {
+            // The block body is important to trigger Lower.visitReturn
+            return true;
+        });
+        // Returning a non-primitive type is important to trigger boxing
+        return new Object();
     }
 }
