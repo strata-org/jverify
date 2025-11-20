@@ -257,7 +257,7 @@ public class JavaToDafnyCompiler {
         return envs;
     }
 
-    private Set<JCTree.JCCompilationUnit> insertFloatingPointCasts(Set<JCTree.JCCompilationUnit> units) {
+    private List<JCTree.JCCompilationUnit> insertFloatingPointCasts(List<JCTree.JCCompilationUnit> units) {
         var inserter = new FloatingPointCastInserter(context);
         for (var unit : units) {
             inserter.translate(unit);
