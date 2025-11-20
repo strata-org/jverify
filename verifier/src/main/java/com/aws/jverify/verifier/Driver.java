@@ -74,6 +74,7 @@ public class Driver {
         }
         if (dafnyEquivalent == null || (hasErrors && !verifierOptions.continueOnErrors())) {
             verificationResults.setExitCode(CommandLine.ExitCode.USAGE);
+            return new VerificationResultsWithIntervalTreeMap(verificationResults, null);
         } else {
             var programBuilder = new StringBuilder();
             new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
@@ -83,9 +84,10 @@ public class Driver {
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
             runDafnyProcess(NameCompiler.instance(context), program, verifierOptions, verificationResults);
+            return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
+                    .getSourceFileToMethodIntervalTreeMap());
         }
-        return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
-                .getSourceFileToMethodIntervalTreeMap());
+
     }
 
     public static int verifyJavaFiles(

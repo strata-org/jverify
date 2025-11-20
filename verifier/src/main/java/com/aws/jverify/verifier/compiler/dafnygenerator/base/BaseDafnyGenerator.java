@@ -278,10 +278,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                 return getChar16Type(origin);
             }
             case FLOAT -> {
-                return new UserDefinedType(origin, new NameSegment(origin, "float", null));
+                reporter.reportError(origin, "notSupported", "float type");
+                return null;
             }
             case DOUBLE -> {
-                return new UserDefinedType(origin, new NameSegment(origin, "double", null));
+                return new Fp64Type(origin);
             }
         }
 
