@@ -170,7 +170,7 @@ public class JavaToDafnyCompiler {
             @Override
             public void finished(TaskEvent e) {
                 TaskListener.super.finished(e);
-                
+
                 // Wait for the last event sent, after all compilation is complete
                 // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
@@ -208,9 +208,9 @@ public class JavaToDafnyCompiler {
                                                                     externalContractCompiler.apply(
                                                                             newMethodContractCompiler.transform(
                                                                                     unlambda(
-                                                                                            toUnits(compiler.flow(compiler.attribute(todo)))
-                                                                                    )))))))))));
-                }
+                                                                                            insertFloatingPointCasts(
+                                                                                                    toUnits(compiler.flow(compiler.attribute(todo)))
+                                                                                            ))))))))))));                }
             }
         });
         // Applies the Java to Java part of our pipeline
@@ -255,6 +255,14 @@ public class JavaToDafnyCompiler {
             new LambdaToAnonymousClassCompiler(env, context).translate(env);
         }
         return envs;
+    }
+
+    private Set<JCTree.JCCompilationUnit> insertFloatingPointCasts(Set<JCTree.JCCompilationUnit> units) {
+        var inserter = new FloatingPointCastInserter(context);
+        for (var unit : units) {
+            inserter.translate(unit);
+        }
+        return units;
     }
 
     // Phase to hide/rewrite higher level features such as switches
