@@ -1,5 +1,8 @@
 package com.aws.jverify.verifier.tests.verification;
 
+import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
+import com.aws.jverify.JVerify;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -7,15 +10,15 @@ import java.util.function.IntPredicate;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 7, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(dafnyVerified = 10, dafnyErrors = 0, verifyPrintedDafny = true)
 public class MethodContractsVerification {
     
     public int methodReferencePostCondition() {
         postcondition((IntPredicate)MethodContractsVerification::isEven);
-        
+
         // Include lambda based post-condition because it introduces a return value name
         postcondition((int r) -> r == 2);
-        
+
         return 2;
     }
 
@@ -51,5 +54,24 @@ public class MethodContractsVerification {
         });
         // Returning a non-primitive type is important to trigger boxing
         return new Object();
+    }
+
+    public boolean lambdaInPostcondition(int x) {
+        postcondition((boolean r) -> r == useIntPredicate(i -> i == 2, x));
+        return x == 2;
+    }
+
+    @Pure
+    boolean useIntPredicate(IntPredicate predicate, int i) {
+        return predicate.test(i);
+    }
+
+    @Contract
+    static abstract class IntPredicateContract implements IntPredicate {
+        @Pure
+        @Override
+        public boolean test(int value) {
+            throw new ContractException();
+        }
     }
 }

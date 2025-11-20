@@ -40,8 +40,26 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     public void visitApply(JCTree.JCMethodInvocation invocation) {
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
-            super.visitApply(invocation);
+                super.visitApply(invocation);
         } else {
+            invocation.meth = translate(invocation.meth);
+            if (invocation.args != null) {
+                for (List<JCExpression> l = invocation.args; l.nonEmpty(); l = l.tail) {
+                    if (l.head instanceof JCTree.JCTypeCast typeCast) {
+                        if (typeCast.expr instanceof JCTree.JCLambda lambda) {
+                            lambda.params = translate(lambda.params);
+                            lambda.body = translate(lambda.body);
+                        } else {
+                            l.head = super.translate(l.head);
+                        }
+                    } else if (l.head instanceof JCTree.JCLambda lambda) {
+                        lambda.params = translate(lambda.params);
+                        lambda.body = translate(lambda.body);
+                    } else {
+                        l.head = super.translate(l.head);
+                    }
+                }
+            }
             result = invocation;
         }
     }

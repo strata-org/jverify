@@ -48,7 +48,7 @@ public class MissingContractCompiler {
         internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
     
-    public Set<JCTree.JCCompilationUnit> compile(Set<JCTree.JCCompilationUnit> units) {
+    public java.util.List<JCTree.JCCompilationUnit> compile(java.util.List<JCTree.JCCompilationUnit> units) {
         var finder = new SymbolReferenceFinder();
         for(var unit : units) {
             finder.visitTopLevel(unit);
