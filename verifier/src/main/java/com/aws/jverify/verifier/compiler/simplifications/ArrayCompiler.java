@@ -23,7 +23,7 @@ public class ArrayCompiler extends TreeTranslator {
     private final JavacElements elements;
     private final Names names;
 
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             translate(env);
         }

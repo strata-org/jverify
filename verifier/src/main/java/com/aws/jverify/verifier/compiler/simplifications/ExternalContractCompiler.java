@@ -57,7 +57,7 @@ public class ExternalContractCompiler {
         this.elements = JavacElements.instance(context);
     }
 
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> compilationUnits) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit : compilationUnits) {
             var moveSourceContracts = new FindAndMoveContracts();
             moveSourceContracts.visitTopLevel(unit);

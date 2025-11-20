@@ -81,7 +81,7 @@ public class Driver {
         }
         if (dafnyEquivalent == null || (hasErrors && !verifierOptions.continueOnErrors())) {
             verificationResults.setExitCode(CommandLine.ExitCode.USAGE);
-            return new VerificationResultsWithIntervalTreeMap(verificationResults, new HashMap<>());
+            return new VerificationResultsWithIntervalTreeMap(verificationResults, null);
         } else {
             var beforeSerialization = Instant.now();
             var programBuilder = new StringBuilder();

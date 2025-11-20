@@ -170,7 +170,7 @@ public class JavaToDafnyCompiler {
             @Override
             public void finished(TaskEvent e) {
                 TaskListener.super.finished(e);
-                
+
                 // Wait for the last event sent, after all compilation is complete
                 // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
@@ -192,10 +192,11 @@ public class JavaToDafnyCompiler {
                     // Apply the second half of our pipeline as above (4 and onwards).
                     // See the implementation of JavaCompiler.compile() for similar lines,
                     // including the comment "these method calls must be chained to avoid memory leaks"
-                    Set<JCTree.JCCompilationUnit> remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
+                    java.util.List<JCTree.JCCompilationUnit> remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
                     
                     List<UnitsCompiler> phases = new ArrayList<>();
                     phases.add(JavaToDafnyCompiler.this::unlambda);
+                    phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
                     if (options.positionFilter() != null && options.positionFilter().fileEnding() != null) {
@@ -215,6 +216,7 @@ public class JavaToDafnyCompiler {
                     }
                     units.addAll(remainingUnits);
                 }
+                    
             }
         });
         // Applies the Java to Java part of our pipeline
@@ -238,11 +240,11 @@ public class JavaToDafnyCompiler {
     }
     
     interface UnitsCompiler {
-        Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> units);
+        List<JCTree.JCCompilationUnit> transform(List<JCTree.JCCompilationUnit> units);
     }
 
-    private Set<JCTree.JCCompilationUnit> toUnits(Queue<Env<AttrContext>> envs) {
-        Set<JCTree.JCCompilationUnit> result = envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
+    private List<JCTree.JCCompilationUnit> toUnits(Queue<Env<AttrContext>> envs) {
+        var result = envs.stream().map(e -> e.toplevel).distinct().toList();
         JVerifyIndex index = JVerifyIndex.instance(context);
         for(var unit : result) {
             Env<AttrContext> env = enter.getTopLevelEnv(unit);
@@ -253,7 +255,7 @@ public class JavaToDafnyCompiler {
         return result;
     }
 
-    private Set<JCTree.JCCompilationUnit> unlambda(Set<JCTree.JCCompilationUnit> envs) {
+    private List<JCTree.JCCompilationUnit> unlambda(List<JCTree.JCCompilationUnit> envs) {
         // Note JavaCompiler.desugar has some additional logic to
         // scan for classes that have lambdas first,
         // to not waste time with these traversals.
@@ -265,9 +267,17 @@ public class JavaToDafnyCompiler {
         return envs;
     }
 
+    private List<JCTree.JCCompilationUnit> insertFloatingPointCasts(List<JCTree.JCCompilationUnit> units) {
+        var inserter = new FloatingPointCastInserter(context);
+        for (var unit : units) {
+            inserter.translate(unit);
+        }
+        return units;
+    }
+
     // Phase to hide/rewrite higher level features such as switches
     // so future phases don't rewrite them.
-    private Set<JCTree.JCCompilationUnit> suspend(Set<JCTree.JCCompilationUnit> envs) {
+    private java.util.List<JCTree.JCCompilationUnit> suspend(java.util.List<JCTree.JCCompilationUnit> envs) {
         var suspenders = Suspenders.instance(context);
         Log log = Log.instance(context);
         for (var env: envs) {
@@ -278,7 +288,7 @@ public class JavaToDafnyCompiler {
     }
 
     // Phase to undo the effects of suspend().
-    private Set<JCTree.JCCompilationUnit> unsuspend(Set<JCTree.JCCompilationUnit> units) {
+    private List<JCTree.JCCompilationUnit> unsuspend(List<JCTree.JCCompilationUnit> units) {
         var hider = Suspenders.instance(context);
         units.forEach(topLevel -> {
             topLevel.defs = topLevel.defs.map(hider::unsuspend);
@@ -286,7 +296,7 @@ public class JavaToDafnyCompiler {
         return units;
     }
 
-    private Set<JCTree.JCCompilationUnit> lower(Set<JCTree.JCCompilationUnit> envs) {
+    private List<JCTree.JCCompilationUnit> lower(List<JCTree.JCCompilationUnit> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
         var lower = Lower.instance(context);
         var log = Log.instance(context);

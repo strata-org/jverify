@@ -4,6 +4,7 @@ import com.aws.jverify.JVerify;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
@@ -38,12 +39,11 @@ public class IsAbstractCompiler extends TreeScanner {
         utils = JVerifyUtils.instance(context);
         index = JVerifyIndex.instance(context);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
-        JavacElements  elements = JavacElements.instance(context);
         isAbstract = (Symbol.MethodSymbol) utils.findSymbol(JVerify.class, "isAbstract");
         preconditionMethodPrefix = names.fromString("thePreconditionOf$");
     }
     
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             reporter.compilationUnit = env;
             scan(env);

@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.dafnygenerator.NativeSymbols;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.Enter;
@@ -28,13 +29,14 @@ public class MissingContractCompiler {
     private final JavacElements elements;
     private final JVerifyUtils jverifyUtils;
     private final MethodOrLoopContractCompiler internalContractCompiler;
+    private final NativeSymbols nativeSymbols;
 
     private final Map<Symbol, Reference> symbolReferences = new HashMap<>();
     private final Set<Symbol> foundSymbols = new HashSet<>();
     private final Reporter reporter;
 
     record Reference(Symbol symbol, JCTree.JCCompilationUnit compilationUnit, JCTree tree) {}
-    
+
     public MissingContractCompiler(Context context) {
         this.maker = TreeMaker.instance(context);
         this.index = JVerifyIndex.instance(context);
@@ -45,9 +47,10 @@ public class MissingContractCompiler {
         jverifyUtils = JVerifyUtils.instance(context);
         reporter = Reporter.instance(context);
         internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
+        nativeSymbols = NativeSymbols.instance(context);
     }
     
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> units) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> units) {
         var finder = new SymbolReferenceFinder();
         for(var unit : units) {
             finder.visitTopLevel(unit);
@@ -137,7 +140,7 @@ public class MissingContractCompiler {
     }
 
     class SymbolReferenceFinder extends TreeScanner {
-        
+
         JCTree.JCCompilationUnit compilationUnit;
         @Override
         public void visitTopLevel(JCTree.JCCompilationUnit tree) {
@@ -193,24 +196,24 @@ public class MissingContractCompiler {
                 visitType(arrayType.elemtype, tree);
             }
         }
-        
+
         void visitReference(Symbol symbol, JCTree tree) {
             boolean validSymbol = symbol instanceof Symbol.MethodSymbol || symbol instanceof Symbol.ClassSymbol
                     || (symbol instanceof Symbol.VarSymbol varSymbol && isField(varSymbol));
             if (!validSymbol) {
                 return;
             }
-            
+
             if (symbol.isConstructor() && symbol.owner.flatName().contentEquals(Record.class.getCanonicalName())) {
                 // Datatype constructors do not call a base constructor
                 return;
             }
-            
+
             if (symbol.owner.isEnum()) {
                 // Do not add enum members, since enums are translated to datatypes
                 return;
             }
-            
+
             if (symbol instanceof Symbol.MethodSymbol methodSymbol && isRecordAccessor(methodSymbol)) {
                 // records are translated to datatypes, which get implicit deconstructors
                 return;
@@ -220,17 +223,22 @@ public class MissingContractCompiler {
                 // equals is in additional.dfy
                 return;
             }
-            
+
             if (symbol.owner == symtab.arrayClass) {
                 // Arrays are handled using custom code
                 return;
             }
-            
+
+            // Skip native symbols (Math/Double methods) - they have special handling in ExpressionCompiler
+            if (nativeSymbols.isRegistered(symbol)) {
+                return;
+            }
+
             if (isJVerifySymbol(symbol)) {
                 // Do not add contracts for JVerify library methods, since they are compiled away anyways
                 return;
             }
-            
+
             if (symbolReferences.containsKey(symbol)) {
                 return;
             }

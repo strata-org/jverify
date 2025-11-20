@@ -41,7 +41,7 @@ public class PreconditionOfCompiler extends TreeTranslator {
         preconditionOf = utils.findSymbol(JVerify.class, "preconditionOf");
     }
     
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             reporter.compilationUnit = env;
             translate(env);

@@ -20,7 +20,7 @@ public class DropUnreachableUnits {
         this.options = context.get(VerifierOptions.class);
     }
     
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> compilationUnits) {
+    public List<JCTree.JCCompilationUnit> transform(List<JCTree.JCCompilationUnit> compilationUnits) {
         var typeCollector = new TypeCollector();
         for(var unit : compilationUnits) {
             typeCollector.visitTopLevel(unit);
@@ -43,7 +43,7 @@ public class DropUnreachableUnits {
         }
     }
 
-    public Set<JCTree.JCCompilationUnit> findAllDependencies(Set<JCTree.JCCompilationUnit> units) {
+    public List<JCTree.JCCompilationUnit> findAllDependencies(List<JCTree.JCCompilationUnit> units) {
         var allDependencies = new LinkedHashSet<JCTree.JCCompilationUnit>();
         var visited = new HashSet<JCTree.JCCompilationUnit>();
         for(var unit : units) {
@@ -52,7 +52,7 @@ public class DropUnreachableUnits {
                 findDependenciesRecursive(unit, allDependencies, visited);
             }
         }
-        return allDependencies;
+        return allDependencies.stream().toList();
     }
 
     private void findDependenciesRecursive(JCTree.JCCompilationUnit unit,

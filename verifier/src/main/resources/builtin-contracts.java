@@ -465,9 +465,8 @@ class IntegerContract {
     }
 }
 
-@Contract(Double.class)
-class DoubleContract {
-}
+// No DoubleContract, FloatContract, or MathContract - Math, Double, and Float methods
+// have special fp64/fp32 handling in ExpressionCompiler and are skipped by MissingContractCompiler
 
 @Contract(Long.class)
 class LongContract {
