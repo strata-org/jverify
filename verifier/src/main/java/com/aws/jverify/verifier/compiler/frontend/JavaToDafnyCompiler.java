@@ -189,12 +189,10 @@ public class JavaToDafnyCompiler {
                     // or else the later phases become no-ops.
                     compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
 
-                    // Apply the second half of our pipeline as above (4 and onwards).
-                    // See the implementation of JavaCompiler.compile() for similar lines,
-                    // including the comment "these method calls must be chained to avoid memory leaks"
                     java.util.List<JCTree.JCCompilationUnit> remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
                     
                     List<UnitsCompiler> phases = new ArrayList<>();
+                    phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
                     phases.add(JavaToDafnyCompiler.this::unlambda);
                     phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
@@ -216,7 +214,6 @@ public class JavaToDafnyCompiler {
                     }
                     units.addAll(remainingUnits);
                 }
-                    
             }
         });
         // Applies the Java to Java part of our pipeline

@@ -28,7 +28,12 @@ public record MethodOrLoopContract(
 
         return clauses.stream().map(Property::get).
                 reduce((a,b) -> {
-                    // Use temporary arguments to binary so we can easily attribute Binary
+// We need to build an attributed binary with the arguments a ane b.
+// Both 'a' and 'b' are already attributed, but if we build binary with them and attribute it, then
+// a and b will be re-attributed. This can fail unless we provide the right environment,
+// think of the method scope.
+// To make attribution of Binary easier, we supply temporary literal arguments to binary first
+// since these don't need anything from the method scope.
                     var trueLiteral = treeMaker.Literal(true);
                     JCTree.JCBinary binary = treeMaker.Binary(JCTree.Tag.AND, trueLiteral, trueLiteral);
                     Env<AttrContext> env = enter.getTopLevelEnv(reporter.compilationUnit);

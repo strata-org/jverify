@@ -63,8 +63,9 @@ public class JVerify {
     }
 
     /**
-     * Takes the precondition of the given expression
-     * and applies that to the current method 
+     * Return the precondition of the given expression
+     * Currently only works when the expression is a method call
+     * and only works for method calls that return a value.
      */
     public static <T> boolean preconditionOf(T value) {
         throw new ContractException();
@@ -125,9 +126,8 @@ public class JVerify {
     }
 
     /**
-     * Can be used in a reads or modifies contract to make that clause abstract
-     * A subclass of the current clause can implement that abstract clause
-     * By redefining it and filling in a value
+     * Can be used as the argument to a call to 'precondition' to make the precondition abstract
+     * A subclass of the current class can implement that abstract clause by redefining it.
      */
     public static <T> T isAbstract() {
         throw new VerificationMethodExecutedException();
@@ -157,7 +157,7 @@ public class JVerify {
      * For objects such as records and classes:
      * - If the type is impure, jequals behaves like `==`, reference equality
      * - If the type is pure, jequals behaves as structural equality, 
-     * recursively testing for observational equality on all its fields. 
+     *   recursively testing for observational equality on all its fields. 
      * For pure types, shallow structural equality implies observational equality, because:
      * - JVerify makes using `==` (reference equality) illegal
      * - pure types only have immutable fields

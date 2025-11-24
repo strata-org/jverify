@@ -1,6 +1,10 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.*;
+import com.aws.jverify.Contract;
+import com.aws.jverify.ContractException;
+import com.aws.jverify.Erased;
+import com.aws.jverify.Impure;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;

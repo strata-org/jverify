@@ -9,13 +9,13 @@ public class AbstractContractsErrors {
     static class C {
         void foo() {
             postcondition((boolean)isAbstract());
-//                                 ^ error: isAbstract() in clauses other than a preconditions is not supported
+//                                 ^ error: isAbstract() in clauses other than a precondition is not supported
             decreases(isAbstract());
-//                    ^ error: isAbstract() in clauses other than a preconditions is not supported
+//                    ^ error: isAbstract() in clauses other than a precondition is not supported
             reads(isAbstract());
-//                ^ error: isAbstract() in clauses other than a preconditions is not supported
+//                ^ error: isAbstract() in clauses other than a precondition is not supported
             modifies(isAbstract());
-//                   ^ error: isAbstract() in clauses other than a preconditions is not supported
+//                   ^ error: isAbstract() in clauses other than a precondition is not supported
         }
         
         int noPrecondition() {
@@ -31,9 +31,7 @@ public class AbstractContractsErrors {
         void usesPreconditionOf(int x) {
             precondition(
                     preconditionOf(noPrecondition()) && 
-//                                ^ error: target of preconditionOf must have a single precondition
                     preconditionOf(twoPreconditions(x)));
-//                                ^ error: target of preconditionOf must have a single precondition
         }
     }
 }

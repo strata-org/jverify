@@ -8,7 +8,6 @@ public interface Property<T> {
     T get();
     void set(T value);
 
-
     public static <T> Property<T> fromElement(ArrayList<T> list, int index) {
         return new Property<T>() {
             @Override
@@ -34,7 +33,10 @@ public interface Property<T> {
             public void set(T value) {
                 List<T> current = list;
                 //noinspection StatementWithEmptyBody
-                for(var i = 0; i < index; i++, current = list.tail) {
+                var i = 0;
+                while (i < index) {
+                    i++;
+                    current = current.tail;
                 }
                 current.head = value;
             }

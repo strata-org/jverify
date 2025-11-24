@@ -214,7 +214,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 return new BinaryExpr(origin, BinaryExprOpcode.Eq, left, right);
             }
             case "isAbstract" -> {
-                reporter.reportError(invocation.getMethodSelect(), "notSupported", "isAbstract() in clauses other than a preconditions");
+                reporter.reportError(invocation.getMethodSelect(), "notSupported", "isAbstract() in clauses other than a precondition");
                 return JVerifyUtils.getHole(origin);
             }
         }

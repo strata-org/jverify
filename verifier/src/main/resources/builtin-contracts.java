@@ -673,7 +673,6 @@ class OptionalContract<T> {
     private T value;
     private boolean isSet;
 
-    //TODO: add preconditions for null
     @Pure
     static <T> OptionalContract<T> of(T value) {
         postcondition((OptionalContract<T> o) -> o.value == value && o.isSet);

@@ -14,7 +14,7 @@ class Fibonacci {
     {
         postcondition((int result) -> result == spec(n));
         
-        // this preconditions prevents overflow later in this method
+        // this precondition prevents overflow later in this method
         precondition(spec(n) <= Integer.MAX_VALUE);
 
         if (n == 0) {
@@ -32,7 +32,7 @@ class Fibonacci {
 
             i = i + 1;
 
-            // Using the preconditions that the final result fits in an int32
+            // Using the precondition that the final result fits in an int32
             // And the knowledge that the intermediate results are smaller than the result
             // We can show the addition always fits in an int32
             SpecIsIncreasing(i, n);
