@@ -7,7 +7,7 @@ class IntPredicateContract implements IntPredicate {
     @Pure
     public boolean test(int value) {
         // Having the following line is different from not calling 'precondition' at all,
-        // because that would mean there is precondition, equivalent to 'precondition(true)'
+        // because that would mean there is a precondition, equivalent to 'precondition(true)'
         precondition(isAbstract());
         throw new ContractException();
     }
