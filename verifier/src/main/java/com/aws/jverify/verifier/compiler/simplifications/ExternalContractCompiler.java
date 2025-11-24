@@ -46,6 +46,7 @@ public class ExternalContractCompiler {
     private final Reporter reporter;
     private final Set<Symbol.ClassSymbol> symbolsWithContracts = new HashSet<>();
     private final Map<Symbol, Symbol> contractSymbolToContractee = new HashMap<>();
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
 
     public ExternalContractCompiler(Context context) {
         this.names = Names.instance(context);
@@ -55,6 +56,7 @@ public class ExternalContractCompiler {
         this.index = JVerifyIndex.instance(context);
         this.reporter = Reporter.instance(context);
         this.elements = JavacElements.instance(context);
+        this.methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
 
     public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> compilationUnits) {
@@ -174,6 +176,7 @@ public class ExternalContractCompiler {
                             reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                         } else {
                             contractSymbolToContractee.put(methodSymbol, contracteeMethod);
+                            methodOrLoopContractCompiler.removeImplementation(methodDecl);
                             baseSource.body = methodDecl.body;
                             baseSource.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
                             jverifyUtils.addVerifyFalseToMethodSymbol(methodSymbol, contracteeMethod);
@@ -286,8 +289,9 @@ public class ExternalContractCompiler {
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
             newAnnotations.addAll(contracterSymbol.getAnnotationMirrors());
             if (!shouldVerify(contracter, contracterSymbol)) {
-                contracter.mods.annotations = contracter.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
-                newAnnotations.add(jverifyUtils.getVerifyAnnotation());
+                methodOrLoopContractCompiler.removeImplementation(contracter);
+//                contracter.mods.annotations = contracter.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
+//                newAnnotations.add(jverifyUtils.getVerifyAnnotation());
             }
             contracteeSymbol.resetAnnotations();
             contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
@@ -311,9 +315,7 @@ public class ExternalContractCompiler {
                 var implementation = MethodOrLoopContractCompiler.getImplementationBlock(methodDecl.body);
                 if (implementation != null)
                     if (implementation.getStatements().size() == 1) {
-                        var statement = implementation.getStatements().getFirst();
-                        boolean contractThrow = statement instanceof JCTree.JCThrow throwStatement &&
-                                throwStatement.expr.type.tsym.getQualifiedName().contentEquals(ContractException.class.getCanonicalName());
+                        boolean contractThrow = JVerifyUtils.isAssumedBody(implementation.stats);
                         shouldVerify = !contractThrow;
                     }
                     else {

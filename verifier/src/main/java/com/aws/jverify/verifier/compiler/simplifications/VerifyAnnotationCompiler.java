@@ -1,6 +1,8 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
+import com.aws.jverify.generated.Method;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.generated.TokenRange;
 import com.aws.jverify.verifier.IntervalTree;
@@ -27,9 +29,9 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
     private final VerifierOptions options;
     private final Reporter reporter;
-    public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
     public final Context context;
     private final JavaToDafnyCompiler javaToDafnyCompiler;
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private PositionCalculator positionCalculator;
     private final HashMap<URI, IntervalTree<Integer, JavaMethodVerificationStatus>> sourceFileToMethodIntervalTreeMap = new HashMap<>();
 
@@ -43,6 +45,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         this.context = context;
         options = context.get(VerifierOptions.class);
         javaToDafnyCompiler = context.get(JavaToDafnyCompiler.class);
+        methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -91,12 +94,18 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
         addMethodToIntervalTree(tree, shouldVerify);
-        if (!shouldVerify) {
-            removeImplementation(tree);
-        } else if (!jverifyUtils.isPure(tree.sym) && !applyPositionFilter(tree)) {
-            // this is a performance optimization. 
-            // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
-            removeImplementation(tree);
+        var pureAnnotation = tree.sym.getAnnotation(Pure.class);
+        boolean opaqueBody = pureAnnotation != null && !pureAnnotation.transparant();
+        if (opaqueBody) {
+            methodOrLoopContractCompiler.removeImplementation(tree);
+        } else if (!jverifyUtils.isPure(tree.sym)) {
+            if (!shouldVerify) {
+                methodOrLoopContractCompiler.removeImplementation(tree);
+            } else if (!applyPositionFilter(tree)) {
+                // this is a performance optimization. 
+                // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
+                methodOrLoopContractCompiler.removeImplementation(tree);
+            }
         }
         super.visitMethodDef(tree);
     }
@@ -129,14 +138,6 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     private URI getUri() {
         var baseUri = Paths.get(System.getProperty("user.dir")).toUri();
         return baseUri.resolve(reporter.compilationUnit.getSourceFile().toUri()).normalize();
-    }
-
-    public void removeImplementation(JCTree.JCMethodDecl tree) {
-        if (tree.body == null || tree.body.getStatements().isEmpty()) {
-            return;
-        }
-        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree.body);
-        tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
     }
 
     public boolean processVerifyAnnotationAndPop(JCTree node, AnnoConstruct annoConstruct) {

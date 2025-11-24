@@ -19,5 +19,10 @@ public @interface Verify {
      * Whether this annotation overrides any @Verify annotations applied on nested symbols 
      */
     boolean overrideChildren() default false;
+    
+    /*
+    Enables hiding the body of pure methods, so they do not need to be pure
+    Only possible if this method is not verified
+     */
+    boolean hidePureBodies() default false;
 }
-

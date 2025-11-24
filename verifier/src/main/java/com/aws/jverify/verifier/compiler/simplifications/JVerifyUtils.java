@@ -126,6 +126,16 @@ public class JVerifyUtils {
         return maker.Throw(maker.Ident(contractSymbol));
     }
 
+    public static boolean isAssumedBody(List<JCTree.JCStatement> statements) {
+        if (statements.size() == 1) {
+            var statement = statements.getFirst();
+            return statement instanceof JCTree.JCThrow throwStatement &&
+                    throwStatement.expr.type.tsym.getQualifiedName().
+                            contentEquals(ContractException.class.getCanonicalName());
+        }
+        return false;
+    }
+
     public boolean isPure(Symbol.MethodSymbol rider) {
         if (rider.getAnnotation(Pure.class) != null) {
             return true;

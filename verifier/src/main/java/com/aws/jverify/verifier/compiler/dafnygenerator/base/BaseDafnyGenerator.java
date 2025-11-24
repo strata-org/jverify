@@ -311,9 +311,9 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
         var superBound = wildcardType.getSuperBound();
         if (superBound != null) {
-            if (translatingVerifiedMethodSignature) {
-                reporter.reportError(origin, "notSupported", "keyword 'super' in method signature");
-            }
+//            if (translatingVerifiedMethodSignature) {
+//                reporter.reportError(origin, "notSupported", "keyword 'super' in method signature");
+//            }
             if (superBound instanceof com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType) {
                 // TODO add test
                 return translateType(intersectionClassType.getComponents().getFirst(), origin);
@@ -514,7 +514,9 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         var implementation = MethodOrLoopContractCompiler.getImplementationStatements(outerBlock);
         if (dafnyContract.isPure) {
             if (!implementation.isEmpty()) {
-                dafnyContract.pureBody = expressionCompiler.toExprWithFlows(implementation, ExpressionContext.Pure);
+                if (!JVerifyUtils.isAssumedBody(implementation)) {
+                    dafnyContract.pureBody = expressionCompiler.toExprWithFlows(implementation, ExpressionContext.Pure);
+                }
             }
         }
     }

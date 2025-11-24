@@ -66,6 +66,14 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         }
         return envs;
     }
+
+    public void removeImplementation(JCTree.JCMethodDecl tree) {
+        if (tree.body == null || tree.body.getStatements().isEmpty()) {
+            return;
+        }
+        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree.body);
+        tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
+    }
     
     @Override
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {

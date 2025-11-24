@@ -26,6 +26,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private final JCCompilationUnit compilationUnit;
     private final TreeMaker maker;
     private final JavacElements elements;
+    private final JVerifyUtils jVerifyUtils;
     private final Names names;
     private final Types types;
     private final Enter enter;
@@ -41,9 +42,10 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         this.names = Names.instance(context);
         this.types = Types.instance(context);
         this.context = context;
+        jVerifyUtils = JVerifyUtils.instance(context);
     }
     
-    Set<String> ignoreMethods = Set.of("postcondition","precondition", "forall", "exists");
+    private final Set<String> ignoreMethods = Set.of("postcondition","precondition", "forall", "exists", "map", "all");
     
     /*
     This code is unfortunately necessary because method and loop contracts are stored 
