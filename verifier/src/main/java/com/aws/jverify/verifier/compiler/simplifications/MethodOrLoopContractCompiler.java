@@ -56,7 +56,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return instance;
     }
     
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             translate(env);
         }

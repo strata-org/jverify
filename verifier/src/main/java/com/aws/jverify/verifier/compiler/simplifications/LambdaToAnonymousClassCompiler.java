@@ -36,12 +36,38 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         this.context = context;
     }
     
+    /*
+    This code is unfortunately necessary because method and loop contracts are stored 
+    using plain method calls and lambdas. We don't want those lambdas to be compiled by this class,
+    so we have extra code to avoid compiling them.
+     */
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
-            super.visitApply(invocation);
+                super.visitApply(invocation);
         } else {
+            invocation.meth = translate(invocation.meth);
+            if (invocation.args != null) {
+                for (List<JCExpression> l = invocation.args; l.nonEmpty(); l = l.tail) {
+                    // Our pipeline might have inserted a typecast at this point
+                    // So that postcondition((int x) -> x == 2)) becomes
+                    // postcondition((IntPredicate)(int x) -> x == 2);
+                    if (l.head instanceof JCTree.JCTypeCast typeCast) {
+                        if (typeCast.expr instanceof JCTree.JCLambda lambda) {
+                            lambda.params = translate(lambda.params);
+                            lambda.body = translate(lambda.body);
+                        } else {
+                            l.head = super.translate(l.head);
+                        }
+                    } else if (l.head instanceof JCTree.JCLambda lambda) {
+                        lambda.params = translate(lambda.params);
+                        lambda.body = translate(lambda.body);
+                    } else {
+                        l.head = super.translate(l.head);
+                    }
+                }
+            }
             result = invocation;
         }
     }

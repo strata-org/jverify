@@ -44,7 +44,7 @@ public class MoveStaticMethodsToStaticType {
         elements = JavacElements.instance(context);
     }
 
-    public Set<JCTree.JCCompilationUnit> translate(Set<JCTree.JCCompilationUnit> compilationUnits) {
+    public java.util.List<JCTree.JCCompilationUnit> translate(java.util.List<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit : compilationUnits) {
             moveStaticMethodsToSeparateClass(unit);
         }
