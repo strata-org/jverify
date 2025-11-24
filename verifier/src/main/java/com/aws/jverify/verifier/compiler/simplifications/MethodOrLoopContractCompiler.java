@@ -2,9 +2,14 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
+import com.aws.jverify.generated.BoundVar;
+import com.aws.jverify.generated.CasePattern;
+import com.aws.jverify.generated.Name;
+import com.aws.jverify.generated.ThisExpr;
 import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
@@ -42,7 +47,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         var implementationBlock = getImplementationBlock(outerBlock);
         return implementationBlock == null ? List.nil() : implementationBlock.getStatements();
     }
-    
+
     public static JCTree.@Nullable JCBlock getImplementationBlock(JCTree.JCStatement outerBlock) {
         List<JCTree.JCStatement> outerStatements = ((JCTree.JCBlock) outerBlock).getStatements();
         if (outerStatements.size() < 2) {
@@ -54,18 +59,18 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         }
         return null;
     }
-    
+
     public static boolean hasImplementation(JCTree.JCMethodDecl method) {
         return method.body != null && method.body.getStatements().get(1) instanceof JCTree.JCBlock;
     }
-    
+
     public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             translate(env);
         }
         return envs;
     }
-    
+
     @Override
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         reporter.compilationUnit = tree;
@@ -134,7 +139,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         checkEmptyExpressions(loop, contract.preconditions(), "preconditions", "loop");
         checkEmptyExpressions(loop, contract.postconditions(), "postconditions", "loop");
     }
-    
+
     List<JCTree.JCStatement> getStatements(JCTree.JCStatement statement) {
         return statement instanceof JCTree.JCBlock block ? block.getStatements() : List.of(statement);
     }
@@ -200,7 +205,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         var first = statements.isEmpty() ? null : statements.getFirst();
         if ((first instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
-            var isSuperOrThisCall = invocation.getMethodSelect() instanceof JCTree.JCIdent ident && 
+            var isSuperOrThisCall = invocation.getMethodSelect() instanceof JCTree.JCIdent ident &&
                     (ident.name == ident.name.table.names._super || ident.name == ident.name.table.names._this);
             if (isSuperOrThisCall) {
                 superOrThis = first;
@@ -233,7 +238,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         if (jverifyMethod == null) {
             return false;
         }
-        
+
         var methodName = jverifyMethod.getQualifiedName().toString();
         switch (methodName) {
             case "check", "assume" -> {
@@ -256,11 +261,11 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 maker.Block(0, List.nil()),
                 implementation));
     }
-    
+
     public static JCTree.JCBlock getContractBlock(JCTree.JCStatement outerBlock) {
-        return (JCTree.JCBlock) ((JCTree.JCBlock)outerBlock).getStatements().get(0);
+        return (JCTree.JCBlock) ((JCTree.JCBlock) outerBlock).getStatements().get(0);
     }
-    
+
     public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock) {
         var contractBlock = getContractBlock(outerBlock);
         ArrayList<Property<JCTree.JCExpression>> precondition = new ArrayList<>();
@@ -269,8 +274,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         ArrayList<Property<JCTree.JCExpression>> loopInvariant = new ArrayList<>();
         ArrayList<Property<JCTree.JCExpression>> reads = new ArrayList<>();
         ArrayList<Property<JCTree.JCExpression>> modifies = new ArrayList<>();
-                
-        for(var contractStatement : contractBlock.getStatements()) {
+
+        for (var contractStatement : contractBlock.getStatements()) {
             if (!((JCTree.JCStatement) contractStatement instanceof JCTree.JCExpressionStatement expressionStatement
                     && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
                 continue;
@@ -304,7 +309,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     loopInvariant.add(Property.fromElement(invocation.getArguments(), 0));
                 }
                 case "decreases" -> {
-                    for(var decrease : invocation.getArguments()) {
+                    for (var decrease : invocation.getArguments()) {
                         // The LOWER javac phase inserts an explicit NewArray for varargs
                         if (decrease instanceof JCTree.JCNewArray newArray) {
                             decreases.addAll(newArray.getInitializers());
@@ -330,7 +335,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 }
             }
         }
-        return new MethodOrLoopContract(precondition, postcondition, 
+        return new MethodOrLoopContract(precondition, postcondition,
                 loopInvariant, decreases, reads, modifies);
     }
 
@@ -339,7 +344,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                                       String typeName,
                                       String containerName) {
         if (expressions.isEmpty()) {
-            reporter.reportError(tree, "wrongContract", typeName, containerName);            
+            reporter.reportError(tree, "wrongContract", typeName, containerName);
         }
     }
 }

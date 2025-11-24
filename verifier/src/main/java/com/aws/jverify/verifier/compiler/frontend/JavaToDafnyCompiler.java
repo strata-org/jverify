@@ -170,7 +170,7 @@ public class JavaToDafnyCompiler {
             @Override
             public void finished(TaskEvent e) {
                 TaskListener.super.finished(e);
-                
+
                 // Wait for the last event sent, after all compilation is complete
                 // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
@@ -192,6 +192,7 @@ public class JavaToDafnyCompiler {
                     Set<JCTree.JCCompilationUnit> remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
                     
                     List<UnitsCompiler> phases = new ArrayList<>();
+                    phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
                     phases.add(JavaToDafnyCompiler.this::unlambda);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
@@ -257,6 +258,14 @@ public class JavaToDafnyCompiler {
             new LambdaToAnonymousClassCompiler(env, context).translate(env);
         }
         return envs;
+    }
+
+    private Set<JCTree.JCCompilationUnit> insertFloatingPointCasts(Set<JCTree.JCCompilationUnit> units) {
+        var inserter = new FloatingPointCastInserter(context);
+        for (var unit : units) {
+            inserter.translate(unit);
+        }
+        return units;
     }
 
     // Phase to hide/rewrite higher level features such as switches

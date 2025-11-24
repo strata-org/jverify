@@ -121,8 +121,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         Name name = names.lambda.append(names.fromString(line + "_" + column));
 
         int flags = SYNTHETIC | FINAL;
-        boolean hasNoEnclosingType = (currentContainer.flags() & STATIC) != 0;
-        if (hasNoEnclosingType) {
+        boolean hasEnclosingType = (currentContainer.flags() & STATIC) == 0;
+        if (!hasEnclosingType) {
             flags |= STATIC;
         }
         
@@ -130,7 +130,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
         // Flatname should be globally unique. Qualified class name plus line and column achieves that.
         classSymbol.flatname = currentContainer.owner.flatName().append(name);
-        Type enclosingType = hasNoEnclosingType ? Type.noType : currentContainer.enclClass().type;
+        Type enclosingType = hasEnclosingType ? currentContainer.enclClass().type : Type.noType;
         Type.ClassType classType = new Type.ClassType(enclosingType, List.nil(), classSymbol);
         classType.interfaces_field = List.of(lambda.type);
         classSymbol.type = classType;
