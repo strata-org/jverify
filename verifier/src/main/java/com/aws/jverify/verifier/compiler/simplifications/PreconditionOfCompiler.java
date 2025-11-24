@@ -15,6 +15,30 @@ import java.util.Set;
 
 /**
  * Handle 'preconditionOf' calls
+ * <p>
+ * A preconditionOf call contains a fully applied call to another method.
+ * This compiler replaced the preconditionOf call with the precondition of the called method, 
+ * with the arguments filled in.
+ * <p>
+ * Example:
+ * class Foo {
+ *   void foo(int x) {
+ *       precondition(x > 10);
+ *   }
+ *   void bar(int x) {
+ *       precondition(preconditionOf(foo(x + 1));
+ *   }
+ * }
+ * Translates to
+ * class Foo {
+ *   void foo(int x) {
+ *       precondition(x > 10);
+ *   }
+ *   void bar(int x) {
+ *       precondition(x + 1 > 10);
+ *   }
+ * }
+ * <p>
  * Must run before lower
  */
 public class PreconditionOfCompiler extends TreeTranslator {

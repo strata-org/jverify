@@ -189,9 +189,6 @@ public class JavaToDafnyCompiler {
                     // or else the later phases become no-ops.
                     compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
 
-                    // Apply the second half of our pipeline as above (4 and onwards).
-                    // See the implementation of JavaCompiler.compile() for similar lines,
-                    // including the comment "these method calls must be chained to avoid memory leaks"
                     Set<JCTree.JCCompilationUnit> remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
                     
                     List<UnitsCompiler> phases = new ArrayList<>();

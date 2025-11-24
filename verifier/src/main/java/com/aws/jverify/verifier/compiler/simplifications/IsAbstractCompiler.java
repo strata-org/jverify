@@ -12,8 +12,61 @@ import java.util.Set;
 
 /**
  * Must run before lower
- * 
- * Handles 'isAbstract()' calls that can be used at the root of contract clauses 
+ * <p>
+ * Handles 'isAbstract()' calls, which can be used as the argument of a contract clause
+ * <p>
+ * If an 'isAbstract()' call is encountered, it is replaced by a call to a 'thePreconditionOf$' method, 
+ * specific to the current method and type of clause. 
+ * If this thePreconditionOf$ method does not exist yet in the inheritance hierarchy, it is created.
+ * <p>
+ * If a contract clause does not have an 'isAbstract()' body, but the base method does,
+ * then an implementation of the related `thePreconditionOf$` is generated.
+ * <p>
+ * Example:
+ * <p>
+ * abstract class Bottom {
+ *     int foo(int x) {
+ *         precondition(isAbstract());
+ *         throw new ContractException();
+ *     }
+ * }
+ * abstract class Mid extends Bottom {
+ *     int foo(int x) {
+ *         precondition(isAbstract());
+ *         postcondition((int r) -> r > 0);
+ *     }
+ * }
+ * class Top extends Mid {
+ *     int foo(int x) {
+ *         precondition(x > 10);
+ *         postcondition((int r) -> r > 0);
+ *     }
+ * }
+ * <p>
+ * Translates to
+ * <p></p>
+ * abstract class Bottom {
+ *     boolean thePreconditionOf$foo(int x);
+ *     int foo(int x) {
+ *         precondition(thePreconditionOf$foo(x));
+ *         throw new ContractException();
+ *     }
+ * }
+ * class Mid extends Bottom {
+ *     int foo(int x) {
+ *         precondition(thePreconditionOf$foo(x));
+ *         postcondition((int r) -> r > 0);
+ *     }
+ * }
+ * class Top extends Mid {
+ *     boolean thePreconditionOf$foo(int x) {
+ *         return x > 10;
+ *     }
+ *     int foo(int x) {
+ *         precondition(thePreconditionOf$foo(x));
+ *         postcondition((int r) -> r > 0);
+ *     }
+ * }
  */
 public class IsAbstractCompiler extends TreeScanner {
     private final TreeMaker treeMaker;
@@ -111,7 +164,7 @@ public class IsAbstractCompiler extends TreeScanner {
                                     Symbol.MethodSymbol preconditionFunction) {
         var thisSymbol = utils.thisSymbol(tree.sym);
 
-        JCTree.JCMethodInvocation application = treeMaker.Apply(null /* TODO */,
+        JCTree.JCMethodInvocation application = treeMaker.Apply(List.nil(),
                 treeMaker.Select(treeMaker.Ident(thisSymbol), preconditionFunction),
                 tree.params.map(d -> treeMaker.Ident(d.sym)).stream().collect(List.collector()));
         application.type = symtab.booleanType;
