@@ -343,7 +343,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                                       java.util.List<Property<JCTree.JCExpression>> expressions,
                                       String typeName,
                                       String containerName) {
-        if (expressions.isEmpty()) {
+        if (!expressions.isEmpty()) {
             reporter.reportError(tree, "wrongContract", typeName, containerName);
         }
     }
