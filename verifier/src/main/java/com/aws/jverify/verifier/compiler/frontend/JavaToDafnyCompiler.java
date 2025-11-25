@@ -189,7 +189,7 @@ public class JavaToDafnyCompiler {
                     // or else the later phases become no-ops.
                     compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
 
-                    java.util.List<JCTree.JCCompilationUnit> remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
+                    var remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
                     
                     List<UnitsCompiler> phases = new ArrayList<>();
                     phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
