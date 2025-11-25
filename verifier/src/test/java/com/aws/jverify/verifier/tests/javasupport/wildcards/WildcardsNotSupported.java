@@ -5,21 +5,26 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 2)
+import java.nio.file.ReadOnlyFileSystemException;
+
+import static com.aws.jverify.JVerify.modifies;
+import static com.aws.jverify.JVerify.reads;
+
+@JVerifyTest(exitCode = 0, dafnyVerified = 10, dafnyErrors = 0)
 public class WildcardsNotSupported {
     
-    void animalSetterUser(Container<Object> objects, Turtle dog) {
-        animalSetter(objects, dog);
+    void animalSetterUser(Container<Animal> animals, Turtle dog) {
+        modifies(animals);
+        animalSetter(animals, dog);
     }
     
     void animalSetter(Container<? super Animal> animals, Turtle d) {
-//                    ^ error: keyword 'super' in method signature is not supported
+        modifies(animals);
         animals.sett(d);
     }
 
     Container<? super Animal> superReturnType() {
-//  ^ error: keyword 'super' in method signature is not supported
-        return null;
+        return new Container<Animal>();
     }
 
     static class Container<T> {
@@ -27,10 +32,12 @@ public class WildcardsNotSupported {
 
         @Pure
         public T get() {
+            reads(this);
             return value;
         }
 
         public void sett(T value) {
+            modifies(this);
             this.value = value;
         }
         
