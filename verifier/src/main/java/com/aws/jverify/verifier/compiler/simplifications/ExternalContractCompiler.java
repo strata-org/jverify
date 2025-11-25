@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.*;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Erased;
@@ -19,9 +18,6 @@ import com.sun.tools.javac.util.*;
 import com.sun.tools.javac.util.List;
 
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.MirroredTypeException;
-import javax.lang.model.type.TypeMirror;
 import java.util.*;
 
 /**
@@ -46,7 +42,6 @@ public class ExternalContractCompiler {
     private final Enter enter;
     private final Types types;
     private final JVerifyUtils jverifyUtils;
-    private final JavacElements elements;
     private final Reporter reporter;
     private final Set<Symbol.ClassSymbol> symbolsWithContracts = new HashSet<>();
     private final Map<Symbol, Symbol> contractSymbolToContractee = new HashMap<>();
@@ -59,7 +54,6 @@ public class ExternalContractCompiler {
         this.jverifyUtils = JVerifyUtils.instance(context);
         this.index = JVerifyIndex.instance(context);
         this.reporter = Reporter.instance(context);
-        this.elements = JavacElements.instance(context);
         this.methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
 
@@ -288,9 +282,7 @@ public class ExternalContractCompiler {
             var contracterSymbol = contracter.sym;
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
             newAnnotations.addAll(contracterSymbol.getAnnotationMirrors());
-            if (!shouldVerify(contracter, contracterSymbol)) {
-                methodOrLoopContractCompiler.removeImplementation(contracter);
-            }
+            handleImplementation(contracter, contracterSymbol);
             contracteeSymbol.resetAnnotations();
             contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
 
@@ -306,21 +298,40 @@ public class ExternalContractCompiler {
             }
         }
 
-        private boolean shouldVerify(JCTree.JCMethodDecl methodDecl, Symbol.MethodSymbol methodSymbol) {
-            var shouldVerify = false;
-            boolean pure = jverifyUtils.isPure(methodSymbol);
-            if (pure) {
-                var implementation = MethodOrLoopContractCompiler.getImplementationBlock(methodDecl.body);
-                if (implementation != null)
-                    if (implementation.getStatements().size() == 1) {
-                        boolean contractThrow = JVerifyUtils.isAssumedBody(implementation.stats);
-                        shouldVerify = !contractThrow;
+        private void handleImplementation(JCTree.JCMethodDecl contracter, Symbol.MethodSymbol contracterSymbol) {
+            var implementation = MethodOrLoopContractCompiler.getImplementationBlock(contracter.body);
+            if (implementation != null && !implementation.stats.isEmpty()) {
+                var isContractThrow = isContractThrow(implementation);
+                if (isContractThrow) {
+                    methodOrLoopContractCompiler.removeImplementation(contracter);
+                } else {
+                    if (!isSuperCall(implementation) && !jverifyUtils.isPure(contracterSymbol)) {
+                        reporter.reportError(contracter, "impureContractMethodWithBody");
+                        methodOrLoopContractCompiler.removeImplementation(contracter);
                     }
-                    else {
-                        shouldVerify = true;
-                    }
+                }
             }
-            return shouldVerify;
+        }
+
+        private boolean isSuperCall(JCTree.JCBlock implementation) {
+            if (implementation.stats.size() == 1) {
+                var statement = implementation.stats.getFirst();
+                return statement instanceof JCTree.JCExpressionStatement expressionStatement &&
+                        expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation &&
+                        invocation.meth instanceof JCTree.JCIdent ident &&
+                        (ident.name == names._this || ident.name == names._super);
+            }
+            return false;
+        }
+        
+        private static boolean isContractThrow(JCTree.JCBlock implementation) {
+            if (implementation.stats.size() == 1) {
+                var statement = implementation.stats.getFirst();
+                return statement instanceof JCTree.JCThrow throwStatement &&
+                        throwStatement.expr.type.tsym.getQualifiedName().
+                                contentEquals(ContractException.class.getCanonicalName());
+            }
+            return false;
         }
 
         public Symbol.ClassSymbol getContractTarget(JCTree.JCClassDecl classDecl,

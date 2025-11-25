@@ -514,9 +514,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         var implementation = MethodOrLoopContractCompiler.getImplementationStatements(outerBlock);
         if (dafnyContract.isPure) {
             if (!implementation.isEmpty()) {
-                if (!JVerifyUtils.isAssumedBody(implementation)) {
-                    dafnyContract.pureBody = expressionCompiler.toExprWithFlows(implementation, ExpressionContext.Pure);
-                }
+                dafnyContract.pureBody = expressionCompiler.toExprWithFlows(implementation, ExpressionContext.Pure);
             }
         }
     }
