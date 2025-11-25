@@ -255,22 +255,22 @@ public class TypeDeclarationCompiler {
                 reporter.toOrigin(variableDecl.vartype), variableDecl.getModifiers()
         );
 
-        if (varFlags.contains(Modifier.FINAL)) {
-            Expression rhs = null;
-            if (variableDecl.getInitializer() != null) {
-                rhs = expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
-            }
-            var isStatic = varFlags.contains(Modifier.STATIC);
-            return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
-        }
+//        if (varFlags.contains(Modifier.FINAL)) {
+//            Expression rhs = null;
+//            if (variableDecl.getInitializer() != null) {
+//                rhs = expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
+//            }
+//            var isStatic = varFlags.contains(Modifier.STATIC);
+//            return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
+//        }
         
         if (variableDecl.getInitializer() != null) {
             // This block should be removed when the above block is commented in.
-//            if (varFlags.contains(Modifier.FINAL)) {
-//                var rhs = expressionCompiler.toExprWithFlows(variableDecl.getInitializer(), ExpressionContext.Pure).expression();
-//                var isStatic = varFlags.contains(Modifier.STATIC);
-//                return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
-//            }
+            if (varFlags.contains(Modifier.FINAL)) {
+                var rhs = expressionCompiler.toExprWithFlows(variableDecl.getInitializer(), ExpressionContext.Pure).expression();
+                var isStatic = varFlags.contains(Modifier.STATIC);
+                return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
+            }
             
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
