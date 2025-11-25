@@ -16,9 +16,4 @@ However, puts restrictions on what the method can do:
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.METHOD)
-public @interface Pure {
-    /**
-     * Whether the body of this method is hidden to callers during verification
-     */
-    boolean opaque() default false;
-}
+public @interface Pure {}

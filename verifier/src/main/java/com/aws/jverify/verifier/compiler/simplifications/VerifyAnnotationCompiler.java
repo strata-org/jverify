@@ -90,18 +90,12 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
         boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
         addMethodToIntervalTree(tree, shouldVerify);
-        var pureAnnotation = tree.sym.getAnnotation(Pure.class);
-        boolean opaqueBody = pureAnnotation != null && pureAnnotation.opaque();
-        if (opaqueBody) {
+        if (!shouldVerify) {
             methodOrLoopContractCompiler.removeImplementation(tree);
-        } else if (!jverifyUtils.isPure(tree.sym)) {
-            if (!shouldVerify) {
-                methodOrLoopContractCompiler.removeImplementation(tree);
-            } else if (!applyPositionFilter(tree)) {
-                // this is a performance optimization. 
-                // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
-                methodOrLoopContractCompiler.removeImplementation(tree);
-            }
+        } else if (!applyPositionFilter(tree)) {
+            // this is a performance optimization. 
+            // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
+            methodOrLoopContractCompiler.removeImplementation(tree);
         }
         super.visitMethodDef(tree);
     }
