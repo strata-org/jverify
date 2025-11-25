@@ -50,7 +50,7 @@ public class MissingContractCompiler {
         nativeSymbols = NativeSymbols.instance(context);
     }
     
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> units) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> units) {
         var finder = new SymbolReferenceFinder();
         for(var unit : units) {
             finder.visitTopLevel(unit);

@@ -63,8 +63,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     public static boolean hasImplementation(JCTree.JCMethodDecl method) {
         return method.body != null && method.body.getStatements().get(1) instanceof JCTree.JCBlock;
     }
-
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
+    
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             translate(env);
         }

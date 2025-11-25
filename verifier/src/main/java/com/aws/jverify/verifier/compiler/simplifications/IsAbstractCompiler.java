@@ -96,7 +96,7 @@ public class IsAbstractCompiler extends TreeScanner {
         preconditionMethodPrefix = names.fromString("thePreconditionOf$");
     }
     
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             reporter.compilationUnit = env;
             scan(env);
