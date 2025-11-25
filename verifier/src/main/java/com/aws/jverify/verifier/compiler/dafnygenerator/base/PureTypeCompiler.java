@@ -190,7 +190,6 @@ public class PureTypeCompiler {
 
             List<AttributedExpression> ens = constructor.getEns();
             if (JVerifyUtils.isSynthetic(methodDecl.sym.flags())) {
-            //if (classDecl.sym.isAnonymous()) {
                 ens = classDecl.getMembers().stream().filter(m -> m instanceof JCTree.JCVariableDecl).map(member ->
                 {
                     var field = (JCTree.JCVariableDecl)member;
