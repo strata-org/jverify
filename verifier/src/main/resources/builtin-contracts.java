@@ -761,7 +761,11 @@ abstract class IntStreamContract implements IntStream {
                 implies(values().contains(i),
                         preconditionOf(predicate.test(i)))
         ));
-        return reduce(values(), true, (a,b) -> predicate.test(a) && b);
+        postcondition((boolean r) -> {
+            return forall((int i) -> r == implies(0 <= i && i < values().size(), 
+                     predicate.test(values().get(i))));
+        });
+        throw new ContractException();
     }
 
     @Pure
@@ -776,17 +780,6 @@ abstract class IntStreamContract implements IntStream {
               forall((int i) -> implies(0 <= i && i < values().size(), returnedContract.elements.get(i) == mapper.apply(values().get(i))));      
         });
         throw new ContractException();
-    }
-
-    @Erased
-    @Pure
-    public static <R> R reduce(IntSequence values, R seed, BiFunction<Integer, R, R> accumulator) {
-        if (values.size() == 0) {
-            return seed;
-        }
-        return accumulator.apply(
-                values.get(values.size() - 1), 
-                reduce(values.subsequence(0, values.size() - 1), seed, accumulator));
     }
 
     @Pure
