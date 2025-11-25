@@ -16,6 +16,8 @@ import static com.aws.jverify.JVerify.*;
 })
 @JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 6)
 class Strings {
+    static final String veryLongLiteral = "aeriuhgrae;igheraiugher;ughae;oigjaer;oigjaei;ogjera;ogj;eaorjga";
+    
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());
     }
