@@ -70,13 +70,6 @@ public class JVerify {
     public static <T> boolean preconditionOf(T value) {
         throw new ContractException();
     }
-
-    /**
-     * Return the decreases clause of the given expression
-     */
-    public static <T> @Unbounded int decreasesOf(T value) {
-        throw new ContractException();
-    }
     
     /** 
      * Takes the precondition of the given expression
