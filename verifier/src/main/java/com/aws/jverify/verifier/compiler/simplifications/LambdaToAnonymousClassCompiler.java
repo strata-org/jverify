@@ -51,6 +51,10 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     This code is unfortunately necessary because method and loop contracts are stored 
     using plain method calls and lambdas. We don't want those lambdas to be compiled by this class,
     so we have extra code to avoid compiling them.
+    
+    We could consider introducing a new AST type, JCMethodDeclWithContract, and update Lower so it visits
+    the additional fields. This would replace the current update we have to let Lower handle Lambdas, 
+    which it normally does not.
      */
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
