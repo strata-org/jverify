@@ -10,7 +10,6 @@ import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.comp.Env;
-import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.tree.TreeTranslator;
@@ -174,7 +173,7 @@ public class ExternalContractCompiler {
                             reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                         } else {
                             contractSymbolToContractee.put(methodSymbol, contracteeMethod);
-                            methodOrLoopContractCompiler.removeImplementation(methodDecl);
+                            handleSourceImplementation(methodDecl);
                             baseSource.body = methodDecl.body;
                             baseSource.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
                             jverifyUtils.addVerifyFalseToMethodSymbol(methodSymbol, contracteeMethod);
@@ -282,7 +281,7 @@ public class ExternalContractCompiler {
             var contracterSymbol = contracter.sym;
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
             newAnnotations.addAll(contracterSymbol.getAnnotationMirrors());
-            handleImplementation(contracter, contracterSymbol);
+            handleLibraryImplementation(contracter, contracterSymbol);
             contracteeSymbol.resetAnnotations();
             contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
 
@@ -298,17 +297,31 @@ public class ExternalContractCompiler {
             }
         }
 
-        private void handleImplementation(JCTree.JCMethodDecl contracter, Symbol.MethodSymbol contracterSymbol) {
+        private void handleSourceImplementation(JCTree.JCMethodDecl contracter) {
+            var implementation = MethodOrLoopContractCompiler.getImplementationBlock(contracter.body);
+            if (implementation != null && !implementation.stats.isEmpty()) {
+                var isContractThrow = isContractThrow(implementation);
+                if (!isContractThrow && !isSuperCall(implementation)) {
+                    reporter.reportError(contracter, "sourceContractMethodWithBody");
+                }
+            }
+            methodOrLoopContractCompiler.removeImplementation(contracter);
+        }
+
+        private void handleLibraryImplementation(JCTree.JCMethodDecl contracter, Symbol.MethodSymbol contracterSymbol) {
             var implementation = MethodOrLoopContractCompiler.getImplementationBlock(contracter.body);
             if (implementation != null && !implementation.stats.isEmpty()) {
                 var isContractThrow = isContractThrow(implementation);
                 if (isContractThrow) {
                     methodOrLoopContractCompiler.removeImplementation(contracter);
                 } else {
-                    if (!isSuperCall(implementation) && !jverifyUtils.isPure(contracterSymbol)) {
-                        reporter.reportError(contracter, "impureContractMethodWithBody");
-                        methodOrLoopContractCompiler.removeImplementation(contracter);
+                    if (jverifyUtils.isPure(contracterSymbol)) {
+                        return;
                     }
+                    if (!isSuperCall(implementation)) {
+                        reporter.reportError(contracter, "libraryContractMethodWithBody");
+                    }
+                    methodOrLoopContractCompiler.removeImplementation(contracter);
                 }
             }
         }

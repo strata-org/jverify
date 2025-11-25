@@ -58,8 +58,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler;
     
-    private boolean translatingVerifiedMethodSignature;
-    
     public BaseDafnyGenerator(Context context) {
         context.put(BaseDafnyGenerator.class, this);
         this.context = context;
@@ -181,10 +179,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, boolean willVerify) {
-        translatingVerifiedMethodSignature = willVerify;
-        var result = generator.translateType(type, origin, null);
-        translatingVerifiedMethodSignature = false;
-        return result;
+        return generator.translateType(type, origin, null);
     }
     
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
@@ -208,10 +203,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
             case com.sun.tools.javac.code.Type.ClassType classType -> {
                 return generator.translateClassType(origin, additionalModifiers, classType);
-            }
-            case com.sun.tools.javac.code.Type.CapturedType capturedType -> {
-                // TODO needs further investigation
-                return new UserDefinedType(origin, new NameSegment(origin, PURE_OBJECT_NAME, null));
             }
             case com.sun.tools.javac.code.Type.TypeVar typeVar -> {
                 return new UserDefinedType(origin, new NameSegment(origin, nameCompiler.getCompiledName(typeVar.tsym, origin), null));
@@ -311,9 +302,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
         var superBound = wildcardType.getSuperBound();
         if (superBound != null) {
-//            if (translatingVerifiedMethodSignature) {
-//                reporter.reportError(origin, "notSupported", "keyword 'super' in method signature");
-//            }
             if (superBound instanceof com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType) {
                 // TODO add test
                 return translateType(intersectionClassType.getComponents().getFirst(), origin);

@@ -195,7 +195,6 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     
     public ArrayListContract() {
         postcondition(elements.size() == 0);
-        throw new ContractException();
     }
 
     @Pure
@@ -581,7 +580,6 @@ class BigIntegerContract  {
     BigIntegerContract(String val) {
         precondition(HelperForBigIntegerContract.isValidString(val));
         postcondition(intValue == HelperForBigIntegerContract.stringToInt(val));
-        throw new ContractException();
     }
 
     @Pure
