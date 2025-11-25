@@ -344,8 +344,6 @@ public class JVerify {
          */
         int get(int index);
         
-        //<T> T reduce(T seed, BiFunction<Integer, T, T> accumulator);
-        
         /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
          */
