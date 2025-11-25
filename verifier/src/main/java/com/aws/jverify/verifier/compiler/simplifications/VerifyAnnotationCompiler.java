@@ -92,7 +92,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         addMethodToIntervalTree(tree, shouldVerify);
         if (!shouldVerify) {
             methodOrLoopContractCompiler.removeImplementation(tree);
-        } else if (!applyPositionFilter(tree)) {
+        } else if (!jverifyUtils.isPure(tree.sym) && !applyPositionFilter(tree)) {
             // this is a performance optimization. 
             // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
             methodOrLoopContractCompiler.removeImplementation(tree);

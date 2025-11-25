@@ -156,6 +156,10 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 NameSegment callee = new NameSegment(origin, "toSequence", null);
                 return expressionCompiler.createCall(origin, callee, Stream.of(array), ExpressionContext.Pure);
             }
+            case "range" -> {
+                NameSegment callee = new NameSegment(origin, "intSequenceRange", null);
+                return expressionCompiler.createCall(origin, callee, Stream.of(args.getFirst(), args.get(1)), ExpressionContext.Pure);
+            }
             case "get" -> {
                 var seq = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
                 var index = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);
@@ -203,10 +207,6 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             }
             case "all", "map" -> {
                 return toSetComprehension(origin, methodName, receiver, args);
-            }
-            case "range" -> {
-                NameSegment callee = new NameSegment(origin, "intSequenceRange", null);
-                return expressionCompiler.createCall(origin, callee, Stream.of(args.getFirst(), args.get(1)), ExpressionContext.Pure);
             }
             case "jequals" -> {
                 var left = expressionCompiler.toExpr(args.getFirst(), ExpressionContext.Pure);

@@ -194,7 +194,6 @@ public class JavaToDafnyCompiler {
                     List<UnitsCompiler> phases = new ArrayList<>();
                     phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
                     phases.add(JavaToDafnyCompiler.this::unlambda);
-                    phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
                     if (options.positionFilter() != null && options.positionFilter().fileEnding() != null) {

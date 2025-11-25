@@ -49,15 +49,6 @@ public class AllMatchContract {
             ));
             throw new ContractException();
         }
-        
-        @Pure
-        public <U> Stream<U> mapToObj(IntFunction<? extends U> mapper) {
-            precondition(JVerify.forall((int i) ->
-                    implies(values().contains(i),
-                            preconditionOf(mapper.apply(i)))
-            ));
-            throw new ContractException();
-        }
 
         @Pure
         public static IntStream range(int startInclusive, int endExclusive) {

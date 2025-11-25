@@ -424,13 +424,10 @@ public class ExternalContractCompiler {
     class UpdateTypes extends Types.SimpleVisitor<Void, Void> {
         @Override
         public Void visitMethodType(Type.MethodType t, Void ignored) {
-            // Visit parameter types
             for (Type paramType : t.getParameterTypes()) {
                 paramType.accept(this, null);
             }
-            // Visit return type
             t.getReturnType().accept(this, null);
-            // Visit thrown types
             for (Type thrownType : t.getThrownTypes()) {
                 thrownType.accept(this, null);
             }
