@@ -18,7 +18,7 @@ However, puts restrictions on what the method can do:
 @Target(ElementType.METHOD)
 public @interface Pure {
     /**
-     * Whether the body of this method is visible by callers during verification
+     * Whether the body of this method is hidden to callers during verification
      */
-    boolean transparant() default true;
+    boolean opaque() default false;
 }

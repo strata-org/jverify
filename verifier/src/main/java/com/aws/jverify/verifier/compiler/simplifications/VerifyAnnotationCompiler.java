@@ -2,21 +2,17 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
-import com.aws.jverify.generated.Method;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.generated.TokenRange;
 import com.aws.jverify.verifier.IntervalTree;
 import com.aws.jverify.verifier.JavaMethodVerificationStatus;
 import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.AnnoConstruct;
-import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import java.net.URI;
 import java.nio.file.Paths;
@@ -95,7 +91,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
         addMethodToIntervalTree(tree, shouldVerify);
         var pureAnnotation = tree.sym.getAnnotation(Pure.class);
-        boolean opaqueBody = pureAnnotation != null && !pureAnnotation.transparant();
+        boolean opaqueBody = pureAnnotation != null && pureAnnotation.opaque();
         if (opaqueBody) {
             methodOrLoopContractCompiler.removeImplementation(tree);
         } else if (!jverifyUtils.isPure(tree.sym)) {
