@@ -244,6 +244,7 @@ public class ExternalContractCompiler {
             if (baseMethod != null) {
                 if (baseMethod.owner == contracteeSymbol) {
                     // We're adding a contract to an existing method.
+                    handleImplementation(methodDecl, contracterSymbol);
                     updateLibraryContractAnnotations(methodDecl, baseMethod);
                     index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
                     contractSymbolToContractee.put(methodDecl.sym, baseMethod);
@@ -251,6 +252,7 @@ public class ExternalContractCompiler {
                 } else {
                     // We are adding an override through the contract class, and this needs its own symbol
                     var newSymbol = new Symbol.MethodSymbol(baseMethod.flags(), baseMethod.name, baseMethod.type, contracteeSymbol);
+                    handleImplementation(methodDecl, contracterSymbol);
                     updateLibraryContractAnnotations(methodDecl, newSymbol);
                     index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
                     contractSymbolToContractee.put(methodDecl.sym, newSymbol);
@@ -281,7 +283,6 @@ public class ExternalContractCompiler {
             var contracterSymbol = contracter.sym;
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
             newAnnotations.addAll(contracterSymbol.getAnnotationMirrors());
-            handleImplementation(contracter, contracterSymbol);
             contracteeSymbol.resetAnnotations();
             contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
 
