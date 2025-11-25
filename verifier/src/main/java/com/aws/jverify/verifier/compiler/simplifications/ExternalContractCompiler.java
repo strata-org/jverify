@@ -173,7 +173,7 @@ public class ExternalContractCompiler {
                             reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
                         } else {
                             contractSymbolToContractee.put(methodSymbol, contracteeMethod);
-                            handleSourceImplementation(methodDecl);
+                            handleImplementation(methodDecl, methodSymbol);
                             baseSource.body = methodDecl.body;
                             baseSource.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
                             jverifyUtils.addVerifyFalseToMethodSymbol(methodSymbol, contracteeMethod);
@@ -281,7 +281,7 @@ public class ExternalContractCompiler {
             var contracterSymbol = contracter.sym;
             ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
             newAnnotations.addAll(contracterSymbol.getAnnotationMirrors());
-            handleLibraryImplementation(contracter, contracterSymbol);
+            handleImplementation(contracter, contracterSymbol);
             contracteeSymbol.resetAnnotations();
             contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
 
@@ -297,18 +297,7 @@ public class ExternalContractCompiler {
             }
         }
 
-        private void handleSourceImplementation(JCTree.JCMethodDecl contracter) {
-            var implementation = MethodOrLoopContractCompiler.getImplementationBlock(contracter.body);
-            if (implementation != null && !implementation.stats.isEmpty()) {
-                var isContractThrow = isContractThrow(implementation);
-                if (!isContractThrow && !isSuperCall(implementation)) {
-                    reporter.reportError(contracter, "sourceContractMethodWithBody");
-                }
-            }
-            methodOrLoopContractCompiler.removeImplementation(contracter);
-        }
-
-        private void handleLibraryImplementation(JCTree.JCMethodDecl contracter, Symbol.MethodSymbol contracterSymbol) {
+        private void handleImplementation(JCTree.JCMethodDecl contracter, Symbol.MethodSymbol contracterSymbol) {
             var implementation = MethodOrLoopContractCompiler.getImplementationBlock(contracter.body);
             if (implementation != null && !implementation.stats.isEmpty()) {
                 var isContractThrow = isContractThrow(implementation);
@@ -318,15 +307,15 @@ public class ExternalContractCompiler {
                     if (jverifyUtils.isPure(contracterSymbol)) {
                         return;
                     }
-                    if (!isSuperCall(implementation)) {
-                        reporter.reportError(contracter, "libraryContractMethodWithBody");
+                    if (!isSuperOrThisCall(implementation)) {
+                        reporter.reportError(contracter, "impureContractMethodWithBody");
                     }
                     methodOrLoopContractCompiler.removeImplementation(contracter);
                 }
             }
         }
 
-        private boolean isSuperCall(JCTree.JCBlock implementation) {
+        private boolean isSuperOrThisCall(JCTree.JCBlock implementation) {
             if (implementation.stats.size() == 1) {
                 var statement = implementation.stats.getFirst();
                 return statement instanceof JCTree.JCExpressionStatement expressionStatement &&

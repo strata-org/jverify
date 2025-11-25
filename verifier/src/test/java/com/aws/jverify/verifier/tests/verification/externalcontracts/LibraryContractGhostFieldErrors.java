@@ -20,7 +20,7 @@ public class LibraryContractGhostFieldErrors {
         int value;
 
         public byte byteValueExact() {
-//                  ^ error: impure contract method may only throw a ContractException in its body
+//                  ^ error: a contract for an impure method may only call super or this, or throw a ContractException in its body
             var x = 3;
             throw new ContractException();
         }
