@@ -47,11 +47,11 @@ public class JavaToDafnyCompiler {
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
+        context.put(JavaToDafnyCompiler.class, this);
 
         JavacFileManager.preRegister(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         context.put(DiagnosticListener.class, diagnostics);
-        context.put(JavaToDafnyCompiler.class, this);
 
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
@@ -79,11 +79,11 @@ public class JavaToDafnyCompiler {
         return dafnyGenerator.generateDafny(parsed, libraries);
     }
 
-    public boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
+    public boolean isBuiltin(JCTree.JCCompilationUnit compilationUnit) {
         return builtinSources.contains(compilationUnit.getSourceFile());
     }
 
-    public boolean isLibrary(URI sourceURI) {
+    public boolean isBuiltin(URI sourceURI) {
         return builtinSources.stream()
                 .anyMatch( file -> file.toUri().equals(sourceURI));
     }

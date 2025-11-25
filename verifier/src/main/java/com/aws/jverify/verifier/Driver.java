@@ -133,7 +133,7 @@ public class Driver {
                     continue;
                 }
 
-                if (context.get(JavaToDafnyCompiler.class).isLibrary(relativeUri)) {
+                if (context.get(JavaToDafnyCompiler.class).isBuiltin(relativeUri)) {
                     continue;
                 }
 

@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.generated.TokenRange;
@@ -68,7 +67,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         reporter.compilationUnit = tree;
         processVerifyAnnotation(tree.packge);
-        if (!javaToDafnyCompiler.isLibrary(reporter.compilationUnit)) {
+        if (!javaToDafnyCompiler.isBuiltin(reporter.compilationUnit)) {
             var sourceUri = getUri();
             if (!sourceFileToMethodIntervalTreeMap.containsKey(sourceUri)) {
                 sourceFileToMethodIntervalTreeMap.put(sourceUri, new IntervalTree<>());

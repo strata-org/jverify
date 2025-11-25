@@ -16,6 +16,7 @@ import java.util.function.Function;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.IntPredicate;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collector;
 import java.util.stream.IntStream;
@@ -64,6 +65,12 @@ abstract class StreamContract<T> implements Stream<T> {
     @Pure
     public T reduce(T identity, BinaryOperator<T> accumulator) {
         return SequenceHelper.reduce(elements, identity, accumulator);
+    }
+    
+    @Erased
+    @Pure
+    public static <T> StreamContract<T> fromStream(Stream<T> stream) {
+        return JVerify.<Stream<T>, StreamContract<T>>cast(stream);
     }
 }
 
@@ -308,7 +315,7 @@ abstract class SetContract<E> implements Set<E> {
     @Override
     @Pure
     public boolean isEmpty() {
-        throw new ContractException();
+        return size() == 0;
     }
 }
 
@@ -743,27 +750,30 @@ class PrintStreamContracts {
 
 @Contract(IntStream.class)
 abstract class IntStreamContract implements IntStream {
-    public final IntSequence values;
-
     @Erased
-    public IntStreamContract(IntSequence values) {
-        this.values = values;
-    }
+    @EmptyContract
+    @Pure
+    public abstract IntSequence values(); // final fields not well supported yet
     
     @Pure
     public boolean allMatch(IntPredicate predicate) {
         precondition(JVerify.forall((int i) ->
-                implies(values.contains(i),
+                implies(values().contains(i),
                         preconditionOf(predicate.test(i)))
         ));
-        return reduce(values, true, (a,b) -> predicate.test(a) && b);
+        return reduce(values(), true, (a,b) -> predicate.test(a) && b);
     }
 
-    <U> Stream<U> mapToObj(IntFunction<? extends U> mapper) {
+    @Pure
+    public <U> Stream<U> mapToObj(IntFunction<? extends U> mapper) {
+        precondition(JVerify.forall((int i) ->
+                implies(values().contains(i),
+                        preconditionOf(mapper.apply(i)))
+        ));
         postcondition((Stream<U> r) -> {
-            var returnedContract = <Stream<U>,StreamContract<U>>.cast(r, StreamContract.class);
-            return returnedContract.elements.size() == values.size() &&
-              forall((int i) -> implies(0 <= i && i < values.size(), returnedContract.elements.get(i) == mapper.apply(values.get(i))));      
+            var returnedContract = StreamContract.fromStream(r);
+            return returnedContract.elements.size() == values().size() &&
+              forall((int i) -> implies(0 <= i && i < values().size(), returnedContract.elements.get(i) == mapper.apply(values().get(i))));      
         });
         throw new ContractException();
     }
@@ -782,7 +792,7 @@ abstract class IntStreamContract implements IntStream {
     @Pure
     public static IntStream range(int startInclusive, int endExclusive) {
         precondition(startInclusive <= endExclusive);
-        postcondition((IntStreamContract c) -> jequals(c.values, JVerify.range(startInclusive, endExclusive)));
+        postcondition((IntStreamContract c) -> jequals(c.values(), JVerify.range(startInclusive, endExclusive)));
         throw new ContractException();
     }
 }

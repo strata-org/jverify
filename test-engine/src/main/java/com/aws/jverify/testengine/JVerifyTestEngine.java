@@ -4,7 +4,6 @@ import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.google.auto.service.AutoService;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
@@ -203,6 +202,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .forEach(dafnyOutput -> {
                     URI source = ((DafnyDiagnostic) dafnyOutput).getSource();
                     var methodIntervals = verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().get(source);
+                    if (methodIntervals == null) {
+                        // error was in built-in code
+                        return;
+                    }
                     var failedVerificationMethod = methodIntervals
                             .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
                     if (failedVerificationMethod != null) {
