@@ -66,6 +66,19 @@ abstract class StreamContract<T> implements Stream<T> {
     public T reduce(T identity, BinaryOperator<T> accumulator) {
         return SequenceHelper.reduce(elements, identity, accumulator);
     }
+
+    @Pure
+    public <R> Stream<R> map(Function<? super T, ? extends R> mapper) {
+        precondition(JVerify.forall((int i) ->
+                implies(elements.contains(i),
+                        preconditionOf(predicate.test(i)))
+        ));
+        postcondition((StreamContract<R> r) ->
+                elements.size() == r.elements.size() &&
+                        forall((int index) -> implies(0 <= index && index < elements.size(),
+                                jequals(mapper.apply(elements.get(index)), r.elements.get(index)))));
+        throw new ContractException();
+    }
     
     @Erased
     @Pure
