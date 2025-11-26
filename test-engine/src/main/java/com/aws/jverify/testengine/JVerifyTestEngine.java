@@ -26,10 +26,7 @@ import org.junit.platform.engine.support.hierarchical.Node;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -355,7 +352,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
-        return new VerifierOptions(
+        return new VerifierOptions(new PrintWriter(System.out),
                 workingDirectory,
                 dafnyPath,
                 List.of(libraryJar, testEngineClassPath, libraryForTestingClassPath),

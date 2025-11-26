@@ -19,6 +19,7 @@ import java.util.List;
 import static com.aws.jverify.testengine.JVerifyTestEngine.testMarkedSource;
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestVerifier {
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
@@ -38,6 +39,27 @@ public class TestVerifier {
         VerifierOptions options = JVerifyTestEngine.getVerifierOptions(annotation, 
                 new PositionFilter(false, "MultiPackageTest.java", filterLine, filterLine));
         JVerifyTestEngine.verifyFile(markedSourceFile, annotation, remainingRanges, options);
+    }
+
+    @Test
+    public void verifyFibonacciTrackTime() {
+        var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
+
+        var command = new CommandLine(new AppCommand());
+        StringWriter out = new StringWriter();
+        command.setOut(new PrintWriter(out));
+        command.setErr(new PrintWriter(out));
+
+        var exitCode = command.execute(
+                Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
+                "--track-time",
+                "--dafny=" + dafnyPath);
+        String output = out.getBuffer().toString();
+        assertTrue(output.contains("Calling Driver.verifyJavaPaths took"));
+        assertTrue(output.contains("Compiling Java to Dafny took"));
+        assertTrue(output.contains("Serializing Dafny AST took"));
+        assertTrue(output.contains("Running Dafny took"));
+        Assertions.assertEquals(0, exitCode, output);
     }
     
     @Test
@@ -83,7 +105,7 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("./src/test/resources/AssertFalse.java").toString(),
                 "--dafny=" + dafnyPath, "--paths");
-        Assertions.assertTrue(out.toString().startsWith("src/test/resources/AssertFalse.java"), out.toString());
+        assertTrue(out.toString().startsWith("src/test/resources/AssertFalse.java"), out.toString());
         Assertions.assertEquals(4, exitCode);
     }
 

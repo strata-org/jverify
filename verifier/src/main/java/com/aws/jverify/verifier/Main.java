@@ -95,7 +95,7 @@ class AppCommand implements Callable<Integer> {
         String[] additionalDafnyArguments = { 
                 //"--wait-for-debugger"
         };
-        var verifierOptions = new VerifierOptions(workingDirectory, dafnyPath, jars, 
+        var verifierOptions = new VerifierOptions(writer, workingDirectory, dafnyPath, jars, 
                 tempFile.toPath(), testDafnyVersion,
                 printDafny, printBinaryDafny, showRanges, builtinContracts, 
                 paths, additionalDafnyArguments, verifyByDefault, false, 

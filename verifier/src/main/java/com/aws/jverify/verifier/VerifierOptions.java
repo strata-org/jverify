@@ -2,6 +2,7 @@ package com.aws.jverify.verifier;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -9,7 +10,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.function.Supplier;
 
-public record VerifierOptions(Writer outWriter
+public record VerifierOptions(Writer outWriter,
                               Path workingDirectory,
                               Path dafnyPath,
                               Collection<Path> extraClassPathEntries,
@@ -34,7 +35,10 @@ public record VerifierOptions(Writer outWriter
         var result = supply.get();
         var after = Instant.now();
         var duration = Duration.between(before, after);
-        System.out.println(name + " took " + duration.toMillis() + " ms");
+        try {
+            outWriter.write(name + " took " + duration.toMillis() + " ms\n");
+        } catch (IOException _) {
+        }
         return result;
     }
 
@@ -47,6 +51,9 @@ public record VerifierOptions(Writer outWriter
         runnable.run();
         var after = Instant.now();
         var duration = Duration.between(before, after);
-        System.out.println(name + " took " + duration.toMillis() + " ms");
+        try {
+            outWriter.write(name + " took " + duration.toMillis() + " ms\n");
+        } catch (IOException _) {
+        }
     }
 }
