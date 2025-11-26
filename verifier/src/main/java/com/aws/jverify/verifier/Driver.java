@@ -326,7 +326,7 @@ public class Driver {
         }
         
         if (verifierOptions.verbose()) {
-            System.out.println("Dafny options: " + String.join(" ", processBuilder.command()));
+            verifierOptions.outWriter().println("Dafny options: " + String.join(" ", processBuilder.command()));
         }
 
         verifierOptions.time("Running Dafny", () -> {
@@ -344,7 +344,7 @@ public class Driver {
                     outResults.setExitCode(exitCode);
                 }
             } catch (InterruptedException | IOException e) {
-                System.out.println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
+                verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
                 e.printStackTrace();
                 outResults.setExitCode(-1);
             }

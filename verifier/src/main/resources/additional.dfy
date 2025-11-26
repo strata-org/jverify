@@ -24,6 +24,7 @@ type char16 = i: int | 0x0000 <= i <= 0xffff
 
 function JString(s: string): String
 {
+// This assumption is safe because we only use JString for ASCII characters and some non-unicode escape sequences.
   assume forall i | 0 <= i < |s| :: 0x0000 <= s[i] as int <= 0xffff;
   String(seq(|s|, i requires 0 <= i < |s| => s[i] as char16))
 }

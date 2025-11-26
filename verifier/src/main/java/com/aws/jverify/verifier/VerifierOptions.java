@@ -3,6 +3,7 @@ package com.aws.jverify.verifier;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -10,7 +11,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.function.Supplier;
 
-public record VerifierOptions(Writer outWriter,
+public record VerifierOptions(PrintWriter outWriter,
                               Path workingDirectory,
                               Path dafnyPath,
                               Collection<Path> extraClassPathEntries,
@@ -40,10 +41,10 @@ public record VerifierOptions(Writer outWriter,
     }
 
     public void printTime(String name, Duration duration) {
-        try {
-            outWriter.write(name + " took " + duration.toMillis() + " ms\n");
-        } catch (IOException _) {
+        if (!shouldTrackTime) {
+            return;
         }
+        outWriter.println(name + " took " + duration.toMillis() + " ms");
     }
 
     public void time(String name, Runnable runnable) {

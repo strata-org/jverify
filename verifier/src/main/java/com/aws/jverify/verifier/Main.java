@@ -73,7 +73,7 @@ class AppCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws IOException {
-        Writer writer = spec.commandLine().getOut();
+        var writer = new PrintWriter(spec.commandLine().getOut());
 
         // In the future we'll have to add an argument to specify jar files for dependencies of the input sources,
         // And those will include the JVerify library jar.
@@ -84,7 +84,7 @@ class AppCommand implements Callable<Integer> {
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-        var dafnyPath = getDafnyPath();
+        var dafnyPath = getDafnyPath(writer);
         additionalJars = additionalJars == null ? List.of() : additionalJars;
         List<Path> jars = Stream.concat(additionalJars.stream().flatMap(p -> Arrays.stream(p.split(":")).map(Path::of)), 
                 Stream.of(jverifyLibraryLocation)).toList();
@@ -110,7 +110,7 @@ class AppCommand implements Callable<Integer> {
         });
     }
 
-    private Path getDafnyPath() {
+    private Path getDafnyPath(PrintWriter output) {
         var dafnyPath = customDafny;
         if (dafnyPath == null || !Files.exists(dafnyPath)) {
             if (System.getenv("JVERIFY_DAFNY") != null) {
@@ -119,7 +119,7 @@ class AppCommand implements Callable<Integer> {
         }
         if (dafnyPath == null || !Files.exists(dafnyPath)) {
             if (verbose) {
-                System.out.println("Could not find a file at Dafny path '" + dafnyPath + "'");
+                output.println("Could not find a file at Dafny path '" + dafnyPath + "'");
             }
             dafnyPath = Path.of("dafny");
         }

@@ -35,6 +35,7 @@ class NumberContract {
 abstract class FunctionContract<T, R> implements Function<T, R> {
     @Pure
     public R apply(T t) {
+        precondition(isAbstract());
         throw new ContractException();
     }
 }

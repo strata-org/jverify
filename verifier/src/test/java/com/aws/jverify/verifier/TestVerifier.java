@@ -181,9 +181,13 @@ public class TestVerifier {
         processBuilder.redirectErrorStream(true);
         var process = processBuilder.start();
         var writer = new StringWriter();
+        var errWriter = new StringWriter();
         int exitCode;
-        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+             var errReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+        ) {
             reader.transferTo(writer);
+            errReader.transferTo(errWriter);
             exitCode = process.waitFor();
         }
         var output = canonicalizeNewlines(writer.toString());
