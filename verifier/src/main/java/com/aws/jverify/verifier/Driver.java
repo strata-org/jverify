@@ -66,11 +66,8 @@ public class Driver {
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var beforeCompilation = Instant.now(); 
-        var dafnyEquivalent = new JavaToDafnyCompiler(context).analyzeJavaCode(verifierOptions, readFiles);
-        var afterCompilation = Instant.now();
-        var compilationDuration = Duration.between(beforeCompilation, afterCompilation);
-        System.out.println("Compiling Java to Dafny took " + compilationDuration.toMillis() + " ms");
+        var dafnyEquivalent = verifierOptions.time("Compiling Java to Dafny",
+                () -> new JavaToDafnyCompiler(context).analyzeJavaCode(verifierOptions, readFiles));
 
         var hasErrors = false;
         for (var diagnostic : Reporter.instance(context).diagnostics.getDiagnostics()) {
@@ -83,17 +80,15 @@ public class Driver {
             verificationResults.setExitCode(CommandLine.ExitCode.USAGE);
             return new VerificationResultsWithIntervalTreeMap(verificationResults, null);
         } else {
-            var beforeSerialization = Instant.now();
-            var programBuilder = new StringBuilder();
-            new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
-            var program = programBuilder.toString();
+            var program = verifierOptions.time("Serializing Dafny AST", () -> {
+                var programBuilder = new StringBuilder();
+                new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
+                return programBuilder.toString();
+            });
             if (verifierOptions.printBinaryDafny() != null) {
                 Files.createDirectories(verifierOptions.printBinaryDafny().getParent());
                 Files.writeString(verifierOptions.printBinaryDafny(), program);
             }
-            var afterSerialization = Instant.now();
-            var serializationDuration = Duration.between(beforeSerialization, afterSerialization);
-            System.out.println("Serializing Dafny AST took " + serializationDuration.toMillis() + " ms");
             runDafnyProcess(NameCompiler.instance(context), program, verifierOptions, verificationResults);
             return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
                     .getSourceFileToMethodIntervalTreeMap());
@@ -332,28 +327,26 @@ public class Driver {
             System.out.println("Dafny options: " + String.join(" ", processBuilder.command()));
         }
 
-        try {
-            // Redirect stderr into stdout, instead of reading one and then the other,
-            // in order to preserve the order of output and to avoid potential deadlock.
-            var before = Instant.now();
-            var process = processBuilder.redirectErrorStream(true).start();
-            try (var stdin = process.outputWriter()) {
-                stdin.write(program);
+        verifierOptions.time("Running Dafny", () -> {
+            try {
+                // Redirect stderr into stdout, instead of reading one and then the other,
+                // in order to preserve the order of output and to avoid potential deadlock.
+                var process = processBuilder.redirectErrorStream(true).start();
+                try (var stdin = process.outputWriter()) {
+                    stdin.write(program);
+                }
+                try (var stdout = process.inputReader()) {
+                    parseDafnyJsonOutput(nameCompiler, stdout, outResults);
+                    int dafnyExitCode = process.waitFor();
+                    var exitCode = getExitCodeFromDafny(dafnyExitCode);
+                    outResults.setExitCode(exitCode);
+                }
+            } catch (InterruptedException | IOException e) {
+                System.out.println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
+                e.printStackTrace();
+                outResults.setExitCode(-1);
             }
-            try (var stdout = process.inputReader()) {
-                parseDafnyJsonOutput(nameCompiler, stdout, outResults);
-                int dafnyExitCode = process.waitFor();
-                var exitCode = getExitCodeFromDafny(dafnyExitCode);
-                outResults.setExitCode(exitCode);
-            }
-            var after = Instant.now();
-            var duration = Duration.between(before, after);
-            System.out.println("Running Dafny took " + duration.toMillis() + " ms");
-        } catch (InterruptedException | IOException e) {
-            System.out.println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
-            e.printStackTrace();
-            outResults.setExitCode(-1);
-        }
+        });
     }
 
     private static void applyPositionFilter(VerifierOptions verifierOptions, ProcessBuilder processBuilder) {
