@@ -135,7 +135,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         if (tree.body == null || tree.body.getStatements().isEmpty()) {
             return;
         }
-        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
+        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree.body);
         tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
     }
 

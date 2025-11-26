@@ -2,11 +2,12 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
-import com.aws.jverify.generated.*;
+import com.aws.jverify.generated.BoundVar;
+import com.aws.jverify.generated.CasePattern;
+import com.aws.jverify.generated.Name;
+import com.aws.jverify.generated.ThisExpr;
 import com.aws.jverify.verifier.compiler.*;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -16,7 +17,6 @@ import com.sun.tools.javac.util.List;
 
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /*
 Extracts contracts from constructor, method or loop bodies
@@ -35,25 +35,33 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         this.jverifyUtils = JVerifyUtils.instance(context);
     }
 
-    public static JCTree.@Nullable JCBlock getImplementation(JCTree.JCMethodDecl method) {
-        JCTree.JCStatement second = method.body.getStatements().get(1);
-        if (second instanceof JCTree.JCBlock block) {
-            return block;
-        }
-        return null;
-    }
-    
-    public static boolean hasImplementation(JCTree.JCMethodDecl method) {
-        return method.body != null && method.body.getStatements().get(1) instanceof JCTree.JCBlock;
-    }
-    
-
     public static MethodOrLoopContractCompiler instance(Context context) {
         MethodOrLoopContractCompiler instance = context.get(MethodOrLoopContractCompiler.class);
         if (instance == null) {
             instance = new MethodOrLoopContractCompiler(context);
         }
         return instance;
+    }
+
+    public static List<JCTree.JCStatement> getImplementationStatements(JCTree.JCStatement outerBlock) {
+        var implementationBlock = getImplementationBlock(outerBlock);
+        return implementationBlock == null ? List.nil() : implementationBlock.getStatements();
+    }
+
+    public static JCTree.@Nullable JCBlock getImplementationBlock(JCTree.JCStatement outerBlock) {
+        List<JCTree.JCStatement> outerStatements = ((JCTree.JCBlock) outerBlock).getStatements();
+        if (outerStatements.size() < 2) {
+            return null;
+        }
+        JCTree.JCStatement second = outerStatements.get(1);
+        if (second instanceof JCTree.JCBlock block) {
+            return block;
+        }
+        return null;
+    }
+
+    public static boolean hasImplementation(JCTree.JCMethodDecl method) {
+        return method.body != null && method.body.getStatements().get(1) instanceof JCTree.JCBlock;
     }
     
     public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
@@ -62,32 +70,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         }
         return envs;
     }
-    
-    public List<JCTree.JCStatement> extractContract(BaseDafnyGenerator compiler,
-                                                    JCTree.JCBlock block,
-                                                    MethodOrLoopContract contract) {
-        if (block.getStatements().size() != 2) {
-            throw new RuntimeException("Method body is not in contract + implementation format");
-        }
-        var contracts = (JCTree.JCBlock)block.getStatements().get(0);
-        var implementation = block.getStatements().get(1);
-        var hasImplementation = implementation instanceof JCTree.JCBlock;
-        for(var contractStatement : contracts.getStatements()) {
-            handleStatement(compiler, contractStatement, contract);
-        }
 
-        List<JCTree.JCStatement> implementationStatements = hasImplementation 
-                ? ((JCTree.JCBlock) implementation).getStatements() 
-                : List.nil();
-        if (contract.isPure) {
-            if (!implementationStatements.isEmpty()) {
-                contract.pureBody = compiler.expressionCompiler.toExprWithFlows(implementationStatements, ExpressionContext.Pure);
-            }
-            return List.nil();
-        }
-        return implementationStatements;
-    }
-    
     @Override
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         reporter.compilationUnit = tree;
@@ -95,35 +78,68 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
     @Override
-    public void visitDoLoop(JCTree.JCDoWhileLoop tree) {
-        if (tree.body != null) {
-            maker.pos = tree.body.pos;
-            List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
-            tree.body = maker.Block(0, newStatements);
+    public void visitDoLoop(JCTree.JCDoWhileLoop loop) {
+        if (loop.body != null) {
+            visitLoop(loop, new Property<JCTree.JCStatement>() {
+                @Override
+                public JCTree.JCStatement get() {
+                    return loop.body;
+                }
+
+                @Override
+                public void set(JCTree.JCStatement value) {
+                    loop.body = value;
+                }
+            });
         }
-        super.visitDoLoop(tree);
+        super.visitDoLoop(loop);
     }
 
     @Override
-    public void visitWhileLoop(JCTree.JCWhileLoop tree) {
-        if (tree.body != null) {
-            maker.pos = tree.body.pos;
-            List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
-            tree.body = maker.Block(0, newStatements);
+    public void visitWhileLoop(JCTree.JCWhileLoop loop) {
+        if (loop.body != null) {
+            visitLoop(loop, new Property<JCTree.JCStatement>() {
+                @Override
+                public JCTree.JCStatement get() {
+                    return loop.body;
+                }
+
+                @Override
+                public void set(JCTree.JCStatement value) {
+                    loop.body = value;
+                }
+            });
         }
-        super.visitWhileLoop(tree);
+        super.visitWhileLoop(loop);
     }
 
     @Override
-    public void visitForLoop(JCTree.JCForLoop tree) {
-        if (tree.body != null) {
-            maker.pos = tree.body.pos;
-            List<JCTree.JCStatement> newStatements = getNewStatements(tree, getStatements(tree.body), false);
-            tree.body = maker.Block(0, newStatements);
+    public void visitForLoop(JCTree.JCForLoop loop) {
+        if (loop.body != null) {
+            visitLoop(loop, new Property<JCTree.JCStatement>() {
+                @Override
+                public JCTree.JCStatement get() {
+                    return loop.body;
+                }
+
+                @Override
+                public void set(JCTree.JCStatement value) {
+                    loop.body = value;
+                }
+            });
         }
-        super.visitForLoop(tree);
+        super.visitForLoop(loop);
     }
-    
+
+    private void visitLoop(JCTree loop, Property<JCTree.JCStatement> loopBody) {
+        maker.pos = loopBody.get().pos;
+        List<JCTree.JCStatement> newStatements = getNewStatements(loop, getStatements(loopBody.get()), false);
+        loopBody.set(maker.Block(0, newStatements));
+        var contract = getContract(loopBody.get());
+        checkEmptyExpressions(loop, contract.preconditions(), "preconditions", "loop");
+        checkEmptyExpressions(loop, contract.postconditions(), "postconditions", "loop");
+    }
+
     List<JCTree.JCStatement> getStatements(JCTree.JCStatement statement) {
         return statement instanceof JCTree.JCBlock block ? block.getStatements() : List.of(statement);
     }
@@ -133,6 +149,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         if (tree.body != null) {
             var allowFooter = JVerifyUtils.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
+            var contract = getContract(tree.body);
+            checkEmptyExpressions(tree, contract.loopInvariants(), "invariants", "method");
         }
         super.visitMethodDef(tree);
     }
@@ -153,12 +171,16 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         }
 
         maker.pos = tree.pos;
-        var contractBlock = maker.Block(0, List.from(contractStatements));
 
         if (superOrThis != null) {
             remainingStatements = new ArrayList<>(remainingStatements);
             remainingStatements.addFirst(superOrThis);
         }
+        return getOuterBlockStatements(contractStatements, remainingStatements);
+    }
+
+    public List<JCTree.JCStatement> getOuterBlockStatements(java.util.List<JCTree.JCStatement> contractStatements, java.util.List<JCTree.JCStatement> remainingStatements) {
+        var contractBlock = maker.Block(0, List.from(contractStatements));
         JCTree.JCBlock implementationBlock = maker.Block(0, List.from(remainingStatements));
         return List.<JCTree.JCStatement>of(implementationBlock).prepend(contractBlock);
     }
@@ -183,7 +205,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         var first = statements.isEmpty() ? null : statements.getFirst();
         if ((first instanceof JCTree.JCExpressionStatement expressionStatement
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
-            var isSuperOrThisCall = invocation.getMethodSelect() instanceof JCTree.JCIdent ident && 
+            var isSuperOrThisCall = invocation.getMethodSelect() instanceof JCTree.JCIdent ident &&
                     (ident.name == ident.name.table.names._super || ident.name == ident.name.table.names._this);
             if (isSuperOrThisCall) {
                 superOrThis = first;
@@ -216,7 +238,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         if (jverifyMethod == null) {
             return false;
         }
-        
+
         var methodName = jverifyMethod.getQualifiedName().toString();
         switch (methodName) {
             case "check", "assume" -> {
@@ -240,125 +262,89 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 implementation));
     }
 
-    public static JCTree.JCBlock getContractBlock(JCTree.JCMethodDecl tree) {
-        return (JCTree.JCBlock) tree.body.getStatements().get(0);
+    public static JCTree.JCBlock getContractBlock(JCTree.JCStatement outerBlock) {
+        return (JCTree.JCBlock) ((JCTree.JCBlock) outerBlock).getStatements().get(0);
     }
 
+    public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock) {
+        var contractBlock = getContractBlock(outerBlock);
+        ArrayList<Property<JCTree.JCExpression>> precondition = new ArrayList<>();
+        ArrayList<Property<JCTree.JCExpression>> postcondition = new ArrayList<>();
+        ArrayList<JCTree.JCExpression> decreases = new ArrayList<>();
+        ArrayList<Property<JCTree.JCExpression>> loopInvariant = new ArrayList<>();
+        ArrayList<Property<JCTree.JCExpression>> reads = new ArrayList<>();
+        ArrayList<Property<JCTree.JCExpression>> modifies = new ArrayList<>();
 
-    public static boolean handleStatement(BaseDafnyGenerator compiler, JCTree.JCStatement statement, MethodOrLoopContract contract) {
-        var reporter = compiler.reporter;
-        
-        if (!(statement instanceof JCTree.JCExpressionStatement expressionStatement
-                && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
-            return false;
-        }
-        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
-        if (jverifyMethod == null) {
-            return false;
-        }
-        var methodName = jverifyMethod.getQualifiedName().toString();
-        switch (methodName) {
-            case "check", "assume" -> {
-                // not a header method, so stop here
-                return false;
+        for (var contractStatement : contractBlock.getStatements()) {
+            if (!((JCTree.JCStatement) contractStatement instanceof JCTree.JCExpressionStatement expressionStatement
+                    && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
+                continue;
             }
-            case Common.PRECONDITION -> {
-                if (invocation.args.size() != 1) {
-                    throw new JavaViolationException("A precondition call may have only one argument");
+            var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+            if (jverifyMethod == null) {
+                continue;
+            }
+            var methodName = jverifyMethod.getQualifiedName().toString();
+            switch (methodName) {
+                case "check", "assume" -> {
+                    // not a header method, so stop here
+                    continue;
                 }
-                Expression precondition = compiler.expressionCompiler.toExprWithFlows(invocation.getArguments().getFirst(), ExpressionContext.Pure).expression();
-                contract.preconditions.add(new AttributedExpression(precondition, null, null));
-            }
-            case "postcondition" -> {
-                if (invocation.args.size() != 1) {
-                    throw new JavaViolationException("A postcondition call may have only one argument");
+                case Common.PRECONDITION -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("A call to 'precondition' may have only one argument");
+                    }
+                    precondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }
-                handlePostcondition(compiler, contract, invocation.getArguments().getFirst());
-            }
-            case "invariant" -> {
-                if (invocation.args.size() != 1) {
-                    throw new JavaViolationException("invariant should have a single argument");
+                case "postcondition" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("A postcondition call may have only one argument");
+                    }
+                    postcondition.add(Property.fromElement(invocation.getArguments(), 0));
                 }
-                contract.loopInvariants.add(new AttributedExpression(compiler.expressionCompiler.toExpr(invocation.getArguments().getFirst(), ExpressionContext.Pure), null, null));
-            }
-            case "decreases" -> {
-                for(var decrease : invocation.getArguments()) {
-                    // The LOWER javac phase inserts an explicit NewArray for varargs
-                    if (decrease instanceof JCTree.JCNewArray newArray) {
-                        contract.decreases.addAll(newArray.getInitializers().map(d -> compiler.expressionCompiler.toExpr(d, ExpressionContext.Pure)));
-                    } else {
-                        contract.decreases.add(compiler.expressionCompiler.toExpr(decrease, ExpressionContext.Pure));
+                case "invariant" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("invariant should have a single argument");
+                    }
+                    loopInvariant.add(Property.fromElement(invocation.getArguments(), 0));
+                }
+                case "decreases" -> {
+                    for (var decrease : invocation.getArguments()) {
+                        // The LOWER javac phase inserts an explicit NewArray for varargs
+                        if (decrease instanceof JCTree.JCNewArray newArray) {
+                            decreases.addAll(newArray.getInitializers());
+                        } else {
+                            decreases.add(decrease);
+                        }
                     }
                 }
-            }
-            case "reads" -> {
-                if (invocation.args.size() != 1) {
-                    throw new JavaViolationException("A reads call must have exactly one argument");
+                case "reads" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("A reads call must have exactly one argument");
+                    }
+                    reads.add(Property.fromElement(invocation.getArguments(), 0));
                 }
-                var origExpr = invocation.getArguments().getFirst();
-                var origin = reporter.toOrigin(origExpr);
-                var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
-                contract.reads.add(new FrameExpression(origin, expr, null));
-            }
-            case "modifies" -> {
-                if (invocation.args.size() != 1) {
-                    throw new JavaViolationException("A modifies call must have exactly one argument");
+                case "modifies" -> {
+                    if (invocation.args.size() != 1) {
+                        throw new JavaViolationException("A modifies call must have exactly one argument");
+                    }
+                    modifies.add(Property.fromElement(invocation.getArguments(), 0));
                 }
-                var origExpr = invocation.getArguments().getFirst();
-                var origin = reporter.toOrigin(origExpr);
-                var expr = compiler.expressionCompiler.toExpr(origExpr, ExpressionContext.Pure);
-                contract.modifies.add(new FrameExpression(origin, expr, null));
-            }
-            default -> {
-                reporter.reportError(invocation, "notSupported", methodName);
-                return false;
+                default -> {
+                    reporter.reportError(invocation, "notSupported", methodName);
+                }
             }
         }
-        return true;
+        return new MethodOrLoopContract(precondition, postcondition,
+                loopInvariant, decreases, reads, modifies);
     }
 
-    private static void handlePostcondition(BaseDafnyGenerator baseGenerator, MethodOrLoopContract header, JCTree.JCExpression expr) {
-        var reporter = baseGenerator.reporter;
-        var nameCompiler = baseGenerator.nameCompiler;
-        var expressionCompiler = baseGenerator.expressionCompiler;
-        
-        if (expr instanceof JCTree.JCLambda lambda) {
-            if (lambda.getParameters().size() != 1) {
-                throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
-            }
-            var parameter = lambda.params.getFirst();
-            var origin = reporter.toOrigin(lambda);
-            var paramName = parameter.getName().toString();
-            var type = baseGenerator.translateType(parameter.type, reporter.toOrigin(parameter), null);
-
-            var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
-            var lhs = new CasePattern<>(origin, paramName, returnVar, null);
-            var rhs = TreeInfo.isConstructor(header.treeOrigin)
-                    ? new ThisExpr(origin)
-                    : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            Expression origCondition;
-            if (lambda.getBody() instanceof JCTree.JCStatement statementBody) {
-                origCondition = baseGenerator.expressionCompiler.stmtToExpr(statementBody, ExpressionContext.Pure);
-            } else {
-                origCondition = baseGenerator.expressionCompiler.toExpr((JCTree.JCExpression)lambda.getBody(), ExpressionContext.Pure);
-            }
-            var condition = new LetExpr(origin, java.util.List.of(lhs), java.util.List.of(rhs), origCondition, true, null);
-            header.postconditions.add(new AttributedExpression(condition, null, null));
-
-        } else if (expr instanceof JCTree.JCMemberReference memberReference) {
-            var origin = reporter.toOrigin(memberReference);
-            NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
-            var callee = new ExprDotName(origin,
-                    expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
-                    reporter.getName(memberReference, nameCompiler.getCompiledName(memberReference.sym, origin)), null);
-            var call = ExpressionCompiler.createCall2(origin, callee, Stream.of(arg));
-            header.postconditions.add(new AttributedExpression(call, null, null));
-        } else if (expr instanceof JCTree.JCTypeCast typeCast) {
-            // Casts like (IntPredicate) are sometimes necessary to disambiguate
-            handlePostcondition(baseGenerator, header, typeCast.getExpression());
-        } else {
-            var dafnyExpr = baseGenerator.expressionCompiler.toExpr(expr, ExpressionContext.Pure);
-            header.postconditions.add(new AttributedExpression(dafnyExpr, null, null));
+    public void checkEmptyExpressions(JCTree tree,
+                                      java.util.List<Property<JCTree.JCExpression>> expressions,
+                                      String typeName,
+                                      String containerName) {
+        if (!expressions.isEmpty()) {
+            reporter.reportError(tree, "wrongContract", typeName, containerName);
         }
     }
 }
