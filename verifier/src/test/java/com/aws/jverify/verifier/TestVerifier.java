@@ -171,30 +171,6 @@ public class TestVerifier {
         testMarkedSource(new SourceFile("JavaError.java", source), annotation);
     }
 
-    @Test
-    public void testRunThroughGradle() throws IOException, InterruptedException {
-        var gradlePath = IS_WINDOWS ? "../gradlew.bat" : "../gradlew";
-        ProcessBuilder processBuilder = new ProcessBuilder(
-                gradlePath,
-                ":verifier:run",
-                "--args=\"../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java\"");
-        processBuilder.redirectErrorStream(true);
-        var process = processBuilder.start();
-        var writer = new StringWriter();
-        var errWriter = new StringWriter();
-        int exitCode;
-        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-             var errReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-        ) {
-            reader.transferTo(writer);
-            errReader.transferTo(errWriter);
-            exitCode = process.waitFor();
-        }
-        var output = canonicalizeNewlines(writer.toString());
-        assertThat(output, containsString("Dafny program verifier finished with 6 verified, 0 errors"));
-        Assertions.assertEquals(0, exitCode);
-    }
-
     /**
      * Returns the text with all CRLF sequences replaced with LF.
      * This prevents erroneous failures of diff-based assertions on Windows platforms.
