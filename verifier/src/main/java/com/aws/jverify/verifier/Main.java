@@ -103,7 +103,7 @@ class AppCommand implements Callable<Integer> {
         
         return verifierOptions.time("Calling Driver.verifyJavaPaths", () -> {
             try {
-                return Driver.verifyJavaPaths(inputs, verifierOptions, writer);
+                return Driver.verifyJavaPaths(inputs, verifierOptions);
             } catch(IOException e) {
                 throw new RuntimeException(e);
             }

@@ -37,16 +37,19 @@ public class Driver {
     public record VerificationResultsWithIntervalTreeMap(VerificationResults verificationResults, HashMap<URI, IntervalTree<Integer,
             JavaMethodVerificationStatus>> sourceFileToMethodIntervals) {}
 
-    public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions, Writer output) throws IOException {
+    public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
             try {
+                if (verifierOptions.verbose()) {
+                    verifierOptions.outWriter().println("working directory: " + verifierOptions.workingDirectory());
+                }
                 Path normalized = verifierOptions.workingDirectory().resolve(p).normalize();
                 return new SourceFile(normalized, Files.readString(normalized));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }).collect(Collectors.toList());
-        return verifyJavaFiles(readFiles, verifierOptions, output);
+        return verifyJavaFilesExit(readFiles, verifierOptions);
     }
 
     public static VerificationResultsWithIntervalTreeMap verifyJavaFile(JavaFileObject javaFile, VerifierOptions options)
@@ -97,13 +100,12 @@ public class Driver {
         }
     }
 
-    public static int verifyJavaFiles(
+    public static int verifyJavaFilesExit(
             List<JavaFileObject> readFiles,
-            VerifierOptions verifierOptions,
-            Writer outputWriter
+            VerifierOptions verifierOptions
     ) throws IOException {
         var verificationResultsWithIntervalTreeMap = verifyJavaFiles(readFiles, verifierOptions);
-        outputVerificationResults(verificationResultsWithIntervalTreeMap, verifierOptions, outputWriter);
+        outputVerificationResults(verificationResultsWithIntervalTreeMap, verifierOptions, verifierOptions.outWriter());
         return verificationResultsWithIntervalTreeMap.verificationResults.getExitCode();
     }
 
