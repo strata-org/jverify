@@ -13,7 +13,7 @@ public record PositionFilter(boolean includeDependencies,
                              @Nullable Integer end) {
 
     public boolean unitPasses(VerifierOptions options,  JCTree.JCCompilationUnit compilationUnit) {
-        var resolved = options.workingDirectory().resolve(compilationUnit.getSourceFile().getName());
+        var resolved = options.workingDirectory().resolve(compilationUnit.getSourceFile().toUri().getPath());
         return fileEnding == null || resolved.endsWith(fileEnding());
     }
     
