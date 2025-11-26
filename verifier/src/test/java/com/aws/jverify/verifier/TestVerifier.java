@@ -59,6 +59,8 @@ public class TestVerifier {
         assertTrue(output.contains("Compiling Java to Dafny took"));
         assertTrue(output.contains("Serializing Dafny AST took"));
         assertTrue(output.contains("Running Dafny took"));
+        assertTrue(output.contains("verifyAll took"));
+        
         Assertions.assertEquals(0, exitCode, output);
     }
     
@@ -75,6 +77,42 @@ public class TestVerifier {
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
                 "--dafny=" + dafnyPath);
         Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
+    }
+
+    @Test
+    public void testIncludeDependencies() {
+        var dafnyPath = JVerifyTestEngine.getDafnyInSubmodulePath();
+
+        var path = Path.of("./src/test/java/com/aws/jverify/verifier/tests/javasupport/packages");
+        var main = path.resolve(Path.of("MultiPackageTest.java"));
+        var a = path.resolve(Path.of("a/Foo.java"));
+        var b = path.resolve(Path.of("b/Foo.java"));
+        var c = path.resolve(Path.of("c/Foo.java"));
+        var command = new CommandLine(new AppCommand());
+        StringWriter withoutDependenciesOutput = new StringWriter();
+        command.setOut(new PrintWriter(withoutDependenciesOutput));
+        command.setErr(new PrintWriter(withoutDependenciesOutput));
+
+        var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
+        var exitCode1 = command.execute(
+                main.toString(), a.toString(), b.toString(), c.toString(),
+                "--filter-position=MultiPackageTest.java",
+                "--builtin-contracts=false",
+                "--jar=" + testEngineClassPath,
+                "--dafny=" + dafnyPath);
+
+        assertTrue(withoutDependenciesOutput.toString().contains("2 errors"));
+        StringWriter withDependenciesOutput = new StringWriter();
+        command.setOut(new PrintWriter(withDependenciesOutput));
+        command.setErr(new PrintWriter(withDependenciesOutput));
+        var exitCode2 = command.execute(
+                main.toString(), a.toString(), b.toString(), c.toString(),
+                "--filter-position=MultiPackageTest.java",
+                "--include-filter-dependencies",
+                "--builtin-contracts=false",
+                "--jar=" + testEngineClassPath,
+                "--dafny=" + dafnyPath);
+        assertTrue(withDependenciesOutput.toString().contains("3 errors"));
     }
 
     @Test

@@ -35,11 +35,15 @@ public record VerifierOptions(Writer outWriter,
         var result = supply.get();
         var after = Instant.now();
         var duration = Duration.between(before, after);
+        printTime(name, duration);
+        return result;
+    }
+
+    public void printTime(String name, Duration duration) {
         try {
             outWriter.write(name + " took " + duration.toMillis() + " ms\n");
         } catch (IOException _) {
         }
-        return result;
     }
 
     public void time(String name, Runnable runnable) {
@@ -51,9 +55,6 @@ public record VerifierOptions(Writer outWriter,
         runnable.run();
         var after = Instant.now();
         var duration = Duration.between(before, after);
-        try {
-            outWriter.write(name + " took " + duration.toMillis() + " ms\n");
-        } catch (IOException _) {
-        }
+        printTime(name, duration);
     }
 }

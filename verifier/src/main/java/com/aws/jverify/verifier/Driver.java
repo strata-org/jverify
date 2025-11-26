@@ -29,6 +29,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static java.util.regex.Pattern.matches;
+
 public class Driver {
 
     public static Context context;
@@ -336,7 +338,7 @@ public class Driver {
                     stdin.write(program);
                 }
                 try (var stdout = process.inputReader()) {
-                    parseDafnyJsonOutput(nameCompiler, stdout, outResults);
+                    parseDafnyJsonOutput(verifierOptions, nameCompiler, stdout, outResults);
                     int dafnyExitCode = process.waitFor();
                     var exitCode = getExitCodeFromDafny(dafnyExitCode);
                     outResults.setExitCode(exitCode);
@@ -379,12 +381,15 @@ public class Driver {
     private static final Pattern dafnySummaryPattern = Pattern.compile(
             "Dafny program verifier finished with (?<VerifiedCount>\\d+) (assertions )?verified, (?<ErrorCount>\\d+) errors?");
 
+    private static final Pattern timePattern = Pattern.compile("Time to do (?<Name>\\w+) was (?<Duration>\\d+)ms");
+    
     /**
      * Parses the given {@code dafny verify} output,
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static void parseDafnyJsonOutput(NameCompiler nameCompiler,
+    private static void parseDafnyJsonOutput(VerifierOptions options, 
+                                             NameCompiler nameCompiler,
                                              BufferedReader dafnyOutput,
                                              VerificationResults outResults) {
         var objectMapper = new ObjectMapper();
@@ -423,8 +428,8 @@ public class Driver {
                                 outResults.setDafnyErrorCount(Integer.parseInt(matcher.group("ErrorCount")));
                                 outResults.setDafnyFinishedMessage(statusMessage.getValue());
                             }
-                            if (statusMessage.getValue().trim().startsWith("Time to do")) {
-                                System.out.println(statusMessage.getValue());
+                            if ((matcher = timePattern.matcher(statusMessage.getValue().trim())).matches()) {
+                                options.printTime(matcher.group("Name"), Duration.ofMillis(Long.parseLong(matcher.group("Duration"))));
                             }
                         }
                     }

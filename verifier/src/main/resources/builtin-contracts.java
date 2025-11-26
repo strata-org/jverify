@@ -70,8 +70,8 @@ abstract class StreamContract<T> implements Stream<T> {
     @Pure
     public <R> Stream<R> map(Function<? super T, ? extends R> mapper) {
         precondition(JVerify.forall((int i) ->
-                implies(elements.contains(i),
-                        preconditionOf(predicate.test(i)))
+                implies(0 <= i && i < elements.size(),
+                        preconditionOf(mapper.apply(elements.get(i))))
         ));
         postcondition((StreamContract<R> r) ->
                 elements.size() == r.elements.size() &&
