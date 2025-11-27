@@ -3,6 +3,7 @@ package com.aws.jverify.verifier;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,7 +14,7 @@ public record PositionFilter(boolean includeDependencies,
                              @Nullable Integer end) {
 
     public boolean unitPasses(VerifierOptions options,  JCTree.JCCompilationUnit compilationUnit) {
-        var resolved = options.workingDirectory().resolve(compilationUnit.getSourceFile().toUri().getPath());
+        var resolved = options.workingDirectory().resolve(Paths.get(compilationUnit.getSourceFile().toUri()));
         return fileEnding == null || resolved.endsWith(fileEnding());
     }
     
