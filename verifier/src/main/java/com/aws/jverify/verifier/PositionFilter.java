@@ -3,6 +3,7 @@ package com.aws.jverify.verifier;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -14,8 +15,13 @@ public record PositionFilter(boolean includeDependencies,
                              @Nullable Integer end) {
 
     public boolean unitPasses(VerifierOptions options,  JCTree.JCCompilationUnit compilationUnit) {
-        var resolved = options.workingDirectory().resolve(Paths.get(compilationUnit.getSourceFile().toUri()));
-        return fileEnding == null || resolved.endsWith(fileEnding());
+        try {
+            var resolved = options.workingDirectory().resolve(Paths.get(compilationUnit.getSourceFile().toUri()));
+            return fileEnding == null || resolved.endsWith(fileEnding());
+        }
+        catch (FileSystemNotFoundException _) {
+            return false;
+        }
     }
     
     public static @Nullable PositionFilter getPositionFilter(boolean includeFilterDependencies, String filterPosition) {
