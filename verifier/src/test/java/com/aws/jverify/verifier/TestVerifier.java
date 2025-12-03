@@ -93,7 +93,7 @@ public class TestVerifier {
         command.setOut(new PrintWriter(withoutDependenciesOutput));
         command.setErr(new PrintWriter(withoutDependenciesOutput));
 
-        var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
+        var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath().normalize();
         var exitCode1 = command.execute(
                 main.toString(), a.toString(), b.toString(), c.toString(),
                 "--filter-position=MultiPackageTest.java",
@@ -101,7 +101,9 @@ public class TestVerifier {
                 "--jar=" + testEngineClassPath,
                 "--dafny=" + dafnyPath);
 
-        assertTrue(withoutDependenciesOutput.toString().contains("2 errors"), "testEngineClassPath was: " + testEngineClassPath + "\noutput was: " + withoutDependenciesOutput.toString());
+        assertTrue(withoutDependenciesOutput.toString().contains("2 errors"), 
+                        "testEngineClassPath was: " + testEngineClassPath + 
+                        "\noutput was: " + withoutDependenciesOutput.toString());
         StringWriter withDependenciesOutput = new StringWriter();
         command.setOut(new PrintWriter(withDependenciesOutput));
         command.setErr(new PrintWriter(withDependenciesOutput));

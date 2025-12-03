@@ -99,7 +99,7 @@ public class JavaToDafnyCompiler {
 
         for(var extraPath : options.extraClassPathEntries()) {
             if (!Files.exists(extraPath.toAbsolutePath())) {
-                throw new IllegalArgumentException("Could not find file: " + extraPath);
+                throw new IllegalArgumentException("Could not find file: " + extraPath.toAbsolutePath());
             }
         }
         var classpathEntries = new ArrayList<Path>(options.extraClassPathEntries());
