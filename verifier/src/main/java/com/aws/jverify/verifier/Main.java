@@ -39,7 +39,7 @@ class AppCommand implements Callable<Integer> {
     private Path printBinaryDafny;
 
     @Option(names = "--jar", description = "Includes this jar file on the classpath", arity = "0..*")
-    private List<String> additionalJars;
+    private List<Path> additionalJars;
 
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
@@ -86,7 +86,7 @@ class AppCommand implements Callable<Integer> {
 
         var dafnyPath = getDafnyPath(writer);
         additionalJars = additionalJars == null ? List.of() : additionalJars;
-        List<Path> jars = Stream.concat(additionalJars.stream().flatMap(p -> Arrays.stream(p.split(":")).map(Path::of)), 
+        List<Path> jars = Stream.concat(additionalJars.stream(), 
                 Stream.of(jverifyLibraryLocation)).toList();
         
         var testDafnyVersion = customDafny != null;
