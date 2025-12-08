@@ -3,10 +3,8 @@ package com.aws.jverify.verifier.tests.verification.abstractContracts;
 import com.aws.jverify.*;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static com.aws.jverify.JVerify.*;
 

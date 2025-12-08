@@ -290,7 +290,7 @@ public class ExternalContractCompiler {
                 var parameter = parameters.get(i);
                 var parameterType = parameter.type;
                 var contracterParameter = contracterSymbol.getParameters().get(i).type;
-                ListBuffer<Attribute.TypeCompound> newParameterAnnotations = new ListBuffer<>();
+                var newParameterAnnotations = new ListBuffer<Attribute.TypeCompound>();
                 newParameterAnnotations.addAll(parameterType.getAnnotationMirrors());
                 newParameterAnnotations.addAll(contracterParameter.getAnnotationMirrors());
                 parameter.type = parameterType.annotatedType(newParameterAnnotations.toList());

@@ -4,9 +4,6 @@ import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
-
-import java.nio.file.ReadOnlyFileSystemException;
-
 import static com.aws.jverify.JVerify.modifies;
 import static com.aws.jverify.JVerify.reads;
 

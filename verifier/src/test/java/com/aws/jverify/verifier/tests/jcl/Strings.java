@@ -16,7 +16,8 @@ import static com.aws.jverify.JVerify.*;
 })
 @JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 6)
 class Strings {
-    static final String veryLongLiteral = "aeriuhgrae;igheraiugher;ughae;oigjaer;oigjaei;ogjera;ogj;eaorjga";
+    @SuppressWarnings("unused")
+    static final String veryLongLiteral = "One thing, I don't know why. It doesn't even matter how hard you try. Keep that in mind, I designed this rhyme to explain in due time. All I know time is a valuable thing";
     
     static void stringConcat(String str) {
         check((str + str).length() == 2 * str.length());

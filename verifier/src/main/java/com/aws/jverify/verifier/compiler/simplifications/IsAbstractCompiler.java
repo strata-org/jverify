@@ -4,12 +4,9 @@ import com.aws.jverify.JVerify;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.*;
-import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.util.*;
-import java.util.Set;
 
 /**
  * Must run before lower

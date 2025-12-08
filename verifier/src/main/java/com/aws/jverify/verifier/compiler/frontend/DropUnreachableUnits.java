@@ -94,7 +94,7 @@ public class DropUnreachableUnits {
         public void visitSelect(JCTree.JCFieldAccess tree) {
             addDependency(tree.sym);
             super.visitSelect(tree);
-        }
+        }        
 
         private void addDependency(Symbol symbol) {
             if (symbol == null) {

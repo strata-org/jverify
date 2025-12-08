@@ -137,9 +137,6 @@ public class Driver {
                 }
 
                 var uriMethods = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri);
-                if (uriMethods == null) {
-                    continue;
-                }
                 var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
                 if (failedJavaMethod != null) {
                     failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
