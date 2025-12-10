@@ -84,7 +84,7 @@ public class Driver {
             }
             runDafnyProcess(NameCompiler.instance(context), program, verifierOptions, verificationResults);
         }
-        return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
+        return new VerificationResultsWithIntervalTreeMap(verificationResults, VerifyAnnotationCompiler.instance(context)
                 .getSourceFileToMethodIntervalTreeMap());
     }
 

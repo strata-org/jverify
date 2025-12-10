@@ -6,6 +6,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 public class Common {
@@ -35,6 +37,16 @@ public class Common {
             return reader.lines().map(line -> line + "\n").collect(Collectors.joining());
         } catch (IOException e) {
             throw new RuntimeException("Failed to read " + name + " resource", e);
+        }
+    }
+
+    public static String getJarEntry(JarFile jarFile, JarEntry entry) {
+        try (InputStream stream = jarFile.getInputStream(entry)) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                return reader.lines().map(line -> line + "\n").collect(Collectors.joining());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

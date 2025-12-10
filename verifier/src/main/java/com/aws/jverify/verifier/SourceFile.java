@@ -28,6 +28,11 @@ public class SourceFile extends SimpleJavaFileObject {
         this.content = content;
     }
 
+    public SourceFile(URI uri, String content) {
+        super(uri, Kind.SOURCE);
+        this.content = content;
+    }
+
     @Override
     public String getCharContent(boolean ignoreEncodingErrors) {
         return content;

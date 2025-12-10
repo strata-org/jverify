@@ -355,6 +355,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 Path.of("../build/temp.dbin"),
                 true,
                 annotation.useBuiltinContracts(),
+                List.of(),
                 true,
                 new String[] {
                         "--use-basename-for-filename",

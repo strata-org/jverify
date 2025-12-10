@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.frontend;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.JarFileEntry;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.DiagnosticPositionFromDiagnostic;
@@ -13,6 +14,7 @@ import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.MultiTaskListener;
 import com.sun.tools.javac.comp.*;
 import com.sun.tools.javac.file.JavacFileManager;
+import com.sun.tools.javac.file.PathFileObject;
 import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.JCTree;
@@ -27,12 +29,15 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.DiagnosticListener;
+import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 public class JavaToDafnyCompiler {
@@ -41,7 +46,7 @@ public class JavaToDafnyCompiler {
     private final Enter enter;
 
     private final DafnyGenerator dafnyGenerator;
-    public Set<SourceFile> builtinSources = new HashSet<>();
+    public Set<JavaFileObject> builtinSources = new HashSet<>();
     public static final String builtinFile = "/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
 
@@ -67,6 +72,29 @@ public class JavaToDafnyCompiler {
         var contractSource = new SourceFile(objectFile, Common.getResourceFile(getClass(), objectFile));
         builtinSources.add(contractSource);
         files.add(contractSource);
+
+        for (var sourceJar : options.contractSourcePath()) {
+            var resolvedJarPath = options.workingDirectory().resolve(sourceJar);
+            if (!resolvedJarPath.toString().endsWith(".jar")) {
+                throw new IllegalArgumentException("Source jar must end with .jar: " + sourceJar);
+            }
+            if (!Files.exists(resolvedJarPath)) {
+                throw new IllegalArgumentException("Could not find file: " + sourceJar);
+            }
+            try (var jarFile = new JarFile(resolvedJarPath.toFile())) {
+                jarFile.stream()
+                       .filter(jarEntry -> jarEntry.getName().endsWith(".java"))
+                       .map(jarEntry ->
+                           new JarFileEntry(resolvedJarPath, jarEntry)
+                       )
+                       .forEach(source -> {
+                           files.add(source);
+                           builtinSources.add(source);
+                       });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
 
         Set<JCTree.JCCompilationUnit> parsedSet = parseResolveAndDesugarJava(options, files);
         if (parsedSet == null) {

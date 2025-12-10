@@ -7,15 +7,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.common.Common;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -43,6 +39,9 @@ class AppCommand implements Callable<Integer> {
 
     @Option(names = "--jar", description = "Includes this jar file on the classpath", arity = "0..*")
     private List<String> additionalJars;
+
+    @Option(names = "--source-jar", description = "Includes contracts from source code in this jar file", arity = "0..*")
+    private List<String> sourceJars;
 
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
@@ -85,13 +84,15 @@ class AppCommand implements Callable<Integer> {
         additionalJars = additionalJars == null ? List.of() : additionalJars;
         List<Path> jars = Stream.concat(additionalJars.stream().flatMap(p -> Arrays.stream(p.split(File.pathSeparator)).map(Path::of)),
                 Stream.of(jverifyLibraryLocation)).toList();
-        
+        sourceJars = sourceJars == null ? List.of() : sourceJars;
+        List<Path> sourceJars = this.sourceJars.stream().flatMap(p -> Arrays.stream(p.split(File.pathSeparator)).map(Path::of)).toList();
+
         var testDafnyVersion = customDafny != null;
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var positionFilter = PositionFilter.getPositionFilter(filterPositionString);
         var verifierOptions = new VerifierOptions(workingDirectory, dafnyPath, jars, 
                 tempFile.toPath(), testDafnyVersion,
-                printDafny, printBinaryDafny, showRanges, builtinContracts, 
+                printDafny, printBinaryDafny, showRanges, builtinContracts, sourceJars,
                 paths, new String[0], verifyByDefault, false, 
                 positionFilter, verbose);
         var exitCode = Driver.verifyJavaPaths(inputs, verifierOptions, writer);
