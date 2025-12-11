@@ -2,9 +2,9 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.Erased;
 import com.aws.jverify.Impure;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.AttrContext;
@@ -57,7 +57,7 @@ public class ExternalContractCompiler {
         this.elements = JavacElements.instance(context);
     }
 
-    public Set<JCTree.JCCompilationUnit> apply(Set<JCTree.JCCompilationUnit> compilationUnits) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> compilationUnits) {
         for(var unit : compilationUnits) {
             var moveSourceContracts = new FindAndMoveContracts();
             moveSourceContracts.visitTopLevel(unit);
@@ -202,6 +202,8 @@ public class ExternalContractCompiler {
 
             var oldSymbol = classDecl.sym;
             oldSymbol.name = contracteeSymbol.name;
+            // If we don't change the name here, it is still changed in Lower.java
+            classDecl.name = oldSymbol.name;
             classDecl.sym = contracteeSymbol;
             classDecl.type = contracteeSymbol.type;
 
@@ -254,7 +256,21 @@ public class ExternalContractCompiler {
                 }
                 newMembers.add(methodDecl);
             } else {
-                reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                var isErased = methodDecl.sym.getAnnotation(Erased.class) != null;
+                if (isErased) {
+                    if (contracteeSymbol.isInterface() && methodDecl.sym.isConstructor()) {
+                        return;
+                    }
+                    // We added a method through the contract class
+                    var newSymbol = new Symbol.MethodSymbol(methodDecl.sym.flags(), methodDecl.sym.name, methodDecl.sym.type, contracteeSymbol);
+                    updateLibraryContractAnnotations(methodDecl, newSymbol);
+                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
+                    contractSymbolToContractee.put(methodDecl.sym, newSymbol);
+                    methodDecl.sym = newSymbol;
+                    newMembers.add(methodDecl);
+                } else {
+                    reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                }
             }
         }
 
@@ -275,7 +291,7 @@ public class ExternalContractCompiler {
             var shouldVerify = false;
             boolean pure = jverifyUtils.isPure(methodSymbol);
             if (pure) {
-                var implementation = MethodOrLoopContractCompiler.getImplementation(methodDecl);
+                var implementation = MethodOrLoopContractCompiler.getImplementationBlock(methodDecl.body);
                 if (implementation != null)
                     if (implementation.getStatements().size() == 1) {
                         var statement = implementation.getStatements().getFirst();

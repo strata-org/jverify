@@ -68,12 +68,12 @@ public class JavaToDafnyCompiler {
         builtinSources.add(contractSource);
         files.add(contractSource);
 
-        Set<JCTree.JCCompilationUnit> parsedSet = parseResolveAndDesugarJava(options, files);
-        if (parsedSet == null) {
+        Set<JCTree.JCCompilationUnit> loweredJava = parseResolveAndDesugarJava(options, files);
+        if (loweredJava == null) {
             return new FilesContainer(List.of());
         }
 
-        var parsed = new ArrayList<>(parsedSet);
+        var parsed = new ArrayList<>(loweredJava);
         var libraries = parsed.stream().filter(u -> builtinSources.contains(u.getSourceFile())).collect(Collectors.toSet());
 
         return dafnyGenerator.generateDafny(parsed, libraries);
@@ -189,28 +189,27 @@ public class JavaToDafnyCompiler {
                     // or else the later phases become no-ops.
                     compiler.shouldStopPolicyIfNoError = CompileStates.CompileState.FLOW;
 
-                    // Apply the second half of our pipeline as above (4 and onwards).
-                    // See the implementation of JavaCompiler.compile() for similar lines,
-                    // including the comment "these method calls must be chained to avoid memory leaks"
+                    var remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
+                    
+                    List<UnitsCompiler> phases = new ArrayList<>();
+                    phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
+                    phases.add(JavaToDafnyCompiler.this::unlambda);
+                    phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
+                    phases.add(new ExternalContractCompiler(context)::transform);
+                    phases.add(VerifyAnnotationCompiler.instance(context)::transform);
+                    phases.add(new MissingContractCompiler(context)::transform);
+                    phases.add(new IsAbstractCompiler(context)::transform);
+                    phases.add(new PreconditionOfCompiler(context)::transform);
+                    phases.add(us -> unsuspend(lower(suspend(us))));
+                    phases.add(new ArrayCompiler(context)::transform);
+                    phases.add(new MoveStaticMethodsToStaticType(context)::translate);
 
-                    var staticMover = new MoveStaticMethodsToStaticType(context);
-                    var externalContractCompiler = new ExternalContractCompiler(context);
-                    var missingContractCompiler = new MissingContractCompiler(context);
-                    var newMethodContractCompiler = MethodOrLoopContractCompiler.instance(context);
-                    var verifyAnnotationCompiler = VerifyAnnotationCompiler.instance(context);
-                    var arrayCompiler = new ArrayCompiler(context);
-                    units.addAll(
-                            staticMover.translate(
-                                    arrayCompiler.transform(
-                                            unsuspend(lower(suspend(
-                                                    missingContractCompiler.compile(
-                                                            verifyAnnotationCompiler.transform(
-                                                                    externalContractCompiler.apply(
-                                                                            newMethodContractCompiler.transform(
-                                                                                    unlambda(
-                                                                                            insertFloatingPointCasts(
-                                                                                                    toUnits(compiler.flow(compiler.attribute(todo)))
-                                                                                            ))))))))))));                }
+                    for (int i = 0; i < phases.size(); i++) {
+                        var phase = phases.get(i);
+                        remainingUnits = phase.transform(remainingUnits);
+                    }
+                    units.addAll(remainingUnits);
+                }
             }
         });
         // Applies the Java to Java part of our pipeline
@@ -232,9 +231,13 @@ public class JavaToDafnyCompiler {
 
         return hasErrors ? null : units;
     }
+    
+    interface UnitsCompiler {
+        java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> units);
+    }
 
-    private Set<JCTree.JCCompilationUnit> toUnits(Queue<Env<AttrContext>> envs) {
-        Set<JCTree.JCCompilationUnit> result = envs.stream().map(e -> e.toplevel).collect(Collectors.toSet());
+    private List<JCTree.JCCompilationUnit> toUnits(Queue<Env<AttrContext>> envs) {
+        var result = envs.stream().map(e -> e.toplevel).distinct().toList();
         JVerifyIndex index = JVerifyIndex.instance(context);
         for(var unit : result) {
             Env<AttrContext> env = enter.getTopLevelEnv(unit);
@@ -245,7 +248,7 @@ public class JavaToDafnyCompiler {
         return result;
     }
 
-    private Set<JCTree.JCCompilationUnit> unlambda(Set<JCTree.JCCompilationUnit> envs) {
+    private List<JCTree.JCCompilationUnit> unlambda(List<JCTree.JCCompilationUnit> envs) {
         // Note JavaCompiler.desugar has some additional logic to
         // scan for classes that have lambdas first,
         // to not waste time with these traversals.
@@ -257,7 +260,7 @@ public class JavaToDafnyCompiler {
         return envs;
     }
 
-    private Set<JCTree.JCCompilationUnit> insertFloatingPointCasts(Set<JCTree.JCCompilationUnit> units) {
+    private List<JCTree.JCCompilationUnit> insertFloatingPointCasts(List<JCTree.JCCompilationUnit> units) {
         var inserter = new FloatingPointCastInserter(context);
         for (var unit : units) {
             inserter.translate(unit);
@@ -267,7 +270,7 @@ public class JavaToDafnyCompiler {
 
     // Phase to hide/rewrite higher level features such as switches
     // so future phases don't rewrite them.
-    private Set<JCTree.JCCompilationUnit> suspend(Set<JCTree.JCCompilationUnit> envs) {
+    private java.util.List<JCTree.JCCompilationUnit> suspend(java.util.List<JCTree.JCCompilationUnit> envs) {
         var suspenders = Suspenders.instance(context);
         Log log = Log.instance(context);
         for (var env: envs) {
@@ -278,7 +281,7 @@ public class JavaToDafnyCompiler {
     }
 
     // Phase to undo the effects of suspend().
-    private Set<JCTree.JCCompilationUnit> unsuspend(Set<JCTree.JCCompilationUnit> units) {
+    private List<JCTree.JCCompilationUnit> unsuspend(List<JCTree.JCCompilationUnit> units) {
         var hider = Suspenders.instance(context);
         units.forEach(topLevel -> {
             topLevel.defs = topLevel.defs.map(hider::unsuspend);
@@ -286,7 +289,7 @@ public class JavaToDafnyCompiler {
         return units;
     }
 
-    private Set<JCTree.JCCompilationUnit> lower(Set<JCTree.JCCompilationUnit> envs) {
+    private List<JCTree.JCCompilationUnit> lower(List<JCTree.JCCompilationUnit> envs) {
         var localMake = TreeMaker.instance(context).at(Position.NOPOS);
         var lower = Lower.instance(context);
         var log = Log.instance(context);

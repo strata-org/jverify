@@ -19,6 +19,7 @@
 - [Code Purposes](code_purposes.md)
 - [Termination](termination.md)
 - [Integers](integers.md)
+- [Abstract contracts](abstract_contracts.md)
 
 # Working with objects
 

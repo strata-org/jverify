@@ -18,6 +18,7 @@ import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JVerifyUtils {
 
@@ -51,7 +52,41 @@ public class JVerifyUtils {
         return maker.Annotation(maker.Ident(verifySymbol), List.of(
                 maker.Assign(value, maker.Literal(false))));
     }
+    
+    public Symbol.MethodSymbol getBase(Symbol.MethodSymbol method) {
+        for(var superType : types.closure(method.enclClass().type)) {
+            if (superType.tsym == method.enclClass()) {
+                continue;
+            }
+        
+            for (Symbol member : superType.tsym.members().getSymbolsByName(method.name)) {
+                if (member instanceof Symbol.MethodSymbol baseMethod &&
+                        elements.overrides(method, baseMethod, (Symbol.ClassSymbol)baseMethod.owner)) {
+                    return baseMethod;
+                }
+            }
+        }
+        return null;
+    }
+    
+    public Symbol.VarSymbol thisSymbol(Symbol.MethodSymbol methodSymbol) {
+        return new Symbol.VarSymbol(
+                Flags.FINAL | Flags.PARAMETER, // flags
+                names._this,                    // name
+                methodSymbol.owner.type,          // type (the enclosing class type)
+                methodSymbol                      // owner (the method)
+        );
+    }
+    
+    public Symbol findSymbol(Class<?> container, String name) {
+        var jverify = elements.getTypeElement(container.getCanonicalName());
+        return jverify.members().findFirst(names.fromString(name));
+    }
 
+    public Symbol.ClassSymbol getPureClassSymbol() {
+        return elements.getTypeElement(Pure.class.getCanonicalName());
+    }
+    
     public Symbol.ClassSymbol getVerifyClassSymbol() {
         return elements.getTypeElement(Verify.class.getCanonicalName());
     }

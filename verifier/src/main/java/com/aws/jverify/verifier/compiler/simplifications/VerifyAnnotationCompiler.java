@@ -53,7 +53,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         return instance;
     }
 
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             reporter.compilationUnit = env;
             visitTopLevel(env);
@@ -135,7 +135,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         if (tree.body == null || tree.body.getStatements().isEmpty()) {
             return;
         }
-        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
+        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree.body);
         tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
     }
 

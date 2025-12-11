@@ -17,6 +17,7 @@ import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.lang.model.type.ArrayType;
@@ -54,6 +55,7 @@ public class ExpressionCompiler {
     public final BaseDafnyGenerator baseGenerator;
     public final DafnyGenerator generator;
     private final NameCompiler nameCompiler;
+    private final Names names;
     private final JVerifyUtils utils;
     private final NativeSymbols nativeSymbols;
     private final Context context;
@@ -63,6 +65,7 @@ public class ExpressionCompiler {
         this.baseGenerator = baseGenerator;
         generator = context.get(DafnyGenerator.class);
         reporter = Reporter.instance(context);
+        names = Names.instance(context);
         utils = JVerifyUtils.instance(context);
         nameCompiler = NameCompiler.instance(context);
         nativeSymbols = NativeSymbols.instance(context);
@@ -575,10 +578,10 @@ public class ExpressionCompiler {
     }
 
     public Expression translateIdentifierNoOverride(JCTree.JCIdent identifier, IOrigin origin) {
-        var identName = baseGenerator.nameCompiler.getCompiledName(identifier.sym, identifier);
-        if (identName.contentEquals("this")) {
+        if (identifier.name.contentEquals(names._this)) {
             return new ThisExpr(origin);
         }
+        var identName = baseGenerator.nameCompiler.getCompiledName(identifier.sym, identifier);
         return new NameSegment(origin, identName, null);
     }
 
