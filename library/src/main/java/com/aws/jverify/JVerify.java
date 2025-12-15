@@ -48,7 +48,7 @@ public class JVerify {
      * in the same way as two tuples would be compared, 
      * also known as a lexicographical comparison.
      */
-    public static void decreases(Object... values) {}
+    public static void decreases(Object values) {}
     public static void decreases(int value) {}
     public static void decreases(int value1, int value2) {}
 
@@ -130,7 +130,11 @@ public class JVerify {
      * Can be used as the argument to a call to 'precondition' to make the precondition abstract
      * A subclass of the current class can implement that abstract clause by redefining it.
      */
-    public static <T> T isAbstract() {
+    public static Object isAbstract() {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean isAbstractBoolean() {
         throw new VerificationMethodExecutedException();
     }
 

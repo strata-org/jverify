@@ -25,7 +25,7 @@ public class AllMatchContract {
     static class IntPredicateContract implements IntPredicate {
         @Pure
         public boolean test(int value) {
-            precondition(isAbstract());
+            precondition(isAbstractBoolean());
             throw new ContractException();
         }
     }
