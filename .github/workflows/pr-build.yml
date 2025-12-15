@@ -97,7 +97,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Add-Content $env:GITHUB_PATH "${PWD}/jverify-collection/dafny/Scripts"
+          Add-Content $env:GITHUB_PATH "${PWD}/jverify-collection/dafny/Binaries"
       - name: Verify sample project
         working-directory: ./jverify-collection/sample-project
         shell: bash
