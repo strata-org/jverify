@@ -1,17 +1,15 @@
 package com.aws.jverify.verifier.compiler.dafnygenerator.base;
 
-import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopDafnyContract;
 import com.aws.jverify.verifier.compiler.dafnygenerator.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.tree.JCTree;
 
-import javax.naming.Context;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -21,7 +19,7 @@ public class BlockCompiler {
     public final Reporter reporter;
     private final ExpressionCompiler expressionCompiler;
     private final NameCompiler nameCompiler;
-    MethodOrLoopContractCompiler methodOrLoopContractCompiler;
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private final Symbol.MethodSymbol methodSymbol;
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
     private final Symtab symtab;
@@ -57,7 +55,7 @@ public class BlockCompiler {
         }
         var labels = this.labels.stream().toList();
         this.labels.clear();
-        
+
         return generator.translateStatementAfterLabel(this, statement, labels, origin);
     }
 
@@ -93,11 +91,11 @@ public class BlockCompiler {
                 yield List.of();
             }
         };
-        
+
         statements.addAll(rhsStatements);
         return statements;
     }
-    
+
     private List<Statement> translateBreak(JCTree.JCBreak jcBreak) {
         var origin = reporter.toOrigin(jcBreak);
         Statement result;
@@ -166,7 +164,8 @@ public class BlockCompiler {
                 translatedType, false);
         ConcreteAssignStatement dafnyInitializer = null;
         if (variableDecl.getInitializer() != null) {
-            var rhs = expressionCompiler.toAssignmentRhs(variableDecl.getInitializer(), expressionContext);
+            var initExpr = variableDecl.getInitializer();
+            AssignmentRhs rhs = expressionCompiler.toAssignmentRhs(initExpr, expressionContext);
             List<Expression> lhss = List.of(new IdentifierExpr(localVariable.getOrigin(), localVariable.getName()));
             List<AssignmentRhs> rhss = List.of(rhs);
             dafnyInitializer = new AssignStatement(origin, null, lhss, rhss, false);
@@ -179,26 +178,23 @@ public class BlockCompiler {
                                    JCTree.JCExpression condition,
                                    JCTree.JCStatement body,
                                    List<Label> labels,
-                                   java.util.function.Function<List<Statement>, List<Statement>> transformBody, 
+                                   java.util.function.Function<List<Statement>, List<Statement>> transformBody,
                                    ExpressionContext expressionContext) {
         var origin = reporter.toOrigin(loop);
-        var header = new MethodOrLoopContract(loop, false);
-        var postHeader = methodOrLoopContractCompiler.extractContract(baseGenerator, (JCTree.JCBlock) body, header);
+        var header = new MethodOrLoopDafnyContract(loop, false);
+        baseGenerator.fillDafnyContract(body, header);
 
-        checkLoopHeaderAndSetupLabels(loop, labels, header);
+        setupLabels(loop, labels, header);
 
         var dafnyCondition = expressionCompiler.toExpr(condition, expressionContext);
-        var bodyStatements = translateStatements(postHeader);
+        var bodyStatements = translateStatements(MethodOrLoopContractCompiler.getImplementationStatements(body));
         var newBodyStatements = transformBody.apply(bodyStatements);
         return new WhileStmt(origin, null, labels, header.loopInvariants, new Specification<>(header.decreases, null),
                 new Specification<>(header.modifies, null), new BlockStmt(origin, null, List.of(), newBodyStatements),
                 dafnyCondition);
     }
 
-    private void checkLoopHeaderAndSetupLabels(JCTree.JCStatement loop, List<Label> labels, MethodOrLoopContract header) {
-        checkEmptyExpressions(loop, header.preconditions, "preconditions", "loop");
-        checkEmptyExpressions(loop, header.postconditions, "postconditions", "loop");
-
+    private void setupLabels(JCTree.JCStatement loop, List<Label> labels, MethodOrLoopDafnyContract header) {
         outerLoop = loop;
         for (var label : labels) {
             labelToLoop.put(label.getName(), loop);
@@ -223,7 +219,7 @@ public class BlockCompiler {
         }
     }
 
-    private List<Statement> translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation, 
+    private List<Statement> translateJVerifyMethodInvocation(JCTree.JCMethodInvocation invocation,
                                                              Symbol.MethodSymbol jverifyMethod, ExpressionContext expressionContext) {
         var name = jverifyMethod.getQualifiedName().toString();
         if (name.equals("check")) {
@@ -328,15 +324,6 @@ public class BlockCompiler {
 
     public <T extends JCTree.JCStatement> List<Statement> translateStatements(List<T> statements, IOrigin originOverride) {
         return statements.stream().flatMap(s -> translateStatement(s, originOverride).stream()).toList();
-    }
-
-    public void checkEmptyExpressions(JCTree tree,
-                                      List<AttributedExpression> expressions,
-                                      String typeName,
-                                      String containerName) {
-        for (var _ : expressions) {
-            reporter.reportError(tree, "wrongContract", typeName, containerName);
-        }
     }
 
     /**

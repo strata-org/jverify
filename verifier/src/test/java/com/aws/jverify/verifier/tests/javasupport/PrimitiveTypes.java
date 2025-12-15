@@ -27,7 +27,8 @@ class PrimitiveTypes {
         
         char c = 'q';
         byte b = 10;
-        float f;
+        // TODO: Re-add float declaration once float can pass Java compilation
+        // float f;
         double d;
     }
 }

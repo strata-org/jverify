@@ -364,7 +364,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
     @Pure
     public V get(Object key) {
         precondition(containsKey(key));
-        // TODO: postcondition needs something like :| to get a hold of the key
+        // TODO: postconditions needs something like :| to get a hold of the key
         // that actually exists in the map according to containsKey
         throw new ContractException();
     }
@@ -458,9 +458,8 @@ class IntegerContract {
     }
 }
 
-@Contract(Double.class)
-class DoubleContract {
-}
+// No DoubleContract, FloatContract, or MathContract - Math, Double, and Float methods
+// have special fp64/fp32 handling in ExpressionCompiler and are skipped by MissingContractCompiler
 
 @Contract(Long.class)
 class LongContract {
@@ -660,7 +659,6 @@ class OptionalContract<T> {
     private T value;
     private boolean isSet;
 
-    //TODO: add precondition for null
     @Pure
     static <T> OptionalContract<T> of(T value) {
         postcondition((OptionalContract<T> o) -> o.value == value && o.isSet);
