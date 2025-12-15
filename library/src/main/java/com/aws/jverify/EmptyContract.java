@@ -6,13 +6,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
-Enables the use of these constructs: 
-- @Unbounded
-- forall, exists
-
-But prevents the method from being executed at runtime.
+ * Can be placed on a bodyless method to indicate that this method has no pre- or postconditions.
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
-public @interface Erased {
+@Target({ElementType.METHOD})
+public @interface EmptyContract {
 }

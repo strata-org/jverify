@@ -12,10 +12,14 @@ import com.aws.jverify.Pure;
 import java.util.*;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.IntPredicate;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
+import java.util.stream.Collector;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 @Contract(Comparable.class)
@@ -25,6 +29,15 @@ class ComparableContract<T> {
 @Contract(value = Number.class, pure = true)
 class NumberContract {
 
+}
+
+@Contract(value = Function.class, pure = true)
+abstract class FunctionContract<T, R> implements Function<T, R> {
+    @Pure
+    public R apply(T t) {
+        precondition(isAbstract());
+        throw new ContractException();
+    }
 }
 
 @Contract(BiFunction.class)
@@ -53,6 +66,25 @@ abstract class StreamContract<T> implements Stream<T> {
     @Pure
     public T reduce(T identity, BinaryOperator<T> accumulator) {
         return SequenceHelper.reduce(elements, identity, accumulator);
+    }
+
+    @Pure
+    public <R> Stream<R> map(Function<? super T, ? extends R> mapper) {
+        precondition(JVerify.forall((int i) ->
+                implies(0 <= i && i < elements.size(),
+                        preconditionOf(mapper.apply(elements.get(i))))
+        ));
+        postcondition((StreamContract<R> r) ->
+                elements.size() == r.elements.size() &&
+                        forall((int index) -> implies(0 <= index && index < elements.size(),
+                                jequals(mapper.apply(elements.get(index)), r.elements.get(index)))));
+        throw new ContractException();
+    }
+    
+    @Erased
+    @Pure
+    public static <T> StreamContract<T> fromStream(Stream<T> stream) {
+        return JVerify.<Stream<T>, StreamContract<T>>cast(stream);
     }
 }
 
@@ -90,7 +122,7 @@ abstract class ImmutableList<E> implements List<E> {
     @Override
     @Pure
     @Verify(false)
-    public E get(int index) {
+    public E get(@Nat int index) {
         precondition(0 <= index && index < size());
         throw new ContractException();
     }
@@ -134,7 +166,7 @@ abstract class ListContract<E> implements List<E> {
 
     @Override
     @Pure
-    public E get(int index) {
+    public E get(@Nat int index) {
         reads(everything());
         decreases(size());
         precondition(0 <= index && index < size());
@@ -177,7 +209,6 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     
     public ArrayListContract() {
         postcondition(elements.size() == 0);
-        throw new ContractException();
     }
 
     @Pure
@@ -190,7 +221,7 @@ abstract class ArrayListContract<E> extends ArrayList<E>{
     
     @Override
     @Pure
-    public E get(int index) {
+    public E get(@Nat int index) {
         reads(this);
         decreases(0);
         precondition(0 <= index && index < size());
@@ -255,8 +286,7 @@ abstract class SetContract<E> implements Set<E> {
     @Pure
     static <E> Set<E> of(E e1) {
         postcondition((Set<E> r) ->
-                r.size() == 1 &&
-                        r.contains(e1));
+                r.size() == 1 && r.contains(e1));
         throw new ContractException();
     }
 
@@ -284,8 +314,7 @@ abstract class SetContract<E> implements Set<E> {
     public boolean contains(Object o) {
         decreases(0);
         postcondition((boolean r) ->
-                r == JVerify.exists((E other) ->
-                        elements.contains(other) && other.equals(o)));
+                r == JVerify.exists((E other) -> elements.contains(other) && other.equals(o)));
         throw new ContractException();
     }
 
@@ -293,15 +322,13 @@ abstract class SetContract<E> implements Set<E> {
     @Pure
     public int size() {
         decreases(0);
-        postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
 
     @Override
     @Pure
     public boolean isEmpty() {
-        postcondition((boolean r) -> r == (elements.size() == 0));
-        throw new ContractException();
+        return size() == 0;
     }
 }
 
@@ -494,15 +521,22 @@ class BooleanContract {
 }
 
 @Contract
-class IntFunction<R> implements java.util.function.IntFunction<R> {
+class IntFunctionContract<R> implements java.util.function.IntFunction<R> {
     @Pure
     public R apply(int value) {
+        precondition(isAbstract());
         throw new ContractException();
     }
 }
 
 @Contract
 abstract class IntPredicateContract implements IntPredicate {
+    
+    @Pure
+    public boolean test(int value) {
+        precondition(isAbstract());
+        throw new ContractException();
+    }
 }
 
 @Contract
@@ -560,7 +594,6 @@ class BigIntegerContract  {
     BigIntegerContract(String val) {
         precondition(HelperForBigIntegerContract.isValidString(val));
         postcondition(intValue == HelperForBigIntegerContract.stringToInt(val));
-        throw new ContractException();
     }
 
     @Pure
@@ -723,6 +756,48 @@ class SystemContractHelper {
 @Contract(value = PrintStream.class)
 class PrintStreamContracts {
     public void println(String x) {
+        throw new ContractException();
+    }
+}
+
+@Contract(IntStream.class)
+abstract class IntStreamContract implements IntStream {
+    @Erased
+    @EmptyContract
+    @Pure
+    public abstract IntSequence values(); // final fields not well supported yet
+    
+    @Pure
+    public boolean allMatch(IntPredicate predicate) {
+        precondition(JVerify.forall((int i) ->
+                implies(values().contains(i),
+                        preconditionOf(predicate.test(i)))
+        ));
+        postcondition((boolean r) -> {
+            return forall((int i) -> r == implies(0 <= i && i < values().size(), 
+                     predicate.test(values().get(i))));
+        });
+        throw new ContractException();
+    }
+
+    @Pure
+    public <U> Stream<U> mapToObj(IntFunction<? extends U> mapper) {
+        precondition(JVerify.forall((int i) ->
+                implies(values().contains(i),
+                        preconditionOf(mapper.apply(i)))
+        ));
+        postcondition((Stream<U> r) -> {
+            var returnedContract = StreamContract.fromStream(r);
+            return returnedContract.elements.size() == values().size() &&
+              forall((int i) -> implies(0 <= i && i < values().size(), returnedContract.elements.get(i) == mapper.apply(values().get(i))));      
+        });
+        throw new ContractException();
+    }
+
+    @Pure
+    public static IntStream range(int startInclusive, int endExclusive) {
+        precondition(startInclusive <= endExclusive);
+        postcondition((IntStreamContract c) -> jequals(c.values(), JVerify.range(startInclusive, endExclusive)));
         throw new ContractException();
     }
 }

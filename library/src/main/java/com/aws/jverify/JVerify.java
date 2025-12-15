@@ -1,11 +1,7 @@
 package com.aws.jverify;
 
 import java.util.Optional;
-import java.util.function.BiPredicate;
-import java.util.function.Function;
-import java.util.function.IntPredicate;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.*;
 
 public class JVerify {
 
@@ -44,7 +40,7 @@ public class JVerify {
      * in the same way as two tuples would be compared, 
      * also known as a lexicographical comparison.
      */
-    public static void decreases(Object... values) {}
+    public static void decreases(Object value) {}
     public static void decreases(int value) {}
     public static void decreases(int value1, int value2) {}
 
@@ -337,6 +333,11 @@ public class JVerify {
 
     public interface IntSequence {
         /**
+         * Returns the element at index {@code index}.
+         */
+        int get(int index);
+        
+        /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
          */
         IntSequence drop(int fromIndex);
@@ -356,6 +357,11 @@ public class JVerify {
          * Returns {@code true} if this sequence contains the specified element.
          */
         boolean contains(int element);
+        
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
     }
 
     public interface Set<T> {

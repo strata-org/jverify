@@ -258,7 +258,7 @@ public class TypeDeclarationCompiler {
 //        if (varFlags.contains(Modifier.FINAL)) {
 //            Expression rhs = null;
 //            if (variableDecl.getInitializer() != null) {
-//                rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
+//                rhs = expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
 //            }
 //            var isStatic = varFlags.contains(Modifier.STATIC);
 //            return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);

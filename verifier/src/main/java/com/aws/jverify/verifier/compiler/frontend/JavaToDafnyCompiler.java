@@ -47,11 +47,11 @@ public class JavaToDafnyCompiler {
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
+        context.put(JavaToDafnyCompiler.class, this);
 
         JavacFileManager.preRegister(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         context.put(DiagnosticListener.class, diagnostics);
-        context.put(JavaToDafnyCompiler.class, this);
 
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
@@ -79,11 +79,11 @@ public class JavaToDafnyCompiler {
         return dafnyGenerator.generateDafny(parsed, libraries);
     }
 
-    public boolean isLibrary(JCTree.JCCompilationUnit compilationUnit) {
+    public boolean isBuiltin(JCTree.JCCompilationUnit compilationUnit) {
         return builtinSources.contains(compilationUnit.getSourceFile());
     }
 
-    public boolean isLibrary(URI sourceURI) {
+    public boolean isBuiltin(URI sourceURI) {
         return builtinSources.stream()
                 .anyMatch( file -> file.toUri().equals(sourceURI));
     }
@@ -99,7 +99,7 @@ public class JavaToDafnyCompiler {
 
         for(var extraPath : options.extraClassPathEntries()) {
             if (!Files.exists(extraPath.toAbsolutePath())) {
-                throw new IllegalArgumentException("Could not find file: " + extraPath);
+                throw new IllegalArgumentException("Could not find file: " + extraPath.toAbsolutePath());
             }
         }
         var classpathEntries = new ArrayList<Path>(options.extraClassPathEntries());
@@ -196,6 +196,9 @@ public class JavaToDafnyCompiler {
                     phases.add(JavaToDafnyCompiler.this::unlambda);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
+                    if (options.positionFilter() != null && options.positionFilter().fileEnding() != null) {
+                        phases.add(new DropUnreachableUnits(context)::transform);
+                    }
                     phases.add(VerifyAnnotationCompiler.instance(context)::transform);
                     phases.add(new MissingContractCompiler(context)::transform);
                     phases.add(new IsAbstractCompiler(context)::transform);
@@ -233,7 +236,7 @@ public class JavaToDafnyCompiler {
     }
     
     interface UnitsCompiler {
-        java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> units);
+        List<JCTree.JCCompilationUnit> transform(List<JCTree.JCCompilationUnit> units);
     }
 
     private List<JCTree.JCCompilationUnit> toUnits(Queue<Env<AttrContext>> envs) {

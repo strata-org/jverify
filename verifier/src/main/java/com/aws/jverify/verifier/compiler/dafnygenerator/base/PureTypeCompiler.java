@@ -189,7 +189,7 @@ public class PureTypeCompiler {
             Formal result = new Formal(origin, new Name(origin, NameCompiler.RETURN_VARIABLE_NAME), outType, false, false, null, null, false, false, false, null);
 
             List<AttributedExpression> ens = constructor.getEns();
-            if (classDecl.sym.isAnonymous()) {
+            if (JVerifyUtils.isSynthetic(methodDecl.sym.flags())) {
                 ens = classDecl.getMembers().stream().filter(m -> m instanceof JCTree.JCVariableDecl).map(member ->
                 {
                     var field = (JCTree.JCVariableDecl)member;
