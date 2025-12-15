@@ -110,7 +110,9 @@ class AppCommand implements Callable<Integer> {
             if (verbose) {
                 System.out.println("Could not find a file at Dafny path '" + dafnyPath + "'");
             }
-            dafnyPath = Path.of("dafny");
+            var isWindows = System.getProperty("os.name", "").toLowerCase().contains("windows");
+
+            dafnyPath = Path.of(isWindows ? "Dafny.exe" : "dafny");
         }
         return dafnyPath;
     }
