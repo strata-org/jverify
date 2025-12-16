@@ -106,6 +106,7 @@ public class Driver {
     ) throws IOException {
         var verificationResultsWithIntervalTreeMap = verifyJavaFiles(readFiles, verifierOptions);
         outputVerificationResults(verificationResultsWithIntervalTreeMap, verifierOptions, verifierOptions.outWriter());
+        verifierOptions.outWriter().flush();
         return verificationResultsWithIntervalTreeMap.verificationResults.getExitCode();
     }
 
