@@ -349,6 +349,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
+        var builtinContracts = Path.of("../builtin-contracts/src/main/java");
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
@@ -361,8 +362,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 Path.of("../build/temp.dfy"),
                 Path.of("../build/temp.dbin"),
                 true,
-                annotation.useBuiltinContracts(),
-                List.of(),
+                annotation.useBuiltinContracts() ? List.of(builtinContracts) : List.of(),
                 true,
                 new String[] {
                         "--use-basename-for-filename",
