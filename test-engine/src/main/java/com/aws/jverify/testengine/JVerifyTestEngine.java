@@ -379,6 +379,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
     }
 
+    public static Path getBuiltinContractsJar() {
+        return Path.of("../builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar").toAbsolutePath();
+    }
+
     /**
      * For creating a JVerifyTest annotation without having it in source code.
      * Useful for testing things like examples where we don't want the explicit annotation.

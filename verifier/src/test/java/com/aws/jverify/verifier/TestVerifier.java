@@ -52,6 +52,7 @@ public class TestVerifier {
 
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
+                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsJar(),
                 "--track-time",
                 "--dafny=" + dafnyPath);
         String output = out.getBuffer().toString();
@@ -75,6 +76,7 @@ public class TestVerifier {
 
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
+                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsJar(),
                 "--dafny=" + dafnyPath);
         Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
     }
@@ -97,7 +99,6 @@ public class TestVerifier {
         var exitCode1 = command.execute(
                 main.toString(), a.toString(), b.toString(), c.toString(),
                 "--filter-position=MultiPackageTest.java",
-                "--builtin-contracts=false",
                 "--classpath=" + testEngineClassPath,
                 "--dafny=" + dafnyPath);
 
@@ -111,7 +112,6 @@ public class TestVerifier {
                 main.toString(), a.toString(), b.toString(), c.toString(),
                 "--filter-position=MultiPackageTest.java",
                 "--include-filter-dependencies",
-                "--builtin-contracts=false",
                 "--classpath=" + testEngineClassPath,
                 "--dafny=" + dafnyPath);
         assertTrue(withDependenciesOutput.toString().contains("3 errors"));
@@ -128,6 +128,7 @@ public class TestVerifier {
 
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java").toString(),
+                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsJar(),
                 "--dafny=" + dafnyPath,
                 "--print-dafny=../build/temp.dfy");
         Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
@@ -159,10 +160,9 @@ public class TestVerifier {
         command.setErr(new PrintWriter(out));
 
         var exitCode = command.execute(
-                Path.of("./src/main/resources/builtin-contracts.java").toString(),
+                Path.of("../builtin-contracts/src/main/java/com/aws/jverify/builtin/builtin-contracts.java").toString(),
                 "--dafny=" + dafnyPath,
-                "--print-dafny=../build/temp.dfy",
-                "--builtin-contracts=false");
+                "--print-dafny=../build/temp.dfy");
         Assertions.assertEquals(0, exitCode, out.toString());
     }
     
