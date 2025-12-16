@@ -84,7 +84,7 @@ tasks.register<JavaExec>("verify") {
     jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     args(
         "src/main/java/org/example/App.java",
-        "--jar",
+        "--classpath",
         sourceSets["main"].runtimeClasspath.filter {
             it.toString().endsWith(".jar")
         }.asPath

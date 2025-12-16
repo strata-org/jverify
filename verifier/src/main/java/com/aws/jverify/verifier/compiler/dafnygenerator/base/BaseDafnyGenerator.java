@@ -514,19 +514,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     private AttributedExpression translateContractExpression(MethodOrLoopDafnyContract header, JCTree.JCExpression expr) {
         return switch (expr) {
             case JCTree.JCLambda lambda -> {
-                if (lambda.getParameters().size() != 1) {
-                    throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
-                }
-                var parameter = lambda.params.getFirst();
-                var origin = reporter.toOrigin(lambda);
-                var paramName = parameter.getName().toString();
-                var type = translateType(parameter.type, reporter.toOrigin(parameter), null);
-
-                var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
-                var lhs = new CasePattern<>(origin, paramName, returnVar, null);
-                var rhs = TreeInfo.isConstructor(header.treeOrigin)
-                        ? new ThisExpr(origin)
-                        : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
                 Expression origCondition;
                 if (lambda.getBody() instanceof JCTree.JCStatement statementBody) {
                     origCondition = expressionCompiler.stmtToExpr(statementBody, ExpressionContext.Pure);
