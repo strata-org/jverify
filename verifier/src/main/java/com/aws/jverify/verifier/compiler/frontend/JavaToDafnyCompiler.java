@@ -92,7 +92,11 @@ public class JavaToDafnyCompiler {
                         stream.filter(path -> path.toString().endsWith(".java"))
                                 .forEach(path -> {
                                     try {
-                                        SourceFile source = new SourceFile(path, Files.readString(path));
+                                        // Use the SourceFile constructor overload that uses "string://"
+                                        // so that we can use a relative path
+                                        // and simply making portable test files.
+                                        var relativePath = resolvedContractsPath.relativize(path);
+                                        SourceFile source = new SourceFile(relativePath.toString(), Files.readString(path));
                                         files.add(source);
                                         builtinSources.add(source);
                                     } catch (IOException e) {
