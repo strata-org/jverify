@@ -30,7 +30,7 @@ public class InterfaceContractVerification {
         @Override
         public int externalContract(int x) {
             postcondition((int r) -> r > 4);
-            return 5;
+            throw new ContractException();
         }
     }
 

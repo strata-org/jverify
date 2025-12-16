@@ -3,15 +3,22 @@ package com.aws.jverify.verifier.tests.verification.pure;
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
+import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import javax.xml.XMLConstants;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 10, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 1)
 public class PureMethodVerification {
 
+    @Verify(false)
+    @Pure
+    public int unverifiedWithContractException() {
+        throw new ContractException();
+    }
+    
     @Pure
     int pureMethodWithAssumeAndCheck(int x) {
         assume(x > 3);

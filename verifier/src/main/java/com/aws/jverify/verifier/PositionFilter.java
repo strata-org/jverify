@@ -1,14 +1,30 @@
 package com.aws.jverify.verifier;
 
+import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public record PositionFilter(@Nullable String fileEnding, int start, int end) {
+public record PositionFilter(boolean includeDependencies, 
+                             @Nullable String fileEnding, 
+                             @Nullable Integer start, 
+                             @Nullable Integer end) {
 
-    public static @Nullable PositionFilter getPositionFilter(String filterPosition) {
+    public boolean unitPasses(VerifierOptions options,  JCTree.JCCompilationUnit compilationUnit) {
+        try {
+            var resolved = options.workingDirectory().resolve(Paths.get(compilationUnit.getSourceFile().toUri()));
+            return fileEnding == null || resolved.endsWith(fileEnding());
+        }
+        catch (FileSystemNotFoundException _) {
+            return false;
+        }
+    }
+    
+    public static @Nullable PositionFilter getPositionFilter(boolean includeFilterDependencies, String filterPosition) {
         if (filterPosition == null) {
             return null;
         }
@@ -21,20 +37,19 @@ public record PositionFilter(@Nullable String fileEnding, int start, int end) {
 
         var filePart = matcher.group(1);
         String lineStart = matcher.group(2);
-        boolean hasRange = Objects.equals(matcher.group(3), "-");
         String lineEnd = matcher.group(3);
 
-        int start = 0;
-        int end = Integer.MAX_VALUE;
-        if (lineEnd != null && !lineEnd.isEmpty()) {
-            end = Integer.parseInt(lineEnd);
-            if (!hasRange) {
-                start = end;
-            }
-        }
+        Integer start = null;
+        Integer end = null;
         if (lineStart != null && !lineStart.isEmpty()) {
             start = Integer.parseInt(lineStart);
         }
-        return new PositionFilter(filePart, start ,end);
+        if (lineEnd != null && !lineEnd.isEmpty()) {
+            end = Integer.parseInt(lineEnd);
+        }
+        if (includeFilterDependencies && start != null && end != null) {
+            throw new RuntimeException("Can not specify a line filter when also including transitive dependencies");
+        }
+        return new PositionFilter(includeFilterDependencies, filePart, start ,end);
     }
 }

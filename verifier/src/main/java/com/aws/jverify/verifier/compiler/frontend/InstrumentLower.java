@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.List;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import net.bytebuddy.agent.builder.AgentBuilder;
@@ -38,6 +39,10 @@ public class InstrumentLower {
                                 .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
                             .field(named("types"))
                                 .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
+                            .field(named("currentMethodDef"))
+                                .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
+                            .field(named("currentMethodSym"))
+                                .transform(Transformer.ForField.withModifiers(Visibility.PUBLIC))
                             .method(named("access").
                                     and(takesArgument(0, is(Symbol.class))))
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))
@@ -46,6 +51,9 @@ public class InstrumentLower {
                             .method(named("freevarDefs").
                                     and(takesArguments(int.class, List.class, Symbol.class, long.class)))
                                     .intercept(MethodDelegation.to(LowerInterceptor.class))
+                            .method(named("visitLambda").
+                                    and(takesArguments(JCTree.JCLambda.class)))
+                            .intercept(MethodDelegation.to(LowerInterceptor.class))
                             .method(named("visitTypeTest")
                                     // The first call to types.erasure in visitEnumDef,
                                     // part of assigning the variable 'e_class',

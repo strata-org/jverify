@@ -4,7 +4,7 @@ import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
-import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
+import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopDafnyContract;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.ImpureObjectGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
@@ -258,7 +258,7 @@ public class TypeDeclarationCompiler {
 //        if (varFlags.contains(Modifier.FINAL)) {
 //            Expression rhs = null;
 //            if (variableDecl.getInitializer() != null) {
-//                rhs = compiler.expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
+//                rhs = expressionCompiler.toExpr(variableDecl.getInitializer(), ExpressionContext.Pure);
 //            }
 //            var isStatic = varFlags.contains(Modifier.STATIC);
 //            return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
@@ -297,20 +297,19 @@ public class TypeDeclarationCompiler {
             return null;
         }
 
-        var contract = new MethodOrLoopContract(method, jverifyUtils.isPure(method.sym));
-        var remainingStatements = methodOrLoopContractCompiler.
-                extractContract(baseGenerator, method.body, contract);
+        var contract = new MethodOrLoopDafnyContract(method, jverifyUtils.isPure(method.sym));
+        baseGenerator.fillDafnyContract(method.body, contract);
 
         if (contract.isPure) {
             return translatePureMethod(method, shouldVerify, contract);
         } else {
-            return translateImpureMethod(method, shouldVerify, contract, remainingStatements);
+            return translateImpureMethod(method, shouldVerify, contract, MethodOrLoopContractCompiler.getImplementationStatements(method.body));
         }
     }
 
     private MethodOrConstructor translateImpureMethod(JCTree.JCMethodDecl method,
                                                       boolean shouldVerify,
-                                                      MethodOrLoopContract contract,
+                                                      MethodOrLoopDafnyContract contract,
                                                       com.sun.tools.javac.util.List<JCTree.JCStatement> postHeader) {
         var methodOrigin = reporter.toOrigin(method);
 
@@ -323,7 +322,6 @@ public class TypeDeclarationCompiler {
         List<Formal> ins = getIns(method, shouldVerify, methodOrigin);
 
         applyInvariants(method.mods, method.sym, contract);
-        blockCompiler.checkEmptyExpressions(method, contract.loopInvariants, "invariants", "method");
 
         var outs = new ArrayList<Formal>();
         if (method.sym.type.getReturnType() != null) {
@@ -388,7 +386,7 @@ public class TypeDeclarationCompiler {
 
     private Function translatePureMethod(JCTree.JCMethodDecl method, 
                                          boolean shouldVerify,
-                                         MethodOrLoopContract contract) {
+                                         MethodOrLoopDafnyContract contract) {
         var sourceOrigin = reporter.toOrigin(method);
 
         var name = nameCompiler.getName(method, method.sym);
@@ -412,7 +410,7 @@ public class TypeDeclarationCompiler {
         return result;
     }
 
-    private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopContract header) {
+    private void applyInvariants(JCTree.JCModifiers modifiers, Symbol.MethodSymbol methodSymbol, MethodOrLoopDafnyContract header) {
         boolean isPublic = (modifiers.flags & Flags.PUBLIC) != 0;
         boolean isStaticMethod = JVerifyUtils.isStatic(modifiers);
 

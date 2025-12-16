@@ -22,11 +22,15 @@ import java.util.concurrent.Callable;
 public class LowerInterceptor {
     static Field typesField;
     static Field makeField;
+    private static final Field currentMethodDefField;
+    private static final Field currentMethodSymField;
 
     static {
         try {
             makeField = Lower.class.getDeclaredField("make");
             typesField = Lower.class.getDeclaredField("types");
+            currentMethodDefField = Lower.class.getDeclaredField("currentMethodDef");
+            currentMethodSymField = Lower.class.getDeclaredField("currentMethodSym");
         } catch (NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -67,5 +71,25 @@ public class LowerInterceptor {
         }
 
         return result;
+    }
+
+    public static JCTree.JCExpression interceptVisitLambda(@SuperCall Callable<JCTree.JCExpression> original,
+                                                      @This Object lowerInstance,
+                                                      @Argument(0) JCTree.JCLambda lambda) throws Exception {
+        var maker = (TreeMaker) makeField.get(lowerInstance);
+        var types = (TypesWithoutErasure) typesField.get(lowerInstance);
+        var samMethod = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.type.tsym);
+        var proxyMethod = maker.MethodDef(samMethod, null);
+
+        JCTree.JCMethodDecl prevMethodDef = (JCTree.JCMethodDecl) currentMethodDefField.get(lowerInstance);
+        Symbol.MethodSymbol prevMethodSym = (Symbol.MethodSymbol) currentMethodSymField.get(lowerInstance);
+        try {
+            currentMethodDefField.set(lowerInstance, proxyMethod);
+            currentMethodSymField.set(lowerInstance, samMethod);
+            return original.call();
+        } finally {
+            currentMethodDefField.set(lowerInstance, prevMethodDef);
+            currentMethodSymField.set(lowerInstance, prevMethodSym);
+        }
     }
 }

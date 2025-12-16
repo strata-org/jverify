@@ -7,14 +7,11 @@ import com.aws.jverify.verifier.IntervalTree;
 import com.aws.jverify.verifier.JavaMethodVerificationStatus;
 import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.AnnoConstruct;
-import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import java.net.URI;
 import java.nio.file.Paths;
@@ -27,9 +24,9 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     private final JVerifyUtils jverifyUtils;
     private final VerifierOptions options;
     private final Reporter reporter;
-    public final Set<Symbol.MethodSymbol> removedImplementations = new HashSet<>();
     public final Context context;
     private final JavaToDafnyCompiler javaToDafnyCompiler;
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     private PositionCalculator positionCalculator;
     private final HashMap<URI, IntervalTree<Integer, JavaMethodVerificationStatus>> sourceFileToMethodIntervalTreeMap = new HashMap<>();
 
@@ -43,6 +40,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         this.context = context;
         options = context.get(VerifierOptions.class);
         javaToDafnyCompiler = context.get(JavaToDafnyCompiler.class);
+        methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -53,7 +51,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         return instance;
     }
 
-    public Set<JCTree.JCCompilationUnit> transform(Set<JCTree.JCCompilationUnit> envs) {
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             reporter.compilationUnit = env;
             visitTopLevel(env);
@@ -69,7 +67,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         reporter.compilationUnit = tree;
         processVerifyAnnotation(tree.packge);
-        if (!javaToDafnyCompiler.isLibrary(reporter.compilationUnit)) {
+        if (!javaToDafnyCompiler.isBuiltin(reporter.compilationUnit)) {
             var sourceUri = getUri();
             if (!sourceFileToMethodIntervalTreeMap.containsKey(sourceUri)) {
                 sourceFileToMethodIntervalTreeMap.put(sourceUri, new IntervalTree<>());
@@ -92,11 +90,11 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         boolean shouldVerify = processVerifyAnnotationAndPop(tree, tree.sym);
         addMethodToIntervalTree(tree, shouldVerify);
         if (!shouldVerify) {
-            removeImplementation(tree);
+            methodOrLoopContractCompiler.removeImplementation(tree);
         } else if (!jverifyUtils.isPure(tree.sym) && !applyPositionFilter(tree)) {
             // this is a performance optimization. 
             // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
-            removeImplementation(tree);
+            methodOrLoopContractCompiler.removeImplementation(tree);
         }
         super.visitMethodDef(tree);
     }
@@ -117,26 +115,18 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         var endPos = positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) != null ?
                 positionCalculator.toToken(positionCalculator.getEndPos(methodDecl)) : startPos;
 
-
         var methodVerificationStatus = new JavaMethodVerificationStatus(methodDecl, new TokenRange(startPos,endPos), shouldVerify ?
                 JavaMethodVerificationStatus.VerificationStatus.Verified :  JavaMethodVerificationStatus.VerificationStatus.Skipped);
 
         sourceFileToMethodIntervalTreeMap.get(sourceFileURI)
-                .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), methodVerificationStatus.getPosition().getEndToken().getLine(),
+                .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), 
+                        methodVerificationStatus.getPosition().getEndToken().getLine(),
                         methodVerificationStatus);
     }
 
     private URI getUri() {
         var baseUri = Paths.get(System.getProperty("user.dir")).toUri();
         return baseUri.resolve(reporter.compilationUnit.getSourceFile().toUri()).normalize();
-    }
-
-    public void removeImplementation(JCTree.JCMethodDecl tree) {
-        if (tree.body == null || tree.body.getStatements().isEmpty()) {
-            return;
-        }
-        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree);
-        tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
     }
 
     public boolean processVerifyAnnotationAndPop(JCTree node, AnnoConstruct annoConstruct) {
@@ -160,17 +150,18 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     
     private boolean applyPositionFilter(JCTree.JCMethodDecl method) {
         var filter = options.positionFilter();
-        if (filter == null) {
+        if (filter == null || filter.includeDependencies()) {
             return true;
         } else {
-            if (filter.fileEnding() != null
-                    && !reporter.compilationUnit.getSourceFile().getName().endsWith(filter.fileEnding())) {
+            if (!filter.unitPasses(options, reporter.compilationUnit)) {
                 return false;
             }
 
             var nodeRange = Reporter.getRange(reporter.getName(method, method.name).getOrigin());
             int line = nodeRange.getStartToken().getLine();
-            return filter.start() <= line && line <= filter.end();
+            var start = filter.start() == null ? 0 : filter.start();
+            var end = filter.end() == null ? Integer.MAX_VALUE : filter.end();
+            return start <= line && line <= end;
         }
     }
 

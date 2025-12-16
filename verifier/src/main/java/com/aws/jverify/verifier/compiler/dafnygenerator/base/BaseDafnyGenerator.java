@@ -9,6 +9,7 @@ import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.comp.AttrContext;
@@ -43,8 +44,10 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
     public final NameCompiler nameCompiler;
     public final TypeDeclarationCompiler typeDeclarationCompiler;
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
     public final Reporter reporter;
     public final Names names;
+    private final Types types;
     public final JavacElements elements;
     public final VerifierOptions verifierOptions;
     public final JVerifyIndex index;
@@ -57,8 +60,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler;
     
-    private boolean translatingVerifiedMethodSignature;
-    
     public BaseDafnyGenerator(Context context) {
         context.put(BaseDafnyGenerator.class, this);
         this.context = context;
@@ -69,8 +70,10 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         reporter = Reporter.instance(context);
         nameCompiler = NameCompiler.instance(context);
         typeDeclarationCompiler = new TypeDeclarationCompiler(context);
+        methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
         index = JVerifyIndex.instance(context);
         names = Names.instance(context);
+        types = Types.instance(context);
         generator = context.get(DafnyGenerator.class);
     }
 
@@ -179,10 +182,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers, boolean willVerify) {
-        translatingVerifiedMethodSignature = willVerify;
-        var result = generator.translateType(type, origin, additionalModifiers);
-        translatingVerifiedMethodSignature = false;
-        return result;
+        return generator.translateType(type, origin, additionalModifiers);
     }
     
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
@@ -278,10 +278,11 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                 return getChar16Type(origin);
             }
             case FLOAT -> {
-                return new UserDefinedType(origin, new NameSegment(origin, "float", null));
+                reporter.reportError(origin, "notSupported", "float type");
+                return null;
             }
             case DOUBLE -> {
-                return new UserDefinedType(origin, new NameSegment(origin, "double", null));
+                return new Fp64Type(origin);
             }
         }
 
@@ -304,9 +305,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
         var superBound = wildcardType.getSuperBound();
         if (superBound != null) {
-            if (translatingVerifiedMethodSignature) {
-                reporter.reportError(origin, "notSupported", "keyword 'super' in method signature");
-            }
             if (superBound instanceof com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType) {
                 // TODO add test
                 return translateType(intersectionClassType.getComponents().getFirst(), origin);
@@ -472,6 +470,104 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             }
         }
         return immutableClass;
+    }
+
+
+    public void fillDafnyContract(
+        JCTree.JCStatement outerBlock,
+        MethodOrLoopDafnyContract dafnyContract)
+    {
+        var contract = methodOrLoopContractCompiler.getContract(outerBlock);
+        for(var precondition : contract.preconditions()) {
+            if (precondition.get() != null) {
+                dafnyContract.preconditions.add(translateContractExpression(dafnyContract, precondition.get()));
+            }
+        }
+        for(var postcondition : contract.postconditions()) {
+            if (postcondition.get() != null) {
+                dafnyContract.postconditions.add(translateContractExpression(dafnyContract, postcondition.get()));
+            }
+        }
+        for(var javaLoopInvariant : contract.loopInvariants()) {
+            dafnyContract.loopInvariants.add(new AttributedExpression(
+                    expressionCompiler.toExpr(javaLoopInvariant.get(), ExpressionContext.Pure), null, null));
+        }
+        dafnyContract.decreases.addAll(contract.decreases().stream().map(d ->
+                expressionCompiler.toExpr(d, ExpressionContext.Pure)).toList());
+        for(var readsJavaExpr : contract.reads()) {
+            Expression readsExpr = expressionCompiler.toExpr(readsJavaExpr.get(), ExpressionContext.Pure);
+            dafnyContract.reads.add(new FrameExpression(readsExpr.getOrigin(), readsExpr, null));
+        }
+        for(var modifiesJavaExpr : contract.modifies()) {
+            Expression modifiesExpr = expressionCompiler.toExpr(modifiesJavaExpr.get(), ExpressionContext.Pure);
+            dafnyContract.modifies.add(new FrameExpression(modifiesExpr.getOrigin(), modifiesExpr, null));
+        }
+
+        var implementation = MethodOrLoopContractCompiler.getImplementationStatements(outerBlock);
+        if (dafnyContract.isPure) {
+            if (!implementation.isEmpty()) {
+                dafnyContract.pureBody = expressionCompiler.toExprWithFlows(implementation, ExpressionContext.Pure);
+            }
+        }
+    }
+
+    private AttributedExpression translateContractExpression(MethodOrLoopDafnyContract header, JCTree.JCExpression expr) {
+        return switch (expr) {
+            case JCTree.JCLambda lambda -> {
+                Expression origCondition;
+                if (lambda.getBody() instanceof JCTree.JCStatement statementBody) {
+                    origCondition = expressionCompiler.stmtToExpr(statementBody, ExpressionContext.Pure);
+                } else {
+                    origCondition = expressionCompiler.toExpr((JCTree.JCExpression) lambda.getBody(), ExpressionContext.Pure);
+                }
+
+                Expression condition;
+                if (lambda.getParameters().size() > 1) {
+                    throw new JavaViolationException("A precondition or postcondition call lambda must not accept more than 1 argument");
+                } else if (lambda.getParameters().size() == 1) {
+                    var parameter = lambda.params.getFirst();
+                    var origin = reporter.toOrigin(lambda);
+                    var paramName = parameter.getName().toString();
+                    var type = translateType(parameter.type, reporter.toOrigin(parameter), null);
+
+                    var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
+                    var lhs = new CasePattern<>(origin, paramName, returnVar, null);
+                    var rhs = TreeInfo.isConstructor(header.treeOrigin)
+                            ? new ThisExpr(origin)
+                            : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
+
+                    condition = new LetExpr(origin, List.of(lhs), List.of(rhs), origCondition, true, null);
+                } else {
+                    condition = origCondition;
+                }
+                yield new AttributedExpression(condition, null, null);
+            }
+            case JCTree.JCMemberReference memberReference -> {
+                var origin = reporter.toOrigin(memberReference);
+                var paramTypes = types.findDescriptorType(memberReference.type).getParameterTypes();
+                var callee = new ExprDotName(origin,
+                        expressionCompiler.toExpr(memberReference.expr, ExpressionContext.Pure),
+                        reporter.getName(memberReference, nameCompiler.getCompiledName(memberReference.sym, origin)), null);
+                Stream<Expression> args;
+                if (paramTypes.size() > 1) {
+                    throw new JavaViolationException("A pre/postcondition call member reference must not accept more than 1 argument");
+                } else if (paramTypes.size() == 1) {
+                    NameSegment arg = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
+                    args = Stream.of(arg);
+                } else {
+                    args = Stream.of();
+                }
+                var call = ExpressionCompiler.createCall2(origin, callee, args);
+                yield new AttributedExpression(call, null, null);
+            }
+            case JCTree.JCTypeCast typeCast ->
+                // Casts like (IntPredicate) are sometimes necessary to disambiguate
+                translateContractExpression(header, typeCast.getExpression());
+            default -> {
+                var dafnyExpr = expressionCompiler.toExpr(expr, ExpressionContext.Pure);
+                yield new AttributedExpression(dafnyExpr, null, null);
+            }
+        };
     }
 }
 

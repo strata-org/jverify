@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.tests.javasupport.generics;
 
 import com.aws.jverify.Contract;
+import com.aws.jverify.EmptyContract;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
@@ -36,15 +37,8 @@ public class PolymorphismWithBounds {
 }
 
 interface GenericI<T> {
+    @EmptyContract
     void foo();
-
-    @Contract
-    class GenericIContract<T> implements GenericI<T> {
-        @Override
-        public void foo() {
-            
-        }
-    }
 }
 
 class PetContainer<T extends Pet> {
@@ -60,23 +54,13 @@ class PetContainer<T extends Pet> {
     }
 }
 
-@Contract(Pet.class)
-class PetContract implements Pet {
-    public void feed() {
-    }
-}
-
 interface Pet {
+    @EmptyContract
     void feed();
 }
 
-@Contract(Canid.class)
-class CanidContract implements Canid {
-    public void socialize() {
-    }
-}
-
 interface Canid {
+    @EmptyContract
     void socialize();
 }
 

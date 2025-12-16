@@ -2,7 +2,9 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
+import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
@@ -10,6 +12,7 @@ import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
+import net.bytebuddy.asm.Advice;
 
 import java.util.*;
 
@@ -23,25 +26,63 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private final JCCompilationUnit compilationUnit;
     private final TreeMaker maker;
     private final JavacElements elements;
+    private final JVerifyUtils jVerifyUtils;
     private final Names names;
     private final Types types;
+    private final Enter enter;
+    private final JVerifyIndex index;
     private final Context context;
 
     public LambdaToAnonymousClassCompiler(JCCompilationUnit compilationUnit, Context context) {
         this.compilationUnit = compilationUnit;
         this.maker = TreeMaker.instance(context);
         this.elements = JavacElements.instance(context);
+        index = JVerifyIndex.instance(context);
+        enter = Enter.instance(context);
         this.names = Names.instance(context);
         this.types = Types.instance(context);
         this.context = context;
+        jVerifyUtils = JVerifyUtils.instance(context);
     }
     
+    private final Set<String> ignoreMethods = Set.of("postcondition","precondition", "forall", "exists", "map", "all");
+    
+    /*
+    This code is unfortunately necessary because method and loop contracts are stored 
+    using plain method calls and lambdas. We don't want those lambdas to be compiled by this class,
+    so we have extra code to avoid compiling them.
+    
+    We could consider introducing a new AST type, JCMethodDeclWithContract, and update Lower so it visits
+    the additional fields. This would replace the current update we have to let Lower handle Lambdas, 
+    which it normally does not.
+     */
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
-        if (jverifyMethod == null) {
-            super.visitApply(invocation);
+        if (jverifyMethod == null || !ignoreMethods.contains(jverifyMethod.name.toString())) {
+                super.visitApply(invocation);
         } else {
+            invocation.meth = translate(invocation.meth);
+            if (invocation.args != null) {
+                for (List<JCExpression> l = invocation.args; l.nonEmpty(); l = l.tail) {
+                    // Our pipeline might have inserted a typecast at this point
+                    // So that postcondition((int x) -> x == 2)) becomes
+                    // postcondition((IntPredicate)(int x) -> x == 2);
+                    if (l.head instanceof JCTree.JCTypeCast typeCast) {
+                        if (typeCast.expr instanceof JCTree.JCLambda lambda) {
+                            lambda.params = translate(lambda.params);
+                            lambda.body = translate(lambda.body);
+                        } else {
+                            l.head = super.translate(l.head);
+                        }
+                    } else if (l.head instanceof JCTree.JCLambda lambda) {
+                        lambda.params = translate(lambda.params);
+                        lambda.body = translate(lambda.body);
+                    } else {
+                        l.head = super.translate(l.head);
+                    }
+                }
+            }
             result = invocation;
         }
     }
@@ -114,8 +155,8 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         Name name = names.lambda.append(names.fromString(line + "_" + column));
 
         int flags = SYNTHETIC | FINAL;
-        boolean hasNoEnclosingType = (currentContainer.flags() & STATIC) != 0;
-        if (hasNoEnclosingType) {
+        boolean hasEnclosingType = (currentContainer.flags() & STATIC) == 0;
+        if (!hasEnclosingType) {
             flags |= STATIC;
         }
         
@@ -123,7 +164,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
 
         // Flatname should be globally unique. Qualified class name plus line and column achieves that.
         classSymbol.flatname = currentContainer.owner.flatName().append(name);
-        Type enclosingType = hasNoEnclosingType ? Type.noType : currentContainer.enclClass().type;
+        Type enclosingType = hasEnclosingType ? currentContainer.enclClass().type : Type.noType;
         Type.ClassType classType = new Type.ClassType(enclosingType, List.nil(), classSymbol);
         classType.interfaces_field = List.of(lambda.type);
         classSymbol.type = classType;
@@ -151,6 +192,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         );
         classDef.sym = classSymbol;
         classDef.type = classSymbol.type;
+        index.put(classSymbol, enter.classEnv(classDef, enter.getTopLevelEnv(compilationUnit)));
         return classDef;
     }
 
@@ -202,6 +244,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 null
         );
         result.sym = methodSymbol;
+        result.type = methodSymbol.type;
 
         for(var param : lambda.params) {
             param.sym.owner = result.sym;
