@@ -60,8 +60,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler;
     
-    private boolean translatingVerifiedMethodSignature;
-    
     public BaseDafnyGenerator(Context context) {
         context.put(BaseDafnyGenerator.class, this);
         this.context = context;
@@ -184,10 +182,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers, boolean willVerify) {
-        translatingVerifiedMethodSignature = willVerify;
-        var result = generator.translateType(type, origin, additionalModifiers);
-        translatingVerifiedMethodSignature = false;
-        return result;
+        return generator.translateType(type, origin, additionalModifiers);
     }
     
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
@@ -310,9 +305,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
         var superBound = wildcardType.getSuperBound();
         if (superBound != null) {
-            if (translatingVerifiedMethodSignature) {
-                reporter.reportError(origin, "notSupported", "keyword 'super' in method signature");
-            }
             if (superBound instanceof com.sun.tools.javac.code.Type.IntersectionClassType intersectionClassType) {
                 // TODO add test
                 return translateType(intersectionClassType.getComponents().getFirst(), origin);
@@ -522,6 +514,19 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     private AttributedExpression translateContractExpression(MethodOrLoopDafnyContract header, JCTree.JCExpression expr) {
         return switch (expr) {
             case JCTree.JCLambda lambda -> {
+                if (lambda.getParameters().size() != 1) {
+                    throw new JavaViolationException("A postcondition call lambda must take exactly one argument");
+                }
+                var parameter = lambda.params.getFirst();
+                var origin = reporter.toOrigin(lambda);
+                var paramName = parameter.getName().toString();
+                var type = translateType(parameter.type, reporter.toOrigin(parameter), null);
+
+                var returnVar = new BoundVar(origin, new Name(origin, paramName), type, false);
+                var lhs = new CasePattern<>(origin, paramName, returnVar, null);
+                var rhs = TreeInfo.isConstructor(header.treeOrigin)
+                        ? new ThisExpr(origin)
+                        : new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
                 Expression origCondition;
                 if (lambda.getBody() instanceof JCTree.JCStatement statementBody) {
                     origCondition = expressionCompiler.stmtToExpr(statementBody, ExpressionContext.Pure);

@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
+import com.aws.jverify.EmptyContract;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
@@ -66,6 +67,14 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return envs;
     }
 
+    public void removeImplementation(JCTree.JCMethodDecl tree) {
+        if (tree.body == null || tree.body.getStatements().isEmpty()) {
+            return;
+        }
+        var contractBlock = MethodOrLoopContractCompiler.getContractBlock(tree.body);
+        tree.body.stats = List.of(contractBlock, jverifyUtils.contractThrow());
+    }
+    
     @Override
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         reporter.compilationUnit = tree;
@@ -146,6 +155,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
             var contract = getContract(tree.body);
             checkEmptyExpressions(tree, contract.loopInvariants(), "invariants", "method");
+        } if (tree.sym.getAnnotation(EmptyContract.class) != null) {
+            tree.body = maker.Block(0, getNewStatements(tree, List.nil(), false));        
         }
         super.visitMethodDef(tree);
     }

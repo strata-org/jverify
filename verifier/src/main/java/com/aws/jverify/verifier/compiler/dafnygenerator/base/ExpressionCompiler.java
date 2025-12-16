@@ -114,7 +114,8 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
-    public Expression toExprWithFlows(List<JCTree.JCStatement> statements, ExpressionContext context) {
+    public Expression toExprWithFlows(com.sun.tools.javac.util.List<JCTree.JCStatement> statements, 
+                                      ExpressionContext context) {
         var last = statements.getLast();
         var result = stmtToExpr(last, context);
         for(int index = statements.size() - 2; index >= 0; index--) {

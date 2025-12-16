@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.classes;
 
 import com.aws.jverify.Contract;
 import com.aws.jverify.ContractException;
+import com.aws.jverify.EmptyContract;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
@@ -60,24 +61,13 @@ abstract class Base {
         return x;
     }
 
+    @Pure
+    @EmptyContract
     public abstract int computeX(int input);
     
     public int virtualMethod() {
         postcondition((int r) -> r >= 10);
         return 10;
-    }
-
-    @Contract
-    class BaseContract extends Base {
-
-        public BaseContract(int input) {
-            super(input);
-        }
-
-        @Pure
-        public int computeX(int input) {
-            throw new ContractException();
-        }
     }
 }
 
