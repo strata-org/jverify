@@ -3,21 +3,16 @@ package com.aws.jverify.verifier.compiler.simplifications;
 import com.aws.jverify.EmptyContract;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
-import com.aws.jverify.generated.BoundVar;
-import com.aws.jverify.generated.CasePattern;
-import com.aws.jverify.generated.Name;
-import com.aws.jverify.generated.ThisExpr;
-import com.aws.jverify.verifier.compiler.*;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 
 import java.util.ArrayList;
-import java.util.Set;
 
 /*
 Extracts contracts from constructor, method or loop bodies
@@ -64,7 +59,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     public static boolean hasImplementation(JCTree.JCMethodDecl method) {
         return method.body != null && method.body.getStatements().get(1) instanceof JCTree.JCBlock;
     }
-    
+
     public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
             translate(env);

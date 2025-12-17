@@ -1,7 +1,12 @@
 package com.aws.jverify;
 
 import java.util.Optional;
-import java.util.function.*;
+import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class JVerify {
 
@@ -19,6 +24,9 @@ public class JVerify {
     }
 
     public static void precondition(boolean condition) {
+    }
+
+    public static void precondition(BooleanSupplier condition) {
     }
 
     /**
@@ -122,7 +130,11 @@ public class JVerify {
      * Can be used as the argument to a call to 'precondition' to make the precondition abstract
      * A subclass of the current class can implement that abstract clause by redefining it.
      */
-    public static <T> T isAbstract() {
+    public static Object isAbstract() {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean isAbstractBoolean() {
         throw new VerificationMethodExecutedException();
     }
 

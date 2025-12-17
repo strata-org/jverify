@@ -38,8 +38,8 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--print-binary-dafny", description = "Given a filepath, prints the binary Dafny code that is generated from Java")
     private Path printBinaryDafny;
 
-    @Option(names = "--jar", description = "Includes this jar file on the classpath", arity = "0..*")
-    private List<Path> additionalJars;
+    @Option(names = "--classpath", description = "Includes these paths on the classpath", arity = "0..*")
+    private List<String> classpaths;
 
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
@@ -85,8 +85,11 @@ class AppCommand implements Callable<Integer> {
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
         var dafnyPath = getDafnyPath(writer);
-        additionalJars = additionalJars == null ? List.of() : additionalJars;
-        List<Path> jars = Stream.concat(additionalJars.stream(), 
+        List<Path> givenClasspaths = classpaths == null ? List.of() : classpaths.stream()
+                .flatMap(p -> Arrays.stream(p.split(File.pathSeparator)))
+                .map(Path::of)
+                .toList();
+        List<Path> classpathEntries = Stream.concat(givenClasspaths.stream(),
                 Stream.of(jverifyLibraryLocation)).toList();
         
         var testDafnyVersion = customDafny != null;
@@ -95,7 +98,7 @@ class AppCommand implements Callable<Integer> {
         String[] additionalDafnyArguments = { 
                 //"--wait-for-debugger"
         };
-        var verifierOptions = new VerifierOptions(writer, workingDirectory, dafnyPath, jars, 
+        var verifierOptions = new VerifierOptions(writer, workingDirectory, dafnyPath, classpathEntries,
                 tempFile.toPath(), testDafnyVersion,
                 printDafny, printBinaryDafny, showRanges, builtinContracts, 
                 paths, additionalDafnyArguments, verifyByDefault, false, 
@@ -121,7 +124,9 @@ class AppCommand implements Callable<Integer> {
             if (verbose) {
                 output.println("Could not find a file at Dafny path '" + dafnyPath + "'");
             }
-            dafnyPath = Path.of("dafny");
+            var isWindows = System.getProperty("os.name", "").toLowerCase().contains("windows");
+
+            dafnyPath = Path.of(isWindows ? "Dafny.exe" : "dafny");
         }
         return dafnyPath;
     }

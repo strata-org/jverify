@@ -72,6 +72,7 @@ public class IsAbstractCompiler extends TreeScanner {
     private final JVerifyIndex index;
     private final JVerifyUtils utils;
     private final Symbol.MethodSymbol isAbstract;
+    private final Symbol.MethodSymbol isAbstractBoolean;
     private final Names names;
     private final Types types;
     private final Symtab symtab;
@@ -90,6 +91,7 @@ public class IsAbstractCompiler extends TreeScanner {
         index = JVerifyIndex.instance(context);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
         isAbstract = (Symbol.MethodSymbol) utils.findSymbol(JVerify.class, "isAbstract");
+        isAbstractBoolean = (Symbol.MethodSymbol) utils.findSymbol(JVerify.class, "isAbstractBoolean");
         preconditionMethodPrefix = names.fromString("thePreconditionOf$");
     }
     
@@ -111,7 +113,7 @@ public class IsAbstractCompiler extends TreeScanner {
         }
         Symbol calledMethod = TreeInfo.symbol(invocation.getMethodSelect());
         boolean isAbstractCallWasAlreadyReplaced = calledMethod.name.startsWith(preconditionMethodPrefix);
-        return isAbstract == calledMethod || isAbstractCallWasAlreadyReplaced;
+        return isAbstract == calledMethod || isAbstractBoolean == calledMethod || isAbstractCallWasAlreadyReplaced;
     }
 
     @Override

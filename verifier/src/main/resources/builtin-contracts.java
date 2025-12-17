@@ -35,7 +35,7 @@ class NumberContract {
 abstract class FunctionContract<T, R> implements Function<T, R> {
     @Pure
     public R apply(T t) {
-        precondition(isAbstract());
+        precondition(isAbstractBoolean());
         throw new ContractException();
     }
 }
@@ -524,7 +524,7 @@ class BooleanContract {
 class IntFunctionContract<R> implements java.util.function.IntFunction<R> {
     @Pure
     public R apply(int value) {
-        precondition(isAbstract());
+        precondition(isAbstractBoolean());
         throw new ContractException();
     }
 }
@@ -534,7 +534,7 @@ abstract class IntPredicateContract implements IntPredicate {
     
     @Pure
     public boolean test(int value) {
-        precondition(isAbstract());
+        precondition(isAbstractBoolean());
         throw new ContractException();
     }
 }

@@ -98,7 +98,7 @@ public class TestVerifier {
                 main.toString(), a.toString(), b.toString(), c.toString(),
                 "--filter-position=MultiPackageTest.java",
                 "--builtin-contracts=false",
-                "--jar=" + testEngineClassPath,
+                "--classpath=" + testEngineClassPath,
                 "--dafny=" + dafnyPath);
 
         assertTrue(withoutDependenciesOutput.toString().contains("2 errors"), 
@@ -112,7 +112,7 @@ public class TestVerifier {
                 "--filter-position=MultiPackageTest.java",
                 "--include-filter-dependencies",
                 "--builtin-contracts=false",
-                "--jar=" + testEngineClassPath,
+                "--classpath=" + testEngineClassPath,
                 "--dafny=" + dafnyPath);
         assertTrue(withDependenciesOutput.toString().contains("3 errors"));
     }
