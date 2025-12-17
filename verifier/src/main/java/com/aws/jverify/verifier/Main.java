@@ -85,6 +85,7 @@ class AppCommand implements Callable<Integer> {
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
         var dafnyPath = getDafnyPath(writer);
+
         classPaths = classPaths == null ? List.of() : classPaths;
         List<Path> givenClassPaths = classPaths.stream()
                 .flatMap(p -> Arrays.stream(p.split(File.pathSeparator)))
@@ -92,6 +93,7 @@ class AppCommand implements Callable<Integer> {
                 .toList();
         List<Path> classpathEntries = Stream.concat(givenClassPaths.stream(),
                 Stream.of(jverifyLibraryLocation)).toList();
+
         contractPaths = contractPaths == null ? List.of() : contractPaths;
         List<Path> contractPathEntries = this.contractPaths.stream().flatMap(p -> Arrays.stream(p.split(File.pathSeparator)).map(Path::of)).toList();
 

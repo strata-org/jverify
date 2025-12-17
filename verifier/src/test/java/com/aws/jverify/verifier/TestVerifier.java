@@ -99,6 +99,10 @@ public class TestVerifier {
         var exitCode1 = command.execute(
                 main.toString(), a.toString(), b.toString(), c.toString(),
                 "--filter-position=MultiPackageTest.java",
+<<<<<<< HEAD
+=======
+                "--builtin-contracts=false",
+>>>>>>> d8bdf3fdf7fa92fffab58da2a1cd5068ff991a94
                 "--classpath=" + testEngineClassPath,
                 "--dafny=" + dafnyPath);
 
@@ -112,6 +116,10 @@ public class TestVerifier {
                 main.toString(), a.toString(), b.toString(), c.toString(),
                 "--filter-position=MultiPackageTest.java",
                 "--include-filter-dependencies",
+<<<<<<< HEAD
+=======
+                "--builtin-contracts=false",
+>>>>>>> d8bdf3fdf7fa92fffab58da2a1cd5068ff991a94
                 "--classpath=" + testEngineClassPath,
                 "--dafny=" + dafnyPath);
         assertTrue(withDependenciesOutput.toString().contains("3 errors"));
