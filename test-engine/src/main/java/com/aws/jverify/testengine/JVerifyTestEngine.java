@@ -379,6 +379,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
     }
 
+    public static Path getBuiltinContractsSourceDir() {
+        return Path.of("../builtin-contracts/src/main/java").toAbsolutePath();
+    }
+
     public static Path getBuiltinContractsJar() {
         return Path.of("../builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar").toAbsolutePath();
     }

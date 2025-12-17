@@ -52,7 +52,7 @@ public class TestVerifier {
 
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
-                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsJar(),
+                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsSourceDir(),
                 "--track-time",
                 "--dafny=" + dafnyPath);
         String output = out.getBuffer().toString();
@@ -76,7 +76,7 @@ public class TestVerifier {
 
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
-                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsJar(),
+                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsSourceDir(),
                 "--dafny=" + dafnyPath);
         Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
     }
@@ -128,7 +128,7 @@ public class TestVerifier {
 
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java").toString(),
-                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsJar(),
+                "--contract-path=" + JVerifyTestEngine.getBuiltinContractsSourceDir(),
                 "--dafny=" + dafnyPath,
                 "--print-dafny=../build/temp.dfy");
         Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
