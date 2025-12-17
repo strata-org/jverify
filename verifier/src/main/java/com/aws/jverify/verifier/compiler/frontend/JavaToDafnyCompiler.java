@@ -46,7 +46,6 @@ public class JavaToDafnyCompiler {
 
     private final DafnyGenerator dafnyGenerator;
     public Set<JavaFileObject> builtinSources = new HashSet<>();
-    public static final String builtinFile = "/builtin-contracts/src/main/java/com/aws/jverify/builtin/builtin-contracts.java";
     public static final String objectFile = "/object-contract.java";
 
     public JavaToDafnyCompiler(Context context) {
@@ -94,9 +93,10 @@ public class JavaToDafnyCompiler {
                                     try {
                                         // Use the SourceFile constructor overload that uses "string://"
                                         // so that we can use a relative path
-                                        // and simply making portable test files.
-                                        var relativePath = resolvedContractsPath.relativize(path);
-                                        SourceFile source = new SourceFile(relativePath.toString(), Files.readString(path));
+                                        // and simplify making portable test files.
+                                        // Replace \ with / to ensure consistent names on Windows.
+                                        var relativePath = resolvedContractsPath.relativize(path).toString().replace('\\', '/');
+                                        SourceFile source = new SourceFile(relativePath, Files.readString(path));
                                         files.add(source);
                                         builtinSources.add(source);
                                     } catch (IOException e) {
@@ -108,7 +108,6 @@ public class JavaToDafnyCompiler {
                     throw new RuntimeException(e);
                 }
             }
-
         }
 
         Set<JCTree.JCCompilationUnit> loweredJava = parseResolveAndDesugarJava(options, files);

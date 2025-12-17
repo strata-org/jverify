@@ -19,6 +19,12 @@ import java.nio.file.Path;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+/**
+ * Represents an entry at a particular path within a jar file.
+ * Similar to com.sun.tools.javac.file.PathFileObject.JarFileObject,
+ * but that class doesn't override method such as openInputStream() correctly
+ * so we can't use it for this purpose.
+ */
 public class JarFileEntry implements JavaFileObject {
 
     private final Path sourceJar;
@@ -33,6 +39,7 @@ public class JarFileEntry implements JavaFileObject {
 
     @Override @DefinedBy(DefinedBy.Api.COMPILER)
     public String getName() {
+        // (Comment and implementation copied from PathFileObject.JarFileObject)
         // The use of ( ) to delimit the entry name is not ideal
         // but it does match earlier behavior
         return sourceJar + "(" + jarEntry + ")";
@@ -73,7 +80,9 @@ public class JarFileEntry implements JavaFileObject {
 
     @Override
     public InputStream openInputStream() throws IOException {
-        return new JarFile(sourceJar.toFile()).getInputStream(jarEntry);
+        try (var jarFile = new JarFile(sourceJar.toFile())) {
+            return jarFile.getInputStream(jarEntry);
+        }
     }
 
     @Override
