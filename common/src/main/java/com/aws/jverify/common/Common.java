@@ -6,9 +6,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Common {
     public static final String JVERIFY_CLASS = com.aws.jverify.JVerify.class.getName();
@@ -52,5 +56,14 @@ public class Common {
 
     public static String getExtraS(int count) {
         return count != 1 ? "s" : "";
+    }
+
+    public static List<Path> getAllJavaFilesRecursive(Path p) {
+        try (Stream<Path> stream = Files.walk(p)) {
+            return stream.filter(path -> path.toString().endsWith(".java"))
+                         .toList();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

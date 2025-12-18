@@ -1,5 +1,5 @@
-// ^ /aws/jverify/builtin/builtin-contracts.java(600:22-600:51) Related location: this proposition could not be proved
-// ^ /aws/jverify/builtin/builtin-contracts.java(600:55-600:84) Related location: this proposition could not be proved
+// ^ /aws/jverify/builtin/BigIntegerContract.java(19:22-19:51) Related location: this proposition could not be proved
+// ^ /aws/jverify/builtin/BigIntegerContract.java(19:55-19:84) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests.jcl;
 
 import com.aws.jverify.Pure;
