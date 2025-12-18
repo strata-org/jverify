@@ -2,6 +2,7 @@ package com.aws.jverify.verifier.compiler.frontend;
 
 import com.aws.jverify.common.Common;
 import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.JarFileEntry;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.DiagnosticPositionFromDiagnostic;
@@ -29,11 +30,14 @@ import javax.tools.DiagnosticCollector;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaFileObject;
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JavaToDafnyCompiler {
     public final Context context;
@@ -41,8 +45,7 @@ public class JavaToDafnyCompiler {
     private final Enter enter;
 
     private final DafnyGenerator dafnyGenerator;
-    public Set<SourceFile> builtinSources = new HashSet<>();
-    public static final String builtinFile = "/builtin-contracts.java";
+    public Set<JavaFileObject> builtinSources = new HashSet<>();
     public static final String objectFile = "/object-contract.java";
 
     public JavaToDafnyCompiler(Context context) {
@@ -59,14 +62,53 @@ public class JavaToDafnyCompiler {
     }
 
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files) {
-        if (options.includeBuiltinContracts()) {
-            var builtinSource = new SourceFile(builtinFile, Common.getResourceFile(getClass(), builtinFile));
-            files.add(builtinSource);
-            builtinSources.add(builtinSource);
-        }
         var contractSource = new SourceFile(objectFile, Common.getResourceFile(getClass(), objectFile));
         builtinSources.add(contractSource);
         files.add(contractSource);
+
+        for (var contractsPath : options.contractSourcePath()) {
+            var resolvedContractsPath = options.workingDirectory().resolve(contractsPath);
+            if (!Files.exists(resolvedContractsPath)) {
+                throw new IllegalArgumentException("Could not find path: " + resolvedContractsPath);
+            }
+            if (resolvedContractsPath.toString().endsWith(".jar")) {
+                try (var jarFile = new JarFile(resolvedContractsPath.toFile())) {
+                    jarFile.stream()
+                            .filter(jarEntry -> jarEntry.getName().endsWith(".java"))
+                            .map(jarEntry ->
+                                    new JarFileEntry(resolvedContractsPath, jarEntry)
+                            )
+                            .forEach(source -> {
+                                files.add(source);
+                                builtinSources.add(source);
+                            });
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                try {
+                    try (Stream<Path> stream = Files.walk(resolvedContractsPath)) {
+                        stream.filter(path -> path.toString().endsWith(".java"))
+                                .forEach(path -> {
+                                    try {
+                                        // Use the SourceFile constructor overload that uses "string://"
+                                        // so that we can use a relative path
+                                        // and simplify making portable test files.
+                                        // Replace \ with / to ensure consistent names on Windows.
+                                        var relativePath = resolvedContractsPath.relativize(path).toString().replace('\\', '/');
+                                        SourceFile source = new SourceFile(relativePath, Files.readString(path));
+                                        files.add(source);
+                                        builtinSources.add(source);
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                });
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
 
         Set<JCTree.JCCompilationUnit> loweredJava = parseResolveAndDesugarJava(options, files);
         if (loweredJava == null) {

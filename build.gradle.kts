@@ -349,6 +349,18 @@ project(":verifier") {
     }
 }
 
+project(":builtin-contracts") {
+    apply(plugin = "java-library")
+
+    dependencies {
+        implementation(project(":library"))
+    }
+
+    java {
+        withSourcesJar()
+    }
+}
+
 project(":test-engine") {
     apply(plugin = "java-library")
 

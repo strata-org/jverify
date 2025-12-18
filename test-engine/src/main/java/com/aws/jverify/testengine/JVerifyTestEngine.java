@@ -349,6 +349,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
+        var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
@@ -361,7 +362,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 Path.of("../build/temp.dfy"),
                 Path.of("../build/temp.dbin"),
                 true,
-                annotation.useBuiltinContracts(),
+                annotation.useBuiltinContracts() ? List.of(builtinContracts) : List.of(),
                 true,
                 new String[] {
                         "--use-basename-for-filename",
@@ -376,6 +377,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     public static Path getDafnyInSubmodulePath() {
         return Path.of("../dafny").toAbsolutePath()
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
+    }
+
+    public static Path getBuiltinContractsSourceDir() {
+        return Path.of("../builtin-contracts/src/main/java").toAbsolutePath();
     }
 
     /**

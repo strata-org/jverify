@@ -39,7 +39,10 @@ class AppCommand implements Callable<Integer> {
     private Path printBinaryDafny;
 
     @Option(names = "--classpath", description = "Includes these paths on the classpath", arity = "0..*")
-    private List<String> classpaths;
+    private List<String> classPaths;
+
+    @Option(names = "--contract-path", description = "Includes contracts from source code in these paths", arity = "0..*")
+    private List<String> contractPaths;
 
     @Option(names = "--print-dafny", description = "Given a filepath, prints the Dafny code that is generated from Java")
     private Path printDafny;
@@ -62,9 +65,6 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
 
-    @Option(names = "--builtin-contracts", description = "Whether to include built-in contracts for the Java standard library", defaultValue = "true")
-    private boolean builtinContracts;
-
     @Option(names = "--verbose", description = "")
     private boolean verbose;
     
@@ -85,13 +85,18 @@ class AppCommand implements Callable<Integer> {
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
         var dafnyPath = getDafnyPath(writer);
-        List<Path> givenClasspaths = classpaths == null ? List.of() : classpaths.stream()
+
+        classPaths = classPaths == null ? List.of() : classPaths;
+        List<Path> givenClassPaths = classPaths.stream()
                 .flatMap(p -> Arrays.stream(p.split(File.pathSeparator)))
                 .map(Path::of)
                 .toList();
-        List<Path> classpathEntries = Stream.concat(givenClasspaths.stream(),
+        List<Path> classpathEntries = Stream.concat(givenClassPaths.stream(),
                 Stream.of(jverifyLibraryLocation)).toList();
-        
+
+        contractPaths = contractPaths == null ? List.of() : contractPaths;
+        List<Path> contractPathEntries = this.contractPaths.stream().flatMap(p -> Arrays.stream(p.split(File.pathSeparator)).map(Path::of)).toList();
+
         var testDafnyVersion = customDafny != null;
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var positionFilter = PositionFilter.getPositionFilter(includeFilterDependencies, filterPositionString);
@@ -100,7 +105,7 @@ class AppCommand implements Callable<Integer> {
         };
         var verifierOptions = new VerifierOptions(writer, workingDirectory, dafnyPath, classpathEntries,
                 tempFile.toPath(), testDafnyVersion,
-                printDafny, printBinaryDafny, showRanges, builtinContracts, 
+                printDafny, printBinaryDafny, showRanges, contractPathEntries,
                 paths, additionalDafnyArguments, verifyByDefault, false, 
                 positionFilter, verbose, trackTime);
         

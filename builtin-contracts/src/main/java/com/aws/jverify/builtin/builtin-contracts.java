@@ -18,7 +18,6 @@ import java.util.function.BinaryOperator;
 import java.util.function.IntPredicate;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
-import java.util.stream.Collector;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
