@@ -67,7 +67,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         reporter.compilationUnit = tree;
         processVerifyAnnotation(tree.packge);
-        if (!javaToDafnyCompiler.isBuiltin(reporter.compilationUnit)) {
+        if (!javaToDafnyCompiler.isContractSource(reporter.compilationUnit)) {
             var sourceUri = getUri();
             if (!sourceFileToMethodIntervalTreeMap.containsKey(sourceUri)) {
                 sourceFileToMethodIntervalTreeMap.put(sourceUri, new IntervalTree<>());

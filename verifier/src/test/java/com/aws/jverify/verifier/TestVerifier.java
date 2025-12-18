@@ -14,6 +14,7 @@ import java.io.*;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.aws.jverify.testengine.JVerifyTestEngine.testMarkedSource;
@@ -159,10 +160,14 @@ public class TestVerifier {
         command.setOut(new PrintWriter(out));
         command.setErr(new PrintWriter(out));
 
-        var exitCode = command.execute(
-                Path.of("../builtin-contracts/src/main/java/com/aws/jverify/builtin/builtin-contracts.java").toString(),
-                "--dafny=" + dafnyPath,
-                "--print-dafny=../build/temp.dfy");
+        var allSourceFiles = Common.getAllJavaFilesRecursive(JVerifyTestEngine.getBuiltinContractsSourceDir())
+                                   .stream()
+                                   .map(Path::toString)
+                                   .toList();
+        var args = new ArrayList<String>(allSourceFiles);
+        args.add("--dafny=" + dafnyPath);
+        args.add("--print-dafny=../build/temp.dfy");
+        var exitCode = command.execute(args.toArray(new String[0]));
         Assertions.assertEquals(0, exitCode, out.toString());
     }
     

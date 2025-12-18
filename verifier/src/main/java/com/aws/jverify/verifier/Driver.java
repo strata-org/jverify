@@ -22,14 +22,11 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import static java.util.regex.Pattern.matches;
 
 public class Driver {
 
@@ -133,7 +130,7 @@ public class Driver {
                     continue;
                 }
 
-                if (context.get(JavaToDafnyCompiler.class).isBuiltin(relativeUri)) {
+                if (context.get(JavaToDafnyCompiler.class).isContractSource(relativeUri)) {
                     continue;
                 }
 

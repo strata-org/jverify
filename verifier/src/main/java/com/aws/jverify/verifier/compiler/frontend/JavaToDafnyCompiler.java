@@ -45,7 +45,7 @@ public class JavaToDafnyCompiler {
     private final Enter enter;
 
     private final DafnyGenerator dafnyGenerator;
-    public Set<JavaFileObject> builtinSources = new HashSet<>();
+    public Set<JavaFileObject> contractSources = new HashSet<>();
     public static final String objectFile = "/object-contract.java";
 
     public JavaToDafnyCompiler(Context context) {
@@ -63,7 +63,7 @@ public class JavaToDafnyCompiler {
 
     public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files) {
         var contractSource = new SourceFile(objectFile, Common.getResourceFile(getClass(), objectFile));
-        builtinSources.add(contractSource);
+        contractSources.add(contractSource);
         files.add(contractSource);
 
         for (var contractsPath : options.contractSourcePath()) {
@@ -80,7 +80,7 @@ public class JavaToDafnyCompiler {
                             )
                             .forEach(source -> {
                                 files.add(source);
-                                builtinSources.add(source);
+                                contractSources.add(source);
                             });
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -98,7 +98,7 @@ public class JavaToDafnyCompiler {
                                         var relativePath = resolvedContractsPath.relativize(path).toString().replace('\\', '/');
                                         SourceFile source = new SourceFile(relativePath, Files.readString(path));
                                         files.add(source);
-                                        builtinSources.add(source);
+                                        contractSources.add(source);
                                     } catch (IOException e) {
                                         throw new RuntimeException(e);
                                     }
@@ -116,17 +116,17 @@ public class JavaToDafnyCompiler {
         }
 
         var parsed = new ArrayList<>(loweredJava);
-        var libraries = parsed.stream().filter(u -> builtinSources.contains(u.getSourceFile())).collect(Collectors.toSet());
+        var libraries = parsed.stream().filter(u -> contractSources.contains(u.getSourceFile())).collect(Collectors.toSet());
 
         return dafnyGenerator.generateDafny(parsed, libraries);
     }
 
-    public boolean isBuiltin(JCTree.JCCompilationUnit compilationUnit) {
-        return builtinSources.contains(compilationUnit.getSourceFile());
+    public boolean isContractSource(JCTree.JCCompilationUnit compilationUnit) {
+        return contractSources.contains(compilationUnit.getSourceFile());
     }
 
-    public boolean isBuiltin(URI sourceURI) {
-        return builtinSources.stream()
+    public boolean isContractSource(URI sourceURI) {
+        return contractSources.stream()
                 .anyMatch( file -> file.toUri().equals(sourceURI));
     }
 
