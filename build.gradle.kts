@@ -63,6 +63,12 @@ project(":library") {
     }
 }
 
+project(":library-for-testing") {
+    dependencies {
+        testImplementation(project(":library"))
+    }
+}
+
 project(":examples") {
     dependencies {
         testImplementation(project(":library"))
@@ -73,6 +79,10 @@ project(":examples") {
 
         // https://mvnrepository.com/artifact/net.jqwik/jqwik-api
         testImplementation("net.jqwik:jqwik-api:1.9.2")
+        
+        implementation("com.fasterxml.jackson.core:jackson-core:2.16.1")
+        implementation("com.fasterxml.jackson.core:jackson-databind:2.16.1")
+        implementation("com.fasterxml.jackson.core:jackson-annotations:2.16.1")
     }
 
     tasks.test {
@@ -276,6 +286,9 @@ project(":verifier") {
     }
 
     dependencies {
+        implementation("net.bytebuddy:byte-buddy:1.14.18")
+        implementation("net.bytebuddy:byte-buddy-agent:1.14.18")
+        
         implementation(project(":common"))
         implementation(project(":library"))
 
@@ -288,6 +301,7 @@ project(":verifier") {
         testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
+        testImplementation(project(":library-for-testing"))
         testImplementation("org.hamcrest:hamcrest:2.2")
         testImplementation("org.hamcrest:hamcrest-library:2.2")
 
@@ -335,12 +349,25 @@ project(":verifier") {
     }
 }
 
+project(":builtin-contracts") {
+    apply(plugin = "java-library")
+
+    dependencies {
+        implementation(project(":library"))
+    }
+
+    java {
+        withSourcesJar()
+    }
+}
+
 project(":test-engine") {
     apply(plugin = "java-library")
 
     dependencies {
         implementation(project(":common"))
         implementation(project(":verifier"))
+        implementation(project(":library-for-testing"))
 
         implementation("org.junit.jupiter:junit-jupiter")
         // Must be transitive in order to export our engine, which subclasses HierarchicalTestEngine

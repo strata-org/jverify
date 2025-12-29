@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.generated.Token;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.util.Position;
@@ -23,6 +24,10 @@ public class PositionCalculator {
     }
 
     private int getMethodNamePosition(JCTree.JCMethodDecl methodDecl) {
+        if (JVerifyUtils.isSynthetic(methodDecl.mods.flags)) {
+            return methodDecl.pos;
+        }
+        
         CharSequence source;
         try {
             source = compilationUnit.getSourceFile().getCharContent(true);
@@ -117,7 +122,7 @@ public class PositionCalculator {
                 }
 
                 // Verify we've found the correct position by checking if the text matches the class name
-                String className = classDecl.name.toString();
+                String className = classDecl.sym.name.toString();
                 if (sourceText.regionMatches(nameStart, className, 0, className.length())) {
                     return nameStart;
                 }

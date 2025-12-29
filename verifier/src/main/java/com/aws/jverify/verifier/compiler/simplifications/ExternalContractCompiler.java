@@ -1,153 +1,367 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Contract;
-import com.aws.jverify.verifier.compiler.BlockCompiler;
-import com.aws.jverify.verifier.compiler.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.MethodOrLoopContract;
-import com.aws.jverify.verifier.compiler.OverrideFinder;
-import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Types;
+import com.aws.jverify.ContractException;
+import com.aws.jverify.Erased;
+import com.aws.jverify.Impure;
+import com.aws.jverify.verifier.compiler.Reporter;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
+import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.AttrContext;
+import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeScanner;
+import com.sun.tools.javac.tree.TreeTranslator;
+import com.sun.tools.javac.util.*;
+import com.sun.tools.javac.util.List;
 
+import javax.lang.model.element.ElementKind;
 import java.util.*;
-import java.util.stream.StreamSupport;
 
-import static com.aws.jverify.verifier.compiler.JavaToDafnyCompiler.isConstructor;
-import static com.sun.tools.javac.tree.JCTree.Tag.*;
-import static com.sun.tools.javac.tree.JCTree.Tag.MODULEIMPORT;
-
+/**
+ * Handles @Contract annotations, so that further passes can be agnostic to them.
+ * Some remnants of the @Contract classes remain
+ * <p>
+ * For library contracts, the @Contract annotation is moved to the contractee symbol,
+ * so that the immutable field can be found.
+ * <p>
+ * Also, while the header of the contract class is assigned the symbol of the contractee
+ * The tree node itself is left unmodified since doing so was not necessary, and this might make debugging easier.
+ * <p>
+ * For source contracts, the contract definitions are moved to the contractee class,
+ * and the contract class is deleted.
+ * <p>
+ * Depends on @Verify still being supported
+ * Depends on method bodies being in contract/implementation format
+ */
 public class ExternalContractCompiler {
-    final JavaToDafnyCompiler compiler;
-    public final Map<Symbol.ClassSymbol, List<JCTree.JCClassDecl>> declarationsForSymbolContract = new HashMap<>();
-    public final Map<Symbol.ClassSymbol, ExternalTypeContract> externalContracts = new HashMap<>();
-    public Map<com.sun.tools.javac.code.Type, com.sun.tools.javac.code.Type> contractClassTypeToContracteeType = new HashMap<>();
-    public LinkedHashMap<Symbol.ClassSymbol, Symbol.ClassSymbol> contractClassToContractee = new LinkedHashMap<>();
+    private final Names names;
+    private final JVerifyIndex index;
+    private final Enter enter;
+    private final Types types;
+    private final JVerifyUtils jverifyUtils;
+    private final Reporter reporter;
+    private final Set<Symbol.ClassSymbol> symbolsWithContracts = new HashSet<>();
+    private final Map<Symbol, Symbol> contractSymbolToContractee = new HashMap<>();
+    private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
 
-    public ExternalContractCompiler(JavaToDafnyCompiler compiler) {
-        this.compiler = compiler;
+    public ExternalContractCompiler(Context context) {
+        this.names = Names.instance(context);
+        this.enter = Enter.instance(context);
+        this.types = Types.instance(context);
+        this.jverifyUtils = JVerifyUtils.instance(context);
+        this.index = JVerifyIndex.instance(context);
+        this.reporter = Reporter.instance(context);
+        this.methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
     }
-    
-    public record ExternalTypeContract(
-            Map<Symbol.MethodSymbol, MethodOrLoopContract> methodContracts,
-            List<JCTree.JCVariableDecl> ghostFields) { }
-    
-    public void discoverTypesAndContractClasses(JCTree.JCCompilationUnit compilationUnit,
-                                                Map<Symbol.ClassSymbol, JCTree.JCCompilationUnit> foundClasses) {
-        compiler.compilationUnit = compilationUnit;
 
-        var typesToVisit = new LinkedList<>(getTypeDecls(compilationUnit.defs));
-        while(!typesToVisit.isEmpty()) {
-            var typeDecl = typesToVisit.poll();
-            if (!(typeDecl instanceof JCTree.JCClassDecl classDecl)) {
-                continue;
-            }
+    public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> compilationUnits) {
+        for(var unit : compilationUnits) {
+            var moveSourceContracts = new FindAndMoveContracts();
+            moveSourceContracts.visitTopLevel(unit);
+        }
+        var refUpdater = new ReferenceUpdater();
+        for(var unit : compilationUnits) {
+            refUpdater.visitTopLevel(unit);
+        }
+        return compilationUnits;
+    }
 
-            var classAnnotationsByName = JavaToDafnyCompiler.getAnnotationsByName(classDecl.getModifiers());
+    class FindAndMoveContracts extends TreeScanner {
+
+        Set<JCTree.JCClassDecl> classesToRemove = new HashSet<>();
+
+        private Env<AttrContext> topLevelEnv;
+
+        @Override
+        public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+            topLevelEnv = enter.getTopLevelEnv(tree);
+            reporter.compilationUnit = tree;
+            super.visitTopLevel(tree);
+            tree.defs = tree.defs.stream().
+                    filter(d -> d != null && !classesToRemove.contains(d)).collect(List.collector());
+        }
+
+        @Override
+        public void visitClassDef(JCTree.JCClassDecl classDecl) {
+            var classAnnotationsByName = JVerifyUtils.getAnnotationsByName(classDecl.getModifiers());
             var contractAnnotation = classAnnotationsByName.get(Contract.class.getName());
+            if (contractAnnotation != null) {
+                var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
+                if (contracteeSymbol == null) {
+                    reporter.reportError(classDecl, "noContractTarget", classDecl.name.toString());
+                    classesToRemove.add(classDecl);
+                    return;
+                }
 
+                if (!symbolsWithContracts.add(contracteeSymbol)) {
+                    reporter.reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
+                    return;
+                }
+
+                com.sun.tools.javac.util.List<Symbol.TypeVariableSymbol> typeParameters = contracteeSymbol.getTypeParameters();
+                if (typeParameters.size() != classDecl.sym.getTypeParameters().size()) {
+                    reporter.reportError(classDecl, "contractDifferentTypeParameters", classDecl.name.toString(), contracteeSymbol.name.toString());
+                    return;
+                }
+
+                for (int i = 0; i < typeParameters.size(); i++) {
+                    var originalTypeParameter = typeParameters.get(i);
+                    var contractTypeParameter = classDecl.sym.getTypeParameters().get(i);
+                    if (!originalTypeParameter.name.contentEquals(contractTypeParameter.name)) {
+                        reporter.reportError(classDecl, "contractDifferentTypeParameters", classDecl.name.toString(), contracteeSymbol.name.toString());
+                        return;
+                    }
+                }
+                contractSymbolToContractee.put(classDecl.sym, contracteeSymbol);
+
+                var contracteeSource = (JCTree.JCClassDecl)index.getTree(contracteeSymbol);
+                if (contracteeSource == null) {
+                    handleLibraryContract(classDecl, contracteeSymbol);
+                } else {
+                    if (JVerifyUtils.typeHasSource(index, contracteeSymbol) && !JVerifyUtils.isInterfaceOrAbstract(contracteeSymbol)) {
+                        reporter.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
+                        classesToRemove.add(classDecl);
+                        return;
+                    }
+                    handleSourceContract(classDecl, classAnnotationsByName, contracteeSource, contracteeSymbol);
+                }
+            }
+
+            super.visitClassDef(classDecl);
+            classDecl.defs = classDecl.defs.stream().
+                    filter(d -> d != null && !classesToRemove.contains(d)).collect(List.collector());
+        }
+
+        private void handleSourceContract(JCTree.JCClassDecl classDecl,
+                                          Map<String, JCTree.JCAnnotation> classAnnotationsByName,
+                                          JCTree.JCClassDecl contracteeSource,
+                                          Symbol.ClassSymbol contracteeSymbol) {
+            var modifiableAnnotation = classAnnotationsByName.get(Impure.class.getName());
+            if (modifiableAnnotation != null) {
+                reporter.reportError(modifiableAnnotation, "annotationOnSourceContractClass",
+                        Impure.class.getSimpleName(), classDecl.name.toString());
+            }
+
+            var contractAnnotation = classDecl.sym.getAnnotation(Contract.class);
+            if (contractAnnotation != null && contractAnnotation.pure()) {
+                reporter.reportError(classDecl, "pureInternalContract");
+            }
+
+            classesToRemove.add(classDecl);
             for(var member : classDecl.getMembers()) {
-                if (member instanceof JCTree.JCClassDecl nestedClass) {
-                    typesToVisit.push(nestedClass);
+                if (member instanceof JCTree.JCVariableDecl field) {
+                    contracteeSource.defs = contracteeSource.defs.append(field);
+                    contracteeSource.sym.members().enter(field.sym);
+                } else if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                    var methodSymbol = methodDecl.sym;
+                    if (methodSymbol.isConstructor()) {
+                        // source contract constructor are only to please the Java compiler.
+                        continue;
+                    }
+
+                    // TODO can the next line be removed?
+                    if (JVerifyUtils.isSynthetic(index, methodDecl, methodSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+                        continue;
+                    }
+
+                    var contracteeMethod = findContractee(contracteeSymbol, methodSymbol, types);
+                    if (contracteeMethod != null) {
+                        var baseSource = (JCTree.JCMethodDecl)index.getTree(contracteeMethod);
+                        if (baseSource.getBody() != null) {
+                            reporter.reportError(methodDecl, "internalAndExternalContractForMethod", methodSymbol.name.toString());
+                        } else {
+                            contractSymbolToContractee.put(methodSymbol, contracteeMethod);
+                            handleImplementation(methodDecl, methodSymbol);
+                            baseSource.body = methodDecl.body;
+                            baseSource.mods.annotations = methodDecl.mods.annotations.append(jverifyUtils.getVerifyFalseAnnotation());
+                            jverifyUtils.addVerifyFalseToMethodSymbol(methodSymbol, contracteeMethod);
+                        }
+                    } else {
+                        reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                    }
                 }
             }
-            if (contractAnnotation == null) {
-                var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(classDecl.sym, (_) -> new ArrayList<>());
-                declsForSymbol.add(classDecl);
-                foundClasses.put(classDecl.sym, compilationUnit);
-                continue;
-            }
-
-            var contracteeSymbol = getContractTarget(classDecl, contractAnnotation);
-            if (contracteeSymbol == null) {
-                compiler.reportError(classDecl, "noContractTarget", classDecl.name.toString());
-                continue;
-            }
-
-            var declsForSymbol = declarationsForSymbolContract.computeIfAbsent(contracteeSymbol, (_) -> new ArrayList<>());
-            declsForSymbol.add(classDecl);
-
-            foundClasses.put(contracteeSymbol, compilationUnit);
-            if (compiler.typeHasSource(contracteeSymbol) && !JavaToDafnyCompiler.isInterfaceOrAbstract(contracteeSymbol)) {
-                compiler.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
-                continue;
-            }
-
-            this.contractClassToContractee.put(classDecl.sym, contracteeSymbol);
-            this.contractClassTypeToContracteeType.put(classDecl.sym.type, contracteeSymbol.type);
         }
-    }
 
-    private com.sun.tools.javac.util.List<JCTree> getTypeDecls(com.sun.tools.javac.util.List<JCTree> defs) {
-        com.sun.tools.javac.util.List<JCTree> typeDefs;
-        for (typeDefs = defs; !typeDefs.isEmpty(); typeDefs = typeDefs.tail) {
-            if (!typeDefs.head.hasTag(MODULEDEF)
-                    && !typeDefs.head.hasTag(PACKAGEDEF)
-                    && !typeDefs.head.hasTag(IMPORT)
-                    && !typeDefs.head.hasTag(MODULEIMPORT)) {
-                break;
+        private void handleLibraryContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
+            classDecl.type.tsym = contracteeSymbol;
+
+            var newMembers =  new ArrayList<JCTree>();
+            for(var member : classDecl.getMembers()) {
+                if (member instanceof JCTree.JCMethodDecl methodDecl) {
+                    handleLibraryContractMethod(classDecl, contracteeSymbol, methodDecl, newMembers);
+                } else if (member instanceof JCTree.JCVariableDecl field) {
+                    handleLibraryContractField(contracteeSymbol, member, field, newMembers);
+                } else {
+                    newMembers.add(member);
+                }
             }
+            classDecl.defs = List.from(newMembers);
+
+            var oldSymbol = classDecl.sym;
+            oldSymbol.name = contracteeSymbol.name;
+            // If we don't change the name here, it is still changed in Lower.java
+            classDecl.name = oldSymbol.name;
+            classDecl.sym = contracteeSymbol;
+            classDecl.type = contracteeSymbol.type;
+
+            moveContractAnnotation(contracteeSymbol, oldSymbol);
+
+            index.put(classDecl.sym, enter.classEnv(classDecl, topLevelEnv));
         }
-        return typeDefs;
-    }
 
-    public void registerExternalContracts() {
-        for(var entry : contractClassToContractee.entrySet()) {
-            var externalContractDecl = (JCTree.JCClassDecl) JVerifyIndex.instance(compiler.context).getTree(entry.getKey());
-
-            JVerifyIndex index = JVerifyIndex.instance(compiler.context);
-            Env<AttrContext> env = index.getEnv(externalContractDecl.sym);
-            if (env != null) {
-                compiler.compilationUnit = env.toplevel;
+        private void handleLibraryContractField(Symbol.ClassSymbol contracteeSymbol, JCTree member, JCTree.JCVariableDecl field, ArrayList<JCTree> newMembers) {
+            var baseField = contracteeSymbol.members().getSymbolsByName(field.name, s -> s.getKind() == ElementKind.FIELD).iterator();
+            if (baseField.hasNext()) {
+                Symbol.VarSymbol contractedFieldSymbol = (Symbol.VarSymbol) baseField.next();
+                contractSymbolToContractee.put(field.sym, contractedFieldSymbol);
+                field.sym = contractedFieldSymbol;
             }
-            Symbol.ClassSymbol contractee = entry.getValue();
-            var externalContract = getExternalTypeContract(externalContractDecl, contractee);
-            if (externalContracts.containsKey(contractee)) {
-                var annotations = JavaToDafnyCompiler.getAnnotationsByName(externalContractDecl.getModifiers());
-                var contractAnnotation = annotations.get(Contract.class.getName());
-                compiler.reportError(contractAnnotation, "duplicateContract", contractee.name);
-                continue;
-            }
-            this.externalContracts.put(contractee, externalContract);
+            newMembers.add(member);
         }
-    }
 
-    private ExternalTypeContract getExternalTypeContract(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol) {
-        Map<Symbol.MethodSymbol, MethodOrLoopContract> externalContracts = new HashMap<>();
-        List<JCTree.JCVariableDecl> ghostFields = new ArrayList<>();
-        for(var member : classDecl.getMembers()) {
+        /**
+         * Moves the contract attribute, including its immutable part.
+         */
+        private static void moveContractAnnotation(Symbol.ClassSymbol contracteeSymbol, Symbol.ClassSymbol oldSymbol) {
+            contracteeSymbol.clearAnnotationMetadata();
+            ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
+            newAnnotations.addAll(contracteeSymbol.getAnnotationMirrors());
+            newAnnotations.addAll(oldSymbol.getAnnotationMirrors());
+            contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
+        }
 
-            if (member instanceof JCTree.JCVariableDecl field) {
-                ghostFields.add(field);
+        private void handleLibraryContractMethod(JCTree.JCClassDecl classDecl, Symbol.ClassSymbol contracteeSymbol, JCTree.JCMethodDecl methodDecl, ArrayList<JCTree> newMembers) {
+            var contracterSymbol = methodDecl.sym;
+
+            if (JVerifyUtils.isSynthetic(index, methodDecl, contracterSymbol) || (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0) {
+                return;
             }
-            
-            if (!(member instanceof JCTree.JCMethodDecl methodDecl)) {
-                continue;
-            }
 
-            var methodSymbol = methodDecl.sym;
-            var baseMethod = OverrideFinder.findOverriddenMethod(methodSymbol, Types.instance(compiler.context));
+            var baseMethod = findContractee(contracteeSymbol, contracterSymbol, types);
             if (baseMethod != null) {
-                var header = new BlockCompiler(compiler, methodSymbol).extractContract(methodDecl, true);
-                externalContracts.put(baseMethod, header);
-                compiler.lambdaCompiler.methodContracts.put(baseMethod, header);
-            } else if (!compiler.isSynthetic(methodDecl, methodSymbol)) {
-                // Check currently does not take into account overloading
-                // But this only makes it not detect some unused methods.
-                var contractee = StreamSupport.stream(contracteeSymbol.members().getSymbolsByName(methodSymbol.name).spliterator(), false).toList();
-                if (contractee.isEmpty()) {
-                    compiler.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
+                if (baseMethod.owner == contracteeSymbol) {
+                    // We're adding a contract to an existing method.
+                    updateLibraryContractAnnotations(methodDecl, baseMethod);
+                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
+                    contractSymbolToContractee.put(methodDecl.sym, baseMethod);
+                    methodDecl.sym = baseMethod;
+                } else {
+                    // We are adding an override through the contract class, and this needs its own symbol
+                    var newSymbol = new Symbol.MethodSymbol(baseMethod.flags(), baseMethod.name, baseMethod.type, contracteeSymbol);
+                    updateLibraryContractAnnotations(methodDecl, newSymbol);
+                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
+                    contractSymbolToContractee.put(methodDecl.sym, newSymbol);
+                    methodDecl.sym = newSymbol;
+                }
+                newMembers.add(methodDecl);
+            } else {
+                var isErased = methodDecl.sym.getAnnotation(Erased.class) != null;
+                if (isErased) {
+                    if (contracteeSymbol.isInterface() && methodDecl.sym.isConstructor()) {
+                        return;
+                    }
+                    // We added a method through the contract class
+                    var newSymbol = new Symbol.MethodSymbol(methodDecl.sym.flags(), methodDecl.sym.name, methodDecl.sym.type, contracteeSymbol);
+                    updateLibraryContractAnnotations(methodDecl, newSymbol);
+                    index.put(methodDecl.sym, enter.classEnv(classDecl, enter.getTopLevelEnv(reporter.compilationUnit)));
+                    contractSymbolToContractee.put(methodDecl.sym, newSymbol);
+                    methodDecl.sym = newSymbol;
+                    newMembers.add(methodDecl);
+                } else {
+                    reporter.reportError(methodDecl, "unusedContractMethod", methodToString(methodDecl));
                 }
             }
         }
-        return new ExternalTypeContract(externalContracts, ghostFields);
+
+        private void updateLibraryContractAnnotations(JCTree.JCMethodDecl contracter,
+                                                      Symbol.MethodSymbol contracteeSymbol) {
+            var contracterSymbol = contracter.sym;
+            ListBuffer<Attribute.Compound> newAnnotations = new ListBuffer<>();
+            handleImplementation(contracter, contracterSymbol);
+            newAnnotations.addAll(contracterSymbol.getAnnotationMirrors());
+            contracteeSymbol.resetAnnotations();
+            contracteeSymbol.setDeclarationAttributes(newAnnotations.toList());
+
+            com.sun.tools.javac.util.List<Symbol.VarSymbol> parameters = contracteeSymbol.getParameters();
+            for (int i = 0; i < parameters.size(); i++) {
+                var parameter = parameters.get(i);
+                var parameterType = parameter.type;
+                var contracterParameter = contracterSymbol.getParameters().get(i).type;
+                var newParameterAnnotations = new ListBuffer<Attribute.TypeCompound>();
+                newParameterAnnotations.addAll(parameterType.getAnnotationMirrors());
+                newParameterAnnotations.addAll(contracterParameter.getAnnotationMirrors());
+                parameter.type = parameterType.annotatedType(newParameterAnnotations.toList());
+            }
+        }
+
+        private void handleImplementation(JCTree.JCMethodDecl contracter, Symbol.MethodSymbol contracterSymbol) {
+            var implementation = MethodOrLoopContractCompiler.getImplementationBlock(contracter.body);
+            if (implementation != null && !implementation.stats.isEmpty()) {
+                var isContractThrow = isContractThrow(implementation);
+                if (isContractThrow) {
+                    methodOrLoopContractCompiler.removeImplementation(contracter);
+                } else {
+                    if (jverifyUtils.isPure(contracterSymbol)) {
+                        return;
+                    }
+                    if (!isSuperOrThisCall(implementation)) {
+                        reporter.reportError(contracter, "impureContractMethodWithBody");
+                    }
+                    methodOrLoopContractCompiler.removeImplementation(contracter);
+                }
+            }
+        }
+
+        private boolean isSuperOrThisCall(JCTree.JCBlock implementation) {
+            if (implementation.stats.size() == 1) {
+                var statement = implementation.stats.getFirst();
+                return statement instanceof JCTree.JCExpressionStatement expressionStatement &&
+                        expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation &&
+                        invocation.meth instanceof JCTree.JCIdent ident &&
+                        (ident.name == names._this || ident.name == names._super);
+            }
+            return false;
+        }
+        
+        private static boolean isContractThrow(JCTree.JCBlock implementation) {
+            if (implementation.stats.size() == 1) {
+                var statement = implementation.stats.getFirst();
+                return statement instanceof JCTree.JCThrow throwStatement &&
+                        throwStatement.expr.type.tsym.getQualifiedName().
+                                contentEquals(ContractException.class.getCanonicalName());
+            }
+            return false;
+        }
+
+        public Symbol.ClassSymbol getContractTarget(JCTree.JCClassDecl classDecl,
+                                                    JCTree.JCAnnotation contractAnnotation) {
+            if (contractAnnotation == null) {
+                return null;
+            }
+
+            var arguments = JVerifyUtils.getArguments(contractAnnotation);
+            var symbol = JVerifyUtils.getClassSymbol(names,  arguments.get("value"));
+            if (symbol == null || symbol.getQualifiedName().contentEquals("com.aws.jverify.Contract")) {
+                var superClass = classDecl.sym.getSuperclass();
+                if (classDecl.extending != null && superClass != null) {
+                    return (Symbol.ClassSymbol) superClass.tsym;
+                }
+                var interfaces = classDecl.sym.getInterfaces();
+                if (interfaces.isEmpty()) {
+                    return null;
+                }
+                return (Symbol.ClassSymbol) interfaces.getFirst().tsym;
+            }
+            return symbol;
+        }
     }
 
     private String methodToString(JCTree tree) {
         if (tree instanceof JCTree.JCMethodDecl methodDecl){
-            if (isConstructor(methodDecl.sym)) {
+            if (JVerifyUtils.isConstructor(methodDecl.sym)) {
                 return "constructor";
             } else {
                 return "method '" + methodDecl.name + "'";
@@ -156,26 +370,108 @@ public class ExternalContractCompiler {
             return "lambda";
         }
     }
+
+    class ReferenceUpdater extends TreeTranslator {
+        
+        @Override
+        public void visitClassDef(JCTree.JCClassDecl tree) {
+            updateOwner(tree.sym);
+            super.visitClassDef(tree);
+        }
+
+        @Override
+        public void visitIdent(JCTree.JCIdent tree) {
+            updateOwner(tree.sym);
+            var updatedSymbol = contractSymbolToContractee.get(tree.sym);
+            if (updatedSymbol != null) {
+                tree.sym = updatedSymbol;
+                tree.name = tree.sym.name;
+            }
+            super.visitIdent(tree);
+        }
+
+        @Override
+        public void visitSelect(JCTree.JCFieldAccess tree) {
+            updateOwner(tree.sym);
+            var updatedSymbol = contractSymbolToContractee.get(tree.sym);
+            if (updatedSymbol != null) {
+                tree.sym = updatedSymbol;
+                tree.name = tree.sym.name;
+            }
+            super.visitSelect(tree);
+        }
+
+        @Override
+        public void visitVarDef(JCTree.JCVariableDecl tree) {
+            updateOwner(tree.sym);
+            if (tree.type != null) {
+                var updatedSymbol = (Symbol.ClassSymbol)contractSymbolToContractee.get(tree.type.tsym);
+                if (updatedSymbol != null) {
+                    tree.type.tsym = updatedSymbol;
+                }
+            }
+            super.visitVarDef(tree);
+        }
+
+        void updateOwner(Symbol symbol) {
+            if (symbol == null) {
+                return;
+            }
+
+            var updatedSymbol = contractSymbolToContractee.get(symbol.owner);
+            if (updatedSymbol != null) {
+                symbol.owner = updatedSymbol;
+            }
+        }
+
+        @Override
+        public void visitMethodDef(JCTree.JCMethodDecl tree) {
+            updateOwner(tree.sym);
+            if (tree.type != null) {
+                new UpdateTypes().visit(tree.type, null);
+            }
+            super.visitMethodDef(tree);
+        }
+    }
     
-    public static Symbol.ClassSymbol getContractTarget(JCTree.JCClassDecl classDecl,
-                                                JCTree.JCAnnotation contractAnnotation) {
-        if (contractAnnotation == null) {
+    class UpdateTypes extends Types.SimpleVisitor<Void, Void> {
+        @Override
+        public Void visitMethodType(Type.MethodType t, Void ignored) {
+            for (Type paramType : t.getParameterTypes()) {
+                paramType.accept(this, null);
+            }
+            t.getReturnType().accept(this, null);
+            for (Type thrownType : t.getThrownTypes()) {
+                thrownType.accept(this, null);
+            }
             return null;
         }
 
-        var arguments = JavaToDafnyCompiler.getArguments(contractAnnotation);
-        var symbol = JavaToDafnyCompiler.getClassSymbol(arguments.get("value"));
-        if (symbol == null || symbol.getQualifiedName().contentEquals("com.aws.jverify.Contract")) {
-            var superClass = classDecl.sym.getSuperclass();
-            if (classDecl.extending != null && superClass != null) {
-                return (Symbol.ClassSymbol) superClass.tsym;
+        @Override
+        public Void visitType(Type t, Void ignored) {
+            var updatedSymbol = contractSymbolToContractee.get(t.tsym);
+            if (updatedSymbol != null) {
+                t.tsym = (Symbol.TypeSymbol) updatedSymbol;
             }
-            var interfaces = classDecl.sym.getInterfaces();
-            if (interfaces.isEmpty()) {
-                return null;
-            }
-            return (Symbol.ClassSymbol) interfaces.getFirst().tsym;
+            return null;
         }
-        return symbol;
+        
+    }
+
+    public Symbol.MethodSymbol findContractee(Symbol.ClassSymbol contractee, Symbol.MethodSymbol method, Types types) {
+        return getCandidateForType(contractee, method, types);
+    }
+
+    private Symbol.MethodSymbol getCandidateForType(Symbol.TypeSymbol contractee, Symbol.MethodSymbol method, Types types) {
+        for(var part : types.closure(contractee.type)) {
+            for (Symbol member : part.tsym.members().getSymbolsByName(method.name)) {
+                if (member instanceof Symbol.MethodSymbol candidate) {
+                    if (types.isSubSignature(types.erasure(member.type), types.erasure(method.type))) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

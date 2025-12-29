@@ -1,0 +1,316 @@
+package com.aws.jverify.verifier.compiler.simplifications;
+
+import com.aws.jverify.Pure;
+import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
+import com.sun.tools.javac.code.*;
+import com.sun.tools.javac.comp.Enter;
+import com.sun.tools.javac.model.JavacElements;
+import com.sun.tools.javac.tree.*;
+import com.sun.tools.javac.tree.JCTree.*;
+import com.sun.tools.javac.util.List;
+import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Name;
+import com.sun.tools.javac.util.Names;
+import net.bytebuddy.asm.Advice;
+
+import java.util.*;
+
+import static com.sun.tools.javac.code.Flags.*;
+
+/**
+ * Needs to occur before the Lower pass
+ */
+public class LambdaToAnonymousClassCompiler extends TreeTranslator {
+
+    private final JCCompilationUnit compilationUnit;
+    private final TreeMaker maker;
+    private final JavacElements elements;
+    private final JVerifyUtils jVerifyUtils;
+    private final Names names;
+    private final Types types;
+    private final Enter enter;
+    private final JVerifyIndex index;
+    private final Context context;
+
+    public LambdaToAnonymousClassCompiler(JCCompilationUnit compilationUnit, Context context) {
+        this.compilationUnit = compilationUnit;
+        this.maker = TreeMaker.instance(context);
+        this.elements = JavacElements.instance(context);
+        index = JVerifyIndex.instance(context);
+        enter = Enter.instance(context);
+        this.names = Names.instance(context);
+        this.types = Types.instance(context);
+        this.context = context;
+        jVerifyUtils = JVerifyUtils.instance(context);
+    }
+    
+    private final Set<String> ignoreMethods = Set.of("postcondition","precondition", "forall", "exists", "map", "all");
+    
+    /*
+    This code is unfortunately necessary because method and loop contracts are stored 
+    using plain method calls and lambdas. We don't want those lambdas to be compiled by this class,
+    so we have extra code to avoid compiling them.
+    
+    We could consider introducing a new AST type, JCMethodDeclWithContract, and update Lower so it visits
+    the additional fields. This would replace the current update we have to let Lower handle Lambdas, 
+    which it normally does not.
+     */
+    @Override
+    public void visitApply(JCTree.JCMethodInvocation invocation) {
+        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+        if (jverifyMethod == null || !ignoreMethods.contains(jverifyMethod.name.toString())) {
+                super.visitApply(invocation);
+        } else {
+            invocation.meth = translate(invocation.meth);
+            if (invocation.args != null) {
+                for (List<JCExpression> l = invocation.args; l.nonEmpty(); l = l.tail) {
+                    // Our pipeline might have inserted a typecast at this point
+                    // So that postcondition((int x) -> x == 2)) becomes
+                    // postcondition((IntPredicate)(int x) -> x == 2);
+                    if (l.head instanceof JCTree.JCTypeCast typeCast) {
+                        if (typeCast.expr instanceof JCTree.JCLambda lambda) {
+                            lambda.params = translate(lambda.params);
+                            lambda.body = translate(lambda.body);
+                        } else {
+                            l.head = super.translate(l.head);
+                        }
+                    } else if (l.head instanceof JCTree.JCLambda lambda) {
+                        lambda.params = translate(lambda.params);
+                        lambda.body = translate(lambda.body);
+                    } else {
+                        l.head = super.translate(l.head);
+                    }
+                }
+            }
+            result = invocation;
+        }
+    }
+
+    Symbol currentContainer;
+    @Override
+    public void visitMethodDef(JCMethodDecl tree) {
+        var previous = currentContainer;
+        currentContainer = tree.sym;
+        super.visitMethodDef(tree);
+        currentContainer = previous;
+    }
+
+    @Override
+    public void visitLambda(JCLambda lambda) {
+        JCNewClass localClass = transformLambdaToAnonymousClass(lambda);
+        super.visitNewClass(localClass);
+    }
+
+    @Override
+    public void visitClassDef(JCClassDecl tree) {
+        var previous = currentContainer;
+        currentContainer = tree.sym;
+        super.visitClassDef(tree);
+        currentContainer = previous;
+    }
+
+    @Override
+    public void visitVarDef(JCVariableDecl tree) {
+        if (currentContainer instanceof Symbol.ClassSymbol) {
+            var previous = currentContainer;
+            currentContainer = tree.sym;
+            super.visitVarDef(tree);
+            currentContainer = previous;
+        } else {
+            super.visitVarDef(tree);
+        }
+    }
+
+    private JCNewClass transformLambdaToAnonymousClass(JCLambda lambda) {
+        maker.pos = lambda.pos;
+        
+        var classSymbol = getClassSymbol(lambda);
+        var implMethod = createImplementationMethod(classSymbol, lambda);
+        var constructor = createConstructor(classSymbol);
+        var classDef = createLocalClassDef(lambda, classSymbol, constructor, implMethod);
+
+        return getNewClassExpression(lambda, classDef, constructor);
+    }
+
+    private JCNewClass getNewClassExpression(JCLambda lambda,
+                                             JCClassDecl classDef,
+                                             JCMethodDecl constructor) {
+        maker.pos = lambda.pos;
+        var result = maker.NewClass(
+                null,
+                List.nil(),
+                maker.Type(lambda.type),
+                List.nil(),
+                classDef
+        );
+        result.type = classDef.type;
+        result.constructor = constructor.sym;
+        return result;
+    }
+
+    private Symbol.ClassSymbol getClassSymbol(JCLambda lambda) {
+        var line = compilationUnit.getLineMap().getLineNumber(lambda.pos);
+        var column = compilationUnit.getLineMap().getColumnNumber(lambda.pos);
+        Name name = names.lambda.append(names.fromString(line + "_" + column));
+
+        int flags = SYNTHETIC | FINAL;
+        boolean hasEnclosingType = (currentContainer.flags() & STATIC) == 0;
+        if (!hasEnclosingType) {
+            flags |= STATIC;
+        }
+        
+        var classSymbol = new Symbol.ClassSymbol(flags, name, currentContainer);
+
+        // Flatname should be globally unique. Qualified class name plus line and column achieves that.
+        classSymbol.flatname = currentContainer.owner.flatName().append(name);
+        Type enclosingType = hasEnclosingType ? currentContainer.enclClass().type : Type.noType;
+        Type.ClassType classType = new Type.ClassType(enclosingType, List.nil(), classSymbol);
+        classType.interfaces_field = List.of(lambda.type);
+        classSymbol.type = classType;
+        classSymbol.members_field = Scope.WriteableScope.create(classSymbol);
+        return classSymbol;
+    }
+
+    private JCClassDecl createLocalClassDef(JCLambda lambda, 
+                                            Symbol.ClassSymbol classSymbol,  
+                                            JCMethodDecl constructor,
+                                            JCMethodDecl implMethod) {
+        java.util.List<JCTree> classBody = new ArrayList<>();
+        classBody.add(constructor);
+        classBody.add(implMethod);
+        classSymbol.members().enter(implMethod.sym);
+        classSymbol.members().enter(constructor.sym);
+
+        var classDef = maker.ClassDef(
+                maker.Modifiers(classSymbol.flags()),
+                classSymbol.name,
+                List.nil(),
+                null,
+                List.of(maker.Type(lambda.type)),
+                List.from(classBody)
+        );
+        classDef.sym = classSymbol;
+        classDef.type = classSymbol.type;
+        index.put(classSymbol, enter.classEnv(classDef, enter.getTopLevelEnv(compilationUnit)));
+        return classDef;
+    }
+
+    private JCMethodDecl createConstructor(Symbol.ClassSymbol classSymbol) {
+        var modifiers = maker.Modifiers(SYNTHETIC);
+
+        var methodSymbol = new Symbol.MethodSymbol(modifiers.flags, names.init, new Type.MethodType(
+                List.nil(),
+                classSymbol.type,
+                List.nil(), classSymbol
+        ), classSymbol);
+        methodSymbol.params = List.nil();
+
+        var result = maker.MethodDef(
+                modifiers,
+                names.init,
+                null,
+                List.nil(),
+                List.nil(),
+                List.nil(),
+                maker.Block(0, List.nil()),
+                null
+        );
+        result.sym = methodSymbol;
+        return result;
+    }
+
+    private JCMethodDecl createImplementationMethod(Symbol.ClassSymbol classSymbol, JCLambda lambda) {
+        var samMethod = (Symbol.MethodSymbol)types.findDescriptorSymbol(lambda.type.tsym);
+        var methodType = types.memberType(lambda.type, samMethod);
+
+        var modifiers = maker.Modifiers(Flags.PUBLIC | SYNTHETIC);
+        var methodSymbol = new Symbol.MethodSymbol(modifiers.flags, samMethod.name, new Type.MethodType(
+                methodType.getParameterTypes(),
+                methodType.getReturnType(),
+                List.nil(), classSymbol
+        ), classSymbol);
+        methodSymbol.params = lambda.params.map(d -> d.sym);
+
+        var methodBody = getMethodBody(lambda, methodSymbol);
+        var result = maker.MethodDef(
+                modifiers,
+                methodSymbol.name,
+                maker.Type(methodType.getReturnType()),
+                List.nil(),
+                lambda.params,
+                List.nil(),
+                methodBody,
+                null
+        );
+        result.sym = methodSymbol;
+        result.type = methodSymbol.type;
+
+        for(var param : lambda.params) {
+            param.sym.owner = result.sym;
+        }
+        return result;
+    }
+    
+    private JCTree.JCAnnotation getPureAnnotation() {
+        var verifySymbol = elements.getTypeElement(Pure.class.getCanonicalName());
+        return maker.Annotation(maker.Ident(verifySymbol), List.nil());
+    }
+
+    private JCBlock getMethodBody(JCLambda lambda, Symbol.MethodSymbol methodSymbol) {
+        qualifyThisAndUpdateOwners(methodSymbol, lambda);
+        return handleExpressionOrBlockBody(lambda);
+    }
+
+    private JCBlock handleExpressionOrBlockBody(JCLambda lambda) {
+        JCBlock methodBody;
+        if (lambda.getBodyKind() == JCLambda.BodyKind.EXPRESSION) {
+            JCReturn returnStmt = maker.Return((JCExpression) lambda.body);
+            methodBody = maker.Block(0, List.of(returnStmt));
+        } else {
+            methodBody = (JCBlock) lambda.body;
+        }
+        return methodBody;
+    }
+    
+    private void qualifyThisAndUpdateOwners(Symbol.MethodSymbol methodSymbol, JCLambda lambda) {
+
+        TreeTranslator bodyTransformer = new TreeTranslator() {
+
+            @Override
+            public void visitClassDef(JCClassDecl tree) {
+                result = tree;
+            }
+
+            @Override
+            public void visitVarDef(JCVariableDecl tree) {
+                // Variables declared in a lambda are owned by the containing method, 
+                // but now they'll be owned by the impl method in the local class
+                if (tree.sym.owner == currentContainer) {
+                    tree.sym.owner = methodSymbol;
+                }
+                super.visitVarDef(tree);
+            }
+
+            @Override
+            public void visitIdent(JCIdent ident) {
+                // "this" suddenly refers to the local class, so we need to qualify it with the outer class.
+                if (ident.name == names._this) {
+                    maker.pos = ident.pos;
+                    Symbol.TypeSymbol thisClass = ident.sym.type.tsym;
+                    JCIdent outerClass = maker.Ident(thisClass.name);
+                    outerClass.sym = thisClass;
+                    outerClass.type = outerClass.sym.type;
+                    JCFieldAccess select = maker.Select(outerClass, names._this);
+                    select.sym = thisClass;
+                    select.type = select.sym.type;
+                    result = select;
+                    return;
+                }
+                super.visitIdent(ident);
+            }
+        };
+
+        lambda.body = bodyTransformer.translate(lambda.body);
+    }
+}

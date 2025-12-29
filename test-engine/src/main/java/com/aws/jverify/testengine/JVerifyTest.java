@@ -44,6 +44,8 @@ public @interface JVerifyTest {
     boolean verifyByDefault() default true;
 
     boolean useBuiltinContracts() default false;
+    
+    boolean continueOnErrors() default false;
 
     int exitCode() default 0;
 
@@ -54,4 +56,21 @@ public @interface JVerifyTest {
     String[] additionalFiles() default {};
     
     boolean verifyPrintedDafny() default false;
+
+    /**
+     * Expected number of Java methods to fail verification
+     */
+    int javaErrors()  default -1;
+
+    /**
+     * Expected number of Java methods to be verified
+     * Note: add + 1 for each class you are verifying to account
+     * for the implicit constructor unless you have specified it explicitly
+     */
+    int javaVerified() default -1;
+
+    /**
+     * Expected number of Java methods to have been skipped during verification
+     */
+    int javaSkipped() default -1;
 }

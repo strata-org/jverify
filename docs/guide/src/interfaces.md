@@ -63,3 +63,18 @@ abstract class ListContract<T> implements List<T> {
 We only wanted to provide a contract for `size`, so we made ListContract an _abstract_ class. This way, the Java compiler is satisfied even though we did not implement all methods from the interface `List<T>`.
 
 Contrary to the `interface I` example from before, because `List<T>` is not defined in source, annotations such as `@Modifiable` are taken from the contract class.
+
+### Empty contracts
+
+You can indicate that a bodyless method has an empty contract using the `@EmptyContract` attribute, to avoid having to define a contract class. Example:
+
+```java
+interface Fooer {
+    @EmptyContract
+    void foo();
+    
+    static void user(Fooer fooer) {
+        fooer.foo(); // pass
+    }
+}
+```

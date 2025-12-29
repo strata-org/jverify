@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * Specify whether this symbol should be verified or not
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target({ElementType.PACKAGE, ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.TYPE})
+@Target({ElementType.PACKAGE, ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.TYPE, ElementType.FIELD})
 public @interface Verify {
     /**
      * Whether this symbol and nested symbols should be verified or not
@@ -20,4 +20,3 @@ public @interface Verify {
      */
     boolean overrideChildren() default false;
 }
-

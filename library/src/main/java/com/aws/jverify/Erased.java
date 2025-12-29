@@ -13,6 +13,6 @@ Enables the use of these constructs:
 But prevents the method from being executed at runtime.
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target(ElementType.METHOD)            // Can only be used on classes/interfaces
+@Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 public @interface Erased {
 }
