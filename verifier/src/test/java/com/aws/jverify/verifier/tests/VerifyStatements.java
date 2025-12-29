@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
-@JVerifyTest(exitCode = 0, dafnyVerified = 14, dafnyErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 0, dafnyVerified = 15, dafnyErrors = 0, verifyPrintedDafny = true)
 class VerifyStatements {
     void whileWithBreak() {
         var x = 0;
@@ -145,7 +145,9 @@ class VerifyStatements {
     }
 
     void nativeAssert() {
-        assert true;
+        // Do not use assert true since it is removed by javac
+        int x = 1;
+        assert (x>0);
     }
 
 
