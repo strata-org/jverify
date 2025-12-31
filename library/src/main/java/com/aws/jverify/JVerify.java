@@ -20,6 +20,15 @@ public class JVerify {
     public static void assume(boolean condition) {
     }
     
+    /**
+     * Verifies that the given condition holds at this point in the program.
+     * This is functionally equivalent to Java's {@code assert} statement for verification purposes.
+     * <p>
+     * Note: You can also use Java's native {@code assert} statement, which JVerify will verify
+     * in the same way as {@code check()}. Both produce identical verification conditions.
+     * 
+     * @param condition the condition to verify
+     */
     public static void check(boolean condition) {
     }
 

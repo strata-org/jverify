@@ -64,6 +64,7 @@ public class Suspenders extends TreeTranslator {
         this.names = Names.instance(context);
         this.symtab = Symtab.instance(context);
         this.caseMatchName = names.fromString("$caseMatch");
+        this.assertMarkerName = names.fromString("$assertMarker");
     }
 
     private enum Direction {
@@ -71,6 +72,9 @@ public class Suspenders extends TreeTranslator {
         UNSUSPEND
     }
     private Direction direction;
+    
+    // Name used to mark suspended assert statements
+    private final Name assertMarkerName;
 
     public <T extends JCTree> T suspend(T tree) {
         direction = Direction.SUSPEND;
@@ -104,6 +108,70 @@ public class Suspenders extends TreeTranslator {
         super.visitClassDef(tree);
     }
 
+    ///
+    /// Transforms assert statements to prevent LOWER from converting them to throw statements.
+    /// In SUSPEND mode: assert condition; -> if ($assertMarker) { condition; }
+    /// In UNSUSPEND mode: if ($assertMarker) { condition; } -> assert condition;
+    ///
+    @Override
+    public void visitAssert(JCTree.JCAssert tree) {
+        if (direction == Direction.SUSPEND) {
+            // Transform: assert condition; 
+            // Into: if ($assertMarker) { condition; }
+            // The marker condition prevents LOWER from recognizing this as an assert
+            
+            // Create a synthetic variable symbol for the marker
+            var markerSymbol = new Symbol.VarSymbol(
+                0, // flags
+                assertMarkerName,
+                symtab.booleanType,
+                symtab.noSymbol // owner
+            );
+            
+            var markerCondition = maker.Ident(markerSymbol);
+            markerCondition.type = symtab.booleanType;
+            
+            var conditionStatement = maker.Exec(tree.cond);
+            var thenBlock = maker.Block(0, List.of(conditionStatement));
+            
+            var ifStmt = maker.If(markerCondition, thenBlock, null);
+            result = ifStmt;
+            result.accept(this);
+            return;
+        }
+        super.visitAssert(tree);
+    }
+
+    @Override
+    public void visitIf(JCTree.JCIf tree) {
+        if (direction == Direction.UNSUSPEND) {
+            // Check if this is a suspended assert statement
+            if (tree.cond instanceof JCTree.JCIdent ident && 
+                ident.name.equals(assertMarkerName) &&
+                tree.elsepart == null &&
+                tree.thenpart instanceof JCTree.JCBlock block &&
+                block.stats.size() == 1 &&
+                block.stats.head instanceof JCTree.JCExpressionStatement exprStmt) {
+                
+                // Transform back: if ($assertMarker) { condition; } -> assert condition;
+                var assertStmt = maker.Assert(exprStmt.expr, null);
+                result = assertStmt;
+                result.accept(this);
+                return;
+            }
+            
+            // Check if this is a switch-encoded if statement
+            var maybeSwitch = switchFromIf(tree);
+            if (maybeSwitch.isPresent()) {
+                result = maybeSwitch.get();
+                result.accept(this);
+                return;
+            }
+        }
+
+        super.visitIf(tree);
+    }
+
     @Override
     public void visitSwitch(JCTree.JCSwitch tree) {
         if (direction == Direction.SUSPEND) {
@@ -119,20 +187,6 @@ public class Suspenders extends TreeTranslator {
         }
 
         super.visitSwitch(tree);
-    }
-
-    @Override
-    public void visitIf(JCTree.JCIf tree) {
-        if (direction == Direction.UNSUSPEND) {
-            var maybeSwitch = switchFromIf(tree);
-            if (maybeSwitch.isPresent()) {
-                result = maybeSwitch.get();
-                result.accept(this);
-                return;
-            }
-        }
-
-        super.visitIf(tree);
     }
 
     @Override
