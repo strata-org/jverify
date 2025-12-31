@@ -1,11 +1,11 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Range;
+import com.aws.jverify.verifier.dafny.DafnyOutput;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.tools.Diagnostic;
 import java.net.URI;
-import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.stream.Stream;

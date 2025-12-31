@@ -1,7 +1,7 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.dafny;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.aws.jverify.verifier.DafnyDiagnostic;
+import com.aws.jverify.verifier.StatusMessage;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;

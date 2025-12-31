@@ -2,9 +2,7 @@ package com.aws.jverify.verifier;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -18,7 +16,7 @@ public record VerifierOptions(PrintWriter outWriter,
                               Path additionalDafnyFile,
                               boolean testDafnyVersion,
                               @Nullable Path printDafny,
-                              Path printBinaryDafny,
+                              Path printSerializedOutputProgram,
                               boolean showRanges,
                               Collection<Path> contractSourcePath,
                               boolean showFilepaths,

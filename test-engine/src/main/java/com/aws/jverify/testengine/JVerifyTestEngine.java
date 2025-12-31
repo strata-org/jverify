@@ -4,6 +4,8 @@ import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.aws.jverify.verifier.*;
+import com.aws.jverify.verifier.dafny.DafnyVerificationResults;
+import com.aws.jverify.verifier.dafny.Driver;
 import com.google.auto.service.AutoService;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
@@ -157,7 +159,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         verifyFile(sourceFile, annotation, ranges, getVerifierOptions(annotation, null));
     }
 
-    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges, VerifierOptions options) throws IOException {
+    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges, 
+                                  VerifierOptions options) throws IOException {
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
         assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
@@ -173,111 +176,113 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
-        var verificationResultsWithMethodIntervals = Driver.verifyJavaFiles(inputs, options);
+        for(var backend : annotation.BACKENDS()) {
+            var verificationResultsWithMethodIntervals = Driver.getDriver(backend).verifyJavaFiles(inputs, options);
 
-        var diagnosticsAsAnnotations = verificationResultsWithMethodIntervals.verificationResults().getDiagnostics()
-                .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
-                        ? dafnyDiagnostic.flattenRelated()
-                        : Stream.of(diagnostic))
-                // Remove diagnostics from "additional.dfy" file as they cannot be checked now by
-                // our test engine. And we probably want to localize them elsewhere anyway
-                .filter(d -> {
-                    if (d instanceof DafnyDiagnostic dafnyDiagnostic) {
-                        if (dafnyDiagnostic.location.filename().contentEquals("additional.dfy")) {
-                            throw new RuntimeException("error in additional.dfy:" + dafnyDiagnostic.getMessage(Locale.ENGLISH));
+            var diagnosticsAsAnnotations = verificationResultsWithMethodIntervals.verificationResults().getDiagnostics()
+                    .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+                            ? dafnyDiagnostic.flattenRelated()
+                            : Stream.of(diagnostic))
+                    // Remove diagnostics from "additional.dfy" file as they cannot be checked now by
+                    // our test engine. And we probably want to localize them elsewhere anyway
+                    .filter(d -> {
+                        if (d instanceof DafnyDiagnostic dafnyDiagnostic) {
+                            if (dafnyDiagnostic.location.filename().contentEquals("additional.dfy")) {
+                                throw new RuntimeException("error in additional.dfy:" + dafnyDiagnostic.getMessage(Locale.ENGLISH));
+                            }
+                            return true;
                         }
                         return true;
-                    }
-                    return true;
-                })
-                .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
-                .sorted()
-                .toList();
+                    })
+                    .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
+                    .sorted()
+                    .toList();
 
-        verificationResultsWithMethodIntervals.verificationResults().getOutputs().stream()
-                .filter(dafnyOutput -> dafnyOutput instanceof DafnyDiagnostic)
-                .forEach(dafnyOutput -> {
-                    URI source = ((DafnyDiagnostic) dafnyOutput).getSource();
-                    var methodIntervals = verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().get(source);
-                    if (methodIntervals == null) {
-                        // error was in built-in code
-                        return;
-                    }
-                    var failedVerificationMethod = methodIntervals
-                            .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
-                    if (failedVerificationMethod != null) {
-                        failedVerificationMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
-                    }
-                });
+            verificationResultsWithMethodIntervals.verificationResults().getOutputs().stream()
+                    .filter(dafnyOutput -> dafnyOutput instanceof DafnyDiagnostic)
+                    .forEach(dafnyOutput -> {
+                        URI source = ((DafnyDiagnostic) dafnyOutput).getSource();
+                        var methodIntervals = verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().get(source);
+                        if (methodIntervals == null) {
+                            // error was in built-in code
+                            return;
+                        }
+                        var failedVerificationMethod = methodIntervals
+                                .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
+                        if (failedVerificationMethod != null) {
+                            failedVerificationMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                        }
+                    });
 
-        if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
-            if (verificationResultsWithMethodIntervals.verificationResults().getExitCode() == 0 || verificationResultsWithMethodIntervals.verificationResults().getExitCode() == 4) {
-                updateTestAnnotation(sourceFile, annotation, verificationResultsWithMethodIntervals.verificationResults());
-            }
-        }
-
-        var expectedAnnotations = ranges.stream().sorted().toList();
-        assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
-
-        Integer expectedDafnyVerifiedCount = annotation.dafnyVerified() >= 0 ? annotation.dafnyVerified() : null;
-        Integer expectedDafnyErrorCount = annotation.dafnyErrors() >= 0 ? annotation.dafnyErrors() : null;
-        Integer expectedJavaVerifiedCount = annotation.javaVerified() >= 0 ? annotation.javaVerified() : null;
-        Integer expectedJavaErrorCount = annotation.javaErrors() >= 0 ? annotation.javaErrors() : null;
-        Integer expectedJavaSkippedCount = annotation.javaSkipped() >= 0 ? annotation.javaSkipped() : null;
-        Assertions.assertAll(
-                () -> assertThat("exit code",
-                        verificationResultsWithMethodIntervals.verificationResults().getExitCode(),
-                        is(annotation.exitCode())),
-                () -> assertThat("Dafny verified count",
-                        verificationResultsWithMethodIntervals.verificationResults().getDafnyVerifiedCount(),
-                        is(expectedDafnyVerifiedCount)),
-                () -> assertThat("Dafny error count",
-                        verificationResultsWithMethodIntervals.verificationResults().getDafnyErrorCount(),
-                        is(expectedDafnyErrorCount)),
-                () -> {
-                    if (expectedJavaVerifiedCount != null) {
-                        assert verificationResultsWithMethodIntervals.sourceFileToMethodIntervals() != null;
-                        assertThat("Java verified method count",
-                                verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().values().stream()
-                                        .flatMap(IntervalTree::streamNodes)
-                                        .filter(node -> node.getValue().getVerificationStatus()
-                                                .equals(JavaMethodVerificationStatus.VerificationStatus.Verified))
-                                        .toList().size(),
-                                is(expectedJavaVerifiedCount));
-                    }
-                },
-                () -> {
-                    if (expectedJavaErrorCount != null) {
-                        assert verificationResultsWithMethodIntervals.sourceFileToMethodIntervals() != null;
-                        assertThat("Java verification failed method count",
-                                verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().values().stream()
-                                        .flatMap(IntervalTree::streamNodes)
-                                        .filter(node -> node.getValue().getVerificationStatus()
-                                                .equals(JavaMethodVerificationStatus.VerificationStatus.Failed))
-                                        .toList().size(),
-                                is(expectedJavaErrorCount));
-                    }
-                },
-                () -> {
-                    if (expectedJavaSkippedCount != null) {
-                        assert verificationResultsWithMethodIntervals.sourceFileToMethodIntervals() != null;
-                        assertThat("Java skipped method count",
-                                verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().values().stream()
-                                        .flatMap(IntervalTree::streamNodes)
-                                        .filter(node -> node.getValue().getVerificationStatus()
-                                                .equals(JavaMethodVerificationStatus.VerificationStatus.Skipped))
-                                        .toList().size(),
-                                is(expectedJavaSkippedCount));
-                    }
+            if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
+                if (verificationResultsWithMethodIntervals.verificationResults().getExitCode() == 0 || verificationResultsWithMethodIntervals.verificationResults().getExitCode() == 4) {
+                    updateTestAnnotation(sourceFile, annotation, verificationResultsWithMethodIntervals.verificationResults());
                 }
-        );
+            }
 
-        if (annotation.verifyPrintedDafny()) {
-            verifyPrintedDafny(verificationResultsWithMethodIntervals.verificationResults(), options);
+            var expectedAnnotations = ranges.stream().sorted().toList();
+            assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
+
+            Integer expectedDafnyVerifiedCount = annotation.dafnyVerified() >= 0 ? annotation.dafnyVerified() : null;
+            Integer expectedDafnyErrorCount = annotation.dafnyErrors() >= 0 ? annotation.dafnyErrors() : null;
+            Integer expectedJavaVerifiedCount = annotation.javaVerified() >= 0 ? annotation.javaVerified() : null;
+            Integer expectedJavaErrorCount = annotation.javaErrors() >= 0 ? annotation.javaErrors() : null;
+            Integer expectedJavaSkippedCount = annotation.javaSkipped() >= 0 ? annotation.javaSkipped() : null;
+            Assertions.assertAll(
+                    () -> assertThat("exit code",
+                            verificationResultsWithMethodIntervals.verificationResults().getExitCode(),
+                            is(annotation.exitCode())),
+                    () -> assertThat("Dafny verified count",
+                            verificationResultsWithMethodIntervals.verificationResults().getDafnyVerifiedCount(),
+                            is(expectedDafnyVerifiedCount)),
+                    () -> assertThat("Dafny error count",
+                            verificationResultsWithMethodIntervals.verificationResults().getDafnyErrorCount(),
+                            is(expectedDafnyErrorCount)),
+                    () -> {
+                        if (expectedJavaVerifiedCount != null) {
+                            assert verificationResultsWithMethodIntervals.sourceFileToMethodIntervals() != null;
+                            assertThat("Java verified method count",
+                                    verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().values().stream()
+                                            .flatMap(IntervalTree::streamNodes)
+                                            .filter(node -> node.getValue().getVerificationStatus()
+                                                    .equals(JavaMethodVerificationStatus.VerificationStatus.Verified))
+                                            .toList().size(),
+                                    is(expectedJavaVerifiedCount));
+                        }
+                    },
+                    () -> {
+                        if (expectedJavaErrorCount != null) {
+                            assert verificationResultsWithMethodIntervals.sourceFileToMethodIntervals() != null;
+                            assertThat("Java verification failed method count",
+                                    verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().values().stream()
+                                            .flatMap(IntervalTree::streamNodes)
+                                            .filter(node -> node.getValue().getVerificationStatus()
+                                                    .equals(JavaMethodVerificationStatus.VerificationStatus.Failed))
+                                            .toList().size(),
+                                    is(expectedJavaErrorCount));
+                        }
+                    },
+                    () -> {
+                        if (expectedJavaSkippedCount != null) {
+                            assert verificationResultsWithMethodIntervals.sourceFileToMethodIntervals() != null;
+                            assertThat("Java skipped method count",
+                                    verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().values().stream()
+                                            .flatMap(IntervalTree::streamNodes)
+                                            .filter(node -> node.getValue().getVerificationStatus()
+                                                    .equals(JavaMethodVerificationStatus.VerificationStatus.Skipped))
+                                            .toList().size(),
+                                    is(expectedJavaSkippedCount));
+                        }
+                    }
+            );
+
+            if (annotation.verifyPrintedDafny()) {
+                verifyPrintedDafny(verificationResultsWithMethodIntervals.verificationResults(), options);
+            }
         }
     }
 
-    private static void verifyPrintedDafny(VerificationResults previousResults, VerifierOptions verifierOptions)
+    private static void verifyPrintedDafny(DafnyVerificationResults previousResults, VerifierOptions verifierOptions)
             throws IOException {
         boolean jverifyCompilationFailed = previousResults.getExitCode() == 2;
         if (jverifyCompilationFailed) {
@@ -404,7 +409,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 exitCode, dafnyVerified, dafnyErrors, new String[0], verifyPrintedDafny, -1, -1, -1);
     }
 
-    public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, VerificationResults verificationResults) throws IOException {
+    public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, DafnyVerificationResults verificationResults) throws IOException {
         try (BufferedReader reader = new BufferedReader(sourceFile.openReader(false))) {
             var allLines = reader.lines().toArray(String[]::new);
             var maybeAnnotationIndex = IntStream.range(0, allLines.length)

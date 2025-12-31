@@ -1,0 +1,45 @@
+package com.aws.jverify.verifier.dafny;
+
+import com.aws.jverify.verifier.Backend;
+import com.aws.jverify.verifier.SourceFile;
+import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.laurel.LaurelDriver;
+
+import javax.tools.JavaFileObject;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public interface Driver {
+
+    default int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions) throws IOException {
+        List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
+            try {
+                if (verifierOptions.verbose()) {
+                    verifierOptions.outWriter().println("working directory: " + verifierOptions.workingDirectory());
+                }
+                Path normalized = verifierOptions.workingDirectory().resolve(p).normalize();
+                return new SourceFile(normalized, Files.readString(normalized));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toList());
+        return verifyJavaFilesExit(readFiles, verifierOptions);
+    }
+    
+    int verifyJavaFilesExit(
+            List<JavaFileObject> readFiles,
+            VerifierOptions verifierOptions
+    ) throws IOException;
+
+    VerificationResults verifyJavaFiles(
+            List<JavaFileObject> readFiles,
+            VerifierOptions verifierOptions
+    ) throws IOException;
+    
+    public static Driver getDriver(Backend backend) {
+        return backend == Backend.Dafny ? new DafnyDriver() : new LaurelDriver();
+    }
+}

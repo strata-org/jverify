@@ -13,6 +13,9 @@ import java.util.stream.Stream;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.common.Common;
+import com.aws.jverify.verifier.dafny.DafnyDriver;
+import com.aws.jverify.verifier.dafny.Driver;
+import com.aws.jverify.verifier.laurel.LaurelDriver;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -70,6 +73,9 @@ class AppCommand implements Callable<Integer> {
     
     @Option(names = "--track-time", description = "")
     private boolean trackTime;
+    
+    @Option(names = "--backend", description = "")
+    private Backend backend;
 
     @Override
     public Integer call() throws IOException {
@@ -111,7 +117,7 @@ class AppCommand implements Callable<Integer> {
         
         return verifierOptions.time("Calling Driver.verifyJavaPaths", () -> {
             try {
-                return Driver.verifyJavaPaths(inputs, verifierOptions);
+                return Driver.getDriver(backend).verifyJavaPaths(inputs, verifierOptions);
             } catch(IOException e) {
                 throw new RuntimeException(e);
             }

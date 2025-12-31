@@ -1,5 +1,6 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.dafny;
 
+import com.aws.jverify.verifier.DafnyDiagnostic;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.tools.Diagnostic;
@@ -7,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-public final class VerificationResults {
+public final class DafnyVerificationResults {
     // dummy value to tell when it hasn't been set
     private int exitCode = -999;
 

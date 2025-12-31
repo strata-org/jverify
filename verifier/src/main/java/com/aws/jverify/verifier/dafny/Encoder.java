@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.dafny;
 
 public interface Encoder {
     void writeBool(boolean value);

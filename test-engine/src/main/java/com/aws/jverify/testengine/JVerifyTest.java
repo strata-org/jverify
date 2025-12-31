@@ -1,5 +1,7 @@
 package com.aws.jverify.testengine;
 
+import com.aws.jverify.generated.DefaultClassDecl;
+import com.aws.jverify.verifier.Backend;
 import org.junit.platform.commons.annotation.Testable;
 
 import java.lang.annotation.ElementType;
@@ -53,6 +55,8 @@ public @interface JVerifyTest {
 
     int dafnyErrors() default -1;
 
+    Backend[] BACKENDS() default { Backend.Dafny };
+    
     String[] additionalFiles() default {};
     
     boolean verifyPrintedDafny() default false;

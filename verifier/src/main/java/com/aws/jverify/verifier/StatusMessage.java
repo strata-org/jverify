@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.verifier.dafny.DafnyOutput;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public final class StatusMessage extends DafnyOutput {

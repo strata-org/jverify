@@ -1,64 +1,63 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.laurel;
 
+import com.amazon.ion.IonSystem;
+import com.amazon.ion.system.IonSystemBuilder;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.common.Position;
-import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
+import com.aws.jverify.laurel.IonSerializer;
+import com.aws.jverify.laurel.Node;
+import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
+import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
+import com.aws.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
+import com.aws.jverify.verifier.dafny.DafnyOutput;
+import com.aws.jverify.verifier.dafny.DafnyVerificationResults;
+import com.aws.jverify.verifier.dafny.Driver;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.sun.tools.javac.util.*;
+import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.JavacMessages;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Writer;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.*;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class Driver {
+public class LaurelDriver implements Driver {
 
     public static Context context;
-    public record VerificationResultsWithIntervalTreeMap(VerificationResults verificationResults, HashMap<URI, IntervalTree<Integer,
-            JavaMethodVerificationStatus>> sourceFileToMethodIntervals) {}
 
-    public static int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions) throws IOException {
-        List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
-            try {
-                if (verifierOptions.verbose()) {
-                    verifierOptions.outWriter().println("working directory: " + verifierOptions.workingDirectory());
-                }
-                Path normalized = verifierOptions.workingDirectory().resolve(p).normalize();
-                return new SourceFile(normalized, Files.readString(normalized));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }).collect(Collectors.toList());
-        return verifyJavaFilesExit(readFiles, verifierOptions);
-    }
-
-    public static VerificationResultsWithIntervalTreeMap verifyJavaFile(JavaFileObject javaFile, VerifierOptions options)
+    public VerificationResultsWithIntervalTreeMap verifyJavaFile(JavaFileObject javaFile, VerifierOptions options)
             throws IOException {
         return verifyJavaFiles(List.of(javaFile), options);
     }
-
-    public static VerificationResultsWithIntervalTreeMap verifyJavaFiles(
+    
+    public VerificationResultsWithIntervalTreeMap verifyJavaFiles(
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions
     ) throws IOException {
-        var verificationResults = new VerificationResults();
+        var verificationResults = new DafnyVerificationResults();
 
         InstrumentLower.installModification();
         context = new Context();
@@ -68,8 +67,8 @@ public class Driver {
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var dafnyEquivalent = verifierOptions.time("Compiling Java to Dafny",
-                () -> new JavaToDafnyCompiler(context).analyzeJavaCode(verifierOptions, readFiles));
+        Node dafnyEquivalent = verifierOptions.time("Compiling Java to Dafny",
+                () -> new JavaToLaurelCompiler(context).analyzeJavaCode(verifierOptions, readFiles));
 
         var hasErrors = false;
         for (var diagnostic : Reporter.instance(context).diagnostics.getDiagnostics()) {
@@ -84,12 +83,13 @@ public class Driver {
         } else {
             var program = verifierOptions.time("Serializing Dafny AST", () -> {
                 var programBuilder = new StringBuilder();
-                new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
+                IonSystem ionSystem = IonSystemBuilder.standard().build();
+                new IonSerializer(ionSystem).serialize(dafnyEquivalent);
                 return programBuilder.toString();
             });
-            if (verifierOptions.printBinaryDafny() != null) {
-                Files.createDirectories(verifierOptions.printBinaryDafny().getParent());
-                Files.writeString(verifierOptions.printBinaryDafny(), program);
+            if (verifierOptions.printSerializedOutputProgram() != null) {
+                Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
+                Files.writeString(verifierOptions.printSerializedOutputProgram(), program);
             }
             runDafnyProcess(NameCompiler.instance(context), program, verifierOptions, verificationResults);
             return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
@@ -97,7 +97,7 @@ public class Driver {
         }
     }
 
-    public static int verifyJavaFilesExit(
+    public int verifyJavaFilesExit(
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions
     ) throws IOException {
@@ -250,7 +250,7 @@ public class Driver {
         
         if (!checkedVersion) {
             Properties properties = new Properties();
-            try (InputStream input = Driver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
+            try (InputStream input = LaurelDriver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
                 properties.load(input);
                 var dafnyVersion = properties.getProperty("dafnyVersion");
                 var dafnyRef = properties.getProperty("dafnyRef");
@@ -287,7 +287,7 @@ public class Driver {
     public static void runDafnyProcess(NameCompiler nameCompiler,
                                        String program,
                                        VerifierOptions verifierOptions,
-                                       VerificationResults outResults) {
+                                       DafnyVerificationResults outResults) {
         // First check the Dafny version is correct
         checkDafnyVersion(verifierOptions);
 
@@ -326,7 +326,7 @@ public class Driver {
             verifierOptions.outWriter().println("Dafny options: " + String.join(" ", processBuilder.command()));
         }
 
-        verifierOptions.time("Running Dafny", () -> {
+        verifierOptions.time("Running Strata", () -> {
             try {
                 // Redirect stderr into stdout, instead of reading one and then the other,
                 // in order to preserve the order of output and to avoid potential deadlock.
@@ -335,7 +335,7 @@ public class Driver {
                     stdin.write(program);
                 }
                 try (var stdout = process.inputReader()) {
-                    parseDafnyJsonOutput(verifierOptions, nameCompiler, stdout, outResults);
+                    // TODO parse output
                     int dafnyExitCode = process.waitFor();
                     var exitCode = getExitCodeFromDafny(dafnyExitCode);
                     outResults.setExitCode(exitCode);
@@ -380,69 +380,6 @@ public class Driver {
 
     private static final Pattern timePattern = Pattern.compile("Time to do (?<Name>\\w+) was (?<Duration>\\d+)ms");
     
-    /**
-     * Parses the given {@code dafny verify} output,
-     * adding both diagnostics and the summary verified/error counts to {@code outResults}.
-     * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
-     */
-    private static void parseDafnyJsonOutput(VerifierOptions options, 
-                                             NameCompiler nameCompiler,
-                                             BufferedReader dafnyOutput,
-                                             VerificationResults outResults) {
-        var objectMapper = new ObjectMapper();
-        
-        SimpleModule module = new SimpleModule();
-        module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
-        objectMapper.registerModule(module);
-        objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
-
-        StringBuilder exceptionOutput = new StringBuilder();
-        dafnyOutput.lines().forEach(line -> {
-            Matcher matcher;
-            if (!exceptionOutput.isEmpty()) {
-                exceptionOutput.append(line).append("\n");
-            } else if (line.isBlank()) {
-                //noinspection UnnecessaryReturnStatement
-                return;  // nothing to do
-            } else if (line.startsWith("{")) {
-                try {
-                    DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
-                    switch (output) {
-                        case DafnyDiagnostic dafnyDiagnostic -> {
-                            if (dafnyDiagnostic.defaultFormatMessage.contains("[internal error]")) {
-                                throw new RuntimeException("JVerify had an internal exception when calling Dafny: " + dafnyDiagnostic.getMessage(Locale.ENGLISH));
-                            }
-                            for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
-                                dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
-                            }
-                        }
-                        case StatusMessage statusMessage -> {
-                            if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
-                                if (outResults.getDafnyVerifiedCount() != null) {
-                                    throw new RuntimeException("Dafny output contains multiple summary lines");
-                                }
-                                outResults.setDafnyVerifiedCount(Integer.parseInt(matcher.group("VerifiedCount")));
-                                outResults.setDafnyErrorCount(Integer.parseInt(matcher.group("ErrorCount")));
-                                outResults.setDafnyFinishedMessage(statusMessage.getValue());
-                            }
-                            if ((matcher = timePattern.matcher(statusMessage.getValue().trim())).matches()) {
-                                options.printTime(matcher.group("Name"), Duration.ofMillis(Long.parseLong(matcher.group("Duration"))));
-                            }
-                        }
-                    }
-                    outResults.getOutputs().add(output);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
-                }
-            } else {
-                exceptionOutput.append(line).append("\n");
-            }
-        });
-        if (!exceptionOutput.isEmpty()) {
-            String diagnostics = outResults.getDiagnostics().map(Object::toString).collect(Collectors.joining("\n"));
-            throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput + "\n" + diagnostics);
-        }
-    }
 
     /**
      * Used as an {@link ObjectMapper} mixin when parsing {@link Position},

@@ -3,6 +3,7 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.generated.BoundVar;
 import com.aws.jverify.generated.Expression;
 import com.aws.jverify.generated.FrameExpression;
+import com.aws.jverify.verifier.dafny.Encoder;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.lang.reflect.*;
