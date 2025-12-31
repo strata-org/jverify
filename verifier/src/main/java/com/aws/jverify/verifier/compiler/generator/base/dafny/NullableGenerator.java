@@ -1,7 +1,6 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -105,7 +104,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     public ExpressionWithFlows translateLiteral(JCTree.JCLiteral literal, IOrigin originOverride,
-                                       ExpressionContext context) {
+                                                ExpressionContext context) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(literal));
         if (literal.getValue() == null) {
             var immutable = context.expectedType() != null && context.expectedType().tsym instanceof Symbol.ClassSymbol classSymbol &&
@@ -142,7 +141,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
+    public List<Statement> translateStatementAfterLabel(DafnyBlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
         
         return super.translateStatementAfterLabel(blockCompiler, statement, labels, originOverride);
     }

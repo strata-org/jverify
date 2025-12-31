@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.BlockStmt;
@@ -6,22 +6,20 @@ import com.aws.jverify.generated.BreakOrContinueStmt;
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.*;
 
 public class ForLoopCompiler implements StatementCompiler {
-    private final BlockCompiler blockCompiler;
+    private final DafnyBlockCompiler blockCompiler;
     private final NameCompiler nameCompiler;
     private final Reporter reporter;
     private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
 
-    public ForLoopCompiler(BlockCompiler blockCompiler) {
+    public ForLoopCompiler(DafnyBlockCompiler blockCompiler) {
         reporter = blockCompiler.reporter;
         this.blockCompiler = blockCompiler;
         nameCompiler = NameCompiler.instance(blockCompiler.baseGenerator.context);

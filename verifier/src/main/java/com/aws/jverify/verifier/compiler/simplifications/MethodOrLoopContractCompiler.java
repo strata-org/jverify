@@ -5,7 +5,7 @@ import com.aws.jverify.Nullable;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.generator.base.dafny.BaseDafnyGenerator;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;

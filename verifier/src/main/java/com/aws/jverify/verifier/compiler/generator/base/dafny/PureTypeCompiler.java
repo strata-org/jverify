@@ -1,9 +1,8 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator.base;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
@@ -54,7 +53,7 @@ public class PureTypeCompiler {
                 .getInterfaces().stream()
                 .map(baseType -> generator.translateType(baseType, origin, null))
                 .collect(Collectors.toList());
-        
+
         var superClass = classDecl.sym.getSuperclass();
         var pureObjectType = new UserDefinedType(origin, new NameSegment(origin, BaseDafnyGenerator.PURE_OBJECT_NAME, null));
         if (superClass != null) {
@@ -161,7 +160,7 @@ public class PureTypeCompiler {
         if (isCanonicalRecordConstructor(methodDecl)) {
             return;
         }
-        
+
         NameSegment resultReference = new NameSegment(origin, NameCompiler.RETURN_VARIABLE_NAME, null);
 
         java.util.function.BiFunction<JCTree.JCIdent, IOrigin, Expression> handleIdentifierOverride = (identifier, innerOrigin) -> {
@@ -180,7 +179,7 @@ public class PureTypeCompiler {
         var dafnyMember = compiler.expressionCompiler.withOverrideTranslateIdentifier(
                 () -> typeDeclarationCompiler.translateMember(methodDecl),
             handleIdentifierOverride);
-        
+
         if (dafnyMember instanceof Constructor constructor && 
                 (classDecl.sym.isAnonymous() || 
                         JVerifyUtils.isSynthetic(classDecl.sym.flags()) || 
@@ -221,7 +220,7 @@ public class PureTypeCompiler {
         if (methodDecl == null) {
             return false;
         }
-        
+
         return TreeInfo.isCanonicalConstructor(methodDecl) &&
                 (methodDecl.mods.flags & Flags.GENERATEDCONSTR) != 0;
     }
@@ -242,7 +241,7 @@ public class PureTypeCompiler {
 
         JVerifyIndex index = JVerifyIndex.instance(expressionCompiler.baseGenerator.context);
         boolean callDatatypeConstructor = isCanonicalRecordConstructor((JCTree.JCMethodDecl) index.getTree(newClass.constructor));
-            
+
         var datatypeName = expressionCompiler.baseGenerator.getNameCompiler().getCompiledName(newClass.constructor.enclClass(), origin);
         var constructorName = callDatatypeConstructor ? datatypeName : expressionCompiler.baseGenerator.getNameCompiler().getCompiledName(newClass.constructor, origin);
 

@@ -1,26 +1,22 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
+import com.aws.jverify.verifier.compiler.generator.base.dafny.ExpressionContext;
+import com.aws.jverify.verifier.compiler.generator.base.dafny.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
-import com.sun.source.tree.IdentifierTree;
-import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Names;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
@@ -95,7 +91,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      *
      * <p>Note: header methodContracts like {@link JVerify#precondition(boolean)}
      * and {@link JVerify#postcondition(boolean)}
-     * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
+     * must be translated by {@link DafnyBlockCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
      */
     public ExpressionWithFlows translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {

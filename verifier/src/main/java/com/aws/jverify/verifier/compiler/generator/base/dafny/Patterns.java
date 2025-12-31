@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator.base;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;

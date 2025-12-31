@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.generator.base.dafny.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.Enter;
@@ -12,7 +12,6 @@ import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
-import net.bytebuddy.asm.Advice;
 
 import java.util.*;
 

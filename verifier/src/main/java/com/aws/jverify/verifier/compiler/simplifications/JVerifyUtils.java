@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.ContractException;
+import com.aws.jverify.JVerify;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.generated.IOrigin;
@@ -21,6 +22,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JVerifyUtils {
+    public static final String JVERIFY_CLASS = JVerify.class.getName();
+    public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
 
     private final JavacElements elements;
     private final TreeMaker maker;
@@ -308,4 +311,5 @@ public class JVerifyUtils {
     public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
         return methodSymbol.name == methodSymbol.name.table.names.init;
     }
+    
 }

@@ -1,9 +1,8 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator;
 
 import com.sun.source.tree.*;
 import com.sun.tools.javac.tree.*;
 import com.sun.tools.javac.tree.JCTree.*;
-import com.sun.tools.javac.util.*;
 
 /**
  * A TreeCopier that preserves symbol and type information from attributed trees.

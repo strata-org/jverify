@@ -1,10 +1,9 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator.base;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopDafnyContract;
-import com.aws.jverify.verifier.compiler.dafnygenerator.*;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
@@ -13,7 +12,7 @@ import com.sun.tools.javac.tree.JCTree;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class BlockCompiler {
+public class DafnyBlockCompiler {
     public final BaseDafnyGenerator baseGenerator;
     public final DafnyGenerator generator;
     public final Reporter reporter;
@@ -24,7 +23,9 @@ public class BlockCompiler {
     private final List<StatementCompiler> statementCompilers = new ArrayList<>();
     private final Symtab symtab;
 
-    public BlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
+    public int generatedIndex = 0;
+    
+    public DafnyBlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
         this.generator = compiler.context.get(DafnyGenerator.class);
         baseGenerator = compiler;
         nameCompiler = NameCompiler.instance(compiler.context);
@@ -40,8 +41,6 @@ public class BlockCompiler {
     private final Queue<Label> labels = new LinkedList<>();
     public final Map<String, JCTree.JCStatement> labelToLoop = new HashMap<>();
     public JCTree.JCStatement outerLoop;
-
-    public int generatedIndex = 0;
 
     public List<Statement> translateStatement(JCTree.JCStatement statement) {
         return translateStatement(statement, null);

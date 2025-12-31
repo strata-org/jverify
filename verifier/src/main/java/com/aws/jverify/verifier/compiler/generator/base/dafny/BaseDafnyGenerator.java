@@ -1,10 +1,9 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator.base;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.*;
 
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.*;
-import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.tools.javac.code.Flags;
@@ -37,8 +36,6 @@ import java.util.stream.Stream;
 public class BaseDafnyGenerator implements DafnyGenerator {
     public static final boolean Ghostness = true;
     public static final String PURE_OBJECT_NAME = "Object";
-    public static final String JVERIFY_CLASS = JVerify.class.getName();
-    public static final String JVERIFY_PACKAGE = JVerify.class.getPackageName();
     public final Context context;
 
     public final Set<Symbol.MethodSymbol> symbolsWithAContract = new HashSet<>();
@@ -59,7 +56,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     private final Graph<Symbol.ClassSymbol, DefaultEdge> typeHierarchy = new DefaultDirectedGraph<>(DefaultEdge.class);
     public Map<JCTree.JCCompilationUnit, List<TopLevelDecl>> declarationsForFile = new HashMap<>();
     public final ExpressionCompiler expressionCompiler;
-    
+
     public BaseDafnyGenerator(Context context) {
         context.put(BaseDafnyGenerator.class, this);
         this.context = context;
@@ -132,7 +129,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
+    public List<Statement> translateStatementAfterLabel(DafnyBlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
         return blockCompiler.translateStatementAfterlabel(statement, labels, origin);
     }
 
@@ -151,7 +148,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                 continue;
             }
             var compilationUnit = symbolToCompilationUnit.get(currentTypeSymbol);
-            
+
             JVerifyIndex index = JVerifyIndex.instance(context);
             Env<AttrContext> env = index.getEnv(currentTypeSymbol);
             if (env != null) {
@@ -176,7 +173,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
             typeHierarchy.addEdge(sym, baseClass);
         }
     }
-    
+
     public @Nullable Type translateType(JCTree tree) {
         return generator.translateType(tree.type, reporter.toOrigin(tree), null);
     }
@@ -184,7 +181,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     public @Nullable Type translateMethodSignatureType(com.sun.tools.javac.code.Type type, IOrigin origin, JCTree.JCModifiers additionalModifiers, boolean willVerify) {
         return generator.translateType(type, origin, additionalModifiers);
     }
-    
+
     public @Nullable Type translateType(com.sun.tools.javac.code.Type type, IOrigin origin) {
         return generator.translateType(type, origin, null);
     }
@@ -219,7 +216,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         reporter.reportError(origin, "notSupported", "type " + type.getClass().getName());
         return null;
     }
-    
+
     public UserDefinedType translateArrayType(com.sun.tools.javac.code.Type.ArrayType arrayTypeTree,
                                               IOrigin origin,
                                               JCTree.JCModifiers additionalModifiers) {
@@ -364,7 +361,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.outermostClass().className().contentEquals(JVERIFY_CLASS);
+        return methodSymbol.outermostClass().className().contentEquals(JVerifyUtils.JVERIFY_CLASS);
     }
 
     /**
@@ -412,7 +409,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
         return false;
     }
-    
+
     public boolean hasNonFinalFields(Symbol.ClassSymbol classSymbol) {
         for (Symbol member : classSymbol.getEnclosedElements()) {
             if (member.getKind() == ElementKind.FIELD &&
@@ -459,7 +456,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         }
         return Stream.concat(mine, getOwnAndEnclosedTypeParameters(methodSymbol.owner));
     }
-    
+
     public boolean isImmutableClass(Symbol.ClassSymbol classSymbol) {
         var decl = (JCTree.JCClassDecl)index.getTree(classSymbol);
         boolean immutableClass = false;

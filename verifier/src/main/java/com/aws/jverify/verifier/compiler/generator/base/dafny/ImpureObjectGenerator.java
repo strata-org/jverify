@@ -1,10 +1,7 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionCompiler;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Symtab;

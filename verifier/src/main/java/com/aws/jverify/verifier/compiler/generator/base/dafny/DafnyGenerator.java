@@ -1,10 +1,7 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionWithFlows;
+import com.aws.jverify.verifier.compiler.generator.JVerifyGhostExpressionCompiler;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -15,15 +12,15 @@ import java.util.Set;
 
 public interface DafnyGenerator {
     FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries);
-    
-    List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride);
+
+    List<Statement> translateStatementAfterLabel(DafnyBlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride);
 
     default Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
         return toExprWithFlows(expr, originOverride, context).expression();
     }
-    
+
     ExpressionWithFlows toExprWithFlows(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context);
-        
+
     @Nullable
     Type translateType(com.sun.tools.javac.code.Type type, 
                        IOrigin origin, 
@@ -38,11 +35,11 @@ public interface DafnyGenerator {
                        com.sun.tools.javac.code.Type.ClassType classType);
 
     AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context);
-    
+
     static DafnyGenerator getGenerator(Context context) {
         var result = new WrappingDafnyGenerator(null);
         context.put(DafnyGenerator.class, result);
-        
+
         var base = new BaseDafnyGenerator(context);
         result.next = new ImpureObjectGenerator(context, base, 
                 new JVerifyGhostExpressionCompiler(context, new NullableGenerator(base, base)));

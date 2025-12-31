@@ -1,9 +1,10 @@
-package com.aws.jverify.verifier.compiler.simplifications.workaround;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.TypeDeclarationCompiler;
+import com.aws.jverify.verifier.compiler.generator.base.Generator;
+import com.aws.jverify.verifier.compiler.generator.base.dafny.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.generator.base.dafny.TypeDeclarationCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.util.Context;
@@ -29,7 +30,7 @@ public class TraitWithConstructorCompiler {
         }
         return List.of(clazz);
     }
-    
+
     /**
      * Translating Java classes to both a Dafny trait and a class is used to support classes extending classes
      */
@@ -53,7 +54,7 @@ public class TraitWithConstructorCompiler {
                     traitMembers.add(constructorToInitMethod(traitDecl.getNameNode().getValue(), constructor));
 
                     var classConstructor = new Constructor(constructor.getOrigin(), constructor.getNameNode(), 
-                            null, BaseDafnyGenerator.Ghostness, null,
+                            null, Generator.Ghostness, null,
                             constructor.getTypeArgs(), constructor.getIns(),
                             constructor.getReq(), constructor.getEns(), constructor.getReads(),
                             constructor.getDecreases(), constructor.getMod(),

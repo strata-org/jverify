@@ -1,9 +1,8 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.Nullable;
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;

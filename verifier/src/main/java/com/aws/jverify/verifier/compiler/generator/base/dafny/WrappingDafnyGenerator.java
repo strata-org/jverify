@@ -1,9 +1,6 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionWithFlows;
 import com.sun.tools.javac.tree.JCTree;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -24,7 +21,7 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
+    public List<Statement> translateStatementAfterLabel(DafnyBlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
         return next.translateStatementAfterLabel(blockCompiler, statement, labels, originOverride);
     }
 

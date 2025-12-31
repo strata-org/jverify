@@ -1,12 +1,9 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator.base;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.Impure;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
-import com.aws.jverify.verifier.compiler.dafnygenerator.NativeSymbols;
-import com.aws.jverify.verifier.compiler.dafnygenerator.NullableGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.sun.source.tree.Tree;

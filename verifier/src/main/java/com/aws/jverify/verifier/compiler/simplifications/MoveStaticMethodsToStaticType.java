@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.Scope;
 import com.sun.tools.javac.code.Symbol;
@@ -17,8 +16,6 @@ import com.sun.tools.javac.util.Names;
 
 import javax.lang.model.util.Elements;
 import java.util.*;
-
-import static com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator.JVERIFY_CLASS;
 
 /**
  * In Java, static methods ignore the type parameters of any enclosing types
@@ -99,7 +96,7 @@ public class MoveStaticMethodsToStaticType {
                 return;
             }
             
-            if (tree.sym.owner.type != Type.noType && tree.sym.outermostClass().fullname.contentEquals(JVERIFY_CLASS)) {
+            if (tree.sym.owner.type != Type.noType && tree.sym.outermostClass().fullname.contentEquals(JVerifyUtils.JVERIFY_CLASS)) {
                 super.visitClassDef(tree);
                 return;
             }

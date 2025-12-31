@@ -1,15 +1,12 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator.base;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.*;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopDafnyContract;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.ImpureObjectGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.simplifications.workaround.TraitWithConstructorCompiler;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
@@ -263,7 +260,7 @@ public class TypeDeclarationCompiler {
 //            var isStatic = varFlags.contains(Modifier.STATIC);
 //            return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
 //        }
-        
+
         if (variableDecl.getInitializer() != null) {
             // This block should be removed when the above block is commented in.
             if (varFlags.contains(Modifier.FINAL)) {
@@ -271,7 +268,7 @@ public class TypeDeclarationCompiler {
                 var isStatic = varFlags.contains(Modifier.STATIC);
                 return new ConstantField(origin, fieldName, null, BaseDafnyGenerator.Ghostness, type, rhs, isStatic, false);
             }
-            
+
             // Keep this variable declaration in the initializers list to be added to constructors laters
             initializers.add(variableDecl);
         }
@@ -287,7 +284,7 @@ public class TypeDeclarationCompiler {
             return null;
         }
         boolean shouldVerify = MethodOrLoopContractCompiler.hasImplementation(method);
-        
+
         if (annotationsByName.containsKey(InheritContract.class.getName())) {
 // Hints for whenever this is implemented.
 //            var types = Types.instance(context);
@@ -315,7 +312,7 @@ public class TypeDeclarationCompiler {
 
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
 
-        var blockCompiler = new BlockCompiler(baseGenerator, method.sym);
+        var blockCompiler = new DafnyBlockCompiler(baseGenerator, method.sym);
         var name = nameCompiler.getName(method, method.sym);
         var origin = reporter.declToOrigin(method, name);
         var isStatic = JVerifyUtils.isStatic(method.mods);
@@ -347,7 +344,7 @@ public class TypeDeclarationCompiler {
                 if (!postHeader.isEmpty()) {
                     var first = postHeader.getFirst();
                     if (first instanceof JCTree.JCExpressionStatement expressionStatement 
-                            && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation methodInvocation && BlockCompiler.getSuperIdent(methodInvocation) != null) {
+                            && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation methodInvocation && DafnyBlockCompiler.getSuperIdent(methodInvocation) != null) {
                         bodyStatements.addAll(blockCompiler.translateStatement(first));
                         postHeader = postHeader.tail;
                     }
@@ -462,7 +459,7 @@ public class TypeDeclarationCompiler {
         if (result != null) {
             return result;
         }
-        
+
         result = new HashSet<>();
 
         var decl = (JCTree.JCClassDecl)index.getTree(typeSymbol);
@@ -481,11 +478,11 @@ public class TypeDeclarationCompiler {
             }
             result.addAll(getBodiedMethods(baseType.tsym, origin));
         }
-        
+
         definedMethodsCache.put(typeSymbol, result);
         return result;
     }
-    
+
     public Map<String, MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin) {
         var result = inheritedUnverifiedMethodsForTypes.get(typeSymbol);
         if (result == null) {
@@ -494,7 +491,7 @@ public class TypeDeclarationCompiler {
         }
         return result;
     }
-    
+
     public Map<String, MethodOrFunction> getBodylessMethods(Symbol.TypeSymbol typeSymbol, IOrigin origin, boolean includeSelf) {
         var result = new HashMap<String, MethodOrFunction>();
         var names = getBodiedMethods(typeSymbol, origin);
@@ -516,7 +513,7 @@ public class TypeDeclarationCompiler {
                 }
             }
         }
-        
+
         for(var baseType : types.interfaces(typeSymbol.type).append(types.supertype(typeSymbol.type))) {
             if (baseType.tsym != null && baseType.tsym != typeSymbol) {
                 for(var entry : getBodylessMethods(baseType.tsym, origin).entrySet()) {

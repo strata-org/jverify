@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.NativeSymbols;
+import com.aws.jverify.verifier.compiler.generator.base.dafny.NativeSymbols;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.Enter;
@@ -16,8 +16,6 @@ import com.sun.tools.javac.util.List;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeKind;
 import java.util.*;
-
-import static com.aws.jverify.verifier.compiler.dafnygenerator.base.BaseDafnyGenerator.JVERIFY_PACKAGE;
 
 public class MissingContractCompiler {
 
@@ -282,7 +280,7 @@ public class MissingContractCompiler {
     }
 
     private static boolean isJVerifySymbol(Symbol symbol) {
-        return symbol.owner.type != Type.noType && symbol.outermostClass().packge().fullname.contentEquals(JVERIFY_PACKAGE);
+        return symbol.owner.type != Type.noType && symbol.outermostClass().packge().fullname.contentEquals(JVerifyUtils.JVERIFY_PACKAGE);
     }
 
     public boolean isRecordAccessor(Symbol.MethodSymbol method) {

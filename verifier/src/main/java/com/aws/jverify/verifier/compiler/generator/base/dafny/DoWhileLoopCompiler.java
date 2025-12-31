@@ -1,17 +1,15 @@
-package com.aws.jverify.verifier.compiler.dafnygenerator;
+package com.aws.jverify.verifier.compiler.generator.base.dafny;
 
 import com.aws.jverify.generated.Label;
 import com.aws.jverify.generated.Statement;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.BlockCompiler;
-import com.aws.jverify.verifier.compiler.dafnygenerator.base.ExpressionContext;
 import com.sun.tools.javac.tree.JCTree;
 
 import java.util.List;
 
 public class DoWhileLoopCompiler implements StatementCompiler {
-    BlockCompiler blockCompiler;
+    DafnyBlockCompiler blockCompiler;
 
-    public DoWhileLoopCompiler(BlockCompiler blockCompiler) {
+    public DoWhileLoopCompiler(DafnyBlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
     }
 

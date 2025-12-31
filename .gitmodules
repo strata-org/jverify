@@ -1,3 +1,6 @@
 [submodule "dafny"]
 	path = dafny
 	url = git@github.com:dafny-lang/dafny.git
+[submodule "Strata"]
+	path = Strata
+	url = git@github.com:strata-org/Strata.git
