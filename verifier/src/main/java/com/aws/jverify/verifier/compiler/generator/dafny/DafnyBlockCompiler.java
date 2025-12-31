@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.generator.base.dafny;
+package com.aws.jverify.verifier.compiler.generator.dafny;
 
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.JavaViolationException;

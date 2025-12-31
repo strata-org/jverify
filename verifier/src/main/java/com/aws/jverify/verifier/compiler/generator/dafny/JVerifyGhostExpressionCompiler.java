@@ -1,12 +1,10 @@
-package com.aws.jverify.verifier.compiler.generator;
+package com.aws.jverify.verifier.compiler.generator.dafny;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
-import com.aws.jverify.verifier.compiler.generator.base.dafny.ExpressionContext;
-import com.aws.jverify.verifier.compiler.generator.base.dafny.*;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
 import com.sun.tools.javac.code.Symbol;

@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.generator.base.dafny.NativeSymbols;
+import com.aws.jverify.verifier.compiler.generator.dafny.NativeSymbols;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.Enter;

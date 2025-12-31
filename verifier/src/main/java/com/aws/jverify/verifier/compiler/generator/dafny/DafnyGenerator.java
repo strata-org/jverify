@@ -1,7 +1,6 @@
-package com.aws.jverify.verifier.compiler.generator.base.dafny;
+package com.aws.jverify.verifier.compiler.generator.dafny;
 
 import com.aws.jverify.generated.*;
-import com.aws.jverify.verifier.compiler.generator.JVerifyGhostExpressionCompiler;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.util.Context;
 import org.checkerframework.checker.nullness.qual.Nullable;

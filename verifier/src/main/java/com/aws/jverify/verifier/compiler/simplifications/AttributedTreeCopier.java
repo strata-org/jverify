@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.compiler.generator;
+package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.sun.source.tree.*;
 import com.sun.tools.javac.tree.*;

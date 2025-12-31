@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.generator.AttributedTreeCopier;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.tools.javac.code.*;

@@ -7,7 +7,7 @@ import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.DiagnosticPositionFromDiagnostic;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.generator.base.dafny.DafnyGenerator;
+import com.aws.jverify.verifier.compiler.generator.dafny.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
