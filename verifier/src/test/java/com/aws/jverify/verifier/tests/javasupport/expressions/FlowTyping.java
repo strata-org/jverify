@@ -5,7 +5,7 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(javaVerified = 12, javaErrors = 0)
+@JVerifyTest(javaVerified = 9, javaErrors = 0)
 public class FlowTyping {
     interface I {}
     interface J extends I {

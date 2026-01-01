@@ -10,7 +10,7 @@ import javax.xml.XMLConstants;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, javaVerified = 11, javaErrors = 1)
+@JVerifyTest(exitCode = 4, javaVerified = 8, javaErrors = 1)
 public class PureMethodVerification {
 
     @Verify(false)

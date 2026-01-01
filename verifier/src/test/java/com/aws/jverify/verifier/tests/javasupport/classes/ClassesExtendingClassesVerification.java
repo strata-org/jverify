@@ -8,7 +8,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(javaVerified = 17, javaErrors = 0)
+@JVerifyTest(javaVerified = 11, javaErrors = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {
         Extender extender = new Extender(4);

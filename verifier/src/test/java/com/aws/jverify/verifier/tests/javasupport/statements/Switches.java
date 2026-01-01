@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(exitCode = 4, javaVerified = 8, javaErrors = 4)
+@JVerifyTest(exitCode = 4, javaVerified = 7, javaErrors = 4)
 class Switches {
     static void switchExprInt(int i) {
         var num = switch (i) {

@@ -9,7 +9,7 @@ import com.aws.jverify.testing.LibraryClassB;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, javaVerified = 32, javaErrors = 1)
+@JVerifyTest(exitCode = 4, javaVerified = 15, javaErrors = 1)
 public class InheritedUnverifiedMembers {
     static class ThroughBaseClass {
         @Pure

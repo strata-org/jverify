@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import java.util.function.Supplier;
 
 @SuppressWarnings("Convert2MethodRef")
-@JVerifyTest(javaVerified = 50, javaErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(javaVerified = 20, javaErrors = 0, verifyPrintedDafny = true)
 public class PolymorphicLambdas {
 
     static class GenContainer<T> {

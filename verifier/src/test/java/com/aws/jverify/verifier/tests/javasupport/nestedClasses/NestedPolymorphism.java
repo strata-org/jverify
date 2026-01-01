@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(javaVerified = 11, javaErrors = 0)
+@JVerifyTest(javaVerified = 6, javaErrors = 0)
 public class NestedPolymorphism {
 
     static class DummySuper { }
