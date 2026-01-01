@@ -1,3 +1,13 @@
 package com.aws.jverify.verifier.dafny;
 
-public record VerificationResults() {}
+import javax.tools.Diagnostic;
+import java.net.URI;
+import java.util.List;
+
+public record VerificationResults(
+        int verificationPassedMethods,
+        int verificationFailedMethods,
+        int verificationSkippedMethods,
+        int performanceTicks) {
+    
+}

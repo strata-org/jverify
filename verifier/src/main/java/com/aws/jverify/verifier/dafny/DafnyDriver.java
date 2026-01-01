@@ -8,7 +8,6 @@ import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,12 +25,8 @@ import java.io.InputStream;
 import java.io.Writer;
 import java.net.URI;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Properties;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -42,16 +37,45 @@ public class DafnyDriver implements Driver {
     public record VerificationResultsWithIntervalTreeMap(DafnyVerificationResults verificationResults, HashMap<URI, IntervalTree<Integer,
             JavaMethodVerificationStatus>> sourceFileToMethodIntervals) {}
 
-    public VerificationResultsWithIntervalTreeMap verifyJavaFile(JavaFileObject javaFile, VerifierOptions options)
+    public JVerifyResults verifyJavaFile(JavaFileObject javaFile, VerifierOptions options)
             throws IOException {
         return verifyJavaFiles(List.of(javaFile), options);
     }
     
-    public VerificationResultsWithIntervalTreeMap verifyJavaFiles(
+    void foo() {
+        
+//            .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
+//        ? dafnyDiagnostic.flattenRelated()
+//        : Stream.of(diagnostic))
+//        // Remove diagnostics from "additional.dfy" file as they cannot be checked now by
+//        // our test engine. And we probably want to localize them elsewhere anyway
+//        .filter(d -> {
+//            if (d instanceof DafnyDiagnostic dafnyDiagnostic) {
+//                if (dafnyDiagnostic.location.filename().contentEquals("additional.dfy")) {
+//                    throw new RuntimeException("error in additional.dfy:" + dafnyDiagnostic.getMessage(Locale.ENGLISH));
+//                }
+//                return true;
+//            }
+//            return true;
+//        })
+
+//        if (expectedJavaVerifiedCount != null) {
+//            assert verificationResults.sourceFileToMethodIntervals() != null;
+//            assertThat("Java verified method count",
+//                    verificationResults.sourceFileToMethodIntervals().values().stream()
+//                            .flatMap(IntervalTree::streamNodes)
+//                            .filter(node -> node.getValue().getVerificationStatus()
+//                                    .equals(JavaMethodVerificationStatus.VerificationStatus.Verified))
+//                            .toList().size(),
+//                    is(expectedJavaVerifiedCount));
+//        }
+    }
+    
+    public JVerifyResults verifyJavaFiles(
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions
     ) throws IOException {
-        var verificationResults = new DafnyVerificationResults();
+        List<Diagnostic<?>> diagnostics = new ArrayList<>();
 
         InstrumentLower.installModification();
         context = new Context();
@@ -66,14 +90,13 @@ public class DafnyDriver implements Driver {
 
         var hasErrors = false;
         for (var diagnostic : Reporter.instance(context).diagnostics.getDiagnostics()) {
-            verificationResults.getJverifyDiagnostics().add(diagnostic);
+            diagnostics.add(diagnostic);
             if (diagnostic.getKind() == Diagnostic.Kind.ERROR) {
                 hasErrors = true;
             }
         }
         if (dafnyEquivalent == null || (hasErrors && !verifierOptions.continueOnErrors())) {
-            verificationResults.setExitCode(CommandLine.ExitCode.USAGE);
-            return new VerificationResultsWithIntervalTreeMap(verificationResults, null);
+            return new JVerifyResults(diagnostics, CommandLine.ExitCode.USAGE, null);
         } else {
             var program = verifierOptions.time("Serializing Dafny AST", () -> {
                 var programBuilder = new StringBuilder();
@@ -84,9 +107,9 @@ public class DafnyDriver implements Driver {
                 Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
                 Files.writeString(verifierOptions.printSerializedOutputProgram(), program);
             }
-            runDafnyProcess(NameCompiler.instance(context), program, verifierOptions, verificationResults);
-            return new VerificationResultsWithIntervalTreeMap(verificationResults, context.get(VerifyAnnotationCompiler.class)
-                    .getSourceFileToMethodIntervalTreeMap());
+            var results = runDafnyProcess(NameCompiler.instance(context), program, verifierOptions);
+            results.diagnostics().addAll(0, diagnostics);
+            return results;
         }
     }
 
@@ -94,101 +117,102 @@ public class DafnyDriver implements Driver {
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions
     ) throws IOException {
-        var verificationResultsWithIntervalTreeMap = verifyJavaFiles(readFiles, verifierOptions);
-        outputVerificationResults(verificationResultsWithIntervalTreeMap, verifierOptions, verifierOptions.outWriter());
+        var results = verifyJavaFiles(readFiles, verifierOptions);
+        outputVerificationResults(results, verifierOptions, verifierOptions.outWriter());
         verifierOptions.outWriter().flush();
-        return verificationResultsWithIntervalTreeMap.verificationResults.getExitCode();
+        return results.exitCode();
     }
 
 
-    private static void outputVerificationResults(VerificationResultsWithIntervalTreeMap verificationResultsWithIntervalTreeMap,
+    private static void outputVerificationResults(JVerifyResults results,
                                                   VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
 
-        for (var diagnostic : verificationResultsWithIntervalTreeMap.verificationResults.getJverifyDiagnostics()) {
+        for (var diagnostic : results.diagnostics()) {
             outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), diagnostic));
             outputWriter.write('\n');
         }
-        for (var dafnyOutput : verificationResultsWithIntervalTreeMap.verificationResults.getOutputs()) {
-            if (dafnyOutput instanceof DafnyDiagnostic dafnyDiagnostic) {
-                outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), dafnyDiagnostic));
-                outputWriter.write('\n');
-                if (dafnyDiagnostic.relatedInformation != null) {
-                    for (var relatedInfo : dafnyDiagnostic.relatedInformation) {
-                        outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), relatedInfo.asDiagnostic()));
-                        outputWriter.write('\n');
-                    }
-                }
-                var relativeUri = dafnyDiagnostic.getSource();
-                if (relativeUri == null) {
-                    continue;
-                }
-
-                if (context.get(JavaToDafnyCompiler.class).isContractSource(relativeUri)) {
-                    continue;
-                }
-
-                var uriMethods = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals.get(relativeUri);
-                var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
-                if (failedJavaMethod != null) {
-                    failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
-                }
-            }
-        }
-
-        if (verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage() != null) {
-            outputWriter.write(verificationResultsWithIntervalTreeMap.verificationResults.getDafnyFinishedMessage());
-        }
-
-        /*
-         * checks for the following:
-         *  - the presence of non-library methods,
-         *  - lack of errors in generated Dafny code
-         *  - Dafny did not fail to run
-         *  - lack of errors in Dafny run
-         */
-        if (verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals != null //there exists
-                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != CommandLine.ExitCode.USAGE
-                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != -1
-                && verificationResultsWithIntervalTreeMap.verificationResults.getExitCode() != getExitCodeFromDafny(2)
-        ) {
-            outputWriter.write('\n');
-            String bullet = "• ";
-
-            var attemptedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
-                    .flatMap(IntervalTree::streamNodes).count();
-            outputWriter.write(String.format("Found %s verifiable Java method%s", attemptedCount, Common.getExtraS((int) attemptedCount)));
-            outputWriter.write('\n');
-
-            var skippedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
-                    .flatMap(IntervalTree::streamNodes)
-                    .filter(node -> node.getValue().getVerificationStatus()
-                            .equals(JavaMethodVerificationStatus.VerificationStatus.Skipped))
-                    .toList().size();
-            if (skippedCount > 0) {
-                outputWriter.write(String.format("%sSkipped: %s",bullet, skippedCount));
-                outputWriter.write('\n');
-            }
-
-            var verifiedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
-                    .flatMap(IntervalTree::streamNodes)
-                    .filter(node -> node.getValue().getVerificationStatus()
-                            .equals(JavaMethodVerificationStatus.VerificationStatus.Verified))
-                    .toList().size();
-            if (verifiedCount > 0) {
-                outputWriter.write(String.format("%sVerified: %s",bullet, verifiedCount));
-                outputWriter.write('\n');
-            }
-
-            var failedCount = verificationResultsWithIntervalTreeMap.sourceFileToMethodIntervals().values().stream()
-                    .flatMap(IntervalTree::streamNodes)
-                    .filter(node -> node.getValue().getVerificationStatus()
-                            .equals(JavaMethodVerificationStatus.VerificationStatus.Failed))
-                    .toList().size();
-            if (failedCount > 0) {
-                outputWriter.write(String.format("%sFailed: %s", bullet, failedCount));
-                outputWriter.write('\n');
-            }
-        }
+        
+//        for (var dafnyOutput : results.verificationResults.getOutputs()) {
+//            if (dafnyOutput instanceof DafnyDiagnostic dafnyDiagnostic) {
+//                outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), dafnyDiagnostic));
+//                outputWriter.write('\n');
+//                if (dafnyDiagnostic.relatedInformation != null) {
+//                    for (var relatedInfo : dafnyDiagnostic.relatedInformation) {
+//                        outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), relatedInfo.asDiagnostic()));
+//                        outputWriter.write('\n');
+//                    }
+//                }
+//                var relativeUri = dafnyDiagnostic.getSource();
+//                if (relativeUri == null) {
+//                    continue;
+//                }
+//
+//                if (context.get(JavaToDafnyCompiler.class).isContractSource(relativeUri)) {
+//                    continue;
+//                }
+//
+//                var uriMethods = results.sourceFileToMethodIntervals.get(relativeUri);
+//                var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
+//                if (failedJavaMethod != null) {
+//                    failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+//                }
+//            }
+//        }
+//
+//        if (results.verificationResults.getDafnyFinishedMessage() != null) {
+//            outputWriter.write(results.verificationResults.getDafnyFinishedMessage());
+//        }
+//
+//        /*
+//         * checks for the following:
+//         *  - the presence of non-library methods,
+//         *  - lack of errors in generated Dafny code
+//         *  - Dafny did not fail to run
+//         *  - lack of errors in Dafny run
+//         */
+//        if (results.sourceFileToMethodIntervals != null //there exists
+//                && results.verificationResults.getExitCode() != CommandLine.ExitCode.USAGE
+//                && results.verificationResults.getExitCode() != -1
+//                && results.verificationResults.getExitCode() != getExitCodeFromDafny(2)
+//        ) {
+//            outputWriter.write('\n');
+//            String bullet = "• ";
+//
+//            var attemptedCount = results.sourceFileToMethodIntervals().values().stream()
+//                    .flatMap(IntervalTree::streamNodes).count();
+//            outputWriter.write(String.format("Found %s verifiable Java method%s", attemptedCount, Common.getExtraS((int) attemptedCount)));
+//            outputWriter.write('\n');
+//
+//            var skippedCount = results.sourceFileToMethodIntervals().values().stream()
+//                    .flatMap(IntervalTree::streamNodes)
+//                    .filter(node -> node.getValue().getVerificationStatus()
+//                            .equals(JavaMethodVerificationStatus.VerificationStatus.Skipped))
+//                    .toList().size();
+//            if (skippedCount > 0) {
+//                outputWriter.write(String.format("%sSkipped: %s",bullet, skippedCount));
+//                outputWriter.write('\n');
+//            }
+//
+//            var verifiedCount = results.sourceFileToMethodIntervals().values().stream()
+//                    .flatMap(IntervalTree::streamNodes)
+//                    .filter(node -> node.getValue().getVerificationStatus()
+//                            .equals(JavaMethodVerificationStatus.VerificationStatus.Verified))
+//                    .toList().size();
+//            if (verifiedCount > 0) {
+//                outputWriter.write(String.format("%sVerified: %s",bullet, verifiedCount));
+//                outputWriter.write('\n');
+//            }
+//
+//            var failedCount = results.sourceFileToMethodIntervals().values().stream()
+//                    .flatMap(IntervalTree::streamNodes)
+//                    .filter(node -> node.getValue().getVerificationStatus()
+//                            .equals(JavaMethodVerificationStatus.VerificationStatus.Failed))
+//                    .toList().size();
+//            if (failedCount > 0) {
+//                outputWriter.write(String.format("%sFailed: %s", bullet, failedCount));
+//                outputWriter.write('\n');
+//            }
+//        }
     }
 
     private static String formatDiagnostic(boolean filePath, Diagnostic<?> diagnostic) {
@@ -215,23 +239,8 @@ public class DafnyDriver implements Driver {
                     "Formatting not implemented for diagnostic type " + diagnostic.getClass().getName());
         }
 
-        sb.append(formatMessage(diagnostic));
+        sb.append(Driver.formatMessage(diagnostic));
         return sb.toString();
-    }
-
-    public static String formatMessage(Diagnostic<?> diagnostic) {
-        if (diagnostic instanceof JCDiagnostic) {
-            var prefix = switch (diagnostic.getKind()) {
-                case ERROR -> "error";
-                case WARNING -> "warning";
-                case MANDATORY_WARNING -> "required warning";
-                case NOTE -> "note";
-                default -> diagnostic.getKind();
-            };
-            return prefix + ": " + diagnostic.getMessage(null);
-        }
-
-        return diagnostic.getMessage(null);
     }
 
     private static boolean checkedVersion = false;
@@ -277,10 +286,9 @@ public class DafnyDriver implements Driver {
         }
     }
 
-    public static void runDafnyProcess(NameCompiler nameCompiler,
+    public static JVerifyResults runDafnyProcess(NameCompiler nameCompiler,
                                        String program,
-                                       VerifierOptions verifierOptions,
-                                       DafnyVerificationResults outResults) {
+                                       VerifierOptions verifierOptions) {
         // First check the Dafny version is correct
         checkDafnyVersion(verifierOptions);
 
@@ -319,7 +327,7 @@ public class DafnyDriver implements Driver {
             verifierOptions.outWriter().println("Dafny options: " + String.join(" ", processBuilder.command()));
         }
 
-        verifierOptions.time("Running Dafny", () -> {
+        return verifierOptions.time("Running Dafny", () -> {
             try {
                 // Redirect stderr into stdout, instead of reading one and then the other,
                 // in order to preserve the order of output and to avoid potential deadlock.
@@ -327,16 +335,11 @@ public class DafnyDriver implements Driver {
                 try (var stdin = process.outputWriter()) {
                     stdin.write(program);
                 }
-                try (var stdout = process.inputReader()) {
-                    parseDafnyJsonOutput(verifierOptions, nameCompiler, stdout, outResults);
-                    int dafnyExitCode = process.waitFor();
-                    var exitCode = getExitCodeFromDafny(dafnyExitCode);
-                    outResults.setExitCode(exitCode);
-                }
+                return parseDafnyJsonOutput(verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
                 verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
                 e.printStackTrace();
-                outResults.setExitCode(-1);
+                return new JVerifyResults(List.of(), -1, null);
             }
         });
     }
@@ -378,63 +381,73 @@ public class DafnyDriver implements Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static void parseDafnyJsonOutput(VerifierOptions options, 
+    private static JVerifyResults parseDafnyJsonOutput(VerifierOptions options, 
                                              NameCompiler nameCompiler,
-                                             BufferedReader dafnyOutput,
-                                             DafnyVerificationResults outResults) {
-        var objectMapper = new ObjectMapper();
-        
-        SimpleModule module = new SimpleModule();
-        module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
-        objectMapper.registerModule(module);
-        objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
+                                             Process process) throws IOException, InterruptedException {
 
-        StringBuilder exceptionOutput = new StringBuilder();
-        dafnyOutput.lines().forEach(line -> {
-            Matcher matcher;
-            if (!exceptionOutput.isEmpty()) {
-                exceptionOutput.append(line).append("\n");
-            } else if (line.isBlank()) {
-                //noinspection UnnecessaryReturnStatement
-                return;  // nothing to do
-            } else if (line.startsWith("{")) {
-                try {
-                    DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
-                    switch (output) {
-                        case DafnyDiagnostic dafnyDiagnostic -> {
-                            if (dafnyDiagnostic.defaultFormatMessage.contains("[internal error]")) {
-                                throw new RuntimeException("JVerify had an internal exception when calling Dafny: " + dafnyDiagnostic.getMessage(Locale.ENGLISH));
-                            }
-                            for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
-                                dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
-                            }
-                        }
-                        case StatusMessage statusMessage -> {
-                            if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
-                                if (outResults.getDafnyVerifiedCount() != null) {
-                                    throw new RuntimeException("Dafny output contains multiple summary lines");
+        List<Diagnostic<?>> diagnostics = new ArrayList<>();
+        try (var dafnyOutput = process.inputReader()) {
+
+            var objectMapper = new ObjectMapper();
+
+            SimpleModule module = new SimpleModule();
+            module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
+            objectMapper.registerModule(module);
+            objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
+
+            StringBuilder exceptionOutput = new StringBuilder();
+            dafnyOutput.lines().forEach(line -> {
+                Matcher matcher;
+                if (!exceptionOutput.isEmpty()) {
+                    exceptionOutput.append(line).append("\n");
+                } else if (line.isBlank()) {
+                    //noinspection UnnecessaryReturnStatement
+                    return;  // nothing to do
+                } else if (line.startsWith("{")) {
+                    try {
+                        DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
+                        switch (output) {
+                            case DafnyDiagnostic dafnyDiagnostic -> {
+                                if (dafnyDiagnostic.defaultFormatMessage.contains("[internal error]")) {
+                                    throw new RuntimeException("JVerify had an internal exception when calling Dafny: " + dafnyDiagnostic.getMessage(Locale.ENGLISH));
                                 }
-                                outResults.setDafnyVerifiedCount(Integer.parseInt(matcher.group("VerifiedCount")));
-                                outResults.setDafnyErrorCount(Integer.parseInt(matcher.group("ErrorCount")));
-                                outResults.setDafnyFinishedMessage(statusMessage.getValue());
+                                for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
+                                    dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
+                                }
+                                diagnostics.add(dafnyDiagnostic);
                             }
-                            if ((matcher = timePattern.matcher(statusMessage.getValue().trim())).matches()) {
-                                options.printTime(matcher.group("Name"), Duration.ofMillis(Long.parseLong(matcher.group("Duration"))));
+                            case StatusMessage statusMessage -> {
+                                if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
+//                                    if (outResults.getDafnyVerifiedCount() != null) {
+//                                        throw new RuntimeException("Dafny output contains multiple summary lines");
+//                                    }
+                                    //outResults.setDafnyVerifiedCount(Integer.parseInt(matcher.group("VerifiedCount")));
+                                    //outResults.setDafnyErrorCount(Integer.parseInt(matcher.group("ErrorCount")));
+                                    //outResults.setDafnyFinishedMessage(statusMessage.getValue());
+                                }
+                                if ((matcher = timePattern.matcher(statusMessage.getValue().trim())).matches()) {
+                                    options.printTime(matcher.group("Name"), Duration.ofMillis(Long.parseLong(matcher.group("Duration"))));
+                                }
                             }
                         }
+                        //outResults.getOutputs().add(output);
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
                     }
-                    outResults.getOutputs().add(output);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
+                } else {
+                    exceptionOutput.append(line).append("\n");
                 }
-            } else {
-                exceptionOutput.append(line).append("\n");
+            });
+            if (!exceptionOutput.isEmpty()) {
+                String diagnosticsString = diagnostics.stream().map(Object::toString).collect(Collectors.joining("\n"));
+                throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput + "\n" + diagnosticsString);
             }
-        });
-        if (!exceptionOutput.isEmpty()) {
-            String diagnostics = outResults.getDiagnostics().map(Object::toString).collect(Collectors.joining("\n"));
-            throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput + "\n" + diagnostics);
+            
+            int dafnyExitCode = process.waitFor();
+            var exitCode = getExitCodeFromDafny(dafnyExitCode);
+            return new JVerifyResults(diagnostics, exitCode, null);
         }
+        
     }
 
     /**

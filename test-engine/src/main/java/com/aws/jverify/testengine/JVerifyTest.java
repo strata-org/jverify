@@ -51,11 +51,11 @@ public @interface JVerifyTest {
 
     int exitCode() default 0;
 
-    int dafnyVerified() default -1;
-
     int dafnyErrors() default -1;
 
     Backend[] BACKENDS() default { Backend.Dafny };
+
+    int[] performanceTicks() default { };
     
     String[] additionalFiles() default {};
     

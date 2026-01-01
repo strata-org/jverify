@@ -4,7 +4,9 @@ import com.aws.jverify.verifier.Backend;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.laurel.LaurelDriver;
+import com.sun.tools.javac.util.JCDiagnostic;
 
+import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,12 +36,27 @@ public interface Driver {
             VerifierOptions verifierOptions
     ) throws IOException;
 
-    VerificationResults verifyJavaFiles(
+    JVerifyResults verifyJavaFiles(
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions
     ) throws IOException;
     
     public static Driver getDriver(Backend backend) {
         return backend == Backend.Dafny ? new DafnyDriver() : new LaurelDriver();
+    }
+
+    public static String formatMessage(Diagnostic<?> diagnostic) {
+        if (diagnostic instanceof JCDiagnostic) {
+            var prefix = switch (diagnostic.getKind()) {
+                case ERROR -> "error";
+                case WARNING -> "warning";
+                case MANDATORY_WARNING -> "required warning";
+                case NOTE -> "note";
+                default -> diagnostic.getKind();
+            };
+            return prefix + ": " + diagnostic.getMessage(null);
+        }
+
+        return diagnostic.getMessage(null);
     }
 }

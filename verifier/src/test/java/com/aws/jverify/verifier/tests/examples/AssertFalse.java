@@ -4,7 +4,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 2, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, javaVerified = 1, javaErrors = 1)
 class AssertFalse {
     static void Foo() {
         check(false);
