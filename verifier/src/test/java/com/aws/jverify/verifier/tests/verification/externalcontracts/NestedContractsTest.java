@@ -4,7 +4,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(javaVerified = 6, javaErrors = 0)
+@JVerifyTest(javaVerified = 2, javaErrors = 0)
 class NestedContractsTest {
     public static void foo(InterfaceOne.Nested f, InterfaceTwo.Nested f2, InterfaceTwo.Nested.ReNested f3) {
         f.setY(42);

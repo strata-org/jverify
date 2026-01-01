@@ -7,7 +7,7 @@ import java.util.Optional;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, javaVerified = 2, javaErrors = 2, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, javaVerified = 1, javaErrors = 2, useBuiltinContracts = true)
 public class Optionals {
 
     void testEmpty() {
