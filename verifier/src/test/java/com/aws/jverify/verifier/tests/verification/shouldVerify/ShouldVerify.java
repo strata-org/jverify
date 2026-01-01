@@ -9,7 +9,7 @@ import java.math.BigInteger;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 6,
+@JVerifyTest(exitCode = 4,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 

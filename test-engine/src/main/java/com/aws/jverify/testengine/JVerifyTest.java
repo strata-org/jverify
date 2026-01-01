@@ -23,7 +23,7 @@ import java.lang.annotation.Target;
  *          (i.e. Dafny is never invoked because there are javac errors, or Dafny terminates abnormally).
  *      </li>
  *      <li>
- *          {@code @JVerifyTest(exitCode = ..., dafnyVerified = ..., dafnyErrors = ...)}
+ *          {@code @JVerifyTest(exitCode = ..., javaVerified = ..., javaErrors = ...)}
  *          - Verification should finish with exit code {@code X}, Dafny terminates normally,
  *          and Dafny's summary reports {@code Y} verified symbols and {@code Z} errors.
  *      </li>

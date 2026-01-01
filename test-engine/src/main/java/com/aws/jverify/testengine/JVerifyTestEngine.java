@@ -163,7 +163,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
         assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
-                (annotation.dafnyVerified() >= 0) == (annotation.dafnyErrors() >= 0));
+                (annotation.javaVerified() >= 0) == (annotation.javaErrors() >= 0));
 
         var inputs = Arrays.stream(annotation.additionalFiles()).map(f -> {
             try {
@@ -208,8 +208,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             var expectedAnnotations = ranges.stream().sorted().toList();
             assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
-            Integer expectedDafnyVerifiedCount = annotation.dafnyVerified() >= 0 ? annotation.dafnyVerified() : null;
-            Integer expectedDafnyErrorCount = annotation.dafnyErrors() >= 0 ? annotation.dafnyErrors() : null;
             Integer expectedJavaVerifiedCount = annotation.javaVerified() >= 0 ? annotation.javaVerified() : null;
             Integer expectedJavaErrorCount = annotation.javaErrors() >= 0 ? annotation.javaErrors() : null;
             Integer expectedJavaSkippedCount = annotation.javaSkipped() >= 0 ? annotation.javaSkipped() : null;
@@ -224,9 +222,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                 is(expectedJavaVerifiedCount));
                         }
                     },
-                    () -> assertThat("Verification performance ticks",
-                            results.verificationResults().performanceTicks(),
-                            is(expectedDafnyVerifiedCount)),
                     () -> {
                         if (expectedJavaErrorCount != null) {
                             assertThat("Java verification failed method count",
@@ -373,7 +368,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                                         boolean continueOnErrors,
                                                         boolean useBuiltinContracts) {
         return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors, 
-                exitCode, dafnyVerified, dafnyErrors, new String[0], verifyPrintedDafny, -1, -1, -1, new Backend[]{ Backend.Dafny });
+                exitCode, dafnyVerified, dafnyErrors, new String[0], verifyPrintedDafny, -1, -1, -1, 
+                new Backend[]{ Backend.Dafny }, new int[] {});
     }
 
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, JVerifyResults results) throws IOException {
@@ -386,8 +382,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 int annotationIndex = maybeAnnotationIndex.getAsInt();
                 var newLine = allLines[annotationIndex].
                         replaceFirst("exitCode = \\d", "exitCode = " + results.exitCode()).
-                        replaceFirst("dafnyVerified = \\d+", "javaVerified = " + results.verificationResults().verificationPassedMethods()).
-                        replaceFirst("dafnyErrors = \\d+", "javaErrors = " + results.verificationResults().verificationFailedMethods());
+                        replaceFirst("javaVerified = \\d+", "javaVerified = " + results.verificationResults().verificationPassedMethods()).
+                        replaceFirst("javaErrors = \\d+", "javaErrors = " + results.verificationResults().verificationFailedMethods());
                 allLines[annotationIndex] = newLine;
             }
 

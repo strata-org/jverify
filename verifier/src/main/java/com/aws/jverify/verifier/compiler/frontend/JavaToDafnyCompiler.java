@@ -217,7 +217,8 @@ public class JavaToDafnyCompiler {
                 // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
                     @SuppressWarnings("unchecked") var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
-                    if (!javaFrontendDiagnostics.getDiagnostics().isEmpty()) {
+                    if (javaFrontendDiagnostics.getDiagnostics().stream().
+                            anyMatch(diagnostic -> diagnostic.getKind() == Diagnostic.Kind.ERROR)) {
                         return;
                     }
                     // The earlier phases leave the queue of classes to process

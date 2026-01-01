@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.jcl;
 import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0, dafnyVerified = 9, dafnyErrors = 0)  // 7 test methods + class structure + other symbols = 9 verified
+@JVerifyTest(exitCode = 0, javaVerified = 9, javaErrors = 0)  // 7 test methods + class structure + other symbols = 9 verified
 class Doubles {
 
     static void testLiterals() {

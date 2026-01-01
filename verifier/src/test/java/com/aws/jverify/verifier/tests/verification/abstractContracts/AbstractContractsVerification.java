@@ -6,7 +6,7 @@ import javax.xml.XMLConstants;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 27, dafnyErrors = 2)
+@JVerifyTest(exitCode = 4, javaVerified = 27, javaErrors = 2)
 public class AbstractContractsVerification {
     int midConsumer(Mid mid, int x) {
         precondition(preconditionOf(mid.foo(x)));

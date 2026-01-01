@@ -8,6 +8,7 @@ import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,8 +35,6 @@ import java.util.stream.Collectors;
 public class DafnyDriver implements Driver {
 
     public static Context context;
-    public record VerificationResultsWithIntervalTreeMap(DafnyVerificationResults verificationResults, HashMap<URI, IntervalTree<Integer,
-            JavaMethodVerificationStatus>> sourceFileToMethodIntervals) {}
 
     public JVerifyResults verifyJavaFile(JavaFileObject javaFile, VerifierOptions options)
             throws IOException {
@@ -395,6 +394,8 @@ public class DafnyDriver implements Driver {
             objectMapper.registerModule(module);
             objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
 
+            var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
+            var methodStatusses = annotationCompiler.getMethodStatusPerUri();
             StringBuilder exceptionOutput = new StringBuilder();
             dafnyOutput.lines().forEach(line -> {
                 Matcher matcher;
@@ -415,6 +416,21 @@ public class DafnyDriver implements Driver {
                                     dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
                                 }
                                 diagnostics.add(dafnyDiagnostic);
+
+                                var relativeUri = dafnyDiagnostic.getSource();
+                                if (relativeUri == null) {
+                                    return;
+                                }
+
+                                if (context.get(JavaToDafnyCompiler.class).isContractSource(relativeUri)) {
+                                    return;
+                                }
+
+                                var uriMethods = methodStatusses.get(relativeUri);
+                                var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
+                                if (failedJavaMethod != null) {
+                                    failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                                }
                             }
                             case StatusMessage statusMessage -> {
                                 if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
@@ -443,9 +459,25 @@ public class DafnyDriver implements Driver {
                 throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput + "\n" + diagnosticsString);
             }
             
+            int verifiedCount = 0;
+            int skippedCount = 0;
+            int failedCount = 0;
+            for(IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatusses.values()) {
+                var statusses = uriStatusses.streamNodes().toList();
+                for(var methodStatus : statusses) {
+                    var method = methodStatus.getValue();
+                    var status = method.getVerificationStatus();
+                    switch (status) {
+                        case Verified -> verifiedCount++;
+                        case Skipped -> skippedCount++;
+                        case Failed -> failedCount++;
+                    }
+                };
+            };
+
             int dafnyExitCode = process.waitFor();
             var exitCode = getExitCodeFromDafny(dafnyExitCode);
-            return new JVerifyResults(diagnostics, exitCode, null);
+            return new JVerifyResults(diagnostics, exitCode, new VerificationResults(verifiedCount, failedCount, skippedCount, -1));
         }
         
     }

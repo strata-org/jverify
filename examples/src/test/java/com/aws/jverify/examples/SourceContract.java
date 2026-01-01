@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 7, dafnyErrors = 0)
+@JVerifyTest(javaVerified = 7, javaErrors = 0)
 public class SourceContract {
 
     @Contract(Foo.class)
