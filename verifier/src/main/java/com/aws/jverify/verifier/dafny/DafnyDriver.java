@@ -415,7 +415,8 @@ public class DafnyDriver implements Driver {
                                 for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
                                     dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
                                 }
-                                diagnostics.add(dafnyDiagnostic);
+                                
+                                dafnyDiagnostic.flattenRelated().forEach(diagnostics::add);
 
                                 var relativeUri = dafnyDiagnostic.getSource();
                                 if (relativeUri == null) {
