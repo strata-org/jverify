@@ -8,7 +8,7 @@ import java.util.stream.IntStream;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(javaVerified = 2, javaErrors = 0)
+@JVerifyTest(methodsVerified = 2, failedAssertions = 0)
 public class AllMatchContract {
 
     @SuppressWarnings("ConstantValue")

@@ -8,7 +8,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, javaVerified = 4, javaErrors = 4)
+@JVerifyTest(exitCode = 4, methodsVerified = 2, failedAssertions = 4)
 class FibonacciInvalid {
     @Pure
     @Erased

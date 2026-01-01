@@ -4,7 +4,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(javaVerified = 4, javaErrors = 0)
+@JVerifyTest(methodsVerified = 4, failedAssertions = 0)
 class FreshAndOld {
     int x;
     

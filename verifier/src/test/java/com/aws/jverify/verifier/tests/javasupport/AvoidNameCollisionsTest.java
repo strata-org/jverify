@@ -7,7 +7,7 @@ import java.util.function.IntPredicate;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(javaVerified = 17, javaErrors = 0, verifyPrintedDafny = true)
+@JVerifyTest(methodsVerified = 26, failedAssertions = 0, verifyPrintedDafny = true)
 public class AvoidNameCollisionsTest {
 
     void set(int set, int r_set) {}

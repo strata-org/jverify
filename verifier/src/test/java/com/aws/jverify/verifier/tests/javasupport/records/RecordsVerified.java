@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, javaVerified = 17, javaErrors = 4)
+@JVerifyTest(exitCode = 4, methodsVerified = 22, failedAssertions = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();

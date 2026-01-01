@@ -75,7 +75,7 @@ class AppCommand implements Callable<Integer> {
     private boolean trackTime;
     
     @Option(names = "--backend", description = "")
-    private Backend backend;
+    private Backend backend = Backend.Dafny;
 
     @Override
     public Integer call() throws IOException {

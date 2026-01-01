@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, javaVerified = 10, javaErrors = 5)
+@JVerifyTest(exitCode = 4, methodsVerified = 10, failedAssertions = 5)
 class InterfacesVerification {
     public void root(I i) {
         var a = i.f(1);

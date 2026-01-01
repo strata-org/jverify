@@ -12,7 +12,7 @@ public class TestExamples {
     @Test
     public void testSumCache() throws IOException {
         var markedSourcePath = Path.of("SumCache.java");
-        verifyPath(markedSourcePath, 4, 7, 1, false, true);
+        verifyPath(markedSourcePath, 4, 4, 1, false, true);
     }
     
     /**
@@ -33,13 +33,13 @@ public class TestExamples {
     @Test
     public void testNullCheck() throws IOException {
         var markedSourcePath = Path.of("SimpleNullCheck.java");
-        verifyPath(markedSourcePath, 4, 5, 2, false, true);
+        verifyPath(markedSourcePath, 4, 4, 2, false, true);
     }
     
     @Test
     public void testFibonacci() throws IOException {
         var markedSourcePath = Path.of("Fibonacci.java");
-        verifyPath(markedSourcePath, 0, 6, 0, false, true);
+        verifyPath(markedSourcePath, 0, 4, 0, false, true);
     }
 
     @Test
@@ -57,14 +57,14 @@ public class TestExamples {
     @Test
     public void testBinarySearch() throws IOException {
         var markedSourcePath = Path.of("BinarySearch.java");
-        verifyPath(markedSourcePath, 0, 5, 0, false, true);
+        verifyPath(markedSourcePath, 0, 3, 0, false, true);
     }
     
-    private void verifyPath(Path path, int exitCode, int dafnyVerified, int dafnyErrors, 
+    private void verifyPath(Path path, int exitCode, int methodsVerified, int assertionsFailed, 
                             boolean continueOnErrors, 
                             boolean useBuiltinContracts) throws IOException {
         var markedSource = Files.readString(Path.of("../examples/src/test/java/com/aws/jverify/examples/").resolve(path));
-        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, dafnyVerified, dafnyErrors, 
+        var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, methodsVerified, assertionsFailed, 
                 false, continueOnErrors, useBuiltinContracts);
         JVerifyTestEngine.testMarkedSource(new SourceFile(path, markedSource), annotation);
     }

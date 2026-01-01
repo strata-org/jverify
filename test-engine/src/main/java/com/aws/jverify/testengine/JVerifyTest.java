@@ -1,6 +1,5 @@
 package com.aws.jverify.testengine;
 
-import com.aws.jverify.generated.DefaultClassDecl;
 import com.aws.jverify.verifier.Backend;
 import org.junit.platform.commons.annotation.Testable;
 
@@ -51,8 +50,6 @@ public @interface JVerifyTest {
 
     int exitCode() default 0;
 
-    int dafnyErrors() default -1;
-
     Backend[] BACKENDS() default { Backend.Dafny };
 
     int[] performanceTicks() default { };
@@ -64,17 +61,19 @@ public @interface JVerifyTest {
     /**
      * Expected number of Java methods to fail verification
      */
-    int javaErrors()  default -1;
+    int methodsInvalid()  default -1;
+    
+    int failedAssertions()  default -1;
 
     /**
      * Expected number of Java methods to be verified
      * Note: add + 1 for each class you are verifying to account
      * for the implicit constructor unless you have specified it explicitly
      */
-    int javaVerified() default -1;
+    int methodsVerified() default -1;
 
     /**
      * Expected number of Java methods to have been skipped during verification
      */
-    int javaSkipped() default -1;
+    int methodsSkipped() default -1;
 }

@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(verifyByDefault = false, exitCode = 4, javaVerified = 1, javaErrors = 1)
+@JVerifyTest(verifyByDefault = false, exitCode = 4, methodsVerified = 1, failedAssertions = 1)
 public class VerifyOffByDefault {}
 
 @Verify

@@ -397,6 +397,7 @@ public class DafnyDriver implements Driver {
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
             var methodStatusses = annotationCompiler.getMethodStatusPerUri();
             StringBuilder exceptionOutput = new StringBuilder();
+            Wrapper<Integer> failedAssertionsCount = new Wrapper<>(0);
             dafnyOutput.lines().forEach(line -> {
                 Matcher matcher;
                 if (!exceptionOutput.isEmpty()) {
@@ -415,7 +416,8 @@ public class DafnyDriver implements Driver {
                                 for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
                                     dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
                                 }
-                                
+
+                                failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
                                 dafnyDiagnostic.flattenRelated().forEach(diagnostics::add);
 
                                 var relativeUri = dafnyDiagnostic.getSource();
@@ -478,7 +480,9 @@ public class DafnyDriver implements Driver {
 
             int dafnyExitCode = process.waitFor();
             var exitCode = getExitCodeFromDafny(dafnyExitCode);
-            return new JVerifyResults(diagnostics, exitCode, new VerificationResults(verifiedCount, failedCount, skippedCount, -1));
+            return new JVerifyResults(diagnostics, exitCode, 
+                    new VerificationResults(verifiedCount, failedCount, skippedCount, 
+                            failedAssertionsCount.getValue(), -1));
         }
         
     }
@@ -490,4 +494,20 @@ public class DafnyDriver implements Driver {
     @JsonIgnoreProperties({"pos"})
     private static abstract class DafnyJsonPosition {}
 
+}
+
+class Wrapper<T> {
+    T value;
+
+    public Wrapper(T value) {
+        this.value = value;
+    }
+
+    public T getValue() {
+        return value;
+    }
+
+    public void setValue(T value) {
+        this.value = value;
+    }
 }

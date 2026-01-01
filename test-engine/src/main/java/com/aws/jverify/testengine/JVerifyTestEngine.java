@@ -33,7 +33,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -162,9 +161,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                   VerifierOptions options) throws IOException {
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
-        assertThat("@VerifyTest must include both or neither of dafnyVerified and dafnyErrors",
-                (annotation.javaVerified() >= 0) == (annotation.javaErrors() >= 0));
-
         var inputs = Arrays.stream(annotation.additionalFiles()).map(f -> {
             try {
                 var p = Path.of(sourceFile.toUri()).getParent().resolve(f).normalize();
@@ -208,25 +204,26 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             var expectedAnnotations = ranges.stream().sorted().toList();
             assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
-            Integer expectedJavaVerifiedCount = annotation.javaVerified() >= 0 ? annotation.javaVerified() : null;
-            Integer expectedJavaErrorCount = annotation.javaErrors() >= 0 ? annotation.javaErrors() : null;
-            Integer expectedJavaSkippedCount = annotation.javaSkipped() >= 0 ? annotation.javaSkipped() : null;
+            Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
+            Integer expectedMethodsInvalidCount = annotation.methodsInvalid() >= 0 ? annotation.methodsInvalid() : null;
+            Integer expectedFailedAssertionsCount = annotation.methodsInvalid() >= 0 ? annotation.failedAssertions() : null;
+            Integer expectedJavaSkippedCount = annotation.methodsSkipped() >= 0 ? annotation.methodsSkipped() : null;
             Assertions.assertAll(
                     () -> assertThat("exit code",
                             results.exitCode(),
                             is(annotation.exitCode())),
                     () -> {
                         if (expectedJavaVerifiedCount != null) {
-                            assertThat("Java verification passed method count",
+                            assertThat("Java verified methods count",
                                     results.verificationResults().verificationPassedMethods(),
                                 is(expectedJavaVerifiedCount));
                         }
                     },
                     () -> {
-                        if (expectedJavaErrorCount != null) {
-                            assertThat("Java verification failed method count",
-                                    results.verificationResults().verificationFailedMethods(),
-                                    is(expectedJavaErrorCount));
+                        if (expectedFailedAssertionsCount != null) {
+                            assertThat("Failed assertions count",
+                                    results.verificationResults().verificationFailedAssertions(),
+                                    is(expectedFailedAssertionsCount));
                         }
                     },
                     () -> {
@@ -354,8 +351,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      * For creating a JVerifyTest annotation without having it in source code.
      * Useful for testing things like examples where we don't want the explicit annotation.
      */
-    public static JVerifyTest makeJVerifyTestAnnotation(int dafnyVerified, int dafnyErrors) {
-        return makeJVerifyTestAnnotation(true, dafnyErrors > 0 ? 4 : 0, dafnyVerified, dafnyErrors, false, false, true);
+    public static JVerifyTest makeJVerifyTestAnnotation(int methodsVerified, int assertionsFailed) {
+        return makeJVerifyTestAnnotation(true, assertionsFailed > 0 ? 4 : 0, methodsVerified, assertionsFailed, false, false, true);
     }
     
     /**
@@ -363,12 +360,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      * Useful for testing things like examples where we don't want the explicit annotation.
      */
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
-                                                        int dafnyVerified, int dafnyErrors,
+                                                        int methodsVerified, int assertionsFailed,
                                                         boolean verifyPrintedDafny,
                                                         boolean continueOnErrors,
                                                         boolean useBuiltinContracts) {
         return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors, 
-                exitCode, dafnyVerified, dafnyErrors, new String[0], verifyPrintedDafny, -1, -1, -1, 
+                exitCode, new String[0], verifyPrintedDafny, -1, assertionsFailed, methodsVerified, -1, 
                 new Backend[]{ Backend.Dafny }, new int[] {});
     }
 

@@ -8,7 +8,7 @@ import java.util.List;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(javaVerified = 9, javaErrors = 0)
+@JVerifyTest(methodsVerified = 9, failedAssertions = 0)
 public class UnusedUnverifiedContractRequirement {
 
     @Verify(false)

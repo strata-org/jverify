@@ -1,11 +1,10 @@
 package com.aws.jverify.verifier.tests.javasupport.expressions;
 
-import com.aws.jverify.ContractException;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(javaVerified = 9, javaErrors = 0)
+@JVerifyTest(methodsVerified = 9, failedAssertions = 0)
 public class FlowTyping {
     interface I {}
     interface J extends I {
