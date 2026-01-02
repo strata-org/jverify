@@ -1,7 +1,6 @@
 package com.aws.jverify.verifier.dafny;
 
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.laurel.LaurelDriver;
 import com.sun.tools.javac.util.JCDiagnostic;
 
 import javax.tools.Diagnostic;
@@ -14,7 +13,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public interface IDriver {
+public interface Driver {
 
     default int verifyJavaPaths(List<Path> files, VerifierOptions verifierOptions) throws IOException {
         List<JavaFileObject> readFiles = files.stream().map((Path p) -> {
@@ -84,7 +83,7 @@ public interface IDriver {
                     "Formatting not implemented for diagnostic type " + diagnostic.getClass().getName());
         }
 
-        sb.append(IDriver.formatMessage(diagnostic));
+        sb.append(Driver.formatMessage(diagnostic));
         return sb.toString();
     }
 
@@ -94,10 +93,14 @@ public interface IDriver {
             VerifierOptions verifierOptions
     ) throws IOException;
     
-    public static IDriver getDriver(Backend backend) {
-        return backend == Backend.Dafny ? new Driver() : new LaurelDriver();
+    static Driver getDriver(Backend backend) {
+        if (backend == Backend.Dafny) {
+            return new DafnyDriver();
+        }
+        throw new RuntimeException("Unsupported backend: " + backend);
     }
-    public static String formatMessage(Diagnostic<?> diagnostic) {
+    
+    static String formatMessage(Diagnostic<?> diagnostic) {
         if (diagnostic instanceof JCDiagnostic) {
             var prefix = switch (diagnostic.getKind()) {
                 case ERROR -> "error";

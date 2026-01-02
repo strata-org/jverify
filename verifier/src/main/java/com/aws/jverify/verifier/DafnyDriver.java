@@ -13,7 +13,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.JavacMessages;
 import picocli.CommandLine;
 
@@ -21,7 +20,6 @@ import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -32,7 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class Driver implements IDriver {
+public class DafnyDriver implements Driver {
 
     public static Context context;
 
@@ -92,7 +90,7 @@ public class Driver implements IDriver {
 
         if (!checkedVersion) {
             Properties properties = new Properties();
-            try (InputStream input = Driver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
+            try (InputStream input = DafnyDriver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
                 properties.load(input);
                 var dafnyVersion = properties.getProperty("dafnyVersion");
                 var dafnyRef = properties.getProperty("dafnyRef");
@@ -233,7 +231,7 @@ public class Driver implements IDriver {
             SimpleModule module = new SimpleModule();
             module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
             objectMapper.registerModule(module);
-            objectMapper.addMixIn(Position.class, Driver.DafnyJsonPosition.class);
+            objectMapper.addMixIn(Position.class, DafnyDriver.DafnyJsonPosition.class);
 
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
             var methodStatusses = annotationCompiler.getMethodStatusPerUri();
