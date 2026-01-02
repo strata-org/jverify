@@ -230,14 +230,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         boolean jverifyCompilationFailed = previousResults.exitCode() == 2;
         if (jverifyCompilationFailed) {
             return;
-        } else if (verifierOptions.printDafny() == null) {
+        } else if (verifierOptions.printDeserializedTarget() == null) {
             throw new RuntimeException("");
         }
 
         var processBuilder = new ProcessBuilder(
-                verifierOptions.dafnyPath().toString(),
+                verifierOptions.backendPath().toString(),
                 "verify",
-                verifierOptions.printDafny().toString(),
+                verifierOptions.printDeserializedTarget().toString(),
                 "--allow-axioms",
                 "--type-system-refresh",
                 "--general-newtypes",

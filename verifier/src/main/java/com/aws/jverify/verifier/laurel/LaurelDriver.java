@@ -1,10 +1,14 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.laurel;
 
+import com.amazon.ion.system.IonSystemBuilder;
 import com.aws.jverify.common.Position;
+import com.aws.jverify.laurel.IonSerializer;
+import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
+import com.aws.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.dafny.*;
@@ -19,18 +23,16 @@ import picocli.CommandLine;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-public class DafnyDriver implements Driver {
+public class LaurelDriver implements Driver {
 
     public static Context context;
 
@@ -53,8 +55,8 @@ public class DafnyDriver implements Driver {
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var dafnyEquivalent = verifierOptions.time("Compiling Java to Dafny",
-                () -> new JavaToDafnyCompiler(context).analyzeJavaCode(verifierOptions, readFiles));
+        var compiledProgram = verifierOptions.time("Compiling Java to Dafny",
+                () -> new JavaToLaurelCompiler(context).analyzeJavaCode(verifierOptions, readFiles));
 
         var hasErrors = false;
         for (var diagnostic : Reporter.instance(context).diagnostics.getDiagnostics()) {
@@ -63,18 +65,23 @@ public class DafnyDriver implements Driver {
                 hasErrors = true;
             }
         }
-        if (dafnyEquivalent == null || (hasErrors && !verifierOptions.continueOnErrors())) {
+        if (compiledProgram == null || (hasErrors && !verifierOptions.continueOnErrors())) {
             return new JVerifyResults(diagnostics, CommandLine.ExitCode.USAGE, null);
         } else {
-            var program = verifierOptions.time("Serializing Dafny AST", () -> {
-                var programBuilder = new StringBuilder();
-                new Serializer(new TextEncoder(programBuilder)).serialize(dafnyEquivalent);
-                return programBuilder.toString();
+            var program = verifierOptions.time("Serializing Laurel AST", () -> {
+                var ionSystem = IonSystemBuilder.standard().build();
+                var serialized = new IonSerializer(ionSystem).serialize(compiledProgram);
+
+                if (verifierOptions.printSerializedOutputProgram() != null) {
+                    try {
+                        Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
+                        Files.writeString(verifierOptions.printSerializedOutputProgram(), serialized.toPrettyString());
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                return serialized.toString();
             });
-            if (verifierOptions.printSerializedOutputProgram() != null) {
-                Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
-                Files.writeString(verifierOptions.printSerializedOutputProgram(), program);
-            }
             var results = runDafnyProcess(NameCompiler.instance(context), program, verifierOptions);
             results.diagnostics().addAll(0, diagnostics);
             return results;
@@ -84,42 +91,11 @@ public class DafnyDriver implements Driver {
     private static boolean checkedVersion = false;
 
     private static void checkDafnyVersion(VerifierOptions verifierOptions) {
-        if (!verifierOptions.testDafnyVersion()) {
+        if (!verifierOptions.testBackendVersion()) {
             return;
         }
 
         if (!checkedVersion) {
-            Properties properties = new Properties();
-            try (InputStream input = DafnyDriver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
-                properties.load(input);
-                var dafnyVersion = properties.getProperty("dafnyVersion");
-                var dafnyRef = properties.getProperty("dafnyRef");
-                var expectedVersion = dafnyVersion + "+" + dafnyRef;
-
-                var processBuilder = new ProcessBuilder(
-                        verifierOptions.dafnyPath().toString(),
-                        "--version"
-                );
-
-                var process = processBuilder.redirectErrorStream(true).start();
-                try (var stdout = process.inputReader()) {
-                    var output = stdout.lines()
-                            .collect(Collectors.joining(""))
-                            .trim();
-                    if (process.waitFor() != 0) {
-                        throw new RuntimeException("dafny --version failed:\n" + output);
-                    }
-                    // Turned off while we're using a Dafny submodule
-                    // Alternatively, we can check whether the submodule version matches the output
-                    if (!output.equals(expectedVersion)) {
-                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output
-                                + " at location " + verifierOptions.dafnyPath());
-                    }
-                }
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
             checkedVersion = true;
         }
     }
@@ -131,7 +107,7 @@ public class DafnyDriver implements Driver {
         checkDafnyVersion(verifierOptions);
 
         var processBuilder = new ProcessBuilder(
-                verifierOptions.dafnyPath().toString(),
+                verifierOptions.backendPath().toString(),
                 "verify",
                 "--library",
                 verifierOptions.additionalDafnyFile().toAbsolutePath().normalize().toString(),
@@ -147,8 +123,8 @@ public class DafnyDriver implements Driver {
                 //"--check-source-location-consistency",
                 "--general-traits=datatype"
         );
-        if (verifierOptions.printDafny() != null) {
-            processBuilder.command().add("--print=" + verifierOptions.printDafny());
+        if (verifierOptions.printDeserializedTarget() != null) {
+            processBuilder.command().add("--print=" + verifierOptions.printDeserializedTarget());
         }
         applyPositionFilter(verifierOptions, processBuilder);
         if (verifierOptions.showRanges()) {
@@ -175,7 +151,7 @@ public class DafnyDriver implements Driver {
                 }
                 return parseDafnyJsonOutput(verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
+                verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.backendPath());
                 e.printStackTrace();
                 return new JVerifyResults(List.of(), -1, null);
             }
@@ -231,7 +207,7 @@ public class DafnyDriver implements Driver {
             SimpleModule module = new SimpleModule();
             module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
             objectMapper.registerModule(module);
-            objectMapper.addMixIn(Position.class, DafnyDriver.DafnyJsonPosition.class);
+            objectMapper.addMixIn(Position.class, LaurelDriver.DafnyJsonPosition.class);
 
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
             var methodStatusses = annotationCompiler.getMethodStatusPerUri();

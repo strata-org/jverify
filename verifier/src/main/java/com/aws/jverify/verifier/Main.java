@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.common.Common;
-import com.aws.jverify.verifier.dafny.Driver;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
