@@ -13,13 +13,13 @@ import com.sun.tools.javac.tree.JCTree;
 import java.util.*;
 
 public class ForLoopCompiler implements StatementCompiler {
-    private final DafnyBlockCompiler blockCompiler;
+    private final BlockCompiler blockCompiler;
     private final NameCompiler nameCompiler;
     private final Reporter reporter;
     private final Set<JCTree.JCStatement> forLoopsWithContinue = new HashSet<>();
     private final Map<JCTree.JCStatement, String> forLoopContinueLabels = new HashMap<>();
 
-    public ForLoopCompiler(DafnyBlockCompiler blockCompiler) {
+    public ForLoopCompiler(BlockCompiler blockCompiler) {
         reporter = blockCompiler.reporter;
         this.blockCompiler = blockCompiler;
         nameCompiler = NameCompiler.instance(blockCompiler.baseGenerator.context);

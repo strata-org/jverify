@@ -1,48 +1,14 @@
 package com.aws.jverify.verifier.laurel;
 
-import com.amazon.ion.IonSystem;
-import com.amazon.ion.system.IonSystemBuilder;
-import com.aws.jverify.common.Common;
-import com.aws.jverify.common.Position;
-import com.aws.jverify.laurel.IonSerializer;
-import com.aws.jverify.laurel.Node;
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
-import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
-import com.aws.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.dafny.*;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.JCDiagnostic;
-import com.sun.tools.javac.util.JavacMessages;
-import picocli.CommandLine;
 
-import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.Writer;
-import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
-public class LaurelDriver implements Driver {
+public class LaurelDriver implements IDriver {
 
     public static Context context;
 

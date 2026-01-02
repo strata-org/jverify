@@ -129,7 +129,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementAfterLabel(DafnyBlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
+    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin origin) {
         return blockCompiler.translateStatementAfterlabel(statement, labels, origin);
     }
 

@@ -141,7 +141,7 @@ public class NullableGenerator extends WrappingDafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementAfterLabel(DafnyBlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
+    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
         
         return super.translateStatementAfterLabel(blockCompiler, statement, labels, originOverride);
     }

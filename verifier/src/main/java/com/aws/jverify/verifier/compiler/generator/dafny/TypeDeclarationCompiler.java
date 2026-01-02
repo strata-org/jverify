@@ -312,7 +312,7 @@ public class TypeDeclarationCompiler {
 
         var dafnyTypeParameters = translateTypeParameters(method.getTypeParameters());
 
-        var blockCompiler = new DafnyBlockCompiler(baseGenerator, method.sym);
+        var blockCompiler = new BlockCompiler(baseGenerator, method.sym);
         var name = nameCompiler.getName(method, method.sym);
         var origin = reporter.declToOrigin(method, name);
         var isStatic = JVerifyUtils.isStatic(method.mods);
@@ -344,7 +344,7 @@ public class TypeDeclarationCompiler {
                 if (!postHeader.isEmpty()) {
                     var first = postHeader.getFirst();
                     if (first instanceof JCTree.JCExpressionStatement expressionStatement 
-                            && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation methodInvocation && DafnyBlockCompiler.getSuperIdent(methodInvocation) != null) {
+                            && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation methodInvocation && BlockCompiler.getSuperIdent(methodInvocation) != null) {
                         bodyStatements.addAll(blockCompiler.translateStatement(first));
                         postHeader = postHeader.tail;
                     }

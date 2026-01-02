@@ -8,7 +8,7 @@ import java.util.function.Consumer;
 
 public record ExpressionContext(@Nullable Consumer<Statement> statementWriter,
                                 boolean allowImpure,
-                                @Nullable DafnyBlockCompiler blockCompiler,
+                                @Nullable BlockCompiler blockCompiler,
                                 @Nullable Type expectedType) {
 
     public final static ExpressionContext Pure =  new ExpressionContext(null, false, null, null);

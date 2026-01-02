@@ -12,7 +12,7 @@ import java.util.Set;
 public interface DafnyGenerator {
     FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries);
 
-    List<Statement> translateStatementAfterLabel(DafnyBlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride);
+    List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride);
 
     default Expression toExpr(JCTree.JCExpression expr, IOrigin originOverride, ExpressionContext context) {
         return toExprWithFlows(expr, originOverride, context).expression();

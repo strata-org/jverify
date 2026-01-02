@@ -21,7 +21,7 @@ public class WrappingDafnyGenerator implements DafnyGenerator {
     }
 
     @Override
-    public List<Statement> translateStatementAfterLabel(DafnyBlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
+    public List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride) {
         return next.translateStatementAfterLabel(blockCompiler, statement, labels, originOverride);
     }
 

@@ -172,28 +172,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
         for(var backend : annotation.BACKENDS()) {
-            var results = Driver.getDriver(backend).verifyJavaFiles(inputs, options);
+            var results = IDriver.getDriver(backend).verifyJavaFiles(inputs, options);
 
             var diagnosticsAsAnnotations = results.diagnostics().stream()
                     .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
                     .sorted()
                     .toList();
-
-//            results.results().getOutputs().stream()
-//                    .filter(dafnyOutput -> dafnyOutput instanceof DafnyDiagnostic)
-//                    .forEach(dafnyOutput -> {
-//                        URI source = ((DafnyDiagnostic) dafnyOutput).getSource();
-//                        var methodIntervals = results.sourceFileToMethodIntervals().get(source);
-//                        if (methodIntervals == null) {
-//                            // error was in built-in code
-//                            return;
-//                        }
-//                        var failedVerificationMethod = methodIntervals
-//                                .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
-//                        if (failedVerificationMethod != null) {
-//                            failedVerificationMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
-//                        }
-//                    });
 
             if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
                 if (results.exitCode() == 0 || results.exitCode() == 4) {
@@ -262,7 +246,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var process = processBuilder.redirectErrorStream(true).start();
         try(var stdout = process.inputReader()) {
             var dafnyExitCode = process.waitFor();
-            var exitCode = DafnyDriver.getExitCodeFromDafny(dafnyExitCode);
+            var exitCode = Driver.getExitCodeFromDafny(dafnyExitCode);
             String content = readerToString(stdout);
             Assertions.assertEquals(previousResults.exitCode(), exitCode, content);
         } catch (InterruptedException e) {
@@ -294,7 +278,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 : new Position(startPos.line(), startPos.character() + 1);
         var range = new Range(startPos, endPos);
         if (sourceUri == null || sourceUri.equals(testFile.normalize())) {
-            return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
+            return new AnnotatedRange(IDriver.formatMessage(diagnostic), range);
         } else {
             Range zeroRange = new Range(new Position(1, 1), new Position(1, 2));
             String path;
@@ -303,7 +287,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             } else {
                 path = testFile.resolve(".").relativize(sourceUri).getPath();
             }
-            return new AnnotatedRange(path + "(" + range + ") " + Driver.formatMessage(diagnostic), zeroRange);
+            return new AnnotatedRange(path + "(" + range + ") " + IDriver.formatMessage(diagnostic), zeroRange);
         }
     }
 

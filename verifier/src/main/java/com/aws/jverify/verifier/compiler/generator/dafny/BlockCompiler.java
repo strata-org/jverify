@@ -12,7 +12,7 @@ import com.sun.tools.javac.tree.JCTree;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class DafnyBlockCompiler {
+public class BlockCompiler {
     public final BaseDafnyGenerator baseGenerator;
     public final DafnyGenerator generator;
     public final Reporter reporter;
@@ -25,7 +25,7 @@ public class DafnyBlockCompiler {
 
     public int generatedIndex = 0;
     
-    public DafnyBlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
+    public BlockCompiler(BaseDafnyGenerator compiler, Symbol.MethodSymbol methodSymbol) {
         this.generator = compiler.context.get(DafnyGenerator.class);
         baseGenerator = compiler;
         nameCompiler = NameCompiler.instance(compiler.context);

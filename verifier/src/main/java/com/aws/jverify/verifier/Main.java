@@ -5,7 +5,6 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -13,9 +12,7 @@ import java.util.stream.Stream;
 
 import com.aws.jverify.JVerify;
 import com.aws.jverify.common.Common;
-import com.aws.jverify.verifier.dafny.DafnyDriver;
-import com.aws.jverify.verifier.dafny.Driver;
-import com.aws.jverify.verifier.laurel.LaurelDriver;
+import com.aws.jverify.verifier.dafny.IDriver;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -117,7 +114,7 @@ class AppCommand implements Callable<Integer> {
         
         return verifierOptions.time("Calling Driver.verifyJavaPaths", () -> {
             try {
-                return Driver.getDriver(backend).verifyJavaPaths(inputs, verifierOptions);
+                return IDriver.getDriver(backend).verifyJavaPaths(inputs, verifierOptions);
             } catch(IOException e) {
                 throw new RuntimeException(e);
             }

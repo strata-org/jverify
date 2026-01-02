@@ -89,7 +89,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      *
      * <p>Note: header methodContracts like {@link JVerify#precondition(boolean)}
      * and {@link JVerify#postcondition(boolean)}
-     * must be translated by {@link DafnyBlockCompiler#translateStatement(JCTree.JCStatement)},
+     * must be translated by {@link BlockCompiler#translateStatement(JCTree.JCStatement)},
      * not here.
      */
     public ExpressionWithFlows translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {

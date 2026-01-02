@@ -7,9 +7,9 @@ import com.sun.tools.javac.tree.JCTree;
 import java.util.List;
 
 public class DoWhileLoopCompiler implements StatementCompiler {
-    DafnyBlockCompiler blockCompiler;
+    BlockCompiler blockCompiler;
 
-    public DoWhileLoopCompiler(DafnyBlockCompiler blockCompiler) {
+    public DoWhileLoopCompiler(BlockCompiler blockCompiler) {
         this.blockCompiler = blockCompiler;
     }
 

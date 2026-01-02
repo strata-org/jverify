@@ -18,13 +18,12 @@ import java.lang.annotation.Target;
  *      </li>
  *      <li>
  *          {@code @VerifyTest(exitCode = ...)}
- *          - Verification should finish with exit code {@code X} without Dafny terminating normally
- *          (i.e. Dafny is never invoked because there are javac errors, or Dafny terminates abnormally).
+ *          - JVerify should finish with exit code {@code X}
+ *          (i.e. Verification is never started because there are javac errors, or verification terminates abnormally).
  *      </li>
  *      <li>
- *          {@code @JVerifyTest(exitCode = ..., javaVerified = ..., javaErrors = ...)}
- *          - Verification should finish with exit code {@code X}, Dafny terminates normally,
- *          and Dafny's summary reports {@code Y} verified symbols and {@code Z} errors.
+ *          {@code @JVerifyTest(methodsVerified = ..., failedAssertions = ...)}
+ *          - {@code methodsVerified} are verified successfully, and there are {@code failedAssertions} verification errors.
  *      </li>
  * </ol>
  *
