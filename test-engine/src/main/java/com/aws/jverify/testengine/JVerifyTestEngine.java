@@ -296,6 +296,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter) {
         var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
+        var verifierJar = Path.of("../verifier/build/libs/verifier-1.0-SNAPSHOT.jar");
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
         var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
@@ -304,7 +305,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         return new VerifierOptions(new PrintWriter(System.out),
                 workingDirectory,
                 dafnyPath,
-                List.of(libraryJar, testEngineClassPath, libraryForTestingClassPath),
+                List.of(verifierJar, libraryJar, testEngineClassPath, libraryForTestingClassPath),
                 prelude,
                 false,
                 Path.of("../build/temp.dfy"),

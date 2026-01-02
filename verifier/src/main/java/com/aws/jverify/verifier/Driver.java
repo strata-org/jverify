@@ -3,6 +3,7 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.verifier.dafny.DafnyDiagnostic;
 import com.aws.jverify.verifier.dafny.DafnyDriver;
 import com.aws.jverify.verifier.dafny.JVerifyResults;
+import com.aws.jverify.verifier.laurel.LaurelDriver;
 import com.sun.tools.javac.util.JCDiagnostic;
 
 import javax.tools.Diagnostic;
@@ -101,10 +102,11 @@ public interface Driver {
     ) throws IOException;
     
     static Driver getDriver(Backend backend) {
-        if (backend == Backend.Dafny) {
-            return new DafnyDriver();
-        }
-        throw new RuntimeException("Unsupported backend: " + backend);
+        return switch (backend) {
+            case Dafny -> new DafnyDriver();
+            case Laurel -> new LaurelDriver();
+            default -> throw new RuntimeException("Unsupported backend: " + backend);
+        };
     }
     
     static String formatMessage(Diagnostic<?> diagnostic) {
