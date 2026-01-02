@@ -1,7 +1,6 @@
-package com.aws.jverify.verifier;
+package com.aws.jverify.verifier.dafny;
 
 import com.aws.jverify.common.Range;
-import com.aws.jverify.verifier.dafny.DafnyOutput;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.tools.Diagnostic;

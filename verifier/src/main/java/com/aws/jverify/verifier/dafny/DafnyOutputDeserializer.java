@@ -1,7 +1,5 @@
 package com.aws.jverify.verifier.dafny;
 
-import com.aws.jverify.verifier.DafnyDiagnostic;
-import com.aws.jverify.verifier.StatusMessage;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;

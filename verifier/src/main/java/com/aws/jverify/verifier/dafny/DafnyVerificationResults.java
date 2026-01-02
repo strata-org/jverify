@@ -1,6 +1,5 @@
 package com.aws.jverify.verifier.dafny;
 
-import com.aws.jverify.verifier.DafnyDiagnostic;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.tools.Diagnostic;
