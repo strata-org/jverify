@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests;
+package com.aws.jverify.verifier.tests.javasupport.statements;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
