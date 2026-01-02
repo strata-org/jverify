@@ -82,7 +82,7 @@ public class LaurelDriver implements Driver {
                 }
                 return serialized.toString();
             });
-            var results = runDafnyProcess(NameCompiler.instance(context), program, verifierOptions);
+            var results = runVerifier(NameCompiler.instance(context), program, verifierOptions);
             results.diagnostics().addAll(0, diagnostics);
             return results;
         }
@@ -90,7 +90,7 @@ public class LaurelDriver implements Driver {
 
     private static boolean checkedVersion = false;
 
-    private static void checkDafnyVersion(VerifierOptions verifierOptions) {
+    private static void checkVerifierVersion(VerifierOptions verifierOptions) {
         if (!verifierOptions.testBackendVersion()) {
             return;
         }
@@ -100,48 +100,41 @@ public class LaurelDriver implements Driver {
         }
     }
 
-    public static JVerifyResults runDafnyProcess(NameCompiler nameCompiler,
-                                                 String program,
-                                                 VerifierOptions verifierOptions) {
-        // First check the Dafny version is correct
-        checkDafnyVersion(verifierOptions);
+    public static JVerifyResults runVerifier(NameCompiler nameCompiler,
+                                             String program,
+                                             VerifierOptions verifierOptions) {
+        checkVerifierVersion(verifierOptions);
 
+//        Options:
+//        --verbose                   Print extra information during analysis.
+//        --check                     Process up until SMT generation, but don't solve.
+//        --type-check                Exit after semantic dialect's type inference/checking.
+//        --parse-only                Exit after DDM parsing and type checking.
+//        --stop-on-first-error       Exit after the first verification error.
+//        --solver-timeout <seconds>  Set the solver time limit per proof goal.
         var processBuilder = new ProcessBuilder(
-                verifierOptions.backendPath().toString(),
-                "verify",
-                "--library",
-                verifierOptions.additionalDafnyFile().toAbsolutePath().normalize().toString(),
-                "--allow-axioms",
-                "--dont-verify-dependencies",
-                "--input-format",
-                "Binary",
-                "--stdin",
-                "--json-output",
-                "--type-system-refresh",
-                "--general-newtypes",
-                // "--progress", "Batch",
-                //"--check-source-location-consistency",
-                "--general-traits=datatype"
+                "lake", "exe", "laurel"
         );
-        if (verifierOptions.printDeserializedTarget() != null) {
-            processBuilder.command().add("--print=" + verifierOptions.printDeserializedTarget());
-        }
-        applyPositionFilter(verifierOptions, processBuilder);
-        if (verifierOptions.showRanges()) {
-            // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
-            processBuilder.command().add("--show-snippets=false");
-            processBuilder.command().add("--print-ranges");
-        }
-        processBuilder.command().add("--ignore-indentation");
-        for (var option : verifierOptions.additionalDafnyArguments()) {
-            processBuilder.command().add(option);
-        }
+        processBuilder.directory(verifierOptions.backendPath().toFile());
+//        if (verifierOptions.printDeserializedTarget() != null) {
+//            processBuilder.command().add("--print=" + verifierOptions.printDeserializedTarget());
+//        }
+//        applyPositionFilter(verifierOptions, processBuilder);
+//        if (verifierOptions.showRanges()) {
+//            // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
+//            processBuilder.command().add("--show-snippets=false");
+//            processBuilder.command().add("--print-ranges");
+//        }
+//        processBuilder.command().add("--ignore-indentation");
+//        for (var option : verifierOptions.additionalDafnyArguments()) {
+//            processBuilder.command().add(option);
+//        }
 
         if (verifierOptions.verbose()) {
-            verifierOptions.outWriter().println("Dafny options: " + String.join(" ", processBuilder.command()));
+            verifierOptions.outWriter().println("Verifier options: " + String.join(" ", processBuilder.command()));
         }
 
-        return verifierOptions.time("Running Dafny", () -> {
+        return verifierOptions.time("Running Strata", () -> {
             try {
                 // Redirect stderr into stdout, instead of reading one and then the other,
                 // in order to preserve the order of output and to avoid potential deadlock.
@@ -149,7 +142,7 @@ public class LaurelDriver implements Driver {
                 try (var stdin = process.outputWriter()) {
                     stdin.write(program);
                 }
-                return parseDafnyJsonOutput(verifierOptions, nameCompiler, process);
+                return parseStrataOutput(verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
                 verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.backendPath());
                 e.printStackTrace();
@@ -195,9 +188,9 @@ public class LaurelDriver implements Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static JVerifyResults parseDafnyJsonOutput(VerifierOptions options,
-                                                       NameCompiler nameCompiler,
-                                                       Process process) throws IOException, InterruptedException {
+    private static JVerifyResults parseStrataOutput(VerifierOptions options,
+                                                    NameCompiler nameCompiler,
+                                                    Process process) throws IOException, InterruptedException {
 
         List<Diagnostic<?>> diagnostics = new ArrayList<>();
         try (var dafnyOutput = process.inputReader()) {
