@@ -1,13 +1,12 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
 import com.aws.jverify.common.Common;
-import com.aws.jverify.generated.*;
 import com.aws.jverify.verifier.JarFileEntry;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.DiagnosticPositionFromDiagnostic;
+import com.aws.jverify.verifier.compiler.LoweredResult;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.generator.dafny.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
@@ -18,11 +17,7 @@ import com.sun.tools.javac.main.Arguments;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.JCDiagnostic;
-import com.sun.tools.javac.util.DiagnosticSource;
-import com.sun.tools.javac.util.Log;
-import com.sun.tools.javac.util.Position;
+import com.sun.tools.javac.util.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.tools.Diagnostic;
@@ -35,22 +30,23 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class JavaToDafnyCompiler {
+
+public class JavaLowerer {
     public final Context context;
     private final Reporter reporter;
     private final Enter enter;
 
-    private final DafnyGenerator dafnyGenerator;
     public Set<JavaFileObject> contractSources = new HashSet<>();
     public static final String objectFile = "/object-contract.java";
 
-    public JavaToDafnyCompiler(Context context) {
+    public JavaLowerer(Context context) {
         this.context = context;
-        context.put(JavaToDafnyCompiler.class, this);
+        context.put(JavaLowerer.class, this);
 
         JavacFileManager.preRegister(context);
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
@@ -58,10 +54,9 @@ public class JavaToDafnyCompiler {
 
         reporter = Reporter.instance(context);
         enter = Enter.instance(context);
-        this.dafnyGenerator = DafnyGenerator.getGenerator(context);
     }
 
-    public @Nullable FilesContainer analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files) {
+    public @Nullable LoweredResult lowerJava(VerifierOptions options, List<JavaFileObject> files) {
         var contractSource = new SourceFile(objectFile, Common.getResourceFile(getClass(), objectFile));
         contractSources.add(contractSource);
         files.add(contractSource);
@@ -112,13 +107,12 @@ public class JavaToDafnyCompiler {
 
         Set<JCTree.JCCompilationUnit> loweredJava = parseResolveAndDesugarJava(options, files);
         if (loweredJava == null) {
-            return new FilesContainer(List.of());
+            return new LoweredResult(List.of(), Set.of());
         }
 
         var parsed = new ArrayList<>(loweredJava);
         var libraries = parsed.stream().filter(u -> contractSources.contains(u.getSourceFile())).collect(Collectors.toSet());
-
-        return dafnyGenerator.generateDafny(parsed, libraries);
+        return new LoweredResult(parsed, libraries);
     }
 
     public boolean isContractSource(JCTree.JCCompilationUnit compilationUnit) {
@@ -235,8 +229,8 @@ public class JavaToDafnyCompiler {
                     var remainingUnits = toUnits(compiler.flow(compiler.attribute(todo)));
                     
                     List<UnitsCompiler> phases = new ArrayList<>();
-                    phases.add(JavaToDafnyCompiler.this::insertFloatingPointCasts);
-                    phases.add(JavaToDafnyCompiler.this::unlambda);
+                    phases.add(JavaLowerer.this::insertFloatingPointCasts);
+                    phases.add(JavaLowerer.this::unlambda);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
                     if (options.positionFilter() != null && options.positionFilter().fileEnding() != null) {
@@ -259,7 +253,7 @@ public class JavaToDafnyCompiler {
             }
         });
         // Applies the Java to Java part of our pipeline
-        compiler.compile(files, java.util.List.of(), null, java.util.List.of());
+        compiler.compile(files, List.of(), null, List.of());
 
         @SuppressWarnings("unchecked") var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
 
@@ -316,7 +310,7 @@ public class JavaToDafnyCompiler {
 
     // Phase to hide/rewrite higher level features such as switches
     // so future phases don't rewrite them.
-    private java.util.List<JCTree.JCCompilationUnit> suspend(java.util.List<JCTree.JCCompilationUnit> envs) {
+    private List<JCTree.JCCompilationUnit> suspend(List<JCTree.JCCompilationUnit> envs) {
         var suspenders = Suspenders.instance(context);
         Log log = Log.instance(context);
         for (var env: envs) {

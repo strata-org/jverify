@@ -4,7 +4,7 @@ import com.aws.jverify.common.Position;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
-import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;

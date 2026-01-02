@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Set;
 
 public interface DafnyGenerator {
-    FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries);
+    FilesContainer generateDafny(List<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries);
 
     List<Statement> translateStatementAfterLabel(BlockCompiler blockCompiler, JCTree.JCStatement statement, List<Label> labels, IOrigin originOverride);
 

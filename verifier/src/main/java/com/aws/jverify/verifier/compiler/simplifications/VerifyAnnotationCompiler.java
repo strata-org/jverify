@@ -7,7 +7,7 @@ import com.aws.jverify.verifier.IntervalTree;
 import com.aws.jverify.verifier.JavaMethodVerificationStatus;
 import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.AnnoConstruct;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
