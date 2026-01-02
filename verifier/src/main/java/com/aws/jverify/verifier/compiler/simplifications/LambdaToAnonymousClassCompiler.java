@@ -26,6 +26,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
     private final JCCompilationUnit compilationUnit;
     private final TreeMaker maker;
     private final JavacElements elements;
+    private final JVerifyUtils jVerifyUtils;
     private final Names names;
     private final Types types;
     private final Enter enter;
@@ -41,17 +42,24 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         this.names = Names.instance(context);
         this.types = Types.instance(context);
         this.context = context;
+        jVerifyUtils = JVerifyUtils.instance(context);
     }
+    
+    private final Set<String> ignoreMethods = Set.of("postcondition","precondition", "forall", "exists", "map", "all");
     
     /*
     This code is unfortunately necessary because method and loop contracts are stored 
     using plain method calls and lambdas. We don't want those lambdas to be compiled by this class,
     so we have extra code to avoid compiling them.
+    
+    We could consider introducing a new AST type, JCMethodDeclWithContract, and update Lower so it visits
+    the additional fields. This would replace the current update we have to let Lower handle Lambdas, 
+    which it normally does not.
      */
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
         var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
-        if (jverifyMethod == null) {
+        if (jverifyMethod == null || !ignoreMethods.contains(jverifyMethod.name.toString())) {
                 super.visitApply(invocation);
         } else {
             invocation.meth = translate(invocation.meth);

@@ -10,13 +10,13 @@ found [here](https://github.com/aws/jverify/blob/main/examples/src/test/java/com
 To run JVerify, run the following from the repository root:
 
 ```
-./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny
+./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
 ```
 
 or the following in Windows:
 
 ```
-./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Binaries/Dafny.exe
+./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Binaries/Dafny.exe --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
 ```
 
 You should see the following output:

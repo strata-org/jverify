@@ -133,7 +133,8 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
-    public Expression toExprWithFlows(List<JCTree.JCStatement> statements, ExpressionContext context) {
+    public Expression toExprWithFlows(com.sun.tools.javac.util.List<JCTree.JCStatement> statements, 
+                                      ExpressionContext context) {
         var last = statements.getLast();
         var result = stmtToExpr(last, context);
         for(int index = statements.size() - 2; index >= 0; index--) {
@@ -228,7 +229,10 @@ public class ExpressionCompiler {
     public Expression toExpr(JCTree tree, ExpressionContext context) {
         if (tree instanceof JCTree.JCExpression expression) {
             return generator.toExprWithFlows(expression, null, context).expression();
+        } else if (tree instanceof JCTree.JCBlock block) {
+            return toExprWithFlows(block.stats, context);
         }
+
         reporter.reportError(tree, "notSupported", tree.getClass().getSimpleName() + " as an expression");
         return JVerifyUtils.getHole(reporter.toOrigin(tree));
     }

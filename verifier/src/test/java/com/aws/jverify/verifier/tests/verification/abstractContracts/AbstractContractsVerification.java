@@ -20,14 +20,14 @@ public class AbstractContractsVerification {
     
     static class Inner {
         public int foo(int x) {
-            precondition(isAbstract());
+            precondition(isAbstractBoolean());
             return 1;
         }
     }
     static class Mid extends Inner {
         @Override
         public int foo(int x) {
-            precondition(isAbstract());
+            precondition(isAbstractBoolean());
             postcondition((int r) -> r > 1);
             return 2;
         }

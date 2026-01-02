@@ -1,17 +1,12 @@
 package com.aws.jverify.verifier.tests.javasupport.lambdas;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.ContractException;
-import com.aws.jverify.Pure;
-import com.aws.jverify.Verify;
+import com.aws.jverify.*;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import static com.aws.jverify.JVerify.check;
-import static com.aws.jverify.JVerify.postcondition;
-import static com.aws.jverify.JVerify.precondition;
+import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 98, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, dafnyVerified = 96, dafnyErrors = 3, verifyPrintedDafny = true)
 public class Lambdas {
     private static final SomethingDoer containsMethodReference = Lambdas::staticDoSomething;
     private static final SomethingDoer containsLambda = (int x, int y) -> staticDoSomething(x, y);
@@ -22,16 +17,17 @@ public class Lambdas {
         }
     };
     
+    @Pure
     static int staticDoSomething(int x, int y) {
         return 3;
     }
 
     // TODO: bring back once we support static fields
 //    private static int STATIC_FIELD = 100;
-    private int instanceField = 50;
+    private final int instanceField = 50;
     
     static void lambdasInStaticMethod() {
-        doSomethingTwiceStatic((x, y) -> x);
+        check(doSomethingTwiceStatic((x, y) -> x) == 2);
 
 //        doSomethingTwice((x, y) -> STATIC_FIELD);
         
@@ -43,7 +39,7 @@ public class Lambdas {
     void classCaptures() {
         doSomethingTwice((x, y) -> x);
 
-        doSomethingTwice((x, y) -> instanceField);
+        check(instanceField == doSomethingTwice((x, y) -> instanceField));
 //        doSomethingTwice((x, y) -> STATIC_FIELD);
 
         doSomethingTwice((x, y) -> this.add(x,y));
@@ -56,8 +52,8 @@ public class Lambdas {
     void localCaptures() {
         int z = 42;
         final int finalZ = 43;
-        doSomethingTwice((x, y) -> z);
-        doSomethingTwice((x, y) -> finalZ);
+        check(z == doSomethingTwice((x, y) -> z));
+        check(finalZ == doSomethingTwice((x, y) -> finalZ));
     }
 
     void lambdaWithContract() {
@@ -130,21 +126,21 @@ public class Lambdas {
         pureFunctionUser((Integer x) -> x);
     }
 
-    @Verify(false)
-    static void doSomethingTwiceStatic(SomethingDoer doer) {
+    @Pure
+    static int doSomethingTwiceStatic(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
-        var z = doer.doSomething(2, y);
+        return doer.doSomething(2, y);
     }
-        
-    @Verify(false)
-    void doSomethingTwice(SomethingDoer doer) {
+
+    @Pure
+    int doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
-        var z = doer.doSomething(2, y);
+        return doer.doSomething(2, y);
     }
-    @Verify(false)
-    void doSomethingTwiceWithLambdas(SomethingDoerWithLambdas doer) {
+    @Pure
+    int doSomethingTwiceWithLambdas(SomethingDoerWithLambdas doer) {
         var y = doer.doSomething(this, 1, 2);
-        var z = doer.doSomething(this, 2, y);
+        return doer.doSomething(this, 2, y);
     }
     
     @Verify(false)
@@ -157,14 +153,16 @@ public class Lambdas {
     public boolean instancePredicate() {
         return true;
     }
-    
-    @Verify(false)
+
+    @Pure
     public int add(int x, int y) {
+        assume(false);
         return x + y;
     }
 
-    @Verify(false)
+    @Pure
     public static int staticAdd(int x, int y) {
+        assume(false);
         return x + y;
     }
 
@@ -220,29 +218,15 @@ interface SomeClassMaker {
 }
 
 interface SomethingDoerWithLambdas {
+    @Pure
+    @EmptyContract
     int doSomething(Lambdas lambdas, int x, int y);
-
-    @Contract
-    class SomethingDoerWithLambdasContract implements SomethingDoerWithLambdas {
-
-        @Override
-        public int doSomething(Lambdas lambdas, int x, int y) {
-            throw new ContractException();
-        }
-    }
 }
 
 interface SomethingDoer {
+    @Pure
+    @EmptyContract
     int doSomething(int x, int y);
-
-    @Contract
-    class SomethingDoerContract implements SomethingDoer {
-
-        @Override
-        public int doSomething(int x, int y) {
-            throw new ContractException();
-        }
-    }
 }
 
 interface IntToInt {

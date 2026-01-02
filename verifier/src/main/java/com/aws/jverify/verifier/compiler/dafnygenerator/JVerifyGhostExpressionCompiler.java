@@ -62,6 +62,9 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             }
             return new SeqType(origin, typeArguments);
         }
+        if (className.toString().equals(JVerify.IntSequence.class.getName())) {
+            return new SeqType(origin, List.of(new UserDefinedType(origin, new NameSegment(origin, "int32", null))));
+        }
         if (className.toString().equals(JVerify.Set.class.getName())) {
             var arguments = classType.getTypeArguments().stream().map(a -> baseGenerator.translateType(a, origin)).toList();
             return new SetType(origin, arguments, true);
@@ -154,9 +157,8 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
                 return expressionCompiler.createCall(origin, callee, Stream.of(array), ExpressionContext.Pure);
             }
             case "range" -> {
-                NameSegment callee = new NameSegment(origin, "intSeqRange", null);
-                return expressionCompiler.createCall(origin, callee, 
-                        Stream.of(args.get(0), args.get(1)), ExpressionContext.Pure);
+                NameSegment callee = new NameSegment(origin, "intSequenceRange", null);
+                return expressionCompiler.createCall(origin, callee, Stream.of(args.getFirst(), args.get(1)), ExpressionContext.Pure);
             }
             case "get" -> {
                 var seq = expressionCompiler.toExpr(receiver, ExpressionContext.Pure);
@@ -213,6 +215,10 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
             }
             case "isAbstract" -> {
                 reporter.reportError(invocation.getMethodSelect(), "notSupported", "isAbstract() in clauses other than a precondition");
+                return JVerifyUtils.getHole(origin);
+            }
+            case "isAbstractBoolean" -> {
+                reporter.reportError(invocation.getMethodSelect(), "notSupported", "isAbstractBoolean() in clauses other than a precondition");
                 return JVerifyUtils.getHole(origin);
             }
         }

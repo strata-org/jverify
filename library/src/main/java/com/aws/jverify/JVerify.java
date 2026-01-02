@@ -2,6 +2,7 @@ package com.aws.jverify;
 
 import java.util.Optional;
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
@@ -19,10 +20,22 @@ public class JVerify {
     public static void assume(boolean condition) {
     }
     
+    /**
+     * Verifies that the given condition holds at this point in the program.
+     * This is functionally equivalent to Java's {@code assert} statement for verification purposes.
+     * <p>
+     * Note: You can also use Java's native {@code assert} statement, which JVerify will verify
+     * in the same way as {@code check()}. Both produce identical verification conditions.
+     * 
+     * @param condition the condition to verify
+     */
     public static void check(boolean condition) {
     }
 
     public static void precondition(boolean condition) {
+    }
+
+    public static void precondition(BooleanSupplier condition) {
     }
 
     /**
@@ -44,7 +57,7 @@ public class JVerify {
      * in the same way as two tuples would be compared, 
      * also known as a lexicographical comparison.
      */
-    public static void decreases(Object... values) {}
+    public static void decreases(Object value) {}
     public static void decreases(int value) {}
     public static void decreases(int value1, int value2) {}
 
@@ -126,7 +139,11 @@ public class JVerify {
      * Can be used as the argument to a call to 'precondition' to make the precondition abstract
      * A subclass of the current class can implement that abstract clause by redefining it.
      */
-    public static <T> T isAbstract() {
+    public static Object isAbstract() {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean isAbstractBoolean() {
         throw new VerificationMethodExecutedException();
     }
 
@@ -337,6 +354,11 @@ public class JVerify {
 
     public interface IntSequence {
         /**
+         * Returns the element at index {@code index}.
+         */
+        int get(int index);
+        
+        /**
          * Returns the subsequence starting at {@code fromIndex}, inclusive.
          */
         IntSequence drop(int fromIndex);
@@ -356,6 +378,11 @@ public class JVerify {
          * Returns {@code true} if this sequence contains the specified element.
          */
         boolean contains(int element);
+        
+        /**
+         * Returns the number of elements in this sequence.
+         */
+        @Unbounded int size();
     }
 
     public interface Set<T> {

@@ -4,7 +4,6 @@ import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.google.auto.service.AutoService;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
@@ -27,15 +26,13 @@ import org.junit.platform.engine.support.hierarchical.Node;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -184,9 +181,15 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         : Stream.of(diagnostic))
                 // Remove diagnostics from "additional.dfy" file as they cannot be checked now by
                 // our test engine. And we probably want to localize them elsewhere anyway
-                .filter(d -> d instanceof DafnyDiagnostic dafnyDiagnostic
-                        ? !dafnyDiagnostic.location.filename().contentEquals("additional.dfy")
-                        : true)
+                .filter(d -> {
+                    if (d instanceof DafnyDiagnostic dafnyDiagnostic) {
+                        if (dafnyDiagnostic.location.filename().contentEquals("additional.dfy")) {
+                            throw new RuntimeException("error in additional.dfy:" + dafnyDiagnostic.getMessage(Locale.ENGLISH));
+                        }
+                        return true;
+                    }
+                    return true;
+                })
                 .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
                 .sorted()
                 .toList();
@@ -196,6 +199,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 .forEach(dafnyOutput -> {
                     URI source = ((DafnyDiagnostic) dafnyOutput).getSource();
                     var methodIntervals = verificationResultsWithMethodIntervals.sourceFileToMethodIntervals().get(source);
+                    if (methodIntervals == null) {
+                        // error was in built-in code
+                        return;
+                    }
                     var failedVerificationMethod = methodIntervals
                             .findAtPoint((int) ((DafnyDiagnostic) dafnyOutput).getLineNumber());
                     if (failedVerificationMethod != null) {
@@ -342,10 +349,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var dafnyPath = getDafnyInSubmodulePath();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
+        var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
-        return new VerifierOptions(
+        return new VerifierOptions(new PrintWriter(System.out),
                 workingDirectory,
                 dafnyPath,
                 List.of(libraryJar, testEngineClassPath, libraryForTestingClassPath),
@@ -354,7 +362,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 Path.of("../build/temp.dfy"),
                 Path.of("../build/temp.dbin"),
                 true,
-                annotation.useBuiltinContracts(),
+                annotation.useBuiltinContracts() ? List.of(builtinContracts) : List.of(),
                 true,
                 new String[] {
                         "--use-basename-for-filename",
@@ -362,13 +370,17 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 },
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
-                positionFilter, false
+                positionFilter, true, false
         );
     }
 
     public static Path getDafnyInSubmodulePath() {
         return Path.of("../dafny").toAbsolutePath()
                 .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
+    }
+
+    public static Path getBuiltinContractsSourceDir() {
+        return Path.of("../builtin-contracts/src/main/java").toAbsolutePath();
     }
 
     /**

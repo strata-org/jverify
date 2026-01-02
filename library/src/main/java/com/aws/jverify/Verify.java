@@ -20,4 +20,3 @@ public @interface Verify {
      */
     boolean overrideChildren() default false;
 }
-

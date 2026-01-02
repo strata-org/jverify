@@ -1,4 +1,4 @@
-// ^ /builtin-contracts.java(704:22-704:27) Related location: this proposition could not be proved
+// ^ /aws/jverify/builtin/OptionalContract.java(57:22-57:27) Related location: this proposition could not be proved
 package com.aws.jverify.verifier.tests.jcl;
 
 import com.aws.jverify.testengine.JVerifyTest;
