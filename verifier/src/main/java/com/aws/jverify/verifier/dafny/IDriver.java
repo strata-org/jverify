@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.dafny;
 
 import com.aws.jverify.verifier.Backend;
+import com.aws.jverify.verifier.Driver;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.laurel.LaurelDriver;

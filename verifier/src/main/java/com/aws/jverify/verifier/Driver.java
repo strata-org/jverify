@@ -1,13 +1,13 @@
-package com.aws.jverify.verifier.dafny;
+package com.aws.jverify.verifier;
 
 import com.aws.jverify.common.Position;
-import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
+import com.aws.jverify.verifier.dafny.*;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,7 +24,10 @@ import java.io.InputStream;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -37,9 +40,9 @@ public class Driver implements IDriver {
             throws IOException {
         return verifyJavaFiles(List.of(javaFile), options);
     }
-    
+
     void foo() {
-        
+
 //            .flatMap(diagnostic -> diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
 //        ? dafnyDiagnostic.flattenRelated()
 //        : Stream.of(diagnostic))
@@ -66,7 +69,7 @@ public class Driver implements IDriver {
 //                    is(expectedJavaVerifiedCount));
 //        }
     }
-    
+
     public JVerifyResults verifyJavaFiles(
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions
@@ -127,7 +130,7 @@ public class Driver implements IDriver {
             outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), diagnostic));
             outputWriter.write('\n');
         }
-        
+
 //        for (var dafnyOutput : results.verificationResults.getOutputs()) {
 //            if (dafnyOutput instanceof DafnyDiagnostic dafnyDiagnostic) {
 //                outputWriter.write(formatDiagnostic(verifierOptions.showFilepaths(), dafnyDiagnostic));
@@ -225,7 +228,7 @@ public class Driver implements IDriver {
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
         } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            var filePart = filePath ? dafnyDiagnostic.location.filePath() :dafnyDiagnostic.location.filename(); 
+            var filePart = filePath ? dafnyDiagnostic.location.filePath() : dafnyDiagnostic.location.filename();
             sb.append(filePart)
                     .append("(")
                     .append(dafnyDiagnostic.getRange())
@@ -245,7 +248,7 @@ public class Driver implements IDriver {
         if (!verifierOptions.testDafnyVersion()) {
             return;
         }
-        
+
         if (!checkedVersion) {
             Properties properties = new Properties();
             try (InputStream input = Driver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
@@ -271,7 +274,7 @@ public class Driver implements IDriver {
                     // Alternatively, we can check whether the submodule version matches the output
                     if (!output.equals(expectedVersion)) {
                         throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output
-                        + " at location " + verifierOptions.dafnyPath());
+                                + " at location " + verifierOptions.dafnyPath());
                     }
                 }
             } catch (IOException | InterruptedException e) {
@@ -283,8 +286,8 @@ public class Driver implements IDriver {
     }
 
     public static JVerifyResults runDafnyProcess(NameCompiler nameCompiler,
-                                       String program,
-                                       VerifierOptions verifierOptions) {
+                                                 String program,
+                                                 VerifierOptions verifierOptions) {
         // First check the Dafny version is correct
         checkDafnyVersion(verifierOptions);
 
@@ -318,7 +321,7 @@ public class Driver implements IDriver {
         for (var option : verifierOptions.additionalDafnyArguments()) {
             processBuilder.command().add(option);
         }
-        
+
         if (verifierOptions.verbose()) {
             verifierOptions.outWriter().println("Dafny options: " + String.join(" ", processBuilder.command()));
         }
@@ -345,7 +348,7 @@ public class Driver implements IDriver {
         if (positionFilter == null || positionFilter.includeDependencies()) {
             return;
         }
-        
+
         var s = new StringBuilder();
         s.append("--filter-position=");
         if (positionFilter.fileEnding() != null) {
@@ -371,15 +374,15 @@ public class Driver implements IDriver {
             "Dafny program verifier finished with (?<VerifiedCount>\\d+) (assertions )?verified, (?<ErrorCount>\\d+) errors?");
 
     private static final Pattern timePattern = Pattern.compile("Time to do (?<Name>\\w+) was (?<Duration>\\d+)ms");
-    
+
     /**
      * Parses the given {@code dafny verify} output,
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static JVerifyResults parseDafnyJsonOutput(VerifierOptions options, 
-                                             NameCompiler nameCompiler,
-                                             Process process) throws IOException, InterruptedException {
+    private static JVerifyResults parseDafnyJsonOutput(VerifierOptions options,
+                                                       NameCompiler nameCompiler,
+                                                       Process process) throws IOException, InterruptedException {
 
         List<Diagnostic<?>> diagnostics = new ArrayList<>();
         try (var dafnyOutput = process.inputReader()) {
@@ -389,7 +392,7 @@ public class Driver implements IDriver {
             SimpleModule module = new SimpleModule();
             module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
             objectMapper.registerModule(module);
-            objectMapper.addMixIn(Position.class, DafnyJsonPosition.class);
+            objectMapper.addMixIn(Position.class, Driver.DafnyJsonPosition.class);
 
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
             var methodStatusses = annotationCompiler.getMethodStatusPerUri();
@@ -417,10 +420,10 @@ public class Driver implements IDriver {
                                 if (dafnyDiagnostic.location.filename().contentEquals("additional.dfy")) {
                                     throw new RuntimeException("error in additional.dfy:" + dafnyDiagnostic.getMessage(Locale.ENGLISH));
                                 }
-                                
+
                                 failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
                                 dafnyDiagnostic.flattenRelated().forEach(diagnostics::add);
-                                
+
                                 var relativeUri = dafnyDiagnostic.getSource();
                                 if (relativeUri == null) {
                                     return;
@@ -462,13 +465,13 @@ public class Driver implements IDriver {
                 String diagnosticsString = diagnostics.stream().map(Object::toString).collect(Collectors.joining("\n"));
                 throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput + "\n" + diagnosticsString);
             }
-            
+
             int verifiedCount = 0;
             int skippedCount = 0;
             int failedCount = 0;
-            for(IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatusses.values()) {
+            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatusses.values()) {
                 var statusses = uriStatusses.streamNodes().toList();
-                for(var methodStatus : statusses) {
+                for (var methodStatus : statusses) {
                     var method = methodStatus.getValue();
                     var status = method.getVerificationStatus();
                     switch (status) {
@@ -476,16 +479,18 @@ public class Driver implements IDriver {
                         case Skipped -> skippedCount++;
                         case Failed -> failedCount++;
                     }
-                };
-            };
+                }
+                ;
+            }
+            ;
 
             int dafnyExitCode = process.waitFor();
             var exitCode = getExitCodeFromDafny(dafnyExitCode);
-            return new JVerifyResults(diagnostics, exitCode, 
-                    new VerificationResults(verifiedCount, failedCount, skippedCount, 
+            return new JVerifyResults(diagnostics, exitCode,
+                    new VerificationResults(verifiedCount, failedCount, skippedCount,
                             failedAssertionsCount.getValue(), -1));
         }
-        
+
     }
 
     /**
@@ -493,22 +498,7 @@ public class Driver implements IDriver {
      * since Dafny JSON diagnostics include a {@code pos} field that we don't use or need.
      */
     @JsonIgnoreProperties({"pos"})
-    private static abstract class DafnyJsonPosition {}
-
-}
-
-class Wrapper<T> {
-    T value;
-
-    public Wrapper(T value) {
-        this.value = value;
+    private static abstract class DafnyJsonPosition {
     }
 
-    public T getValue() {
-        return value;
-    }
-
-    public void setValue(T value) {
-        this.value = value;
-    }
 }
