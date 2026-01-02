@@ -1,15 +1,14 @@
 package com.aws.jverify.verifier.dafny;
 
-import com.aws.jverify.verifier.Backend;
-import com.aws.jverify.verifier.Driver;
-import com.aws.jverify.verifier.SourceFile;
-import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.laurel.LaurelDriver;
 import com.sun.tools.javac.util.JCDiagnostic;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -31,11 +30,64 @@ public interface IDriver {
         }).collect(Collectors.toList());
         return verifyJavaFilesExit(readFiles, verifierOptions);
     }
-    
-    int verifyJavaFilesExit(
+
+    default int verifyJavaFilesExit(
             List<JavaFileObject> readFiles,
             VerifierOptions verifierOptions
-    ) throws IOException;
+    ) throws IOException {
+        var results = verifyJavaFiles(readFiles, verifierOptions);
+        outputVerificationResults(results, verifierOptions, verifierOptions.outWriter());
+        verifierOptions.outWriter().flush();
+        return results.exitCode();
+    }
+
+    private static void outputVerificationResults(JVerifyResults results,
+                                                  VerifierOptions verifierOptions, Writer outputWriter) throws IOException {
+
+        var pw = new PrintWriter(outputWriter);
+        for (var diagnostic : results.diagnostics()) {
+            pw.println(formatDiagnostic(verifierOptions.showFilepaths(), diagnostic));
+        }
+        
+        var verificationResults = results.verificationResults();
+        if (verificationResults != null) {
+            pw.println(String.format("Found %s errors", verificationResults.verificationFailedAssertions()));
+            pw.println(String.format("Verified methods: %s", verificationResults.verificationPassedMethods()));
+            pw.println(String.format("Failed methods: %s", verificationResults.verificationFailedAssertions()));
+            pw.println(String.format("Skipped methods: %s", verificationResults.verificationSkippedMethods()));
+        } else {
+            pw.println(String.format("Found %s errors", results.diagnostics().size()));
+        }
+    }
+
+    private static String formatDiagnostic(boolean filePath, Diagnostic<?> diagnostic) {
+        var sb = new StringBuilder();
+
+        if (diagnostic instanceof JCDiagnostic jcDiagnostic) {
+            sb.append(jcDiagnostic.getSource().getName());
+
+            var line = diagnostic.getLineNumber();
+            var column = diagnostic.getColumnNumber();
+            sb.append("(");
+            sb.append(line).append(":").append(column);
+            sb.append("-");
+            sb.append(line).append(":").append(column + 1);
+            sb.append("): ");
+        } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
+            var filePart = filePath ? dafnyDiagnostic.location.filePath() : dafnyDiagnostic.location.filename();
+            sb.append(filePart)
+                    .append("(")
+                    .append(dafnyDiagnostic.getRange())
+                    .append("): ");
+        } else {
+            throw new IllegalArgumentException(
+                    "Formatting not implemented for diagnostic type " + diagnostic.getClass().getName());
+        }
+
+        sb.append(IDriver.formatMessage(diagnostic));
+        return sb.toString();
+    }
+
 
     JVerifyResults verifyJavaFiles(
             List<JavaFileObject> readFiles,
@@ -45,7 +97,6 @@ public interface IDriver {
     public static IDriver getDriver(Backend backend) {
         return backend == Backend.Dafny ? new Driver() : new LaurelDriver();
     }
-
     public static String formatMessage(Diagnostic<?> diagnostic) {
         if (diagnostic instanceof JCDiagnostic) {
             var prefix = switch (diagnostic.getKind()) {

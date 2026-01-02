@@ -1,14 +1,12 @@
 package com.aws.jverify.verifier.dafny;
 
-import javax.tools.Diagnostic;
-import java.net.URI;
-import java.util.List;
+import com.aws.jverify.Nullable;
 
 public record VerificationResults(
         int verificationPassedMethods,
         int verificationFailedMethods,
         int verificationFailedAssertions,
         int verificationSkippedMethods,
-        int performanceTicks) {
+        @Nullable Integer performanceTicks) {
     
 }

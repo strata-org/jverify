@@ -6,6 +6,5 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.tools.JavaFileObject;
 
 public interface Generator<TProgram> {
-
     @Nullable TProgram analyzeJavaCode(VerifierOptions options, java.util.List<JavaFileObject> files);
 }
