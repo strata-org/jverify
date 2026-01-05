@@ -7,7 +7,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.modifies;
 import static com.aws.jverify.JVerify.reads;
 
-@JVerifyTest(exitCode = 0, methodsVerified = 8, failedAssertions = 0)
+@JVerifyTest(exitCode = 0, methodsVerified = 8, errorCount = 0)
 public class WildcardsNotSupported {
     
     void animalSetterUser(Container<Animal> animals, Turtle dog) {

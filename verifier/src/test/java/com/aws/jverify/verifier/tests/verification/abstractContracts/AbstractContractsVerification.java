@@ -4,7 +4,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 14, failedAssertions = 2)
+@JVerifyTest(exitCode = 4, methodsVerified = 14, errorCount = 2)
 public class AbstractContractsVerification {
     int midConsumer(Mid mid, int x) {
         precondition(preconditionOf(mid.foo(x)));

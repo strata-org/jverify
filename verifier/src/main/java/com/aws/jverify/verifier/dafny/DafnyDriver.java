@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.dafny;
 
+import com.aws.jverify.verifier.Wrapper;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
@@ -240,7 +241,7 @@ public class DafnyDriver implements Driver {
             var methodStatusses = annotationCompiler.getMethodStatusPerUri();
             StringBuilder exceptionOutput = new StringBuilder();
             Wrapper<Integer> performanceTicks = new Wrapper<>(null);
-            Wrapper<Integer> failedAssertionsCount = new Wrapper<>(0);
+            Wrapper<Integer> errorCount = new Wrapper<>(0);
             dafnyOutput.lines().forEach(line -> {
                 Matcher matcher;
                 if (!exceptionOutput.isEmpty()) {
@@ -264,7 +265,7 @@ public class DafnyDriver implements Driver {
                                     throw new RuntimeException("error in additional.dfy:" + dafnyDiagnostic.getMessage(Locale.ENGLISH));
                                 }
 
-                                failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
+                                errorCount.setValue(errorCount.getValue() + 1);
                                 dafnyDiagnostic.flattenRelated().forEach(diagnostics::add);
 
                                 var relativeUri = dafnyDiagnostic.getSource();
@@ -326,7 +327,7 @@ public class DafnyDriver implements Driver {
             var exitCode = getExitCodeFromDafny(dafnyExitCode);
             return new JVerifyResults(diagnostics, exitCode,
                     new VerificationResults(verifiedCount, failedCount, 
-                            failedAssertionsCount.getValue(), skippedCount, performanceTicks.getValue()));
+                            errorCount.getValue(), skippedCount, performanceTicks.getValue()));
         }
 
     }

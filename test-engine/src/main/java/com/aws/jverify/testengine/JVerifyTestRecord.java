@@ -5,9 +5,9 @@ import com.aws.jverify.verifier.Backend;
 import java.lang.annotation.Annotation;
 
 public record JVerifyTestRecord(String skip, boolean verifyByDefault, boolean useBuiltinContracts,
-                                boolean continueOnErrors, int exitCode, 
+                                boolean continueOnErrors, int exitCode,
                                 String[] additionalFiles, boolean verifyPrintedDafny,
-                                int methodsInvalid, int failedAssertions, int methodsVerified, 
+                                int methodsInvalid, int errorCount, int methodsVerified,
                                 int methodsSkipped, Backend[] BACKENDS,
                                 int[] performanceTicks) implements JVerifyTest {
     @Override

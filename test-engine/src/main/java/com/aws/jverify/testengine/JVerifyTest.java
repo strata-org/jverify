@@ -22,8 +22,8 @@ import java.lang.annotation.Target;
  *          (i.e. Verification is never started because there are javac errors, or verification terminates abnormally).
  *      </li>
  *      <li>
- *          {@code @JVerifyTest(methodsVerified = ..., failedAssertions = ...)}
- *          - {@code methodsVerified} are verified successfully, and there are {@code failedAssertions} verification errors.
+ *          {@code @JVerifyTest(methodsVerified = ..., errorCount = ...)}
+ *          - {@code methodsVerified} are verified successfully, and there are {@code errorCount} verification errors.
  *      </li>
  * </ol>
  *
@@ -62,7 +62,7 @@ public @interface JVerifyTest {
      */
     int methodsInvalid()  default -1;
     
-    int failedAssertions()  default -1;
+    int errorCount()  default -1;
 
     /**
      * Expected number of Java methods to be verified

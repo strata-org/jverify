@@ -9,7 +9,7 @@ import java.util.Set;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 4, failedAssertions = 4, useBuiltinContracts = true)
+@JVerifyTest(exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
 public class CollectionsTest {
 
     void listVerifying() {

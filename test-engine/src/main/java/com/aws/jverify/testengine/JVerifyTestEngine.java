@@ -192,33 +192,40 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
         Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
         Integer expectedMethodsInvalidCount = annotation.methodsInvalid() >= 0 ? annotation.methodsInvalid() : null;
-        Integer expectedFailedAssertionsCount = annotation.methodsInvalid() >= 0 ? annotation.failedAssertions() : null;
+        Integer expectedErrorCount = annotation.methodsInvalid() >= 0 ? annotation.errorCount() : null;
         Integer expectedJavaSkippedCount = annotation.methodsSkipped() >= 0 ? annotation.methodsSkipped() : null;
         Assertions.assertAll(
-                () -> assertThat("exit code",
-                        results.exitCode(),
-                        is(annotation.exitCode())),
-                () -> {
-                    if (expectedJavaVerifiedCount != null) {
-                        assertThat("Java verified methods count",
-                                results.verificationResults().verificationPassedMethods(),
-                            is(expectedJavaVerifiedCount));
-                    }
-                },
-                () -> {
-                    if (expectedFailedAssertionsCount != null) {
-                        assertThat("Failed assertions count",
-                                results.verificationResults().verificationFailedAssertions(),
-                                is(expectedFailedAssertionsCount));
-                    }
-                },
-                () -> {
-                    if (expectedJavaSkippedCount != null) {
-                        assertThat("Java verification skipped method count",
-                                results.verificationResults().verificationSkippedMethods(),
-                                is(expectedJavaSkippedCount));
-                    }
+            () -> assertThat("exit code",
+                    results.exitCode(),
+                    is(annotation.exitCode())),
+            () -> {
+                if (expectedJavaVerifiedCount != null) {
+                    assertThat("Java verified methods count",
+                            results.verificationResults().verificationPassedMethods(),
+                        is(expectedJavaVerifiedCount));
                 }
+            },
+                () -> {
+                    if (expectedMethodsInvalidCount != null) {
+                        assertThat("Java failed methods count",
+                                results.verificationResults().verificationFailedMethods(),
+                                is(expectedMethodsInvalidCount));
+                    }
+                },
+            () -> {
+                if (expectedErrorCount != null) {
+                    assertThat("Failed error count",
+                            results.verificationResults().verificationFailedAssertions(),
+                            is(expectedErrorCount));
+                }
+            },
+            () -> {
+                if (expectedJavaSkippedCount != null) {
+                    assertThat("Java verification skipped method count",
+                            results.verificationResults().verificationSkippedMethods(),
+                            is(expectedJavaSkippedCount));
+                }
+            }
         );
 
         if (annotation.verifyPrintedDafny()) {

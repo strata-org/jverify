@@ -8,7 +8,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 8, failedAssertions = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 8, errorCount = 1)
 public class PureMethodVerification {
 
     @Verify(false)

@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 1, failedAssertions = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 1, errorCount = 1)
 public class PureUnverifiedMethod {
     
     void pureUnverifiedBodyIsNotVisible() {

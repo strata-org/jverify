@@ -8,7 +8,7 @@ import static com.aws.jverify.JVerify.*;
  * Demonstrates that assert statements and check() calls are equivalent
  * for verification purposes.
  */
-@JVerifyTest(exitCode = 0, methodsVerified = 4, failedAssertions = 0)
+@JVerifyTest(exitCode = 0, methodsVerified = 4, errorCount = 0)
 class AssertVsCheck {
     static void usingCheck(int x) {
         precondition(x > 0);

@@ -8,7 +8,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 6, failedAssertions = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 6, errorCount = 1)
 public class InterfaceContractVerification {
     @SuppressWarnings("UnnecessaryLocalVariable")
     public void root() {
