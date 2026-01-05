@@ -1,7 +1,7 @@
 package com.aws.jverify.laurel;
 
 public class Laurel {
-    public static StmtExpr literalBool(Expr b) { return new LiteralBool(SourceRange.NONE, b); }
+    public static StmtExpr literalBool(boolean b) { return new LiteralBool(SourceRange.NONE, b); }
     public static StmtExpr assert_(StmtExpr cond) { return new Assert(SourceRange.NONE, cond); }
     public static StmtExpr assume(StmtExpr cond) { return new Assume(SourceRange.NONE, cond); }
     public static StmtExpr block(java.util.List<StmtExpr> stmts) { return new Block(SourceRange.NONE, stmts); }
