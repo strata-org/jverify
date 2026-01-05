@@ -172,7 +172,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
         for(var backend : annotation.BACKENDS()) {
-            var results = Driver.getDriver(backend).verifyJavaFiles(inputs, options);
+            var results = Driver.getDriver(backend, options).verifyJavaFiles(inputs);
 
             var diagnosticsAsAnnotations = results.diagnostics().stream()
                     .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
