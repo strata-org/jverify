@@ -32,18 +32,31 @@ import java.util.stream.Collectors;
 
 public class DafnyDriver implements Driver {
 
-    public static Context context;
+    private final Context context;
+    private final VerifierOptions verifierOptions;
 
-    public JVerifyResults verifyJavaFiles(
-            List<JavaFileObject> readFiles,
-            VerifierOptions verifierOptions
-    ) throws IOException {
-        List<Diagnostic<?>> diagnostics = new ArrayList<>();
+    @Override
+    public VerifierOptions getVerifierOptions() {
+        return verifierOptions;
+    }
 
+    public DafnyDriver(VerifierOptions verifierOptions) {
         InstrumentLower.installModification();
         context = new Context();
         TypesWithoutErasure.preRegister(context);
         context.put(VerifierOptions.class, verifierOptions);
+        this.verifierOptions = verifierOptions;
+    }
+
+    public JVerifyResults verifyJavaFile(JavaFileObject javaFile)
+            throws IOException {
+        return verifyJavaFiles(List.of(javaFile));
+    }
+    public JVerifyResults verifyJavaFiles(
+            List<JavaFileObject> readFiles
+    ) throws IOException {
+        List<Diagnostic<?>> diagnostics = new ArrayList<>();
+
 
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
@@ -70,60 +83,16 @@ public class DafnyDriver implements Driver {
                 Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
                 Files.writeString(verifierOptions.printSerializedOutputProgram(), program);
             }
-            var results = runDafnyProcess(NameCompiler.instance(context), program, verifierOptions);
+            var results = runDafnyProcess(NameCompiler.instance(context), program);
             results.diagnostics().addAll(0, diagnostics);
             return results;
         }
     }
-
-    private static boolean checkedVersion = false;
-
-    private static void checkDafnyVersion(VerifierOptions verifierOptions) {
-        if (!verifierOptions.testBackendVersion()) {
-            return;
-        }
-
-        if (!checkedVersion) {
-            Properties properties = new Properties();
-            try (InputStream input = DafnyDriver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
-                properties.load(input);
-                var dafnyVersion = properties.getProperty("dafnyVersion");
-                var dafnyRef = properties.getProperty("dafnyRef");
-                var expectedVersion = dafnyVersion + "+" + dafnyRef;
-
-                var processBuilder = new ProcessBuilder(
-                        verifierOptions.backendPath().toString(),
-                        "--version"
-                );
-
-                var process = processBuilder.redirectErrorStream(true).start();
-                try (var stdout = process.inputReader()) {
-                    var output = stdout.lines()
-                            .collect(Collectors.joining(""))
-                            .trim();
-                    if (process.waitFor() != 0) {
-                        throw new RuntimeException("dafny --version failed:\n" + output);
-                    }
-                    // Turned off while we're using a Dafny submodule
-                    // Alternatively, we can check whether the submodule version matches the output
-                    if (!output.equals(expectedVersion)) {
-                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output
-                                + " at location " + verifierOptions.backendPath());
-                    }
-                }
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
-            checkedVersion = true;
-        }
-    }
-
-    public static JVerifyResults runDafnyProcess(NameCompiler nameCompiler,
-                                                 String program,
-                                                 VerifierOptions verifierOptions) {
+    
+    private JVerifyResults runDafnyProcess(NameCompiler nameCompiler,
+                                           String program) {
         // First check the Dafny version is correct
-        checkDafnyVersion(verifierOptions);
+        checkDafnyVersion();
 
         var processBuilder = new ProcessBuilder(
                 verifierOptions.backendPath().toString(),
@@ -176,6 +145,48 @@ public class DafnyDriver implements Driver {
             }
         });
     }
+    private static boolean checkedVersion = false;
+
+    private void checkDafnyVersion() {
+        if (!verifierOptions.testBackendVersion()) {
+            return;
+        }
+
+        if (!checkedVersion) {
+            Properties properties = new Properties();
+            try (InputStream input = DafnyDriver.class.getClassLoader().getResourceAsStream("com/aws/jverify/dafny.properties")) {
+                properties.load(input);
+                var dafnyVersion = properties.getProperty("dafnyVersion");
+                var dafnyRef = properties.getProperty("dafnyRef");
+                var expectedVersion = dafnyVersion + "+" + dafnyRef;
+
+                var processBuilder = new ProcessBuilder(
+                        verifierOptions.backendPath().toString(),
+                        "--version"
+                );
+
+                var process = processBuilder.redirectErrorStream(true).start();
+                try (var stdout = process.inputReader()) {
+                    var output = stdout.lines()
+                            .collect(Collectors.joining(""))
+                            .trim();
+                    if (process.waitFor() != 0) {
+                        throw new RuntimeException("dafny --version failed:\n" + output);
+                    }
+                    // Turned off while we're using a Dafny submodule
+                    // Alternatively, we can check whether the submodule version matches the output
+                    if (!output.equals(expectedVersion)) {
+                        throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output
+                                + " at location " + verifierOptions.backendPath());
+                    }
+                }
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            checkedVersion = true;
+        }
+    }
 
     private static void applyPositionFilter(VerifierOptions verifierOptions, ProcessBuilder processBuilder) {
         PositionFilter positionFilter = verifierOptions.positionFilter();
@@ -214,7 +225,7 @@ public class DafnyDriver implements Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static JVerifyResults parseDafnyJsonOutput(VerifierOptions options,
+    private JVerifyResults parseDafnyJsonOutput(VerifierOptions options,
                                                        NameCompiler nameCompiler,
                                                        Process process) throws IOException, InterruptedException {
 

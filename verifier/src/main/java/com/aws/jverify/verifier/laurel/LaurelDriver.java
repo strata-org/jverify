@@ -35,15 +35,24 @@ import java.util.stream.Collectors;
 public class LaurelDriver implements Driver {
 
     public static Context context;
+    private final VerifierOptions verifierOptions;
 
-    public JVerifyResults verifyJavaFile(JavaFileObject javaFile, VerifierOptions options)
+    @Override
+    public VerifierOptions getVerifierOptions() {
+        return verifierOptions;
+    }
+
+    public LaurelDriver(VerifierOptions verifierOptions) {
+        this.verifierOptions = verifierOptions;
+    }
+
+    public JVerifyResults verifyJavaFile(JavaFileObject javaFile)
             throws IOException {
-        return verifyJavaFiles(List.of(javaFile), options);
+        return verifyJavaFiles(List.of(javaFile));
     }
 
     public JVerifyResults verifyJavaFiles(
-            List<JavaFileObject> readFiles,
-            VerifierOptions verifierOptions
+            List<JavaFileObject> readFiles
     ) throws IOException {
         List<Diagnostic<?>> diagnostics = new ArrayList<>();
 
