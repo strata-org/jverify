@@ -73,7 +73,7 @@ public class LaurelDriver implements Driver {
         if (compiledProgram == null || (hasErrors && !verifierOptions.continueOnErrors())) {
             return new JVerifyResults(diagnostics, CommandLine.ExitCode.USAGE, null);
         } else {
-            var program = verifierOptions.time("Serializing Laurel AST", () -> {
+            var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
                 var ionSystem = IonSystemBuilder.standard().build();
                 var serialized = new IonSerializer(ionSystem).serialize(compiledProgram);
 
@@ -87,7 +87,7 @@ public class LaurelDriver implements Driver {
                 }
                 return serialized.toString();
             });
-            var results = runVerifier(NameCompiler.instance(context), program);
+            var results = runVerifier(NameCompiler.instance(context), serializedProgram);
             results.diagnostics().addAll(0, diagnostics);
             return results;
         }
@@ -105,8 +105,7 @@ public class LaurelDriver implements Driver {
         }
     }
 
-    public JVerifyResults runVerifier(NameCompiler nameCompiler,
-                                             String program) {
+    public JVerifyResults runVerifier(NameCompiler nameCompiler, String serializedProgram) {
         checkVerifierVersion();
 
 //        Options:
@@ -117,7 +116,7 @@ public class LaurelDriver implements Driver {
 //        --stop-on-first-error       Exit after the first verification error.
 //        --solver-timeout <seconds>  Set the solver time limit per proof goal.
         var processBuilder = new ProcessBuilder(
-                "lake", "exe", "laurel"
+                "lake", "exe", "strata", "laurelAnalyze"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
 //        if (verifierOptions.printDeserializedTarget() != null) {
@@ -144,7 +143,7 @@ public class LaurelDriver implements Driver {
                 // in order to preserve the order of output and to avoid potential deadlock.
                 var process = processBuilder.redirectErrorStream(true).start();
                 try (var stdin = process.outputWriter()) {
-                    stdin.write(program);
+                    stdin.write(serializedProgram);
                 }
                 return parseStrataOutput(verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
@@ -273,7 +272,7 @@ public class LaurelDriver implements Driver {
             });
             if (!exceptionOutput.isEmpty()) {
                 String diagnosticsString = diagnostics.stream().map(Object::toString).collect(Collectors.joining("\n"));
-                throw new RuntimeException("Could not parse Dafny output: " + exceptionOutput + "\n" + diagnosticsString);
+                throw new RuntimeException("Could not parse Laurel output: " + exceptionOutput + "\n" + diagnosticsString);
             }
 
             int verifiedCount = 0;
