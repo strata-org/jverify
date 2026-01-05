@@ -10,7 +10,7 @@ import java.util.function.IntPredicate;
 import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(methodsVerified = 10, failedAssertions = 0, verifyPrintedDafny = true)
+@JVerifyTest(methodsVerified = 10, errorCount = 0, verifyPrintedDafny = true)
 public class MethodContractsVerification {
 
     private int y;

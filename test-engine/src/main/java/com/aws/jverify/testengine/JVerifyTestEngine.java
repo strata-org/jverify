@@ -190,7 +190,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
             Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
             Integer expectedMethodsInvalidCount = annotation.methodsInvalid() >= 0 ? annotation.methodsInvalid() : null;
-            Integer expectedFailedAssertionsCount = annotation.methodsInvalid() >= 0 ? annotation.failedAssertions() : null;
+            Integer expectedFailedAssertionsCount = annotation.methodsInvalid() >= 0 ? annotation.errorCount() : null;
             Integer expectedJavaSkippedCount = annotation.methodsSkipped() >= 0 ? annotation.methodsSkipped() : null;
             Assertions.assertAll(
                     () -> assertThat("exit code",

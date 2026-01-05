@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.generics;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(methodsVerified = 6, failedAssertions = 0)
+@JVerifyTest(methodsVerified = 6, errorCount = 0)
 public class InferredGenericsForConstructor {
     record Value() {}
     static class GenericClass<T> {

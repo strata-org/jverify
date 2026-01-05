@@ -9,7 +9,7 @@ import java.util.List;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 8, failedAssertions = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 8, errorCount = 1)
 public class MissingContracts {
     
     void checkFalse() {

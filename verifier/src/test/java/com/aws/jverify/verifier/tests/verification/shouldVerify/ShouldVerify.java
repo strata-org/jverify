@@ -15,7 +15,7 @@ import static com.aws.jverify.JVerify.postcondition;
         "./a/package-info.java", 
         "./b/WillVerify.java", 
         "./b/package-info.java" },
-        methodsVerified = 2, methodsSkipped = 7, failedAssertions = 6
+        methodsVerified = 2, methodsSkipped = 7, errorCount = 6
 )
 public class ShouldVerify {
 

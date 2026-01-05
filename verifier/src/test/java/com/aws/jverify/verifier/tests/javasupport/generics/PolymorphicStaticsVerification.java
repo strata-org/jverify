@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 4, failedAssertions = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 4, errorCount = 1)
 public class PolymorphicStaticsVerification {
     record R() {}
     static class Generic<T> {

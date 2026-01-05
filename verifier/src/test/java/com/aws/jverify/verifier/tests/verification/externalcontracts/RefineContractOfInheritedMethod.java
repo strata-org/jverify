@@ -8,7 +8,7 @@ import com.aws.jverify.testing.InheritsFoo;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(methodsVerified = 1, failedAssertions = 0)
+@JVerifyTest(methodsVerified = 1, errorCount = 0)
 public class RefineContractOfInheritedMethod {
     @Contract(ContainsFoo.class)
     static class ContainsFooContract {
