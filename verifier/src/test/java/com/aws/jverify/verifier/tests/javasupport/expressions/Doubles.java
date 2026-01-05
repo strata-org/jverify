@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.tests.jcl;
+package com.aws.jverify.verifier.tests.javasupport.expressions;
 
 import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
