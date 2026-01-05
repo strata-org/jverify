@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.dafny;
+package com.aws.jverify.verifier;
 
 public class Wrapper<T> {
     T value;

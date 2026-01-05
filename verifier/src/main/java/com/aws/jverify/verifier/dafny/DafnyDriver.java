@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.dafny;
 
+import com.aws.jverify.verifier.Wrapper;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
