@@ -32,6 +32,25 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class ExpressionCompiler {
+    public enum FloatingPointType {
+        FP32("fp32"),
+        FP64("fp64");
+
+        private final String dafnyName;
+
+        FloatingPointType(String dafnyName) {
+            this.dafnyName = dafnyName;
+        }
+
+        public String getDafnyName() {
+            return dafnyName;
+        }
+
+        public static FloatingPointType fromTypeTag(TypeTag tag) {
+            return tag == TypeTag.FLOAT ? FP32 : FP64;
+        }
+    }
+
     public final Reporter reporter;
     public final BaseDafnyGenerator baseGenerator;
     public final DafnyGenerator generator;
@@ -419,13 +438,23 @@ public class ExpressionCompiler {
         var targetType = cast.type;
         var sourceType = cast.getExpression().type;
 
-        if (targetType.getTag() == TypeTag.DOUBLE && isIntegralType(sourceType)) {
+        if (isFloatingPointType(targetType) && isIntegralType(sourceType)) {
+            var fpType = FloatingPointType.fromTypeTag(targetType.getTag());
+            // Optimize: int literal 0 becomes 0.0, not fp64.FromReal(0 as real)
+            if (cast.getExpression() instanceof JCTree.JCLiteral literal &&
+                (literal.typetag == TypeTag.INT || literal.typetag == TypeTag.LONG)) {
+                Number value = (Number) literal.getValue();
+                return fpType == FloatingPointType.FP32
+                    ? translateFp32Literal(origin, value.floatValue())
+                    : translateFp64Literal(origin, value.doubleValue());
+            }
             var realCast = new ConversionExpr(origin, castExpr, new RealType(origin), "");
-            return callFp64Method(origin, "FromReal", List.of(new ActualBinding(null, realCast, false)));
+            return callFpMethod(origin, fpType, "FromReal", List.of(new ActualBinding(null, realCast, false)));
         }
 
-        if (isIntegralType(targetType) && sourceType.getTag() == TypeTag.DOUBLE) {
-            var intResult = callFp64Method(origin, "ToInt", List.of(new ActualBinding(null, castExpr, false)));
+        if (isIntegralType(targetType) && isFloatingPointType(sourceType)) {
+            var fpType = FloatingPointType.fromTypeTag(sourceType.getTag());
+            var intResult = callFpMethod(origin, fpType, "ToInt", List.of(new ActualBinding(null, castExpr, false)));
             var dafnyTargetType = baseGenerator.translateType(cast);
             boolean doneCasting = dafnyTargetType instanceof IntType;
             return doneCasting ? intResult : new ConversionExpr(origin, intResult, dafnyTargetType, "");
@@ -466,10 +495,6 @@ public class ExpressionCompiler {
         JCTree.Tag tag = unary.getTag();
         switch (tag) {
             case JCTree.Tag.POSTINC, POSTDEC, JCTree.Tag.PREINC, JCTree.Tag.PREDEC -> {
-                if (unary.type.getTag() == TypeTag.FLOAT) {
-                    reporter.reportError(unary, "notSupported", "operator " + unary.getOperator());
-                    return JVerifyUtils.getHole(origin);
-                }
                 if (context.statementWriter() == null) {
                     reporter.reportError(expr, "mutatingExpression", unary.getOperator().name.toString());
                     return JVerifyUtils.getHole(origin);
@@ -477,12 +502,21 @@ public class ExpressionCompiler {
 
                 List<Expression> lhss = List.of(innerExpr);
 
-                var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
-                        ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
-                var incrementValue = unary.type.getTag() == TypeTag.DOUBLE 
-                        ? translateFp64Literal(origin, 1.0)
-                        : new LiteralExpr(origin, 1);
-                var incremented = new BinaryExpr(origin, opCode, innerExpr, incrementValue);
+                Expression incremented;
+                if (isFloatingPointType(unary.type)) {
+                    var fpType = FloatingPointType.fromTypeTag(unary.type.getTag());
+                    Expression incrementValue = fpType == FloatingPointType.FP32
+                            ? translateFp32Literal(origin, 1.0f)
+                            : translateFp64Literal(origin, 1.0);
+                    String methodName = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC) ? "Add" : "Sub";
+                    var args = List.of(new ActualBinding(null, innerExpr, false),
+                                      new ActualBinding(null, incrementValue, false));
+                    incremented = callFpMethod(origin, fpType, methodName, args);
+                } else {
+                    var opCode = (tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC)
+                            ? BinaryExprOpcode.Add : BinaryExprOpcode.Sub;
+                    incremented = new BinaryExpr(origin, opCode, innerExpr, new LiteralExpr(origin, 1));
+                }
                 List<AssignmentRhs> rhss = List.of(new ExprRhs(origin, null, incremented));
                 context.statementWriter().accept(new AssignStatement(origin, null, lhss, rhss, false));
                 return innerExpr;
@@ -491,6 +525,10 @@ public class ExpressionCompiler {
                 return new UnaryOpExpr(origin, innerExpr, UnaryOpExprOpcode.Not);
             }
             case JCTree.Tag.NEG -> {
+                if (isFloatingPointType(unary.type)) {
+                    var fpType = FloatingPointType.fromTypeTag(unary.type.getTag());
+                    return callFpMethod(origin, fpType, "Neg", List.of(new ActualBinding(null, innerExpr, false)));
+                }
                 return new NegationExpression(origin, innerExpr);
             }
             case JCTree.Tag.POS -> {
@@ -563,8 +601,7 @@ public class ExpressionCompiler {
             return translateFp64Literal(reporter.toOrigin(literal), ((Number) literal.getValue()).doubleValue());
         }
         if (literal.typetag == TypeTag.FLOAT) {
-            reporter.reportError(literal, "floatNotSupported");
-            return JVerifyUtils.getHole(origin);
+            return translateFp32Literal(reporter.toOrigin(literal), ((Number) literal.getValue()).floatValue());
         }
         if (literal.getKind().equals(Tree.Kind.STRING_LITERAL)) {
             return translateStringLiteral(reporter.toOrigin(literal), literal);
@@ -692,10 +729,11 @@ public class ExpressionCompiler {
             return createCall2(origin, callee, Stream.of(right));
         }
 
-        if ((opName.equals("==") || opName.equals("!=")) && leftType.getTag() == TypeTag.DOUBLE) {
+        if ((opName.equals("==") || opName.equals("!=")) && isFloatingPointType(leftType)) {
+            var fpType = FloatingPointType.fromTypeTag(leftType.getTag());
             var args = List.of(new ActualBinding(null, left, false),
                               new ActualBinding(null, right, false));
-            var equalCall = callFp64Method(origin, "Equal", args);
+            var equalCall = callFpMethod(origin, fpType, "Equal", args);
             return opName.equals("!=") ? new UnaryOpExpr(origin, equalCall, UnaryOpExprOpcode.Not) : equalCall;
         }
 
@@ -704,9 +742,26 @@ public class ExpressionCompiler {
             return JVerifyUtils.getHole(origin);
         }
 
-        if (leftType.getTag() == TypeTag.FLOAT) {
-            reporter.reportError(node, "notSupported", "operator " + operator);
-            return JVerifyUtils.getHole(origin);
+        // Use unchecked static methods for floating-point arithmetic and comparisons
+        // to avoid Dafny's wellformedness checks (Java follows IEEE 754 without preconditions)
+        if (isFloatingPointType(leftType)) {
+            var fpType = FloatingPointType.fromTypeTag(leftType.getTag());
+            String methodName = switch (opName) {
+                case "+" -> "Add";
+                case "-" -> "Sub";
+                case "*" -> "Mul";
+                case "/" -> "Div";
+                case "<" -> "Less";
+                case "<=" -> "LessOrEqual";
+                case ">" -> "Greater";
+                case ">=" -> "GreaterOrEqual";
+                default -> null;
+            };
+            if (methodName != null) {
+                var args = List.of(new ActualBinding(null, left, false),
+                                  new ActualBinding(null, right, false));
+                return callFpMethod(origin, fpType, methodName, args);
+            }
         }
 
         if (opName.equals("==") || opName.equals("!=")) {
@@ -865,14 +920,7 @@ public class ExpressionCompiler {
         }
 
         var literal = new DecimalLiteralExpr(origin, value);
-
-        // Use ~ prefix if the decimal representation is not exactly representable in fp64.
-        // A decimal is exact if its denominator (in lowest terms) is a power of 2.
-        if (isExactlyRepresentableInDecimal(value)) {
-            return literal;
-        }
-
-        return new ApproximateExpr(origin, literal);
+        return isExactlyRepresentableInDecimal(value) ? literal : new ApproximateExpr(origin, literal);
     }
 
     private boolean isExactlyRepresentableInDecimal(double value) {
@@ -907,20 +955,31 @@ public class ExpressionCompiler {
         return denominator.and(denominator.subtract(BigInteger.ONE)).equals(BigInteger.ZERO);
     }
 
-    public Expression promoteToFp64(JCTree.@Nullable JCExpression javaExpr, Expression dafnyExpr, IOrigin origin) {
-        if (javaExpr instanceof JCTree.JCLiteral literal &&
-            (literal.typetag == TypeTag.INT || literal.typetag == TypeTag.LONG)) {
-            double doubleValue = ((Number) literal.getValue()).doubleValue();
-            return translateFp64Literal(origin, doubleValue);
+    public Expression translateFp32Literal(IOrigin origin, float value) {
+        if (value == Float.MAX_VALUE) {
+            return fpConstant(origin, FloatingPointType.FP32, "MaxValue");
         }
-        var toReal = new ConversionExpr(origin, dafnyExpr, new RealType(origin), "");
-        return callFp64Method(origin, "FromReal", List.of(new ActualBinding(null, toReal, false)));
+        if (value == Float.MIN_VALUE) {
+            return fpConstant(origin, FloatingPointType.FP32, "MinSubnormal");
+        }
+        if (value == Float.MIN_NORMAL) {
+            return fpConstant(origin, FloatingPointType.FP32, "MinNormal");
+        }
+
+        var literal = new DecimalLiteralExpr(origin, value);
+        return isExactlyRepresentableInDecimal(value) ? literal : new ApproximateExpr(origin, literal);
     }
 
     public static boolean isIntegralType(com.sun.tools.javac.code.Type type) {
         if (type == null || !type.isPrimitive()) return false;
         return Stream.of(TypeTag.INT, TypeTag.LONG, TypeTag.SHORT, TypeTag.BYTE).
                 anyMatch(typeTag -> type.getTag() == typeTag);
+    }
+
+    public static boolean isFloatingPointType(com.sun.tools.javac.code.Type type) {
+        if (type == null || !type.isPrimitive()) return false;
+        TypeTag tag = type.getTag();
+        return tag == TypeTag.FLOAT || tag == TypeTag.DOUBLE;
     }
 
     private static NameSegment fp64Segment(IOrigin origin) {
@@ -939,6 +998,22 @@ public class ExpressionCompiler {
         return new ApplySuffix(origin, fp64Method(origin, methodName), null, new ActualBindings(args), null);
     }
 
+    private static NameSegment fpSegment(IOrigin origin, FloatingPointType fpType) {
+        return new NameSegment(origin, fpType.getDafnyName(), null);
+    }
+
+    private static Expression fpConstant(IOrigin origin, FloatingPointType fpType, String constantName) {
+        return new ExprDotName(origin, fpSegment(origin, fpType), new Name(origin, constantName), null);
+    }
+
+    private static Expression fpMethod(IOrigin origin, FloatingPointType fpType, String methodName) {
+        return new ExprDotName(origin, fpSegment(origin, fpType), new Name(origin, methodName), null);
+    }
+
+    private static Expression callFpMethod(IOrigin origin, FloatingPointType fpType, String methodName, List<ActualBinding> args) {
+        return new ApplySuffix(origin, fpMethod(origin, fpType, methodName), null, new ActualBindings(args), null);
+    }
+
 
     public static ActualBindings createBindings(Stream<Expression> bindingList) {
         return new ActualBindings(bindingList.map(expression ->
@@ -950,37 +1025,60 @@ public class ExpressionCompiler {
         var names = com.sun.tools.javac.util.Names.instance(context);
         var mathClass = symtab.enterClass(symtab.java_base, names.fromString(Math.class.getName()));
         var doubleClass = symtab.enterClass(symtab.java_base, names.fromString(Double.class.getName()));
+        var floatClass = symtab.enterClass(symtab.java_base, names.fromString(Float.class.getName()));
 
-        // Math.abs/sqrt/min/max(double) -> fp64 methods
-        for (var entry : Map.of("abs", "Abs", "sqrt", "Sqrt", "min", "Min", "max", "Max").entrySet()) {
+        registerMathMethods(mathClass, names, Map.of("abs", "Abs", "sqrt", "Sqrt", "min", "Min", "max", "Max"), TypeTag.DOUBLE, FloatingPointType.FP64);
+        registerMathMethods(mathClass, names, Map.of("abs", "Abs", "min", "Min", "max", "Max"), TypeTag.FLOAT, FloatingPointType.FP32);
+
+        registerFpConstants(doubleClass, names, FloatingPointType.FP64);
+        registerFpConstants(floatClass, names, FloatingPointType.FP32);
+
+        registerFpStaticClassificationMethods(doubleClass, names);
+        registerFpStaticClassificationMethods(floatClass, names);
+
+        registerFpValueOf(doubleClass, names);
+        registerFpValueOf(floatClass, names);
+
+        registerFpValueMethods(doubleClass, names, List.of("doubleValue", "floatValue"));
+        registerFpValueMethods(floatClass, names, List.of("floatValue"));
+
+        registerFpInstanceClassificationMethods(doubleClass, names);
+        registerFpInstanceClassificationMethods(floatClass, names);
+    }
+
+    private void registerMathMethods(Symbol.ClassSymbol mathClass, com.sun.tools.javac.util.Names names,
+                                      Map<String, String> methods, TypeTag paramType, FloatingPointType fpType) {
+        for (var entry : methods.entrySet()) {
             for (Symbol s : mathClass.members().getSymbolsByName(names.fromString(entry.getKey()))) {
                 if (s instanceof Symbol.MethodSymbol ms && !ms.params().isEmpty()
-                    && ms.params().get(0).type.getTag() == TypeTag.DOUBLE) {
+                    && ms.params().get(0).type.getTag() == paramType) {
                     nativeSymbols.registerMethod(ms, (invocation, origin, ctx) -> {
                         var argBindings = invocation.getArguments().stream()
                             .map(arg -> new ActualBinding(null, toExpr(arg, ctx.forbidImpure()), false))
                             .toList();
-                        return callFp64Method(origin, entry.getValue(), argBindings);
+                        return callFpMethod(origin, fpType, entry.getValue(), argBindings);
                     });
                 }
             }
         }
+    }
 
-        // Double fields -> fp64 constants
+    private void registerFpConstants(Symbol.ClassSymbol fpClass, com.sun.tools.javac.util.Names names, FloatingPointType fpType) {
         for (var entry : Map.of("NaN", "NaN", "POSITIVE_INFINITY", "PositiveInfinity",
                 "NEGATIVE_INFINITY", "NegativeInfinity", "MAX_VALUE", "MaxValue",
                 "MIN_VALUE", "MinSubnormal", "MIN_NORMAL", "MinNormal").entrySet()) {
-            for (Symbol s : doubleClass.members().getSymbolsByName(names.fromString(entry.getKey()))) {
+            for (Symbol s : fpClass.members().getSymbolsByName(names.fromString(entry.getKey()))) {
                 if (s instanceof Symbol.VarSymbol vs) {
-                    nativeSymbols.registerField(vs, (fa, origin) -> fp64Constant(origin, entry.getValue()));
+                    nativeSymbols.registerField(vs, (fa, origin) -> fpConstant(origin, fpType, entry.getValue()));
                     break;
                 }
             }
         }
+    }
 
-        // Double.isNaN/isInfinite/isFinite(x) -> x.IsNaN/IsInfinite/IsFinite
+    private void registerFpStaticClassificationMethods(Symbol.ClassSymbol fpClass, com.sun.tools.javac.util.Names names) {
         for (var entry : Map.of("isNaN", "IsNaN", "isInfinite", "IsInfinite", "isFinite", "IsFinite").entrySet()) {
-            for (Symbol s : doubleClass.members().getSymbolsByName(names.fromString(entry.getKey()))) {
+            for (Symbol s : fpClass.members().getSymbolsByName(names.fromString(entry.getKey()))) {
                 if (s instanceof Symbol.MethodSymbol ms && ms.isStatic()) {
                     nativeSymbols.registerMethod(ms, (invocation, origin, ctx) -> {
                         if (invocation.getArguments().isEmpty()) return null;
@@ -990,19 +1088,21 @@ public class ExpressionCompiler {
                 }
             }
         }
+    }
 
-        // Double.valueOf(x) -> x
-        for (Symbol s : doubleClass.members().getSymbolsByName(names.fromString("valueOf"))) {
+    private void registerFpValueOf(Symbol.ClassSymbol fpClass, com.sun.tools.javac.util.Names names) {
+        for (Symbol s : fpClass.members().getSymbolsByName(names.fromString("valueOf"))) {
             if (s instanceof Symbol.MethodSymbol ms && ms.isStatic()) {
                 nativeSymbols.registerMethod(ms, (invocation, origin, ctx) ->
                     invocation.getArguments().isEmpty() ? null
                         : toExpr(invocation.getArguments().get(0), ctx.forbidImpure()));
             }
         }
+    }
 
-        // x.doubleValue()/floatValue() -> x
-        for (var methodName : List.of("doubleValue", "floatValue")) {
-            for (Symbol s : doubleClass.members().getSymbolsByName(names.fromString(methodName))) {
+    private void registerFpValueMethods(Symbol.ClassSymbol fpClass, com.sun.tools.javac.util.Names names, List<String> methodNames) {
+        for (var methodName : methodNames) {
+            for (Symbol s : fpClass.members().getSymbolsByName(names.fromString(methodName))) {
                 if (s instanceof Symbol.MethodSymbol ms && !ms.isStatic()) {
                     nativeSymbols.registerMethod(ms, (invocation, origin, ctx) ->
                         invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fa
@@ -1010,10 +1110,11 @@ public class ExpressionCompiler {
                 }
             }
         }
+    }
 
-        // x.isNaN()/isInfinite() -> x.IsNaN/IsInfinite
+    private void registerFpInstanceClassificationMethods(Symbol.ClassSymbol fpClass, com.sun.tools.javac.util.Names names) {
         for (var entry : Map.of("isNaN", "IsNaN", "isInfinite", "IsInfinite").entrySet()) {
-            for (Symbol s : doubleClass.members().getSymbolsByName(names.fromString(entry.getKey()))) {
+            for (Symbol s : fpClass.members().getSymbolsByName(names.fromString(entry.getKey()))) {
                 if (s instanceof Symbol.MethodSymbol ms && !ms.isStatic()) {
                     nativeSymbols.registerMethod(ms, (invocation, origin, ctx) -> {
                         if (!(invocation.getMethodSelect() instanceof JCTree.JCFieldAccess fa)) return null;
