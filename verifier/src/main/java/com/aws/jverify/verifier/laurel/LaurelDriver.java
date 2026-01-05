@@ -1,6 +1,12 @@
 package com.aws.jverify.verifier.laurel;
 
+import com.amazon.ion.IonList;
+import com.amazon.ion.IonSexp;
+import com.amazon.ion.IonValue;
+import com.amazon.ion.IonWriter;
+import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
+import com.amazon.ion.system.IonTextWriterBuilder;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.laurel.IonSerializer;
 import com.aws.jverify.verifier.*;
@@ -22,7 +28,9 @@ import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -74,18 +82,24 @@ public class LaurelDriver implements Driver {
             return new JVerifyResults(diagnostics, CommandLine.ExitCode.USAGE, null);
         } else {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
-                var ionSystem = IonSystemBuilder.standard().build();
-                var serialized = new IonSerializer(ionSystem).serialize(compiledProgram);
+                
+                var ion = IonSystemBuilder.standard().build();
+                IonList programAsIon = ion.newEmptyList();
+                IonSexp header = ion.newEmptySexp();
+                header.add(ion.newSymbol("program"));
+                header.add(ion.newString("Laurel"));
+                programAsIon.add(header);
+                programAsIon.add(new IonSerializer(ion).serializeCommand(compiledProgram));
 
                 if (verifierOptions.printSerializedOutputProgram() != null) {
                     try {
                         Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
-                        Files.writeString(verifierOptions.printSerializedOutputProgram(), serialized.toPrettyString());
+                        Files.writeString(verifierOptions.printSerializedOutputProgram(), programAsIon.toPrettyString());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }
-                return serialized.toString();
+                return programAsIon;
             });
             var results = runVerifier(NameCompiler.instance(context), serializedProgram);
             results.diagnostics().addAll(0, diagnostics);
@@ -105,7 +119,7 @@ public class LaurelDriver implements Driver {
         }
     }
 
-    public JVerifyResults runVerifier(NameCompiler nameCompiler, String serializedProgram) {
+    public JVerifyResults runVerifier(NameCompiler nameCompiler, IonValue serializedProgram) {
         checkVerifierVersion();
 
 //        Options:
@@ -142,8 +156,9 @@ public class LaurelDriver implements Driver {
                 // Redirect stderr into stdout, instead of reading one and then the other,
                 // in order to preserve the order of output and to avoid potential deadlock.
                 var process = processBuilder.redirectErrorStream(true).start();
-                try (var stdin = process.outputWriter()) {
-                    stdin.write(serializedProgram);
+                try (var strataStdin = process.getOutputStream();
+                     var writer = IonBinaryWriterBuilder.standard().build(strataStdin)) {
+                    serializedProgram.writeTo(writer);
                 }
                 return parseStrataOutput(verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {

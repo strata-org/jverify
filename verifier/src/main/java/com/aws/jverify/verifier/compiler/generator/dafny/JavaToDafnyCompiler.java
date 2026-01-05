@@ -15,7 +15,6 @@ public class JavaToDafnyCompiler {
 
     private final DafnyGenerator dafnyGenerator;
     private final JavaLowerer lowerer;
-    public static final String objectFile = "/object-contract.java";
 
     public JavaToDafnyCompiler(Context context) {
         this.context = context;

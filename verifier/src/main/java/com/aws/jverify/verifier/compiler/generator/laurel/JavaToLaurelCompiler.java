@@ -72,7 +72,7 @@ public class JavaToLaurelCompiler {
                     convertExpression(exprStmt.expr);
                 case JCTree.JCBlock block ->
                     convertMethodBody(block);
-                default -> null;
+                default -> null; //throw new RuntimeException("Not supported " + statement.getClass().getName());
             };
         }
 
