@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 
 public class LaurelDriver implements Driver {
 
-    public static Context context;
+    public final Context context;
     private final VerifierOptions verifierOptions;
 
     @Override
@@ -42,8 +42,9 @@ public class LaurelDriver implements Driver {
         return verifierOptions;
     }
 
-    public LaurelDriver(VerifierOptions verifierOptions) {
-        this.verifierOptions = verifierOptions;
+    public LaurelDriver(Context context) {
+        this.context = context;
+        this.verifierOptions = context.get(VerifierOptions.class);
     }
 
     public JVerifyResults verifyJavaFile(JavaFileObject javaFile)
@@ -55,11 +56,6 @@ public class LaurelDriver implements Driver {
             List<JavaFileObject> readFiles
     ) throws IOException {
         List<Diagnostic<?>> diagnostics = new ArrayList<>();
-
-        InstrumentLower.installModification();
-        context = new Context();
-        TypesWithoutErasure.preRegister(context);
-        context.put(VerifierOptions.class, verifierOptions);
 
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
@@ -91,7 +87,7 @@ public class LaurelDriver implements Driver {
                 }
                 return serialized.toString();
             });
-            var results = runVerifier(NameCompiler.instance(context), program, verifierOptions);
+            var results = runVerifier(NameCompiler.instance(context), program);
             results.diagnostics().addAll(0, diagnostics);
             return results;
         }
@@ -99,7 +95,7 @@ public class LaurelDriver implements Driver {
 
     private static boolean checkedVersion = false;
 
-    private static void checkVerifierVersion(VerifierOptions verifierOptions) {
+    private void checkVerifierVersion() {
         if (!verifierOptions.testBackendVersion()) {
             return;
         }
@@ -109,10 +105,9 @@ public class LaurelDriver implements Driver {
         }
     }
 
-    public static JVerifyResults runVerifier(NameCompiler nameCompiler,
-                                             String program,
-                                             VerifierOptions verifierOptions) {
-        checkVerifierVersion(verifierOptions);
+    public JVerifyResults runVerifier(NameCompiler nameCompiler,
+                                             String program) {
+        checkVerifierVersion();
 
 //        Options:
 //        --verbose                   Print extra information during analysis.
@@ -197,7 +192,7 @@ public class LaurelDriver implements Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private static JVerifyResults parseStrataOutput(VerifierOptions options,
+    private JVerifyResults parseStrataOutput(VerifierOptions options,
                                                     NameCompiler nameCompiler,
                                                     Process process) throws IOException, InterruptedException {
 

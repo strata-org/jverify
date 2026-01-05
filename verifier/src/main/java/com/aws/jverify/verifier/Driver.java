@@ -1,9 +1,13 @@
 package com.aws.jverify.verifier;
 
+import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
+import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
+import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.dafny.DafnyDiagnostic;
 import com.aws.jverify.verifier.dafny.DafnyDriver;
 import com.aws.jverify.verifier.dafny.JVerifyResults;
 import com.aws.jverify.verifier.laurel.LaurelDriver;
+import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;
 
 import javax.tools.Diagnostic;
@@ -101,9 +105,16 @@ public interface Driver {
     ) throws IOException;
     
     static Driver getDriver(Backend backend, VerifierOptions options) {
+
+        InstrumentLower.installModification();
+        var context = new Context();
+        TypesWithoutErasure.preRegister(context);
+        context.put(VerifierOptions.class, options);
+        var lowerer = new JavaLowerer(context);
+        context.put(JavaLowerer.class, lowerer);
         return switch (backend) {
-            case Dafny -> new DafnyDriver(options);
-            case Laurel -> new LaurelDriver(options);
+            case Dafny -> new DafnyDriver(context);
+            case Laurel -> new LaurelDriver(context);
             default -> throw new RuntimeException("Unsupported backend: " + backend);
         };
     }

@@ -40,12 +40,9 @@ public class DafnyDriver implements Driver {
         return verifierOptions;
     }
 
-    public DafnyDriver(VerifierOptions verifierOptions) {
-        InstrumentLower.installModification();
-        context = new Context();
-        TypesWithoutErasure.preRegister(context);
-        context.put(VerifierOptions.class, verifierOptions);
-        this.verifierOptions = verifierOptions;
+    public DafnyDriver(Context context) {
+        this.context = context;
+        this.verifierOptions = context.get(VerifierOptions.class);
     }
 
     public JVerifyResults verifyJavaFile(JavaFileObject javaFile)

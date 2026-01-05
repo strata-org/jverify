@@ -16,7 +16,7 @@ public class JavaToLaurelCompiler {
     private final JavaLowerer lowerer;
 
     public JavaToLaurelCompiler(Context context) {
-        lowerer = new JavaLowerer(context);
+        lowerer = context.get(JavaLowerer.class);
     }
 
     public Node analyzeJavaCode(VerifierOptions verifierOptions, List<JavaFileObject> readFiles) {
