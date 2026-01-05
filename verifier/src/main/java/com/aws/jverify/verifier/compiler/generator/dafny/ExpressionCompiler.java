@@ -137,7 +137,7 @@ public class ExpressionCompiler {
             } else {
                 if (statement instanceof JCTree.JCExpressionStatement expressionStatement &&
                         expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation) {
-                    var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+                    var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
                     if (jverifyMethod != null) {
                         var dafnyStatement = getJVerifyStatement(invocation, jverifyMethod, context);
                         result = new StmtExpr(origin, dafnyStatement, result);

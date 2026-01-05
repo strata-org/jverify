@@ -360,19 +360,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return null;
     }
 
-    private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.outermostClass().className().contentEquals(JVerifyUtils.JVERIFY_CLASS);
-    }
-
-    /**
-     * If the specified invocation's method is from the JVerify library,
-     * returns its {@link Symbol.MethodSymbol}.
-     * Otherwise, returns {@code null}.
-     */
-    public static Symbol.MethodSymbol getJVerifyMethod(JCTree.JCMethodInvocation invocation) {
-        var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-        return fromJVerify(methodSymbol) ? methodSymbol : null;
-    }
 
     public boolean isPure(Symbol.ClassSymbol classSymbol) {
         Symtab symtab = Symtab.instance(context);

@@ -210,7 +210,7 @@ public class BlockCompiler {
     }
 
     public List<Statement> translateStatementMethodInvocation(JCTree.JCMethodInvocation invocation, ExpressionContext expressionContext) {
-        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+        var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
         if (jverifyMethod != null) {
             return translateJVerifyMethodInvocation(invocation, jverifyMethod, expressionContext);
         } else {

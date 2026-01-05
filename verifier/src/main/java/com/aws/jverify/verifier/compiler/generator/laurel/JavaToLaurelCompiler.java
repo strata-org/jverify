@@ -1,10 +1,19 @@
 package com.aws.jverify.verifier.compiler.generator.laurel;
 
 import com.aws.jverify.Nullable;
+import com.aws.jverify.generated.AssertStmt;
+import com.aws.jverify.generated.AssumeStmt;
+import com.aws.jverify.generated.Statement;
 import com.aws.jverify.laurel.*;
 import com.aws.jverify.verifier.VerifierOptions;
+import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
+import com.aws.jverify.verifier.compiler.generator.dafny.BaseDafnyGenerator;
+import com.aws.jverify.verifier.compiler.generator.dafny.ExpressionContext;
+import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.sun.tools.javac.code.Flags;
+import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
@@ -78,9 +87,36 @@ public class JavaToLaurelCompiler {
 
         private StmtExpr convertExpression(JCTree.JCExpression expr) {
             if (expr instanceof JCTree.JCLiteral literal) {
-                if (literal.value instanceof Boolean boolValue) {
-                    return new LiteralBool(toSourceRange(literal), boolValue);
+                if (literal.typetag == TypeTag.BOOLEAN) {
+                    return new LiteralBool(toSourceRange(literal), (int)literal.value != 0);
                 }
+            } else if (expr instanceof JCTree.JCMethodInvocation methodInvocation) {
+                var jverifyMethod = JVerifyUtils.getJVerifyMethod(methodInvocation);
+                if (jverifyMethod != null) {
+                    return getJVerifyStatement(methodInvocation, jverifyMethod);
+                }
+            }
+            
+            return null;
+        }
+
+        @org.checkerframework.checker.nullness.qual.Nullable
+        public StmtExpr getJVerifyStatement(JCTree.JCMethodInvocation invocation,
+                                             Symbol.MethodSymbol jverifyMethod) {
+
+            var name = jverifyMethod.getQualifiedName().toString();
+            if (name.equals("check")) {
+                if (invocation.args.size() != 1) {
+                    throw new JavaViolationException("Check should have a single argument");
+                }
+                return new Assert(toSourceRange(invocation),
+                        convertExpression(invocation.args.getFirst()));
+            } if (name.equals("assume")) {
+                if (invocation.args.size() != 1) {
+                    throw new JavaViolationException("Check should have a single argument");
+                }
+                return new Assume(toSourceRange(invocation),
+                        convertExpression(invocation.args.getFirst()));
             }
             return null;
         }

@@ -94,7 +94,7 @@ public class JVerifyGhostExpressionCompiler extends WrappingDafnyGenerator {
      */
     public ExpressionWithFlows translateMethodInvocation(JCTree.JCMethodInvocation invocation, IOrigin originOverride, ExpressionContext context) {
         var origin = Objects.requireNonNullElseGet(originOverride, () -> reporter.toOrigin(invocation));
-        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+        var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return super.toExprWithFlows(invocation, origin, context);
         }
