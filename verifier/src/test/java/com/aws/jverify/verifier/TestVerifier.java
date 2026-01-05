@@ -38,8 +38,8 @@ public class TestVerifier {
         var remainingRanges = List.of(ranges.get(0), ranges.get(2));
         int filterLine = remainingRanges.get(1).range().start().line() - 3;
         VerifierOptions options = JVerifyTestEngine.getVerifierOptions(annotation, 
-                new PositionFilter(false, "MultiPackageTest.java", filterLine, filterLine));
-        JVerifyTestEngine.verifyFile(markedSourceFile, annotation, remainingRanges, options);
+                new PositionFilter(false, "MultiPackageTest.java", filterLine, filterLine), Backend.Dafny);
+        JVerifyTestEngine.verifyFile(markedSourceFile, annotation, remainingRanges, Backend.Dafny, options);
     }
 
     @Test

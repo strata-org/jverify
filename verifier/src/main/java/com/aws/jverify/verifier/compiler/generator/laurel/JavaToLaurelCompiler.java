@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler.generator.laurel;
 
+import com.aws.jverify.Nullable;
 import com.aws.jverify.laurel.*;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
@@ -27,7 +28,11 @@ public class JavaToLaurelCompiler {
             compilationUnit.accept(visitor);
             staticProcedures.addAll(visitor.procedures);
         }
-        return new Program(null, staticProcedures);
+        return new Program(SourceRange.NONE, staticProcedures);
+    }
+    
+    static SourceRange toSourceRange(JCTree node) {
+        return SourceRange.NONE;
     }
 
     private static class StaticMethodCollector extends TreeScanner {
@@ -39,14 +44,14 @@ public class JavaToLaurelCompiler {
             if ((method.mods.flags & Flags.STATIC) != 0) {
                 String methodName = method.name.toString();
                 StmtExpr body = convertMethodBody(method.body);
-                procedures.add(new Procedure_(null, methodName, body));
+                procedures.add(new Procedure_(toSourceRange(method), methodName, body));
             }
             super.visitMethodDef(method);
         }
 
-        private StmtExpr convertMethodBody(JCTree.JCBlock block) {
+        private @Nullable StmtExpr convertMethodBody(JCTree.JCBlock block) {
             if (block == null) {
-                return new Block(null, List.of());
+                return null;
             }
 
             List<StmtExpr> statements = new ArrayList<>();
@@ -56,13 +61,13 @@ public class JavaToLaurelCompiler {
                     statements.add(converted);
                 }
             }
-            return new Block(null, statements);
+            return new Block(toSourceRange(block), statements);
         }
 
         private StmtExpr convertStatement(JCTree.JCStatement statement) {
             return switch (statement) {
                 case JCTree.JCAssert assertStmt ->
-                    new Assert(null, convertExpression(assertStmt.cond));
+                    new Assert(toSourceRange(assertStmt), convertExpression(assertStmt.cond));
                 case JCTree.JCExpressionStatement exprStmt ->
                     convertExpression(exprStmt.expr);
                 case JCTree.JCBlock block ->
@@ -74,7 +79,7 @@ public class JavaToLaurelCompiler {
         private StmtExpr convertExpression(JCTree.JCExpression expr) {
             if (expr instanceof JCTree.JCLiteral literal) {
                 if (literal.value instanceof Boolean boolValue) {
-                    return new LiteralBool(null, boolValue);
+                    return new LiteralBool(toSourceRange(literal), boolValue);
                 }
             }
             return null;

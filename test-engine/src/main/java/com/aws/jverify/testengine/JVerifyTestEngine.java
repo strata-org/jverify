@@ -154,10 +154,13 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
-        verifyFile(sourceFile, annotation, ranges, getVerifierOptions(annotation, null));
+        for(var backend : annotation.BACKENDS()) {
+            verifyFile(sourceFile, annotation, ranges, backend, getVerifierOptions(annotation, null, backend));
+        }
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges, 
+                                  Backend backend,
                                   VerifierOptions options) throws IOException {
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
@@ -171,57 +174,55 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
-        for(var backend : annotation.BACKENDS()) {
-            var results = Driver.getDriver(backend, options).verifyJavaFiles(inputs);
+        var results = Driver.getDriver(backend, options).verifyJavaFiles(inputs);
 
-            var diagnosticsAsAnnotations = results.diagnostics().stream()
-                    .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
-                    .sorted()
-                    .toList();
+        var diagnosticsAsAnnotations = results.diagnostics().stream()
+                .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
+                .sorted()
+                .toList();
 
-            if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
-                if (results.exitCode() == 0 || results.exitCode() == 4) {
-                    updateTestAnnotation(sourceFile, annotation, results);
-                }
+        if (Boolean.parseBoolean(System.getenv("JVERIFY_UPDATE_TEST_ANNOTATIONS"))) {
+            if (results.exitCode() == 0 || results.exitCode() == 4) {
+                updateTestAnnotation(sourceFile, annotation, results);
             }
+        }
 
-            var expectedAnnotations = ranges.stream().sorted().toList();
-            assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
+        var expectedAnnotations = ranges.stream().sorted().toList();
+        assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
-            Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
-            Integer expectedMethodsInvalidCount = annotation.methodsInvalid() >= 0 ? annotation.methodsInvalid() : null;
-            Integer expectedFailedAssertionsCount = annotation.methodsInvalid() >= 0 ? annotation.failedAssertions() : null;
-            Integer expectedJavaSkippedCount = annotation.methodsSkipped() >= 0 ? annotation.methodsSkipped() : null;
-            Assertions.assertAll(
-                    () -> assertThat("exit code",
-                            results.exitCode(),
-                            is(annotation.exitCode())),
-                    () -> {
-                        if (expectedJavaVerifiedCount != null) {
-                            assertThat("Java verified methods count",
-                                    results.verificationResults().verificationPassedMethods(),
-                                is(expectedJavaVerifiedCount));
-                        }
-                    },
-                    () -> {
-                        if (expectedFailedAssertionsCount != null) {
-                            assertThat("Failed assertions count",
-                                    results.verificationResults().verificationFailedAssertions(),
-                                    is(expectedFailedAssertionsCount));
-                        }
-                    },
-                    () -> {
-                        if (expectedJavaSkippedCount != null) {
-                            assertThat("Java verification skipped method count",
-                                    results.verificationResults().verificationSkippedMethods(),
-                                    is(expectedJavaSkippedCount));
-                        }
+        Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
+        Integer expectedMethodsInvalidCount = annotation.methodsInvalid() >= 0 ? annotation.methodsInvalid() : null;
+        Integer expectedFailedAssertionsCount = annotation.methodsInvalid() >= 0 ? annotation.failedAssertions() : null;
+        Integer expectedJavaSkippedCount = annotation.methodsSkipped() >= 0 ? annotation.methodsSkipped() : null;
+        Assertions.assertAll(
+                () -> assertThat("exit code",
+                        results.exitCode(),
+                        is(annotation.exitCode())),
+                () -> {
+                    if (expectedJavaVerifiedCount != null) {
+                        assertThat("Java verified methods count",
+                                results.verificationResults().verificationPassedMethods(),
+                            is(expectedJavaVerifiedCount));
                     }
-            );
+                },
+                () -> {
+                    if (expectedFailedAssertionsCount != null) {
+                        assertThat("Failed assertions count",
+                                results.verificationResults().verificationFailedAssertions(),
+                                is(expectedFailedAssertionsCount));
+                    }
+                },
+                () -> {
+                    if (expectedJavaSkippedCount != null) {
+                        assertThat("Java verification skipped method count",
+                                results.verificationResults().verificationSkippedMethods(),
+                                is(expectedJavaSkippedCount));
+                    }
+                }
+        );
 
-            if (annotation.verifyPrintedDafny()) {
-                verifyPrintedDafny(results, options);
-            }
+        if (annotation.verifyPrintedDafny()) {
+            verifyPrintedDafny(results, options);
         }
     }
 
@@ -293,8 +294,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
 
-    public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter) {
-        var dafnyPath = getDafnyInSubmodulePath();
+    public static VerifierOptions getVerifierOptions(JVerifyTest annotation, 
+                                                     PositionFilter positionFilter, Backend backend) {
+        var backendPath = switch (backend) {
+            case Dafny -> getDafnyInSubmodulePath();
+            case Laurel -> Path.of("../Strata").toAbsolutePath();
+        };
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var verifierJar = Path.of("../verifier/build/libs/verifier-1.0-SNAPSHOT.jar");
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
@@ -304,7 +309,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
         return new VerifierOptions(new PrintWriter(System.out),
                 workingDirectory,
-                dafnyPath,
+                backendPath,
                 List.of(verifierJar, libraryJar, testEngineClassPath, libraryForTestingClassPath),
                 prelude,
                 false,

@@ -86,7 +86,7 @@ class AppCommand implements Callable<Integer> {
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-        var dafnyPath = getDafnyPath(writer);
+        var dafnyPath = getBackendPath(writer);
 
         classPaths = classPaths == null ? List.of() : classPaths;
         List<Path> givenClassPaths = classPaths.stream()
@@ -120,22 +120,32 @@ class AppCommand implements Callable<Integer> {
         });
     }
 
-    private Path getDafnyPath(PrintWriter output) {
-        var dafnyPath = customDafny;
-        if (dafnyPath == null || !Files.exists(dafnyPath)) {
-            if (System.getenv("JVERIFY_DAFNY") != null) {
-                dafnyPath = Path.of(System.getenv("JVERIFY_DAFNY"));
-            }
-        }
-        if (dafnyPath == null || !Files.exists(dafnyPath)) {
-            if (verbose) {
-                output.println("Could not find a file at Dafny path '" + dafnyPath + "'");
-            }
-            var isWindows = System.getProperty("os.name", "").toLowerCase().contains("windows");
+    private Path getBackendPath(PrintWriter output) {
+        
+        if (backend == Backend.Dafny) {
 
-            dafnyPath = Path.of(isWindows ? "Dafny.exe" : "dafny");
+            var dafnyPath = customDafny;
+            if (dafnyPath == null || !Files.exists(dafnyPath)) {
+                if (System.getenv("JVERIFY_DAFNY") != null) {
+                    dafnyPath = Path.of(System.getenv("JVERIFY_DAFNY"));
+                }
+            }
+            if (dafnyPath == null || !Files.exists(dafnyPath)) {
+                if (verbose) {
+                    output.println("Could not find a file at Dafny path '" + dafnyPath + "'");
+                }
+                var isWindows = System.getProperty("os.name", "").toLowerCase().contains("windows");
+
+                dafnyPath = Path.of(isWindows ? "Dafny.exe" : "dafny");
+            }
+            return dafnyPath;
         }
-        return dafnyPath;
+        
+        if (backend == Backend.Laurel) {
+            return Path.of("/Users/rwillems/SourceCode/GradleBased/Strata");
+        }
+        
+        throw new RuntimeException("Backend " + backend + " is not supported");
     }
 }
 
