@@ -7,6 +7,7 @@ import com.aws.jverify.generated.Statement;
 import com.aws.jverify.laurel.*;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
+import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
 import com.aws.jverify.verifier.compiler.generator.dafny.BaseDafnyGenerator;
 import com.aws.jverify.verifier.compiler.generator.dafny.ExpressionContext;
@@ -30,6 +31,7 @@ import java.util.List;
 
 public class JavaToLaurelCompiler {
     private final JavaLowerer lowerer;
+    JCTree.JCCompilationUnit currentCompilationUnit;
 
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
@@ -39,6 +41,7 @@ public class JavaToLaurelCompiler {
         var result = new ArrayList<LaurelFile>();
         var loweredResult = lowerer.lowerJava(verifierOptions, readFiles);
         for (var compilationUnit : loweredResult.parsed()) {
+            currentCompilationUnit = compilationUnit;
             List<Procedure> staticProcedures = new ArrayList<>();
             var visitor = new StaticMethodCollector();
             compilationUnit.accept(visitor);
@@ -60,11 +63,15 @@ public class JavaToLaurelCompiler {
         return result;
     }
     
-    static SourceRange toSourceRange(JCTree node) {
-        return SourceRange.NONE;
+    SourceRange toSourceRange(JCTree node) {
+        int endPos = currentCompilationUnit.endPositions.getEndPos(node);
+        if (endPos == -1) {
+            endPos = node.pos + 1;
+        }
+        return new SourceRange(node.pos, endPos);
     }
 
-    private static class StaticMethodCollector extends TreeScanner {
+    private class StaticMethodCollector extends TreeScanner {
         final List<Procedure> procedures = new ArrayList<>();
 
         @Override
