@@ -2,7 +2,6 @@ package com.aws.jverify.verifier;
 
 import com.aws.jverify.verifier.dafny.DafnyDiagnostic;
 import com.aws.jverify.verifier.dafny.DafnyDriver;
-import com.aws.jverify.verifier.dafny.JVerifyResults;
 import com.sun.tools.javac.util.JCDiagnostic;
 
 import javax.tools.Diagnostic;
