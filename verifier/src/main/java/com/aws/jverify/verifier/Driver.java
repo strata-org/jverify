@@ -8,7 +8,6 @@ import com.aws.jverify.verifier.dafny.DafnyDriver;
 import com.aws.jverify.verifier.laurel.LaurelDriver;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;
-
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
@@ -52,7 +51,7 @@ public interface Driver {
         return results.exitCode();
     }
 
-    private void outputVerificationResults(JVerifyResults results, Writer outputWriter) throws IOException {
+    private void outputVerificationResults(JVerifyResults results, Writer outputWriter) {
 
         var pw = new PrintWriter(outputWriter);
         for (var diagnostic : results.diagnostics()) {
