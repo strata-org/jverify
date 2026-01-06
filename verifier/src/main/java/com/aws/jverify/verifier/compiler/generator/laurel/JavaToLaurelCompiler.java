@@ -17,8 +17,14 @@ import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Position;
+import org.apfloat.internal.ParallelThreeNTTConvolutionStrategy;
 
 import javax.tools.JavaFileObject;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Path;
+import java.sql.Array;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,15 +35,29 @@ public class JavaToLaurelCompiler {
         lowerer = context.get(JavaLowerer.class);
     }
 
-    public Node analyzeJavaCode(VerifierOptions verifierOptions, List<JavaFileObject> readFiles) {
+    public List<LaurelFile> analyzeJavaCode(VerifierOptions verifierOptions, List<JavaFileObject> readFiles) {
+        var result = new ArrayList<LaurelFile>();
         var loweredResult = lowerer.lowerJava(verifierOptions, readFiles);
-        List<Procedure> staticProcedures = new ArrayList<>();
         for (var compilationUnit : loweredResult.parsed()) {
+            List<Procedure> staticProcedures = new ArrayList<>();
             var visitor = new StaticMethodCollector();
             compilationUnit.accept(visitor);
             staticProcedures.addAll(visitor.procedures);
+            var lineOffsets = new ArrayList<Integer>();
+            Position.LineMap lineMap = compilationUnit.getLineMap();
+            int lineCount = 0;
+            try {
+                lineCount = lineMap.getLineNumber(compilationUnit.sourcefile.getCharContent(true).length());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            for(var line = 1; line < lineCount; line++) {
+                lineOffsets.add(lineMap.getStartPosition(line));
+            }
+            result.add(new LaurelFile(compilationUnit.sourcefile.toUri(), 
+                    new Program(SourceRange.NONE, staticProcedures), lineOffsets));
         }
-        return new Program(SourceRange.NONE, staticProcedures);
+        return result;
     }
     
     static SourceRange toSourceRange(JCTree node) {

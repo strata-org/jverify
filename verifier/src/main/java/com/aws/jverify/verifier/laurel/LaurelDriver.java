@@ -1,9 +1,6 @@
 package com.aws.jverify.verifier.laurel;
 
-import com.amazon.ion.IonList;
-import com.amazon.ion.IonSexp;
-import com.amazon.ion.IonValue;
-import com.amazon.ion.IonWriter;
+import com.amazon.ion.*;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
 import com.amazon.ion.system.IonTextWriterBuilder;
@@ -15,6 +12,7 @@ import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
+import com.aws.jverify.verifier.compiler.generator.laurel.LaurelFile;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.dafny.*;
@@ -55,6 +53,25 @@ public class LaurelDriver implements Driver {
         this.verifierOptions = context.get(VerifierOptions.class);
     }
 
+    /**
+     * Compute line offsets for a source string.
+     * Returns an array of byte positions where each line starts.
+     * The first entry is always 0.
+     */
+    private static List<Integer> computeLineOffsets(String source) {
+        List<Integer> offsets = new ArrayList<>();
+        offsets.add(0); // First line always starts at 0
+
+        for (int i = 0; i < source.length(); i++) {
+            if (source.charAt(i) == '\n') {
+                // Add position after the newline
+                offsets.add(i + 1);
+            }
+        }
+
+        return offsets;
+    }
+
     public JVerifyResults verifyJavaFile(JavaFileObject javaFile)
             throws IOException {
         return verifyJavaFiles(List.of(javaFile));
@@ -82,24 +99,50 @@ public class LaurelDriver implements Driver {
             return new JVerifyResults(diagnostics, CommandLine.ExitCode.USAGE, null);
         } else {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
-                
+
                 var ion = IonSystemBuilder.standard().build();
-                IonList programAsIon = ion.newEmptyList();
-                IonSexp header = ion.newEmptySexp();
-                header.add(ion.newSymbol("program"));
-                header.add(ion.newString("Laurel"));
-                programAsIon.add(header);
-                programAsIon.add(new IonSerializer(ion).serializeCommand(compiledProgram));
+
+
+                // Create list of StrataFile structs
+                IonList files = ion.newEmptyList();
+
+                // Create a StrataFile for each input file
+                for (LaurelFile file : compiledProgram) {
+                    IonStruct strataFile = ion.newEmptyStruct();
+
+                    // Add filePath
+                    String filePath = file.uri().toString();
+                    strataFile.put("filePath", ion.newString(filePath));
+
+                    // Create the program Ion structure
+                    IonList programAsIon = ion.newEmptyList();
+                    IonSexp header = ion.newEmptySexp();
+                    header.add(ion.newSymbol("program"));
+                    header.add(ion.newString("Laurel"));
+                    programAsIon.add(header);
+                    programAsIon.add(new IonSerializer(ion).serializeCommand(file.root()));
+                    
+                    // Add program (all files share the same combined program for now)
+                    strataFile.put("program", programAsIon.clone());
+
+                    IonList lineOffsets = ion.newEmptyList();
+                    for (Integer offset : file.lineOffsets()) {
+                        lineOffsets.add(ion.newInt(offset));
+                    }
+                    strataFile.put("lineOffsets", lineOffsets);
+
+                    files.add(strataFile);
+                }
 
                 if (verifierOptions.printSerializedOutputProgram() != null) {
                     try {
                         Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
-                        Files.writeString(verifierOptions.printSerializedOutputProgram(), programAsIon.toPrettyString());
+                        Files.writeString(verifierOptions.printSerializedOutputProgram(), files.toPrettyString());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }
-                return programAsIon;
+                return files;
             });
             var results = runVerifier(NameCompiler.instance(context), serializedProgram);
             results.diagnostics().addAll(0, diagnostics);
