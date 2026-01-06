@@ -1,5 +1,6 @@
 package com.aws.jverify.testengine;
 
+import com.aws.jverify.verifier.Backend;
 import org.junit.platform.commons.annotation.Testable;
 
 import java.lang.annotation.ElementType;
@@ -17,13 +18,12 @@ import java.lang.annotation.Target;
  *      </li>
  *      <li>
  *          {@code @VerifyTest(exitCode = ...)}
- *          - Verification should finish with exit code {@code X} without Dafny terminating normally
- *          (i.e. Dafny is never invoked because there are javac errors, or Dafny terminates abnormally).
+ *          - JVerify should finish with exit code {@code X}
+ *          (i.e. Verification is never started because there are javac errors, or verification terminates abnormally).
  *      </li>
  *      <li>
- *          {@code @JVerifyTest(exitCode = ..., dafnyVerified = ..., dafnyErrors = ...)}
- *          - Verification should finish with exit code {@code X}, Dafny terminates normally,
- *          and Dafny's summary reports {@code Y} verified symbols and {@code Z} errors.
+ *          {@code @JVerifyTest(methodsVerified = ..., errorCount = ...)}
+ *          - {@code methodsVerified} are verified successfully, and there are {@code errorCount} verification errors.
  *      </li>
  * </ol>
  *
@@ -49,10 +49,10 @@ public @interface JVerifyTest {
 
     int exitCode() default 0;
 
-    int dafnyVerified() default -1;
+    Backend[] BACKENDS() default { Backend.Dafny };
 
-    int dafnyErrors() default -1;
-
+    int[] performanceTicks() default { };
+    
     String[] additionalFiles() default {};
     
     boolean verifyPrintedDafny() default false;
@@ -60,17 +60,19 @@ public @interface JVerifyTest {
     /**
      * Expected number of Java methods to fail verification
      */
-    int javaErrors()  default -1;
+    int methodsInvalid()  default -1;
+    
+    int errorCount()  default -1;
 
     /**
      * Expected number of Java methods to be verified
      * Note: add + 1 for each class you are verifying to account
      * for the implicit constructor unless you have specified it explicitly
      */
-    int javaVerified() default -1;
+    int methodsVerified() default -1;
 
     /**
      * Expected number of Java methods to have been skipped during verification
      */
-    int javaSkipped() default -1;
+    int methodsSkipped() default -1;
 }

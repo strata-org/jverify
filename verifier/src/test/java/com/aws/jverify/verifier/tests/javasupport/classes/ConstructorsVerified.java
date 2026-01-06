@@ -4,7 +4,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(dafnyVerified = 4, dafnyErrors = 0)
+@JVerifyTest(methodsVerified = 2, errorCount = 0)
 public class ConstructorsVerified {
     static class Box {
         private final int value;

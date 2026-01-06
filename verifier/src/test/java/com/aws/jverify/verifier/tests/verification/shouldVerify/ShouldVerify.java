@@ -9,13 +9,13 @@ import java.math.BigInteger;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 13, dafnyErrors = 6,
+@JVerifyTest(exitCode = 4,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 
         "./b/WillVerify.java", 
         "./b/package-info.java" },
-        javaVerified = 2, javaSkipped = 7, javaErrors = 6
+        methodsVerified = 2, methodsSkipped = 7, errorCount = 6
 )
 public class ShouldVerify {
 

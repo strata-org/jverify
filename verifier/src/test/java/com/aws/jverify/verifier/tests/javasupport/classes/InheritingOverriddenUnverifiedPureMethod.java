@@ -4,7 +4,7 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 6, dafnyErrors = 0)
+@JVerifyTest(methodsVerified = 2, errorCount = 0)
 public class InheritingOverriddenUnverifiedPureMethod {
     interface Common {
         @Pure

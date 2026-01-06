@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(exitCode = 4, dafnyVerified = 96, dafnyErrors = 3, verifyPrintedDafny = true)
+@JVerifyTest(exitCode = 4, methodsVerified = 21, errorCount = 3, verifyPrintedDafny = true)
 public class Lambdas {
     private static final SomethingDoer containsMethodReference = Lambdas::staticDoSomething;
     private static final SomethingDoer containsLambda = (int x, int y) -> staticDoSomething(x, y);

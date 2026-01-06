@@ -5,7 +5,6 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -70,6 +69,9 @@ class AppCommand implements Callable<Integer> {
     
     @Option(names = "--track-time", description = "")
     private boolean trackTime;
+    
+    @Option(names = "--backend", description = "")
+    private Backend backend = Backend.Dafny;
 
     @Override
     public Integer call() throws IOException {
@@ -111,7 +113,7 @@ class AppCommand implements Callable<Integer> {
         
         return verifierOptions.time("Calling Driver.verifyJavaPaths", () -> {
             try {
-                return Driver.verifyJavaPaths(inputs, verifierOptions);
+                return Driver.getDriver(backend, verifierOptions).verifyJavaPaths(inputs);
             } catch(IOException e) {
                 throw new RuntimeException(e);
             }

@@ -6,11 +6,9 @@ import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
-import javax.xml.XMLConstants;
-
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, dafnyVerified = 11, dafnyErrors = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 8, errorCount = 1)
 public class PureMethodVerification {
 
     @Verify(false)

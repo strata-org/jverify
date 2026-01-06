@@ -1,14 +1,12 @@
 package com.aws.jverify.verifier.tests.javasupport.classes;
 
-import com.aws.jverify.Contract;
-import com.aws.jverify.ContractException;
 import com.aws.jverify.EmptyContract;
 import com.aws.jverify.Pure;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 17, dafnyErrors = 0)
+@JVerifyTest(methodsVerified = 11, errorCount = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {
         Extender extender = new Extender(4);

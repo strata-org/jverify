@@ -30,8 +30,8 @@ public class TestVerifier {
         var markedSourcePath = Path.of("./src/test/java/com/aws/jverify/verifier/tests/javasupport/packages/MultiPackageTest.java");
         var markedSource = Files.readString(markedSourcePath);
         var annotation = new JVerifyTestRecord("", true, true, false,
-                4, 7, 1, new String[] { "./a/Foo.java", "./b/Foo.java" }, false,
-                -1, -1, -1);
+                4, new String[] { "./a/Foo.java", "./b/Foo.java" }, false,
+                -1, 1, 5, -1, new Backend[]{ Backend.Dafny }, new int[] {});
         SourceFile markedSourceFile = new SourceFile(markedSourcePath, markedSource);
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         List<AnnotatedRange> ranges = parsedMarkup.ranges();

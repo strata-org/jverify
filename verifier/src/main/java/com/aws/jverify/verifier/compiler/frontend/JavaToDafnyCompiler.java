@@ -7,7 +7,7 @@ import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.DiagnosticPositionFromDiagnostic;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.dafnygenerator.DafnyGenerator;
+import com.aws.jverify.verifier.compiler.generator.dafny.DafnyGenerator;
 import com.aws.jverify.verifier.compiler.simplifications.*;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
@@ -217,7 +217,8 @@ public class JavaToDafnyCompiler {
                 // (which will be just phase 0 through 3 because of the shouldStopPolicyIfNoError setting)
                 if (e.getKind() == TaskEvent.Kind.COMPILATION) {
                     @SuppressWarnings("unchecked") var javaFrontendDiagnostics = (DiagnosticCollector<? extends JavaFileObject>)context.get(DiagnosticListener.class);
-                    if (!javaFrontendDiagnostics.getDiagnostics().isEmpty()) {
+                    if (javaFrontendDiagnostics.getDiagnostics().stream().
+                            anyMatch(diagnostic -> diagnostic.getKind() == Diagnostic.Kind.ERROR)) {
                         return;
                     }
                     // The earlier phases leave the queue of classes to process

@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.javasupport.generics;
 import com.aws.jverify.Impure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(dafnyVerified = 3, dafnyErrors = 0)
+@JVerifyTest(methodsVerified = 2, errorCount = 0)
 public class PolymorphismDafnyResolutionErrors2 {
     
     public static void valueObjectHasNoEquality() {

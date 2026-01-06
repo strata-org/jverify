@@ -17,7 +17,7 @@ import static com.aws.jverify.JVerify.*;
  * After the fix, invariants should only be applied to public instance methods,
  * not to static methods.
  */
-@JVerifyTest(dafnyVerified = 5, dafnyErrors = 0)
+@JVerifyTest(methodsVerified = 4, errorCount = 0)
 public class InvariantsAndStaticMethodsInSameClass {
     
     private @Unbounded int balance;

@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 13, dafnyErrors = 0)
+@JVerifyTest(methodsVerified = 10, errorCount = 0)
 public class PolymorphismWithoutBounds {
 
     public static <T> void objectIsTop(T value) {

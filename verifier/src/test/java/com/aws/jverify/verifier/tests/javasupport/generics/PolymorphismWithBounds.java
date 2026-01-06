@@ -1,12 +1,11 @@
 package com.aws.jverify.verifier.tests.javasupport.generics;
 
-import com.aws.jverify.Contract;
 import com.aws.jverify.EmptyContract;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(dafnyVerified = 16, dafnyErrors = 0)
+@JVerifyTest(methodsVerified = 15, errorCount = 0)
 public class PolymorphismWithBounds {
     
     public static void root() {
