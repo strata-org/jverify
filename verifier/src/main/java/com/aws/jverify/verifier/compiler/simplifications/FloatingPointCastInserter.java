@@ -106,15 +106,16 @@ public class FloatingPointCastInserter extends TreeTranslator {
     @Override
     public void visitBinary(JCTree.JCBinary tree) {
         super.visitBinary(tree);
-        // Handle mixed double/int operations (arithmetic and comparisons)
         if (tree.lhs.type != null && tree.rhs.type != null) {
             TypeTag lhsTag = tree.lhs.type.getTag();
             TypeTag rhsTag = tree.rhs.type.getTag();
 
-            // Only promote for double (not float, as float is not supported)
-            if (lhsTag == TypeTag.DOUBLE && isIntegralTag(rhsTag)) {
+            boolean lhsIsFloat = lhsTag == TypeTag.DOUBLE || lhsTag == TypeTag.FLOAT;
+            boolean rhsIsFloat = rhsTag == TypeTag.DOUBLE || rhsTag == TypeTag.FLOAT;
+
+            if (lhsIsFloat && isIntegralTag(rhsTag)) {
                 tree.rhs = insertCastIfNeeded(tree.rhs, tree.lhs.type);
-            } else if (rhsTag == TypeTag.DOUBLE && isIntegralTag(lhsTag)) {
+            } else if (rhsIsFloat && isIntegralTag(lhsTag)) {
                 tree.lhs = insertCastIfNeeded(tree.lhs, tree.rhs.type);
             }
         }
@@ -149,7 +150,7 @@ public class FloatingPointCastInserter extends TreeTranslator {
         TypeTag sourceTag = source.getTag();
         TypeTag targetTag = target.getTag();
 
-        // Only handle int/long/short/byte -> double conversions (not float, as float is not supported)
-        return targetTag == TypeTag.DOUBLE && isIntegralTag(sourceTag);
+        // Handle int/long/short/byte -> double/float conversions
+        return (targetTag == TypeTag.DOUBLE || targetTag == TypeTag.FLOAT) && isIntegralTag(sourceTag);
     }
 }

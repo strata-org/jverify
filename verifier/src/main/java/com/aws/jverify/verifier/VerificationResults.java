@@ -1,4 +1,4 @@
-package com.aws.jverify.verifier.dafny;
+package com.aws.jverify.verifier;
 
 import com.aws.jverify.Nullable;
 
