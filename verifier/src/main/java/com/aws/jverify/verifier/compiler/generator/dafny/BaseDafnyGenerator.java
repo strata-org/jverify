@@ -275,8 +275,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
                 return getChar16Type(origin);
             }
             case FLOAT -> {
-                reporter.reportError(origin, "notSupported", "float type");
-                return null;
+                return new Fp32Type(origin);
             }
             case DOUBLE -> {
                 return new Fp64Type(origin);
