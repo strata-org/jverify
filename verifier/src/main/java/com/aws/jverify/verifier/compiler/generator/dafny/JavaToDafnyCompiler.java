@@ -19,7 +19,7 @@ public class JavaToDafnyCompiler {
     public JavaToDafnyCompiler(Context context) {
         this.context = context;
         context.put(JavaToDafnyCompiler.class, this);
-        lowerer = new JavaLowerer(context);
+        lowerer = context.get(JavaLowerer.class);
         this.dafnyGenerator = DafnyGenerator.getGenerator(context);
     }
 

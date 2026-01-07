@@ -187,7 +187,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
         }
 
-        var expectedAnnotations = ranges.stream().sorted().toList();
+        var expectedAnnotations = ranges.stream().map(ar -> {
+            if (backend == Backend.Dafny) {
+                String newMessage = ar.annotation().replace("assertion does not hold", "assertion could not be proved");
+                return new AnnotatedRange(newMessage, ar.range());
+            } else {
+                return ar;
+            }
+        }).sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
         Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
@@ -271,7 +278,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         return sb.toString();
     }
 
-    @Nullable
     private static AnnotatedRange diagnosticAsAnnotatedRange(URI testFile, Diagnostic<?> diagnostic) {
         var source = diagnostic.getSource();
         URI sourceUri = null;

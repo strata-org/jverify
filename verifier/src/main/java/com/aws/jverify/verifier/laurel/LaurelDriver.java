@@ -24,7 +24,6 @@ import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,11 +44,6 @@ public class LaurelDriver implements Driver {
     public LaurelDriver(Context context) {
         this.context = context;
         this.verifierOptions = context.get(VerifierOptions.class);
-    }
-
-    public JVerifyResults verifyJavaFile(JavaFileObject javaFile)
-            throws IOException {
-        return verifyJavaFiles(List.of(javaFile));
     }
 
     public JVerifyResults verifyJavaFiles(
@@ -125,33 +119,13 @@ public class LaurelDriver implements Driver {
         }
     }
 
-    public JVerifyResults runVerifier(FilesMap diagnosticHelper, NameCompiler nameCompiler, IonValue serializedProgram) {
+    public JVerifyResults runVerifier(FilesMap filesMap, NameCompiler nameCompiler, IonValue serializedProgram) {
         checkVerifierVersion();
 
-//        Options:
-//        --verbose                   Print extra information during analysis.
-//        --check                     Process up until SMT generation, but don't solve.
-//        --type-check                Exit after semantic dialect's type inference/checking.
-//        --parse-only                Exit after DDM parsing and type checking.
-//        --stop-on-first-error       Exit after the first verification error.
-//        --solver-timeout <seconds>  Set the solver time limit per proof goal.
         var processBuilder = new ProcessBuilder(
                 "lake", "exe", "strata", "laurelAnalyze"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
-//        if (verifierOptions.printDeserializedTarget() != null) {
-//            processBuilder.command().add("--print=" + verifierOptions.printDeserializedTarget());
-//        }
-//        applyPositionFilter(verifierOptions, processBuilder);
-//        if (verifierOptions.showRanges()) {
-//            // --show-snippets has no affect because Dafny can't extract them from the serialized source anyways
-//            processBuilder.command().add("--show-snippets=false");
-//            processBuilder.command().add("--print-ranges");
-//        }
-//        processBuilder.command().add("--ignore-indentation");
-//        for (var option : verifierOptions.additionalDafnyArguments()) {
-//            processBuilder.command().add(option);
-//        }
 
         if (verifierOptions.verbose()) {
             verifierOptions.outWriter().println("Verifier options: " + String.join(" ", processBuilder.command()));
@@ -166,7 +140,7 @@ public class LaurelDriver implements Driver {
                      var writer = IonBinaryWriterBuilder.standard().build(strataStdin)) {
                     serializedProgram.writeTo(writer);
                 }
-                return parseStrataOutput(diagnosticHelper, verifierOptions, nameCompiler, process);
+                return parseStrataOutput(filesMap, verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
                 verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.backendPath());
                 e.printStackTrace();
@@ -174,38 +148,6 @@ public class LaurelDriver implements Driver {
             }
         });
     }
-
-    private static void applyPositionFilter(VerifierOptions verifierOptions, ProcessBuilder processBuilder) {
-        PositionFilter positionFilter = verifierOptions.positionFilter();
-        if (positionFilter == null || positionFilter.includeDependencies()) {
-            return;
-        }
-
-        var s = new StringBuilder();
-        s.append("--filter-position=");
-        if (positionFilter.fileEnding() != null) {
-            s.append(positionFilter.fileEnding());
-        }
-        boolean hasLineFilter = positionFilter.start() != null || positionFilter.end() != null;
-        if (hasLineFilter) {
-            s.append(":");
-        }
-        s.append(positionFilter.start() == null ? "" : positionFilter.start());
-        if (hasLineFilter) {
-            s.append("-");
-        }
-        s.append(positionFilter.end() == null ? "" : positionFilter.end());
-        processBuilder.command().add(s.toString());
-    }
-
-    public static int getExitCodeFromDafny(int dafnyExitCode) {
-        return dafnyExitCode == 2 ? Integer.parseInt("2" + dafnyExitCode) : dafnyExitCode;
-    }
-
-    private static final Pattern dafnySummaryPattern = Pattern.compile(
-            "Dafny program verifier finished with (?<VerifiedCount>\\d+) (assertions )?verified, (?<ErrorCount>\\d+) errors?");
-
-    private static final Pattern timePattern = Pattern.compile("Time to do (?<Name>\\w+) was (?<Duration>\\d+)ms");
 
     /**
      * Parses the given {@code dafny verify} output,
@@ -229,7 +171,6 @@ public class LaurelDriver implements Driver {
             int skippedCount = 0;
             int failedCount = 0;
 
-            // Read and parse Strata output
             String line;
             boolean inDiagnosticsSection = false;
             Pattern diagnosticPattern = Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
@@ -262,10 +203,8 @@ public class LaurelDriver implements Driver {
                         var diagnostic = new StrataDiagnostic(uri, range, message);
                         diagnostics.add(diagnostic);
 
-                        // Increment failed assertions count
                         failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
 
-                        // Update method status
                         var uriMethods = methodStatusses.get(uri);
                         if (uriMethods != null) {
                             var failedJavaMethod = uriMethods.findAtPoint(diagnostic.range.start().line());
@@ -291,20 +230,12 @@ public class LaurelDriver implements Driver {
             }
 
             int verifierExitCode = process.waitFor();
-            var exitCode = getExitCodeFromDafny(verifierExitCode);
+            var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
             return new JVerifyResults(diagnostics, exitCode,
                     new VerificationResults(verifiedCount, failedCount, 
                             failedAssertionsCount.getValue(), skippedCount, performanceTicks.getValue()));
         }
 
-    }
-
-    /**
-     * Used as an {@link ObjectMapper} mixin when parsing {@link Position},
-     * since Dafny JSON diagnostics include a {@code pos} field that we don't use or need.
-     */
-    @JsonIgnoreProperties({"pos"})
-    private static abstract class DafnyJsonPosition {
     }
 
     /**

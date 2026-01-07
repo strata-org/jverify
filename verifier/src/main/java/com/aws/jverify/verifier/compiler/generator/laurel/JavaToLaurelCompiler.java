@@ -12,6 +12,7 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 
@@ -78,18 +79,22 @@ public class JavaToLaurelCompiler {
             long lineStart = lineMap.getStartPosition(line);
             long column = offset - lineStart;
 
-            return new Position((int)line, (int)column);
+            return new Position((int)line, (int)column + 1);
         };
 
         return new AnalysisResult(result, filesMap);
     }
     
     SourceRange toSourceRange(JCTree node) {
-        int endPos = currentCompilationUnit.endPositions.getEndPos(node);
-        if (endPos == -1) {
-            endPos = node.pos + 1;
+        int startPos = TreeInfo.getStartPos(node);
+        if (startPos == -1) {
+            startPos = 0;
         }
-        return new SourceRange(node.pos, endPos);
+        int endPos = TreeInfo.getEndPos(node, currentCompilationUnit.endPositions);
+        if (endPos == -1) {
+            endPos = startPos;
+        }
+        return new SourceRange(startPos, endPos);
     }
 
     private class StaticMethodCollector extends TreeScanner {
