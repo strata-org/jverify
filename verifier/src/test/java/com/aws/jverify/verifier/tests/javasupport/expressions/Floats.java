@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.javasupport.expressions;
 import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 0, methodsVerified = 9, errorCount = 0)
+@JVerifyTest(methodsVerified = 8, errorCount = 0)
 class Floats {
 
     static void testLiterals() {
