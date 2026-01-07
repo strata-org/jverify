@@ -1,33 +1,27 @@
 package com.aws.jverify.verifier.compiler.generator.laurel;
 
 import com.aws.jverify.Nullable;
-import com.aws.jverify.generated.AssertStmt;
-import com.aws.jverify.generated.AssumeStmt;
-import com.aws.jverify.generated.Statement;
+import com.aws.jverify.common.Position;
 import com.aws.jverify.laurel.*;
 import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
-import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
-import com.aws.jverify.verifier.compiler.generator.dafny.BaseDafnyGenerator;
-import com.aws.jverify.verifier.compiler.generator.dafny.ExpressionContext;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
+import com.aws.jverify.verifier.laurel.FilesMap;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.Position;
-import org.apfloat.internal.ParallelThreeNTTConvolutionStrategy;
 
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Path;
-import java.sql.Array;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class JavaToLaurelCompiler {
     private final JavaLowerer lowerer;
@@ -37,9 +31,19 @@ public class JavaToLaurelCompiler {
         lowerer = context.get(JavaLowerer.class);
     }
 
-    public List<LaurelFile> analyzeJavaCode(VerifierOptions verifierOptions, List<JavaFileObject> readFiles) {
+    /**
+     * Result of analyzing Java code, containing both the compiled Laurel files
+     * and a DiagnosticHelper for mapping offsets to positions.
+     */
+    public record AnalysisResult(List<LaurelFile> files, FilesMap filesMap) {}
+
+    public AnalysisResult analyzeJavaCode(VerifierOptions verifierOptions, List<JavaFileObject> readFiles) {
         var result = new ArrayList<LaurelFile>();
         var loweredResult = lowerer.lowerJava(verifierOptions, readFiles);
+
+        // Build a map from URI to LineMap for the DiagnosticHelper
+        Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
+
         for (var compilationUnit : loweredResult.parsed()) {
             currentCompilationUnit = compilationUnit;
             List<Procedure> staticProcedures = new ArrayList<>();
@@ -47,7 +51,7 @@ public class JavaToLaurelCompiler {
             compilationUnit.accept(visitor);
             staticProcedures.addAll(visitor.procedures);
             var lineOffsets = new ArrayList<Integer>();
-            Position.LineMap lineMap = compilationUnit.getLineMap();
+            com.sun.tools.javac.util.Position.LineMap lineMap = compilationUnit.getLineMap();
             int lineCount = 0;
             try {
                 lineCount = lineMap.getLineNumber(compilationUnit.sourcefile.getCharContent(true).length());
@@ -57,10 +61,29 @@ public class JavaToLaurelCompiler {
             for(var line = 1; line < lineCount; line++) {
                 lineOffsets.add(lineMap.getStartPosition(line));
             }
-            result.add(new LaurelFile(compilationUnit.sourcefile.toUri(), 
+            result.add(new LaurelFile(compilationUnit.sourcefile.toUri(),
                     new Program(SourceRange.NONE, staticProcedures), lineOffsets));
+
+            // Store the lineMap for the DiagnosticHelper
+            lineMaps.put(compilationUnit.sourcefile.toUri(), lineMap);
         }
-        return result;
+
+        // Create DiagnosticHelper using the lineMaps
+        FilesMap filesMap = (uri, offset) -> {
+            com.sun.tools.javac.util.Position.LineMap lineMap = lineMaps.get(uri);
+            if (lineMap == null) {
+                // Return default position if lineMap not found
+                return new Position(1, 0);
+            }
+
+            long line = lineMap.getLineNumber(offset);
+            long lineStart = lineMap.getStartPosition(line);
+            long column = offset - lineStart;
+
+            return new Position((int)line, (int)column);
+        };
+
+        return new AnalysisResult(result, filesMap);
     }
     
     SourceRange toSourceRange(JCTree node) {

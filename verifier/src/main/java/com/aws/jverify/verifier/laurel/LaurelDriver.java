@@ -3,40 +3,34 @@ package com.aws.jverify.verifier.laurel;
 import com.amazon.ion.*;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
-import com.amazon.ion.system.IonTextWriterBuilder;
 import com.aws.jverify.common.Position;
+import com.aws.jverify.common.Range;
 import com.aws.jverify.laurel.IonSerializer;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
-import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
 import com.aws.jverify.verifier.compiler.generator.laurel.LaurelFile;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.dafny.*;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JavacMessages;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.net.URI;
 import java.nio.file.Files;
-import java.time.Duration;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class LaurelDriver implements Driver {
 
@@ -53,25 +47,6 @@ public class LaurelDriver implements Driver {
         this.verifierOptions = context.get(VerifierOptions.class);
     }
 
-    /**
-     * Compute line offsets for a source string.
-     * Returns an array of byte positions where each line starts.
-     * The first entry is always 0.
-     */
-    private static List<Integer> computeLineOffsets(String source) {
-        List<Integer> offsets = new ArrayList<>();
-        offsets.add(0); // First line always starts at 0
-
-        for (int i = 0; i < source.length(); i++) {
-            if (source.charAt(i) == '\n') {
-                // Add position after the newline
-                offsets.add(i + 1);
-            }
-        }
-
-        return offsets;
-    }
-
     public JVerifyResults verifyJavaFile(JavaFileObject javaFile)
             throws IOException {
         return verifyJavaFiles(List.of(javaFile));
@@ -79,13 +54,13 @@ public class LaurelDriver implements Driver {
 
     public JVerifyResults verifyJavaFiles(
             List<JavaFileObject> readFiles
-    ) throws IOException {
+    ) {
         List<Diagnostic<?>> diagnostics = new ArrayList<>();
 
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var compiledProgram = verifierOptions.time("Compiling Java to Dafny",
+        var analysisResult = verifierOptions.time("Compiling Java to Dafny",
                 () -> new JavaToLaurelCompiler(context).analyzeJavaCode(verifierOptions, readFiles));
 
         var hasErrors = false;
@@ -95,23 +70,18 @@ public class LaurelDriver implements Driver {
                 hasErrors = true;
             }
         }
-        if (compiledProgram == null || (hasErrors && !verifierOptions.continueOnErrors())) {
+        if (analysisResult == null || (hasErrors && !verifierOptions.continueOnErrors())) {
             return new JVerifyResults(diagnostics, CommandLine.ExitCode.USAGE, null);
         } else {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
                 var ion = IonSystemBuilder.standard().build();
-
-
-                // Create list of StrataFile structs
                 IonList files = ion.newEmptyList();
 
-                // Create a StrataFile for each input file
-                for (LaurelFile file : compiledProgram) {
+                for (LaurelFile file : analysisResult.files()) {
                     IonStruct strataFile = ion.newEmptyStruct();
 
-                    // Add filePath
-                    String filePath = file.uri().toString();
+                    String filePath = Paths.get("").toUri().relativize(file.uri()).toString();
                     strataFile.put("filePath", ion.newString(filePath));
 
                     // Create the program Ion structure
@@ -121,15 +91,7 @@ public class LaurelDriver implements Driver {
                     header.add(ion.newString("Laurel"));
                     programAsIon.add(header);
                     programAsIon.add(new IonSerializer(ion).serializeCommand(file.root()));
-                    
-                    // Add program (all files share the same combined program for now)
-                    strataFile.put("program", programAsIon.clone());
-
-                    IonList lineOffsets = ion.newEmptyList();
-                    for (Integer offset : file.lineOffsets()) {
-                        lineOffsets.add(ion.newInt(offset));
-                    }
-                    strataFile.put("lineOffsets", lineOffsets);
+                    strataFile.put("program", programAsIon);
 
                     files.add(strataFile);
                 }
@@ -144,7 +106,8 @@ public class LaurelDriver implements Driver {
                 }
                 return files;
             });
-            var results = runVerifier(NameCompiler.instance(context), serializedProgram);
+
+            var results = runVerifier(analysisResult.filesMap(), NameCompiler.instance(context), serializedProgram);
             results.diagnostics().addAll(0, diagnostics);
             return results;
         }
@@ -162,7 +125,7 @@ public class LaurelDriver implements Driver {
         }
     }
 
-    public JVerifyResults runVerifier(NameCompiler nameCompiler, IonValue serializedProgram) {
+    public JVerifyResults runVerifier(FilesMap diagnosticHelper, NameCompiler nameCompiler, IonValue serializedProgram) {
         checkVerifierVersion();
 
 //        Options:
@@ -203,7 +166,7 @@ public class LaurelDriver implements Driver {
                      var writer = IonBinaryWriterBuilder.standard().build(strataStdin)) {
                     serializedProgram.writeTo(writer);
                 }
-                return parseStrataOutput(verifierOptions, nameCompiler, process);
+                return parseStrataOutput(diagnosticHelper, verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
                 verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.backendPath());
                 e.printStackTrace();
@@ -249,93 +212,72 @@ public class LaurelDriver implements Driver {
      * adding both diagnostics and the summary verified/error counts to {@code outResults}.
      * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
      */
-    private JVerifyResults parseStrataOutput(VerifierOptions options,
-                                                    NameCompiler nameCompiler,
-                                                    Process process) throws IOException, InterruptedException {
+    private JVerifyResults parseStrataOutput(FilesMap filesMap,
+                                             VerifierOptions options,
+                                             NameCompiler nameCompiler,
+                                             Process process) throws IOException, InterruptedException {
 
         List<Diagnostic<?>> diagnostics = new ArrayList<>();
-        try (var dafnyOutput = process.inputReader()) {
+        try (var strataOutput = process.inputReader()) {
 
-            var objectMapper = new ObjectMapper();
-
-            SimpleModule module = new SimpleModule();
-            module.addDeserializer(DafnyOutput.class, new DafnyOutputDeserializer(objectMapper));
-            objectMapper.registerModule(module);
-            objectMapper.addMixIn(Position.class, LaurelDriver.DafnyJsonPosition.class);
-
-            var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
-            var methodStatusses = annotationCompiler.getMethodStatusPerUri();
-            StringBuilder exceptionOutput = new StringBuilder();
             Wrapper<Integer> performanceTicks = new Wrapper<>(null);
             Wrapper<Integer> failedAssertionsCount = new Wrapper<>(0);
-            dafnyOutput.lines().forEach(line -> {
-                Matcher matcher;
-                if (!exceptionOutput.isEmpty()) {
-                    exceptionOutput.append(line).append("\n");
-                } else if (line.isBlank()) {
-                    //noinspection UnnecessaryReturnStatement
-                    return;  // nothing to do
-                } else if (line.startsWith("{")) {
-                    try {
-                        DafnyOutput output = objectMapper.readValue(line, DafnyOutput.class);
-                        switch (output) {
-                            case DafnyDiagnostic dafnyDiagnostic -> {
-                                if (dafnyDiagnostic.defaultFormatMessage.contains("[internal error]")) {
-                                    throw new RuntimeException("JVerify had an internal exception when calling Dafny: " + dafnyDiagnostic.getMessage(Locale.ENGLISH));
-                                }
-                                for (var index = 0; index < dafnyDiagnostic.arguments.length; index++) {
-                                    dafnyDiagnostic.arguments[index] = nameCompiler.safeGetOriginalName(dafnyDiagnostic.arguments[index]);
-                                }
-
-                                if (dafnyDiagnostic.location.filename().contentEquals("additional.dfy")) {
-                                    throw new RuntimeException("error in additional.dfy:" + dafnyDiagnostic.getMessage(Locale.ENGLISH));
-                                }
-
-                                failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
-                                dafnyDiagnostic.flattenRelated().forEach(diagnostics::add);
-
-                                var relativeUri = dafnyDiagnostic.getSource();
-                                if (relativeUri == null) {
-                                    return;
-                                }
-
-                                if (context.get(JavaToDafnyCompiler.class).isContractSource(relativeUri)) {
-                                    return;
-                                }
-
-                                var uriMethods = methodStatusses.get(relativeUri);
-                                var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
-                                if (failedJavaMethod != null) {
-                                    failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
-                                }
-                            }
-                            case StatusMessage statusMessage -> {
-                                if ((matcher = dafnySummaryPattern.matcher(statusMessage.getValue().trim())).matches()) {
-                                    if (performanceTicks.getValue() != null) {
-                                        throw new RuntimeException("Dafny output contains multiple summary lines");
-                                    }
-                                    performanceTicks.setValue(Integer.parseInt(matcher.group("VerifiedCount")));
-                                }
-                                if ((matcher = timePattern.matcher(statusMessage.getValue().trim())).matches()) {
-                                    options.printTime(matcher.group("Name"), Duration.ofMillis(Long.parseLong(matcher.group("Duration"))));
-                                }
-                            }
-                        }
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException("Malformed Dafny JSON diagnostic: " + line, e);
-                    }
-                } else {
-                    exceptionOutput.append(line).append("\n");
-                }
-            });
-            if (!exceptionOutput.isEmpty()) {
-                String diagnosticsString = diagnostics.stream().map(Object::toString).collect(Collectors.joining("\n"));
-                throw new RuntimeException("Could not parse Laurel output: " + exceptionOutput + "\n" + diagnosticsString);
-            }
+            var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
+            var methodStatusses = annotationCompiler.getMethodStatusPerUri();
 
             int verifiedCount = 0;
             int skippedCount = 0;
             int failedCount = 0;
+
+            // Read and parse Strata output
+            String line;
+            boolean inDiagnosticsSection = false;
+            Pattern diagnosticPattern = Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
+
+            while ((line = strataOutput.readLine()) != null) {
+                if (options.verbose()) {
+                    options.outWriter().println(line);
+                }
+
+                if (line.equals("==== DIAGNOSTICS ====")) {
+                    inDiagnosticsSection = true;
+                    continue;
+                }
+
+                if (inDiagnosticsSection) {
+                    Matcher matcher = diagnosticPattern.matcher(line);
+                    if (matcher.matches()) {
+                        String filePath = matcher.group(1);
+                        int startOffset = Integer.parseInt(matcher.group(2));
+                        int endOffset = Integer.parseInt(matcher.group(3));
+                        String message = matcher.group(4);
+
+                        // Create URI from file path
+                        var uri = Paths.get(filePath).toUri();
+
+                        var range = new Range(
+                                filesMap.computePositionFromFileOffset(uri, startOffset), 
+                                filesMap.computePositionFromFileOffset(uri, endOffset)
+                        );
+
+                        var diagnostic = new StrataDiagnostic(uri, range, message);
+                        diagnostics.add(diagnostic);
+
+                        // Increment failed assertions count
+                        failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
+
+                        // Update method status
+                        var uriMethods = methodStatusses.get(uri);
+                        if (uriMethods != null) {
+                            var failedJavaMethod = uriMethods.findAtPoint(diagnostic.range.start().line());
+                            if (failedJavaMethod != null) {
+                                failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                            }
+                        }
+                    }
+                }
+            }
+
             for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatusses.values()) {
                 var statusses = uriStatusses.streamNodes().toList();
                 for (var methodStatus : statusses) {
@@ -349,8 +291,8 @@ public class LaurelDriver implements Driver {
                 }
             }
 
-            int dafnyExitCode = process.waitFor();
-            var exitCode = getExitCodeFromDafny(dafnyExitCode);
+            int verifierExitCode = process.waitFor();
+            var exitCode = getExitCodeFromDafny(verifierExitCode);
             return new JVerifyResults(diagnostics, exitCode,
                     new VerificationResults(verifiedCount, failedCount, 
                             failedAssertionsCount.getValue(), skippedCount, performanceTicks.getValue()));
@@ -366,4 +308,66 @@ public class LaurelDriver implements Driver {
     private static abstract class DafnyJsonPosition {
     }
 
+    /**
+     * Simple implementation of Diagnostic for Strata verification errors.
+     */
+    private static class StrataDiagnostic implements Diagnostic<JavaFileObject> {
+        private final URI uri;
+        private final Range range;
+        private final String message;
+
+        public DafnyDiagnostic.Location location;
+        public StrataDiagnostic(URI uri, Range range, String message) {
+            this.uri = uri;
+            this.range = range;
+            this.message = message;
+        }
+
+        @Override
+        public Kind getKind() {
+            return Kind.ERROR;
+        }
+
+        @Override
+        public JavaFileObject getSource() {
+            return null;
+        }
+
+        @Override
+        public long getPosition() {
+            return NOPOS;
+        }
+
+        @Override
+        public long getStartPosition() {
+            return NOPOS;
+        }
+
+        @Override
+        public long getEndPosition() {
+            return NOPOS;
+        }
+
+        @Override
+        public long getLineNumber() {
+            return range.start().line();
+        }
+
+        @Override
+        public long getColumnNumber() {
+            return NOPOS;
+        }
+
+        @Override
+        public String getCode() {
+            return "strata.verification.error";
+        }
+
+        @Override
+        public String getMessage(Locale locale) {
+            return message + " (at " + uri + ":" + range + ")";
+        }
+    }
+
 }
+
