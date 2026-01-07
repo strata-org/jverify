@@ -24,7 +24,7 @@ public class Optionals {
         var opt = Optional.of("Hello");
         check(opt.get().equals("Hello"));
         check(opt.isEmpty());
-//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
         check(opt.isPresent());
         var res = opt.orElse("World");
         check(res.equals("Hello"));
@@ -36,7 +36,7 @@ public class Optionals {
         var opt = Optional.ofNullable("5");
         check(opt.isPresent());
         check(opt.get().equals("7"));
-            ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+            ^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
         check(opt.get().equals("5"));
         check(opt.get().equals(opt.get()));
     }

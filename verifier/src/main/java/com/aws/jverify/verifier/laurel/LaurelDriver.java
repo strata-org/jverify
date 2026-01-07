@@ -252,7 +252,6 @@ public class LaurelDriver implements Driver {
                         int endOffset = Integer.parseInt(matcher.group(3));
                         String message = matcher.group(4);
 
-                        // Create URI from file path
                         var uri = Paths.get(filePath).toUri();
 
                         var range = new Range(
@@ -311,7 +310,7 @@ public class LaurelDriver implements Driver {
     /**
      * Simple implementation of Diagnostic for Strata verification errors.
      */
-    public static class StrataDiagnostic implements Diagnostic<JavaFileObject> {
+    public static class StrataDiagnostic implements Diagnostic<JavaFileObject>, DiagnosticWithRange {
         private static final int SEVERITY_ERROR = 1;
         private static final int SEVERITY_WARNING = 2;
         private static final int SEVERITY_INFO = 4;
@@ -379,7 +378,7 @@ public class LaurelDriver implements Driver {
 
         @Override
         public long getColumnNumber() {
-            return NOPOS;
+            return range.start().character();
         }
 
         @Override
@@ -400,6 +399,7 @@ public class LaurelDriver implements Driver {
                 default -> "Error";
             };
         }
+
     }
 
 }

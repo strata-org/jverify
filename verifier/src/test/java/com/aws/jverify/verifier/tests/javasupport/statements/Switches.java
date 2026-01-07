@@ -26,7 +26,7 @@ class Switches {
             default -> 40;
         };
         check(num % 20 == 0);
-//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void switchStmtInt(int i) {
@@ -49,7 +49,7 @@ class Switches {
             default -> num = 40;
         }
         check(num % 20 == 0);
-//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void switchExprChar(char c) {
@@ -70,7 +70,7 @@ class Switches {
             default -> 4;
         };
         check(1 <= group && group <= 3);
-//                          ^^^^^^^^^^ Error: assertion could not be proved
+//                          ^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void switchExprObj(int @Nullable [] arr) {
@@ -89,7 +89,7 @@ class Switches {
             default -> false;
         };
         check(!isNull);
-//      ^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void switchStmtBlockBody(int i) {

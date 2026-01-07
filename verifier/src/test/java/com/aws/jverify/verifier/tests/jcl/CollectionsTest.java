@@ -25,7 +25,7 @@ public class CollectionsTest {
     void listCheckFails() {
         var s = List.of("one", "two");
         check(s.size() ==  0);
-//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     void listPreconditionFails() {
@@ -48,7 +48,7 @@ public class CollectionsTest {
     void setCheckFails() {
         var s = Set.of("one", "two");
         check(s.size() ==  0);
-//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     void mapVerifying() {
@@ -66,6 +66,6 @@ public class CollectionsTest {
     void mapCheckFails() {
         var s = Map.of("one", "two");
         check(s.size() ==  0);
-//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 }

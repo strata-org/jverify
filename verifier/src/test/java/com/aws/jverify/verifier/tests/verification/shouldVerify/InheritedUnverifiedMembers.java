@@ -72,7 +72,7 @@ public class InheritedUnverifiedMembers {
     void testBodylessEquals(LibraryClassAContract first, LibraryClassAContract second) {
         // equals method was not given a body, so we can not prove much
         check(first.equals(second));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     @Contract(value = LibraryClassB.class, pure = true)

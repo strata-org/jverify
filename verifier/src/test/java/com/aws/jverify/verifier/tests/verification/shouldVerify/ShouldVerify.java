@@ -1,4 +1,4 @@
-// ^ b/WillVerify.java(10:9-10:21) Error: assertion could not be proved
+// ^ b/WillVerify.java(10:9-10:21) Error: assertion does not hold
 package com.aws.jverify.verifier.tests.verification.shouldVerify;
 
 import com.aws.jverify.Verify;
@@ -25,13 +25,13 @@ public class ShouldVerify {
         @Verify(false)
         public VerifiedConstructor() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion could not be proved
+//          ^^^^^^^^^^^^ Error: assertion does not hold
         }
 
         @Verify(false)
         void isVerified() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion could not be proved
+//          ^^^^^^^^^^^^ Error: assertion does not hold
         }
     }
 
@@ -48,7 +48,7 @@ public class ShouldVerify {
         @Verify(true)
         void isVerified() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion could not be proved
+//          ^^^^^^^^^^^^ Error: assertion does not hold
         }
 
         void notVerifiedMethodCanUseCodeWithoutContracts() {
@@ -62,12 +62,12 @@ public class ShouldVerify {
         @Verify(true)
         void foo5() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion could not be proved
+//          ^^^^^^^^^^^^ Error: assertion does not hold
         }
 
         void foo6() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion could not be proved
+//          ^^^^^^^^^^^^ Error: assertion does not hold
         }
     }
 

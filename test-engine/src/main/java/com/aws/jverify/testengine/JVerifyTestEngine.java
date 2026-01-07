@@ -281,8 +281,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             sourceUri = javaFileObject.toUri();
         }
         var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
-        var endPos = diagnostic instanceof DafnyDiagnostic dafnyDiagnostic
-                ? new Position(dafnyDiagnostic.getEndLineNumber(), dafnyDiagnostic.getEndColumnNumber())
+        var endPos = diagnostic instanceof DiagnosticWithRange diagnosticWithRange
+                ? new Position(diagnosticWithRange.getRange().end().line(), diagnosticWithRange.getRange().end().character())
                 : new Position(startPos.line(), startPos.character() + 1);
         var range = new Range(startPos, endPos);
         if (sourceUri == null || sourceUri.equals(testFile.normalize())) {

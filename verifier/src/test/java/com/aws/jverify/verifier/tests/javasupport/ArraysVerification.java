@@ -73,7 +73,7 @@ class ArraysVerification {
         }
         check(a[0]==0);
         check(i==n);
-//      ^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static class Point {

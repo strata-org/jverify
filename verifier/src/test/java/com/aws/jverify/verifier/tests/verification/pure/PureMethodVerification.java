@@ -22,7 +22,7 @@ public class PureMethodVerification {
         assume(x > 3);
         check(x > 2);
         check(x > 4);
-//      ^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^ Error: assertion does not hold
         return x;
     }
     

@@ -28,7 +28,7 @@ class RecordsVerified {
         check(pos.value() == 2);
 
         check(big.value() == 777);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void referenceRecords() {
@@ -41,7 +41,7 @@ class RecordsVerified {
         check(rec1.foobar().id == 1);
 
         check(rec2.foobar().id == 3);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void genericRecords() {
@@ -52,7 +52,7 @@ class RecordsVerified {
         var foobar = new Foobar(3);
         var foobarRecord = new FoobarRecord(foobar);
         check(foobarRecord.foobar() == null);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
 
         var foobarFoobarRecord = new Pair<Foobar, FoobarRecord>(foobar, foobarRecord);
         check(foobarFoobarRecord.b().foobar() == null);
@@ -75,7 +75,7 @@ class RecordsVerified {
         check(nodeC.head() == 3);
 
         check(nodeA.tail() == null);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void memberFunctions() {

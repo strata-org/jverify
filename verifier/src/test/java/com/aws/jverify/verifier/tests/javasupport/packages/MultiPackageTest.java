@@ -1,5 +1,5 @@
 // ^ b/Foo.java(11:22-11:27) Related location: this proposition could not be proved
-// ^ b/Foo.java(16:9-16:21) Error: assertion could not be proved
+// ^ b/Foo.java(16:9-16:21) Error: assertion does not hold
 package com.aws.jverify.verifier.tests.javasupport.packages;
 import com.aws.jverify.testengine.JVerifyTest;
 import com.aws.jverify.verifier.tests.javasupport.packages.a.Foo;
@@ -20,6 +20,6 @@ public class MultiPackageTest {
      */
     void bar() {
         check(false);
-//      ^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^ Error: assertion does not hold
     }
 }

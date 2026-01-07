@@ -12,7 +12,7 @@ public class PureUnverifiedMethod {
     void pureUnverifiedBodyIsNotVisible() {
         var x = returnsTwo();
         check(x == 2);
-//      ^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^ Error: assertion does not hold
     }
     
     @Verify(false)

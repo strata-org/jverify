@@ -62,6 +62,6 @@ class VerifyNumericOperators {
         check(l == 1L);
         
         check(false);
-//      ^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^ Error: assertion does not hold
     } 
 }

@@ -50,7 +50,7 @@ class BigIntegers {
         check(bi.intValue() == 23456);
 //            ^^^^^^^^^^^^^ Error: function precondition could not be proved
 //            ^^^^^^^^^^^^^ Error: function precondition could not be proved        
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     // Test all arithmetic operations on BigIntegers
@@ -78,7 +78,7 @@ class BigIntegers {
         BigInteger minusTwo = new BigInteger("-2");
         BigInteger fail = bi.add(minusTwo);
         check(fail.intValue() == 25);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
     
     @Pure

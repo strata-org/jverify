@@ -10,6 +10,6 @@ import static com.aws.jverify.verifier.Backend.Laurel;
 class AssertFalse {
     static void Foo() {
         check(false);
-//      ^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^ Error: assertion does not hold
     }
 }
