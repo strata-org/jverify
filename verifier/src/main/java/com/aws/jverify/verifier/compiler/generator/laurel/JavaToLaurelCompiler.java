@@ -48,21 +48,10 @@ public class JavaToLaurelCompiler {
             var visitor = new StaticMethodCollector();
             compilationUnit.accept(visitor);
             List<Procedure> staticProcedures = new ArrayList<>(visitor.procedures);
-            var lineOffsets = new ArrayList<Integer>();
-            var lineMap = compilationUnit.getLineMap();
-            int lineCount;
-            try {
-                lineCount = lineMap.getLineNumber(compilationUnit.sourcefile.getCharContent(true).length());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            for(var line = 1; line < lineCount; line++) {
-                lineOffsets.add(lineMap.getStartPosition(line));
-            }
             result.add(new LaurelFile(compilationUnit.sourcefile.toUri(),
-                    new Program(SourceRange.NONE, staticProcedures), lineOffsets));
+                    new Program(SourceRange.NONE, staticProcedures)));
 
-            lineMaps.put(compilationUnit.sourcefile.toUri(), lineMap);
+            lineMaps.put(compilationUnit.sourcefile.toUri(), compilationUnit.getLineMap());
         }
 
         FilesMap filesMap = (uri, offset) -> {
