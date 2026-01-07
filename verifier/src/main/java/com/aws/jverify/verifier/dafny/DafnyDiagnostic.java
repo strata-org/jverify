@@ -57,6 +57,16 @@ public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<URI
     }
 
     @Override
+    public String filePath() {
+        return location.filePath();
+    }
+
+    @Override
+    public String filename() {
+        return location.filename();
+    }
+
+    @Override
     public Kind getKind() {
         return switch (severity) {
             case SEVERITY_ERROR -> Kind.ERROR;

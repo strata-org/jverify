@@ -5,6 +5,7 @@ import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.dafny.DafnyDiagnostic;
 import com.aws.jverify.verifier.dafny.DafnyDriver;
+import com.aws.jverify.verifier.dafny.DiagnosticWithRange;
 import com.aws.jverify.verifier.laurel.LaurelDriver;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -83,18 +84,11 @@ public interface Driver {
             sb.append("-");
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
-        } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            var filePart = filePath ? dafnyDiagnostic.location.filePath() : dafnyDiagnostic.location.filename();
+        } else if (diagnostic instanceof DiagnosticWithRange diagnosticWithRange) {
+            var filePart = filePath ? diagnosticWithRange.filePath() : diagnosticWithRange.filename();
             sb.append(filePart)
                     .append("(")
-                    .append(dafnyDiagnostic.getRange())
-                    .append("): ");
-        } else if (diagnostic instanceof LaurelDriver.StrataDiagnostic strataDiagnostic) {
-            var uri = strataDiagnostic.getUri();
-            var filePart = filePath ? uri.getPath() : Paths.get(uri.getPath()).getFileName().toString();
-            sb.append(filePart)
-                    .append("(")
-                    .append(strataDiagnostic.getRange())
+                    .append(diagnosticWithRange.getRange())
                     .append("): ");
         } else {
             throw new IllegalArgumentException(

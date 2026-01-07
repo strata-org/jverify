@@ -273,6 +273,17 @@ public class LaurelDriver implements Driver {
         }
 
         @Override
+        public String filePath() {
+            var uri = getUri();
+            return uri.getPath();
+        }
+
+        @Override
+        public String filename() {
+            return Paths.get(uri.getPath()).getFileName().toString();
+        }
+
+        @Override
         public Kind getKind() {
             return switch (severity) {
                 case SEVERITY_ERROR -> Kind.ERROR;
