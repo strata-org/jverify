@@ -107,7 +107,7 @@ public class JavaLowerer {
 
         Set<JCTree.JCCompilationUnit> loweredJava = parseResolveAndDesugarJava(options, files);
         if (loweredJava == null) {
-            return new LoweredResult(List.of(), Set.of());
+            return new LoweredResult(new ArrayList<>(), Set.of());
         }
 
         var parsed = new ArrayList<>(loweredJava);
