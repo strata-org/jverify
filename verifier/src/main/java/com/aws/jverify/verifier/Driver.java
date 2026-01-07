@@ -15,6 +15,7 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -87,6 +88,13 @@ public interface Driver {
             sb.append(filePart)
                     .append("(")
                     .append(dafnyDiagnostic.getRange())
+                    .append("): ");
+        } else if (diagnostic instanceof LaurelDriver.StrataDiagnostic strataDiagnostic) {
+            var uri = strataDiagnostic.getUri();
+            var filePart = filePath ? uri.getPath() : Paths.get(uri.getPath()).getFileName().toString();
+            sb.append(filePart)
+                    .append("(")
+                    .append(strataDiagnostic.getRange())
                     .append("): ");
         } else {
             throw new IllegalArgumentException(

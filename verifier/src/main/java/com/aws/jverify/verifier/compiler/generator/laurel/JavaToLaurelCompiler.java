@@ -41,9 +41,7 @@ public class JavaToLaurelCompiler {
         var result = new ArrayList<LaurelFile>();
         var loweredResult = lowerer.lowerJava(verifierOptions, readFiles);
 
-        // Build a map from URI to LineMap for the DiagnosticHelper
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
-
         for (var compilationUnit : loweredResult.parsed()) {
             currentCompilationUnit = compilationUnit;
             List<Procedure> staticProcedures = new ArrayList<>();
@@ -51,7 +49,7 @@ public class JavaToLaurelCompiler {
             compilationUnit.accept(visitor);
             staticProcedures.addAll(visitor.procedures);
             var lineOffsets = new ArrayList<Integer>();
-            com.sun.tools.javac.util.Position.LineMap lineMap = compilationUnit.getLineMap();
+            var lineMap = compilationUnit.getLineMap();
             int lineCount = 0;
             try {
                 lineCount = lineMap.getLineNumber(compilationUnit.sourcefile.getCharContent(true).length());
@@ -70,7 +68,7 @@ public class JavaToLaurelCompiler {
 
         // Create DiagnosticHelper using the lineMaps
         FilesMap filesMap = (uri, offset) -> {
-            com.sun.tools.javac.util.Position.LineMap lineMap = lineMaps.get(uri);
+            var lineMap = lineMaps.get(uri);
             if (lineMap == null) {
                 // Return default position if lineMap not found
                 return new Position(1, 0);

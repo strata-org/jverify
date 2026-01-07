@@ -311,21 +311,45 @@ public class LaurelDriver implements Driver {
     /**
      * Simple implementation of Diagnostic for Strata verification errors.
      */
-    private static class StrataDiagnostic implements Diagnostic<JavaFileObject> {
+    public static class StrataDiagnostic implements Diagnostic<JavaFileObject> {
+        private static final int SEVERITY_ERROR = 1;
+        private static final int SEVERITY_WARNING = 2;
+        private static final int SEVERITY_INFO = 4;
+
         private final URI uri;
         private final Range range;
         private final String message;
+        private final int severity;
 
         public DafnyDiagnostic.Location location;
+
         public StrataDiagnostic(URI uri, Range range, String message) {
+            this(uri, range, message, SEVERITY_ERROR);
+        }
+
+        public StrataDiagnostic(URI uri, Range range, String message, int severity) {
             this.uri = uri;
             this.range = range;
             this.message = message;
+            this.severity = severity;
+        }
+
+        public URI getUri() {
+            return uri;
+        }
+
+        public Range getRange() {
+            return range;
         }
 
         @Override
         public Kind getKind() {
-            return Kind.ERROR;
+            return switch (severity) {
+                case SEVERITY_ERROR -> Kind.ERROR;
+                case SEVERITY_WARNING -> Kind.WARNING;
+                case SEVERITY_INFO -> Kind.NOTE;
+                default -> Kind.ERROR;
+            };
         }
 
         @Override
@@ -365,7 +389,16 @@ public class LaurelDriver implements Driver {
 
         @Override
         public String getMessage(Locale locale) {
-            return message + " (at " + uri + ":" + range + ")";
+            return getSeverityMessage() + ": " + message;
+        }
+
+        private String getSeverityMessage() {
+            return switch(severity) {
+                case SEVERITY_WARNING -> "Warning";
+                case SEVERITY_ERROR -> "Error";
+                case SEVERITY_INFO -> "Info";
+                default -> "Error";
+            };
         }
     }
 
