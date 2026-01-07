@@ -5,6 +5,7 @@ import com.aws.jverify.common.Position;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
+import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
 import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
@@ -273,7 +274,7 @@ public class DafnyDriver implements Driver {
                                     return;
                                 }
 
-                                if (context.get(JavaToDafnyCompiler.class).isContractSource(relativeUri)) {
+                                if (context.get(JavaLowerer.class).isContractSource(relativeUri)) {
                                     return;
                                 }
 

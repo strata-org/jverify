@@ -27,12 +27,4 @@ public class JavaToDafnyCompiler {
         var loweredResult = lowerer.lowerJava(options, files);
         return dafnyGenerator.generateDafny(loweredResult.parsed(), loweredResult.libraries());
     }
-
-    public boolean isContractSource(JCTree.JCCompilationUnit compilationUnit) {
-        return lowerer.isContractSource(compilationUnit);
-    }
-
-    public boolean isContractSource(URI sourceURI) {
-        return lowerer.isContractSource(sourceURI);
-    }
 }

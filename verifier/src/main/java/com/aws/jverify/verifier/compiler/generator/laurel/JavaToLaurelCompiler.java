@@ -45,13 +45,12 @@ public class JavaToLaurelCompiler {
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
         for (var compilationUnit : loweredResult.parsed()) {
             currentCompilationUnit = compilationUnit;
-            List<Procedure> staticProcedures = new ArrayList<>();
             var visitor = new StaticMethodCollector();
             compilationUnit.accept(visitor);
-            staticProcedures.addAll(visitor.procedures);
+            List<Procedure> staticProcedures = new ArrayList<>(visitor.procedures);
             var lineOffsets = new ArrayList<Integer>();
             var lineMap = compilationUnit.getLineMap();
-            int lineCount = 0;
+            int lineCount;
             try {
                 lineCount = lineMap.getLineNumber(compilationUnit.sourcefile.getCharContent(true).length());
             } catch (IOException e) {
@@ -63,16 +62,13 @@ public class JavaToLaurelCompiler {
             result.add(new LaurelFile(compilationUnit.sourcefile.toUri(),
                     new Program(SourceRange.NONE, staticProcedures), lineOffsets));
 
-            // Store the lineMap for the DiagnosticHelper
             lineMaps.put(compilationUnit.sourcefile.toUri(), lineMap);
         }
 
-        // Create DiagnosticHelper using the lineMaps
         FilesMap filesMap = (uri, offset) -> {
             var lineMap = lineMaps.get(uri);
             if (lineMap == null) {
-                // Return default position if lineMap not found
-                return new Position(1, 0);
+                throw new RuntimeException("Could not find line map for " + uri);
             }
 
             long line = lineMap.getLineNumber(offset);
@@ -87,9 +83,6 @@ public class JavaToLaurelCompiler {
     
     SourceRange toSourceRange(JCTree node) {
         int startPos = TreeInfo.getStartPos(node);
-        if (startPos == -1) {
-            startPos = 0;
-        }
         int endPos = TreeInfo.getEndPos(node, currentCompilationUnit.endPositions);
         if (endPos == -1) {
             endPos = startPos;
