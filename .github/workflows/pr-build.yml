@@ -47,6 +47,7 @@ jobs:
           cache: gradle
       - name: Setup Lean
         uses: leanprover/lean-action@v1
+        working-directory: ./jverify-collection/Strata
       - name: Build Dafny
         working-directory: ./jverify-collection/dafny
         run: |
