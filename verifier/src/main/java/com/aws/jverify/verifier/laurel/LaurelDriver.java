@@ -123,7 +123,7 @@ public class LaurelDriver implements Driver {
         checkVerifierVersion();
 
         var processBuilder = new ProcessBuilder(
-                "lake", "exe", "strata", "laurelAnalyze", "-q"
+                "lake", "exe",  "-q", "strata", "laurelAnalyze"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
 
@@ -178,6 +178,9 @@ public class LaurelDriver implements Driver {
             while ((line = strataOutput.readLine()) != null) {
                 if (options.verbose()) {
                     options.outWriter().println(line);
+                }
+                if (line.contains("Exception")) {
+                    throw new RuntimeException(line);
                 }
 
                 if (line.equals("==== DIAGNOSTICS ====")) {
