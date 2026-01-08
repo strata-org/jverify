@@ -50,6 +50,9 @@ jobs:
         with:
           lake-package-directory:
             ./jverify-collection/Strata
+          build: "false"
+          test: "false"
+          lint: "false"
       - name: Build Dafny
         working-directory: ./jverify-collection/dafny
         run: |
