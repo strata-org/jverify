@@ -45,9 +45,11 @@ jobs:
           distribution: 'corretto'
           java-version: '23'
           cache: gradle
-      - name: Setup Lean
+      - name: Build Strata
         uses: leanprover/lean-action@v1
-        working-directory: ./jverify-collection/Strata
+        with:
+          lake-package-directory:
+            ./jverify-collection/Strata
       - name: Build Dafny
         working-directory: ./jverify-collection/dafny
         run: |
