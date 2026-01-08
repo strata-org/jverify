@@ -238,9 +238,6 @@ public class LaurelDriver implements Driver {
 
     }
 
-    /**
-     * Simple implementation of Diagnostic for Strata verification errors.
-     */
     public static class StrataDiagnostic implements Diagnostic<JavaFileObject>, DiagnosticWithRange {
         private static final int SEVERITY_ERROR = 1;
         private static final int SEVERITY_WARNING = 2;
