@@ -58,21 +58,23 @@ jobs:
         run: |
           ARCH=$(uname -m)
           if [ "$OS" = "Windows_NT" ] || [ "$OS" = "MINGW"* ]; then
-            curl -L -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-win.zip
             ARCHIVE_NAME="z3-4.15.2-x64-win"
+            curl -L -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-win.zip
+            unzip z3.zip
           elif [ "$ARCH" = "x86_64" ]; then
             ARCH_NAME="x86_64"
-            wget -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-glibc-2.39.zip
+            wget https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-glibc-2.39.zip
+            unzip "${ARCHIVE_NAME}.zip"
             ARCHIVE_NAME="z3-4.15.2-x64-glibc-2.39"
           elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
             ARCH_NAME="arm64"
             curl -L -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-arm64-glibc-2.34.zip
             ARCHIVE_NAME="z3-4.15.2-arm64-win"
+            unzip z3.zip
           else
             echo "Unsupported architecture: $ARCH"
             exit 1
           fi
-          unzip z3.zip
           chmod +x "${ARCHIVE_NAME}/bin/z3"
           echo "$GITHUB_WORKSPACE/${ARCHIVE_NAME}/bin/" >> $GITHUB_PATH
       - name: Build Dafny
