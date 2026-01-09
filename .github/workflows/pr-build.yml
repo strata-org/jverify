@@ -64,8 +64,8 @@ jobs:
           elif [ "$ARCH" = "x86_64" ]; then
             ARCH_NAME="x86_64"
             wget https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-glibc-2.39.zip
-            unzip "${ARCHIVE_NAME}.zip"
             ARCHIVE_NAME="z3-4.15.2-x64-glibc-2.39"
+            unzip "${ARCHIVE_NAME}.zip"
           elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
             ARCH_NAME="arm64"
             curl -L -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-arm64-glibc-2.34.zip
