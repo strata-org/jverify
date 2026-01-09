@@ -60,7 +60,7 @@ jobs:
           if [ "$OS" = "Windows_NT" ] || [ "$OS" = "MINGW"* ]; then
             curl -L -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-win.zip
             ARCHIVE_NAME="z3-4.15.2-x64-win"
-          if [ "$ARCH" = "x86_64" ]; then
+          elif [ "$ARCH" = "x86_64" ]; then
             ARCH_NAME="x86_64"
             wget https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-glibc-2.39.zip
             ARCHIVE_NAME="z3-4.15.2-x64-glibc-2.39"
