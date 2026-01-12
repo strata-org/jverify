@@ -55,10 +55,8 @@ jobs:
           lint: "false"
       - name: Setup Lean PATH
         shell: bash
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            echo "$HOME/.elan/bin" >> $GITHUB_PATH
-          fi
+        if: startsWith(matrix.os, 'windows')
+        run: echo "$HOME/.elan/bin" >> $GITHUB_PATH
       - name: List elan directory contents
         shell: bash
         run: |
