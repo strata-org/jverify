@@ -124,7 +124,7 @@ jobs:
         shell: pwsh
         run: |
           Add-Content $env:GITHUB_PATH "${PWD}/jverify-collection/dafny/Binaries"
-          Add-Content $env:GITHUB_PATH ""$HOME/.elan/bin""
+          Add-Content $env:GITHUB_PATH "$HOME/.elan/bin"
       - name: Verify sample project
         working-directory: ./jverify-collection/sample-project
         shell: bash
