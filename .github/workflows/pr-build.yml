@@ -53,6 +53,12 @@ jobs:
           build: "true"
           test: "false"
           lint: "false"
+      - name: Setup Lean PATH
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            echo "$HOME/.elan/bin" >> $GITHUB_PATH
+          fi
       - name: Install z3 on PATH
         shell: bash
         run: |

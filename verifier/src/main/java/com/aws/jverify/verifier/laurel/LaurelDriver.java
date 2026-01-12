@@ -21,9 +21,12 @@ import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -122,10 +125,9 @@ public class LaurelDriver implements Driver {
     public JVerifyResults runVerifier(FilesMap filesMap, NameCompiler nameCompiler, IonValue serializedProgram) {
         checkVerifierVersion();
 
-
-        var versionChecker = new ProcessBuilder("lake", "version");
         try {
-            var exitCode = versionChecker.start().waitFor();
+            Process versionProcess = new ProcessBuilder("lake", "--version").start();
+            var exitCode = versionProcess.waitFor();
             if (exitCode != 0) {
                 throw new RuntimeException("Lean version checked failed with exit code " + exitCode);
             }
