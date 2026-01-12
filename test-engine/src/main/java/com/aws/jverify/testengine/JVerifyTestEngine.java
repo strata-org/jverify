@@ -311,7 +311,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                                      PositionFilter positionFilter, Backend backend) {
         var backendPath = switch (backend) {
             case Dafny -> getDafnyInSubmodulePath();
-            case Laurel -> Path.of("../Strata").toAbsolutePath();
+            case Laurel -> Path.of("../Strata").toAbsolutePath().normalize();
         };
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var verifierJar = Path.of("../verifier/build/libs/verifier-1.0-SNAPSHOT.jar");

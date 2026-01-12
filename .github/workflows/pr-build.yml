@@ -50,7 +50,7 @@ jobs:
         with:
           lake-package-directory:
             ./jverify-collection/Strata
-          build: "false"
+          build: "true"
           test: "false"
           lint: "false"
       - name: Install z3 on PATH
