@@ -122,15 +122,21 @@ public class LaurelDriver implements Driver {
     public JVerifyResults runVerifier(FilesMap filesMap, NameCompiler nameCompiler, IonValue serializedProgram) {
         checkVerifierVersion();
 
+
+        var versionChecker = new ProcessBuilder("lake", "version");
+        try {
+            var exitCode = versionChecker.start().waitFor();
+            if (exitCode != 0) {
+                throw new RuntimeException("Lean version checked failed with exit code " + exitCode);
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("Failed to get Lean version, exception message: " + e.getMessage());
+        }
+
         var processBuilder = new ProcessBuilder(
                 "lake", "exe",  "-q", "strata", "laurelAnalyze"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
-
-        if (verifierOptions.verbose()) {
-            verifierOptions.outWriter().println("Verifier options: " + String.join(" ", processBuilder.command()));
-        }
-
         return verifierOptions.time("Running Strata", () -> {
             try {
                 // Redirect stderr into stdout, instead of reading one and then the other,
@@ -142,7 +148,7 @@ public class LaurelDriver implements Driver {
                 }
                 return parseStrataOutput(filesMap, verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.backendPath());
+                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath());
                 e.printStackTrace();
                 return new JVerifyResults(List.of(), -1, null);
             }
