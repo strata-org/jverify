@@ -125,16 +125,6 @@ public class LaurelDriver implements Driver {
     public JVerifyResults runVerifier(FilesMap filesMap, NameCompiler nameCompiler, IonValue serializedProgram) {
         checkVerifierVersion();
 
-//        try {
-//            Process versionProcess = new ProcessBuilder("lake", "--version").start();
-//            var exitCode = versionProcess.waitFor();
-//            if (exitCode != 0) {
-//                throw new RuntimeException("Lean version checked failed with exit code " + exitCode);
-//            }
-//        } catch (IOException | InterruptedException e) {
-//            throw new RuntimeException("Failed to get Lean version, exception message: " + e.getMessage());
-//        }
-
         var processBuilder = new ProcessBuilder(
                 "lake", "exe",  "-q", "strata", "laurelAnalyze"
         );
