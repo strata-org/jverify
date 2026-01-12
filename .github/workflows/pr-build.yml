@@ -119,11 +119,12 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           echo "${PWD}/jverify-collection/dafny/Scripts" >> $GITHUB_PATH
-      - name: Add Dafny to path (Windows)
+      - name: Add Dafny/Lake to path (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           Add-Content $env:GITHUB_PATH "${PWD}/jverify-collection/dafny/Binaries"
+          Add-Content $env:GITHUB_PATH ""$HOME/.elan/bin""
       - name: Verify sample project
         working-directory: ./jverify-collection/sample-project
         shell: bash
