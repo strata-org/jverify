@@ -59,6 +59,14 @@ jobs:
           if [ "$RUNNER_OS" == "Windows" ]; then
             echo "$HOME/.elan/bin" >> $GITHUB_PATH
           fi
+      - name: List elan directory contents
+        shell: bash
+        run: |
+          echo "Contents of ~/.elan/bin:"
+          ls -la "$HOME/.elan/bin/" || echo "Directory does not exist"
+          echo ""
+          echo "Current PATH:"
+          echo "$PATH"
       - name: Install z3 on PATH
         shell: bash
         run: |
