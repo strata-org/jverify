@@ -3,7 +3,6 @@ package com.aws.jverify.verifier.laurel;
 import com.amazon.ion.*;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
-import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.aws.jverify.laurel.IonSerializer;
 import com.aws.jverify.verifier.*;
@@ -13,20 +12,15 @@ import com.aws.jverify.verifier.compiler.generator.laurel.LaurelFile;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.aws.jverify.verifier.dafny.*;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JavacMessages;
 import picocli.CommandLine;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.net.URI;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -116,23 +110,38 @@ public class LaurelDriver implements Driver {
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
         return verifierOptions.time("Running Strata", () -> {
-            try {
-                // Redirect stderr into stdout, instead of reading one and then the other,
-                // in order to preserve the order of output and to avoid potential deadlock.
-                var process = processBuilder.redirectErrorStream(true).start();
-                try (var strataStdin = process.getOutputStream();
-                     var writer = IonBinaryWriterBuilder.standard().build(strataStdin)) {
-                    serializedProgram.writeTo(writer);
-                }
-                return parseStrataOutput(filesMap, verifierOptions, nameCompiler, process);
+            try (var process = new AutoClosingProcessWrapper(processBuilder.redirectErrorStream(true).start());
+                 var strataStdin = process.getProcess().getOutputStream();
+                 var writer = IonBinaryWriterBuilder.standard().build(strataStdin)) {
+                serializedProgram.writeTo(writer);
+                return parseStrataOutput(filesMap, verifierOptions, nameCompiler, process.getProcess());
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() + 
+                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() +
                         "\nError message: " + e.getMessage());
                 return new JVerifyResults(new ArrayList<>(), -1, null);
             }
         });
     }
+    
+    class AutoClosingProcessWrapper implements AutoCloseable {
+        private final Process process;
 
+        public AutoClosingProcessWrapper(Process process) {
+            this.process = process;
+        }
+
+        public Process getProcess() {
+            return process;
+        }
+
+        @Override
+        public void close() {
+            if (process.isAlive()) {
+                process.destroyForcibly();
+            }
+        }
+    }
+    
     private JVerifyResults parseStrataOutput(FilesMap filesMap,
                                              VerifierOptions options,
                                              NameCompiler nameCompiler,
