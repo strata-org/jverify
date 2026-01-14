@@ -210,9 +210,9 @@ public class LaurelDriver implements Driver {
                 }
             }
 
-            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatuses.values()) {
-                var statusses = uriStatusses.streamNodes().toList();
-                for (var methodStatus : statusses) {
+            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatuses : methodStatuses.values()) {
+                var statuses = uriStatuses.streamNodes().toList();
+                for (var methodStatus : statuses) {
                     var method = methodStatus.getValue();
                     var status = method.getVerificationStatus();
                     switch (status) {
