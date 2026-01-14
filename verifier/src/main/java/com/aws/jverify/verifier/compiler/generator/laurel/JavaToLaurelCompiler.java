@@ -19,10 +19,7 @@ import com.sun.tools.javac.util.Context;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class JavaToLaurelCompiler {
     private final JavaLowerer lowerer;
@@ -88,7 +85,7 @@ public class JavaToLaurelCompiler {
             if ((method.mods.flags & Flags.STATIC) != 0) {
                 String methodName = method.name.toString();
                 StmtExpr body = convertMethodBody(method.body);
-                procedures.add(new Procedure_(toSourceRange(method), methodName, body));
+                procedures.add(new Procedure_(toSourceRange(method), methodName, List.of(), Optional.empty(), body));
             }
             super.visitMethodDef(method);
         }

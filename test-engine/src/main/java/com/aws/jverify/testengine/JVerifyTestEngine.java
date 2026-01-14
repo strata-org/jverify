@@ -6,7 +6,6 @@ import com.aws.jverify.common.Range;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.dafny.*;
 import com.google.auto.service.AutoService;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.platform.commons.support.ReflectionSupport;
@@ -311,7 +310,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                                      PositionFilter positionFilter, Backend backend) {
         var backendPath = switch (backend) {
             case Dafny -> getDafnyInSubmodulePath();
-            case Laurel -> Path.of("../Strata").toAbsolutePath().normalize();
+            case Strata -> Path.of("../Strata").toAbsolutePath().normalize();
         };
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var verifierJar = Path.of("../verifier/build/libs/verifier-1.0-SNAPSHOT.jar");

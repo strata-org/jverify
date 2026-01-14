@@ -3,7 +3,6 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
-import com.aws.jverify.verifier.dafny.DafnyDiagnostic;
 import com.aws.jverify.verifier.dafny.DafnyDriver;
 import com.aws.jverify.verifier.dafny.DiagnosticWithRange;
 import com.aws.jverify.verifier.laurel.LaurelDriver;
@@ -16,7 +15,6 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -114,7 +112,7 @@ public interface Driver {
         context.put(JavaLowerer.class, lowerer);
         return switch (backend) {
             case Dafny -> new DafnyDriver(context);
-            case Laurel -> new LaurelDriver(context);
+            case Strata -> new LaurelDriver(context);
             default -> throw new RuntimeException("Unsupported backend: " + backend);
         };
     }

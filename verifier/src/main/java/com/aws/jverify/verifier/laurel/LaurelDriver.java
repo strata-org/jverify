@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
 
 public class LaurelDriver implements Driver {
 
-    public final Context context;
+    private final Context context;
     private final VerifierOptions verifierOptions;
 
     @Override
@@ -57,7 +57,7 @@ public class LaurelDriver implements Driver {
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
 
-        var analysisResult = verifierOptions.time("Compiling Java to Dafny",
+        var analysisResult = verifierOptions.time("Compiling Java to Laurel",
                 () -> new JavaToLaurelCompiler(context).analyzeJavaCode(verifierOptions, readFiles));
 
         var hasErrors = false;
@@ -248,8 +248,6 @@ public class LaurelDriver implements Driver {
         private final Range range;
         private final String message;
         private final int severity;
-
-        public DafnyDiagnostic.Location location;
 
         public StrataDiagnostic(URI uri, Range range, String message) {
             this(uri, range, message, SEVERITY_ERROR);
