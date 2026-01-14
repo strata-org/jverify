@@ -211,13 +211,13 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                         is(expectedJavaVerifiedCount));
                 }
             },
-                () -> {
-                    if (expectedMethodsInvalidCount != null) {
-                        assertThat("Java failed methods count",
-                                results.verificationResults().verificationFailedMethods(),
-                                is(expectedMethodsInvalidCount));
-                    }
-                },
+            () -> {
+                if (expectedMethodsInvalidCount != null) {
+                    assertThat("Java failed methods count",
+                            results.verificationResults().verificationFailedMethods(),
+                            is(expectedMethodsInvalidCount));
+                }
+            },
             () -> {
                 if (expectedErrorCount != null) {
                     assertThat("Failed error count",

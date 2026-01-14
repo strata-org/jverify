@@ -4,10 +4,8 @@ import com.aws.jverify.verifier.Wrapper;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
 import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -238,7 +236,7 @@ public class DafnyDriver implements Driver {
             objectMapper.addMixIn(Position.class, DafnyDriver.DafnyJsonPosition.class);
 
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
-            var methodStatusses = annotationCompiler.getMethodStatusPerUri();
+            var methodStatuses = annotationCompiler.getMethodStatusPerUri();
             StringBuilder exceptionOutput = new StringBuilder();
             Wrapper<Integer> performanceTicks = new Wrapper<>(null);
             Wrapper<Integer> errorCount = new Wrapper<>(0);
@@ -277,7 +275,7 @@ public class DafnyDriver implements Driver {
                                     return;
                                 }
 
-                                var uriMethods = methodStatusses.get(relativeUri);
+                                var uriMethods = methodStatuses.get(relativeUri);
                                 var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
                                 if (failedJavaMethod != null) {
                                     failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
@@ -310,7 +308,7 @@ public class DafnyDriver implements Driver {
             int verifiedCount = 0;
             int skippedCount = 0;
             int failedCount = 0;
-            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatusses.values()) {
+            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatuses.values()) {
                 var statusses = uriStatusses.streamNodes().toList();
                 for (var methodStatus : statusses) {
                     var method = methodStatus.getValue();

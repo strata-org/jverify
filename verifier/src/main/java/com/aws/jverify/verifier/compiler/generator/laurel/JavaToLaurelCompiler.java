@@ -17,7 +17,6 @@ import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
 
 import javax.tools.JavaFileObject;
-import java.io.IOException;
 import java.net.URI;
 import java.util.*;
 

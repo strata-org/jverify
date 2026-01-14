@@ -144,7 +144,7 @@ public class LaurelDriver implements Driver {
             Wrapper<Integer> performanceTicks = new Wrapper<>(null);
             Wrapper<Integer> failedAssertionsCount = new Wrapper<>(0);
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
-            var methodStatusses = annotationCompiler.getMethodStatusPerUri();
+            var methodStatuses = annotationCompiler.getMethodStatusPerUri();
 
             int verifiedCount = 0;
             int skippedCount = 0;
@@ -187,7 +187,7 @@ public class LaurelDriver implements Driver {
 
                         failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
 
-                        var uriMethods = methodStatusses.get(uri);
+                        var uriMethods = methodStatuses.get(uri);
                         if (uriMethods != null) {
                             var failedJavaMethod = uriMethods.findAtPoint(diagnostic.range.start().line());
                             if (failedJavaMethod != null) {
@@ -198,7 +198,7 @@ public class LaurelDriver implements Driver {
                 }
             }
 
-            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatusses.values()) {
+            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatuses.values()) {
                 var statusses = uriStatusses.streamNodes().toList();
                 for (var methodStatus : statusses) {
                     var method = methodStatus.getValue();
