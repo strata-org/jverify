@@ -70,11 +70,6 @@ jobs:
             wget https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-glibc-2.39.zip
             ARCHIVE_NAME="z3-4.15.2-x64-glibc-2.39"
             unzip "${ARCHIVE_NAME}.zip"
-          elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
-            ARCH_NAME="arm64"
-            curl -L -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-arm64-glibc-2.34.zip
-            ARCHIVE_NAME="z3-4.15.2-arm64-win"
-            unzip z3.zip
           else
             echo "Unsupported architecture: $ARCH"
             exit 1
