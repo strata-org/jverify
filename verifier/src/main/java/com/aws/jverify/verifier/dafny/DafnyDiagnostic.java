@@ -12,7 +12,7 @@ import java.util.stream.Stream;
 /**
  * Adapts Dafny's {@code --json-diagnostics} output to the {@link Diagnostic} interface.
  */
-public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<URI> {
+public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<URI>, DiagnosticWithRange {
     private static final int SEVERITY_ERROR = 1;
     private static final int SEVERITY_WARNING = 2;
     private static final int SEVERITY_INFO = 4;
@@ -54,6 +54,16 @@ public final class DafnyDiagnostic extends DafnyOutput implements Diagnostic<URI
 
     public Range getRange() {
         return location.range;
+    }
+
+    @Override
+    public String filePath() {
+        return location.filePath();
+    }
+
+    @Override
+    public String filename() {
+        return location.filename();
     }
 
     @Override

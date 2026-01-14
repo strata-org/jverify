@@ -78,7 +78,7 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return nameCompiler;
     }
 
-    public FilesContainer generateDafny(ArrayList<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries) {
+    public FilesContainer generateDafny(List<JCTree.JCCompilationUnit> parsed, Set<JCTree.JCCompilationUnit> libraries) {
         /* TODO: confirm this is solved
          * Dafny currently has a bug that will be fixed by this PR: https://github.com/dafny-lang/dafny/pull/6214
          * To work around this bug, the built-in contracts file must be serialized after
@@ -359,19 +359,6 @@ public class BaseDafnyGenerator implements DafnyGenerator {
         return null;
     }
 
-    private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.outermostClass().className().contentEquals(JVerifyUtils.JVERIFY_CLASS);
-    }
-
-    /**
-     * If the specified invocation's method is from the JVerify library,
-     * returns its {@link Symbol.MethodSymbol}.
-     * Otherwise, returns {@code null}.
-     */
-    public static Symbol.MethodSymbol getJVerifyMethod(JCTree.JCMethodInvocation invocation) {
-        var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-        return fromJVerify(methodSymbol) ? methodSymbol : null;
-    }
 
     public boolean isPure(Symbol.ClassSymbol classSymbol) {
         Symtab symtab = Symtab.instance(context);

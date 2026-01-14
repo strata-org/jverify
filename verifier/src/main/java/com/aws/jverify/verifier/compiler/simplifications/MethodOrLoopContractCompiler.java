@@ -240,7 +240,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
             return false;
         }
-        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+        var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
         if (jverifyMethod == null) {
             return false;
         }
@@ -286,7 +286,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
                 continue;
             }
-            var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+            var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
             if (jverifyMethod == null) {
                 continue;
             }

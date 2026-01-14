@@ -57,7 +57,7 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
      */
     @Override
     public void visitApply(JCTree.JCMethodInvocation invocation) {
-        var jverifyMethod = BaseDafnyGenerator.getJVerifyMethod(invocation);
+        var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
         if (jverifyMethod == null || !ignoreMethods.contains(jverifyMethod.name.toString())) {
                 super.visitApply(invocation);
         } else {

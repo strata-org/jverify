@@ -10,13 +10,13 @@ found [here](https://github.com/aws/jverify/blob/main/examples/src/test/java/com
 To run JVerify, run the following from the repository root:
 
 ```
-./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
+./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --verifier ./dafny/Scripts/dafny --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
 ```
 
 or the following in Windows:
 
 ```
-./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Binaries/Dafny.exe --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
+./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --verifier ./dafny/Binaries/Dafny.exe --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
 ```
 
 You should see the following output:
@@ -27,7 +27,7 @@ Dafny program verifier finished with 3 verified, 0 errors
 
 This indicates that JVerify successfully verified 3 batches of specifications.
 
-You can remove the need for the `--dafny` option by configuring the environment variable `JVERIFY_DAFNY` instead, or modifying your `PATH` so that `dafny` resolves automatically.
+You can remove the need for the `--verifier` option by configuring the environment variable `JVERIFY_DAFNY` (for Dafny) or `JVERIFY_STRATA` (for Strata), or modifying your `PATH` so that `dafny` resolves automatically.
 
 Try editing the `BinarySearch.java` file to see a verification failure. Almost any change you make to the meaning of the program will cause a verification file. For example, if you change `var lo = 0;` into `var lo = 1;`, JVerify returns:
 

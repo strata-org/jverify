@@ -4,9 +4,8 @@ import com.aws.jverify.verifier.Wrapper;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
-import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
-import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
+import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
+import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -41,12 +40,9 @@ public class DafnyDriver implements Driver {
         return verifierOptions;
     }
 
-    public DafnyDriver(VerifierOptions verifierOptions) {
-        InstrumentLower.installModification();
-        context = new Context();
-        TypesWithoutErasure.preRegister(context);
-        context.put(VerifierOptions.class, verifierOptions);
-        this.verifierOptions = verifierOptions;
+    public DafnyDriver(Context context) {
+        this.context = context;
+        this.verifierOptions = context.get(VerifierOptions.class);
     }
 
     public JVerifyResults verifyJavaFile(JavaFileObject javaFile)
@@ -56,8 +52,7 @@ public class DafnyDriver implements Driver {
     public JVerifyResults verifyJavaFiles(
             List<JavaFileObject> readFiles
     ) throws IOException {
-        List<Diagnostic<?>> diagnostics = new ArrayList<>();
-
+        var diagnostics = new ArrayList<Diagnostic<?>>();
 
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
@@ -89,15 +84,14 @@ public class DafnyDriver implements Driver {
             return results;
         }
     }
-
-
+    
     private JVerifyResults runDafnyProcess(NameCompiler nameCompiler,
                                            String program) {
         // First check the Dafny version is correct
         checkDafnyVersion();
 
         var processBuilder = new ProcessBuilder(
-                verifierOptions.dafnyPath().toString(),
+                verifierOptions.backendPath().toString(),
                 "verify",
                 "--library",
                 verifierOptions.additionalDafnyFile().toAbsolutePath().normalize().toString(),
@@ -113,8 +107,8 @@ public class DafnyDriver implements Driver {
                 //"--check-source-location-consistency",
                 "--general-traits=datatype"
         );
-        if (verifierOptions.printDafny() != null) {
-            processBuilder.command().add("--print=" + verifierOptions.printDafny());
+        if (verifierOptions.printDeserializedTarget() != null) {
+            processBuilder.command().add("--print=" + verifierOptions.printDeserializedTarget());
         }
         applyPositionFilter(verifierOptions, processBuilder);
         if (verifierOptions.showRanges()) {
@@ -141,16 +135,16 @@ public class DafnyDriver implements Driver {
                 }
                 return parseDafnyJsonOutput(verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.dafnyPath());
-                e.printStackTrace();
-                return new JVerifyResults(List.of(), -1, null);
+                verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.backendPath() + 
+                        "\nError message: " + e.getMessage());
+                return new JVerifyResults(new ArrayList<>(), -1, null);
             }
         });
     }
     private static boolean checkedVersion = false;
 
     private void checkDafnyVersion() {
-        if (!verifierOptions.testDafnyVersion()) {
+        if (!verifierOptions.testBackendVersion()) {
             return;
         }
 
@@ -163,7 +157,7 @@ public class DafnyDriver implements Driver {
                 var expectedVersion = dafnyVersion + "+" + dafnyRef;
 
                 var processBuilder = new ProcessBuilder(
-                        verifierOptions.dafnyPath().toString(),
+                        verifierOptions.backendPath().toString(),
                         "--version"
                 );
 
@@ -179,7 +173,7 @@ public class DafnyDriver implements Driver {
                     // Alternatively, we can check whether the submodule version matches the output
                     if (!output.equals(expectedVersion)) {
                         throw new IllegalStateException("Wrong Dafny version: expected " + expectedVersion + " but found " + output
-                                + " at location " + verifierOptions.dafnyPath());
+                                + " at location " + verifierOptions.backendPath());
                     }
                 }
             } catch (IOException | InterruptedException e) {
@@ -231,7 +225,7 @@ public class DafnyDriver implements Driver {
                                                        NameCompiler nameCompiler,
                                                        Process process) throws IOException, InterruptedException {
 
-        List<Diagnostic<?>> diagnostics = new ArrayList<>();
+        var diagnostics = new ArrayList<Diagnostic<?>>();
         try (var dafnyOutput = process.inputReader()) {
 
             var objectMapper = new ObjectMapper();
@@ -242,7 +236,7 @@ public class DafnyDriver implements Driver {
             objectMapper.addMixIn(Position.class, DafnyDriver.DafnyJsonPosition.class);
 
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
-            var methodStatusses = annotationCompiler.getMethodStatusPerUri();
+            var methodStatuses = annotationCompiler.getMethodStatusPerUri();
             StringBuilder exceptionOutput = new StringBuilder();
             Wrapper<Integer> performanceTicks = new Wrapper<>(null);
             Wrapper<Integer> errorCount = new Wrapper<>(0);
@@ -277,11 +271,11 @@ public class DafnyDriver implements Driver {
                                     return;
                                 }
 
-                                if (context.get(JavaToDafnyCompiler.class).isContractSource(relativeUri)) {
+                                if (context.get(JavaLowerer.class).isContractSource(relativeUri)) {
                                     return;
                                 }
 
-                                var uriMethods = methodStatusses.get(relativeUri);
+                                var uriMethods = methodStatuses.get(relativeUri);
                                 var failedJavaMethod = uriMethods.findAtPoint((int) dafnyDiagnostic.getLineNumber());
                                 if (failedJavaMethod != null) {
                                     failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
@@ -314,7 +308,7 @@ public class DafnyDriver implements Driver {
             int verifiedCount = 0;
             int skippedCount = 0;
             int failedCount = 0;
-            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatusses.values()) {
+            for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatusses : methodStatuses.values()) {
                 var statusses = uriStatusses.streamNodes().toList();
                 for (var methodStatus : statusses) {
                     var method = methodStatus.getValue();

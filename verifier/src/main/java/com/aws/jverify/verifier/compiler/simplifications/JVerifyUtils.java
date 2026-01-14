@@ -311,5 +311,19 @@ public class JVerifyUtils {
     public static boolean isConstructor(Symbol.MethodSymbol methodSymbol) {
         return methodSymbol.name == methodSymbol.name.table.names.init;
     }
+
+    /**
+     * If the specified invocation's method is from the JVerify library,
+     * returns its {@link Symbol.MethodSymbol}.
+     * Otherwise, returns {@code null}.
+     */
+    public static Symbol.MethodSymbol getJVerifyMethod(JCTree.JCMethodInvocation invocation) {
+        var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
+        return fromJVerify(methodSymbol) ? methodSymbol : null;
+    }
+
+    private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
+        return methodSymbol.outermostClass().className().contentEquals(JVerifyUtils.JVERIFY_CLASS);
+    }
     
 }

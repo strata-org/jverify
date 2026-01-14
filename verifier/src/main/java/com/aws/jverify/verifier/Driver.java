@@ -1,9 +1,13 @@
 package com.aws.jverify.verifier;
 
-import com.aws.jverify.verifier.dafny.DafnyDiagnostic;
+import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
+import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
+import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
 import com.aws.jverify.verifier.dafny.DafnyDriver;
+import com.aws.jverify.verifier.dafny.DiagnosticWithRange;
+import com.aws.jverify.verifier.laurel.LaurelDriver;
+import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;
-
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
@@ -16,6 +20,11 @@ import java.util.stream.Collectors;
 
 public interface Driver {
 
+    default JVerifyResults verifyJavaFile(JavaFileObject javaFile)
+            throws IOException {
+        return verifyJavaFiles(List.of(javaFile));
+    }
+    
     VerifierOptions getVerifierOptions();
     
     default int verifyJavaPaths(List<Path> files) throws IOException {
@@ -42,7 +51,7 @@ public interface Driver {
         return results.exitCode();
     }
 
-    private void outputVerificationResults(JVerifyResults results, Writer outputWriter) throws IOException {
+    private void outputVerificationResults(JVerifyResults results, Writer outputWriter) {
 
         var pw = new PrintWriter(outputWriter);
         for (var diagnostic : results.diagnostics()) {
@@ -73,11 +82,11 @@ public interface Driver {
             sb.append("-");
             sb.append(line).append(":").append(column + 1);
             sb.append("): ");
-        } else if (diagnostic instanceof DafnyDiagnostic dafnyDiagnostic) {
-            var filePart = filePath ? dafnyDiagnostic.location.filePath() : dafnyDiagnostic.location.filename();
+        } else if (diagnostic instanceof DiagnosticWithRange diagnosticWithRange) {
+            var filePart = filePath ? diagnosticWithRange.filePath() : diagnosticWithRange.filename();
             sb.append(filePart)
                     .append("(")
-                    .append(dafnyDiagnostic.getRange())
+                    .append(diagnosticWithRange.getRange())
                     .append("): ");
         } else {
             throw new IllegalArgumentException(
@@ -94,10 +103,17 @@ public interface Driver {
     ) throws IOException;
     
     static Driver getDriver(Backend backend, VerifierOptions options) {
-        if (backend == Backend.Dafny) {
-            return new DafnyDriver(options);
-        }
-        throw new RuntimeException("Unsupported backend: " + backend);
+
+        InstrumentLower.installModification();
+        var context = new Context();
+        TypesWithoutErasure.preRegister(context);
+        context.put(VerifierOptions.class, options);
+        var lowerer = new JavaLowerer(context);
+        context.put(JavaLowerer.class, lowerer);
+        return switch (backend) {
+            case Dafny -> new DafnyDriver(context);
+            case Strata -> new LaurelDriver(context);
+        };
     }
     
     static String formatMessage(Diagnostic<?> diagnostic) {

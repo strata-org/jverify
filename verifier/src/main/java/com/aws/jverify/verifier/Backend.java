@@ -1,3 +1,3 @@
 package com.aws.jverify.verifier;
 
-public enum Backend { Dafny, Laurel }
+public enum Backend { Dafny, Strata }

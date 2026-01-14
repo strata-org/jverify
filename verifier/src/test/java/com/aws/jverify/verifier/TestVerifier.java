@@ -38,8 +38,8 @@ public class TestVerifier {
         var remainingRanges = List.of(ranges.get(0), ranges.get(2));
         int filterLine = remainingRanges.get(1).range().start().line() - 3;
         VerifierOptions options = JVerifyTestEngine.getVerifierOptions(annotation, 
-                new PositionFilter(false, "MultiPackageTest.java", filterLine, filterLine));
-        JVerifyTestEngine.verifyFile(markedSourceFile, annotation, remainingRanges, options);
+                new PositionFilter(false, "MultiPackageTest.java", filterLine, filterLine), Backend.Dafny);
+        JVerifyTestEngine.verifyFile(markedSourceFile, annotation, remainingRanges, Backend.Dafny, options);
     }
 
     @Test
@@ -55,7 +55,7 @@ public class TestVerifier {
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
                 "--contract-path=" + JVerifyTestEngine.getBuiltinContractsSourceDir(),
                 "--track-time",
-                "--dafny=" + dafnyPath);
+                "--verifier=" + dafnyPath);
         String output = out.getBuffer().toString();
         assertTrue(output.contains("Calling Driver.verifyJavaPaths took"));
         assertTrue(output.contains("Compiling Java to Dafny took"));
@@ -78,7 +78,7 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java").toString(),
                 "--contract-path=" + JVerifyTestEngine.getBuiltinContractsSourceDir(),
-                "--dafny=" + dafnyPath);
+                "--verifier=" + dafnyPath);
         Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
     }
 
@@ -101,7 +101,7 @@ public class TestVerifier {
                 main.toString(), a.toString(), b.toString(), c.toString(),
                 "--filter-position=MultiPackageTest.java",
                 "--classpath=" + testEngineClassPath,
-                "--dafny=" + dafnyPath);
+                "--verifier=" + dafnyPath);
 
         assertTrue(withoutDependenciesOutput.toString().contains("2 errors"), 
                         "testEngineClassPath was: " + testEngineClassPath + 
@@ -114,7 +114,7 @@ public class TestVerifier {
                 "--filter-position=MultiPackageTest.java",
                 "--include-filter-dependencies",
                 "--classpath=" + testEngineClassPath,
-                "--dafny=" + dafnyPath);
+                "--verifier=" + dafnyPath);
         assertTrue(withDependenciesOutput.toString().contains("3 errors"));
     }
 
@@ -130,7 +130,7 @@ public class TestVerifier {
         var exitCode = command.execute(
                 Path.of("../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java").toString(),
                 "--contract-path=" + JVerifyTestEngine.getBuiltinContractsSourceDir(),
-                "--dafny=" + dafnyPath,
+                "--verifier=" + dafnyPath,
                 "--print-dafny=../build/temp.dfy");
         Assertions.assertEquals(0, exitCode, out.getBuffer().toString());
     }
@@ -146,7 +146,7 @@ public class TestVerifier {
 
         var exitCode = command.execute(
                 Path.of("./src/test/resources/AssertFalse.java").toString(),
-                "--dafny=" + dafnyPath, "--paths");
+                "--verifier=" + dafnyPath, "--paths");
         assertTrue(out.toString().startsWith("src/test/resources/AssertFalse.java"), out.toString());
         Assertions.assertEquals(4, exitCode);
     }
@@ -165,7 +165,7 @@ public class TestVerifier {
                                    .map(Path::toString)
                                    .toList();
         var args = new ArrayList<String>(allSourceFiles);
-        args.add("--dafny=" + dafnyPath);
+        args.add("--verifier=" + dafnyPath);
         args.add("--print-dafny=../build/temp.dfy");
         var exitCode = command.execute(args.toArray(new String[0]));
         Assertions.assertEquals(0, exitCode, out.toString());

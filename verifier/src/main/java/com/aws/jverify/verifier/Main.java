@@ -58,8 +58,8 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--include-filter-dependencies", description = "When filtering on just a file, also verify its transitive dependencies.")
     private boolean includeFilterDependencies;
     
-    @Option(names = "--dafny", description = "Location of the Dafny CLI to use. Overrides environment variable JVERIFY_DAFNY.")
-    private Path customDafny;
+    @Option(names = "--verifier", description = "Location of the verifier to use. Overrides environment variable JVERIFY_DAFNY or JVERIFY_STRATA, depending on the back-end used.")
+    private Path customVerifier;
 
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
     private boolean verifyByDefault;
@@ -86,7 +86,7 @@ class AppCommand implements Callable<Integer> {
         InputStream stream = getClass().getResourceAsStream("/additional.dfy");
         Files.copy(stream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-        var dafnyPath = getDafnyPath(writer);
+        var dafnyPath = getBackendPath(writer);
 
         classPaths = classPaths == null ? List.of() : classPaths;
         List<Path> givenClassPaths = classPaths.stream()
@@ -99,7 +99,7 @@ class AppCommand implements Callable<Integer> {
         contractPaths = contractPaths == null ? List.of() : contractPaths;
         List<Path> contractPathEntries = this.contractPaths.stream().flatMap(p -> Arrays.stream(p.split(File.pathSeparator)).map(Path::of)).toList();
 
-        var testDafnyVersion = customDafny != null;
+        var testDafnyVersion = customVerifier != null;
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var positionFilter = PositionFilter.getPositionFilter(includeFilterDependencies, filterPositionString);
         String[] additionalDafnyArguments = { 
@@ -120,22 +120,24 @@ class AppCommand implements Callable<Integer> {
         });
     }
 
-    private Path getDafnyPath(PrintWriter output) {
-        var dafnyPath = customDafny;
-        if (dafnyPath == null || !Files.exists(dafnyPath)) {
-            if (System.getenv("JVERIFY_DAFNY") != null) {
-                dafnyPath = Path.of(System.getenv("JVERIFY_DAFNY"));
+    private Path getBackendPath(PrintWriter output) {
+        var result = customVerifier;
+        if (customVerifier == null || !Files.exists(customVerifier)) {
+            var envVar = "JVERIFY_" + backend.toString();
+            if (System.getenv(envVar) != null) {
+                result = Path.of(System.getenv(envVar));
             }
         }
-        if (dafnyPath == null || !Files.exists(dafnyPath)) {
+        if (result == null || !Files.exists(result)) {
             if (verbose) {
-                output.println("Could not find a file at Dafny path '" + dafnyPath + "'");
+                output.println("Could not find a file at verifier path '" + result + "'");
             }
-            var isWindows = System.getProperty("os.name", "").toLowerCase().contains("windows");
-
-            dafnyPath = Path.of(isWindows ? "Dafny.exe" : "dafny");
+            if (backend == Backend.Dafny) {
+                var isWindows = System.getProperty("os.name", "").toLowerCase().contains("windows");
+                result = Path.of(isWindows ? "Dafny.exe" : "dafny");
+            }
         }
-        return dafnyPath;
+        return result;
     }
 }
 

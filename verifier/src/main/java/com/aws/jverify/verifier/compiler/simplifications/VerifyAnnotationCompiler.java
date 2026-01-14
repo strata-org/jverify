@@ -5,9 +5,11 @@ import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.generated.TokenRange;
 import com.aws.jverify.verifier.IntervalTree;
 import com.aws.jverify.verifier.JavaMethodVerificationStatus;
+import com.aws.jverify.verifier.compiler.LoweredResult;
 import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.frontend.JavaToDafnyCompiler;
+import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
+import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.AnnoConstruct;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
@@ -25,8 +27,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     private final VerifierOptions options;
     private final Reporter reporter;
     public final Context context;
-    private final JavaToDafnyCompiler javaToDafnyCompiler;
     private final MethodOrLoopContractCompiler methodOrLoopContractCompiler;
+    private final JavaLowerer lowerer;
     private PositionCalculator positionCalculator;
     private final HashMap<URI, IntervalTree<Integer, JavaMethodVerificationStatus>> methodStatusPerUri = new HashMap<>();
 
@@ -39,8 +41,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
                 : ShouldVerifyMode.DefaultNo);
         this.context = context;
         options = context.get(VerifierOptions.class);
-        javaToDafnyCompiler = context.get(JavaToDafnyCompiler.class);
         methodOrLoopContractCompiler = MethodOrLoopContractCompiler.instance(context);
+        lowerer = context.get(JavaLowerer.class);
     }
     
     public static VerifyAnnotationCompiler instance(Context context) {
@@ -67,7 +69,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     public void visitTopLevel(JCTree.JCCompilationUnit tree) {
         reporter.compilationUnit = tree;
         processVerifyAnnotation(tree.packge);
-        if (!javaToDafnyCompiler.isContractSource(reporter.compilationUnit)) {
+        if (!lowerer.isContractSource(reporter.compilationUnit)) {
             var sourceUri = getUri();
             if (!methodStatusPerUri.containsKey(sourceUri)) {
                 methodStatusPerUri.put(sourceUri, new IntervalTree<>());

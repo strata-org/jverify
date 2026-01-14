@@ -15,9 +15,9 @@ jobs:
   checks:
     strategy:
       matrix:
-        os: [ ubuntu-22.04, windows-2022 ]
+        os: [ ubuntu-24.04, windows-2022 ]
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             chmod: true
           - os: windows-2022
             chmod: false
@@ -45,24 +45,46 @@ jobs:
           distribution: 'corretto'
           java-version: '23'
           cache: gradle
+      - name: Build Strata
+        uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory:
+            ./jverify-collection/Strata
+          build: "true"
+          test: "false"
+          lint: "false"
+      - name: Verify Laurel AST is up to date
+        working-directory: ./jverify-collection
+        run: |
+          make generate-laurel-ast
+          git diff --exit-code --ignore-cr-at-eol verifier/src/main/java/com/aws/jverify/laurel/
+      - name: Add Lake to path (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Add-Content $env:GITHUB_PATH "$HOME/.elan/bin"
+      - name: Install z3 on PATH
+        shell: bash
+        run: |
+          ARCH=$(uname -m)
+          if [ "$OS" = "Windows_NT" ] || [ "$OS" = "MINGW"* ]; then
+            ARCHIVE_NAME="z3-4.15.2-x64-win"
+            curl -L -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-win.zip
+            unzip z3.zip
+          elif [ "$ARCH" = "x86_64" ]; then
+            ARCH_NAME="x86_64"
+            wget https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-glibc-2.39.zip
+            ARCHIVE_NAME="z3-4.15.2-x64-glibc-2.39"
+            unzip "${ARCHIVE_NAME}.zip"
+          else
+            echo "Unsupported architecture: $ARCH"
+            exit 1
+          fi
+          chmod +x "${ARCHIVE_NAME}/bin/z3"
+          echo "$GITHUB_WORKSPACE/${ARCHIVE_NAME}/bin/" >> $GITHUB_PATH
       - name: Build Dafny
         working-directory: ./jverify-collection/dafny
         run: |
           dotnet build ./Source/Dafny.sln
-      - name: Download Z3
-        shell: pwsh
-        working-directory: ./jverify-collection/dafny
-        run: |
-          Invoke-WebRequest ${{env.z3BaseUri}}/z3-4.12.1-x64-${{matrix.os}}-bin.zip -OutFile z3.zip
-          Expand-Archive z3.zip .
-          Remove-Item z3.zip
-          mkdir -p Binaries/z3/bin
-          mv z3-* Binaries/z3/bin/
-      - name: Set Z3 permissions
-        if: ${{matrix.chmod}}
-        working-directory: ./jverify-collection/dafny
-        run: |
-          chmod +x Binaries/z3/bin/z3*
       - name: Code generation has no diff
         working-directory: ./jverify-collection
         run: |
@@ -79,12 +101,12 @@ jobs:
         if: runner.os != 'Windows'
         working-directory: ./jverify-collection
         run: |
-          ./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Scripts/dafny --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
+          ./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --verifier ./dafny/Scripts/dafny --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
       - name: Getting started command (Windows)
         if: runner.os == 'Windows'
         working-directory: ./jverify-collection
         run: |
-          ./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --dafny ./dafny/Binaries/Dafny.exe --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
+          ./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --verifier ./dafny/Binaries/Dafny.exe --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
       - name: Add Dafny to path (non-Windows)
         if: runner.os != 'Windows'
         run: |
