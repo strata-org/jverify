@@ -178,13 +178,13 @@ public class ExpressionCompiler {
         var name = jverifyMethod.getQualifiedName().toString();
         if (name.equals("check")) {
             if (invocation.args.size() != 1) {
-                throw new JavaViolationException("Check should have a single argument");
+                throw new JavaViolationException("check should have a single argument");
             }
             return new AssertStmt(reporter.toOrigin(invocation), null,
                     toExpr(invocation.args.getFirst(), expressionContext), null);
         } if (name.equals("assume")) {
             if (invocation.args.size() != 1) {
-                throw new JavaViolationException("Check should have a single argument");
+                throw new JavaViolationException("assume should have a single argument");
             }
             return new AssumeStmt(reporter.toOrigin(invocation), null,
                     toExpr(invocation.args.getFirst(), expressionContext));

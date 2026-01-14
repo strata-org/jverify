@@ -223,7 +223,7 @@ public class BlockCompiler {
         var name = jverifyMethod.getQualifiedName().toString();
         if (name.equals("check")) {
             if (invocation.args.size() != 1) {
-                throw new JavaViolationException("Check should have a single argument");
+                throw new JavaViolationException("check should have a single argument");
             }
             return List.of(new AssertStmt(reporter.toOrigin(invocation), null,
                     expressionCompiler.toExpr(invocation.args.getFirst(), expressionContext), null));

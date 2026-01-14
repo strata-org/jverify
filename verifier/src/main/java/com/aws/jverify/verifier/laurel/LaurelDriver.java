@@ -52,7 +52,7 @@ public class LaurelDriver implements Driver {
     public JVerifyResults verifyJavaFiles(
             List<JavaFileObject> readFiles
     ) {
-        List<Diagnostic<?>> diagnostics = new ArrayList<>();
+        var diagnostics = new ArrayList<Diagnostic<?>>();
 
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
@@ -110,23 +110,9 @@ public class LaurelDriver implements Driver {
         }
     }
 
-    private static boolean checkedVersion = false;
-
-    private void checkVerifierVersion() {
-        if (!verifierOptions.testBackendVersion()) {
-            return;
-        }
-
-        if (!checkedVersion) {
-            checkedVersion = true;
-        }
-    }
-
     public JVerifyResults runVerifier(FilesMap filesMap, NameCompiler nameCompiler, IonValue serializedProgram) {
-        checkVerifierVersion();
-
         var processBuilder = new ProcessBuilder(
-                "lake", "exe",  "-q", "strata", "laurelAnalyze"
+                "lake", "exe", "-q", "strata", "laurelAnalyze"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
         return verifierOptions.time("Running Strata", () -> {
@@ -140,24 +126,19 @@ public class LaurelDriver implements Driver {
                 }
                 return parseStrataOutput(filesMap, verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath());
-                e.printStackTrace();
-                return new JVerifyResults(List.of(), -1, null);
+                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() + 
+                        "\nError message: " + e.getMessage());
+                return new JVerifyResults(new ArrayList<>(), -1, null);
             }
         });
     }
 
-    /**
-     * Parses the given {@code dafny verify} output,
-     * adding both diagnostics and the summary verified/error counts to {@code outResults}.
-     * Note that Dafny must be invoked with {@code --json-diagnostics} or else parsing will fail.
-     */
     private JVerifyResults parseStrataOutput(FilesMap filesMap,
                                              VerifierOptions options,
                                              NameCompiler nameCompiler,
                                              Process process) throws IOException, InterruptedException {
 
-        List<Diagnostic<?>> diagnostics = new ArrayList<>();
+        var diagnostics = new ArrayList<Diagnostic<?>>();
         try (var strataOutput = process.inputReader()) {
 
             Wrapper<Integer> performanceTicks = new Wrapper<>(null);

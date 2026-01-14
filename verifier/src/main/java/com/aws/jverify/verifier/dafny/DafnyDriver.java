@@ -54,8 +54,7 @@ public class DafnyDriver implements Driver {
     public JVerifyResults verifyJavaFiles(
             List<JavaFileObject> readFiles
     ) throws IOException {
-        List<Diagnostic<?>> diagnostics = new ArrayList<>();
-
+        var diagnostics = new ArrayList<Diagnostic<?>>();
 
         var messages = JavacMessages.instance(context);
         messages.add("com.aws.jverify.messages");
@@ -138,9 +137,9 @@ public class DafnyDriver implements Driver {
                 }
                 return parseDafnyJsonOutput(verifierOptions, nameCompiler, process);
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.backendPath());
-                e.printStackTrace();
-                return new JVerifyResults(List.of(), -1, null);
+                verifierOptions.outWriter().println("Failed to use Dafny at: " + verifierOptions.backendPath() + 
+                        "\nError message: " + e.getMessage());
+                return new JVerifyResults(new ArrayList<>(), -1, null);
             }
         });
     }
@@ -228,7 +227,7 @@ public class DafnyDriver implements Driver {
                                                        NameCompiler nameCompiler,
                                                        Process process) throws IOException, InterruptedException {
 
-        List<Diagnostic<?>> diagnostics = new ArrayList<>();
+        var diagnostics = new ArrayList<Diagnostic<?>>();
         try (var dafnyOutput = process.inputReader()) {
 
             var objectMapper = new ObjectMapper();
