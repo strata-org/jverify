@@ -108,12 +108,15 @@ public class JavaToLaurelCompiler {
         private StmtExpr convertStatement(JCTree.JCStatement statement) {
             return switch (statement) {
                 case JCTree.JCAssert assertStmt ->
-                    new Assert(toSourceRange(assertStmt), convertExpression(assertStmt.cond));
-                case JCTree.JCExpressionStatement exprStmt ->
-                    convertExpression(exprStmt.expr);
-                case JCTree.JCBlock block ->
-                    convertMethodBody(block);
-                default -> null; //throw new RuntimeException("Not supported " + statement.getClass().getName());
+                        new Assert(toSourceRange(assertStmt), convertExpression(assertStmt.cond));
+                case JCTree.JCExpressionStatement exprStmt -> convertExpression(exprStmt.expr);
+                case JCTree.JCBlock block -> convertMethodBody(block);
+                default -> {
+                    if (lowerer.isContractSource(currentCompilationUnit)) {
+                        yield null;
+                    }
+                    throw new RuntimeException("Not supported " + statement.getClass().getName());
+                }
             };
         }
 
