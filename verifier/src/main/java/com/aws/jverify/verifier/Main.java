@@ -123,8 +123,9 @@ class AppCommand implements Callable<Integer> {
     private Path getBackendPath(PrintWriter output) {
         var result = customVerifier;
         if (customVerifier == null || !Files.exists(customVerifier)) {
-            if (System.getenv("JVERIFY_" + backend.toString()) != null) {
-                result = Path.of(System.getenv("JVERIFY_DAFNY"));
+            var envVar = "JVERIFY_" + backend.toString();
+            if (System.getenv(envVar) != null) {
+                result = Path.of(System.getenv(envVar));
             }
         }
         if (result == null || !Files.exists(result)) {
