@@ -113,7 +113,6 @@ public interface Driver {
         return switch (backend) {
             case Dafny -> new DafnyDriver(context);
             case Strata -> new LaurelDriver(context);
-            default -> throw new RuntimeException("Unsupported backend: " + backend);
         };
     }
     
