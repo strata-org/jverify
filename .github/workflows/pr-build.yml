@@ -53,6 +53,10 @@ jobs:
           build: "true"
           test: "false"
           lint: "false"
+      - name: Verify Laurel AST is up to date
+        run: |
+          make generate-laurel-ast
+          git diff --exit-code verifier/src/main/java/com/aws/jverify/laurel/
       - name: Add Lake to path (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
