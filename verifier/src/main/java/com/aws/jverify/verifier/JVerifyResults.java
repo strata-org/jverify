@@ -7,6 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public record JVerifyResults(
-        ArrayList<Diagnostic<?>> diagnostics,
+        List<Diagnostic<?>> diagnostics,
         int exitCode,
         @Nullable VerificationResults verificationResults) {}

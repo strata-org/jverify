@@ -99,8 +99,9 @@ public class LaurelDriver implements Driver {
             });
 
             var results = runVerifier(analysisResult.filesMap(), NameCompiler.instance(context), serializedProgram);
-            results.diagnostics().addAll(0, diagnostics);
-            return results;
+            var allDiagnostics = new ArrayList<>(diagnostics);
+            allDiagnostics.addAll(results.diagnostics());
+            return new JVerifyResults(allDiagnostics, results.exitCode(), results.verificationResults());
         }
     }
 
