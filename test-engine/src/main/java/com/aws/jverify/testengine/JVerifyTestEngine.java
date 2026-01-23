@@ -354,7 +354,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      * Useful for testing things like examples where we don't want the explicit annotation.
      */
     public static JVerifyTest makeJVerifyTestAnnotation(int methodsVerified, int assertionsFailed) {
-        return makeJVerifyTestAnnotation(true, assertionsFailed > 0 ? 4 : 0, methodsVerified, assertionsFailed, false, false, true);
+        return makeJVerifyTestAnnotation(true, assertionsFailed > 0 ? 4 : 0, methodsVerified, assertionsFailed, false, false, true, new Backend[]{Backend.Dafny});
     }
     
     /**
@@ -365,10 +365,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                                         int methodsVerified, int assertionsFailed,
                                                         boolean verifyPrintedDafny,
                                                         boolean continueOnErrors,
-                                                        boolean useBuiltinContracts) {
+                                                        boolean useBuiltinContracts,
+                                                        Backend[] backends) {
         return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors, 
                 exitCode, new String[0], verifyPrintedDafny, -1, assertionsFailed, methodsVerified, -1, 
-                new Backend[]{ Backend.Dafny }, new int[] {});
+                backends, new int[] {});
     }
 
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, JVerifyResults results) throws IOException {

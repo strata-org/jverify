@@ -3,13 +3,35 @@
   "tasks": [
 
     {
-      "label": "verify",
+      "label": "verify (Dafny)",
       "type": "shell",
       "command": "${workspaceFolder}/verifier/build/install/verifier/bin/verifier",
       "args": ["--print-dafny=${workspaceFolder}/build/temp.dfy", "--show-ranges", "--paths", "${file}", "--verifier", "${workspaceFolder}/dafny/Scripts/dafny"],
       "problemMatcher": {
         "owner": "jverify",
         "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.*)\\((\\d+):(\\d+)-(\\d+):(\\d+)\\):\\s+(Error|Warning|Related location):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "endLine": 4,
+          "endColumn": 5,
+          "severity": 6,
+          "message": 7
+        }
+      }
+    },
+
+    {
+      "label": "verify (Strata)",
+      "type": "shell",
+      "command": "${workspaceFolder}/verifier/build/install/verifier/bin/verifier",
+      "args": ["--print-dafny=${workspaceFolder}/build/temp.dfy", "--backend","Strata","--show-ranges", "--paths", "${file}", 
+        "--verifier", "${workspaceFolder}/Strata"],
+      "problemMatcher": {
+        "owner": "jverify",
+        "fileLocation": ["absolute"],
         "pattern": {
           "regexp": "^(.*)\\((\\d+):(\\d+)-(\\d+):(\\d+)\\):\\s+(Error|Warning|Related location):\\s+(.*)$",
           "file": 1,

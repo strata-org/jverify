@@ -57,15 +57,21 @@ public class TestExamples {
     @Test
     public void testBinarySearch() throws IOException {
         var markedSourcePath = Path.of("BinarySearch.java");
-        verifyPath(markedSourcePath, 0, 3, 0, false, true);
+        verifyPath(markedSourcePath, 0, 3, 0, false, true, new Backend[]{Backend.Strata,Backend.Dafny});
     }
-    
+
+    private void verifyPath(Path path, int exitCode, int methodsVerified, int assertionsFailed,
+                            boolean continueOnErrors,
+                            boolean useBuiltinContracts) throws IOException {
+        verifyPath(path, exitCode, methodsVerified, assertionsFailed, continueOnErrors, useBuiltinContracts, new Backend[]{ Backend.Dafny });
+    }
     private void verifyPath(Path path, int exitCode, int methodsVerified, int assertionsFailed, 
                             boolean continueOnErrors, 
-                            boolean useBuiltinContracts) throws IOException {
+                            boolean useBuiltinContracts,
+                            Backend[] backends) throws IOException {
         var markedSource = Files.readString(Path.of("../examples/src/test/java/com/aws/jverify/examples/").resolve(path));
         var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, methodsVerified, assertionsFailed, 
-                false, continueOnErrors, useBuiltinContracts);
+                false, continueOnErrors, useBuiltinContracts, backends);
         JVerifyTestEngine.testMarkedSource(new SourceFile(path, markedSource), annotation);
     }
 }

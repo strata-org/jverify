@@ -6,6 +6,7 @@ public class Laurel {
     public static LaurelType arrayType(LaurelType elemType) { return new ArrayType(SourceRange.NONE, elemType); }
     public static LaurelType compositeType(java.lang.String name) { return new CompositeType(SourceRange.NONE, name); }
     public static StmtExpr literalBool(boolean b) { return new LiteralBool(SourceRange.NONE, b); }
+    public static StmtExpr int_(SourceRange sourceRange, long n) { if (n < 0) throw new IllegalArgumentException("n must be non-negative"); return new Int(sourceRange, java.math.BigInteger.valueOf(n)); }
     public static StmtExpr int_(long n) { if (n < 0) throw new IllegalArgumentException("n must be non-negative"); return new Int(SourceRange.NONE, java.math.BigInteger.valueOf(n)); }
     public static OptionalType optionalType(LaurelType varType) { return new OptionalType_(SourceRange.NONE, varType); }
     public static OptionalAssignment optionalAssignment(StmtExpr value) { return new OptionalAssignment_(SourceRange.NONE, value); }
