@@ -108,6 +108,7 @@ public interface Driver {
         var context = new Context();
         TypesWithoutErasure.preRegister(context);
         context.put(VerifierOptions.class, options);
+        context.put(Backend.class, backend);
         var lowerer = new JavaLowerer(context);
         context.put(JavaLowerer.class, lowerer);
         return switch (backend) {

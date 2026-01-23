@@ -34,7 +34,7 @@ class AppCommand implements Callable<Integer> {
     @Parameters(description = "Java files to verify", arity = "1..*")
     private List<Path> inputs;
     
-    @Option(names = "--print-binary-dafny", description = "Given a filepath, prints the binary Dafny code that is generated from Java")
+    @Option(names = {"--print-binary-dafny", "--print-ir"}, description = "Given a filepath, prints the intermediate representation (Dafny binary or Laurel Ion) generated from Java")
     private Path printBinaryDafny;
 
     @Option(names = "--classpath", description = "Includes these paths on the classpath", arity = "0..*")

@@ -90,7 +90,10 @@ public class LaurelDriver implements Driver {
                 if (verifierOptions.printSerializedOutputProgram() != null) {
                     try {
                         Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
-                        Files.writeString(verifierOptions.printSerializedOutputProgram(), files.toPrettyString());
+                        try (var out = Files.newOutputStream(verifierOptions.printSerializedOutputProgram());
+                             var writer = IonBinaryWriterBuilder.standard().build(out)) {
+                            files.writeTo(writer);
+                        }
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -107,7 +110,7 @@ public class LaurelDriver implements Driver {
 
     public JVerifyResults runVerifier(FilesMap filesMap, NameCompiler nameCompiler, IonValue serializedProgram) {
         var processBuilder = new ProcessBuilder(
-                "lake", "exe", "-q", "strata", "laurelAnalyze"
+                "lake", "exe", "-q", "strata", "laurelAnalyzeBinary"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
         return verifierOptions.time("Running Strata", () -> {

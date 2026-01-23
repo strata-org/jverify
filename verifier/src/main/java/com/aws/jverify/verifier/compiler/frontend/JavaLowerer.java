@@ -1,6 +1,7 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
 import com.aws.jverify.common.Common;
+import com.aws.jverify.verifier.Backend;
 import com.aws.jverify.verifier.JarFileEntry;
 import com.aws.jverify.verifier.SourceFile;
 import com.aws.jverify.verifier.VerifierOptions;
@@ -237,7 +238,11 @@ public class JavaLowerer {
                         phases.add(new DropUnreachableUnits(context)::transform);
                     }
                     phases.add(VerifyAnnotationCompiler.instance(context)::transform);
-                    phases.add(new MissingContractCompiler(context)::transform);
+                    var backend = context.get(Backend.class);
+                    var skipField = backend == Backend.Strata
+                        ? (java.util.function.Predicate<com.sun.tools.javac.code.Symbol.VarSymbol>) vs -> vs.isStatic() && vs.getConstValue() instanceof Number
+                        : (java.util.function.Predicate<com.sun.tools.javac.code.Symbol.VarSymbol>) vs -> false;
+                    phases.add(new MissingContractCompiler(context, skipField)::transform);
                     phases.add(new IsAbstractCompiler(context)::transform);
                     phases.add(new PreconditionOfCompiler(context)::transform);
                     phases.add(us -> unsuspend(lower(suspend(us))));

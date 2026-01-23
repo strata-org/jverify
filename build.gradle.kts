@@ -282,7 +282,7 @@ project(":verifier") {
     application {
         mainClass.set("com.aws.jverify.verifier.Main")  // For a file named main.kt
 
-        applicationDefaultJvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+        applicationDefaultJvmArgs = listOf("-XX:+EnableDynamicAgentLoading") + createJavacExports(listOf("ALL-UNNAMED"))
     }
 
     dependencies {

@@ -6,6 +6,15 @@ import com.amazon.ion.system.*;
 public class IonSerializer {
     private final IonSystem ion;
 
+    private static final java.util.Map<String, java.util.Map<String, String>> SEPARATORS = java.util.Map.of(
+        "Laurel.call", java.util.Map.of("args", "commaSepList"),
+        "Laurel.block", java.util.Map.of("stmts", "newlineSepList"),
+        "Laurel.while", java.util.Map.of("invariants", "seq"),
+        "Laurel.composite", java.util.Map.of("fields", "seq"),
+        "Laurel.returnParameters", java.util.Map.of("parameters", "commaSepList"),
+        "Laurel.procedure", java.util.Map.of("parameters", "commaSepList", "requires", "seq", "ensures", "seq"),
+        "Laurel.program", java.util.Map.of("items", "seq"));
+
     public IonSerializer(IonSystem ion) {
         this.ion = ion;
     }
@@ -22,14 +31,17 @@ public class IonSerializer {
 
     private IonSexp serializeNode(Node node) {
         IonSexp sexp = ion.newEmptySexp();
-        sexp.add(ion.newSymbol(node.operationName()));
+        String opName = node.operationName();
+        sexp.add(ion.newSymbol(opName));
         sexp.add(serializeSourceRange(node.sourceRange()));
 
+        var fieldSeps = SEPARATORS.getOrDefault(opName, java.util.Map.of());
         for (var component : node.getClass().getRecordComponents()) {
             if (component.getName().equals("sourceRange")) continue;
             try {
                 java.lang.Object value = component.getAccessor().invoke(node);
-                sexp.add(serializeArg(value, component.getType(), component.getGenericType()));
+                String sep = fieldSeps.get(component.getName());
+                sexp.add(serializeArg(value, sep, component.getType()));
             } catch (java.lang.Exception e) {
                 throw new java.lang.RuntimeException("Failed to serialize " + component.getName(), e);
             }
@@ -54,7 +66,7 @@ public class IonSerializer {
         return sexp;
     }
 
-    private IonValue serializeArg(java.lang.Object value, java.lang.Class<?> type, java.lang.reflect.Type genericType) {
+    private IonValue serializeArg(java.lang.Object value, String sep, java.lang.Class<?> type) {
         if (value == null) {
             return serializeOption(java.util.Optional.empty());
         }
@@ -80,7 +92,7 @@ public class IonSerializer {
             return serializeOption(opt);
         }
         if (value instanceof java.util.List<?> list) {
-            return serializeSeq(list, genericType);
+            return serializeSeq(list, sep != null ? sep : "seq");
         }
         throw new java.lang.IllegalArgumentException("Unsupported type: " + type);
     }
@@ -129,17 +141,17 @@ public class IonSerializer {
         sexp.add(ion.newSymbol("option"));
         sexp.add(ion.newNull());
         if (opt.isPresent()) {
-            sexp.add(serializeArg(opt.get(), opt.get().getClass(), opt.get().getClass()));
+            sexp.add(serializeArg(opt.get(), null, opt.get().getClass()));
         }
         return sexp;
     }
 
-    private IonValue serializeSeq(java.util.List<?> list, java.lang.reflect.Type genericType) {
+    private IonValue serializeSeq(java.util.List<?> list, String sepType) {
         IonSexp sexp = ion.newEmptySexp();
-        sexp.add(ion.newSymbol("seq"));
+        sexp.add(ion.newSymbol(sepType));
         sexp.add(ion.newNull());
         for (java.lang.Object item : list) {
-            sexp.add(serializeArg(item, item.getClass(), item.getClass()));
+            sexp.add(serializeArg(item, null, item.getClass()));
         }
         return sexp;
     }

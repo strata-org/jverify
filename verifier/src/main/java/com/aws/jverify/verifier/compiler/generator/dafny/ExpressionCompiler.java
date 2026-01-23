@@ -130,7 +130,7 @@ public class ExpressionCompiler {
         return new NestedMatchExpr(origin, source, translatedCases, true, null);
     }
 
-    public Expression toExprWithFlows(com.sun.tools.javac.util.List<JCTree.JCStatement> statements, 
+    public Expression toExprWithFlows(com.sun.tools.javac.util.List<JCTree.JCStatement> statements,
                                       ExpressionContext context) {
         var last = statements.getLast();
         var result = stmtToExpr(last, context);
@@ -805,6 +805,15 @@ public class ExpressionCompiler {
             reporter.reportError(node, "notSupported", "operator " + operator);
             return JVerifyUtils.getHole(origin);
         }
+
+        // Use java_div/java_mod for correct Java semantics (truncation toward zero)
+        String op = operator.name.toString();
+        if (op.equals("/") || op.equals("%")) {
+            String funcName = op.equals("/") ? "java_div" : "java_mod";
+            return createCall2(origin, new NameSegment(origin, funcName, null),
+                    Stream.of(left, right));
+        }
+
         BinaryExprOpcode dafnyOperator = toDafny(operator);
         if (dafnyOperator == null) {
             reporter.reportError(node, "notSupported", "operator " + operator);

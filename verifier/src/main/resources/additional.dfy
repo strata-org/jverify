@@ -1,3 +1,18 @@
+// Java-semantics division (truncation toward zero, not Euclidean)
+function java_div(a: int, b: int): int
+  requires b != 0
+{
+  var q := a / b;
+  var r := a % b;
+  if r != 0 && (a < 0) != (b < 0) then q + 1 else q
+}
+
+function java_mod(a: int, b: int): int
+  requires b != 0
+{
+  a - java_div(a, b) * b
+}
+
 trait Object {
     // This should have a non-empty reads clause,
     // but that will require something like the

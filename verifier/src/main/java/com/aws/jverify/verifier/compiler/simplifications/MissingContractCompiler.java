@@ -28,6 +28,7 @@ public class MissingContractCompiler {
     private final JVerifyUtils jverifyUtils;
     private final MethodOrLoopContractCompiler internalContractCompiler;
     private final NativeSymbols nativeSymbols;
+    private final java.util.function.Predicate<Symbol.VarSymbol> skipFieldWarning;
 
     private final Map<Symbol, Reference> symbolReferences = new HashMap<>();
     private final Set<Symbol> foundSymbols = new HashSet<>();
@@ -36,6 +37,11 @@ public class MissingContractCompiler {
     record Reference(Symbol symbol, JCTree.JCCompilationUnit compilationUnit, JCTree tree) {}
 
     public MissingContractCompiler(Context context) {
+        this(context, vs -> false);
+    }
+
+    public MissingContractCompiler(Context context, java.util.function.Predicate<Symbol.VarSymbol> skipFieldWarning) {
+        this.skipFieldWarning = skipFieldWarning;
         this.maker = TreeMaker.instance(context);
         this.index = JVerifyIndex.instance(context);
         this.names = Names.instance(context);
@@ -73,6 +79,9 @@ public class MissingContractCompiler {
             } else if (symbol instanceof Symbol.VarSymbol fieldSymbol) {
                 if (fieldSymbol.name.contentEquals(names._class)) {
                     // Ignore .class fields for now
+                    continue;
+                }
+                if (skipFieldWarning.test(fieldSymbol)) {
                     continue;
                 }
                 var fieldDecl = (JCTree.JCVariableDecl)index.getTree(fieldSymbol);
