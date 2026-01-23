@@ -1,62 +1,174 @@
 package com.aws.jverify.laurel;
 
 public class Laurel {
+    public static LaurelType intType(SourceRange sourceRange) { return new IntType(sourceRange); }
     public static LaurelType intType() { return new IntType(SourceRange.NONE); }
+
+    public static LaurelType boolType(SourceRange sourceRange) { return new BoolType(sourceRange); }
     public static LaurelType boolType() { return new BoolType(SourceRange.NONE); }
+
+    public static LaurelType arrayType(SourceRange sourceRange, LaurelType elemType) { return new ArrayType(sourceRange, elemType); }
     public static LaurelType arrayType(LaurelType elemType) { return new ArrayType(SourceRange.NONE, elemType); }
+
+    public static LaurelType compositeType(SourceRange sourceRange, java.lang.String name) { return new CompositeType(sourceRange, name); }
     public static LaurelType compositeType(java.lang.String name) { return new CompositeType(SourceRange.NONE, name); }
+
+    public static StmtExpr literalBool(SourceRange sourceRange, boolean b) { return new LiteralBool(sourceRange, b); }
     public static StmtExpr literalBool(boolean b) { return new LiteralBool(SourceRange.NONE, b); }
+
     public static StmtExpr int_(SourceRange sourceRange, long n) { if (n < 0) throw new IllegalArgumentException("n must be non-negative"); return new Int(sourceRange, java.math.BigInteger.valueOf(n)); }
     public static StmtExpr int_(long n) { if (n < 0) throw new IllegalArgumentException("n must be non-negative"); return new Int(SourceRange.NONE, java.math.BigInteger.valueOf(n)); }
+
+    public static OptionalType optionalType(SourceRange sourceRange, LaurelType varType) { return new OptionalType_(sourceRange, varType); }
     public static OptionalType optionalType(LaurelType varType) { return new OptionalType_(SourceRange.NONE, varType); }
+
+    public static OptionalAssignment optionalAssignment(SourceRange sourceRange, StmtExpr value) { return new OptionalAssignment_(sourceRange, value); }
     public static OptionalAssignment optionalAssignment(StmtExpr value) { return new OptionalAssignment_(SourceRange.NONE, value); }
+
+    public static StmtExpr varDecl(SourceRange sourceRange, java.lang.String name, java.util.Optional<OptionalType> varType, java.util.Optional<OptionalAssignment> assignment) { return new VarDecl(sourceRange, name, varType, assignment); }
     public static StmtExpr varDecl(java.lang.String name, java.util.Optional<OptionalType> varType, java.util.Optional<OptionalAssignment> assignment) { return new VarDecl(SourceRange.NONE, name, varType, assignment); }
+
+    public static StmtExpr call(SourceRange sourceRange, StmtExpr callee, java.util.List<StmtExpr> args) { return new Call(sourceRange, callee, args); }
     public static StmtExpr call(StmtExpr callee, java.util.List<StmtExpr> args) { return new Call(SourceRange.NONE, callee, args); }
+
+    public static StmtExpr fieldAccess(SourceRange sourceRange, StmtExpr obj, java.lang.String field) { return new FieldAccess(sourceRange, obj, field); }
     public static StmtExpr fieldAccess(StmtExpr obj, java.lang.String field) { return new FieldAccess(SourceRange.NONE, obj, field); }
+
+    public static StmtExpr arrayIndex(SourceRange sourceRange, StmtExpr arr, StmtExpr idx) { return new ArrayIndex(sourceRange, arr, idx); }
     public static StmtExpr arrayIndex(StmtExpr arr, StmtExpr idx) { return new ArrayIndex(SourceRange.NONE, arr, idx); }
+
+    public static StmtExpr identifier(SourceRange sourceRange, java.lang.String name) { return new Identifier(sourceRange, name); }
     public static StmtExpr identifier(java.lang.String name) { return new Identifier(SourceRange.NONE, name); }
+
+    public static StmtExpr parenthesis(SourceRange sourceRange, StmtExpr inner) { return new Parenthesis(sourceRange, inner); }
     public static StmtExpr parenthesis(StmtExpr inner) { return new Parenthesis(SourceRange.NONE, inner); }
+
+    public static StmtExpr assign(SourceRange sourceRange, StmtExpr target, StmtExpr value) { return new Assign(sourceRange, target, value); }
     public static StmtExpr assign(StmtExpr target, StmtExpr value) { return new Assign(SourceRange.NONE, target, value); }
+
+    public static StmtExpr add(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Add(sourceRange, lhs, rhs); }
     public static StmtExpr add(StmtExpr lhs, StmtExpr rhs) { return new Add(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr sub(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Sub(sourceRange, lhs, rhs); }
     public static StmtExpr sub(StmtExpr lhs, StmtExpr rhs) { return new Sub(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr mul(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Mul(sourceRange, lhs, rhs); }
     public static StmtExpr mul(StmtExpr lhs, StmtExpr rhs) { return new Mul(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr div(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Div(sourceRange, lhs, rhs); }
     public static StmtExpr div(StmtExpr lhs, StmtExpr rhs) { return new Div(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr mod(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Mod(sourceRange, lhs, rhs); }
     public static StmtExpr mod(StmtExpr lhs, StmtExpr rhs) { return new Mod(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr divT(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new DivT(sourceRange, lhs, rhs); }
     public static StmtExpr divT(StmtExpr lhs, StmtExpr rhs) { return new DivT(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr modT(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new ModT(sourceRange, lhs, rhs); }
     public static StmtExpr modT(StmtExpr lhs, StmtExpr rhs) { return new ModT(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr eq(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Eq(sourceRange, lhs, rhs); }
     public static StmtExpr eq(StmtExpr lhs, StmtExpr rhs) { return new Eq(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr neq(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Neq(sourceRange, lhs, rhs); }
     public static StmtExpr neq(StmtExpr lhs, StmtExpr rhs) { return new Neq(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr gt(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Gt(sourceRange, lhs, rhs); }
     public static StmtExpr gt(StmtExpr lhs, StmtExpr rhs) { return new Gt(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr lt(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Lt(sourceRange, lhs, rhs); }
     public static StmtExpr lt(StmtExpr lhs, StmtExpr rhs) { return new Lt(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr le(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Le(sourceRange, lhs, rhs); }
     public static StmtExpr le(StmtExpr lhs, StmtExpr rhs) { return new Le(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr ge(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Ge(sourceRange, lhs, rhs); }
     public static StmtExpr ge(StmtExpr lhs, StmtExpr rhs) { return new Ge(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr and(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new And(sourceRange, lhs, rhs); }
     public static StmtExpr and(StmtExpr lhs, StmtExpr rhs) { return new And(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr or(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Or(sourceRange, lhs, rhs); }
     public static StmtExpr or(StmtExpr lhs, StmtExpr rhs) { return new Or(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr implies(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Implies(sourceRange, lhs, rhs); }
     public static StmtExpr implies(StmtExpr lhs, StmtExpr rhs) { return new Implies(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr not(SourceRange sourceRange, StmtExpr inner) { return new Not(sourceRange, inner); }
     public static StmtExpr not(StmtExpr inner) { return new Not(SourceRange.NONE, inner); }
+
+    public static StmtExpr neg(SourceRange sourceRange, StmtExpr inner) { return new Neg(sourceRange, inner); }
     public static StmtExpr neg(StmtExpr inner) { return new Neg(SourceRange.NONE, inner); }
+
+    public static StmtExpr forallExpr(SourceRange sourceRange, java.lang.String name, LaurelType ty, StmtExpr body) { return new ForallExpr(sourceRange, name, ty, body); }
     public static StmtExpr forallExpr(java.lang.String name, LaurelType ty, StmtExpr body) { return new ForallExpr(SourceRange.NONE, name, ty, body); }
+
+    public static StmtExpr existsExpr(SourceRange sourceRange, java.lang.String name, LaurelType ty, StmtExpr body) { return new ExistsExpr(sourceRange, name, ty, body); }
     public static StmtExpr existsExpr(java.lang.String name, LaurelType ty, StmtExpr body) { return new ExistsExpr(SourceRange.NONE, name, ty, body); }
+
+    public static OptionalElse optionalElse(SourceRange sourceRange, StmtExpr stmts) { return new OptionalElse_(sourceRange, stmts); }
     public static OptionalElse optionalElse(StmtExpr stmts) { return new OptionalElse_(SourceRange.NONE, stmts); }
+
+    public static StmtExpr ifThenElse(SourceRange sourceRange, StmtExpr cond, StmtExpr thenBranch, java.util.Optional<OptionalElse> elseBranch) { return new IfThenElse(sourceRange, cond, thenBranch, elseBranch); }
     public static StmtExpr ifThenElse(StmtExpr cond, StmtExpr thenBranch, java.util.Optional<OptionalElse> elseBranch) { return new IfThenElse(SourceRange.NONE, cond, thenBranch, elseBranch); }
+
+    public static StmtExpr assert_(SourceRange sourceRange, StmtExpr cond) { return new Assert(sourceRange, cond); }
     public static StmtExpr assert_(StmtExpr cond) { return new Assert(SourceRange.NONE, cond); }
+
+    public static StmtExpr assume(SourceRange sourceRange, StmtExpr cond) { return new Assume(sourceRange, cond); }
     public static StmtExpr assume(StmtExpr cond) { return new Assume(SourceRange.NONE, cond); }
+
+    public static StmtExpr return_(SourceRange sourceRange, StmtExpr value) { return new Return(sourceRange, value); }
     public static StmtExpr return_(StmtExpr value) { return new Return(SourceRange.NONE, value); }
+
+    public static StmtExpr block(SourceRange sourceRange, java.util.List<StmtExpr> stmts) { return new Block(sourceRange, stmts); }
     public static StmtExpr block(java.util.List<StmtExpr> stmts) { return new Block(SourceRange.NONE, stmts); }
+
+    public static InvariantClause invariantClause(SourceRange sourceRange, StmtExpr cond) { return new InvariantClause_(sourceRange, cond); }
     public static InvariantClause invariantClause(StmtExpr cond) { return new InvariantClause_(SourceRange.NONE, cond); }
+
+    public static StmtExpr while_(SourceRange sourceRange, StmtExpr cond, java.util.List<InvariantClause> invariants, StmtExpr body) { return new While(sourceRange, cond, invariants, body); }
     public static StmtExpr while_(StmtExpr cond, java.util.List<InvariantClause> invariants, StmtExpr body) { return new While(SourceRange.NONE, cond, invariants, body); }
+
+    public static Parameter parameter(SourceRange sourceRange, java.lang.String name, LaurelType paramType) { return new Parameter_(sourceRange, name, paramType); }
     public static Parameter parameter(java.lang.String name, LaurelType paramType) { return new Parameter_(SourceRange.NONE, name, paramType); }
+
+    public static Field mutableField(SourceRange sourceRange, java.lang.String name, LaurelType fieldType) { return new MutableField(sourceRange, name, fieldType); }
     public static Field mutableField(java.lang.String name, LaurelType fieldType) { return new MutableField(SourceRange.NONE, name, fieldType); }
+
+    public static Field immutableField(SourceRange sourceRange, java.lang.String name, LaurelType fieldType) { return new ImmutableField(sourceRange, name, fieldType); }
     public static Field immutableField(java.lang.String name, LaurelType fieldType) { return new ImmutableField(SourceRange.NONE, name, fieldType); }
+
+    public static Composite composite(SourceRange sourceRange, java.lang.String name, java.util.List<Field> fields) { return new Composite_(sourceRange, name, fields); }
     public static Composite composite(java.lang.String name, java.util.List<Field> fields) { return new Composite_(SourceRange.NONE, name, fields); }
+
+    public static OptionalReturnType optionalReturnType(SourceRange sourceRange, LaurelType returnType) { return new OptionalReturnType_(sourceRange, returnType); }
     public static OptionalReturnType optionalReturnType(LaurelType returnType) { return new OptionalReturnType_(SourceRange.NONE, returnType); }
+
+    public static RequiresClause requiresClause(SourceRange sourceRange, StmtExpr cond) { return new RequiresClause_(sourceRange, cond); }
     public static RequiresClause requiresClause(StmtExpr cond) { return new RequiresClause_(SourceRange.NONE, cond); }
+
+    public static EnsuresClause ensuresClause(SourceRange sourceRange, StmtExpr cond) { return new EnsuresClause_(sourceRange, cond); }
     public static EnsuresClause ensuresClause(StmtExpr cond) { return new EnsuresClause_(SourceRange.NONE, cond); }
+
+    public static ReturnParameters returnParameters(SourceRange sourceRange, java.util.List<Parameter> parameters) { return new ReturnParameters_(sourceRange, parameters); }
     public static ReturnParameters returnParameters(java.util.List<Parameter> parameters) { return new ReturnParameters_(SourceRange.NONE, parameters); }
+
+    public static Procedure procedure(SourceRange sourceRange, java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<OptionalReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.List<EnsuresClause> ensures, StmtExpr body) { return new Procedure_(sourceRange, name, parameters, returnType, returnParameters, requires, ensures, body); }
     public static Procedure procedure(java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<OptionalReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.List<EnsuresClause> ensures, StmtExpr body) { return new Procedure_(SourceRange.NONE, name, parameters, returnType, returnParameters, requires, ensures, body); }
+
+    public static ConstrainedType constrainedType(SourceRange sourceRange, java.lang.String name, java.lang.String valueName, LaurelType base, StmtExpr constraint, StmtExpr witness) { return new ConstrainedType_(sourceRange, name, valueName, base, constraint, witness); }
     public static ConstrainedType constrainedType(java.lang.String name, java.lang.String valueName, LaurelType base, StmtExpr constraint, StmtExpr witness) { return new ConstrainedType_(SourceRange.NONE, name, valueName, base, constraint, witness); }
+
+    public static TopLevel topLevelComposite(SourceRange sourceRange, Composite composite) { return new TopLevelComposite(sourceRange, composite); }
     public static TopLevel topLevelComposite(Composite composite) { return new TopLevelComposite(SourceRange.NONE, composite); }
+
+    public static TopLevel topLevelProcedure(SourceRange sourceRange, Procedure procedure) { return new TopLevelProcedure(sourceRange, procedure); }
     public static TopLevel topLevelProcedure(Procedure procedure) { return new TopLevelProcedure(SourceRange.NONE, procedure); }
+
+    public static TopLevel topLevelConstrainedType(SourceRange sourceRange, ConstrainedType ct) { return new TopLevelConstrainedType(sourceRange, ct); }
     public static TopLevel topLevelConstrainedType(ConstrainedType ct) { return new TopLevelConstrainedType(SourceRange.NONE, ct); }
+
+    public static Command program(SourceRange sourceRange, java.util.List<TopLevel> items) { return new Program(sourceRange, items); }
     public static Command program(java.util.List<TopLevel> items) { return new Program(SourceRange.NONE, items); }
 }

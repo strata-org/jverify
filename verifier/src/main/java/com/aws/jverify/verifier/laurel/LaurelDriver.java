@@ -190,7 +190,9 @@ public class LaurelDriver implements Driver {
                         int endOffset = Integer.parseInt(matcher.group(3));
                         String message = matcher.group(4);
 
-                        var uri = Paths.get(filePath).toUri();
+                        var uri = filePath.startsWith("file:")
+                            ? URI.create(filePath)
+                            : Paths.get(filePath).toUri();
 
                         var range = new Range(
                                 filesMap.computePositionFromFileOffset(uri, startOffset), 
