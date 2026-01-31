@@ -153,7 +153,6 @@ public class LaurelDriver implements Driver {
 
         var diagnostics = new ArrayList<Diagnostic<?>>();
         try (var strataOutput = process.inputReader()) {
-
             Wrapper<Integer> performanceTicks = new Wrapper<>(null);
             Wrapper<Integer> failedAssertionsCount = new Wrapper<>(0);
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);

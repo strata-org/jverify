@@ -1,5 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
+import com.aws.jverify.common.Range;
 import com.aws.jverify.generated.*;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
@@ -38,7 +39,7 @@ public class Reporter {
     }
 
     public JCDiagnostic.DiagnosticPosition positionFromOrigin(IOrigin origin) {
-        return new DiagnosticPositionFromOrigin(Reporter.originToRange(origin), compilationUnit.lineMap);
+        return new DiagnosticPositionFromOrigin(Reporter.getEntireRange(origin), compilationUnit.lineMap);
     }
     
     public void reportError(JCTree tree, String key, Object... args) {
@@ -101,20 +102,31 @@ public class Reporter {
 
     public SourceOrigin declToOrigin(JCTree node, Name name) {
         var entireRange = toOrigin(node);
-        return new SourceOrigin(originToRange(entireRange), originToRange(name.getOrigin()));
+        return new SourceOrigin(getEntireRange(entireRange), getEntireRange(name.getOrigin()));
     }
 
-    public static TokenRange originToRange(IOrigin tokenRangeOrigin) {
-        if (tokenRangeOrigin instanceof SourceOrigin sourceOrigin) {
-            return new TokenRange(sourceOrigin.getEntireRange().getStartToken(), sourceOrigin.getEntireRange().getEndToken());
-        } else if (tokenRangeOrigin instanceof TokenRangeOrigin trOrigin) {
+    public static TokenRange getEntireRange(IOrigin origin) {
+        if (origin instanceof TokenRangeOrigin trOrigin) {
             return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
+        } else if (origin instanceof SourceOrigin sourceOrigin) {
+            return sourceOrigin.getEntireRange();
         } else {
-            throw new RuntimeException(tokenRangeOrigin.getClass().getName());
+            throw new RuntimeException(origin.getClass().getName());
         }
     }
     
-    public static TokenRange getRange(IOrigin origin) {
+    public static Range getPositionRange(IOrigin origin) {
+        var reportingRange = getReportingRange(origin);
+        var endToken = reportingRange.getEndToken();
+        if (endToken == null) {
+            endToken = reportingRange.getStartToken();
+        }
+        return new Range(
+            new com.aws.jverify.common.Position(reportingRange.getStartToken().getLine(), reportingRange.getStartToken().getCol()),
+            new com.aws.jverify.common.Position(endToken.getLine(), endToken.getCol()));
+    }
+    
+    public static TokenRange getReportingRange(IOrigin origin) {
         if (origin instanceof TokenRangeOrigin rangeOrigin) {
             return new TokenRange(rangeOrigin.getStartToken(), rangeOrigin.getEndToken());
         }

@@ -333,7 +333,7 @@ public class ExpressionCompiler {
                 return generator.translateNewClassToAssignmentRhs(newClass, origin, expressionContext);
             }
             case JCTree.JCNewArray _ -> {
-                throw new RuntimeException("not supported. should have already been lowered");
+                throw new RuntimeException(Reporter.getPositionRange(origin) + ": new array not supported. should have already been lowered");
             }
             default -> {
             }
@@ -372,7 +372,7 @@ public class ExpressionCompiler {
     public AssignmentRhs translateNewClassToAssignmentRhs(JCTree.JCNewClass newClass, IOrigin origin, ExpressionContext context) {
         Symtab symtab = Symtab.instance(baseGenerator.context);
         if (newClass.type instanceof com.sun.tools.javac.code.Type.ArrayType) {
-            throw new RuntimeException("not supported. should have already been lowered");
+            throw new RuntimeException(Reporter.getPositionRange(origin) + ": new array not supported. should have already been lowered");
         }
         Symbol.ClassSymbol classSymbol = (Symbol.ClassSymbol) TreeInfo.symbol(newClass.clazz);
         if (classSymbol.type != symtab.objectType && baseGenerator.isPure(classSymbol)) {
@@ -461,7 +461,7 @@ public class ExpressionCompiler {
     }
 
     private Expression translateArrayAccess(JCTree.JCArrayAccess arrayAccess, IOrigin origin) {
-        throw new RuntimeException("not supported. should have already been lowered");
+        throw new RuntimeException(Reporter.getPositionRange(origin) + ": new array not supported. should have already been lowered");
     }
 
     private ITEExpr translateConditional(JCTree.JCConditional conditional, IOrigin origin, ExpressionContext context) {
