@@ -5,11 +5,9 @@ import com.aws.jverify.verifier.VerifierOptions;
 import com.aws.jverify.generated.TokenRange;
 import com.aws.jverify.verifier.IntervalTree;
 import com.aws.jverify.verifier.JavaMethodVerificationStatus;
-import com.aws.jverify.verifier.compiler.LoweredResult;
 import com.aws.jverify.verifier.compiler.PositionCalculator;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
-import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.AnnoConstruct;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;
@@ -159,7 +157,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
                 return false;
             }
 
-            var nodeRange = Reporter.getRange(reporter.getName(method, method.name).getOrigin());
+            var nodeRange = Reporter.getReportingRange(reporter.getName(method, method.name).getOrigin());
             int line = nodeRange.getStartToken().getLine();
             var start = filter.start() == null ? 0 : filter.start();
             var end = filter.end() == null ? Integer.MAX_VALUE : filter.end();
