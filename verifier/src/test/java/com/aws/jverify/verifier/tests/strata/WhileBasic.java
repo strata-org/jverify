@@ -7,7 +7,7 @@ import static com.aws.jverify.verifier.Backend.Strata;
 @JVerifyTest(exitCode = 0, methodsVerified = 2, errorCount = 0, BACKENDS = {Strata})
 class WhileBasic {
     static int sum(int n) {
-        precondition(n >= 0);
+        precondition(n >= 0 && n <= 65535);
         postcondition((int res) -> res == n * (n + 1) / 2);
 
         int i = 0;

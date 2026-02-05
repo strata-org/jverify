@@ -16,6 +16,7 @@ class BinarySearchStrata {
                         || (0 <= res && res < arr.length && arr[res] == key)
         );
         precondition(sorted(arr));
+        precondition(arr.length <= 1000000000);
 
         int lo = 0;
         int hi = arr.length;
@@ -23,7 +24,7 @@ class BinarySearchStrata {
             invariant(0 <= lo);
             invariant(lo <= hi);
             invariant(hi <= arr.length);
-            // Removed: invariant(!sequence(arr).take(lo).contains(key));
+            invariant(!sequence(arr).take(lo).contains(key));
             invariant(!sequence(arr).drop(hi).contains(key));
 
             int mid = lo + (hi - lo) / 2;

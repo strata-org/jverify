@@ -198,7 +198,9 @@ public class JavaToLaurelCompiler {
                 case Sub op -> Laurel.sub(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
                 case Mul op -> Laurel.mul(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
                 case Div op -> Laurel.div(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
+                case DivT op -> Laurel.divT(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
                 case Mod op -> Laurel.mod(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
+                case ModT op -> Laurel.modT(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
                 case Eq op -> Laurel.eq(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
                 case Neq op -> Laurel.neq(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
                 case Lt op -> Laurel.lt(op.sourceRange(), sub(op.lhs(), from, to), sub(op.rhs(), from, to));
@@ -213,6 +215,10 @@ public class JavaToLaurelCompiler {
                 case ArrayIndex ai -> Laurel.arrayIndex(ai.sourceRange(), sub(ai.arr(), from, to), sub(ai.idx(), from, to));
                 case FieldAccess fa -> Laurel.fieldAccess(fa.sourceRange(), sub(fa.obj(), from, to), fa.field());
                 case Call c -> Laurel.call(c.sourceRange(), sub(c.callee(), from, to), c.args().stream().map(a -> sub(a, from, to)).toList());
+                case ForallExpr f -> Laurel.forallExpr(f.sourceRange(), f.name(), f.ty(), sub(f.body(), from, to));
+                case ExistsExpr e -> Laurel.existsExpr(e.sourceRange(), e.name(), e.ty(), sub(e.body(), from, to));
+                case IfThenElse ite -> Laurel.ifThenElse(ite.sourceRange(), sub(ite.cond(), from, to), sub(ite.thenBranch(), from, to),
+                    ite.elseBranch().map(eb -> { var e = (OptionalElse_) eb; return Laurel.optionalElse(e.sourceRange(), sub(e.stmts(), from, to)); }));
                 default -> expr;
             };
         }
