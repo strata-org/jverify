@@ -7,7 +7,7 @@ import static com.aws.jverify.verifier.Backend.Strata;
 @JVerifyTest(exitCode = 0, methodsVerified = 3, errorCount = 0, BACKENDS = {Strata})
 class PrePost {
     static int increment(int x) {
-        precondition(x >= 0);
+        precondition(x >= 0 && x < Integer.MAX_VALUE);
         postcondition((int res) -> res == x + 1);
         return x + 1;
     }
