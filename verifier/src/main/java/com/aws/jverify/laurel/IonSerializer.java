@@ -6,14 +6,14 @@ import com.amazon.ion.system.*;
 public class IonSerializer {
     private final IonSystem ion;
 
-    private static final java.util.Map<String, java.util.Map<String, String>> SEPARATORS = java.util.Map.of(
-        "Laurel.call", java.util.Map.of("args", "commaSepList"),
-        "Laurel.block", java.util.Map.of("stmts", "newlineSepList"),
-        "Laurel.while", java.util.Map.of("invariants", "seq"),
-        "Laurel.composite", java.util.Map.of("fields", "seq"),
-        "Laurel.returnParameters", java.util.Map.of("parameters", "commaSepList"),
-        "Laurel.procedure", java.util.Map.of("parameters", "commaSepList", "requires", "seq", "ensures", "seq"),
-        "Laurel.program", java.util.Map.of("items", "seq"));
+    private static final java.util.Map<String, java.util.Map<String, String>> SEPARATORS = java.util.Map.ofEntries(
+        java.util.Map.entry("Laurel.call", java.util.Map.ofEntries(java.util.Map.entry("args", "commaSepList"))),
+        java.util.Map.entry("Laurel.block", java.util.Map.ofEntries(java.util.Map.entry("stmts", "newlineSepList"))),
+        java.util.Map.entry("Laurel.while", java.util.Map.ofEntries(java.util.Map.entry("invariants", "seq"))),
+        java.util.Map.entry("Laurel.composite", java.util.Map.ofEntries(java.util.Map.entry("fields", "seq"))),
+        java.util.Map.entry("Laurel.returnParameters", java.util.Map.ofEntries(java.util.Map.entry("parameters", "commaSepList"))),
+        java.util.Map.entry("Laurel.procedure", java.util.Map.ofEntries(java.util.Map.entry("parameters", "commaSepList"), java.util.Map.entry("requires", "newlineSepList"), java.util.Map.entry("ensures", "newlineSepList"))),
+        java.util.Map.entry("Laurel.program", java.util.Map.ofEntries(java.util.Map.entry("items", "seq"))));
 
     public IonSerializer(IonSystem ion) {
         this.ion = ion;

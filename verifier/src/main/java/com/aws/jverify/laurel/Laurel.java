@@ -7,6 +7,9 @@ public class Laurel {
     public static LaurelType boolType(SourceRange sourceRange) { return new BoolType(sourceRange); }
     public static LaurelType boolType() { return new BoolType(SourceRange.NONE); }
 
+    public static LaurelType stringType(SourceRange sourceRange) { return new StringType(sourceRange); }
+    public static LaurelType stringType() { return new StringType(SourceRange.NONE); }
+
     public static LaurelType arrayType(SourceRange sourceRange, LaurelType elemType) { return new ArrayType(sourceRange, elemType); }
     public static LaurelType arrayType(LaurelType elemType) { return new ArrayType(SourceRange.NONE, elemType); }
 
@@ -18,6 +21,9 @@ public class Laurel {
 
     public static StmtExpr int_(SourceRange sourceRange, long n) { if (n < 0) throw new IllegalArgumentException("n must be non-negative"); return new Int(sourceRange, java.math.BigInteger.valueOf(n)); }
     public static StmtExpr int_(long n) { if (n < 0) throw new IllegalArgumentException("n must be non-negative"); return new Int(SourceRange.NONE, java.math.BigInteger.valueOf(n)); }
+
+    public static StmtExpr string(SourceRange sourceRange, java.lang.String s) { return new String_(sourceRange, s); }
+    public static StmtExpr string(java.lang.String s) { return new String_(SourceRange.NONE, s); }
 
     public static OptionalType optionalType(SourceRange sourceRange, LaurelType varType) { return new OptionalType_(sourceRange, varType); }
     public static OptionalType optionalType(LaurelType varType) { return new OptionalType_(SourceRange.NONE, varType); }
