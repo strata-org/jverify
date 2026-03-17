@@ -1,9 +1,9 @@
 package com.aws.jverify.laurel;
 
-public record Assert(
+public record EnsuresClause_(
     SourceRange sourceRange,
     StmtExpr cond, java.util.Optional<OptionalErrorMessage> errorMessage
-) implements StmtExpr {
+) implements EnsuresClause {
     @Override
-    public java.lang.String operationName() { return "Laurel.assert"; }
+    public java.lang.String operationName() { return "Laurel.ensuresClause"; }
 }

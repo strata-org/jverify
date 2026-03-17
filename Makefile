@@ -6,4 +6,5 @@ test-generation-nodiff: generate-dafny-ast
 		|| { echo 'Consider running `make generate-dafny-ast`'; exit 1; }
 
 generate-laurel-ast:
-	cd Strata && lake exe strata javaGen ./Strata/Languages/Laurel/Grammar/LaurelGrammar.st com.aws.jverify.laurel ../verifier/src/main/java
+	rm -rf verifier/src/main/java/com/aws/jverify/laurel
+	cd Strata && lake exe strata javaGen Laurel com.aws.jverify.laurel ../verifier/src/main/java
