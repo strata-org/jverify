@@ -10,10 +10,8 @@ class StrataForLoop {
     static void simpleFor() {
         int sum = 0;
         for (int i = 0; i < 3; i = i + 1) {
-            invariant(sum >= 0);
-            invariant(sum <= 3);
-            invariant(i >= 0);
-            invariant(i <= 3);
+            invariant(0 <= sum && sum <= 3);
+            invariant(0 <= i && i <= 3);
             invariant(sum == i);
             sum = sum + 1;
         }

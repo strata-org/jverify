@@ -8,18 +8,15 @@ import static com.aws.jverify.verifier.Backend.Strata;
 @JVerifyTest(exitCode = 0, BACKENDS = { Strata })
 class StrataPostconditions {
     static int addOne(int x) {
-        precondition(x >= 0);
-        precondition(x < 2147483647);
+        precondition(0 <= x && x < 2147483647);
         postcondition((int res) -> res == x + 1);
         return x + 1;
     }
 
     static int clamp(int x, int lo, int hi) {
         precondition(lo <= hi);
-        precondition(x >= -1000);
-        precondition(x <= 1000);
-        postcondition((int res) -> res >= lo);
-        postcondition((int res) -> res <= hi);
+        precondition(-1000 <= x && x <= 1000);
+        postcondition((int res) -> lo <= res && res <= hi);
         if (x < lo) return lo;
         if (x > hi) return hi;
         return x;

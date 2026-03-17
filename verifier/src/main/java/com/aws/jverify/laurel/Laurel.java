@@ -34,6 +34,12 @@ public class Laurel {
     public static StmtExpr string(SourceRange sourceRange, java.lang.String s) { return new String_(sourceRange, s); }
     public static StmtExpr string(java.lang.String s) { return new String_(SourceRange.NONE, s); }
 
+    public static StmtExpr hole(SourceRange sourceRange) { return new Hole(sourceRange); }
+    public static StmtExpr hole() { return new Hole(SourceRange.NONE); }
+
+    public static StmtExpr nondetHole(SourceRange sourceRange) { return new NondetHole(sourceRange); }
+    public static StmtExpr nondetHole() { return new NondetHole(SourceRange.NONE); }
+
     public static OptionalType optionalType(SourceRange sourceRange, LaurelType varType) { return new OptionalType_(sourceRange, varType); }
     public static OptionalType optionalType(LaurelType varType) { return new OptionalType_(SourceRange.NONE, varType); }
 
@@ -106,6 +112,12 @@ public class Laurel {
     public static StmtExpr or(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Or(sourceRange, lhs, rhs); }
     public static StmtExpr or(StmtExpr lhs, StmtExpr rhs) { return new Or(SourceRange.NONE, lhs, rhs); }
 
+    public static StmtExpr andThen(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new AndThen(sourceRange, lhs, rhs); }
+    public static StmtExpr andThen(StmtExpr lhs, StmtExpr rhs) { return new AndThen(SourceRange.NONE, lhs, rhs); }
+
+    public static StmtExpr orElse(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new OrElse(sourceRange, lhs, rhs); }
+    public static StmtExpr orElse(StmtExpr lhs, StmtExpr rhs) { return new OrElse(SourceRange.NONE, lhs, rhs); }
+
     public static StmtExpr implies(SourceRange sourceRange, StmtExpr lhs, StmtExpr rhs) { return new Implies(sourceRange, lhs, rhs); }
     public static StmtExpr implies(StmtExpr lhs, StmtExpr rhs) { return new Implies(SourceRange.NONE, lhs, rhs); }
 
@@ -153,6 +165,9 @@ public class Laurel {
 
     public static StmtExpr while_(SourceRange sourceRange, StmtExpr cond, java.util.List<InvariantClause> invariants, StmtExpr body) { return new While(sourceRange, cond, invariants, body); }
     public static StmtExpr while_(StmtExpr cond, java.util.List<InvariantClause> invariants, StmtExpr body) { return new While(SourceRange.NONE, cond, invariants, body); }
+
+    public static StmtExpr forLoop(SourceRange sourceRange, StmtExpr init, StmtExpr cond, StmtExpr step, java.util.List<InvariantClause> invariants, StmtExpr body) { return new ForLoop(sourceRange, init, cond, step, invariants, body); }
+    public static StmtExpr forLoop(StmtExpr init, StmtExpr cond, StmtExpr step, java.util.List<InvariantClause> invariants, StmtExpr body) { return new ForLoop(SourceRange.NONE, init, cond, step, invariants, body); }
 
     public static Parameter parameter(SourceRange sourceRange, java.lang.String name, LaurelType paramType) { return new Parameter_(sourceRange, name, paramType); }
     public static Parameter parameter(java.lang.String name, LaurelType paramType) { return new Parameter_(SourceRange.NONE, name, paramType); }

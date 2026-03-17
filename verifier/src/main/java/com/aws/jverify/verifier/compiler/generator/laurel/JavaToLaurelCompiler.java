@@ -244,36 +244,25 @@ public class JavaToLaurelCompiler {
                     yield new While(toSourceRange(whileStmt), cond, List.of(), convertStatement(whileStmt.body));
                 }
                 case JCTree.JCForLoop forLoop -> {
-                    List<StmtExpr> outerStmts = new ArrayList<>();
-                    for (var init : forLoop.init) {
-                        StmtExpr converted = convertStatement(init);
-                        if (converted != null) outerStmts.add(converted);
-                    }
+                    if (forLoop.init.size() > 1 || forLoop.step.size() > 1)
+                        throw new JavaViolationException("Multi-init or multi-step for loops are not supported");
+                    StmtExpr init = forLoop.init.isEmpty() ? new Block(toSourceRange(forLoop), List.of())
+                            : convertStatement(forLoop.init.getFirst());
                     StmtExpr cond = forLoop.cond != null
                             ? convertExpression(forLoop.cond)
                             : new LiteralBool(toSourceRange(forLoop), true);
+                    StmtExpr step = forLoop.step.isEmpty() ? new Block(toSourceRange(forLoop), List.of())
+                            : convertStatement(forLoop.step.getFirst());
                     List<InvariantClause> invariants = List.of();
-                    List<StmtExpr> bodyStmts = new ArrayList<>();
+                    StmtExpr body;
                     if (forLoop.body instanceof JCTree.JCBlock loopBlock) {
                         var parts = extractLoopParts(loopBlock);
                         invariants = parts.invariants;
-                        // Unwrap the block to append step statements
-                        if (parts.body instanceof Block b) {
-                            bodyStmts.addAll(b.stmts());
-                        } else {
-                            bodyStmts.add(parts.body);
-                        }
+                        body = parts.body;
                     } else {
-                        StmtExpr bodyConverted = convertStatement(forLoop.body);
-                        if (bodyConverted != null) bodyStmts.add(bodyConverted);
+                        body = convertStatement(forLoop.body);
                     }
-                    for (var step : forLoop.step) {
-                        StmtExpr converted = convertStatement(step);
-                        if (converted != null) bodyStmts.add(converted);
-                    }
-                    StmtExpr whileBody = new Block(toSourceRange(forLoop.body), bodyStmts);
-                    outerStmts.add(new While(toSourceRange(forLoop), cond, invariants, whileBody));
-                    yield new Block(toSourceRange(forLoop), outerStmts);
+                    yield new ForLoop(toSourceRange(forLoop), init, cond, step, invariants, body);
                 }
                 default -> throw new JavaViolationException("Unsupported statement: " + statement.getClass().getSimpleName());
             };
@@ -352,7 +341,7 @@ public class JavaToLaurelCompiler {
             var sr = toSourceRange(literal);
             return switch (literal.typetag) {
                 case BOOLEAN -> new LiteralBool(sr, (int) literal.value != 0);
-                case INT, LONG -> {
+                case INT, LONG, SHORT, BYTE -> {
                     long val = ((Number) literal.value).longValue();
                     yield val >= 0
                             ? new Int(sr, java.math.BigInteger.valueOf(val))
@@ -378,8 +367,8 @@ public class JavaToLaurelCompiler {
                 case LT -> new Lt(sr, lhs, rhs);
                 case GE -> new Ge(sr, lhs, rhs);
                 case LE -> new Le(sr, lhs, rhs);
-                case AND -> new And(sr, lhs, rhs);
-                case OR -> new Or(sr, lhs, rhs);
+                case AND -> new AndThen(sr, lhs, rhs);
+                case OR -> new OrElse(sr, lhs, rhs);
                 default -> throw new JavaViolationException("Unsupported binary op: " + binary.getTag());
             };
         }
@@ -413,7 +402,8 @@ public class JavaToLaurelCompiler {
                 case "implies" -> {
                     if (invocation.args.size() != 2)
                         throw new JavaViolationException("implies should have two arguments");
-                    yield new Implies(sr, convertExpression(invocation.args.get(0), renames),
+                    // implies(a, b) = !a | b (eager, both sides always evaluated)
+                    yield new Or(sr, new Not(sr, convertExpression(invocation.args.get(0), renames)),
                             convertExpression(invocation.args.get(1), renames));
                 }
                 case "forall", "exists" -> {

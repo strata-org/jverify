@@ -20,6 +20,8 @@ class StrataProcedureCalls {
     }
 
     static void invalidCall() {
+        // Triggers precondition violation, but Strata reports the error
+        // at the precondition definition, not at this call site.
         int r = addOne(0);
     }
 }

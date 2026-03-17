@@ -167,16 +167,16 @@ public class LaurelDriver implements Driver {
 
             String line;
             boolean inDiagnosticsSection = false;
+            StringBuilder preDiagnosticOutput = new StringBuilder();
             Pattern diagnosticPattern = Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
 
             while ((line = strataOutput.readLine()) != null) {
                 if (options.verbose()) {
                     options.outWriter().println(line);
                 }
-                if (line.startsWith("Exception:")) {
-                    throw new RuntimeException(line);
+                if (!inDiagnosticsSection) {
+                    preDiagnosticOutput.append(line).append("\n");
                 }
-
                 if (line.equals("==== DIAGNOSTICS ====")) {
                     inDiagnosticsSection = true;
                     continue;
@@ -227,6 +227,9 @@ public class LaurelDriver implements Driver {
             }
 
             int verifierExitCode = process.waitFor();
+            if (verifierExitCode != 0 && diagnostics.isEmpty()) {
+                options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
+            }
             var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
             return new JVerifyResults(diagnostics, exitCode,
                     new VerificationResults(verifiedCount, failedCount, 

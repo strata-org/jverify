@@ -6,6 +6,8 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 import static com.aws.jverify.verifier.Backend.Strata;
 
+// @Pure with int return type is not yet supported in Strata (constrained return types on functions).
+// Testing with boolean return type only.
 @JVerifyTest(exitCode = 0, BACKENDS = { Strata })
 class StrataPureFunction {
     @Pure
