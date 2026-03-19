@@ -81,7 +81,10 @@ public class LaurelDriver implements Driver {
                     header.add(ion.newSymbol("program"));
                     header.add(ion.newString("Laurel"));
                     programAsIon.add(header);
-                    programAsIon.add(new IonSerializer(ion).serializeCommand(file.root()));
+                    var serializer = new IonSerializer(ion);
+                    for (var command : file.commands()) {
+                        programAsIon.add(serializer.serializeCommand(command));
+                    }
                     strataFile.put("program", programAsIon);
 
                     files.add(strataFile);
@@ -107,7 +110,7 @@ public class LaurelDriver implements Driver {
 
     public JVerifyResults runVerifier(FilesMap filesMap, NameCompiler nameCompiler, IonValue serializedProgram) {
         var processBuilder = new ProcessBuilder(
-                "lake", "exe", "-q", "strata", "laurelAnalyze"
+                "lake", "exe", "-q", "strata", "laurelAnalyzeBinary"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
         return verifierOptions.time("Running Strata", () -> {
@@ -164,16 +167,16 @@ public class LaurelDriver implements Driver {
 
             String line;
             boolean inDiagnosticsSection = false;
+            StringBuilder preDiagnosticOutput = new StringBuilder();
             Pattern diagnosticPattern = Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
 
             while ((line = strataOutput.readLine()) != null) {
                 if (options.verbose()) {
                     options.outWriter().println(line);
                 }
-                if (line.contains("Exception")) {
-                    throw new RuntimeException(line);
+                if (!inDiagnosticsSection) {
+                    preDiagnosticOutput.append(line).append("\n");
                 }
-
                 if (line.equals("==== DIAGNOSTICS ====")) {
                     inDiagnosticsSection = true;
                     continue;
@@ -190,7 +193,7 @@ public class LaurelDriver implements Driver {
                         var uri = Paths.get(filePath).toUri();
 
                         var range = new Range(
-                                filesMap.computePositionFromFileOffset(uri, startOffset), 
+                                filesMap.computePositionFromFileOffset(uri, startOffset),
                                 filesMap.computePositionFromFileOffset(uri, endOffset)
                         );
 
@@ -224,6 +227,9 @@ public class LaurelDriver implements Driver {
             }
 
             int verifierExitCode = process.waitFor();
+            if (verifierExitCode != 0 && diagnostics.isEmpty()) {
+                options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
+            }
             var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
             return new JVerifyResults(diagnostics, exitCode,
                     new VerificationResults(verifiedCount, failedCount, 
