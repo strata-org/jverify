@@ -8,6 +8,7 @@ import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
 import com.aws.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import com.aws.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
+import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.laurel.FilesMap;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
@@ -25,12 +26,14 @@ public class JavaToLaurelCompiler {
     private final JavaLowerer lowerer;
     private final MethodOrLoopContractCompiler contractCompiler;
     private final JVerifyUtils jverifyUtils;
+    private final NameCompiler nameCompiler;
     JCTree.JCCompilationUnit currentCompilationUnit;
 
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
         jverifyUtils = JVerifyUtils.instance(context);
+        nameCompiler = NameCompiler.instance(context);
     }
 
     public record AnalysisResult(List<LaurelFile> files, FilesMap filesMap) {}
@@ -118,16 +121,18 @@ public class JavaToLaurelCompiler {
         };
     }
 
+    private String qualifiedMethodName(Symbol.MethodSymbol sym, JCTree node) {
+        String className = sym.outermostClass().name.toString();
+        return className + "_" + nameCompiler.getCompiledName(sym, node);
+    }
+
     private class StaticMethodCollector extends TreeScanner {
         final List<Procedure> procedures = new ArrayList<>();
 
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl method) {
-            // TODO: Use NameCompiler for unique method names to avoid collisions across classes
-            // TODO: Filter synthetic methods (JVerifyUtils.isSynthetic) and constructors (JVerifyUtils.isConstructor)
-            // TODO: Respect @Verify(false) annotation
             if ((method.mods.flags & Flags.STATIC) != 0) {
-                String methodName = method.name.toString();
+                String methodName = qualifiedMethodName(method.sym, method);
 
                 // Parameters
                 List<Parameter> params = new ArrayList<>();
@@ -325,7 +330,7 @@ public class JavaToLaurelCompiler {
                     }
                     // Regular static method call
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-                    String calleeName = methodSym.getSimpleName().toString();
+                    String calleeName = qualifiedMethodName(methodSym, invocation);
                     List<StmtExpr> args = new ArrayList<>();
                     for (var arg : invocation.args) {
                         args.add(convertExpression(arg, renames));
