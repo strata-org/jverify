@@ -53,6 +53,8 @@ public class IonSerializer {
         java.util.Map.entry("Laurel.assume", java.util.Map.ofEntries(java.util.Map.entry("cond", "seq"))),
         java.util.Map.entry("Laurel.return", java.util.Map.ofEntries(java.util.Map.entry("value", "seq"))),
         java.util.Map.entry("Laurel.block", java.util.Map.ofEntries(java.util.Map.entry("stmts", "semicolonSepList"))),
+        java.util.Map.entry("Laurel.labelledBlock", java.util.Map.ofEntries(java.util.Map.entry("stmts", "semicolonSepList"), java.util.Map.entry("label", "seq"))),
+        java.util.Map.entry("Laurel.exit", java.util.Map.ofEntries(java.util.Map.entry("label", "seq"))),
         java.util.Map.entry("Laurel.invariantClause", java.util.Map.ofEntries(java.util.Map.entry("cond", "seq"))),
         java.util.Map.entry("Laurel.while", java.util.Map.ofEntries(java.util.Map.entry("cond", "seq"), java.util.Map.entry("invariants", "seq"), java.util.Map.entry("body", "seq"))),
         java.util.Map.entry("Laurel.forLoop", java.util.Map.ofEntries(java.util.Map.entry("init", "seq"), java.util.Map.entry("cond", "seq"), java.util.Map.entry("step", "seq"), java.util.Map.entry("invariants", "seq"), java.util.Map.entry("body", "seq"))),

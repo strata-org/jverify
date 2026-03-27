@@ -160,6 +160,12 @@ public class Laurel {
     public static StmtExpr block(SourceRange sourceRange, java.util.List<StmtExpr> stmts) { return new Block(sourceRange, stmts); }
     public static StmtExpr block(java.util.List<StmtExpr> stmts) { return new Block(SourceRange.NONE, stmts); }
 
+    public static StmtExpr labelledBlock(SourceRange sourceRange, java.util.List<StmtExpr> stmts, java.lang.String label) { return new LabelledBlock(sourceRange, stmts, label); }
+    public static StmtExpr labelledBlock(java.util.List<StmtExpr> stmts, java.lang.String label) { return new LabelledBlock(SourceRange.NONE, stmts, label); }
+
+    public static StmtExpr exit(SourceRange sourceRange, java.lang.String label) { return new Exit(sourceRange, label); }
+    public static StmtExpr exit(java.lang.String label) { return new Exit(SourceRange.NONE, label); }
+
     public static InvariantClause invariantClause(SourceRange sourceRange, StmtExpr cond) { return new InvariantClause_(sourceRange, cond); }
     public static InvariantClause invariantClause(StmtExpr cond) { return new InvariantClause_(SourceRange.NONE, cond); }
 
