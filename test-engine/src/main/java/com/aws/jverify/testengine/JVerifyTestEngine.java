@@ -154,6 +154,11 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
         for(var backend : annotation.BACKENDS()) {
+            if (backend == Backend.Strata && IS_WINDOWS) {
+                System.err.println("DEBUG: Skipping Strata on Windows for " + sourceFile.getName());
+                continue; // Strata backend not supported on Windows
+            }
+            System.err.println("DEBUG: Running " + backend + " for " + sourceFile.getName() + " IS_WINDOWS=" + IS_WINDOWS);
             verifyFile(sourceFile, annotation, ranges, backend, getVerifierOptions(annotation, null, backend));
         }
     }
