@@ -1,6 +1,9 @@
 package com.aws.jverify.laurel;
 
-public sealed interface Node permits OptionalExtends, Parameter, ConstrainedType, Composite, Procedure, Datatype, DatatypeConstructorList, DatatypeConstructorArg, OptionalTrigger, InvariantClause, OptionalElse, OptionalErrorMessage, OptionalBody, Field, StmtExpr, LaurelType, Command, OptionalType, DatatypeConstructor, RequiresClause, OptionalReturnType, ReturnParameters, OptionalAssignment, ModifiesClause, EnsuresClause {
+import com.amazon.ion.IonSexp;
+
+public sealed interface Node permits Parameter, ReturnType, ConstrainedType, Procedure, Composite, Datatype, DatatypeConstructorList, DatatypeConstructorArg, ElseBranch, Body, Extends, InvariantClause, Trigger, Initializer, Field, StmtExpr, Command, LaurelType, ErrorSummary, DatatypeConstructor, InvokeOnClause, RequiresClause, ReturnParameters, TypeAnnotation, ModifiesClause, EnsuresClause {
     SourceRange sourceRange();
     java.lang.String operationName();
+    IonSexp toIon(IonSerializer $s);
 }
