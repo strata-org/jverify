@@ -1,9 +1,8 @@
 package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Nullable;
-import com.aws.jverify.generated.IOrigin;
+import com.aws.jverify.verifier.compiler.position.IOrigin;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.generator.dafny.ImpureObjectGenerator;
 import com.sun.tools.javac.code.Symbol;
 
 import com.sun.tools.javac.code.Symtab;
@@ -23,7 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness at the Dafny level.
+ * Maps names of symbols (classes, methods, fields) to compiled names to ensure uniqueness in the generated output.
  * The name mapping works as follows:
  *   - For fields that conflict with method names: prefix "F_" is added
  *   - For methods that conflict with field names: prefix "Z_" is added
@@ -56,7 +55,7 @@ public class NameCompiler extends TreeScanner {
     final Reporter reporter;
     
     public record FoundSymbol(Symbol symbol, IOrigin origin) {}
-    Set<String> reservedDafnyNames = Set.of("iterator", "string", "class", "map", "function", "set", "seq", "type", "method", "predicate", "this");
+    Set<String> reservedBackendNames = Set.of("iterator", "string", "class", "map", "function", "set", "seq", "type", "method", "predicate", "this");
     
     protected static final Context.Key<NameCompiler> myKey = new Context.Key<>();
     public static NameCompiler instance(Context context) {
@@ -134,7 +133,7 @@ public class NameCompiler extends TreeScanner {
 
     private String getClassName(Symbol.ClassSymbol classSymbol) {
         if (classSymbol.type == symtab.objectType) {
-            return ImpureObjectGenerator.IMPURE_OBJECT_NAME;
+            return "ImpureObject";
         }
         var occurrenceCount = classNameOccurrenceCounts.get(classSymbol.name);
         var hasEmptyDotName = classSymbol.isAnonymous();
@@ -174,7 +173,7 @@ public class NameCompiler extends TreeScanner {
     }
 
     private String encodeName(String name) {
-        if (reservedDafnyNames.contains(name)) {
+        if (reservedBackendNames.contains(name)) {
             name = RESERVED_PREFIX + name;
         }
         name = name.replace('$', '_');
@@ -214,7 +213,7 @@ public class NameCompiler extends TreeScanner {
             case BOOLEAN: {return "z";}
             case CLASS: {
                 String classTypeStr = type.tsym.toString();
-                // Changing '.' to '_' so that the new name is a valid Dafny name
+                // Changing '.' to '_' so that the new name is a valid identifier
                 // TODO: test this for more complicated class names, e.g. when JCTypeApply is supported
                 return "C" + classTypeStr.replace('.','_');
             }
@@ -275,9 +274,5 @@ public class NameCompiler extends TreeScanner {
 
     public String getInitMethodName(String className, String constructorName) {
         return constructorName.replace("ctor", INIT_METHOD_PREFIX) + className;
-    }
-
-    public com.aws.jverify.generated.Name getName(JCTree tree, Symbol symbol) {
-        return reporter.getName(tree, getCompiledName(symbol, tree), symbol.name.length());
     }
 }

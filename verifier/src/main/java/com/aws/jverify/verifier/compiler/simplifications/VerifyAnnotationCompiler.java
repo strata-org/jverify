@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Verify;
 import com.aws.jverify.verifier.VerifierOptions;
-import com.aws.jverify.generated.TokenRange;
+import com.aws.jverify.verifier.compiler.position.TokenRange;
 import com.aws.jverify.verifier.IntervalTree;
 import com.aws.jverify.verifier.JavaMethodVerificationStatus;
 import com.aws.jverify.verifier.compiler.PositionCalculator;
@@ -93,7 +93,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
             methodOrLoopContractCompiler.removeImplementation(tree);
         } else if (!jverifyUtils.isPure(tree.sym) && !applyPositionFilter(tree)) {
             // this is a performance optimization. 
-            // Dafny should apply the position filter as well, which will also work for pure methods, unlike this.
+            // The backend should apply the position filter as well, which will also work for pure methods, unlike this.
             methodOrLoopContractCompiler.removeImplementation(tree);
         }
         super.visitMethodDef(tree);
@@ -157,7 +157,7 @@ public class VerifyAnnotationCompiler extends TreeScanner {
                 return false;
             }
 
-            var nodeRange = Reporter.getReportingRange(reporter.getName(method, method.name).getOrigin());
+            var nodeRange = Reporter.getReportingRange(reporter.toOrigin(method));
             int line = nodeRange.getStartToken().getLine();
             var start = filter.start() == null ? 0 : filter.start();
             var end = filter.end() == null ? Integer.MAX_VALUE : filter.end();

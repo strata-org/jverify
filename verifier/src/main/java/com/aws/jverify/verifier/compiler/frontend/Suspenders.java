@@ -241,7 +241,7 @@ public class Suspenders extends TreeTranslator {
     /// Returns an Optional<JCStatement> because not all switch statements are possible
     /// to encode in this way. This mapping covers all statements we currently support,
     /// however, so if the encoding fails we can just skip suspending the switch.
-    /// The translation to Dafny will cause errors anyway,
+    /// The translation will cause errors anyway,
     /// and the only consequence of the LOWER rewriting is that
     /// some errors may be relocated or duplicated.
     ///
@@ -414,7 +414,7 @@ public class Suspenders extends TreeTranslator {
     /// Returns an Optional<JCExpression> because not all switch expressions are possible
     /// to encode in this way. This mapping covers all statements we currently support,
     /// however, so if the encoding fails we can just skip suspending the switch.
-    /// The translation to Dafny will cause errors anyway,
+    /// The translation will cause errors anyway,
     /// and the only consequence of the LOWER rewriting is that
     /// some errors may be relocated or duplicated.
     ///

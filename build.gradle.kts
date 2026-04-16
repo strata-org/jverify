@@ -96,28 +96,6 @@ project(":examples") {
     }
 }
 
-project(":javaTypesGenerator") {
-
-    apply(plugin = "application")
-    application {
-        mainClass.set("com.aws.jverify.generator.Main")
-    }
-
-    dependencies {
-
-        // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
-        implementation("org.checkerframework:checker-qual:3.49.0")
-
-        // https://mvnrepository.com/artifact/com.squareup/javapoet
-        implementation("com.squareup:javapoet:1.13.0")
-
-        implementation("info.picocli:picocli:4.7.6")
-
-        // Optional: annotation processor for compile-time checking
-        annotationProcessor("info.picocli:picocli-codegen:4.7.6")
-    }
-}
-
 fun createJavacExports(targets: List<String>): List<String> {
     val javacPackages = listOf(
         "jdk.compiler/com.sun.tools.javac.api",
@@ -321,12 +299,6 @@ project(":verifier") {
     }
 
     tasks.withType<JavaExec> {
-        if (DefaultNativePlatform.getCurrentOperatingSystem().isWindows) {
-            environment("JVERIFY_DAFNY", project.file("../dafny/Binaries/Dafny.exe").absolutePath)
-        } else {
-            environment("JVERIFY_DAFNY", project.file("../dafny/Scripts/dafny").absolutePath)
-        }
-
         standardInput = System.`in`
         standardOutput = System.out
 
@@ -347,18 +319,6 @@ project(":verifier") {
         // Keep the standard I/O settings
         standardInput = System.`in`
         standardOutput = System.out
-    }
-}
-
-project(":builtin-contracts") {
-    apply(plugin = "java-library")
-
-    dependencies {
-        implementation(project(":library"))
-    }
-
-    java {
-        withSourcesJar()
     }
 }
 

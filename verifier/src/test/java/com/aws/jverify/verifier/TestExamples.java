@@ -65,7 +65,7 @@ public class TestExamples {
                             boolean useBuiltinContracts) throws IOException {
         var markedSource = Files.readString(Path.of("../examples/src/test/java/com/aws/jverify/examples/").resolve(path));
         var annotation = JVerifyTestEngine.makeJVerifyTestAnnotation(true, exitCode, methodsVerified, assertionsFailed, 
-                false, continueOnErrors, useBuiltinContracts);
+                continueOnErrors, useBuiltinContracts);
         JVerifyTestEngine.testMarkedSource(new SourceFile(path, markedSource), annotation);
     }
 }

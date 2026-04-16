@@ -1,7 +1,7 @@
 package com.aws.jverify.verifier.compiler;
 
 import com.aws.jverify.common.Range;
-import com.aws.jverify.generated.*;
+import com.aws.jverify.verifier.compiler.position.*;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
@@ -100,11 +100,6 @@ public class Reporter {
         return new TokenRangeOrigin(startToken, endToken);
     }
 
-    public SourceOrigin declToOrigin(JCTree node, Name name) {
-        var entireRange = toOrigin(node);
-        return new SourceOrigin(getEntireRange(entireRange), getEntireRange(name.getOrigin()));
-    }
-
     public static TokenRange getEntireRange(IOrigin origin) {
         if (origin instanceof TokenRangeOrigin trOrigin) {
             return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
@@ -136,20 +131,4 @@ public class Reporter {
         throw new RuntimeException("not supported");
     }
 
-    public Name getName(JCTree tree, com.sun.tools.javac.util.Name name) {
-        return getName(tree, name.toString());
-    }
-
-    public Name getName(JCTree tree, String name) {
-        return getName(tree, name, name.length());
-    }
-
-    public Name getName(JCTree tree, String name, int length) {
-        var positionCalculator = new PositionCalculator(compilationUnit);
-        int startPos = positionCalculator.getStartPos(tree);
-        var startToken = positionCalculator.toToken(startPos);
-        var endToken = positionCalculator.toToken(startPos + length);
-        var origin = startToken == null ? contextOrigins.peek() : new TokenRangeOrigin(startToken, endToken);
-        return new Name(origin, name);
-    }
 }

@@ -166,11 +166,11 @@ public class JavaLowerer {
          * The first half mostly adds information to the tree, like resolution,
          * whereas the second half starts to be more destructive,
          * lowering higher-level features to lower-level ones.
-         * Some of the latter are helpful, but in some cases the target language (Dafny)
+         * Some of the latter are helpful, but in some cases the target language
          * supports features that JVM bytecode doesn't, so the phases don't help.
          * <p>
          * Currently, we apply 0 through 5,
-         * skip 6 and 7 as they remove features Dafny supports directly (generics and patterns),
+         * skip 6 and 7 as they remove features the backend supports directly (generics and patterns),
          * but then apply 8 in order to rewrite lambda expressions and method references,
          * and 9 to rewrite features such as nested classes and autoboxing.
          * 10 actually generates JVM bytecode so we will likely never apply it.

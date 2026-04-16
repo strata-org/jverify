@@ -2,7 +2,6 @@ package com.aws.jverify.verifier.compiler.simplifications;
 
 import com.aws.jverify.Pure;
 import com.aws.jverify.verifier.compiler.Reporter;
-import com.aws.jverify.verifier.compiler.generator.dafny.NativeSymbols;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.comp.Enter;
@@ -27,7 +26,6 @@ public class MissingContractCompiler {
     private final JavacElements elements;
     private final JVerifyUtils jverifyUtils;
     private final MethodOrLoopContractCompiler internalContractCompiler;
-    private final NativeSymbols nativeSymbols;
 
     private final Map<Symbol, Reference> symbolReferences = new HashMap<>();
     private final Set<Symbol> foundSymbols = new HashSet<>();
@@ -45,7 +43,6 @@ public class MissingContractCompiler {
         jverifyUtils = JVerifyUtils.instance(context);
         reporter = Reporter.instance(context);
         internalContractCompiler = MethodOrLoopContractCompiler.instance(context);
-        nativeSymbols = NativeSymbols.instance(context);
     }
     
     public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> units) {
@@ -227,10 +224,8 @@ public class MissingContractCompiler {
                 return;
             }
 
-            // Skip native symbols (Math/Double methods) - they have special handling in ExpressionCompiler
-            if (nativeSymbols.isRegistered(symbol)) {
-                return;
-            }
+            // TODO: re-add native symbol handling when Strata supports it
+            // Skip native symbols (Math/Double methods) - they have special handling
 
             if (isJVerifySymbol(symbol)) {
                 // Do not add contracts for JVerify library methods, since they are compiled away anyways

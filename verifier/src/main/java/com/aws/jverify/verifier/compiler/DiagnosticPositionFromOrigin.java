@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.generated.TokenRange;
+import com.aws.jverify.verifier.compiler.position.TokenRange;
 import com.sun.source.tree.LineMap;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;

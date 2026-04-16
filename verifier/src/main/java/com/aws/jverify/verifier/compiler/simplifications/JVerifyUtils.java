@@ -4,8 +4,6 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.JVerify;
 import com.aws.jverify.Pure;
 import com.aws.jverify.Verify;
-import com.aws.jverify.generated.IOrigin;
-import com.aws.jverify.generated.LiteralExpr;
 import com.aws.jverify.verifier.compiler.JavaViolationException;
 import com.aws.jverify.verifier.compiler.frontend.JVerifyIndex;
 import com.sun.tools.javac.code.*;
@@ -288,15 +286,6 @@ public class JVerifyUtils {
 
     public static boolean isStatic(Symbol symbol) {
         return (symbol.flags() & Flags.STATIC) != 0;
-    }
-
-    public static LiteralExpr getReferenceHole(IOrigin origin) {
-        // TODO should be a typeless 'hole' expression, but Dafny does not have that.
-        return new LiteralExpr(origin, null);
-    }
-    public static LiteralExpr getHole(IOrigin origin) {
-        // TODO should be a typeless 'hole' expression, but Dafny does not have that.
-        return new LiteralExpr(origin, true);
     }
 
     public static boolean isEnum(JCTree.JCExpression selected) {

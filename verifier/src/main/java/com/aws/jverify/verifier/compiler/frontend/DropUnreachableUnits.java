@@ -1,7 +1,6 @@
 package com.aws.jverify.verifier.compiler.frontend;
 
 import com.aws.jverify.verifier.VerifierOptions;
-import com.aws.jverify.verifier.compiler.generator.dafny.JavaToDafnyCompiler;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeScanner;

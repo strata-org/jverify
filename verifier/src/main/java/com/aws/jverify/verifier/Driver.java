@@ -3,8 +3,7 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
-import com.aws.jverify.verifier.dafny.DafnyDriver;
-import com.aws.jverify.verifier.dafny.DiagnosticWithRange;
+import com.aws.jverify.verifier.DiagnosticWithRange;
 import com.aws.jverify.verifier.laurel.LaurelDriver;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;
@@ -102,7 +101,7 @@ public interface Driver {
             List<JavaFileObject> readFiles
     ) throws IOException;
     
-    static Driver getDriver(Backend backend, VerifierOptions options) {
+    static Driver getDriver(VerifierOptions options) {
 
         InstrumentLower.installModification();
         var context = new Context();
@@ -110,10 +109,7 @@ public interface Driver {
         context.put(VerifierOptions.class, options);
         var lowerer = new JavaLowerer(context);
         context.put(JavaLowerer.class, lowerer);
-        return switch (backend) {
-            case Dafny -> new DafnyDriver(context);
-            case Strata -> new LaurelDriver(context);
-        };
+        return new LaurelDriver(context);
     }
     
     static String formatMessage(Diagnostic<?> diagnostic) {

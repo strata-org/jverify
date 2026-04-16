@@ -20,7 +20,5 @@ module com.aws.jverify.verifier {
     opens com.aws.jverify.verifier.compiler.simplifications to info.picocli;
     opens com.aws.jverify.verifier.compiler to info.picocli;
     opens com.aws.jverify.verifier.compiler.frontend to info.picocli;
-    opens com.aws.jverify.verifier.dafny to info.picocli;
     opens com.aws.jverify.verifier.laurel to info.picocli;
-    opens com.aws.jverify.verifier.compiler.generator.dafny to info.picocli;
 }

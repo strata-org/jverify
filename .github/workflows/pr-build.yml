@@ -25,9 +25,6 @@ jobs:
         
     runs-on: ${{ matrix.os }}
 
-    env:
-      z3BaseUri: https://github.com/dafny-lang/solver-builds/releases/download/snapshot-2024-04-10
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,14 +78,6 @@ jobs:
           fi
           chmod +x "${ARCHIVE_NAME}/bin/z3"
           echo "$GITHUB_WORKSPACE/${ARCHIVE_NAME}/bin/" >> $GITHUB_PATH
-      - name: Build Dafny
-        working-directory: ./jverify-collection/dafny
-        run: |
-          dotnet build ./Source/Dafny.sln
-      - name: Code generation has no diff
-        working-directory: ./jverify-collection
-        run: |
-          make test-generation-nodiff
       - name: Install verifier CLI locally
         working-directory: ./jverify-collection
         run: |
@@ -97,30 +86,6 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           ./gradlew publishToMavenLocal
-      - name: Getting started command (non-Windows)
-        if: runner.os != 'Windows'
-        working-directory: ./jverify-collection
-        run: |
-          ./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --verifier ./dafny/Scripts/dafny --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
-      - name: Getting started command (Windows)
-        if: runner.os == 'Windows'
-        working-directory: ./jverify-collection
-        run: |
-          ./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --verifier ./dafny/Binaries/Dafny.exe --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
-      - name: Add Dafny to path (non-Windows)
-        if: runner.os != 'Windows'
-        run: |
-          echo "${PWD}/jverify-collection/dafny/Scripts" >> $GITHUB_PATH
-      - name: Add Dafny to path (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Add-Content $env:GITHUB_PATH "${PWD}/jverify-collection/dafny/Binaries"
-      - name: Verify sample project
-        working-directory: ./jverify-collection/sample-project
-        shell: bash
-        run: |
-          ./gradlew verify --info
       - name: Gradle test
         working-directory: ./jverify-collection
         run: |

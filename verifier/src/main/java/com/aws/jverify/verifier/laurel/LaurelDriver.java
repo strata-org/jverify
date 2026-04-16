@@ -11,7 +11,6 @@ import com.aws.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
 import com.aws.jverify.verifier.compiler.generator.laurel.LaurelFile;
 import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
-import com.aws.jverify.verifier.dafny.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JavacMessages;
 import picocli.CommandLine;
