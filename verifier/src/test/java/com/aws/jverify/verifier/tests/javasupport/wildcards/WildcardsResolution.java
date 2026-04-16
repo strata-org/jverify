@@ -7,7 +7,7 @@ import com.aws.jverify.Verify;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
-public class WildcardsDafnyResolution {
+public class WildcardsResolution {
     
     boolean isNull(Container<?> elements) {
         return elements.alwaysTrue();
