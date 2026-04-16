@@ -127,6 +127,8 @@ public class JavaToLaurelCompiler {
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl method) {
             if ((method.mods.flags & Flags.STATIC) != 0) {
+                // TODO: when overloaded methods are supported, disambiguate names
+                //  (e.g. by appending parameter type suffixes) to avoid duplicate procedure names in Laurel.
                 String methodName = method.name.toString();
 
                 List<Parameter> params = new ArrayList<>();

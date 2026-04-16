@@ -45,13 +45,13 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--paths", description = "Show file paths instead of names")
     private boolean paths;
     
-    @Option(names = "--filter-position", description = "Filter what gets verified based on a source location. The location is specified as a file path suffix, optionally followed by a colon and a line number or line range.")
+    @Option(names = "--filter-position", description = "Filter what gets verified based on a source location. The location is specified as a file path suffix, optionally followed by a colon and a line number or line range. For example, `jverify verify source1.java source2.java --filter-position=source1.java:5-7` will only verify things that between (and including) line 5 and 7 in the file `source1.java`. You can also use `:5`, `:5-`, `:-5` to specify individual lines or open ranges.")
     private String filterPositionString;
     
     @Option(names = "--include-filter-dependencies", description = "When filtering on just a file, also verify its transitive dependencies.")
     private boolean includeFilterDependencies;
     
-    @Option(names = "--verifier", description = "Location of the Strata verifier to use. Overrides environment variable JVERIFY_STRATA.")
+    @Option(names = "--verifier", description = "Location of the Strata CLI to use. Overrides environment variable JVERIFY_STRATA.")
     private Path customVerifier;
 
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
@@ -67,6 +67,9 @@ class AppCommand implements Callable<Integer> {
     public Integer call() throws IOException {
         var writer = new PrintWriter(spec.commandLine().getOut());
 
+        // In the future we'll have to add an argument to specify jar files for dependencies of the input sources,
+        // And those will include the JVerify library jar.
+        // But right now we manually find the JVerify library jar and include it in the compilation.
         var jverifyLibraryLocation = Path.of(URI.create(Common.getJarLocationForClass(JVerify.class)));
 
         var strataPath = getBackendPath(writer);
@@ -107,7 +110,7 @@ class AppCommand implements Callable<Integer> {
         }
         if (result == null || !Files.exists(result)) {
             if (verbose) {
-                output.println("Could not find Strata at verifier path '" + result + "'");
+                output.println("Could not find Strata at path '" + result + "'");
             }
         }
         return result;

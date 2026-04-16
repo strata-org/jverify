@@ -9,7 +9,7 @@ import java.util.Set;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 4, errorCount = 4)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
 public class CollectionsTest {
 
     void listVerifying() {

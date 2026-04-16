@@ -105,12 +105,16 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         {
             LOGGER.fine(() -> "Executing test for class: " + testClass);
 
+            // We assume that the working directory is the root of the current Gradle project (as is default),
+            // and that the test sources are in the standard "src/test/java" subdirectory of the project root.
             var sourceRoot = Path.of(System.getProperty("user.dir") , "src", "test", "java");
             if (!Files.exists(sourceRoot) || !Files.isDirectory(sourceRoot)) {
                 Assertions.fail(() ->
                         "Test sources root directory for %s not found at %s".formatted(testClass, sourceRoot));
             }
 
+            // We assume the class's source file is at the path corresponding to its package and class name,
+            // just as Java requires for public classes.
             var pkgPath = sourceRoot.resolve("", testClass.getPackageName().split("\\."));
             var sourcePath = pkgPath.resolve(testClass.getSimpleName() + ".java");
             if (!Files.exists(sourcePath) || !Files.isRegularFile(sourcePath)) {
@@ -252,6 +256,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var verifierJar = Path.of("../verifier/build/libs/verifier-1.0-SNAPSHOT.jar");
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
+        var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         return new VerifierOptions(new PrintWriter(System.out),
@@ -260,12 +265,16 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 List.of(verifierJar, libraryJar, testEngineClassPath, libraryForTestingClassPath),
                 Path.of("../build/temp.laurel"),
                 true,
-                List.of(),
+                annotation.useBuiltinContracts() ? List.of(builtinContracts) : List.of(),
                 true,
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
                 positionFilter, true, false
         );
+    }
+
+    public static Path getBuiltinContractsSourceDir() {
+        return Path.of("../builtin-contracts/src/main/java").toAbsolutePath();
     }
 
     /**
@@ -274,13 +283,18 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      */
     public static JVerifyTest makeJVerifyTestAnnotation(int methodsVerified, int assertionsFailed) {
         return makeJVerifyTestAnnotation(true, assertionsFailed > 0 ? 4 : 0, methodsVerified, assertionsFailed,
-                false);
+                false, true);
     }
 
+    /**
+     * For creating a JVerifyTest annotation without having it in source code.
+     * Useful for testing things like examples where we don't want the explicit annotation.
+     */
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
                                                         int methodsVerified, int assertionsFailed,
-                                                        boolean continueOnErrors) {
-        return new JVerifyTestRecord("", verifyByDefault, continueOnErrors,
+                                                        boolean continueOnErrors,
+                                                        boolean useBuiltinContracts) {
+        return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors,
                 exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1);
     }
 

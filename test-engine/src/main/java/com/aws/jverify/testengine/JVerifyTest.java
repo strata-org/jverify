@@ -40,6 +40,7 @@ public @interface JVerifyTest {
      * What to pass for the --verify-by-default verifier option.
      */
     boolean verifyByDefault() default true;
+    boolean useBuiltinContracts() default false;
     boolean continueOnErrors() default false;
     int exitCode() default 0;
     String[] additionalFiles() default {};
