@@ -87,8 +87,6 @@ tasks.register<JavaExec>("verify") {
         "--classpath",
         sourceSets["main"].runtimeClasspath.filter {
             it.toString().endsWith(".jar")
-        }.asPath,
-        "--contract-path",
-        "../../builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar"
+        }.asPath
     )
 }

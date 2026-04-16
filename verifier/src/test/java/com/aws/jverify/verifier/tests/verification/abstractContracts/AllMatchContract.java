@@ -32,7 +32,7 @@ public class AllMatchContract {
 
     @Contract(IntStream.class)
     static abstract class IntStreamContract implements IntStream {
-        // Using a method instead of a final field, since Dafny does not support abstract constants in traits
+        // Using a method instead of a final field, since the backend does not support abstract constants in traits
         @Erased
         @Pure
         public JVerify.IntSequence values() {

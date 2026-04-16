@@ -1,4 +1,3 @@
-import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.jetbrains.gradle.ext.ActionDelegationConfig
 import org.jetbrains.gradle.ext.delegateActions
 import org.jetbrains.gradle.ext.runConfigurations
@@ -258,7 +257,7 @@ project(":verifier") {
 
     apply(plugin = "application")
     application {
-        mainClass.set("com.aws.jverify.verifier.Main")  // For a file named main.kt
+        mainClass.set("com.aws.jverify.verifier.Main")
 
         applicationDefaultJvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
@@ -270,8 +269,6 @@ project(":verifier") {
         
         implementation(project(":common"))
         implementation(project(":library"))
-
-        implementation("org.jgrapht:jgrapht-core:1.5.2")
 
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
@@ -288,8 +285,6 @@ project(":verifier") {
 
         // Optional: annotation processor for compile-time checking
         annotationProcessor("info.picocli:picocli-codegen:4.7.6")
-
-        implementation("com.fasterxml.jackson.core:jackson-databind:2.18.3")
     }
 
     tasks.test {

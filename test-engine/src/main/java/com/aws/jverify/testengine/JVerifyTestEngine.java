@@ -129,11 +129,18 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         return null;
     }
 
+    /**
+     * @see #testMarkedSource(SourceFile, JVerifyTest)
+     */
     public static void testMarkedSource(Path markedSourcePath, JVerifyTest annotation) throws IOException {
         var markedSource = Files.readString(markedSourcePath);
         testMarkedSource(new SourceFile(markedSourcePath, markedSource), annotation);
     }
 
+    /**
+     * Verifies the given source code and asserts that the exit code, emitted diagnostics,
+     * and verified/error counts match the specified values in the source code's test metadata.
+     */
     public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         List<AnnotatedRange> ranges = parsedMarkup.ranges();
@@ -251,7 +258,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 workingDirectory,
                 backendPath,
                 List.of(verifierJar, libraryJar, testEngineClassPath, libraryForTestingClassPath),
-                Path.of("../build/temp.dbin"),
+                Path.of("../build/temp.laurel"),
                 true,
                 List.of(),
                 true,
@@ -261,18 +268,20 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         );
     }
 
+    /**
+     * For creating a JVerifyTest annotation without having it in source code.
+     * Useful for testing things like examples where we don't want the explicit annotation.
+     */
     public static JVerifyTest makeJVerifyTestAnnotation(int methodsVerified, int assertionsFailed) {
         return makeJVerifyTestAnnotation(true, assertionsFailed > 0 ? 4 : 0, methodsVerified, assertionsFailed,
-                false, true);
+                false);
     }
 
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
                                                         int methodsVerified, int assertionsFailed,
-                                                        boolean continueOnErrors,
-                                                        boolean useBuiltinContracts) {
-        return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors,
-                exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1,
-                new int[] {});
+                                                        boolean continueOnErrors) {
+        return new JVerifyTestRecord("", verifyByDefault, continueOnErrors,
+                exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1);
     }
 
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, JVerifyResults results) throws IOException {

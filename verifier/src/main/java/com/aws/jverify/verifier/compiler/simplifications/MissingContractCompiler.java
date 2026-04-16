@@ -215,7 +215,7 @@ public class MissingContractCompiler {
             }
 
             if (symbol instanceof Symbol.MethodSymbol && symbol.name.contentEquals("equals")) {
-                // equals is in additional.dfy
+                // equals is handled by the built-in object contract
                 return;
             }
 

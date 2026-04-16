@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler.position;
 
-public class TokenRangeOrigin extends IOrigin {
+public final class TokenRangeOrigin implements IOrigin {
     private final Token startToken;
     private final Token endToken;
 
@@ -9,6 +9,6 @@ public class TokenRangeOrigin extends IOrigin {
         this.endToken = endToken;
     }
 
-    public Token getStartToken() { return startToken; }
-    public Token getEndToken() { return endToken; }
+    public Token startToken() { return startToken; }
+    public Token endToken() { return endToken; }
 }

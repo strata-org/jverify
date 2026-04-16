@@ -1,3 +1,3 @@
 package com.aws.jverify.verifier.compiler.position;
 
-public abstract class IOrigin {}
+public sealed interface IOrigin permits TokenRangeOrigin {}

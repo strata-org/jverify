@@ -119,8 +119,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
                 JavaMethodVerificationStatus.VerificationStatus.Verified :  JavaMethodVerificationStatus.VerificationStatus.Skipped);
 
         methodStatusPerUri.get(sourceFileURI)
-                .insert(methodVerificationStatus.getPosition().getStartToken().getLine(), 
-                        methodVerificationStatus.getPosition().getEndToken().getLine(),
+                .insert(methodVerificationStatus.getPosition().startToken().line(), 
+                        methodVerificationStatus.getPosition().endToken().line(),
                         methodVerificationStatus);
     }
 
@@ -157,8 +157,8 @@ public class VerifyAnnotationCompiler extends TreeScanner {
                 return false;
             }
 
-            var nodeRange = Reporter.getReportingRange(reporter.toOrigin(method));
-            int line = nodeRange.getStartToken().getLine();
+            var nodeRange = Reporter.getEntireRange(reporter.toOrigin(method));
+            int line = nodeRange.startToken().line();
             var start = filter.start() == null ? 0 : filter.start();
             var end = filter.end() == null ? Integer.MAX_VALUE : filter.end();
             return start <= line && line <= end;

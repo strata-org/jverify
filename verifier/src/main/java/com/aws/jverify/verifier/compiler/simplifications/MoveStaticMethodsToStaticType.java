@@ -80,7 +80,7 @@ public class MoveStaticMethodsToStaticType {
         Symbol.ClassSymbol staticClassSymbol;
 
         public StaticMethodCollector(JCTree.JCClassDecl classDecl) {
-            staticClassSymbol = new Symbol.ClassSymbol(0, classDecl.sym.name.append(NameCompiler.sep, names.fromString("static")), classDecl.sym.packge());
+            staticClassSymbol = new Symbol.ClassSymbol(0, classDecl.sym.name.append('?', names.fromString("static")), classDecl.sym.packge());
             staticClassSymbol.members_field = Scope.WriteableScope.create(staticClassSymbol);
             Type.ClassType classType = new Type.ClassType(Type.noType, com.sun.tools.javac.util.List.nil(), staticClassSymbol);
             classType.supertype_field = Type.noType; //syms.objectType;

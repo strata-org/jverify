@@ -84,7 +84,7 @@ public class LocalAndAnonymousClasses {
         // Important that these values aren't equal,
         // since they aren't in Java semantics,
         // but if we map lambdas to datatype values incorrectly
-        // they could be equal Dafny values.
+        // they could be equal values.
         check(doer != doer2);
     }
 

@@ -3,7 +3,6 @@ package com.aws.jverify.verifier;
 import com.aws.jverify.verifier.compiler.frontend.InstrumentLower;
 import com.aws.jverify.verifier.compiler.frontend.JavaLowerer;
 import com.aws.jverify.verifier.compiler.frontend.TypesWithoutErasure;
-import com.aws.jverify.verifier.DiagnosticWithRange;
 import com.aws.jverify.verifier.laurel.LaurelDriver;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JCDiagnostic;

@@ -102,33 +102,20 @@ public class Reporter {
 
     public static TokenRange getEntireRange(IOrigin origin) {
         if (origin instanceof TokenRangeOrigin trOrigin) {
-            return new TokenRange(trOrigin.getStartToken(), trOrigin.getEndToken());
-        } else if (origin instanceof SourceOrigin sourceOrigin) {
-            return sourceOrigin.getEntireRange();
-        } else {
-            throw new RuntimeException(origin.getClass().getName());
+            return new TokenRange(trOrigin.startToken(), trOrigin.endToken());
         }
+        throw new RuntimeException(origin.getClass().getName());
     }
     
     public static Range getPositionRange(IOrigin origin) {
-        var reportingRange = getReportingRange(origin);
-        var endToken = reportingRange.getEndToken();
+        var range = getEntireRange(origin);
+        var endToken = range.endToken();
         if (endToken == null) {
-            endToken = reportingRange.getStartToken();
+            endToken = range.startToken();
         }
         return new Range(
-            new com.aws.jverify.common.Position(reportingRange.getStartToken().getLine(), reportingRange.getStartToken().getCol()),
-            new com.aws.jverify.common.Position(endToken.getLine(), endToken.getCol()));
-    }
-    
-    public static TokenRange getReportingRange(IOrigin origin) {
-        if (origin instanceof TokenRangeOrigin rangeOrigin) {
-            return new TokenRange(rangeOrigin.getStartToken(), rangeOrigin.getEndToken());
-        }
-        if (origin instanceof SourceOrigin sourceOrigin) {
-            return sourceOrigin.getReportingRange();
-        }
-        throw new RuntimeException("not supported");
+            new com.aws.jverify.common.Position(range.startToken().line(), range.startToken().col()),
+            new com.aws.jverify.common.Position(endToken.line(), endToken.col()));
     }
 
 }
