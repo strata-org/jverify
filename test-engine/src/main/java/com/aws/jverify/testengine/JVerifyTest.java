@@ -49,7 +49,7 @@ public @interface JVerifyTest {
 
     int exitCode() default 0;
 
-    Backend[] BACKENDS() default { Backend.Strata };
+    Backend[] BACKENDS() default { Backend.Dafny };
 
     int[] performanceTicks() default { };
     
