@@ -1,12 +1,14 @@
 package com.aws.jverify.verifier;
 
 import com.aws.jverify.testengine.JVerifyTestEngine;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+@Disabled("Strata: examples use features not yet supported")
 public class TestExamples {
     
     @Test

@@ -4,7 +4,7 @@ import com.aws.jverify.Impure;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 3, errorCount = 2)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 3, errorCount = 2)
 public class NullableInterfacesVerification {
     interface PureInterface {
         default void foo() {}

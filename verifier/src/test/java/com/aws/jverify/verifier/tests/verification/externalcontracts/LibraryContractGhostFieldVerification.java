@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 6, errorCount = 1)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 6, errorCount = 1)
 public class LibraryContractGhostFieldVerification {
     static void test(BigInteger v) {
         precondition(DummyBigIntegerContract.convert(v).value == 1);

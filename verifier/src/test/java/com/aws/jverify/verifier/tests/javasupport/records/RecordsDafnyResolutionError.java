@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 22)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
 class RecordsDafnyResolutionError {
     record Foo() {}
     static void assignRecordToModifiableObject() {

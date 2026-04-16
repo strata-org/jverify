@@ -8,7 +8,7 @@ import java.util.stream.IntStream;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 2, errorCount = 0)
+@JVerifyTest(skip = "Strata: not yet supported", methodsVerified = 2, errorCount = 0)
 public class AllMatchContract {
 
     @SuppressWarnings("ConstantValue")

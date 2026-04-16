@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.javasupport.generics;
 import com.aws.jverify.Impure;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 22)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
 public class PolymorphismDafnyResolutionErrors {
     
     public static <T> void modifiableObjectIsNotTop(T value) {

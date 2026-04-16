@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.expressions;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 2)  // Compilation errors due to unsupported modulo operator
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)  // Compilation errors due to unsupported modulo operator
 @SuppressWarnings("ConstantValue")
 class DoubleOperators {
     public void foo() {

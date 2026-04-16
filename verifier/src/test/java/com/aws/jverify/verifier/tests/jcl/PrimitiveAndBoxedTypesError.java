@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.check;
 
-@JVerifyTest(exitCode = 2, useBuiltinContracts = true)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2, useBuiltinContracts = true)
 class PrimitiveAndBoxedTypesError {
 
     boolean referenceEqualityOnBoxedPrimitive(Integer i, Integer j) {

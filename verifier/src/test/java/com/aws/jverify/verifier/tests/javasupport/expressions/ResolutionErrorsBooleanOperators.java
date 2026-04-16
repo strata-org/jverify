@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.expressions;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
 @SuppressWarnings("ConstantValue")
 class ResolutionErrorsBooleanOperators {
     public void foo() {

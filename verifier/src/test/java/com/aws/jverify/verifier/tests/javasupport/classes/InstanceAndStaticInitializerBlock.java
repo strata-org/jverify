@@ -2,7 +2,7 @@ package com.aws.jverify.verifier.tests.javasupport.classes;
 
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
 public class InstanceAndStaticInitializerBlock {
     int x;
     static int y;

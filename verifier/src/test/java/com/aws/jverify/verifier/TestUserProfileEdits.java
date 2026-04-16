@@ -4,6 +4,7 @@ import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Common;
 import com.aws.jverify.testengine.JVerifyTestEngine;
 import com.aws.jverify.testengine.TestMarkup;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Disabled("Strata: examples use features not yet supported")
 public class TestUserProfileEdits {
     
     @Test

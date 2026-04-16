@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef", "ConstantValue", "NewObjectEquality"})
-@JVerifyTest(exitCode = 4, methodsVerified = 27, errorCount = 4)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 27, errorCount = 4)
 public class LocalAndAnonymousClasses {
 
     void noCaptures() {

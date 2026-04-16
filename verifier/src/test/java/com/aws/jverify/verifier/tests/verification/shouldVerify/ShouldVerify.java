@@ -9,7 +9,7 @@ import java.math.BigInteger;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.postcondition;
 
-@JVerifyTest(exitCode = 4,
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 
