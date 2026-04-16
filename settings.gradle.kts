@@ -1,5 +1,6 @@
 rootProject.name = "jverify-collection"
 include("common")
+include("builtin-contracts")
 include("javac-plugin")
 include("javac-plugin-test")
 include("verifier")
