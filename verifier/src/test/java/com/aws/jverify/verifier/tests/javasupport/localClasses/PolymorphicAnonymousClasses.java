@@ -5,7 +5,7 @@ import com.aws.jverify.ContractException;
 import com.aws.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("Convert2Lambda")
-@JVerifyTest(methodsVerified = 28, errorCount = 0, verifyPrintedDafny = true)
+@JVerifyTest(methodsVerified = 28, errorCount = 0)
 public class PolymorphicAnonymousClasses {
 
     void capturedGenericType(MyConsumer<Anything> consumer, Anything anything) {

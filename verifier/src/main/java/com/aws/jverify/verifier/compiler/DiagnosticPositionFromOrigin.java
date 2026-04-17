@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier.compiler;
 
-import com.aws.jverify.generated.TokenRange;
+import com.aws.jverify.verifier.compiler.position.TokenRange;
 import com.sun.source.tree.LineMap;
 import com.sun.tools.javac.tree.EndPosTable;
 import com.sun.tools.javac.tree.JCTree;
@@ -16,7 +16,7 @@ public record DiagnosticPositionFromOrigin(
 
     @Override
     public int getStartPosition() {
-        return (int)lineMap.getPosition(range.getStartToken().getLine(), range.getStartToken().getCol() - 1);
+        return (int)lineMap.getPosition(range.startToken().line(), range.startToken().col() - 1);
     }
 
     @Override
@@ -26,6 +26,6 @@ public record DiagnosticPositionFromOrigin(
 
     @Override
     public int getEndPosition(EndPosTable endPosTable) {
-        return (int)lineMap.getPosition(range.getEndToken().getLine(), range.getEndToken().getCol() - 1);
+        return (int)lineMap.getPosition(range.endToken().line(), range.endToken().col() - 1);
     }
 }

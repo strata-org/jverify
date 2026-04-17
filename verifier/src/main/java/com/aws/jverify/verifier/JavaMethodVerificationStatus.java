@@ -1,6 +1,6 @@
 package com.aws.jverify.verifier;
 
-import com.aws.jverify.generated.TokenRange;
+import com.aws.jverify.verifier.compiler.position.TokenRange;
 import com.sun.tools.javac.tree.JCTree;
 
 public class JavaMethodVerificationStatus {

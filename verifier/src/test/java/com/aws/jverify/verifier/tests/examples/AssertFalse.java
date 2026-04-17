@@ -3,10 +3,8 @@ package com.aws.jverify.verifier.tests.examples;
 import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
-import static com.aws.jverify.verifier.Backend.Dafny;
-import static com.aws.jverify.verifier.Backend.Strata;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 1, errorCount = 1, BACKENDS = { Dafny, Strata})
+@JVerifyTest(exitCode = 4, methodsVerified = 1, errorCount = 1)
 class AssertFalse {
     static void Foo() {
         check(false);

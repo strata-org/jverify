@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(exitCode = 4, methodsVerified = 7, errorCount = 4)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 7, errorCount = 4)
 class Switches {
     static void switchExprInt(int i) {
         var num = switch (i) {

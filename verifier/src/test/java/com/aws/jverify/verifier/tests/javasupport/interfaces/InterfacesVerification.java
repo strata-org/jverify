@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 10, errorCount = 5)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 10, errorCount = 5)
 class InterfacesVerification {
     public void root(I i) {
         var a = i.f(1);

@@ -1,4 +1,3 @@
-import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.jetbrains.gradle.ext.ActionDelegationConfig
 import org.jetbrains.gradle.ext.delegateActions
 import org.jetbrains.gradle.ext.runConfigurations
@@ -93,28 +92,6 @@ project(":examples") {
 
     tasks.withType<Test> {
         jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
-    }
-}
-
-project(":javaTypesGenerator") {
-
-    apply(plugin = "application")
-    application {
-        mainClass.set("com.aws.jverify.generator.Main")
-    }
-
-    dependencies {
-
-        // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
-        implementation("org.checkerframework:checker-qual:3.49.0")
-
-        // https://mvnrepository.com/artifact/com.squareup/javapoet
-        implementation("com.squareup:javapoet:1.13.0")
-
-        implementation("info.picocli:picocli:4.7.6")
-
-        // Optional: annotation processor for compile-time checking
-        annotationProcessor("info.picocli:picocli-codegen:4.7.6")
     }
 }
 
@@ -280,7 +257,7 @@ project(":verifier") {
 
     apply(plugin = "application")
     application {
-        mainClass.set("com.aws.jverify.verifier.Main")  // For a file named main.kt
+        mainClass.set("com.aws.jverify.verifier.Main")
 
         applicationDefaultJvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
@@ -292,8 +269,6 @@ project(":verifier") {
         
         implementation(project(":common"))
         implementation(project(":library"))
-
-        implementation("org.jgrapht:jgrapht-core:1.5.2")
 
         // https://mvnrepository.com/artifact/org.checkerframework/checker-qual
         implementation("org.checkerframework:checker-qual:3.49.0")
@@ -310,8 +285,6 @@ project(":verifier") {
 
         // Optional: annotation processor for compile-time checking
         annotationProcessor("info.picocli:picocli-codegen:4.7.6")
-
-        implementation("com.fasterxml.jackson.core:jackson-databind:2.18.3")
     }
 
     tasks.test {
@@ -321,12 +294,6 @@ project(":verifier") {
     }
 
     tasks.withType<JavaExec> {
-        if (DefaultNativePlatform.getCurrentOperatingSystem().isWindows) {
-            environment("JVERIFY_DAFNY", project.file("../dafny/Binaries/Dafny.exe").absolutePath)
-        } else {
-            environment("JVERIFY_DAFNY", project.file("../dafny/Scripts/dafny").absolutePath)
-        }
-
         standardInput = System.`in`
         standardOutput = System.out
 

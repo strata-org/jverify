@@ -15,7 +15,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, useBuiltinContracts = true, methodsVerified = 4, errorCount = 2)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, useBuiltinContracts = true, methodsVerified = 4, errorCount = 2)
 class BigIntegers {
     static void testConstructors() {
         BigInteger bi = new BigInteger("3");

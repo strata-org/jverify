@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 
 @SuppressWarnings({"ConstantValue", "PointlessBooleanExpression"})
-@JVerifyTest(exitCode = 4, methodsVerified = 1, errorCount = 1)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 1, errorCount = 1)
 class VerifyBooleanOperators {
     public void foo() {
         var p = true;

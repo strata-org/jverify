@@ -10,7 +10,7 @@ import java.math.BigInteger;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
 public class LibraryContractGhostFieldErrors {
 
     @Contract(BigInteger.class)

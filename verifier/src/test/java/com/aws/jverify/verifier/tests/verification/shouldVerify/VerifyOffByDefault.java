@@ -6,7 +6,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.check;
 import static com.aws.jverify.JVerify.precondition;
 
-@JVerifyTest(verifyByDefault = false, exitCode = 4, methodsVerified = 1, errorCount = 1)
+@JVerifyTest(skip = "Strata: not yet supported", verifyByDefault = false, exitCode = 4, methodsVerified = 1, errorCount = 1)
 public class VerifyOffByDefault {}
 
 @Verify

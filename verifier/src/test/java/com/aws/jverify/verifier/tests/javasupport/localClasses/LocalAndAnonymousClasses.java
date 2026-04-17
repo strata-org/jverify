@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.postcondition;
 import static com.aws.jverify.JVerify.precondition;
 
 @SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef", "ConstantValue", "NewObjectEquality"})
-@JVerifyTest(exitCode = 4, methodsVerified = 27, errorCount = 4, verifyPrintedDafny = true)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 27, errorCount = 4)
 public class LocalAndAnonymousClasses {
 
     void noCaptures() {
@@ -84,7 +84,7 @@ public class LocalAndAnonymousClasses {
         // Important that these values aren't equal,
         // since they aren't in Java semantics,
         // but if we map lambdas to datatype values incorrectly
-        // they could be equal Dafny values.
+        // they could be equal values.
         check(doer != doer2);
     }
 

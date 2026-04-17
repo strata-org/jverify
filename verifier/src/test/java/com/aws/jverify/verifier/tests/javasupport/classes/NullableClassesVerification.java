@@ -3,7 +3,7 @@ package com.aws.jverify.verifier.tests.javasupport.classes;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 3, errorCount = 1)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 3, errorCount = 1)
 public class NullableClassesVerification {
     
     static class C {

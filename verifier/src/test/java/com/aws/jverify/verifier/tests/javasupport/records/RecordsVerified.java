@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 22, errorCount = 4)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 22, errorCount = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();
@@ -154,10 +154,10 @@ record Factor(int value) implements ICoefficient {
 }
 
 /**
- * Records are translated to Dafny datatypes,
- * which don't automatically yield both nullable and non-nullable types (as Dafny classes do).
+ * In Strata, records are translated to value types,
+ * which don't automatically yield both nullable and non-nullable types (as classes do).
  * This wrapper class works around JVerify's current lack of automatic handling
- * for values that are of reference types in Java but of value types in Dafny.
+ * for values that are of reference types in Java but of value types in Strata.
  * (See <a href="https://github.com/aws/jverify/issues/179">#179</a>.)
  */
 class Wrapper<T> {

@@ -9,9 +9,7 @@ import com.aws.jverify.verifier.*;
 import com.aws.jverify.verifier.compiler.Reporter;
 import com.aws.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
 import com.aws.jverify.verifier.compiler.generator.laurel.LaurelFile;
-import com.aws.jverify.verifier.compiler.simplifications.NameCompiler;
 import com.aws.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
-import com.aws.jverify.verifier.dafny.*;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.JavacMessages;
 import picocli.CommandLine;
@@ -101,14 +99,14 @@ public class LaurelDriver implements Driver {
                 return files;
             });
 
-            var results = runVerifier(analysisResult.filesMap(), NameCompiler.instance(context), serializedProgram);
+            var results = runVerifier(analysisResult.filesMap(), serializedProgram);
             var allDiagnostics = new ArrayList<>(diagnostics);
             allDiagnostics.addAll(results.diagnostics());
             return new JVerifyResults(allDiagnostics, results.exitCode(), results.verificationResults());
         }
     }
 
-    public JVerifyResults runVerifier(FilesMap filesMap, NameCompiler nameCompiler, IonValue serializedProgram) {
+    public JVerifyResults runVerifier(FilesMap filesMap, IonValue serializedProgram) {
         var processBuilder = new ProcessBuilder(
                 "lake", "exe", "-q", "strata", "laurelAnalyzeBinary"
         );
@@ -121,7 +119,7 @@ public class LaurelDriver implements Driver {
                 {
                     serializedProgram.writeTo(writer);
                 }
-                return parseStrataOutput(filesMap, verifierOptions, nameCompiler, process.getProcess());
+                return parseStrataOutput(filesMap, verifierOptions, process.getProcess());
             } catch (InterruptedException | IOException e) {
                 verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() +
                         "\nError message: " + e.getMessage());
@@ -151,12 +149,10 @@ public class LaurelDriver implements Driver {
     
     private JVerifyResults parseStrataOutput(FilesMap filesMap,
                                              VerifierOptions options,
-                                             NameCompiler nameCompiler,
                                              Process process) throws IOException, InterruptedException {
 
         var diagnostics = new ArrayList<Diagnostic<?>>();
         try (var strataOutput = process.inputReader()) {
-            Wrapper<Integer> performanceTicks = new Wrapper<>(null);
             Wrapper<Integer> failedAssertionsCount = new Wrapper<>(0);
             var annotationCompiler = context.get(VerifyAnnotationCompiler.class);
             var methodStatuses = annotationCompiler.getMethodStatusPerUri();
@@ -233,7 +229,7 @@ public class LaurelDriver implements Driver {
             var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
             return new JVerifyResults(diagnostics, exitCode,
                     new VerificationResults(verifiedCount, failedCount, 
-                            failedAssertionsCount.getValue(), skippedCount, performanceTicks.getValue()));
+                            failedAssertionsCount.getValue(), skippedCount));
         }
 
     }

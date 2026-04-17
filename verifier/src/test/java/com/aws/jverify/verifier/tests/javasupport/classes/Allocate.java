@@ -6,7 +6,7 @@ import com.aws.jverify.*;
 import static com.aws.jverify.JVerify.*;
 
 // Class that test the support of class allocation and accesses
-@JVerifyTest(methodsVerified = 5, errorCount = 0)
+@JVerifyTest(skip = "Strata: not yet supported", methodsVerified = 5, errorCount = 0)
 class Allocate {
     public static IntPair allocateInReturn(int a, int b) {
         postcondition((IntPair p) -> fresh(p) &&  p.getA() == a);

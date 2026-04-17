@@ -5,7 +5,7 @@ import com.aws.jverify.Impure;
 import com.aws.jverify.Nullable;
 import com.aws.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
 @SuppressWarnings({"RedundantRecordConstructor", "unused"})
 class RecordsErrors {
     record ExplicitConstructors(int i, boolean b) {

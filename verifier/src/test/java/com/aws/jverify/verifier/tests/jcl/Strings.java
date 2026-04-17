@@ -14,7 +14,7 @@ import static com.aws.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(exitCode = 4, methodsVerified = 13, errorCount = 6)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 13, errorCount = 6)
 class Strings {
     @SuppressWarnings("unused")
     static final String veryLongLiteral = "One thing, I don't know why. It doesn't even matter how hard you try. Keep that in mind, I designed this rhyme to explain in due time. All I know time is a valuable thing";

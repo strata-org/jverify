@@ -22,6 +22,8 @@ import java.util.*;
  * We compile this behavior by moving static methods to a separate type that does not have type parameters 
  */
 public class MoveStaticMethodsToStaticType {
+    // Separator character for generated symbol names; cannot appear in Java identifiers
+    private static final char NAME_SEPARATOR = '?';
 
     Names names;
     TreeMaker maker;
@@ -80,7 +82,7 @@ public class MoveStaticMethodsToStaticType {
         Symbol.ClassSymbol staticClassSymbol;
 
         public StaticMethodCollector(JCTree.JCClassDecl classDecl) {
-            staticClassSymbol = new Symbol.ClassSymbol(0, classDecl.sym.name.append(NameCompiler.sep, names.fromString("static")), classDecl.sym.packge());
+            staticClassSymbol = new Symbol.ClassSymbol(0, classDecl.sym.name.append(NAME_SEPARATOR, names.fromString("static")), classDecl.sym.packge());
             staticClassSymbol.members_field = Scope.WriteableScope.create(staticClassSymbol);
             Type.ClassType classType = new Type.ClassType(Type.noType, com.sun.tools.javac.util.List.nil(), staticClassSymbol);
             classType.supertype_field = Type.noType; //syms.objectType;

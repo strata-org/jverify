@@ -4,7 +4,6 @@ import com.aws.jverify.common.AnnotatedRange;
 import com.aws.jverify.common.Position;
 import com.aws.jverify.common.Range;
 import com.aws.jverify.verifier.*;
-import com.aws.jverify.verifier.dafny.*;
 import com.google.auto.service.AutoService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -144,7 +143,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     /**
      * Verifies the given source code and asserts that the exit code, emitted diagnostics,
-     * and verified/error counts (from Dafny) match the specified values in the source code's test metadata.
+     * and verified/error counts match the specified values in the source code's test metadata.
      */
     public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
@@ -153,13 +152,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
-        for(var backend : annotation.BACKENDS()) {
-            verifyFile(sourceFile, annotation, ranges, backend, getVerifierOptions(annotation, null, backend));
-        }
+        verifyFile(sourceFile, annotation, ranges, getVerifierOptions(annotation, null));
     }
 
-    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges, 
-                                  Backend backend,
+    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
                                   VerifierOptions options) throws IOException {
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
@@ -173,7 +169,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
-        var results = Driver.getDriver(backend, options).verifyJavaFiles(inputs);
+        var results = Driver.getDriver(options).verifyJavaFiles(inputs);
 
         var diagnosticsAsAnnotations = results.diagnostics().stream()
                 .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
@@ -186,14 +182,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
         }
 
-        var expectedAnnotations = ranges.stream().map(ar -> {
-            if (backend == Backend.Dafny) {
-                String newMessage = ar.annotation().replace("assertion does not hold", "assertion could not be proved");
-                return new AnnotatedRange(newMessage, ar.range());
-            } else {
-                return ar;
-            }
-        }).sorted().toList();
+        var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
         Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
@@ -233,48 +222,6 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 }
             }
         );
-
-        if (annotation.verifyPrintedDafny()) {
-            verifyPrintedDafny(results, options);
-        }
-    }
-
-    private static void verifyPrintedDafny(JVerifyResults previousResults, VerifierOptions verifierOptions)
-            throws IOException {
-        boolean jverifyCompilationFailed = previousResults.exitCode() == 2;
-        if (jverifyCompilationFailed) {
-            return;
-        } else if (verifierOptions.printDeserializedTarget() == null) {
-            throw new RuntimeException("");
-        }
-
-        var processBuilder = new ProcessBuilder(
-                verifierOptions.backendPath().toString(),
-                "verify",
-                verifierOptions.printDeserializedTarget().toString(),
-                "--allow-axioms",
-                "--type-system-refresh",
-                "--general-newtypes",
-                "--general-traits=datatype"
-        );
-        var process = processBuilder.redirectErrorStream(true).start();
-        try(var stdout = process.inputReader()) {
-            var dafnyExitCode = process.waitFor();
-            var exitCode = DafnyDriver.getExitCodeFromDafny(dafnyExitCode);
-            String content = readerToString(stdout);
-            Assertions.assertEquals(previousResults.exitCode(), exitCode, content);
-        } catch (InterruptedException e) {
-            Assertions.fail();
-        }
-    }
-
-    private static String readerToString(BufferedReader stdout) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = stdout.readLine()) != null) {
-            sb.append(line).append("\n");
-        }
-        return sb.toString();
     }
 
     private static AnnotatedRange diagnosticAsAnnotatedRange(URI testFile, Diagnostic<?> diagnostic) {
@@ -304,45 +251,26 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }
     }
 
-    private static final boolean IS_WINDOWS = System.getProperty("os.name", "").toLowerCase().contains("windows");
-
-    public static VerifierOptions getVerifierOptions(JVerifyTest annotation, 
-                                                     PositionFilter positionFilter, Backend backend) {
-        var backendPath = switch (backend) {
-            case Dafny -> getDafnyInSubmodulePath();
-            case Strata -> Path.of("../Strata").toAbsolutePath().normalize();
-        };
+    public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter) {
+        var backendPath = Path.of("../Strata").toAbsolutePath().normalize();
         var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
         var verifierJar = Path.of("../verifier/build/libs/verifier-1.0-SNAPSHOT.jar");
         var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
         var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
-        var prelude = Path.of("../verifier/src/main/resources/additional.dfy");
         return new VerifierOptions(new PrintWriter(System.out),
                 workingDirectory,
                 backendPath,
                 List.of(verifierJar, libraryJar, testEngineClassPath, libraryForTestingClassPath),
-                prelude,
-                false,
-                Path.of("../build/temp.dfy"),
-                Path.of("../build/temp.dbin"),
+                Path.of("../build/temp.laurel"),
                 true,
                 annotation.useBuiltinContracts() ? List.of(builtinContracts) : List.of(),
                 true,
-                new String[] {
-                        "--use-basename-for-filename",
-                        //"--wait-for-debugger",
-                },
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
                 positionFilter, true, false
         );
-    }
-
-    public static Path getDafnyInSubmodulePath() {
-        return Path.of("../dafny").toAbsolutePath()
-                .resolve(IS_WINDOWS ? "Binaries/Dafny.exe" : "Scripts/dafny");
     }
 
     public static Path getBuiltinContractsSourceDir() {
@@ -354,21 +282,20 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      * Useful for testing things like examples where we don't want the explicit annotation.
      */
     public static JVerifyTest makeJVerifyTestAnnotation(int methodsVerified, int assertionsFailed) {
-        return makeJVerifyTestAnnotation(true, assertionsFailed > 0 ? 4 : 0, methodsVerified, assertionsFailed, false, false, true);
+        return makeJVerifyTestAnnotation(true, assertionsFailed > 0 ? 4 : 0, methodsVerified, assertionsFailed,
+                false, true);
     }
-    
+
     /**
      * For creating a JVerifyTest annotation without having it in source code.
      * Useful for testing things like examples where we don't want the explicit annotation.
      */
     public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
                                                         int methodsVerified, int assertionsFailed,
-                                                        boolean verifyPrintedDafny,
                                                         boolean continueOnErrors,
                                                         boolean useBuiltinContracts) {
-        return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors, 
-                exitCode, new String[0], verifyPrintedDafny, -1, assertionsFailed, methodsVerified, -1, 
-                new Backend[]{ Backend.Dafny }, new int[] {});
+        return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors,
+                exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1);
     }
 
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, JVerifyResults results) throws IOException {
@@ -398,4 +325,3 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }
     }
 }
-

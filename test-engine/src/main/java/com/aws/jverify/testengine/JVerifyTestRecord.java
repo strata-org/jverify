@@ -1,15 +1,12 @@
 package com.aws.jverify.testengine;
 
-import com.aws.jverify.verifier.Backend;
-
 import java.lang.annotation.Annotation;
 
 public record JVerifyTestRecord(String skip, boolean verifyByDefault, boolean useBuiltinContracts,
                                 boolean continueOnErrors, int exitCode,
-                                String[] additionalFiles, boolean verifyPrintedDafny,
+                                String[] additionalFiles,
                                 int methodsInvalid, int errorCount, int methodsVerified,
-                                int methodsSkipped, Backend[] BACKENDS,
-                                int[] performanceTicks) implements JVerifyTest {
+                                int methodsSkipped) implements JVerifyTest {
     @Override
     public Class<? extends Annotation> annotationType() {
         return JVerifyTest.class;

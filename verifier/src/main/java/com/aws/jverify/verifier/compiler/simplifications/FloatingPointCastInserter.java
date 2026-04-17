@@ -13,7 +13,7 @@ import com.sun.tools.javac.util.ListBuffer;
 /**
  * Inserts explicit type casts for implicit widening conversions from integral types
  * to floating point types (int/long/short/byte -> double/float).
- * This simplifies downstream Dafny translation by making all conversions explicit.
+ * This simplifies downstream translation by making all conversions explicit.
  */
 public class FloatingPointCastInserter extends TreeTranslator {
     private final TreeMaker make;

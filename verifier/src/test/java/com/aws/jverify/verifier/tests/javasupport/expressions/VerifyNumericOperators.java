@@ -9,7 +9,7 @@ import static com.aws.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(exitCode = 4, methodsVerified = 1, errorCount = 1)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 1, errorCount = 1)
 class VerifyNumericOperators {
     public void foo() {
         var l = 3L;

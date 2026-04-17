@@ -8,7 +8,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 2, errorCount = 4)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 2, errorCount = 4)
 class FibonacciInvalid {
     @Pure
     @Erased

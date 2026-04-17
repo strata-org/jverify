@@ -1,6 +1,5 @@
 package com.aws.jverify.testengine;
 
-import com.aws.jverify.verifier.Backend;
 import org.junit.platform.commons.annotation.Testable;
 
 import java.lang.annotation.ElementType;
@@ -13,11 +12,11 @@ import java.lang.annotation.Target;
  *
  * <ol>
  *      <li>
- *          {@code @VerifyTest(skip = "...")}
+ *          {@code @JVerifyTest(skip = "...")}
  *          - The test should be skipped for the given reason.
  *      </li>
  *      <li>
- *          {@code @VerifyTest(exitCode = ...)}
+ *          {@code @JVerifyTest(exitCode = ...)}
  *          - JVerify should finish with exit code {@code X}
  *          (i.e. Verification is never started because there are javac errors, or verification terminates abnormally).
  *      </li>
@@ -37,42 +36,27 @@ public @interface JVerifyTest {
      * Mark the test as skipped for the given reason (if not null or empty).
      */
     String skip() default "";
-
     /**
      * What to pass for the --verify-by-default verifier option.
      */
     boolean verifyByDefault() default true;
-
     boolean useBuiltinContracts() default false;
-    
     boolean continueOnErrors() default false;
-
     int exitCode() default 0;
-
-    Backend[] BACKENDS() default { Backend.Dafny };
-
-    int[] performanceTicks() default { };
-    
     String[] additionalFiles() default {};
-    
-    boolean verifyPrintedDafny() default false;
-
     /**
-     * Expected number of Java methods to fail verification
+     * Expected number of Java methods to fail verification.
      */
     int methodsInvalid()  default -1;
-    
     int errorCount()  default -1;
-
     /**
-     * Expected number of Java methods to be verified
+     * Expected number of Java methods to be verified.
      * Note: add + 1 for each class you are verifying to account
-     * for the implicit constructor unless you have specified it explicitly
+     * for the implicit constructor unless you have specified it explicitly.
      */
     int methodsVerified() default -1;
-
     /**
-     * Expected number of Java methods to have been skipped during verification
+     * Expected number of Java methods to have been skipped during verification.
      */
     int methodsSkipped() default -1;
 }

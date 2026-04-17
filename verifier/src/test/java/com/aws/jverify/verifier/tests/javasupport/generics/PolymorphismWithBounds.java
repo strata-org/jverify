@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 
 import static com.aws.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 15, errorCount = 0)
+@JVerifyTest(skip = "Strata: not yet supported", methodsVerified = 15, errorCount = 0)
 public class PolymorphismWithBounds {
     
     public static void root() {

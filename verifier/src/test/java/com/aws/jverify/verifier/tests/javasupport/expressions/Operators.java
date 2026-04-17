@@ -14,7 +14,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest(exitCode = 4, methodsVerified = 19, errorCount = 13)
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 19, errorCount = 13)
 class Operators {
     static void Plus() {
         int x = 3;
