@@ -39,4 +39,4 @@ Because the JVerify packages are not yet published to any shared repositories, r
 
 ## Current limitations
 
-The Strata back-end is still being extended to cover Java. Many programs that worked with JVerify's original back-end do not verify yet. See [Supported Java features](./supported_java_features.md) and issue [#384](https://github.com/strata-org/jverify/issues/384) for the current state.
+JVerify currently supports a limited subset of Java. Many programs that worked with JVerify's original back-end do not verify yet. See [Supported Java features](./supported_java_features.md) and issue [#384](https://github.com/strata-org/jverify/issues/384) for the current state.

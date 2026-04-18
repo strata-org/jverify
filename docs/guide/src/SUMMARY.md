@@ -17,9 +17,9 @@
 
 <!--
 The following pages are temporarily hidden from the sidebar because their content relies
-on Java features the Strata back-end does not yet support (instance methods, classes,
+on Java features JVerify does not yet support (instance methods, classes,
 fields, reference types, etc.). The HTML for each page is still built and accessible
-by direct URL. Pages return to the sidebar as the back-end is extended. See issue #384.
+by direct URL. Pages return to the sidebar as support grows. See issue #384.
 
 [Example use-cases](./example_usecases.md)
 [Uncaught Exceptions](uncaught_exceptions.md)
