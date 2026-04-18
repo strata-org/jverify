@@ -6,4 +6,4 @@ We only allow squash merging and GH suggests the PR details as a default commit 
 
 ### How has this been tested?
 
-<small>By submitting this pull request, I confirm that my contribution is made under the terms of the [Apache-2.0](https://github.com/aws/jverify?tab=Apache-2.0-1-ov-file#readme).</small>
+<small>By submitting this pull request, I confirm that my contribution is made under the terms of the [Apache-2.0](https://github.com/strata-org/jverify?tab=Apache-2.0-1-ov-file#readme).</small>

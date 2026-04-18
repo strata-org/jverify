@@ -1,4 +1,7 @@
 # JVerify
+
+> **Current status:** JVerify is under active development. It currently runs on the [Strata](https://github.com/strata-org/Strata) back-end, which supports a limited subset of Java (see [Supported Java features](./supported_java_features.md)). Some examples in this guide use features that don't verify yet — treat them as illustrations of intended behavior. Track progress at issue [#384](https://github.com/strata-org/jverify/issues/384).
+
 JVerify is a tool that helps ensure the correctness of Java programs. There are many existing tools for this. However, such tools are often either incomplete, not revealing bugs that are present, or inaccurate, reporting a problem when there is no bug.
 
 JVerify is both complete and accurate. JVerify is complete because it allows the programmer to specify any type of behavior for their program, after which JVerify can ensure the implementation matches this. Typically desired behaviors, such as that the program does not throw any uncaught exceptions, or that the program must eventually terminate, do not need to be specified since JVerify knows about them already.
