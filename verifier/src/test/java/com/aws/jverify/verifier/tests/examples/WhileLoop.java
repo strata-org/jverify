@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 0)
-class StrataWhileLoop {
+class WhileLoop {
     static void countDown() {
         int i = 3;
         while (i > 0) {

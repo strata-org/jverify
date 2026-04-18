@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 4, errorCount = 2)
-class StrataBasic {
+class Basic {
     static void arithmetic() {
         int x = 5;
         int y = x * 2 - 3;

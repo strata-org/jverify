@@ -8,7 +8,7 @@ import static com.aws.jverify.JVerify.*;
 // @Pure with int return type is not yet supported in Strata (constrained return types on functions).
 // Testing with boolean return type only.
 @JVerifyTest(exitCode = 0)
-class StrataPureFunction {
+class PureFunction {
     @Pure
     static boolean isPositive(boolean x) {
         return x;
