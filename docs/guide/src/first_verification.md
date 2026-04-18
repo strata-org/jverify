@@ -1,21 +1,21 @@
 # Running JVerify
 
-Let's try running JVerify on the following Java program, found [here](https://github.com/strata-org/jverify/blob/main/verifier/src/test/java/com/aws/jverify/verifier/tests/examples/Postconditions.java):
+Let's try running JVerify on the following Java program, found [here](https://github.com/strata-org/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/Postconditions.java):
 
 ```java
-{{#include ../../../verifier/src/test/java/com/aws/jverify/verifier/tests/examples/Postconditions.java}}
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/Postconditions.java}}
 ```
 
 To run JVerify, from the repository root:
 
 ```
-./verifier/build/install/verifier/bin/verifier ./verifier/src/test/java/com/aws/jverify/verifier/tests/examples/Postconditions.java
+./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/Postconditions.java
 ```
 
 or on Windows:
 
 ```
-./verifier/build/install/verifier/bin/verifier.bat ./verifier/src/test/java/com/aws/jverify/verifier/tests/examples/Postconditions.java
+./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/Postconditions.java
 ```
 
 You should see verification succeed with no errors.
