@@ -49,7 +49,7 @@ This project has adopted the [Contributor Covenant Code of Conduct](CODE_OF_COND
 
 
 ## Security issue notifications
-If you discover a potential security issue in this project, please **do not create a public GitHub issue**. Instead, open a private report via [GitHub's security advisory](https://github.com/strata-org/jverify/security/advisories/new) mechanism.
+If you discover a potential security issue in this project, please notify AWS/Amazon Security via our [vulnerability reporting page](http://aws.amazon.com/security/vulnerability-reporting/) or directly via email to [aws-security@amazon.com](mailto:aws-security@amazon.com). Please do not create a public GitHub issue. See [SECURITY.md](SECURITY.md).
 
 
 ## Licensing
