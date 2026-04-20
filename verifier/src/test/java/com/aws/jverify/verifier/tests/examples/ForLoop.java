@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 0)
-class StrataForLoop {
+class ForLoop {
     static void simpleFor() {
         int sum = 0;
         for (int i = 0; i < 3; i = i + 1) {

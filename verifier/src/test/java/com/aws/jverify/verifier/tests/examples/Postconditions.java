@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 0)
-class StrataPostconditions {
+class Postconditions {
     static int addOne(int x) {
         precondition(0 <= x && x < 2147483647);
         postcondition((int res) -> res == x + 1);

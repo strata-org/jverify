@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 0)
-class StrataQuantifiers {
+class Quantifiers {
     static void universalQuantifier() {
         check(forall((int x) -> implies(x > 0, x >= 1)));
     }
