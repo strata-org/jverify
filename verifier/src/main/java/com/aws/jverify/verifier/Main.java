@@ -51,7 +51,7 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--include-filter-dependencies", description = "When filtering on just a file, also verify its transitive dependencies.")
     private boolean includeFilterDependencies;
     
-    @Option(names = "--strata", description = "Location of the Strata binary to use. Overrides environment variable JVERIFY_STRATA.")
+    @Option(names = "--strata", description = "Path to the Strata project directory. Overrides environment variable JVERIFY_STRATA.")
     private Path customVerifier;
 
     @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")

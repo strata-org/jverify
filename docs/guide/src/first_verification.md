@@ -1,65 +1,68 @@
 # Running JVerify
 
-Let's try running JVerify on the following Java program,
-found [here](https://github.com/aws/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/BinarySearch.java):
+Let's try running JVerify on the following Java program, found [here](https://github.com/strata-org/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/GaussianSum.java):
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/BinarySearch.java}}
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/GaussianSum.java}}
 ```
 
-To run JVerify, run the following from the repository root:
+`sumTo(n)` claims it returns the closed form `n * (n + 1) / 2`. JVerify checks that claim against the actual loop using two invariants: one bounds the loop counter, the other ties the running sum to the closed form.
+
+To run JVerify, from the repository root:
 
 ```
-./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --verifier ./dafny/Scripts/dafny --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
+./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/GaussianSum.java
 ```
 
-or the following in Windows:
+or on Windows:
 
 ```
-./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/BinarySearch.java --verifier ./dafny/Binaries/Dafny.exe --contract-path ./builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar
+./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/GaussianSum.java
 ```
 
 You should see the following output:
 
 ```
-Dafny program verifier finished with 3 verified, 0 errors
+Found 0 errors
+Verified methods: 2
+Failed methods: 0
+Skipped methods: 0
 ```
 
-This indicates that JVerify successfully verified 3 batches of specifications.
+If the `JVERIFY_STRATA` environment variable is not set, pass the Strata project directory explicitly with `--strata ./Strata`.
 
-You can remove the need for the `--verifier` option by configuring the environment variable `JVERIFY_DAFNY` (for Dafny) or `JVERIFY_STRATA` (for Strata), or modifying your `PATH` so that `dafny` resolves automatically.
-
-Try editing the `BinarySearch.java` file to see a verification failure. Almost any change you make to the meaning of the program will cause a verification file. For example, if you change `var lo = 0;` into `var lo = 1;`, JVerify returns:
+Try editing `GaussianSum.java` to introduce a bug — for example, change `return s;` to `return s + 1;` — and re-run. JVerify reports:
 
 ```
-BinarySearch.java(30:23-30:31): Error: this loop invariant could not be proved on entry
-Related message: loop invariant violation
-BinarySearch.java(32:23-32:60): Error: this loop invariant could not be proved on entry
-Related message: loop invariant violation
-Dafny program verifier finished with 2 verified, 2 errors
+GaussianSum.java(16:36-16:58): Error: assertion could not be proved
+Found 1 errors
+Verified methods: 1
+Failed methods: 1
+Skipped methods: 0
 ```
+
+The line and column point at the failing postcondition.
 
 ## Adding JVerify to a Java project
 
-To start verifying your own code, you just need to add the JVerify library as a compile-time dependency
-so that you can use annotations such as `@Pure` and specification methods such as `precondition` to your code.
-In a Gradle build script, for example:
+To verify your own code, add the JVerify library as a compile-time dependency so you can use annotations such as `@Pure` and specification methods such as `precondition`. In a Gradle build script:
 
 ```kotlin
 dependencies {
-    // Depend on the library for specification annotations and methods
     implementation("com.aws.jverify:library:1.0-SNAPSHOT")
-    ...
+    // ...
 }
 ```
 
-Because the JVerify packages are not yet published to any shared repositories,
-you will need to run `./gradlew publishToMavenLocal` first so this can be resolved.
-See [the sample project](https://github.com/aws/jverify/blob/main/sample-project) for more details.
+Because the JVerify packages are not yet published to any shared repositories, run `./gradlew publishToMavenLocal` first so this can be resolved. See [the sample project](https://github.com/strata-org/jverify/blob/main/sample-project) for more details.
 
-### GitHub issues related to the above:
+## Current limitations
 
-- Let the number of reported verified things match Java concepts: https://github.com/aws/jverify/issues/127
-- Support showing diagnostics using snippets: https://github.com/aws/jverify/issues/128
-- Support running verification from the annotation processor as well: https://github.com/aws/jverify/issues/159
-- Avoid needing to add `--add-export` when using the javac-plugin: https://github.com/aws/jverify/issues/160
+JVerify currently supports a limited subset of Java. See [Supported Java features](./supported_java_features.md) and issue [#384](https://github.com/strata-org/jverify/issues/384) for the current state.
+
+### Related open issues
+
+- Let the number of reported verified things match Java concepts: [#127](https://github.com/strata-org/jverify/issues/127)
+- Support showing diagnostics using snippets: [#128](https://github.com/strata-org/jverify/issues/128)
+- Support running verification from the annotation processor as well: [#159](https://github.com/strata-org/jverify/issues/159)
+- Avoid needing to add `--add-export` when using the javac-plugin: [#160](https://github.com/strata-org/jverify/issues/160)

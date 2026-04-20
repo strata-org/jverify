@@ -1,12 +1,31 @@
 # Installation
+
 JVerify can currently only be used by building it from source.
 
-1. Ensure the .NET runtime version 8 or higher is installed on your machine. More information can be found [here](https://dotnet.microsoft.com/en-us/).
-1. Ensure Java 23 is installed on your machine. If you have a higher Java version installed add `-Dorg.gradle.java.home=path-to-local-java-to-be-use` to the gradle build command below.
-1. Check out the [JVerify repository](https://github.com/aws/jverify) and its submodules, for example using `git clone https://github.com/aws/jverify --recurse-submodules`.
-1. Navigate to the JVerify repository directory.
-1. Run `./gradlew installDist` (for Mac OS or Linux systems) or `./gradlew.bat installDist` (for Windows)
-1. Run `make -C dafny exe` to build [Dafny](https://dafny.org/), a verification tool used by JVerify.
-1. Install Z3 using `make -C dafny z3-<OS>`, where `<OS>` can be `mac`, `mac-arm` or `ubuntu`. Pick the one that matches your OS. For systems that do not fit those categories, such as Windows, you will have to take these steps instead:
-    1. Download the release of [Z3 version 4.12.1](https://github.com/Z3Prover/z3/releases/tag/z3-4.12.1) that matches your system.
-    1. Unzip the content of the Z3 folder into `dafny\Binaries\z3` so that `dafny\Binaries\z3\bin\z3.exe` exists.
+## Prerequisites
+
+1. **Java 23.** If you have a different default Java version installed, pass `-Dorg.gradle.java.home=path-to-java-23` to the gradle commands below.
+2. **[Lean 4](https://lean-lang.org/)** (via `elan`) — needed to build the [Strata](https://github.com/strata-org/Strata) verification back-end.
+3. **[cvc5](https://cvc5.github.io/)** SMT solver on your `PATH`.
+
+## Building
+
+1. Check out the [JVerify repository](https://github.com/strata-org/jverify) and its submodules:
+   ```
+   git clone https://github.com/strata-org/jverify.git --recurse-submodules
+   ```
+2. Navigate to the JVerify repository directory.
+3. Build the verifier CLI:
+   ```
+   ./gradlew installDist     # macOS / Linux
+   ./gradlew.bat installDist # Windows
+   ```
+4. Build the Strata back-end:
+   ```
+   cd Strata && lake build && cd ..
+   ```
+5. Point JVerify at the Strata project directory by setting the `JVERIFY_STRATA` environment variable:
+   ```
+   export JVERIFY_STRATA=$(pwd)/Strata
+   ```
+   (or pass `--strata /path/to/Strata` on every JVerify invocation).

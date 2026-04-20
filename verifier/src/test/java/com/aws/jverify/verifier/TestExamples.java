@@ -8,9 +8,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-@Disabled("Strata: examples use features not yet supported")
 public class TestExamples {
-    
+
+    private static final String DISABLED_REASON = "Strata: example uses features not yet supported";
+
+    @Test
+    public void testGaussianSum() throws IOException {
+        var markedSourcePath = Path.of("GaussianSum.java");
+        verifyPath(markedSourcePath, 0, 2, 0, false, true);
+    }
+
+    @Disabled(DISABLED_REASON)
     @Test
     public void testSumCache() throws IOException {
         var markedSourcePath = Path.of("SumCache.java");
@@ -20,42 +28,49 @@ public class TestExamples {
     /**
      * This is the only test that tests these rules.
      */
+    @Disabled(DISABLED_REASON)
     @Test
     public void testObjectRules() throws IOException {
         var markedSourcePath = Path.of("ObjectRules.java");
         verifyPath(markedSourcePath, 22, -1, -1, true, true);
     }
     
+    @Disabled(DISABLED_REASON)
     @Test
     public void testPurity() throws IOException {
         var markedSourcePath = Path.of("TypePurity.java");
         verifyPath(markedSourcePath, 22, -1, -1, true, true);
     }
     
+    @Disabled(DISABLED_REASON)
     @Test
     public void testNullCheck() throws IOException {
         var markedSourcePath = Path.of("SimpleNullCheck.java");
         verifyPath(markedSourcePath, 4, 4, 2, false, true);
     }
     
+    @Disabled(DISABLED_REASON)
     @Test
     public void testFibonacci() throws IOException {
         var markedSourcePath = Path.of("Fibonacci.java");
         verifyPath(markedSourcePath, 0, 4, 0, false, true);
     }
 
+    @Disabled(DISABLED_REASON)
     @Test
     public void testOrder() throws IOException {
         var markedSourcePath = Path.of("Order.java");
         verifyPath(markedSourcePath, 4, 5, 1, false, true);
     }
     
+    @Disabled(DISABLED_REASON)
     @Test
     public void testUserProfile() throws IOException {
         var markedSourcePath = Path.of("UserProfile.java");
         verifyPath(markedSourcePath, 0, 9, 0, false, true);
     }
     
+    @Disabled(DISABLED_REASON)
     @Test
     public void testBinarySearch() throws IOException {
         var markedSourcePath = Path.of("BinarySearch.java");

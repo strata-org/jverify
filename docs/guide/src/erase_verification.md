@@ -18,4 +18,4 @@ dependencies {
 }
 ```
 
-This currently requires some additional JDK parameters to work, however: see [the sample project build script](https://github.com/aws/jverify/blob/main/sample-project/app/build.gradle.kts) for more details.
+This currently requires some additional JDK parameters to work, however: see [the sample project build script](https://github.com/strata-org/jverify/blob/main/sample-project/app/build.gradle.kts) for more details.
