@@ -1,3 +1,4 @@
 ## Code of Conduct
-
-This project follows the [Contributor Covenant](https://www.contributor-covenant.org/) as its code of conduct. Report unacceptable behavior by opening an issue in this repository.
+This project has adopted the [Amazon Open Source Code of Conduct](https://aws.github.io/code-of-conduct).
+For more information see the [Code of Conduct FAQ](https://aws.github.io/code-of-conduct-faq) or contact
+opensource-codeofconduct@amazon.com with any additional questions or comments.
