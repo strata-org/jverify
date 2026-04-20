@@ -1,6 +1,6 @@
 # Supported Java features
 
-JVerify intends to support the full Java language, but is actively under development. Today it runs on the [Strata](https://github.com/strata-org/Strata) back-end, which supports a limited subset of Java. Support is being expanded incrementally — see issue [#384](https://github.com/strata-org/jverify/issues/384) for the roadmap.
+JVerify intends to support the full Java language, but is actively under development. It is built on [Strata](https://github.com/strata-org/Strata) and currently supports a limited subset of Java. Support is being expanded incrementally — see issue [#384](https://github.com/strata-org/jverify/issues/384) for the roadmap.
 
 ## Currently supported
 
