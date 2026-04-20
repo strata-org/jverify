@@ -1,0 +1,67 @@
+package org.strata.jverify.verifier.tests.verification;
+
+import org.strata.jverify.Pure;
+import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testing.GenericParent;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.strata.jverify.JVerify.check;
+
+@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 8, errorCount = 1)
+public class MissingContracts {
+    
+    void checkFalse() {
+        check(false);
+//      ^^^^^^^^^^^^ Error: assertion does not hold
+    }
+    
+    interface MissingContract {
+        int assumedPure();
+        void cantBePure();
+    }
+    
+    @Pure
+    int pureUser(MissingContract missingContract) {
+        return missingContract.assumedPure();
+//             ^ warning: missing contract for method 'assumedPure' in class 'org.strata.jverify.verifier.tests.verification.MissingContracts.MissingContract'
+    }
+
+    @SuppressWarnings("UnnecessaryBoxing")
+    @Pure
+    Integer pureUser3() {
+        return Integer.valueOf(3);
+//             ^ warning: missing contract for method 'valueOf' in class 'java.lang.Integer'
+    }
+    
+    @Pure
+    List<Value> pureUser2(List<Value> values) {
+        return List.of(new Value());
+//             ^ warning: missing contract for method 'of' in class 'java.util.List'
+    }
+    
+    void impureUser(List<Value> values) {
+        // By creating a contract for addFirst (which is in List) and a contract for ArrayList,
+        // we test that missing contracts created in an inheritance chain
+        // do not cause issues.
+        values.addFirst(new Value());
+//      ^ warning: missing contract for method 'addFirst' in class 'java.util.List'
+        var l = new ArrayList<Value>();
+//              ^ warning: missing contract for method '<init>' in class 'java.util.ArrayList'
+    }
+    record Value() {}
+    
+    void referenceTwoMissingClassesWithTheSameName() {
+        org.strata.jverify.testing.a.DuplicateName duplicateNameA;
+        org.strata.jverify.testing.b.DuplicateName duplicateNameB;
+    }
+    
+    void indirectReference(GenericParent gp) {}
+    
+// TODO generate ghost code everywhere
+//    void missingField() {
+//        var zero = BigDecimal.ZERO;
+//    }
+    
+}

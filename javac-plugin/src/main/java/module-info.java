@@ -1,6 +1,6 @@
-module com.aws.jverify.plugin {
+module org.strata.jverify.plugin {
     requires jdk.compiler;
     requires com.google.auto.service;
-    requires com.aws.jverify;
-    requires com.aws.jverify.common;
+    requires org.strata.jverify;
+    requires org.strata.jverify.common;
 }

@@ -49,7 +49,7 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           make generate-laurel-ast
-          git diff --exit-code --ignore-cr-at-eol verifier/src/main/java/com/aws/jverify/laurel/
+          git diff --exit-code --ignore-cr-at-eol verifier/src/main/java/org/strata/jverify/laurel/
       - name: Add Lake to path (Windows)
         if: runner.os == 'Windows'
         shell: pwsh

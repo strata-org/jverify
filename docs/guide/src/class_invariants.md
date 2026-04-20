@@ -2,12 +2,12 @@
 Here follows a program that contains a `NullReferenceException`. The class `UserProfile` can be either `Free` or `Premium`, and for performance reasons, the field `premiumFeatures` should only be set when the account is `Premium`. The program:
 
 ```java
-package com.aws.jverify.examples;
+package org.strata.jverify.examples;
 
-import static com.aws.jverify.JVerify.*;
-import com.aws.jverify.Invariant;
-import com.aws.jverify.Nullable;
-import com.aws.jverify.Pure;
+import static org.strata.jverify.JVerify.*;
+import org.strata.jverify.Invariant;
+import org.strata.jverify.Nullable;
+import org.strata.jverify.Pure;
 
 class UserProfile {
     public enum AccountType { Free, Premium }

@@ -22,12 +22,12 @@ repositories {
 
 dependencies {
     // Depend on the library for specification annotations and methods
-    implementation("com.aws.jverify:library:1.0-SNAPSHOT")
+    implementation("org.strata.jverify:library:1.0-SNAPSHOT")
     // Depend on the verifier as a build tool
     // TODO: Figure out correct dependency type, and declare the verifier's correctly
-    implementation("com.aws.jverify:verifier:1.0-SNAPSHOT")
+    implementation("org.strata.jverify:verifier:1.0-SNAPSHOT")
     // Depend on the annotation processor to erase specification code when building
-    annotationProcessor("com.aws.jverify:javac-plugin:1.0-SNAPSHOT")
+    annotationProcessor("org.strata.jverify:javac-plugin:1.0-SNAPSHOT")
 
     // Use JUnit Jupiter for testing.
     testImplementation(libs.junit.jupiter)
@@ -79,7 +79,7 @@ tasks.register<JavaExec>("verify") {
     classpath(
         configurations.runtimeClasspath
     )
-    mainClass = "com.aws.jverify.verifier.Main"
+    mainClass = "org.strata.jverify.verifier.Main"
 
     jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     args(

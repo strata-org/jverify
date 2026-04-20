@@ -12,7 +12,7 @@ Records are always pure and classes are impure with an exception (see below). In
 The following file shows how pure and impure types can be used, and their relation to immutable and mutable types.
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/PurenessAndMutability.java}}
+{{#include ../../../examples/src/test/java/org/strata/jverify/examples/PurenessAndMutability.java}}
 ```
 
 ### Object
@@ -26,7 +26,7 @@ Pure types always inherit from `Object`, while impure ones inherit from `@Impure
 Here is an example showing the rules for Object types:
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/ObjectRules.java}}
+{{#include ../../../examples/src/test/java/org/strata/jverify/examples/ObjectRules.java}}
 ```
 
 ### Immutable classes

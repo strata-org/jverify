@@ -1,12 +1,12 @@
-package com.aws.jverify.builtin;
+package org.strata.jverify.builtin;
 
-import com.aws.jverify.Contract;
-import static com.aws.jverify.JVerify.*;
-import com.aws.jverify.Nat;
-import com.aws.jverify.JVerify;
-import com.aws.jverify.Verify;
-import com.aws.jverify.Pure;
-import com.aws.jverify.ContractException;
+import org.strata.jverify.Contract;
+import static org.strata.jverify.JVerify.*;
+import org.strata.jverify.Nat;
+import org.strata.jverify.JVerify;
+import org.strata.jverify.Verify;
+import org.strata.jverify.Pure;
+import org.strata.jverify.ContractException;
 
 @Contract(Object.class)
 class ObjectContract {

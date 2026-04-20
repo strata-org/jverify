@@ -52,5 +52,5 @@ Note that the `@Unbounded` annotation can only be used in erased code. It is oft
 Here follows an example that uses unbounded numbers is its specification, bounded numbers in the implementation, and natural numbers in both. It shows how each of these concepts is useful:
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/Fibonacci.java}}
+{{#include ../../../examples/src/test/java/org/strata/jverify/examples/Fibonacci.java}}
 ```

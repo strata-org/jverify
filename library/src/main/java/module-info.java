@@ -1,3 +1,3 @@
-module com.aws.jverify {
-    exports com.aws.jverify;
+module org.strata.jverify {
+    exports org.strata.jverify;
 }
