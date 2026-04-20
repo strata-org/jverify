@@ -13,8 +13,8 @@ public class TestExamples {
     private static final String DISABLED_REASON = "Strata: example uses features not yet supported";
 
     @Test
-    public void testSumTo() throws IOException {
-        var markedSourcePath = Path.of("SumTo.java");
+    public void testGaussianSum() throws IOException {
+        var markedSourcePath = Path.of("GaussianSum.java");
         verifyPath(markedSourcePath, 0, 2, 0, false, true);
     }
 

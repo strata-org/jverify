@@ -2,7 +2,7 @@ package com.aws.jverify.examples;
 
 import static com.aws.jverify.JVerify.*;
 
-class SumTo {
+class GaussianSum {
     /**
      * Returns 0 + 1 + 2 + ... + n.
      *
