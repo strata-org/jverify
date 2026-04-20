@@ -18,6 +18,12 @@ public class TestExamples {
         verifyPath(markedSourcePath, 0, 3, 0, false, true);
     }
 
+    @Test
+    public void testSumTo() throws IOException {
+        var markedSourcePath = Path.of("SumTo.java");
+        verifyPath(markedSourcePath, 0, 2, 0, false, true);
+    }
+
     @Disabled(DISABLED_REASON)
     @Test
     public void testSumCache() throws IOException {

@@ -1,44 +1,47 @@
 # Running JVerify
 
-Let's try running JVerify on the following Java program, found [here](https://github.com/strata-org/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/Postconditions.java):
+Let's try running JVerify on the following Java program, found [here](https://github.com/strata-org/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/SumTo.java):
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/Postconditions.java}}
+{{#include ../../../examples/src/test/java/com/aws/jverify/examples/SumTo.java}}
 ```
+
+`sumTo(n)` claims it returns the closed form `n * (n + 1) / 2`. JVerify checks that claim against the actual loop using two invariants: one bounds the loop counter, the other ties the running sum to the closed form.
 
 To run JVerify, from the repository root:
 
 ```
-./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/Postconditions.java
+./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/SumTo.java
 ```
 
 or on Windows:
 
 ```
-./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/Postconditions.java
+./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/SumTo.java
 ```
 
 You should see the following output:
 
 ```
 Found 0 errors
-Verified methods: 3
+Verified methods: 2
 Failed methods: 0
 Skipped methods: 0
 ```
 
 If the `JVERIFY_STRATA` environment variable is not set, pass the Strata project directory explicitly with `--strata ./Strata`.
 
-Try editing `Postconditions.java` to introduce a bug — for example, change `return x + 1;` to `return x + 2;` in `addOne` — and re-run. JVerify reports:
+Try editing `SumTo.java` to introduce a bug — for example, change `return s;` to `return s + 1;` — and re-run. JVerify reports:
 
 ```
-Postconditions.java(8:36-8:48): Error: assertion does not hold
-Postconditions.java(1:1-1:1): Error: assertion does not hold
-Found 2 errors
-Verified methods: 2
+SumTo.java(16:36-16:58): Error: assertion could not be proved
+Found 1 errors
+Verified methods: 1
 Failed methods: 1
 Skipped methods: 0
 ```
+
+The line and column point at the failing postcondition.
 
 ## Adding JVerify to a Java project
 
