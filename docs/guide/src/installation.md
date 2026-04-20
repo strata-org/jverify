@@ -12,7 +12,7 @@ JVerify can currently only be used by building it from source.
 
 1. Check out the [JVerify repository](https://github.com/strata-org/jverify) and its submodules:
    ```
-   git clone git@github.com:strata-org/jverify.git --recurse-submodules
+   git clone https://github.com/strata-org/jverify.git --recurse-submodules
    ```
 2. Navigate to the JVerify repository directory.
 3. Build the verifier CLI:
@@ -24,8 +24,8 @@ JVerify can currently only be used by building it from source.
    ```
    cd Strata && lake build && cd ..
    ```
-5. Point JVerify at the built Strata binary by setting the `JVERIFY_STRATA` environment variable:
+5. Point JVerify at the Strata project directory by setting the `JVERIFY_STRATA` environment variable:
    ```
-   export JVERIFY_STRATA=$(pwd)/Strata/.lake/build/bin/strata
+   export JVERIFY_STRATA=$(pwd)/Strata
    ```
-   (or pass `--strata /path/to/strata` on every JVerify invocation).
+   (or pass `--strata /path/to/Strata` on every JVerify invocation).

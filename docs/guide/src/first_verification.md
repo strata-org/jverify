@@ -18,11 +18,27 @@ or on Windows:
 ./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/Postconditions.java
 ```
 
-You should see verification succeed with no errors.
+You should see the following output:
 
-If the `JVERIFY_STRATA` environment variable is not set, pass the Strata binary path explicitly: `--strata ./Strata/.lake/build/bin/strata`.
+```
+Found 0 errors
+Verified methods: 3
+Failed methods: 0
+Skipped methods: 0
+```
 
-Try editing `Postconditions.java` to introduce a bug — for example, change `return x + 1;` to `return x + 2;` — and re-run. JVerify will report that the postcondition no longer holds.
+If the `JVERIFY_STRATA` environment variable is not set, pass the Strata project directory explicitly with `--strata ./Strata`.
+
+Try editing `Postconditions.java` to introduce a bug — for example, change `return x + 1;` to `return x + 2;` in `addOne` — and re-run. JVerify reports:
+
+```
+Postconditions.java(8:36-8:48): Error: assertion does not hold
+Postconditions.java(1:1-1:1): Error: assertion does not hold
+Found 2 errors
+Verified methods: 2
+Failed methods: 1
+Skipped methods: 0
+```
 
 ## Adding JVerify to a Java project
 
@@ -40,3 +56,10 @@ Because the JVerify packages are not yet published to any shared repositories, r
 ## Current limitations
 
 JVerify currently supports a limited subset of Java. Many programs that worked with JVerify's original back-end do not verify yet. See [Supported Java features](./supported_java_features.md) and issue [#384](https://github.com/strata-org/jverify/issues/384) for the current state.
+
+### Related open issues
+
+- Let the number of reported verified things match Java concepts: [#127](https://github.com/strata-org/jverify/issues/127)
+- Support showing diagnostics using snippets: [#128](https://github.com/strata-org/jverify/issues/128)
+- Support running verification from the annotation processor as well: [#159](https://github.com/strata-org/jverify/issues/159)
+- Avoid needing to add `--add-export` when using the javac-plugin: [#160](https://github.com/strata-org/jverify/issues/160)
