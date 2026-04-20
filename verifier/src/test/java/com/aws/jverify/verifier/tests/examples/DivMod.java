@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 0)
-class StrataDivMod {
+class DivMod {
     static void truncationDivision() {
         check(-7 / 2 == -3);
         check(-7 % 2 == -1);

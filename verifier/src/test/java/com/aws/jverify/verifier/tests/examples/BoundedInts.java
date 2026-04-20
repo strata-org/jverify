@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 0)
-class StrataBoundedInts {
+class BoundedInts {
     static int addBounded(int x, int y) {
         precondition(0 <= x && x <= 2000000000);
         precondition(0 <= y && y <= 147483647);

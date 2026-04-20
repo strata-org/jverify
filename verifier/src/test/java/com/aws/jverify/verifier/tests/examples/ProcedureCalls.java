@@ -5,7 +5,7 @@ import com.aws.jverify.testengine.JVerifyTest;
 import static com.aws.jverify.JVerify.*;
 
 @JVerifyTest(exitCode = 4, errorCount = 1)
-class StrataProcedureCalls {
+class ProcedureCalls {
     static int addOne(int x) {
         precondition(x > 0);
         // Overflow guard: x + 1 must fit in int32
