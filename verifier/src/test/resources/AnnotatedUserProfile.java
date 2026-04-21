@@ -1,8 +1,8 @@
-package com.aws.jverify.examples;
+package org.strata.jverify.examples;
 
-import static com.aws.jverify.JVerify.*;
+import static org.strata.jverify.JVerify.*;
 
-import com.aws.jverify.*;
+import org.strata.jverify.*;
 
 class UserProfile {
     public enum AccountType { Free, Premium }

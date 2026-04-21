@@ -1,9 +1,9 @@
 # Running JVerify
 
-Let's try running JVerify on the following Java program, found [here](https://github.com/strata-org/jverify/blob/main/examples/src/test/java/com/aws/jverify/examples/GaussianSum.java):
+Let's try running JVerify on the following Java program, found [here](https://github.com/strata-org/jverify/blob/main/examples/src/test/java/org/strata/jverify/examples/GaussianSum.java):
 
 ```java
-{{#include ../../../examples/src/test/java/com/aws/jverify/examples/GaussianSum.java}}
+{{#include ../../../examples/src/test/java/org/strata/jverify/examples/GaussianSum.java}}
 ```
 
 `sumTo(n)` claims it returns the closed form `n * (n + 1) / 2`. JVerify checks that claim against the actual loop using two invariants: one bounds the loop counter, the other ties the running sum to the closed form.
@@ -11,13 +11,13 @@ Let's try running JVerify on the following Java program, found [here](https://gi
 To run JVerify, from the repository root:
 
 ```
-./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/com/aws/jverify/examples/GaussianSum.java
+./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/org/strata/jverify/examples/GaussianSum.java
 ```
 
 or on Windows:
 
 ```
-./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/com/aws/jverify/examples/GaussianSum.java
+./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/org/strata/jverify/examples/GaussianSum.java
 ```
 
 You should see the following output:
@@ -49,7 +49,7 @@ To verify your own code, add the JVerify library as a compile-time dependency so
 
 ```kotlin
 dependencies {
-    implementation("com.aws.jverify:library:1.0-SNAPSHOT")
+    implementation("org.strata.jverify:library:1.0-SNAPSHOT")
     // ...
 }
 ```

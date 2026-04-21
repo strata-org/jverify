@@ -1,4 +1,4 @@
-package com.aws.jverify;
+package org.strata.jverify;
 
 class JavaError {
     int foo() {

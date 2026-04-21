@@ -1,6 +1,6 @@
-package com.aws.jverify.verifier.tests;
+package org.strata.jverify.verifier.tests;
 
-import static com.aws.jverify.JVerify.check;
+import static org.strata.jverify.JVerify.check;
 
 class AssertFalse {
     static void Foo() {

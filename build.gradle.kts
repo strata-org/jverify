@@ -12,7 +12,7 @@ plugins {
 }
 
 allprojects {
-    group = "com.aws.jverify"
+    group = "org.strata.jverify"
     version = "1.0-SNAPSHOT"
 
     apply(plugin = "java")
@@ -179,7 +179,7 @@ project(":javac-plugin") {
     }
 
     tasks.withType<JavaCompile> {
-        options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
+        options.compilerArgs.addAll(createJavacExports(listOf("org.strata.jverify.plugin")))
         //options.compilerArgs.add("-proc:none")
     }
 
@@ -194,7 +194,7 @@ project(":javac-plugin") {
         )
 
         val taskArgs = mutableListOf(
-            "-processor", "com.aws.jverify.plugin.JVerifyProcessor",
+            "-processor", "org.strata.jverify.plugin.JVerifyProcessor",
             "-processorpath", tasks.jar.get().archiveFile.get().asFile.absolutePath
         )
 
@@ -246,7 +246,7 @@ project(":javac-plugin-test") {
     }
 
     tasks.withType<JavaCompile> {
-        options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.plugin")))
+        options.compilerArgs.addAll(createJavacExports(listOf("org.strata.jverify.plugin")))
         //options.compilerArgs.add("-proc:none")
         // Using preview mode, so we can use the package java.lang.classfile
         options.compilerArgs.add("--enable-preview")
@@ -257,7 +257,7 @@ project(":verifier") {
 
     apply(plugin = "application")
     application {
-        mainClass.set("com.aws.jverify.verifier.Main")
+        mainClass.set("org.strata.jverify.verifier.Main")
 
         applicationDefaultJvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
@@ -297,14 +297,14 @@ project(":verifier") {
         standardInput = System.`in`
         standardOutput = System.out
 
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "com.aws.jverify.verifier"))
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED", "org.strata.jverify.verifier"))
     }
     tasks.withType<Test> {
         jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
     }
 
     tasks.withType<JavaCompile> {
-        options.compilerArgs.addAll(createJavacExports(listOf("com.aws.jverify.verifier")))
+        options.compilerArgs.addAll(createJavacExports(listOf("org.strata.jverify.verifier")))
     }
 
     tasks.named("run", JavaExec::class) {
