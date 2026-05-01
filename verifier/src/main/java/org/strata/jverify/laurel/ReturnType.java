@@ -1,18 +1,10 @@
 package org.strata.jverify.laurel;
 
-public sealed interface ReturnType extends Node permits ReturnType.Of {
-    public record Of(
-        SourceRange sourceRange,
-        LaurelType returnType
-    ) implements ReturnType {
-        @Override
-        public java.lang.String operationName() { return "Laurel.returnType"; }
-
-        @Override
-        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
-            var sexp = $s.newOp("Laurel.returnType", sourceRange());
-            sexp.add($s.serialize(returnType()));
-            return sexp;
-        }
+public record ReturnType(SourceRange sourceRange, LaurelType returnType) {
+    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var s = ion.newEmptyStruct();
+        s.put("sourceRange", sourceRange.toIon(ion));
+        s.put("returnType", returnType.toIon(ion));
+        return s;
     }
 }
