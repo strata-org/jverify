@@ -176,9 +176,7 @@ public class JavaToLaurelCompiler {
                         ? new Body.Body_(SourceRange.NONE, methodBody)
                         : null;
 
-                // Only wrap ensures/modifies in OpaqueSpec when the method has no body
-                // (i.e., it is truly opaque). Methods with a body are transparent.
-                Optional<OpaqueSpec> opaqueSpec = (methodBody == null && !ensures.isEmpty())
+                Optional<OpaqueSpec> opaqueSpec = !ensures.isEmpty()
                         ? Optional.of(new OpaqueSpec.Of(SourceRange.NONE, ensures, List.of()))
                         : Optional.empty();
 
