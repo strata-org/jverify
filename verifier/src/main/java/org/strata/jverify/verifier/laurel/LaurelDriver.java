@@ -121,8 +121,10 @@ public class LaurelDriver implements Driver {
                 }
                 return parseStrataOutput(filesMap, verifierOptions, process.getProcess());
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() +
-                        "\nError message: " + e.getMessage());
+                var msg = "Failed to use Strata at: " + verifierOptions.backendPath() +
+                        "\nError message: " + e.getMessage();
+                verifierOptions.outWriter().println(msg);
+                System.err.println(msg);
                 return new JVerifyResults(new ArrayList<>(), -1, null);
             }
         });
@@ -224,7 +226,9 @@ public class LaurelDriver implements Driver {
 
             int verifierExitCode = process.waitFor();
             if (verifierExitCode != 0 && diagnostics.isEmpty()) {
-                options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
+                var msg = "Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput;
+                options.outWriter().println(msg);
+                System.err.println(msg);
             }
             var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
             return new JVerifyResults(diagnostics, exitCode,
