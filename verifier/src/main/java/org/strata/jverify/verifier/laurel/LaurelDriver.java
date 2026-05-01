@@ -65,6 +65,7 @@ public class LaurelDriver implements Driver {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
                 var ion = IonSystemBuilder.standard().build();
+                var serializer = new IonSerializer(ion);
                 IonList files = ion.newEmptyList();
 
                 for (LaurelFile file : analysisResult.files()) {
@@ -79,7 +80,6 @@ public class LaurelDriver implements Driver {
                     header.add(ion.newSymbol("program"));
                     header.add(ion.newString("Laurel"));
                     programAsIon.add(header);
-                    var serializer = new IonSerializer(ion);
                     for (var command : file.commands()) {
                         programAsIon.add(serializer.serializeCommand(command));
                     }
@@ -108,7 +108,7 @@ public class LaurelDriver implements Driver {
 
     public JVerifyResults runVerifier(FilesMap filesMap, IonValue serializedProgram) {
         var processBuilder = new ProcessBuilder(
-                "lake", "exe", "-q", "strata", "laurelAnalyzeBinary"
+                "lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
         return verifierOptions.time("Running Strata", () -> {
@@ -121,8 +121,10 @@ public class LaurelDriver implements Driver {
                 }
                 return parseStrataOutput(filesMap, verifierOptions, process.getProcess());
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() +
-                        "\nError message: " + e.getMessage());
+                var msg = "Failed to use Strata at: " + verifierOptions.backendPath() +
+                        "\nError message: " + e.getMessage();
+                verifierOptions.outWriter().println(msg);
+                System.err.println(msg);
                 return new JVerifyResults(new ArrayList<>(), -1, null);
             }
         });
@@ -224,7 +226,9 @@ public class LaurelDriver implements Driver {
 
             int verifierExitCode = process.waitFor();
             if (verifierExitCode != 0 && diagnostics.isEmpty()) {
-                options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
+                var msg = "Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput;
+                options.outWriter().println(msg);
+                System.err.println(msg);
             }
             var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
             return new JVerifyResults(diagnostics, exitCode,
