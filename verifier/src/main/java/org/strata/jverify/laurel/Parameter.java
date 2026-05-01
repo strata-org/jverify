@@ -1,11 +1,19 @@
 package org.strata.jverify.laurel;
 
-public record Parameter(SourceRange sourceRange, java.lang.String name, LaurelType paramType) {
-    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-        var s = ion.newEmptyStruct();
-        s.put("sourceRange", sourceRange.toIon(ion));
-        s.put("name", ion.newString(name));
-        s.put("paramType", paramType.toIon(ion));
-        return s;
+public sealed interface Parameter extends Node permits Parameter.Of {
+    public record Of(
+        SourceRange sourceRange,
+        java.lang.String name, LaurelType paramType
+    ) implements Parameter {
+        @Override
+        public java.lang.String operationName() { return "Laurel.parameter"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.parameter", sourceRange());
+            sexp.add($s.serializeIdent(name()));
+            sexp.add($s.serialize(paramType()));
+            return sexp;
+        }
     }
 }

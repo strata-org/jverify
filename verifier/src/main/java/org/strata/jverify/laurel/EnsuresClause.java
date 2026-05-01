@@ -1,11 +1,19 @@
 package org.strata.jverify.laurel;
 
-public record EnsuresClause(SourceRange sourceRange, StmtExpr cond, ErrorSummary errorMessage) {
-    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-        var s = ion.newEmptyStruct();
-        s.put("sourceRange", sourceRange.toIon(ion));
-        s.put("cond", cond.toIon(ion));
-        s.put("errorMessage", errorMessage != null ? errorMessage.toIon(ion) : ion.newNull());
-        return s;
+public sealed interface EnsuresClause extends Node permits EnsuresClause.Of {
+    public record Of(
+        SourceRange sourceRange,
+        StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage
+    ) implements EnsuresClause {
+        @Override
+        public java.lang.String operationName() { return "Laurel.ensuresClause"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.ensuresClause", sourceRange());
+            sexp.add($s.serialize(cond()));
+            sexp.add($s.serializeOption(errorMessage(), $s::serialize));
+            return sexp;
+        }
     }
 }

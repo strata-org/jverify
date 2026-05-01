@@ -1,10 +1,18 @@
 package org.strata.jverify.laurel;
 
-public record InvariantClause(SourceRange sourceRange, StmtExpr cond) {
-    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-        var s = ion.newEmptyStruct();
-        s.put("sourceRange", sourceRange.toIon(ion));
-        s.put("cond", cond.toIon(ion));
-        return s;
+public sealed interface InvariantClause extends Node permits InvariantClause.Of {
+    public record Of(
+        SourceRange sourceRange,
+        StmtExpr cond
+    ) implements InvariantClause {
+        @Override
+        public java.lang.String operationName() { return "Laurel.invariantClause"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.invariantClause", sourceRange());
+            sexp.add($s.serialize(cond()));
+            return sexp;
+        }
     }
 }

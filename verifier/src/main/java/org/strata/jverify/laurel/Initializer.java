@@ -1,10 +1,18 @@
 package org.strata.jverify.laurel;
 
-public record Initializer(SourceRange sourceRange, StmtExpr value) {
-    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-        var s = ion.newEmptyStruct();
-        s.put("sourceRange", sourceRange.toIon(ion));
-        s.put("value", value.toIon(ion));
-        return s;
+public sealed interface Initializer extends Node permits Initializer.Of {
+    public record Of(
+        SourceRange sourceRange,
+        StmtExpr value
+    ) implements Initializer {
+        @Override
+        public java.lang.String operationName() { return "Laurel.initializer"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.initializer", sourceRange());
+            sexp.add($s.serialize(value()));
+            return sexp;
+        }
     }
 }

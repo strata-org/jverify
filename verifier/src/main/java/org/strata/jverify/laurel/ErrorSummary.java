@@ -1,10 +1,18 @@
 package org.strata.jverify.laurel;
 
-public record ErrorSummary(SourceRange sourceRange, java.lang.String msg) {
-    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-        var s = ion.newEmptyStruct();
-        s.put("sourceRange", sourceRange.toIon(ion));
-        s.put("msg", ion.newString(msg));
-        return s;
+public sealed interface ErrorSummary extends Node permits ErrorSummary.Of {
+    public record Of(
+        SourceRange sourceRange,
+        java.lang.String msg
+    ) implements ErrorSummary {
+        @Override
+        public java.lang.String operationName() { return "Laurel.errorSummary"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.errorSummary", sourceRange());
+            sexp.add($s.serializeStrlit(msg()));
+            return sexp;
+        }
     }
 }

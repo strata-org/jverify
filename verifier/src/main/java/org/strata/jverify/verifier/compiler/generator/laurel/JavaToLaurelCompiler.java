@@ -98,15 +98,15 @@ public class JavaToLaurelCompiler {
         var minExpr = longLiteral(sr, min);
         var maxExpr = longLiteral(sr, max);
         var constraint = new StmtExpr.And(sr, new StmtExpr.Ge(sr, x, minExpr), new StmtExpr.Le(sr, x, maxExpr));
-        var witness = new StmtExpr.Int(sr, 0);
+        var witness = new StmtExpr.Int(sr, java.math.BigInteger.ZERO);
         return new Command.ConstrainedTypeCommand(sr,
-                new ConstrainedType(sr, name, "x", new LaurelType.IntType(sr), constraint, witness));
+                new ConstrainedType.Of(sr, name, "x", new LaurelType.IntType(sr), constraint, witness));
     }
 
     /** Create a Laurel integer literal for any long value, wrapping negatives in Neg. */
     private static StmtExpr longLiteral(SourceRange sr, long val) {
-        if (val >= 0) return new StmtExpr.Int(sr, val);
-        return new StmtExpr.Neg(sr, new StmtExpr.Int(sr, -val));
+        if (val >= 0) return new StmtExpr.Int(sr, java.math.BigInteger.valueOf(val));
+        return new StmtExpr.Neg(sr, new StmtExpr.Int(sr, java.math.BigInteger.valueOf(-val)));
     }
 
     private LaurelType translateType(com.sun.tools.javac.code.Type type) {
@@ -130,13 +130,13 @@ public class JavaToLaurelCompiler {
 
                 List<Parameter> params = new ArrayList<>();
                 for (var param : method.params) {
-                    params.add(new Parameter(SourceRange.NONE, param.name.toString(), translateType(param.type)));
+                    params.add(new Parameter.Of(SourceRange.NONE, param.name.toString(), translateType(param.type)));
                 }
 
                 ReturnType retType = null;
                 if (method.restype != null && method.restype.type != null
                         && method.restype.type.getTag() != TypeTag.VOID) {
-                    retType = new ReturnType(SourceRange.NONE, translateType(method.restype.type));
+                    retType = new ReturnType.Of(SourceRange.NONE, translateType(method.restype.type));
                 }
 
                 List<RequiresClause> requires = new ArrayList<>();
@@ -146,16 +146,16 @@ public class JavaToLaurelCompiler {
                 if (method.body != null) {
                     MethodOrLoopContract contract = contractCompiler.getContract(method.body);
                     for (var pre : contract.preconditions()) {
-                        requires.add(new RequiresClause(SourceRange.NONE, convertExpression(pre.get()), null));
+                        requires.add(new RequiresClause.Of(SourceRange.NONE, convertExpression(pre.get()), Optional.empty()));
                     }
                     for (var post : contract.postconditions()) {
                         var postExpr = post.get();
                         if (postExpr instanceof JCTree.JCLambda lambda && lambda.params.size() == 1) {
                             var paramName = lambda.params.getFirst().name.toString();
                             var renames = Map.of(paramName, "result");
-                            ensures.add(new EnsuresClause(SourceRange.NONE, convertLambdaBody(lambda, renames), null));
+                            ensures.add(new EnsuresClause.Of(SourceRange.NONE, convertLambdaBody(lambda, renames), Optional.empty()));
                         } else {
-                            ensures.add(new EnsuresClause(SourceRange.NONE, convertExpression(postExpr), null));
+                            ensures.add(new EnsuresClause.Of(SourceRange.NONE, convertExpression(postExpr), Optional.empty()));
                         }
                     }
 
@@ -176,12 +176,16 @@ public class JavaToLaurelCompiler {
                         ? new Body.Body_(SourceRange.NONE, methodBody)
                         : null;
 
+                Optional<OpaqueSpec> opaqueSpec = ensures.isEmpty()
+                        ? Optional.empty()
+                        : Optional.of(new OpaqueSpec.Of(SourceRange.NONE, ensures, List.of()));
+
                 boolean isPure = jverifyUtils.isPure(method.sym);
                 Procedure proc = isPure
                         ? new Procedure.Function(toSourceRange(method), methodName, params,
-                                retType, null, requires, null, ensures, List.of(), optBody)
+                                Optional.ofNullable(retType), Optional.empty(), requires, Optional.empty(), opaqueSpec, Optional.ofNullable(optBody))
                         : new Procedure.Procedure_(toSourceRange(method), methodName, params,
-                                retType, null, requires, null, ensures, List.of(), optBody);
+                                Optional.ofNullable(retType), Optional.empty(), requires, Optional.empty(), opaqueSpec, Optional.ofNullable(optBody));
                 procedures.add(proc);
             }
             super.visitMethodDef(method);
@@ -201,16 +205,16 @@ public class JavaToLaurelCompiler {
         private StmtExpr convertStatement(JCTree.JCStatement statement) {
             return switch (statement) {
                 case JCTree.JCAssert assertStmt ->
-                        new StmtExpr.Assert(toSourceRange(assertStmt), convertExpression(assertStmt.cond), null);
+                        new StmtExpr.Assert(toSourceRange(assertStmt), convertExpression(assertStmt.cond), Optional.empty());
                 case JCTree.JCExpressionStatement exprStmt -> convertExpression(exprStmt.expr);
                 case JCTree.JCBlock blk -> convertBlock(blk);
                 case JCTree.JCVariableDecl varDecl -> {
                     LaurelType type = translateType(varDecl.type);
                     Initializer optAssign = varDecl.init != null
-                            ? new Initializer(SourceRange.NONE, convertExpression(varDecl.init))
+                            ? new Initializer.Of(SourceRange.NONE, convertExpression(varDecl.init))
                             : null;
                     yield new StmtExpr.VarDecl(toSourceRange(varDecl), varDecl.name.toString(),
-                            new TypeAnnotation(SourceRange.NONE, type), optAssign);
+                            Optional.of(new TypeAnnotation.Of(SourceRange.NONE, type)), Optional.ofNullable(optAssign));
                 }
                 case JCTree.JCIf ifStmt -> {
                     StmtExpr cond = convertExpression(ifStmt.cond);
@@ -219,10 +223,10 @@ public class JavaToLaurelCompiler {
                     if (ifStmt.elsepart != null) {
                         StmtExpr elseStmt = convertStatement(ifStmt.elsepart);
                         if (elseStmt != null) {
-                            elseB = new ElseBranch(SourceRange.NONE, elseStmt);
+                            elseB = new ElseBranch.Of(SourceRange.NONE, elseStmt);
                         }
                     }
-                    yield new StmtExpr.IfThenElse(toSourceRange(ifStmt), cond, thenBranch, elseB);
+                    yield new StmtExpr.IfThenElse(toSourceRange(ifStmt), cond, thenBranch, Optional.ofNullable(elseB));
                 }
                 case JCTree.JCReturn retStmt -> {
                     if (retStmt.expr != null) {
@@ -285,7 +289,7 @@ public class JavaToLaurelCompiler {
             MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
             List<InvariantClause> invariants = new ArrayList<>();
             for (var inv : loopContract.loopInvariants()) {
-                invariants.add(new InvariantClause(SourceRange.NONE, convertExpression(inv.get())));
+                invariants.add(new InvariantClause.Of(SourceRange.NONE, convertExpression(inv.get())));
             }
             var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
             List<StmtExpr> stmts = new ArrayList<>();
@@ -312,7 +316,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCConditional cond ->
                         new StmtExpr.IfThenElse(toSourceRange(cond), convertExpression(cond.cond, renames),
                                 convertExpression(cond.truepart, renames),
-                                new ElseBranch(toSourceRange(cond.falsepart), convertExpression(cond.falsepart, renames)));
+                                Optional.of(new ElseBranch.Of(toSourceRange(cond.falsepart), convertExpression(cond.falsepart, renames))));
                 case JCTree.JCMethodInvocation invocation -> {
                     var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
                     if (jverifyMethod != null) {
@@ -384,7 +388,7 @@ public class JavaToLaurelCompiler {
                 case "check" -> {
                     if (invocation.args.size() != 1)
                         throw new JavaViolationException("check should have a single argument");
-                    yield new StmtExpr.Assert(sr, convertExpression(invocation.args.getFirst(), renames), null);
+                    yield new StmtExpr.Assert(sr, convertExpression(invocation.args.getFirst(), renames), Optional.empty());
                 }
                 case "assume" -> {
                     if (invocation.args.size() != 1)
@@ -405,8 +409,8 @@ public class JavaToLaurelCompiler {
                         var p = lambda.params.get(i);
                         var ty = translateType(p.type);
                         qBody = name.equals("forall")
-                                ? new StmtExpr.ForallExpr(sr, p.name.toString(), ty, null, qBody)
-                                : new StmtExpr.ExistsExpr(sr, p.name.toString(), ty, null, qBody);
+                                ? new StmtExpr.ForallExpr(sr, p.name.toString(), ty, Optional.empty(), qBody)
+                                : new StmtExpr.ExistsExpr(sr, p.name.toString(), ty, Optional.empty(), qBody);
                     }
                     yield qBody;
                 }

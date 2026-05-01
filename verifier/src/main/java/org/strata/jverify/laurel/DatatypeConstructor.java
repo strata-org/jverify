@@ -1,21 +1,34 @@
 package org.strata.jverify.laurel;
 
-public sealed interface DatatypeConstructor permits DatatypeConstructor.DatatypeConstructor_, DatatypeConstructor.DatatypeConstructorNoArgs {
-    com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
+public sealed interface DatatypeConstructor extends Node permits DatatypeConstructor.DatatypeConstructor_, DatatypeConstructor.DatatypeConstructorNoArgs {
+    public record DatatypeConstructor_(
+        SourceRange sourceRange,
+        java.lang.String name, java.util.List<DatatypeConstructorArg> args
+    ) implements DatatypeConstructor {
+        @Override
+        public java.lang.String operationName() { return "Laurel.datatypeConstructor"; }
 
-    public record DatatypeConstructor_(SourceRange sourceRange, java.lang.String name, java.util.List<DatatypeConstructorArg> args) implements DatatypeConstructor {
-        @Override public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-            var sexp = ion.newEmptySexp(); sexp.add(ion.newSymbol("datatypeConstructor"));
-            sexp.add(sourceRange.toIon(ion)); sexp.add(ion.newString(name));
-            var _l = ion.newEmptyList(); for (var e : args) _l.add(e.toIon(ion));
-            sexp.add(_l); return sexp;
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.datatypeConstructor", sourceRange());
+            sexp.add($s.serializeIdent(name()));
+            sexp.add($s.serializeSeq(args(), "commaSepList", $s::serialize));
+            return sexp;
         }
     }
 
-    public record DatatypeConstructorNoArgs(SourceRange sourceRange, java.lang.String name) implements DatatypeConstructor {
-        @Override public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-            var sexp = ion.newEmptySexp(); sexp.add(ion.newSymbol("datatypeConstructorNoArgs"));
-            sexp.add(sourceRange.toIon(ion)); sexp.add(ion.newString(name)); return sexp;
+    public record DatatypeConstructorNoArgs(
+        SourceRange sourceRange,
+        java.lang.String name
+    ) implements DatatypeConstructor {
+        @Override
+        public java.lang.String operationName() { return "Laurel.datatypeConstructorNoArgs"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.datatypeConstructorNoArgs", sourceRange());
+            sexp.add($s.serializeIdent(name()));
+            return sexp;
         }
     }
 }

@@ -1,11 +1,18 @@
 package org.strata.jverify.laurel;
 
-public record DatatypeConstructorList(SourceRange sourceRange, java.util.List<DatatypeConstructor> constructors) {
-    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-        var s = ion.newEmptyStruct();
-        s.put("sourceRange", sourceRange.toIon(ion));
-        var _l = ion.newEmptyList(); for (var e : constructors) _l.add(e.toIon(ion));
-        s.put("constructors", _l);
-        return s;
+public sealed interface DatatypeConstructorList extends Node permits DatatypeConstructorList.Of {
+    public record Of(
+        SourceRange sourceRange,
+        java.util.List<DatatypeConstructor> constructors
+    ) implements DatatypeConstructorList {
+        @Override
+        public java.lang.String operationName() { return "Laurel.datatypeConstructorList"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.datatypeConstructorList", sourceRange());
+            sexp.add($s.serializeSeq(constructors(), "commaSepList", $s::serialize));
+            return sexp;
+        }
     }
 }

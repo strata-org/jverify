@@ -4,6 +4,7 @@ import com.amazon.ion.*;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
 import org.strata.jverify.common.Range;
+import org.strata.jverify.laurel.IonSerializer;
 import org.strata.jverify.verifier.*;
 import org.strata.jverify.verifier.compiler.Reporter;
 import org.strata.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
@@ -64,6 +65,7 @@ public class LaurelDriver implements Driver {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
                 var ion = IonSystemBuilder.standard().build();
+                var serializer = new IonSerializer(ion);
                 IonList files = ion.newEmptyList();
 
                 for (LaurelFile file : analysisResult.files()) {
@@ -79,7 +81,7 @@ public class LaurelDriver implements Driver {
                     header.add(ion.newString("Laurel"));
                     programAsIon.add(header);
                     for (var command : file.commands()) {
-                        programAsIon.add(command.toIon(ion));
+                        programAsIon.add(serializer.serializeCommand(command));
                     }
                     strataFile.put("program", programAsIon);
 
