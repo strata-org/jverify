@@ -106,7 +106,7 @@ public class JavaToLaurelCompiler {
     /** Create a Laurel integer literal for any long value, wrapping negatives in Neg. */
     private static StmtExpr longLiteral(SourceRange sr, long val) {
         if (val >= 0) return new StmtExpr.Int(sr, java.math.BigInteger.valueOf(val));
-        return new StmtExpr.Neg(sr, new StmtExpr.Int(sr, java.math.BigInteger.valueOf(-val)));
+        return new StmtExpr.Neg(sr, new StmtExpr.Int(sr, java.math.BigInteger.valueOf(val).negate()));
     }
 
     private LaurelType translateType(com.sun.tools.javac.code.Type type) {
