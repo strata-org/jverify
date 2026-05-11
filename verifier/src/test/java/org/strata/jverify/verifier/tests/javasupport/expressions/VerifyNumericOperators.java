@@ -11,7 +11,7 @@ import static org.strata.jverify.JVerify.check;
 @SuppressWarnings("ConstantValue")
 @JVerifyTest(exitCode = 4, methodsVerified = 1, errorCount = 1)
 class VerifyNumericOperators {
-    public void foo() {
+    static void foo() {
         var l = 3L;
         var r = 3L;
         l++;
