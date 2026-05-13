@@ -12,7 +12,7 @@ import static org.strata.jverify.JVerify.check;
  * (returning the old value) requires Laurel IR support for block expressions.
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(methodsVerified = 4, errorCount = 0)
+@JVerifyTest(methodsVerified = 5, errorCount = 0)
 class IncrementDecrementVerification {
 
     /** Postfix ++ increments the variable. */
