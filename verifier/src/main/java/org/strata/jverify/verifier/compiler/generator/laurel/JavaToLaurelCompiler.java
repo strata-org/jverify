@@ -123,6 +123,11 @@ public class JavaToLaurelCompiler {
 
     private class StaticMethodCollector extends TreeScanner {
         final List<Procedure> procedures = new ArrayList<>();
+        private int tempCounter = 0;
+
+        private String freshTemp() {
+            return "__jverify_tmp_" + (tempCounter++);
+        }
 
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl method) {
@@ -376,8 +381,22 @@ public class JavaToLaurelCompiler {
                 case NOT -> not(sr, inner);
                 case NEG -> neg(sr, inner);
                 case POS -> inner;
-                case PREINC, POSTINC -> assign(sr, inner, add(sr, convertExpression(unary.arg, renames), longLiteral(sr, 1)));
-                case PREDEC, POSTDEC -> assign(sr, inner, sub(sr, convertExpression(unary.arg, renames), longLiteral(sr, 1)));
+                case PREINC -> assign(sr, inner, add(sr, convertExpression(unary.arg, renames), longLiteral(sr, 1)));
+                case PREDEC -> assign(sr, inner, sub(sr, convertExpression(unary.arg, renames), longLiteral(sr, 1)));
+                case POSTINC -> {
+                    String tmp = freshTemp();
+                    yield block(sr, List.of(
+                            varDecl(sr, tmp, Optional.empty(), Optional.of(initializer(sr, convertExpression(unary.arg, renames)))),
+                            assign(sr, inner, add(sr, convertExpression(unary.arg, renames), longLiteral(sr, 1))),
+                            identifier(sr, tmp)));
+                }
+                case POSTDEC -> {
+                    String tmp = freshTemp();
+                    yield block(sr, List.of(
+                            varDecl(sr, tmp, Optional.empty(), Optional.of(initializer(sr, convertExpression(unary.arg, renames)))),
+                            assign(sr, inner, sub(sr, convertExpression(unary.arg, renames), longLiteral(sr, 1))),
+                            identifier(sr, tmp)));
+                }
                 default -> throw new JavaViolationException("Unsupported unary op: " + unary.getTag());
             };
         }
