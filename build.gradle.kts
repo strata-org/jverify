@@ -28,7 +28,7 @@ allprojects {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(23))
+        languageVersion.set(JavaLanguageVersion.of(25))
     }
 }
 
@@ -374,6 +374,9 @@ project(":test-engine") {
         // Must be transitive in order to export our engine, which subclasses HierarchicalTestEngine
         api("org.junit.platform:junit-platform-engine:1.12.2")
 
+        // Explicit junit-platform-launcher dependency ensures alignment of JUnit artifacts on test runtime classpath.
+        testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
         implementation("org.hamcrest:hamcrest:2.2")
         implementation("org.hamcrest:hamcrest-library:2.2")
 
@@ -382,6 +385,10 @@ project(":test-engine") {
         // for test engine registration
         implementation("com.google.auto.service:auto-service-annotations:1.0.1")
         annotationProcessor("com.google.auto.service:auto-service:1.0.1")
+    }
+
+    tasks.test {
+        useJUnitPlatform()
     }
 }
 
