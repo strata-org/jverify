@@ -61,6 +61,15 @@ public class JVerify {
     public static void decreases(int value) {}
     public static void decreases(int value1, int value2) {}
 
+    /**
+     * Declare the frame of writes a method may perform.
+     * Each argument names a target the method is permitted to write
+     * (a field, an array slot, a static, etc.). At a modular call
+     * site, only the named targets will be havocked; everything else is
+     * preserved. The shape parallels CBMC's __CPROVER_assigns(...).
+     */
+    public static void assigns(Object... targets) {}
+
     public static void invariant(boolean condition) {
     }
     
