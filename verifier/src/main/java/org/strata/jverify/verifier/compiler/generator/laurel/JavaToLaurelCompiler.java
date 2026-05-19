@@ -123,6 +123,56 @@ public class JavaToLaurelCompiler {
 
     private class StaticMethodCollector extends TreeScanner {
         final List<Procedure> procedures = new ArrayList<>();
+        private int labelCounter = 0;
+
+        /** Label stack entry for break/continue resolution. */
+        private record LabelEntry(String javaLabel, String breakLabel, String continueLabel) {}
+        private final Deque<LabelEntry> labelStack = new ArrayDeque<>();
+        private String pendingLabel = null;
+
+        /** Check if a statement tree contains break or continue (at the current loop level). */
+        private boolean containsBreakOrContinue(JCTree.JCStatement stmt) {
+            boolean[] found = {false};
+            stmt.accept(new TreeScanner() {
+                @Override public void visitBreak(JCTree.JCBreak tree) { found[0] = true; }
+                @Override public void visitContinue(JCTree.JCContinue tree) { found[0] = true; }
+                // Don't descend into nested loops — their break/continue don't target us
+                @Override public void visitWhileLoop(JCTree.JCWhileLoop tree) {}
+                @Override public void visitForLoop(JCTree.JCForLoop tree) {}
+                @Override public void visitDoLoop(JCTree.JCDoWhileLoop tree) {}
+            });
+            return found[0];
+        }
+
+        private String freshLabel(String prefix) {
+            return prefix + "_" + (labelCounter++);
+        }
+
+        private String resolveBreakLabel(JCTree.JCBreak brk) {
+            if (brk.label != null) {
+                String target = brk.label.toString();
+                for (var entry : labelStack) {
+                    if (target.equals(entry.javaLabel)) return entry.breakLabel;
+                }
+            } else if (!labelStack.isEmpty()) {
+                return labelStack.peek().breakLabel;
+            }
+            throw new JavaViolationException("break target not found");
+        }
+
+        private String resolveContinueLabel(JCTree.JCContinue cont) {
+            if (cont.label != null) {
+                String target = cont.label.toString();
+                for (var entry : labelStack) {
+                    if (target.equals(entry.javaLabel) && entry.continueLabel != null) return entry.continueLabel;
+                }
+            } else {
+                for (var entry : labelStack) {
+                    if (entry.continueLabel != null) return entry.continueLabel;
+                }
+            }
+            throw new JavaViolationException("continue target not found");
+        }
 
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl method) {
@@ -244,34 +294,156 @@ public class JavaToLaurelCompiler {
                     yield null;
                 }
                 case JCTree.JCWhileLoop whileStmt -> {
-                    StmtExpr cond = convertExpression(whileStmt.cond);
-                    if (whileStmt.body instanceof JCTree.JCBlock loopBlock) {
-                        var parts = extractLoopParts(loopBlock);
-                        yield while_(toSourceRange(whileStmt), cond, parts.invariants, parts.body);
+                    var sr = toSourceRange(whileStmt);
+                    boolean needsLabels = containsBreakOrContinue(whileStmt.body);
+                    String breakLbl = needsLabels ? freshLabel("loop_break") : null;
+                    String continueLbl = needsLabels ? freshLabel("loop_continue") : null;
+                    String javaLabel = pendingLabel;
+                    pendingLabel = null;
+                    labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
+                    try {
+                        StmtExpr cond = convertExpression(whileStmt.cond);
+                        List<InvariantClause> invariants = List.of();
+                        StmtExpr loopBody;
+                        if (whileStmt.body instanceof JCTree.JCBlock loopBlock) {
+                            var parts = extractLoopParts(loopBlock);
+                            invariants = parts.invariants;
+                            loopBody = parts.body;
+                        } else {
+                            loopBody = convertStatement(whileStmt.body);
+                        }
+                        if (needsLabels) {
+                            StmtExpr wrappedBody = labelledBlock(sr, List.of(loopBody), continueLbl);
+                            StmtExpr whileNode = while_(sr, cond, invariants, wrappedBody);
+                            yield labelledBlock(sr, List.of(whileNode), breakLbl);
+                        } else {
+                            yield while_(sr, cond, invariants, loopBody);
+                        }
+                    } finally {
+                        labelStack.pop();
                     }
-                    yield while_(toSourceRange(whileStmt), cond, List.of(), convertStatement(whileStmt.body));
                 }
                 case JCTree.JCForLoop forLoop -> {
                     if (forLoop.init.size() > 1 || forLoop.step.size() > 1)
                         throw new JavaViolationException("Multi-init or multi-step for loops are not supported");
-                    StmtExpr init = forLoop.init.isEmpty() ? block(toSourceRange(forLoop), List.of())
-                            : convertStatement(forLoop.init.getFirst());
-                    StmtExpr cond = forLoop.cond != null
-                            ? convertExpression(forLoop.cond)
-                            : literalBool(toSourceRange(forLoop), true);
-                    StmtExpr step = forLoop.step.isEmpty() ? block(toSourceRange(forLoop), List.of())
-                            : convertStatement(forLoop.step.getFirst());
-                    List<InvariantClause> invariants = List.of();
-                    StmtExpr loopBody;
-                    if (forLoop.body instanceof JCTree.JCBlock loopBlock) {
-                        var parts = extractLoopParts(loopBlock);
-                        invariants = parts.invariants;
-                        loopBody = parts.body;
-                    } else {
-                        loopBody = convertStatement(forLoop.body);
+                    var sr = toSourceRange(forLoop);
+                    boolean needsLabels = containsBreakOrContinue(forLoop.body);
+                    String breakLbl = needsLabels ? freshLabel("loop_break") : null;
+                    String continueLbl = needsLabels ? freshLabel("loop_continue") : null;
+                    String javaLabel = pendingLabel;
+                    pendingLabel = null;
+                    labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
+                    try {
+                        StmtExpr init = forLoop.init.isEmpty() ? block(sr, List.of())
+                                : convertStatement(forLoop.init.getFirst());
+                        StmtExpr cond = forLoop.cond != null
+                                ? convertExpression(forLoop.cond)
+                                : literalBool(sr, true);
+                        StmtExpr step = forLoop.step.isEmpty() ? block(sr, List.of())
+                                : convertStatement(forLoop.step.getFirst());
+                        List<InvariantClause> invariants = List.of();
+                        StmtExpr loopBody;
+                        if (forLoop.body instanceof JCTree.JCBlock loopBlock) {
+                            var parts = extractLoopParts(loopBlock);
+                            invariants = parts.invariants;
+                            loopBody = parts.body;
+                        } else {
+                            loopBody = convertStatement(forLoop.body);
+                        }
+                        if (needsLabels) {
+                            // Desugar to while manually to match the expected structure:
+                            // labelledBlock(breakLbl, { init; while(cond) { labelledBlock(continueLbl, body); step } })
+                            StmtExpr wrappedBody = labelledBlock(sr, List.of(loopBody), continueLbl);
+                            List<StmtExpr> whileBodyStmts = new ArrayList<>();
+                            whileBodyStmts.add(wrappedBody);
+                            whileBodyStmts.add(step);
+                            StmtExpr whileBody = block(sr, whileBodyStmts);
+                            StmtExpr whileNode = while_(sr, cond, invariants, whileBody);
+                            List<StmtExpr> outerStmts = new ArrayList<>();
+                            outerStmts.add(init);
+                            outerStmts.add(whileNode);
+                            yield labelledBlock(sr, outerStmts, breakLbl);
+                        } else {
+                            yield forLoop(sr, init, cond, step, invariants, loopBody);
+                        }
+                    } finally {
+                        labelStack.pop();
                     }
-                    yield forLoop(toSourceRange(forLoop), init, cond, step, invariants, loopBody);
                 }
+                case JCTree.JCDoWhileLoop doWhileStmt -> {
+                    var sr = toSourceRange(doWhileStmt);
+                    boolean needsLabels = containsBreakOrContinue(doWhileStmt.body);
+                    String breakLbl = needsLabels ? freshLabel("loop_break") : null;
+                    String continueLbl = needsLabels ? freshLabel("loop_continue") : null;
+                    String javaLabel = pendingLabel;
+                    pendingLabel = null;
+                    labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
+                    try {
+                        // Desugar: var __first_N = true; while(__first_N || cond) { __first_N = false; body }
+                        String sentinel = "__first_" + labelCounter;
+                        StmtExpr sentinelDecl = varDecl(sr, sentinel,
+                                Optional.of(typeAnnotation(boolType())),
+                                Optional.of(initializer(literalBool(sr, true))));
+                        StmtExpr sentinelId = identifier(sr, sentinel);
+                        StmtExpr cond = orElse(sr, sentinelId, convertExpression(doWhileStmt.cond));
+                        StmtExpr sentinelReset = assign(sr, identifier(sr, sentinel), literalBool(sr, false));
+
+                        List<InvariantClause> invariants = List.of();
+                        StmtExpr loopBody;
+                        if (doWhileStmt.body instanceof JCTree.JCBlock loopBlock) {
+                            var parts = extractLoopParts(loopBlock);
+                            invariants = parts.invariants;
+                            List<StmtExpr> bodyStmts = new ArrayList<>();
+                            bodyStmts.add(sentinelReset);
+                            bodyStmts.add(parts.body);
+                            loopBody = block(sr, bodyStmts);
+                        } else {
+                            List<StmtExpr> bodyStmts = new ArrayList<>();
+                            bodyStmts.add(sentinelReset);
+                            bodyStmts.add(convertStatement(doWhileStmt.body));
+                            loopBody = block(sr, bodyStmts);
+                        }
+                        if (needsLabels) {
+                            StmtExpr wrappedBody = labelledBlock(sr, List.of(loopBody), continueLbl);
+                            StmtExpr whileNode = while_(sr, cond, invariants, wrappedBody);
+                            yield labelledBlock(sr, List.of(sentinelDecl, whileNode), breakLbl);
+                        } else {
+                            StmtExpr whileNode = while_(sr, cond, invariants, loopBody);
+                            yield block(sr, List.of(sentinelDecl, whileNode));
+                        }
+                    } finally {
+                        labelStack.pop();
+                    }
+                }
+                case JCTree.JCBreak breakStmt -> {
+                    yield exit(toSourceRange(breakStmt), resolveBreakLabel(breakStmt));
+                }
+                case JCTree.JCContinue contStmt -> {
+                    yield exit(toSourceRange(contStmt), resolveContinueLabel(contStmt));
+                }
+                case JCTree.JCLabeledStatement labeledStmt -> {
+                    // Set the pending label so the next loop picks it up
+                    pendingLabel = labeledStmt.label.toString();
+                    // If the body is a loop, it will consume pendingLabel
+                    // If not, wrap in a labelledBlock for break-out-of-block
+                    if (labeledStmt.body instanceof JCTree.JCWhileLoop
+                            || labeledStmt.body instanceof JCTree.JCForLoop
+                            || labeledStmt.body instanceof JCTree.JCDoWhileLoop) {
+                        yield convertStatement(labeledStmt.body);
+                    } else {
+                        // Non-loop labeled statement: only break is valid (no continue)
+                        String breakLbl = freshLabel("label_break");
+                        labelStack.push(new LabelEntry(pendingLabel, breakLbl, null));
+                        pendingLabel = null;
+                        try {
+                            StmtExpr body = convertStatement(labeledStmt.body);
+                            yield labelledBlock(toSourceRange(labeledStmt), List.of(body), breakLbl);
+                        } finally {
+                            labelStack.pop();
+                        }
+                    }
+                }
+                case JCTree.JCSkip ignored -> null;
                 default -> throw new JavaViolationException("Unsupported statement: " + statement.getClass().getSimpleName());
             };
         }
