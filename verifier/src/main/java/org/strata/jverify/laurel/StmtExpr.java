@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, StmtExpr.Int, StmtExpr.Real, StmtExpr.String_, StmtExpr.Hole, StmtExpr.NondetHole, StmtExpr.VarDecl, StmtExpr.Call, StmtExpr.New, StmtExpr.FieldAccess, StmtExpr.Identifier, StmtExpr.Parenthesis, StmtExpr.Assign, StmtExpr.Add, StmtExpr.Sub, StmtExpr.Mul, StmtExpr.Div, StmtExpr.Mod, StmtExpr.DivT, StmtExpr.ModT, StmtExpr.Eq, StmtExpr.Neq, StmtExpr.Gt, StmtExpr.Lt, StmtExpr.Le, StmtExpr.Ge, StmtExpr.And, StmtExpr.Or, StmtExpr.AndThen, StmtExpr.OrElse, StmtExpr.Implies, StmtExpr.StrConcat, StmtExpr.Not, StmtExpr.Neg, StmtExpr.ForallExpr, StmtExpr.ExistsExpr, StmtExpr.IfThenElse, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Return, StmtExpr.Block, StmtExpr.LabelledBlock, StmtExpr.Exit, StmtExpr.While, StmtExpr.ForLoop, StmtExpr.IsType, StmtExpr.AsType {
+public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, StmtExpr.Int, StmtExpr.Real, StmtExpr.String_, StmtExpr.Hole, StmtExpr.NondetHole, StmtExpr.VarDecl, StmtExpr.Call, StmtExpr.New, StmtExpr.FieldAccess, StmtExpr.Identifier, StmtExpr.Parenthesis, StmtExpr.Assign, StmtExpr.MultiAssign, StmtExpr.Add, StmtExpr.Sub, StmtExpr.Mul, StmtExpr.Div, StmtExpr.Mod, StmtExpr.DivT, StmtExpr.ModT, StmtExpr.Eq, StmtExpr.Neq, StmtExpr.Gt, StmtExpr.Lt, StmtExpr.Le, StmtExpr.Ge, StmtExpr.And, StmtExpr.Or, StmtExpr.AndThen, StmtExpr.OrElse, StmtExpr.Implies, StmtExpr.StrConcat, StmtExpr.Not, StmtExpr.Neg, StmtExpr.ForallExpr, StmtExpr.ExistsExpr, StmtExpr.IfThenElse, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Return, StmtExpr.Block, StmtExpr.LabelledBlock, StmtExpr.Exit, StmtExpr.While, StmtExpr.ForLoop, StmtExpr.IsType, StmtExpr.AsType {
     public record LiteralBool(
         SourceRange sourceRange,
         boolean b
@@ -192,6 +192,22 @@ public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, Stmt
         public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
             var sexp = $s.newOp("Laurel.assign", sourceRange());
             sexp.add($s.serialize(target()));
+            sexp.add($s.serialize(value()));
+            return sexp;
+        }
+    }
+
+    public record MultiAssign(
+        SourceRange sourceRange,
+        java.util.List<AssignTarget> targets, StmtExpr value
+    ) implements StmtExpr {
+        @Override
+        public java.lang.String operationName() { return "Laurel.multiAssign"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.multiAssign", sourceRange());
+            sexp.add($s.serializeSeq(targets(), "commaSepList", $s::serialize));
             sexp.add($s.serialize(value()));
             return sexp;
         }
