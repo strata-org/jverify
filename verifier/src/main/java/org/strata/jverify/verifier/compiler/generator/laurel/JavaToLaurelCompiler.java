@@ -282,6 +282,21 @@ public class JavaToLaurelCompiler {
 
         /**
          * Emit a while loop with optional break/continue label wrapping.
+         *
+         * When labels are present, produces (for a for-loop with break/continue):
+         * <pre>
+         * labelledBlock(breakLbl, {
+         *   preamble...        // e.g. init for for-loops, sentinel decl for do-while
+         *   while (cond)
+         *     invariants: [...]
+         *   {
+         *     labelledBlock(continueLbl, { body });
+         *     step;            // null for while/do-while
+         *   }
+         * })
+         * </pre>
+         * break emits as exit(breakLbl), continue as exit(continueLbl).
+         * The step is outside the continue label so continue skips the body but still runs the step.
          * @param sr source range
          * @param cond loop condition
          * @param invariants loop invariants
