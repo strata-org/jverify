@@ -130,6 +130,7 @@ class VerifyBreakContinue {
             }
             a = a + 1;
         }
+        check(a == 4);
 
         int b = 0;
         for (int j = 0; j < 5; j = j + 1) {
@@ -140,6 +141,7 @@ class VerifyBreakContinue {
             }
             b = b + 1;
         }
+        check(b == 4);
     }
 
     static void breakAndContinueInSameLoop() {
