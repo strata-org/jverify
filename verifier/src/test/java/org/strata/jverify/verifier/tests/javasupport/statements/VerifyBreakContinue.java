@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "ConstantValue"})
-@JVerifyTest(methodsVerified = 9, errorCount = 0)
+@JVerifyTest(methodsVerified = 10, errorCount = 0)
 class VerifyBreakContinue {
     static void forLoopBreak() {
         int i = 0;
@@ -118,5 +118,27 @@ class VerifyBreakContinue {
             i = i + 1;
         }
         check(x == 8);
+    }
+
+    static void multipleLoopsWithBreakAndContinue() {
+        int a = 0;
+        for (int i = 0; i < 5; i = i + 1) {
+            invariant(i >= 0 && i <= 5);
+            invariant(i <= 3 ? a == i : a == i - 1);
+            if (i == 3) {
+                continue;
+            }
+            a = a + 1;
+        }
+
+        int b = 0;
+        for (int j = 0; j < 5; j = j + 1) {
+            invariant(j >= 0 && j <= 5);
+            invariant(j <= 2 ? b == j : b == j - 1);
+            if (j == 2) {
+                continue;
+            }
+            b = b + 1;
+        }
     }
 }
