@@ -108,7 +108,7 @@ public class LaurelDriver implements Driver {
 
     public JVerifyResults runVerifier(FilesMap filesMap, IonValue serializedProgram) {
         var processBuilder = new ProcessBuilder(
-                "lake", "exe", "-q", "strata", "laurelAnalyzeBinary"
+                "lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"
         );
         processBuilder.directory(verifierOptions.backendPath().toFile());
         return verifierOptions.time("Running Strata", () -> {
