@@ -121,6 +121,10 @@ public class JavaToLaurelCompiler {
         };
     }
 
+    private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
+        return sym.outermostClass().name + "_" + sym.name;
+    }
+
     private class StaticMethodCollector extends TreeScanner {
         final List<Procedure> procedures = new ArrayList<>();
 
@@ -129,7 +133,7 @@ public class JavaToLaurelCompiler {
             if ((method.mods.flags & Flags.STATIC) != 0) {
                 // TODO: when overloaded methods are supported, disambiguate names
                 //  (e.g. by appending parameter type suffixes) to avoid duplicate procedure names in Laurel.
-                String methodName = method.name.toString();
+                String methodName = qualifiedMethodName(method.sym);
 
                 List<Parameter> params = new ArrayList<>();
                 for (var param : method.params) {
@@ -332,7 +336,7 @@ public class JavaToLaurelCompiler {
                         yield convertJVerifyCall(invocation, jverifyMethod, renames);
                     }
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-                    String calleeName = methodSym.getSimpleName().toString();
+                    String calleeName = qualifiedMethodName(methodSym);
                     List<StmtExpr> args = new ArrayList<>();
                     for (var arg : invocation.args) {
                         args.add(convertExpression(arg, renames));
