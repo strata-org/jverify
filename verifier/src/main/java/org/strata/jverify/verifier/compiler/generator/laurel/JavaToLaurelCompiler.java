@@ -355,16 +355,8 @@ public class JavaToLaurelCompiler {
                     var sr = toSourceRange(whileStmt);
                     yield withLoopLabels(whileStmt.body, (breakLbl, continueLbl) -> {
                         StmtExpr cond = convertExpression(whileStmt.cond);
-                        List<InvariantClause> invariants = List.of();
-                        StmtExpr loopBody;
-                        if (whileStmt.body instanceof JCTree.JCBlock loopBlock) {
-                            var parts = extractLoopParts(loopBlock);
-                            invariants = parts.invariants;
-                            loopBody = parts.body;
-                        } else {
-                            loopBody = convertStatement(whileStmt.body);
-                        }
-                        return emitLoop(sr, cond, invariants, loopBody, null, List.of(),
+                        var parts = extractLoopParts(whileStmt.body);
+                        return emitLoop(sr, cond, parts.invariants, parts.body, null, List.of(),
                                 breakLbl, continueLbl);
                     });
                 }
@@ -380,16 +372,8 @@ public class JavaToLaurelCompiler {
                                 : literalBool(sr, true);
                         StmtExpr step = forLoop.step.isEmpty() ? block(sr, List.of())
                                 : convertStatement(forLoop.step.getFirst());
-                        List<InvariantClause> invariants = List.of();
-                        StmtExpr loopBody;
-                        if (forLoop.body instanceof JCTree.JCBlock loopBlock) {
-                            var parts = extractLoopParts(loopBlock);
-                            invariants = parts.invariants;
-                            loopBody = parts.body;
-                        } else {
-                            loopBody = convertStatement(forLoop.body);
-                        }
-                        return emitLoop(sr, cond, invariants, loopBody, step, List.of(init),
+                        var parts = extractLoopParts(forLoop.body);
+                        return emitLoop(sr, cond, parts.invariants, parts.body, step, List.of(init),
                                 breakLbl, continueLbl);
                     });
                 }
@@ -404,17 +388,9 @@ public class JavaToLaurelCompiler {
                         StmtExpr cond = orElse(sr, identifier(sr, sentinel), convertExpression(doWhileStmt.cond));
                         StmtExpr sentinelReset = assign(sr, identifier(sr, sentinel), literalBool(sr, false));
 
-                        List<InvariantClause> invariants = List.of();
-                        StmtExpr innerBody;
-                        if (doWhileStmt.body instanceof JCTree.JCBlock loopBlock) {
-                            var parts = extractLoopParts(loopBlock);
-                            invariants = parts.invariants;
-                            innerBody = parts.body;
-                        } else {
-                            innerBody = convertStatement(doWhileStmt.body);
-                        }
-                        StmtExpr loopBody = block(sr, List.of(sentinelReset, innerBody));
-                        return emitLoop(sr, cond, invariants, loopBody, null, List.of(sentinelDecl),
+                        var parts = extractLoopParts(doWhileStmt.body);
+                        StmtExpr loopBody = block(sr, List.of(sentinelReset, parts.body));
+                        return emitLoop(sr, cond, parts.invariants, loopBody, null, List.of(sentinelDecl),
                                 breakLbl, continueLbl);
                     });
                 }
@@ -469,19 +445,23 @@ public class JavaToLaurelCompiler {
 
         private record LoopParts(List<InvariantClause> invariants, StmtExpr body) {}
 
-        private LoopParts extractLoopParts(JCTree.JCBlock loopBlock) {
-            MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
-            List<InvariantClause> invariants = new ArrayList<>();
-            for (var inv : loopContract.loopInvariants()) {
-                invariants.add(invariantClause(convertExpression(inv.get())));
+        private LoopParts extractLoopParts(JCTree.JCStatement body) {
+            if (body instanceof JCTree.JCBlock loopBlock) {
+                MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
+                List<InvariantClause> invariants = new ArrayList<>();
+                for (var inv : loopContract.loopInvariants()) {
+                    invariants.add(invariantClause(convertExpression(inv.get())));
+                }
+                var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
+                List<StmtExpr> stmts = new ArrayList<>();
+                for (var s : implStatements) {
+                    StmtExpr converted = convertStatement(s);
+                    if (converted != null) stmts.add(converted);
+                }
+                return new LoopParts(invariants, block(toSourceRange(loopBlock), stmts));
+            } else {
+                return new LoopParts(List.of(), convertStatement(body));
             }
-            var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
-            List<StmtExpr> stmts = new ArrayList<>();
-            for (var s : implStatements) {
-                StmtExpr converted = convertStatement(s);
-                if (converted != null) stmts.add(converted);
-            }
-            return new LoopParts(invariants, block(toSourceRange(loopBlock), stmts));
         }
 
         private StmtExpr convertExpression(JCTree.JCExpression expr, Map<String, String> renames) {
