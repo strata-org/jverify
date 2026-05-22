@@ -239,4 +239,27 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         return methodStatusPerUri;
     }
 
+    /**
+     * Demote a method's entry from Verified to Skipped. Called by
+     * JavaToLaurelCompiler when per-method translation throws
+     * JavaViolationException, so the driver doesn't report the method as
+     * Verified despite producing no Laurel output for it.
+     *
+     * No-op when the method has no entry (synthetic methods, methods without
+     * an implementation body — see addMethodToIntervalTree). Those are
+     * already invisible to the counting layer, so there is nothing to demote;
+     * adding an entry here would inflate the Skipped count instead.
+     */
+    public void markSkipped(JCTree.JCCompilationUnit compilationUnit, JCTree.JCMethodDecl methodDecl) {
+        var uriStatuses = methodStatusPerUri.get(compilationUnit.getSourceFile().toUri());
+        if (uriStatuses == null) {
+            return;
+        }
+        uriStatuses.streamNodes()
+                .map(node -> node.getValue())
+                .filter(status -> status.getMethodTree() == methodDecl)
+                .findFirst()
+                .ifPresent(status -> status.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Skipped));
+    }
+
 }
