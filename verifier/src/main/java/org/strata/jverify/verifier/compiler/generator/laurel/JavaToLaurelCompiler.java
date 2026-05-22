@@ -4,10 +4,12 @@ import org.strata.jverify.common.Position;
 import org.strata.jverify.laurel.*;
 import org.strata.jverify.verifier.VerifierOptions;
 import org.strata.jverify.verifier.compiler.JavaViolationException;
+import org.strata.jverify.verifier.compiler.Reporter;
 import org.strata.jverify.verifier.compiler.frontend.JavaLowerer;
 import org.strata.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import org.strata.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import org.strata.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
+import org.strata.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import org.strata.jverify.verifier.laurel.FilesMap;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
@@ -27,12 +29,16 @@ public class JavaToLaurelCompiler {
     private final JavaLowerer lowerer;
     private final MethodOrLoopContractCompiler contractCompiler;
     private final JVerifyUtils jverifyUtils;
+    private final Reporter reporter;
+    private final VerifyAnnotationCompiler annotationCompiler;
     JCTree.JCCompilationUnit currentCompilationUnit;
 
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
         jverifyUtils = JVerifyUtils.instance(context);
+        reporter = Reporter.instance(context);
+        annotationCompiler = VerifyAnnotationCompiler.instance(context);
     }
 
     public record AnalysisResult(List<LaurelFile> files, FilesMap filesMap) {}
@@ -48,6 +54,7 @@ public class JavaToLaurelCompiler {
                 continue;
             }
             currentCompilationUnit = compilationUnit;
+            reporter.compilationUnit = compilationUnit;
             var visitor = new StaticMethodCollector();
             compilationUnit.accept(visitor);
             List<Command> commands = new ArrayList<>();
@@ -90,7 +97,8 @@ public class JavaToLaurelCompiler {
             makeConstrainedType("int8", -128L, 127L),
             makeConstrainedType("int16", -32768L, 32767L),
             makeConstrainedType("int32", -2147483648L, 2147483647L),
-            makeConstrainedType("int64", -9223372036854775808L, 9223372036854775807L)
+            makeConstrainedType("int64", -9223372036854775808L, 9223372036854775807L),
+            makeConstrainedType("char", 0L, 65535L)
         );
     }
 
@@ -116,6 +124,7 @@ public class JavaToLaurelCompiler {
             case SHORT -> compositeType("int16");
             case BYTE -> compositeType("int8");
             case LONG -> compositeType("int64");
+            case CHAR -> compositeType("char");
             case BOOLEAN -> boolType();
             default -> throw new JavaViolationException("Unsupported type: " + type);
         };
@@ -196,77 +205,86 @@ public class JavaToLaurelCompiler {
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl method) {
             if ((method.mods.flags & Flags.STATIC) != 0) {
-                // TODO: when overloaded methods are supported, disambiguate names
-                //  (e.g. by appending parameter type suffixes) to avoid duplicate procedure names in Laurel.
-                String methodName = qualifiedMethodName(method.sym);
-
-                List<Parameter> params = new ArrayList<>();
-                for (var param : method.params) {
-                    params.add(parameter(param.name.toString(), translateType(param.type)));
+                try {
+                    translateStaticMethod(method);
+                } catch (JavaViolationException e) {
+                    reporter.reportError(method, "translatorError", e.getMessage());
+                    annotationCompiler.markSkipped(currentCompilationUnit, method);
                 }
-
-                Optional<ReturnType> retType = Optional.empty();
-                if (method.restype != null && method.restype.type != null
-                        && method.restype.type.getTag() != TypeTag.VOID) {
-                    retType = Optional.of(returnType(translateType(method.restype.type)));
-                }
-
-                List<RequiresClause> requires = new ArrayList<>();
-                List<EnsuresClause> ensures = new ArrayList<>();
-                StmtExpr methodBody = null;
-
-                if (method.body != null) {
-                    MethodOrLoopContract contract = contractCompiler.getContract(method.body);
-                    for (var pre : contract.preconditions()) {
-                        requires.add(requiresClause(convertExpression(pre.get()), Optional.empty()));
-                    }
-                    for (var post : contract.postconditions()) {
-                        var postExpr = post.get();
-                        if (postExpr instanceof JCTree.JCLambda lambda && lambda.params.size() == 1) {
-                            var paramName = lambda.params.getFirst().name.toString();
-                            var renames = Map.of(paramName, "result");
-                            ensures.add(ensuresClause(convertLambdaBody(lambda, renames), Optional.empty()));
-                        } else {
-                            ensures.add(ensuresClause(convertExpression(postExpr), Optional.empty()));
-                        }
-                    }
-
-                    var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(method.body);
-                    if (!implStatements.isEmpty()) {
-                        List<StmtExpr> stmts = new ArrayList<>();
-                        for (var statement : implStatements) {
-                            StmtExpr converted = convertStatement(statement);
-                            if (converted != null) {
-                                stmts.add(converted);
-                            }
-                        }
-                        methodBody = block(toSourceRange(method.body), stmts);
-                    }
-                }
-
-                Optional<Body> optBody = methodBody != null
-                        ? Optional.of(body(methodBody))
-                        : Optional.empty();
-
-                boolean isPure = jverifyUtils.isPure(method.sym);
-                // Strata rejects transparent (visible-body) procedures unless they're functional;
-                // emit an OpaqueSpec to mark the body opaque otherwise. Pure functions stay
-                // transparent only when they have no ensures clauses (the schema can't carry
-                // ensures without an OpaqueSpec wrapper).
-                // modifies is always empty: jverify doesn't yet emit modifies clauses.
-                boolean canStayTransparent = isPure && ensures.isEmpty();
-                Optional<OpaqueSpec> optSpec = canStayTransparent
-                        ? Optional.empty()
-                        : Optional.of(opaqueSpec(ensures, List.of()));
-
-                Procedure proc = isPure
-                        ? function(toSourceRange(method), methodName, params,
-                                retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody)
-                        : procedure(toSourceRange(method), methodName, params,
-                                retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody);
-                procedures.add(proc);
             }
             super.visitMethodDef(method);
+        }
+
+        private void translateStaticMethod(JCTree.JCMethodDecl method) {
+            // TODO: when overloaded methods are supported, disambiguate names
+            //  (e.g. by appending parameter type suffixes) to avoid duplicate procedure names in Laurel.
+            String methodName = qualifiedMethodName(method.sym);
+
+            List<Parameter> params = new ArrayList<>();
+            for (var param : method.params) {
+                params.add(parameter(param.name.toString(), translateType(param.type)));
+            }
+
+            Optional<ReturnType> retType = Optional.empty();
+            if (method.restype != null && method.restype.type != null
+                    && method.restype.type.getTag() != TypeTag.VOID) {
+                retType = Optional.of(returnType(translateType(method.restype.type)));
+            }
+
+            List<RequiresClause> requires = new ArrayList<>();
+            List<EnsuresClause> ensures = new ArrayList<>();
+            StmtExpr methodBody = null;
+
+            if (method.body != null) {
+                MethodOrLoopContract contract = contractCompiler.getContract(method.body);
+                for (var pre : contract.preconditions()) {
+                    requires.add(requiresClause(convertExpression(pre.get()), Optional.empty()));
+                }
+                for (var post : contract.postconditions()) {
+                    var postExpr = post.get();
+                    if (postExpr instanceof JCTree.JCLambda lambda && lambda.params.size() == 1) {
+                        var paramName = lambda.params.getFirst().name.toString();
+                        var renames = Map.of(paramName, "result");
+                        ensures.add(ensuresClause(convertLambdaBody(lambda, renames), Optional.empty()));
+                    } else {
+                        ensures.add(ensuresClause(convertExpression(postExpr), Optional.empty()));
+                    }
+                }
+
+                var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(method.body);
+                if (!implStatements.isEmpty()) {
+                    List<StmtExpr> stmts = new ArrayList<>();
+                    for (var statement : implStatements) {
+                        StmtExpr converted = convertStatement(statement);
+                        if (converted != null) {
+                            stmts.add(converted);
+                        }
+                    }
+                    methodBody = block(toSourceRange(method.body), stmts);
+                }
+            }
+
+            Optional<Body> optBody = methodBody != null
+                    ? Optional.of(body(methodBody))
+                    : Optional.empty();
+
+            boolean isPure = jverifyUtils.isPure(method.sym);
+            // Strata rejects transparent (visible-body) procedures unless they're functional;
+            // emit an OpaqueSpec to mark the body opaque otherwise. Pure functions stay
+            // transparent only when they have no ensures clauses (the schema can't carry
+            // ensures without an OpaqueSpec wrapper).
+            // modifies is always empty: jverify doesn't yet emit modifies clauses.
+            boolean canStayTransparent = isPure && ensures.isEmpty();
+            Optional<OpaqueSpec> optSpec = canStayTransparent
+                    ? Optional.empty()
+                    : Optional.of(opaqueSpec(ensures, List.of()));
+
+            Procedure proc = isPure
+                    ? function(toSourceRange(method), methodName, params,
+                            retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody)
+                    : procedure(toSourceRange(method), methodName, params,
+                            retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody);
+            procedures.add(proc);
         }
 
         private StmtExpr convertBlock(JCTree.JCBlock blk) {
@@ -526,6 +544,7 @@ public class JavaToLaurelCompiler {
                     long val = ((Number) literal.value).longValue();
                     yield longLiteral(sr, val);
                 }
+                case CHAR -> longLiteral(sr, ((Number) literal.value).longValue());
                 default -> throw new JavaViolationException("Unsupported literal type: " + literal.typetag);
             };
         }
