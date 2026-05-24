@@ -7,7 +7,7 @@ The code examples make use of various JVerify features that, unless you've read 
 Without instructions, JVerify will detect many common types of bugs. Here's some code that shows two `NullPointerException`s being detected by JVerify:
 
 ```java
-{{#include ../../../examples/src/test/java/org/strata/jverify/examples/NullCheck.java}}
+{{#include ../../../examples/src/test/java/org/strata/jverify/examples/SimpleNullCheck.java}}
 ```
 
 #### Prevent dereferencing null without checking it
