@@ -163,7 +163,7 @@ public class JavaToLaurelCompiler {
 
         /** Set up loop labels, push to stack, execute body, pop stack. */
         private StmtExpr withLoopLabels(JCTree.JCStatement loopBody, java.util.function.BiFunction<String, String, StmtExpr> body) {
-            boolean needsLabels = containsBreakOrContinue(loopBody);
+            boolean needsLabels = pendingLabel != null || containsBreakOrContinue(loopBody);
             String breakLbl = needsLabels ? freshLabel("loop_break") : null;
             String continueLbl = needsLabels ? freshLabel("loop_continue") : null;
             String javaLabel = pendingLabel;
