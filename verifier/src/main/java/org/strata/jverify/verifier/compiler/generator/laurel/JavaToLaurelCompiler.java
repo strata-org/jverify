@@ -321,9 +321,8 @@ public class JavaToLaurelCompiler {
          * @param loopBody the translated loop body
          * @param step optional step expression (for-loops); null for while/do-while
          * @param preamble statements to emit before the while (e.g. init, sentinel decl)
-         * @param needsLabels whether break/continue is present
-         * @param breakLbl break label (null if !needsLabels)
-         * @param continueLbl continue label (null if !needsLabels)
+         * @param breakLbl break label (null if no labels needed)
+         * @param continueLbl continue label (null if no labels needed)
          */
         private StmtExpr emitLoop(SourceRange sr, StmtExpr cond, List<InvariantClause> invariants,
                                   StmtExpr loopBody, StmtExpr step, List<StmtExpr> preamble,
