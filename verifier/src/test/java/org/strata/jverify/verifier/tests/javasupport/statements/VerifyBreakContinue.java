@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "ConstantValue"})
-@JVerifyTest(methodsVerified = 11, errorCount = 0)
+@JVerifyTest(exitCode = 4, methodsVerified = 14, methodsInvalid = 1, errorCount = 1)
 class VerifyBreakContinue {
     static void forLoopBreak() {
         int i = 0;
@@ -158,5 +158,57 @@ class VerifyBreakContinue {
             x = x + i;
         }
         check(x == 18);
+    }
+
+    static void labeledBreakOuter() {
+        int x = 0;
+        outerLoop:
+        while (x < 10) {
+            invariant(x >= 0 && x <= 10);
+            int y = 0;
+            while (y < 3) {
+                invariant(y >= 0 && y <= 3);
+                invariant(x >= 0 && x <= 10);
+                if (x == 5) {
+                    break outerLoop;
+                }
+                y = y + 1;
+            }
+            x = x + 1;
+        }
+    }
+
+    static void doWhileWithBreak() {
+        int x = 0;
+        do {
+            invariant(x >= 0 && x <= 3);
+            if (x == 3) {
+                break;
+            }
+            x = x + 1;
+        } while (x < 10);
+        check(x == 3);
+    }
+
+    static int returnInsideLoop() {
+        for (int i = 0; i < 10; i = i + 1) {
+            invariant(i >= 0 && i <= 5);
+            if (i == 5) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    static void breakBad() {
+        int i = 0;
+        for (i = 0; i < 5; i = i + 1) {
+            invariant(i >= 0 && i <= 5);
+            if (i == 5) {
+                break;
+            }
+        }
+        check(i == 6);
+//      ^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 }
