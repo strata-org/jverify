@@ -416,8 +416,8 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCDoWhileLoop doWhileStmt -> {
                     var sr = toSourceRange(doWhileStmt);
                     yield withLoopLabels(doWhileStmt.body, (breakLbl, continueLbl) -> {
-                        // Desugar: var __first_N = true; while(__first_N || cond) { __first_N = false; body }
-                        String sentinel = "__first_" + labelCounter;
+                        // Desugar: var $first_N = true; while($first_N || cond) { $first_N = false; body }
+                        String sentinel = "$first_" + labelCounter;
                         StmtExpr sentinelDecl = varDecl(sr, sentinel,
                                 Optional.of(typeAnnotation(boolType())),
                                 Optional.of(initializer(literalBool(sr, true))));
