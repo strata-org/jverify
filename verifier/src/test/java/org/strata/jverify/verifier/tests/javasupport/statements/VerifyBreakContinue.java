@@ -190,14 +190,15 @@ class VerifyBreakContinue {
         check(x == 3);
     }
 
-    static int returnInsideLoop() {
+    static boolean returnInsideLoop() {
+	postcondition((Boolean b) -> b == true);
         for (int i = 0; i < 10; i = i + 1) {
             invariant(i >= 0 && i <= 5);
             if (i == 5) {
-                return i;
+                return true;
             }
         }
-        return 0;
+        return false;
     }
 
     static void breakBad() {
