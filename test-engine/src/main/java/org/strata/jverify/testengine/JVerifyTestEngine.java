@@ -264,6 +264,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 backendPath,
                 List.of(verifierJar, libraryJar, testEngineClassPath, libraryForTestingClassPath),
                 Path.of("../build/temp.laurel"),
+                false,
                 true,
                 annotation.useBuiltinContracts() ? List.of(builtinContracts) : List.of(),
                 true,
