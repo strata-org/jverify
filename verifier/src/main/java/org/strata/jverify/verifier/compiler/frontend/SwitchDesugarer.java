@@ -110,6 +110,16 @@ public class SwitchDesugarer extends TreeTranslator {
     /// errors.
     ///
     private Optional<JCTree.JCStatement> switchToIf(JCTree.JCExpression selector, List<JCTree.JCCase> cases, boolean exhaustive) {
+        // Refuse STATEMENT-form switches uniformly. caseToExpression already
+        // refuses STATEMENT-form non-default cases; extending the check here
+        // also covers a STATEMENT-form default — wrapping its body in a
+        // plain Block would orphan any `break` it contains, retargeting
+        // them to the enclosing loop instead of the (now-removed) switch.
+        for (var cas : cases) {
+            if (cas.caseKind == CaseTree.CaseKind.STATEMENT) {
+                return Optional.empty();
+            }
+        }
         Optional<JCTree.JCCase> defaultCase = Optional.empty();
         ListBuffer<JCTree.JCCase> nonDefault = new ListBuffer<>();
         for (var cas : cases) {
