@@ -414,60 +414,36 @@ public class JavaToLaurelCompiler {
                     });
                 }
                 case JCTree.JCDoWhileLoop doWhileStmt -> {
-                    // Desugar: do { I; body } while(cond) → body_first; while(cond) invariants:[I] { body }
+                    // Desugar: do { I; body } while(cond)  →
+                    //   labelledBlock(breakLbl, [
+                    //     while (true) invariants:[I] {
+                    //       labelledBlock(continueLbl, [body]);   // continue exits inner block
+                    //       if (!cond) exit(breakLbl);             // then check cond
+                    //     }
+                    //   ])
+                    // The invariant is checked at while-entry before EVERY iteration
+                    // including the first. The exit-on-!cond at the body's tail preserves
+                    // do-while semantics (body runs at least once, cond checked after).
                     var sr = toSourceRange(doWhileStmt);
-                    boolean needsLabels = pendingLabel != null || containsBreakOrContinue(doWhileStmt.body);
-                    String breakLbl = needsLabels ? freshLabel("loop_break") : null;
+                    String breakLbl = freshLabel("loop_break");
+                    String continueLbl = freshLabel("loop_continue");
                     String javaLabel = pendingLabel;
                     pendingLabel = null;
-
-                    if (!needsLabels) {
-                        labelStack.push(new LabelEntry(javaLabel, null, null));
-                        try {
-                            // extractLoopParts is called twice: once for the inlined first iteration,
-                            // once for the while body. This mirrors the else branch where two calls are
-                            // required because each compilation uses a different label context (different
-                            // continue targets). Here the results are structurally identical (no labels),
-                            // but we keep the same pattern for clarity.
-                            var firstParts = extractLoopParts(doWhileStmt.body);
-                            StmtExpr cond = convertExpression(doWhileStmt.cond);
-                            var whileParts = extractLoopParts(doWhileStmt.body);
-                            StmtExpr whileNode = while_(sr, cond, whileParts.invariants, whileParts.body);
-                            yield block(sr, List.of(firstParts.body, whileNode));
-                        } finally {
-                            labelStack.pop();
-                        }
-                    } else {
-                        // The body must be compiled twice with different label stacks: the first
-                        // iteration's continue jumps to the start of the while (continueLblFirst),
-                        // while the while body's continue jumps back to the condition (continueLbl).
-                        String continueLblFirst = freshLabel("loop_continue");
-                        labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLblFirst));
-                        StmtExpr firstBody;
-                        try {
-                            var firstParts = extractLoopParts(doWhileStmt.body);
-                            firstBody = labelledBlock(sr, List.of(firstParts.body), continueLblFirst);
-                        } finally {
-                            labelStack.pop();
-                        }
-
-                        // While body: separate continue label
-                        String continueLbl = freshLabel("loop_continue");
-                        labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
-                        StmtExpr result;
-                        try {
-                            StmtExpr cond = convertExpression(doWhileStmt.cond);
-                            var whileParts = extractLoopParts(doWhileStmt.body);
-                            StmtExpr wrappedWhileBody = labelledBlock(sr, List.of(whileParts.body), continueLbl);
-                            StmtExpr whileNode = while_(sr, cond, whileParts.invariants, wrappedWhileBody);
-                            List<StmtExpr> outerStmts = new ArrayList<>();
-                            outerStmts.add(firstBody);
-                            outerStmts.add(whileNode);
-                            result = labelledBlock(sr, outerStmts, breakLbl);
-                        } finally {
-                            labelStack.pop();
-                        }
-                        yield result;
+                    labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
+                    try {
+                        var parts = extractLoopParts(doWhileStmt.body);
+                        StmtExpr cond = convertExpression(doWhileStmt.cond);
+                        // continueLbl scopes only the user body, so a `continue`
+                        // exits to it and then falls through to the cond check.
+                        StmtExpr labelledBody = labelledBlock(sr, List.of(parts.body), continueLbl);
+                        StmtExpr exitOnFalseCond = ifThenElse(sr, not(sr, cond),
+                                exit(sr, breakLbl), Optional.empty());
+                        StmtExpr whileBody = block(sr, List.of(labelledBody, exitOnFalseCond));
+                        StmtExpr whileNode = while_(sr, literalBool(sr, true),
+                                parts.invariants, whileBody);
+                        yield labelledBlock(sr, List.of(whileNode), breakLbl);
+                    } finally {
+                        labelStack.pop();
                     }
                 }
                 case JCTree.JCBreak breakStmt -> {
