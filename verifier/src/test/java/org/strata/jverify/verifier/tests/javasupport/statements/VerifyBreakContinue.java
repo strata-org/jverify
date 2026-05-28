@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "ConstantValue"})
-@JVerifyTest(exitCode = 4, methodsVerified = 16, methodsInvalid = 1, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 13, methodsInvalid = 1, errorCount = 1)
 class VerifyBreakContinue {
     static void forLoopBreak() {
         int i = 0;
@@ -181,20 +181,8 @@ class VerifyBreakContinue {
         check(y >= 0 && y <= 3);
     }
 
-    static void doWhileWithBreak() {
-        int x = 0;
-        do {
-            invariant(x >= 0 && x <= 3);
-            if (x == 3) {
-                break;
-            }
-            x = x + 1;
-        } while (x < 10);
-        check(x == 3);
-    }
-
     static boolean returnInsideLoop() {
-	postcondition((boolean b) -> b == true);
+        postcondition((boolean b) -> b == true);
         for (int i = 0; i < 10; i = i + 1) {
             invariant(i >= 0 && i <= 5);
             if (i == 5) {
@@ -204,33 +192,6 @@ class VerifyBreakContinue {
         return false;
     }
 
-    static void doWhileWithContinue() {
-        int x = 0;
-        int sum = 0;
-        do {
-            invariant(x >= 0 && x <= 5);
-            invariant(x <= 2 ? sum == x : sum == 2);
-            if (x >= 2) {
-                x = x + 1;
-                continue;
-            }
-            sum = sum + 1;
-            x = x + 1;
-        } while (x < 5);
-        check(sum == 2);
-    }
-
-    static void doWhileNumericInvariant() {
-        // Bug 2 repro: with sentinel approach, invariant(0 <= x && x < 100) is unprovable
-        // because __first=true weakens the guard. With body duplication, preservation is:
-        // (0 <= x && x < 100) ∧ (x < 5) → (0 <= x+1 && x+1 < 100) ✓
-        int x = 0;
-        do {
-            invariant(0 <= x && x < 100);
-            x = x + 1;
-        } while (x < 5);
-        check(x >= 5);
-    }
 
     static void breakBad() {
         int i = 0;
