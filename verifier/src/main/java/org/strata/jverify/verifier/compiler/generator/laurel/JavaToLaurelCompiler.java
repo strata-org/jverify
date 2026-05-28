@@ -286,10 +286,10 @@ public class JavaToLaurelCompiler {
             procedures.add(proc);
         }
 
-        private StmtExpr convertBlock(JCTree.JCBlock blk) {
+        private StmtExpr convertBlock(JCTree.JCBlock blk, Map<String, String> renames) {
             List<StmtExpr> statements = new ArrayList<>();
             for (var statement : blk.stats) {
-                StmtExpr converted = convertStatement(statement);
+                StmtExpr converted = convertStatement(statement, renames);
                 if (converted != null) {
                     statements.add(converted);
                 }
@@ -355,25 +355,29 @@ public class JavaToLaurelCompiler {
         }
 
         private StmtExpr convertStatement(JCTree.JCStatement statement) {
+            return convertStatement(statement, Map.of());
+        }
+
+        private StmtExpr convertStatement(JCTree.JCStatement statement, Map<String, String> renames) {
             return switch (statement) {
                 case JCTree.JCAssert assertStmt ->
-                        assert_(toSourceRange(assertStmt), convertExpression(assertStmt.cond), Optional.empty());
-                case JCTree.JCExpressionStatement exprStmt -> convertExpression(exprStmt.expr);
-                case JCTree.JCBlock blk -> convertBlock(blk);
+                        assert_(toSourceRange(assertStmt), convertExpression(assertStmt.cond, renames), Optional.empty());
+                case JCTree.JCExpressionStatement exprStmt -> convertExpression(exprStmt.expr, renames);
+                case JCTree.JCBlock blk -> convertBlock(blk, renames);
                 case JCTree.JCVariableDecl varDecl -> {
                     LaurelType type = translateType(varDecl.type);
                     Optional<Initializer> optAssign = varDecl.init != null
-                            ? Optional.of(initializer(convertExpression(varDecl.init)))
+                            ? Optional.of(initializer(convertExpression(varDecl.init, renames)))
                             : Optional.empty();
                     yield varDecl(toSourceRange(varDecl), varDecl.name.toString(),
                             Optional.of(typeAnnotation(type)), optAssign);
                 }
                 case JCTree.JCIf ifStmt -> {
-                    StmtExpr cond = convertExpression(ifStmt.cond);
-                    StmtExpr thenBranch = convertStatement(ifStmt.thenpart);
+                    StmtExpr cond = convertExpression(ifStmt.cond, renames);
+                    StmtExpr thenBranch = convertStatement(ifStmt.thenpart, renames);
                     Optional<ElseBranch> elseB = Optional.empty();
                     if (ifStmt.elsepart != null) {
-                        StmtExpr elseStmt = convertStatement(ifStmt.elsepart);
+                        StmtExpr elseStmt = convertStatement(ifStmt.elsepart, renames);
                         if (elseStmt != null) {
                             elseB = Optional.of(elseBranch(elseStmt));
                         }
@@ -382,15 +386,15 @@ public class JavaToLaurelCompiler {
                 }
                 case JCTree.JCReturn retStmt -> {
                     if (retStmt.expr != null) {
-                        yield return_(toSourceRange(retStmt), convertExpression(retStmt.expr));
+                        yield return_(toSourceRange(retStmt), convertExpression(retStmt.expr, renames));
                     }
                     yield null;
                 }
                 case JCTree.JCWhileLoop whileStmt -> {
                     var sr = toSourceRange(whileStmt);
                     yield withLoopLabels(whileStmt.body, (breakLbl, continueLbl) -> {
-                        StmtExpr cond = convertExpression(whileStmt.cond);
-                        var parts = extractLoopParts(whileStmt.body);
+                        StmtExpr cond = convertExpression(whileStmt.cond, renames);
+                        var parts = extractLoopParts(whileStmt.body, renames);
                         return emitLoop(sr, cond, parts.invariants, parts.body, null, List.of(),
                                 breakLbl, continueLbl);
                     });
@@ -401,13 +405,13 @@ public class JavaToLaurelCompiler {
                     var sr = toSourceRange(forLoop);
                     yield withLoopLabels(forLoop.body, (breakLbl, continueLbl) -> {
                         StmtExpr init = forLoop.init.isEmpty() ? block(sr, List.of())
-                                : convertStatement(forLoop.init.getFirst());
+                                : convertStatement(forLoop.init.getFirst(), renames);
                         StmtExpr cond = forLoop.cond != null
-                                ? convertExpression(forLoop.cond)
+                                ? convertExpression(forLoop.cond, renames)
                                 : literalBool(sr, true);
                         StmtExpr step = forLoop.step.isEmpty() ? block(sr, List.of())
-                                : convertStatement(forLoop.step.getFirst());
-                        var parts = extractLoopParts(forLoop.body);
+                                : convertStatement(forLoop.step.getFirst(), renames);
+                        var parts = extractLoopParts(forLoop.body, renames);
                         return emitLoop(sr, cond, parts.invariants, parts.body, step, List.of(init),
                                 breakLbl, continueLbl);
                     });
@@ -426,14 +430,14 @@ public class JavaToLaurelCompiler {
                     if (labeledStmt.body instanceof JCTree.JCWhileLoop
                             || labeledStmt.body instanceof JCTree.JCForLoop
                             || labeledStmt.body instanceof JCTree.JCDoWhileLoop) {
-                        yield convertStatement(labeledStmt.body);
+                        yield convertStatement(labeledStmt.body, renames);
                     } else {
                         // Non-loop labeled statement: only break is valid (no continue)
                         String breakLbl = freshLabel("label_break");
                         labelStack.push(new LabelEntry(pendingLabel, breakLbl, null));
                         pendingLabel = null;
                         try {
-                            StmtExpr body = convertStatement(labeledStmt.body);
+                            StmtExpr body = convertStatement(labeledStmt.body, renames);
                             yield labelledBlock(toSourceRange(labeledStmt), List.of(body), breakLbl);
                         } finally {
                             labelStack.pop();
@@ -463,22 +467,22 @@ public class JavaToLaurelCompiler {
 
         private record LoopParts(List<InvariantClause> invariants, StmtExpr body) {}
 
-        private LoopParts extractLoopParts(JCTree.JCStatement body) {
+        private LoopParts extractLoopParts(JCTree.JCStatement body, Map<String, String> renames) {
             if (body instanceof JCTree.JCBlock loopBlock) {
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
                 List<InvariantClause> invariants = new ArrayList<>();
                 for (var inv : loopContract.loopInvariants()) {
-                    invariants.add(invariantClause(convertExpression(inv.get())));
+                    invariants.add(invariantClause(convertExpression(inv.get(), renames)));
                 }
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
                 List<StmtExpr> stmts = new ArrayList<>();
                 for (var s : implStatements) {
-                    StmtExpr converted = convertStatement(s);
+                    StmtExpr converted = convertStatement(s, renames);
                     if (converted != null) stmts.add(converted);
                 }
                 return new LoopParts(invariants, block(toSourceRange(loopBlock), stmts));
             } else {
-                return new LoopParts(List.of(), convertStatement(body));
+                return new LoopParts(List.of(), convertStatement(body, renames));
             }
         }
 
@@ -513,20 +517,43 @@ public class JavaToLaurelCompiler {
                     yield call(toSourceRange(invocation),
                             identifier(toSourceRange(invocation), calleeName), args);
                 }
+                // Synthesized by SwitchDesugarer to hoist a switch-expression's
+                // selector into a fresh local; lowers to a Laurel block (StmtExpr,
+                // usable in expression position). javac's Lower emits LetExpr for
+                // boxed compound-assign, postops, and pattern switches — all
+                // currently unsupported.
+                case JCTree.LetExpr letExpr -> {
+                    List<StmtExpr> stmts = new ArrayList<>();
+                    for (var def : letExpr.defs) {
+                        StmtExpr converted = convertStatement(def, renames);
+                        if (converted != null) stmts.add(converted);
+                    }
+                    stmts.add(convertExpression(letExpr.expr, renames));
+                    yield block(toSourceRange(letExpr), stmts);
+                }
+                // Compile-time constant field access (e.g. `Foo.CONST` where
+                // CONST is `static final int CONST = 42`). javac keeps these as
+                // JCFieldAccess with the constant value attached on the
+                // expression's type.
+                case JCTree.JCFieldAccess fa when fa.type.constValue() != null ->
+                    convertConstantValue(toSourceRange(fa), fa.type.getTag(), fa.type.constValue());
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
         }
 
         private StmtExpr convertLiteral(JCTree.JCLiteral literal) {
-            var sr = toSourceRange(literal);
-            return switch (literal.typetag) {
-                case BOOLEAN -> literalBool(sr, (int) literal.value != 0);
-                case INT, LONG, SHORT, BYTE -> {
-                    long val = ((Number) literal.value).longValue();
-                    yield longLiteral(sr, val);
-                }
-                case CHAR -> longLiteral(sr, ((Number) literal.value).longValue());
-                default -> throw new JavaViolationException("Unsupported literal type: " + literal.typetag);
+            return convertConstantValue(toSourceRange(literal), literal.typetag, literal.value);
+        }
+
+        /// Lower a primitive compile-time constant value to a Laurel literal.
+        /// Used by JCLiteral and JCFieldAccess (where the value is attached
+        /// via Type.constValue()). Boolean values arrive as Integer 0/1 from
+        /// Type.constValue() — Java represents booleans as int internally.
+        private StmtExpr convertConstantValue(SourceRange sr, TypeTag tag, Object v) {
+            return switch (tag) {
+                case BOOLEAN -> literalBool(sr, ((Number) v).intValue() != 0);
+                case CHAR, INT, SHORT, BYTE, LONG -> longLiteral(sr, ((Number) v).longValue());
+                default -> throw new JavaViolationException("Unsupported constant type tag: " + tag);
             };
         }
 
