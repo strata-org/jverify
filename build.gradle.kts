@@ -253,6 +253,41 @@ project(":javac-plugin-test") {
     }
 }
 
+project(":contracts2jqwik") {
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
+    dependencies {
+        implementation(project(":common"))
+        implementation(project(":library"))
+
+        implementation("com.google.auto.service:auto-service-annotations:1.0.1")
+        annotationProcessor("com.google.auto.service:auto-service:1.0.1")
+
+        testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+        testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    }
+
+    tasks.test {
+        useJUnitPlatform()
+    }
+
+    tasks.withType<JavaExec> {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+    }
+    tasks.withType<Test> {
+        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+    }
+
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.addAll(createJavacExports(listOf("org.strata.jverify.contracts2jqwik")))
+    }
+}
+
 project(":verifier") {
 
     apply(plugin = "application")
