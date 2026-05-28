@@ -1,9 +1,11 @@
 package org.strata.jverify.verifier.compiler.frontend;
 
+import org.strata.jverify.verifier.compiler.Reporter;
 import com.sun.source.tree.CaseTree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
+import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
@@ -15,29 +17,30 @@ import com.sun.tools.javac.util.Names;
 import java.util.Optional;
 
 /// Lowers Java switch statements and switch expressions into chained
-/// if-statements and ?: conditionals respectively. Runs as its own phase in
-/// JavaLowerer's pipeline before LOWER, because LOWER would otherwise mangle
-/// switches into bytecode-flavored fall-through shapes JavaToLaurelCompiler
-/// doesn't accept.
+/// if-statements and ?: conditionals. Runs as its own phase before LOWER,
+/// which would otherwise mangle switches into bytecode-flavored fall-through
+/// that loses source positions and case structure.
 ///
 /// JavaToLaurelCompiler consumes the if/conditional shape directly, so the
-/// rewrite is one-way (no UNSUSPEND-style reversal). Forms that can't be
-/// encoded (case-statement groups, non-literal labels, pattern guards,
-/// block/throw bodies in switch expressions, `case null`) fall through to
-/// LOWER and surface as method-level skips via JavaToLaurelCompiler's
-/// per-method catch. Step 2b of PLAN.md §3 will replace those skips with
-/// per-construct refusal diagnostics emitted at this phase.
+/// rewrite is one-way. Forms that can't be encoded (case-statement groups,
+/// pattern guards, block/throw bodies in switch expressions) are caught by a
+/// pre-walk; each emits a `notSupported` diagnostic and the switch is
+/// replaced with a typed placeholder so LOWER doesn't mutate the refused
+/// tree. `case null` slips through as a `selector == null` comparison and
+/// fails at translation pending Step 9's nullable support.
 public class SwitchDesugarer extends TreeTranslator {
 
     private final TreeMaker maker;
     private final Names names;
     private final Symtab symtab;
+    private final Reporter reporter;
     private int nextSelectorIndex = 0;
 
     public SwitchDesugarer(Context context) {
         this.maker = TreeMaker.instance(context);
         this.names = Names.instance(context);
         this.symtab = Symtab.instance(context);
+        this.reporter = Reporter.instance(context);
     }
 
     public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
@@ -48,7 +51,22 @@ public class SwitchDesugarer extends TreeTranslator {
     }
 
     @Override
+    public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+        reporter.compilationUnit = tree;
+        super.visitTopLevel(tree);
+    }
+
+    @Override
     public void visitSwitch(JCTree.JCSwitch tree) {
+        // Pre-walk for per-construct refusal diagnostics anchored at the
+        // offending element. Post-hoc Optional.empty() detection would only
+        // produce one method-level diagnostic.
+        var refusals = findRefusals(tree.cases, false);
+        if (!refusals.isEmpty()) {
+            emit(refusals);
+            result = maker.Block(0, List.nil());
+            return;
+        }
         var maybeIf = switchToIf(tree.selector, tree.cases, tree.isExhaustive);
         if (maybeIf.isPresent()) {
             result = maybeIf.get();
@@ -60,6 +78,15 @@ public class SwitchDesugarer extends TreeTranslator {
 
     @Override
     public void visitSwitchExpression(JCTree.JCSwitchExpression tree) {
+        var refusals = findRefusals(tree.cases, true);
+        if (!refusals.isEmpty()) {
+            emit(refusals);
+            // Typed placeholder so LOWER doesn't see the refused shape and
+            // the translator doesn't emit a duplicate skip on top of the
+            // refusals.
+            result = placeholderFor(tree.type);
+            return;
+        }
         var maybeSwitch = switchExpressionToConditional(tree.selector, tree.cases, tree.type);
         if (maybeSwitch.isPresent()) {
             result = maybeSwitch.get();
@@ -67,6 +94,60 @@ public class SwitchDesugarer extends TreeTranslator {
             return;
         }
         super.visitSwitchExpression(tree);
+    }
+
+    private record RefusalReport(JCTree node, String arg) {}
+
+    /// Collects refused constructs: STATEMENT-form (anchored at case), pattern
+    /// labels (anchored at case), and — for switch expressions only —
+    /// block/throw bodies (anchored at body). Switch-statement arrow bodies
+    /// aren't checked; body-shape issues there surface during normal statement
+    /// translation.
+    private List<RefusalReport> findRefusals(List<JCTree.JCCase> cases, boolean isSwitchExpression) {
+        var reports = new ListBuffer<RefusalReport>();
+        for (var cas : cases) {
+            if (cas.caseKind == CaseTree.CaseKind.STATEMENT) {
+                reports.append(new RefusalReport(cas, "switch labeled statement group"));
+                continue; // STATEMENT-form has cas.body == null; nothing more to check
+            }
+            for (var label : cas.labels) {
+                if (label instanceof JCTree.JCPatternCaseLabel) {
+                    reports.append(new RefusalReport(cas, "case pattern"));
+                }
+            }
+            if (isSwitchExpression) {
+                switch (cas.body) {
+                    case JCTree.JCBlock _ ->
+                        reports.append(new RefusalReport(cas.body, "switch rule block"));
+                    case JCTree.JCThrow _ ->
+                        reports.append(new RefusalReport(cas.body, "switch rule throw statement"));
+                    default -> { /* JCExpression body: OK */ }
+                }
+            }
+        }
+        return reports.toList();
+    }
+
+    private void emit(List<RefusalReport> reports) {
+        for (var r : reports) {
+            reporter.reportError(r.node(), "notSupported", r.arg());
+        }
+    }
+
+    /// Typed placeholder for a refused switch. Primitive types: zero literal.
+    /// Reference types: typed null — JavaToLaurelCompiler can't translate it
+    /// today, so the user sees an extra method-level skip on top of the
+    /// refusal-specific diagnostic. Cosmetic noise; the refusal still locates
+    /// the construct.
+    private JCTree.JCExpression placeholderFor(Type typ) {
+        if (typ != null && typ.isPrimitive()) {
+            var lit = maker.Literal(typ.getTag(), 0);
+            lit.type = typ;
+            return lit;
+        }
+        var lit = maker.Literal(TypeTag.BOT, null);
+        lit.type = typ != null ? typ : symtab.botType;
+        return lit;
     }
 
     ///
@@ -103,11 +184,11 @@ public class SwitchDesugarer extends TreeTranslator {
     /// `default` mid-cascade lowers to `else if (true) { ... }` which makes
     /// every later `else if` dead. Partition before recursing.
     ///
-    /// Returns an Optional<JCStatement>. Reaching Optional.empty() means
-    /// caseLabelToExpression rejected an unknown JCCaseLabel subclass — a
-    /// future Java version added a label kind. Defensive: skip desugaring,
-    /// LOWER may then mutate the tree unpredictably, but the user will see
-    /// errors.
+    /// Refused forms are caught upstream by findRefusals; reaching
+    /// Optional.empty() here means caseLabelToExpression hit an unknown
+    /// JCCaseLabel subclass (a future Java version added a label kind). The
+    /// bail lets LOWER process the tree, after which the translator surfaces
+    /// an error.
     ///
     private Optional<JCTree.JCStatement> switchToIf(JCTree.JCExpression selector, List<JCTree.JCCase> cases, boolean exhaustive) {
         // Refuse STATEMENT-form switches uniformly. caseToExpression already
@@ -227,11 +308,11 @@ public class SwitchDesugarer extends TreeTranslator {
     ///                      40;
     ///  }
     ///
-    /// Returns an Optional<JCExpression>. Reaching Optional.empty() means
-    /// caseLabelToExpression rejected an unknown JCCaseLabel subclass, or
-    /// the default case had a non-expression body — defensive: skip
-    /// desugaring, LOWER may then mutate the tree unpredictably, but the
-    /// user will see errors.
+    /// Refused forms are caught upstream by findRefusals; reaching
+    /// Optional.empty() here means caseLabelToExpression hit an unknown
+    /// JCCaseLabel subclass, or the default case had a non-expression body.
+    /// The bail lets LOWER process the tree, after which the translator
+    /// surfaces an error.
     ///
     private Optional<JCTree.JCExpression> switchExpressionToConditional(JCTree.JCExpression selector, List<JCTree.JCCase> cases, Type typ) {
         Optional<JCTree.JCExpression> defaultBody = Optional.empty();
