@@ -255,6 +255,11 @@ project(":javac-plugin-test") {
 
 project(":contracts2jqwik") {
 
+    apply(plugin = "application")
+    application {
+        mainClass.set("org.strata.jverify.contracts2jqwik.Main")
+    }
+
     java {
         toolchain {
             languageVersion = JavaLanguageVersion.of(17)
@@ -265,8 +270,9 @@ project(":contracts2jqwik") {
         implementation(project(":common"))
         implementation(project(":library"))
 
-        implementation("com.google.auto.service:auto-service-annotations:1.0.1")
-        annotationProcessor("com.google.auto.service:auto-service:1.0.1")
+        // JavaParser handles source-to-source rewriting cleanly.
+        // Pinned to the latest 3.x release as of 2025-05.
+        implementation("com.github.javaparser:javaparser-core:3.26.4")
 
         testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -274,17 +280,6 @@ project(":contracts2jqwik") {
 
     tasks.test {
         useJUnitPlatform()
-    }
-
-    tasks.withType<JavaExec> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
-    }
-    tasks.withType<Test> {
-        jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
-    }
-
-    tasks.withType<JavaCompile> {
-        options.compilerArgs.addAll(createJavacExports(listOf("org.strata.jverify.contracts2jqwik")))
     }
 }
 
