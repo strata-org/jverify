@@ -245,9 +245,14 @@ public final class Contracts2Jqwik {
         }
 
         // 3. Return conjunction.
-        Expression conjunction = postBodies.get(0);
+        // Each clause body is wrapped in EnclosedExpr to preserve precedence:
+        // a clause like `r == x || r == -x` must become `(r == x || r == -x)`
+        // before being folded with `&&`, otherwise Java's || having lower
+        // precedence than && silently changes the meaning of the conjunction.
+        Expression conjunction = new com.github.javaparser.ast.expr.EnclosedExpr(postBodies.get(0));
         for (int i = 1; i < postBodies.size(); i++) {
-            conjunction = new BinaryExpr(conjunction, postBodies.get(i), BinaryExpr.Operator.AND);
+            Expression rhs = new com.github.javaparser.ast.expr.EnclosedExpr(postBodies.get(i));
+            conjunction = new BinaryExpr(conjunction, rhs, BinaryExpr.Operator.AND);
         }
         newBody.addStatement(new ReturnStmt(conjunction));
 

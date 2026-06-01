@@ -51,8 +51,8 @@ class Contracts2JqwikTest {
             "expected @ForAll preserved on parameter");
         assertTrue(out.contains("int r = doubleIt(x);"),
             "expected call binding to original method");
-        assertTrue(out.contains("return r == 2 * x;"),
-            "expected verbatim return of postcondition body");
+        assertTrue(out.contains("return (r == 2 * x);"),
+            "expected verbatim postcondition body wrapped in parens; got:\n" + out);
     }
 
     @Test
@@ -82,6 +82,11 @@ class Contracts2JqwikTest {
             "expected first then second clause in source order");
         assertTrue(out.substring(firstEnd, secondStart).contains("&&"),
             "expected && between the two clauses");
+        // Each clause is wrapped in parens so Java's && / || precedence does
+        // not silently change the meaning of the conjunction. Without parens
+        // `r >= 0 && r == x || r == -x` parses as `(r >= 0 && r == x) || r == -x`.
+        assertTrue(out.contains("(r >= 0)") && out.contains("(r == x || r == -x)"),
+            "expected each clause body wrapped in parens; got:\n" + out);
     }
 
     @Test
@@ -151,7 +156,7 @@ class Contracts2JqwikTest {
         // Quantifier precondition is skipped; postcondition still translated.
         assertFalse(result.output.contains("Assume.that(forall("),
             "quantifier precondition should not be emitted");
-        assertTrue(result.output.contains("return r >= 0"),
+        assertTrue(result.output.contains("return") && result.output.contains("r >= 0"),
             "executable postcondition should still be emitted");
         assertTrue(result.warnings.stream().anyMatch(w -> w.contains("non-executable")),
             "expected warning about non-executable clause; got: " + result.warnings);
@@ -188,7 +193,7 @@ class Contracts2JqwikTest {
         // The call still happens as a side-effecting statement, then we return.
         assertTrue(out.contains("isEven(x);"),
             "expected unbound call to original method; got:\n" + out);
-        assertTrue(out.contains("return x % 2 == 0 || x % 2 == 1"),
+        assertTrue(out.contains("return") && out.contains("x % 2 == 0 || x % 2 == 1"),
             "expected verbatim postcondition body in return; got:\n" + out);
     }
 
