@@ -16,10 +16,10 @@ class ImpureNumericOperatorsVerification {
         var r = 3;
         var incrementPostfix = l++;
         check(incrementPostfix == 4);
-        check(l == 4L);
+        check(l == 4);
         var decrementPostfix = l--;
         check(decrementPostfix == 3);
-        check(l == 3L);
+        check(l == 3);
         var incrementPrefix = ++l;
         check(incrementPrefix == 4);
         check(l == 4);
