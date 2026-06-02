@@ -18,6 +18,14 @@ public class CollectionsTest {
         check(s.get(1).equals("two"));
         check(s.contains("two"));
 
+        // subList is a view over the corresponding slice.
+        var sub = s.subList(1, 3);
+        check(sub.size() == 2);
+        check(sub.get(0).equals("two"));
+
+        // extensional list equality (reflexive here).
+        check(s.equals(s));
+
         var s2 = List.of();
         check(s2.isEmpty());
     }
