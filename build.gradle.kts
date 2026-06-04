@@ -407,7 +407,7 @@ subprojects {
 // affected version. Stay on the 1.9.x line until a future release
 // reverses the behaviour, or until we have audited an alternative.
 //
-// See: https://github.com/jqwik-team/jqwik/issues/708
+// See: https://gist.github.com/rbatllet/44649fe922dc775991bf199b06f88769
 subprojects {
     configurations.all {
         resolutionStrategy.eachDependency {
@@ -421,7 +421,7 @@ subprojects {
                     throw GradleException(
                         "Refusing to resolve ${requested.group}:${requested.module}:${requestedVersion}. " +
                         "jqwik >= 1.10.0 ships behaviour we have rejected; pin to 1.9.x. " +
-                        "See https://github.com/jqwik-team/jqwik/issues/708"
+                        "See https://gist.github.com/rbatllet/44649fe922dc775991bf199b06f88769"
                     )
                 }
             }
