@@ -240,6 +240,7 @@ public class JavaLowerer {
                     phases.add(new MissingContractCompiler(context)::transform);
                     phases.add(new IsAbstractCompiler(context)::transform);
                     phases.add(new PreconditionOfCompiler(context)::transform);
+                    phases.add(new SwitchDesugarer(context)::transform);
                     phases.add(us -> unsuspend(lower(suspend(us))));
                     phases.add(new ArrayCompiler(context)::transform);
                     phases.add(new MoveStaticMethodsToStaticType(context)::translate);
