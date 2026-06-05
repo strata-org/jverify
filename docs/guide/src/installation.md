@@ -5,8 +5,10 @@ JVerify can currently only be used by building it from source.
 ## Prerequisites
 
 1. **Java 23.** If you have a different default Java version installed, pass `-Dorg.gradle.java.home=path-to-java-23` to the gradle commands below.
-2. **[Lean 4](https://lean-lang.org/)** (via `elan`) — needed to build the [Strata](https://github.com/strata-org/Strata) verification back-end.
-3. **[cvc5](https://cvc5.github.io/)** SMT solver on your `PATH`.
+2. **Java 17.** Required by the subprojects library, common, and javac-plugin.
+3. **[Lean 4](https://lean-lang.org/)** (via `elan`) — needed to build the [Strata](https://github.com/strata-org/Strata) verification back-end.
+4. **[cvc5](https://cvc5.github.io/)** SMT solver on your `PATH`.
+5. **[z3](https://github.com/Z3Prover/z3)** SMT solver (v4.15.2 recommended) on your `PATH`. 
 
 ## Building
 
