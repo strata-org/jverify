@@ -585,6 +585,10 @@ public class JavaToLaurelCompiler {
             return switch (unary.getTag()) {
                 case NOT -> not(sr, inner);
                 case NEG -> neg(sr, inner);
+                case PREINC -> preIncr(sr, inner);
+                case PREDEC -> preDecr(sr, inner);
+                case POSTINC -> postIncr(sr, inner);
+                case POSTDEC -> postDecr(sr, inner);
                 default -> throw new JavaViolationException("Unsupported unary op: " + unary.getTag());
             };
         }

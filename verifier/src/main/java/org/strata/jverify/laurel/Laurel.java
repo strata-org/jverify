@@ -148,6 +148,18 @@ public class Laurel {
     public static StmtExpr neg(SourceRange sourceRange, StmtExpr inner) { return new StmtExpr.Neg(sourceRange, inner); }
     public static StmtExpr neg(StmtExpr inner) { return new StmtExpr.Neg(SourceRange.NONE, inner); }
 
+    public static StmtExpr preIncr(SourceRange sourceRange, StmtExpr target) { return new StmtExpr.PreIncr(sourceRange, target); }
+    public static StmtExpr preIncr(StmtExpr target) { return new StmtExpr.PreIncr(SourceRange.NONE, target); }
+
+    public static StmtExpr preDecr(SourceRange sourceRange, StmtExpr target) { return new StmtExpr.PreDecr(sourceRange, target); }
+    public static StmtExpr preDecr(StmtExpr target) { return new StmtExpr.PreDecr(SourceRange.NONE, target); }
+
+    public static StmtExpr postIncr(SourceRange sourceRange, StmtExpr target) { return new StmtExpr.PostIncr(sourceRange, target); }
+    public static StmtExpr postIncr(StmtExpr target) { return new StmtExpr.PostIncr(SourceRange.NONE, target); }
+
+    public static StmtExpr postDecr(SourceRange sourceRange, StmtExpr target) { return new StmtExpr.PostDecr(sourceRange, target); }
+    public static StmtExpr postDecr(StmtExpr target) { return new StmtExpr.PostDecr(SourceRange.NONE, target); }
+
     public static Trigger trigger(SourceRange sourceRange, StmtExpr trigger) { return new Trigger.Of(sourceRange, trigger); }
     public static Trigger trigger(StmtExpr trigger) { return new Trigger.Of(SourceRange.NONE, trigger); }
 
