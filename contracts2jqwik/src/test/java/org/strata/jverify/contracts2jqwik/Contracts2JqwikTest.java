@@ -198,24 +198,80 @@ class Contracts2JqwikTest {
     }
 
     @Test
-    void packageAndImportsAreCarriedForward() {
+    void oldOverParameterIsHoisted() {
         String source = """
-            package com.example.demo;
             import org.strata.jverify.AsProperty;
             import net.jqwik.api.ForAll;
-            import java.util.List;
+            import static org.strata.jverify.JVerify.*;
             class C {
                 @AsProperty
-                int identity(@ForAll int x) {
-                    postcondition((Integer r) -> r == x);
-                    throw new RuntimeException();
+                public static int increment(@ForAll int n) {
+                    postcondition((Integer r) -> r == old(n) + 1);
+                    return n + 1;
                 }
             }
             """;
         String out = translate(source);
-        assertTrue(out.contains("package com.example.demo"),
-            "expected package preserved; got:\n" + out);
-        assertTrue(out.contains("import java.util.List"),
-            "expected user imports preserved; got:\n" + out);
+        // old(n) hoisted into a pre-call temp, referenced in the postcondition.
+        assertTrue(out.contains("var __old0 = n;"),
+            "expected old(n) hoisted to a pre-call temp; got:\n" + out);
+        assertTrue(out.contains("int r = increment(n);"),
+            "expected call binding after the capture; got:\n" + out);
+        assertTrue(out.contains("__old0 + 1"),
+            "expected old(n) replaced by the temp in the postcondition; got:\n" + out);
+        assertFalse(out.contains("old("),
+            "expected no residual old(...) call in the output; got:\n" + out);
+    }
+
+    @Test
+    void frameClausesAreDropped() {
+        String source = """
+            import org.strata.jverify.AsProperty;
+            import net.jqwik.api.ForAll;
+            import static org.strata.jverify.JVerify.*;
+            class C {
+                @AsProperty
+                public static int identity(@ForAll int n) {
+                    reads(everything());
+                    postcondition((Integer r) -> r == n);
+                    return n;
+                }
+            }
+            """;
+        String out = translate(source);
+        // reads(...) is a verifier-only frame clause; it must not appear in the
+        // generated test and must not break translation.
+        assertFalse(out.contains("reads("),
+            "expected reads(...) frame clause dropped; got:\n" + out);
+        assertTrue(out.contains("return (r == n)"),
+            "expected the postcondition to still translate; got:\n" + out);
+    }
+
+    @Test
+    void oldOverContractLocalIsSkipped() {
+        // old() referencing a local declared inside the contract body (not a
+        // parameter) cannot be captured in the generated test, so the clause
+        // is skipped with a warning rather than emitting broken code.
+        String source = """
+            import org.strata.jverify.AsProperty;
+            import net.jqwik.api.ForAll;
+            import static org.strata.jverify.JVerify.*;
+            class C {
+                @AsProperty
+                public static int appendCharLength(@ForAll char c) {
+                    StringBuilder sb = new StringBuilder("seed");
+                    modifies(sb);
+                    postcondition((Integer r) -> r == old(sb.length()) + 1);
+                    sb.append(c);
+                    return sb.length();
+                }
+            }
+            """;
+        Contracts2Jqwik.Result result = Contracts2Jqwik.translate(source, "Test.java");
+        // No translatable postcondition remains, so no output.
+        assertNull(result.output,
+            "expected null output when the only postcondition references a contract-body local");
+        assertTrue(result.warnings.stream().anyMatch(w -> w.contains("not in scope")),
+            "expected a clear out-of-scope warning; got: " + result.warnings);
     }
 }

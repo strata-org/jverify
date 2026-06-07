@@ -226,7 +226,27 @@ public final class Contracts2Jqwik {
             newBody.addStatement(new ExpressionStmt(assumeCall));
         }
 
-        // 2. Call binding: T r = method(args);  or  method(args);
+        // 2. Pre-state capture for old(...). Each distinct old(e) occurrence
+        //    across all postcondition bodies is hoisted into a temp evaluated
+        //    BEFORE the method call, and the old(e) node is replaced with a
+        //    reference to that temp. This makes a clause like
+        //    `r.length() == old(this.length()) + 1` executable: we snapshot
+        //    `this.length()` pre-call, run the method, then compare.
+        OldHoister hoister = new OldHoister();
+        for (Expression postBody : postBodies) {
+            hoister.hoist(postBody);
+        }
+        for (OldHoister.Capture c : hoister.captures) {
+            // var __oldN = <expr captured in pre-state>;
+            newBody.addStatement(new ExpressionStmt(
+                new com.github.javaparser.ast.expr.VariableDeclarationExpr(
+                    new com.github.javaparser.ast.body.VariableDeclarator(
+                        new com.github.javaparser.ast.type.VarType(),
+                        c.tempName,
+                        c.capturedExpr))));
+        }
+
+        // 3. Call binding: T r = method(args);  or  method(args);
         MethodCallExpr call = new MethodCallExpr(null, original.getNameAsString());
         for (Parameter p : original.getParameters()) {
             call.addArgument(new NameExpr(p.getNameAsString()));
@@ -244,7 +264,7 @@ public final class Contracts2Jqwik {
             newBody.addStatement(new ExpressionStmt(call));
         }
 
-        // 3. Return conjunction.
+        // 4. Return conjunction.
         // Each clause body is wrapped in EnclosedExpr to preserve precedence:
         // a clause like `r == x || r == -x` must become `(r == x || r == -x)`
         // before being folded with `&&`, otherwise Java's || having lower
@@ -258,6 +278,54 @@ public final class Contracts2Jqwik {
 
         property.setBody(newBody);
         return property;
+    }
+
+    /**
+     * Walks postcondition expressions and replaces each {@code old(e)} call
+     * with a reference to a pre-state temporary, recording the captured inner
+     * expression {@code e} so the caller can emit
+     * {@code var __oldN = e;} before the method call.
+     *
+     * <p>Identical {@code old(e)} expressions (by source text) share a single
+     * temporary, so {@code old(this.size())} appearing in two clauses captures
+     * once.</p>
+     */
+    private static final class OldHoister {
+        /** A captured pre-state expression and the temp name it binds to. */
+        static final class Capture {
+            final String tempName;
+            final Expression capturedExpr;
+            Capture(String tempName, Expression capturedExpr) {
+                this.tempName = tempName;
+                this.capturedExpr = capturedExpr;
+            }
+        }
+
+        final List<Capture> captures = new ArrayList<>();
+        private final java.util.Map<String, String> exprTextToTemp = new java.util.HashMap<>();
+        private int counter = 0;
+
+        /**
+         * Replace every {@code old(e)} in {@code expr} (in place) with a
+         * reference to its pre-state temporary.
+         */
+        void hoist(Expression expr) {
+            // Collect old(...) calls first to avoid mutating during traversal.
+            List<MethodCallExpr> oldCalls = expr.findAll(MethodCallExpr.class).stream()
+                .filter(c -> c.getNameAsString().equals("old") && c.getArguments().size() == 1)
+                .toList();
+            for (MethodCallExpr oldCall : oldCalls) {
+                Expression inner = oldCall.getArgument(0);
+                String key = inner.toString();
+                String temp = exprTextToTemp.get(key);
+                if (temp == null) {
+                    temp = "__old" + (counter++);
+                    exprTextToTemp.put(key, temp);
+                    captures.add(new Capture(temp, inner.clone()));
+                }
+                oldCall.replace(new NameExpr(temp));
+            }
+        }
     }
 
     /**
@@ -311,6 +379,9 @@ public final class Contracts2Jqwik {
                     + original.getNameAsString() + "': " + body);
                 return null;
             }
+            if (hasOutOfScopeOld(body, original, binding, warnings)) {
+                return null;
+            }
             return new TranslatedPost(body.clone(), binding);
         }
         // postcondition(boolExpr) — no return binding for this clause.
@@ -319,17 +390,69 @@ public final class Contracts2Jqwik {
                 + original.getNameAsString() + "': " + arg);
             return null;
         }
+        if (hasOutOfScopeOld(arg, original, null, warnings)) {
+            return null;
+        }
         return new TranslatedPost(arg.clone(), null);
     }
 
     /**
+     * Returns true (and emits a warning) if any {@code old(e)} in {@code body}
+     * references a name that won't be in scope in the generated property
+     * method. The generated method only has the contract method's parameters
+     * (and the postcondition's result binding) in scope — NOT any locals
+     * declared inside the contract body (e.g. a receiver constructed there).
+     *
+     * <p>A pre-state capture {@code var __oldN = e;} is emitted before the call,
+     * so {@code e} may reference only the property method's parameters. If
+     * {@code old(e)} references a contract-body local, the capture would be
+     * ill-formed; we skip the clause rather than emit broken code. Handling
+     * {@code old()} over a constructed receiver is Phase 2 work (receiver
+     * generation).</p>
+     */
+    private static boolean hasOutOfScopeOld(Expression body,
+                                            MethodDeclaration original,
+                                            String resultBinding,
+                                            List<String> warnings) {
+        java.util.Set<String> inScope = new java.util.HashSet<>();
+        for (Parameter p : original.getParameters()) {
+            inScope.add(p.getNameAsString());
+        }
+        if (resultBinding != null) {
+            inScope.add(resultBinding);
+        }
+        for (MethodCallExpr oldCall : body.findAll(MethodCallExpr.class)) {
+            if (!oldCall.getNameAsString().equals("old") || oldCall.getArguments().size() != 1) {
+                continue;
+            }
+            Expression inner = oldCall.getArgument(0);
+            for (NameExpr name : inner.findAll(NameExpr.class)) {
+                if (!inScope.contains(name.getNameAsString())) {
+                    warnings.add("skipping postcondition in '" + original.getNameAsString()
+                        + "': old(...) references '" + name.getNameAsString()
+                        + "' which is not a parameter of the contract method and so is not in "
+                        + "scope in the generated test. old() over a constructed receiver needs "
+                        + "Phase 2 receiver generation.");
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * A clause is non-executable if it contains a quantifier
-     * ({@code forall} / {@code exists}) or {@code old(...)}, since these have
-     * no runtime semantics.
+     * ({@code forall} / {@code exists}), since those range over infinite
+     * domains and have no runtime semantics.
+     *
+     * <p>{@code old(...)} is NOT non-executable: it is handled by hoisting the
+     * inner expression into a pre-call temporary (see {@link #hoistOldCalls}),
+     * so a postcondition like {@code r.length() == old(this.length()) + 1}
+     * becomes a real, jqwik-checkable assertion.</p>
      */
     private static boolean isNonExecutable(Expression expr) {
         return expr.findAll(MethodCallExpr.class).stream()
             .map(MethodCallExpr::getNameAsString)
-            .anyMatch(n -> n.equals("forall") || n.equals("exists") || n.equals("old"));
+            .anyMatch(n -> n.equals("forall") || n.equals("exists"));
     }
 }
