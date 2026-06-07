@@ -40,8 +40,16 @@ import java.util.Optional;
  *     <li>{@code postcondition(boolExpr)} → {@code method(args); return boolExpr;}</li>
  *     <li>Multiple postconditions are conjoined with {@code &&} in source order.
  *         All lambda postconditions in a method must agree on the binding name.</li>
- *     <li>Quantifiers ({@code forall}, {@code exists}) and {@code old(...)} are
- *         non-executable; clauses containing them are skipped with a warning.</li>
+ *     <li>{@code old(e)} is made executable by hoisting {@code e} into a
+ *         pre-state temporary evaluated before the method call and replacing
+ *         the {@code old(e)} reference with that temporary. This works when
+ *         {@code e} refers only to the contract method's parameters; if it
+ *         refers to a local declared inside the contract body, the clause is
+ *         skipped with a warning.</li>
+ *     <li>Frame clauses {@code reads(...)} and {@code modifies(...)} constrain
+ *         the verifier, not runtime behaviour, and are dropped.</li>
+ *     <li>Quantifiers ({@code forall}, {@code exists}) are non-executable;
+ *         clauses containing them are skipped with a warning.</li>
  * </ul>
  *
  * <p>The output is a class {@code <Original>Generated} that {@code extends}
@@ -446,7 +454,7 @@ public final class Contracts2Jqwik {
      * domains and have no runtime semantics.
      *
      * <p>{@code old(...)} is NOT non-executable: it is handled by hoisting the
-     * inner expression into a pre-call temporary (see {@link #hoistOldCalls}),
+     * inner expression into a pre-call temporary (see {@link OldHoister}),
      * so a postcondition like {@code r.length() == old(this.length()) + 1}
      * becomes a real, jqwik-checkable assertion.</p>
      */
