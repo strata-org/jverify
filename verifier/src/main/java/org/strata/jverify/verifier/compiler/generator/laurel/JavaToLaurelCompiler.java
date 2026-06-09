@@ -93,13 +93,29 @@ public class JavaToLaurelCompiler {
     }
 
     private List<Command> getPredefinedTypes() {
-        return List.of(
+        var commands = new ArrayList<Command>(List.of(
             makeConstrainedType("int8", -128L, 127L),
             makeConstrainedType("int16", -32768L, 32767L),
             makeConstrainedType("int32", -2147483648L, 2147483647L),
             makeConstrainedType("int64", -9223372036854775808L, 9223372036854775807L),
             makeConstrainedType("char", 0L, 65535L)
-        );
+        ));
+
+        // Uninterpreted-function declaration for the array-as-map
+        // model. `arr.length` (JCFieldAccess in contract positions,
+        // where ArrayCompiler doesn't intercept) translates to a call
+        // against this. Strata's resolver requires a declaration; the
+        // empty body makes the function uninterpreted, so the only
+        // relation Strata enforces is "same input -> same output".
+        var arrayMap = mapType(intType(), intType());
+        commands.add(procedureCommand(function(
+            "lengthOf",
+            List.of(parameter("arr", arrayMap)),
+            Optional.of(returnType(intType())),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
+        return commands;
     }
 
     private Command makeConstrainedType(String name, long min, long max) {
@@ -583,6 +599,28 @@ public class JavaToLaurelCompiler {
                 // expression's type.
                 case JCTree.JCFieldAccess fa when fa.type.constValue() != null ->
                     convertConstantValue(toSourceRange(fa), fa.type.getTag(), fa.type.constValue());
+                case JCTree.JCFieldAccess fieldAccess -> {
+                    SourceRange sr = toSourceRange(fieldAccess);
+                    // Special-case `arr.length` for array-typed receivers.
+                    // In JVerify's array-as-map model there is no
+                    // intrinsic length; translate to a call to the
+                    // uninterpreted Laurel function `lengthOf` we
+                    // declare in the prelude (see getPredefinedTypes).
+                    // Strata's resolver requires a declaration, so a
+                    // pure free identifier wouldn't work; the
+                    // declaration also gives same-input/same-output
+                    // semantics so multiple references to the same
+                    // `arr.length` are consistent.
+                    if (fieldAccess.name.toString().equals("length")
+                            && fieldAccess.selected.type instanceof
+                                com.sun.tools.javac.code.Type.ArrayType) {
+                        StmtExpr arr = convertExpression(fieldAccess.selected, renames);
+                        yield call(sr, identifier(sr, "lengthOf"),
+                                java.util.List.of(arr));
+                    }
+                    throw new JavaViolationException(
+                        "Unsupported field access: " + fieldAccess);
+                }
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
         }
