@@ -50,8 +50,6 @@ class TranslationErrors {
                 yield 0;
             case 1, 2, 3:
 //          ^ error: switch labeled statement group is not supported
-//          ^ error: switch labeled statement group is not supported
-//          ^ error: switch labeled statement group is not supported
                 acc += 200;
                 yield i * 2;
             default:
@@ -65,7 +63,6 @@ class TranslationErrors {
         return switch (i) {
             case 0, 1 -> 0;
             case 1 + 1 -> 1;
-//                 ^ error: non-literal case constant is not supported
             default -> 2;
         };
     }
@@ -92,8 +89,6 @@ class TranslationErrors {
         return switch (i) {
             case 0 -> 0;
             case 1, 2, 3 -> {
-//          ^ error: switch labeled statement group is not supported
-//          ^ error: switch labeled statement group is not supported
 //                          ^ error: switch rule block is not supported
                 var acc = 0;
                 for (int j = 0; j < i; j++) {
@@ -110,7 +105,6 @@ class TranslationErrors {
             case 0 -> throw new RuntimeException();
 //                    ^ error: switch rule throw statement is not supported
             case 1, 2 -> -i;
-//          ^ error: switch labeled statement group is not supported
             default -> i * i * i;
         };
     }
