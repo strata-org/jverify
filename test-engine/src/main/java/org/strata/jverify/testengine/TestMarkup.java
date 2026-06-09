@@ -44,6 +44,13 @@ public class TestMarkup {
     private static final String SPAN_START_STRING = "[>";
     private static final String SPAN_END_STRING = "<]";
 
+    /**
+     * Sentinel for {@code annotatedIndex} meaning "no preceding
+     * non-annotation line has been seen yet". 0 cannot be used
+     * because it is a valid line index.
+     */
+    private static final int NO_ANNOTATED_INDEX = -1;
+
     private static String parse(String input, List<Integer> positions, List<AnnotatedSpan> spans) {
 
         var outputParts = parseParts(input, positions, spans);
@@ -130,7 +137,8 @@ public class TestMarkup {
 
         int[] cumulativePositions = new int[lines.length];
         cumulativePositions[0] = 0;
-        int annotatedIndex = 0;
+        // 0 cannot be the sentinel because it is a valid line index.
+        int annotatedIndex = NO_ANNOTATED_INDEX;
         for (int i = 0; i < lines.length; i++) {
             if (i > 0) {
                 cumulativePositions[i] = cumulativePositions[i - 1] + lines[i - 1].length() + 1; // +1 for newline
@@ -146,7 +154,7 @@ public class TestMarkup {
 
                 int caretStartIndex = nextLine.indexOf(carets);
 
-                if (annotatedIndex == 0) {
+                if (annotatedIndex == NO_ANNOTATED_INDEX) {
                     TextSpan span = new TextSpan(0, 1);
                     result.add(new AnnotatedSpan(annotation, span));
                     continue;
