@@ -115,6 +115,18 @@ public class JavaToLaurelCompiler {
             Optional.empty(), List.of(), Optional.empty(),
             Optional.empty(), Optional.empty()
         )));
+        // arrayGet(arr, idx) reads element `idx` from the Map<int,elem>
+        // that models the array. Used by both body-level `arr[i]` (via
+        // the JArray.get lowering) and contract-position array reads.
+        // Uninterpreted: same (arr, idx) yields the same value.
+        commands.add(procedureCommand(function(
+            "arrayGet",
+            List.of(parameter("arr", arrayMap),
+                    parameter("idx", intType())),
+            Optional.of(returnType(intType())),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
         return commands;
     }
 
@@ -572,6 +584,19 @@ public class JavaToLaurelCompiler {
                     }
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
                     String calleeName = qualifiedMethodName(methodSym);
+                    String simpleName = methodSym.getSimpleName().toString();
+                    // Recognise the synthetic JArray.get call that
+                    // ArrayCompiler emits for body-level `arr[i]`. We
+                    // route get -> arrayGet (declared in the prelude
+                    // with same-input/same-output semantics).
+                    String ownerName = methodSym.owner != null
+                            ? methodSym.owner.getQualifiedName().toString()
+                            : "";
+                    if (ownerName.equals("org.strata.jverify.builtin.JArray")) {
+                        if (simpleName.equals("get")) {
+                            calleeName = "arrayGet";
+                        }
+                    }
                     List<StmtExpr> args = new ArrayList<>();
                     for (var arg : invocation.args) {
                         args.add(convertExpression(arg, renames));
@@ -620,6 +645,21 @@ public class JavaToLaurelCompiler {
                     }
                     throw new JavaViolationException(
                         "Unsupported field access: " + fieldAccess);
+                }
+                case JCTree.JCArrayAccess arrayAccess -> {
+                    // `arr[i]` for a single-dimension array reads
+                    // from the Map<int, elem> we use to model the
+                    // array. Translate to an `arrayGet(arr, i)`
+                    // call against the Laurel function we declare
+                    // in the prelude. Note: ArrayCompiler often
+                    // intercepts these in the body and rewrites to
+                    // JArray.get; this case is the fallback for
+                    // contract-position array reads.
+                    SourceRange sr = toSourceRange(arrayAccess);
+                    StmtExpr arr = convertExpression(arrayAccess.indexed, renames);
+                    StmtExpr idx = convertExpression(arrayAccess.index, renames);
+                    yield call(sr, identifier(sr, "arrayGet"),
+                            java.util.List.of(arr, idx));
                 }
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
