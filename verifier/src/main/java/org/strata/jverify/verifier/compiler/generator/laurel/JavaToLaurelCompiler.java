@@ -641,6 +641,20 @@ public class JavaToLaurelCompiler {
                     }
                     yield new_(sr, name);
                 }
+                case JCTree.JCInstanceOf instanceOf -> {
+                    // `r instanceof X`: the opaque-CompositeType
+                    // encoding carries no runtime tag, so the test
+                    // cannot be modelled precisely yet. Fail with a
+                    // clear, attributable error rather than emitting an
+                    // undeclared `instanceOf_<X>` predicate symbol
+                    // (which would surface only as a confusing
+                    // downstream "Resolution failed" message, and whose
+                    // simple-name form could even collide across
+                    // packages). A precise encoding needs a tagged
+                    // datatype representation; future work.
+                    throw new JavaViolationException(
+                        "instanceof on opaque reference types is not yet supported");
+                }
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
         }
