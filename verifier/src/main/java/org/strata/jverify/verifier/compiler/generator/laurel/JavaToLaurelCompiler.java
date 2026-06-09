@@ -671,6 +671,23 @@ public class JavaToLaurelCompiler {
                         yield call(sr, identifier(sr, "lengthOf"),
                                 java.util.List.of(arr));
                     }
+                    // Inline static final compile-time constants
+                    // (e.g. `private static final int SENTINEL = ...`).
+                    // javac records the constant value on the field's
+                    // VarSymbol when the initialiser is a constant
+                    // expression; we read it back and emit a Laurel
+                    // literal.
+                    var sym = TreeInfo.symbol(fieldAccess);
+                    if (sym instanceof Symbol.VarSymbol var
+                            && var.getConstantValue() != null) {
+                        Object cv = var.getConstantValue();
+                        if (cv instanceof Boolean b) {
+                            yield literalBool(sr, b);
+                        }
+                        if (cv instanceof Number n) {
+                            yield longLiteral(sr, n.longValue());
+                        }
+                    }
                     throw new JavaViolationException(
                         "Unsupported field access: " + fieldAccess);
                 }
