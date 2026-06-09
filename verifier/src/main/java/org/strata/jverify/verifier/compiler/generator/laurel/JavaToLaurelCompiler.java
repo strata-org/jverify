@@ -607,6 +607,40 @@ public class JavaToLaurelCompiler {
                 // expression's type.
                 case JCTree.JCFieldAccess fa when fa.type.constValue() != null ->
                     convertConstantValue(toSourceRange(fa), fa.type.getTag(), fa.type.constValue());
+                case JCTree.JCNewClass newClass -> {
+                    // `new T(...)` for class / record types: produce
+                    // a Laurel `new_(T)` value of the matching
+                    // CompositeType. Constructor arguments are NOT
+                    // captured into the resulting value yet — that
+                    // would need a Laurel datatype declaration with
+                    // constructor args matching the source. For
+                    // verification of identity-style properties
+                    // that compare references (e.g. `cover(None, r)
+                    // == r`) the opaque value is sufficient. Body-
+                    // level inspection of record components will
+                    // still error until the datatype encoding
+                    // lands.
+                    SourceRange sr = toSourceRange(newClass);
+                    String name = newClass.type.tsym
+                            .getQualifiedName().toString()
+                            .replace('$', '.');
+                    // Declare the opaque composite sort even when the type
+                    // appears only here (in `new T(...)`) and never in a
+                    // type position, so the new_(T) value resolves.
+                    referencedCompositeTypes.add(name);
+                    // Translate each argument so unsupported argument
+                    // expressions still surface as errors, but DISCARD
+                    // the result: the opaque new_(T) value models only
+                    // the reference identity, not the constructor's
+                    // arguments or their side effects. Capturing those
+                    // needs a Laurel datatype encoding and expression
+                    // sequencing (let/temporaries), which is future
+                    // work.
+                    for (var arg : newClass.args) {
+                        convertExpression(arg, renames);
+                    }
+                    yield new_(sr, name);
+                }
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
         }
