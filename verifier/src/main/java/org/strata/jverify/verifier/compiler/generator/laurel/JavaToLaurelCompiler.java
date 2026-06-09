@@ -33,6 +33,12 @@ public class JavaToLaurelCompiler {
     private final VerifyAnnotationCompiler annotationCompiler;
     JCTree.JCCompilationUnit currentCompilationUnit;
 
+    /// Names of class/record/sealed types referenced as opaque Laurel
+    /// CompositeType sorts during translation. Each must be declared with
+    /// a compositeCommand so Strata's resolver can find the sort; insertion
+    /// order is preserved for deterministic output.
+    private final Set<String> referencedCompositeTypes = new LinkedHashSet<>();
+
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
@@ -49,6 +55,7 @@ public class JavaToLaurelCompiler {
 
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
         boolean first = true;
+        Set<String> emittedCompositeTypes = new HashSet<>();
         for (var compilationUnit : loweredResult.parsed()) {
             if (lowerer.isContractSource(compilationUnit)) {
                 continue;
@@ -61,6 +68,15 @@ public class JavaToLaurelCompiler {
             if (first) {
                 commands.addAll(getPredefinedTypes());
                 first = false;
+            }
+            // Declare each opaque composite sort referenced so far that has
+            // not been declared yet, before the procedures that use it, so
+            // Strata's resolver can find the sort.
+            for (var typeName : referencedCompositeTypes) {
+                if (emittedCompositeTypes.add(typeName)) {
+                    commands.add(compositeCommand(
+                            composite(typeName, Optional.empty(), List.of(), List.of())));
+                }
             }
             for (var proc : visitor.procedures) {
                 commands.add(procedureCommand(proc));
@@ -119,6 +135,27 @@ public class JavaToLaurelCompiler {
     }
 
     private LaurelType translateType(com.sun.tools.javac.code.Type type) {
+        // Class / interface types (including sealed hierarchies and
+        // records): encode as an opaque Laurel CompositeType named
+        // after the source-side type. Strata treats unbound composite
+        // types as uninterpreted reference sorts, which is enough
+        // for parameter-position acceptance (e.g.
+        // `static void leftIdentityNone(PathLengthRange r)`).
+        // Body-level operations on the value (instanceof, pattern
+        // match, record-component reads, constructors) need
+        // additional translation that is NOT part of this commit;
+        // they will surface as separate convertExpression errors.
+        if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
+            String name = classType.tsym.getQualifiedName().toString();
+            // Use the fully-qualified name (with the `$` nested-class
+            // separator normalised to `.`) as the CompositeType sort
+            // name. Keeping the package makes the name stable and
+            // collision-free across two same-named classes in
+            // different packages.
+            String sortName = name.replace('$', '.');
+            referencedCompositeTypes.add(sortName);
+            return compositeType(sortName);
+        }
         return switch (type.getTag()) {
             case INT -> compositeType("int32");
             case SHORT -> compositeType("int16");
