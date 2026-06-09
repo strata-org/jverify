@@ -110,7 +110,8 @@ public class LaurelDriver implements Driver {
         var processBuilder = new ProcessBuilder(
                 "lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"
         );
-        processBuilder.directory(verifierOptions.backendPath().toFile());
+        // The `strata` executable lives in the StrataCLI subpackage, so `lake` must be invoked from there.
+        processBuilder.directory(verifierOptions.backendPath().resolve("StrataCLI").toFile());
         return verifierOptions.time("Running Strata", () -> {
             try (var process = new AutoClosingProcessWrapper(processBuilder.redirectErrorStream(true).start()))
             {
