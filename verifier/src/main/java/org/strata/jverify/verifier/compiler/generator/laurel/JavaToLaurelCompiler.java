@@ -140,6 +140,22 @@ public class JavaToLaurelCompiler {
             Optional.empty(), List.of(), Optional.empty(),
             Optional.empty(), Optional.empty()
         )));
+        // arraySet(arr, idx, value) returns a fresh Map<int,int>
+        // representing arr with the (idx -> value) mapping updated.
+        // Standard pure-functional map "store"; matches the JArray.set
+        // call ArrayCompiler emits for `arr[i] = v`. Uninterpreted (no
+        // congruence axioms beyond same-input -> same-output); a future
+        // refinement can add the read-after-write axiom
+        // (`arrayGet(arraySet(a, i, v), i) == v`).
+        commands.add(procedureCommand(function(
+            "arraySet",
+            List.of(parameter("arr", arrayMap),
+                    parameter("idx", intType()),
+                    parameter("value", intType())),
+            Optional.of(returnType(arrayMap)),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
         return commands;
     }
 
@@ -592,6 +608,21 @@ public class JavaToLaurelCompiler {
                             // the prelude) so Strata's resolver
                             // picks it up.
                             calleeName = "arrayNew_1";
+                        } else if (simpleName.equals("set")) {
+                            // ArrayCompiler lowers `arr[i] = v` to
+                            // JArray.set(arr, i, v). We rewrite to
+                            // arraySet (declared in the prelude).
+                            // Caveat: the call returns a FRESH map
+                            // with the (i -> v) update, but it is
+                            // emitted as a discarded statement-level
+                            // expression, so the original `arr`
+                            // variable is not actually rebound.
+                            // Properties that read the value back
+                            // through `arr[i]` will see the pre-update
+                            // value. Future work: teach ArrayCompiler
+                            // to lift the assignment into
+                            // `arr = JArray.set(arr, i, v)`.
+                            calleeName = "arraySet";
                         }
                     }
                     List<StmtExpr> args = new ArrayList<>();
