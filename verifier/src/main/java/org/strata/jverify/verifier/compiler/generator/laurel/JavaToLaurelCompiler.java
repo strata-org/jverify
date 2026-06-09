@@ -127,6 +127,19 @@ public class JavaToLaurelCompiler {
             Optional.empty(), List.of(), Optional.empty(),
             Optional.empty(), Optional.empty()
         )));
+        // arrayNew_1(N) returns a fresh Map<int,int> for a 1-D
+        // `new int[N]` allocation. ArrayCompiler also lowers
+        // `{v0, v1, ...}` literals to JArray.create(N) (the literal
+        // element values are dropped, only the length is retained).
+        // Uninterpreted same-input -> same-output function;
+        // multi-dimensional and richer arities can be added on demand.
+        commands.add(procedureCommand(function(
+            "arrayNew_1",
+            List.of(parameter("d0", intType())),
+            Optional.of(returnType(arrayMap)),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
         return commands;
     }
 
@@ -609,6 +622,13 @@ public class JavaToLaurelCompiler {
                     if (isJArray) {
                         if (simpleName.equals("get")) {
                             calleeName = "arrayGet";
+                        } else if (simpleName.equals("create")) {
+                            // ArrayCompiler lowers `new int[N]` and
+                            // `{v0, ...}` to JArray.create(N). We
+                            // rewrite to arrayNew_1 (declared in
+                            // the prelude) so Strata's resolver
+                            // picks it up.
+                            calleeName = "arrayNew_1";
                         }
                     }
                     List<StmtExpr> args = new ArrayList<>();
@@ -674,6 +694,33 @@ public class JavaToLaurelCompiler {
                     StmtExpr idx = convertExpression(arrayAccess.index, renames);
                     yield call(sr, identifier(sr, "arrayGet"),
                             java.util.List.of(arr, idx));
+                }
+                case JCTree.JCNewArray newArray -> {
+                    // Two source forms reach here:
+                    //   `new int[N]`  — dims=[N], elems=null
+                    //   `{v0, v1, ...}` (or `new int[]{v0, ...}`)
+                    //                 — dims=[], elems=[v0, ...]
+                    // Both are modelled length-only via the uninterpreted
+                    // arrayNew_1 prelude function: the initializer-list
+                    // element values are not captured (matching
+                    // ArrayCompiler's lowering). Only single-dimension
+                    // arrays are supported; multi-dimensional allocations
+                    // are rejected with a clear error rather than emitting
+                    // an undeclared arrayNew_<k> symbol.
+                    SourceRange sr = toSourceRange(newArray);
+                    if (newArray.elems != null) {
+                        // Initializer-list form `{v0, v1, ...}`: a fresh
+                        // array of the literal length.
+                        yield call(sr, identifier(sr, "arrayNew_1"),
+                                java.util.List.of(longLiteral(sr, newArray.elems.size())));
+                    }
+                    if (newArray.dims.size() != 1) {
+                        throw new JavaViolationException(
+                            "Only single-dimension array creation is supported, but got "
+                                + newArray.dims.size() + " dimensions");
+                    }
+                    StmtExpr dim = convertExpression(newArray.dims.head, renames);
+                    yield call(sr, identifier(sr, "arrayNew_1"), java.util.List.of(dim));
                 }
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
