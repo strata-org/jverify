@@ -152,6 +152,7 @@ public class JavaToLaurelCompiler {
                 // Don't descend into nested loops — their break/continue don't target us
                 @Override public void visitWhileLoop(JCTree.JCWhileLoop tree) {}
                 @Override public void visitForLoop(JCTree.JCForLoop tree) {}
+                @Override public void visitDoLoop(JCTree.JCDoWhileLoop tree) {}
             });
             return found[0];
         }
@@ -415,6 +416,38 @@ public class JavaToLaurelCompiler {
                         return emitLoop(sr, cond, parts.invariants, parts.body, step, List.of(init),
                                 breakLbl, continueLbl);
                     });
+                }
+                case JCTree.JCDoWhileLoop doWhile -> {
+                    // Desugar do-while using while(true) + exit(!cond):
+                    //   labelledBlock(breakLbl, [
+                    //     while (true) invariants:[I] {
+                    //       labelledBlock(continueLbl, [ body ]);
+                    //       if (!cond) exit(breakLbl);
+                    //     }
+                    //   ])
+                    // The exit(!cond) is OUTSIDE the continueLbl block so that
+                    // continue re-evaluates the condition (doesn't skip it).
+                    // Invariant is checked at while-entry before every iteration
+                    // including the first — no soundness gap as discussed in #418.
+                    var sr = toSourceRange(doWhile);
+                    // Do-while always needs labels: the desugaring itself uses exit(breakLbl)
+                    var breakLbl = freshLabel("loop_break");
+                    var continueLbl = freshLabel("loop_continue");
+                    var javaLabel = pendingLabel;
+                    pendingLabel = null;
+                    labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
+                    try {
+                        var cond = convertExpression(doWhile.cond, renames);
+                        var parts = extractLoopParts(doWhile.body, renames);
+                        var exitIfDone = ifThenElse(sr, not(sr, cond),
+                                exit(sr, breakLbl), Optional.empty());
+                        var wrappedBody = labelledBlock(sr, List.of(parts.body), continueLbl);
+                        var whileBody = block(sr, List.of(wrappedBody, exitIfDone));
+                        var whileNode = while_(sr, literalBool(sr, true), parts.invariants, whileBody);
+                        yield labelledBlock(sr, List.of(whileNode), breakLbl);
+                    } finally {
+                        labelStack.pop();
+                    }
                 }
                 case JCTree.JCBreak breakStmt -> {
                     yield exit(toSourceRange(breakStmt), resolveBreakLabel(breakStmt));
