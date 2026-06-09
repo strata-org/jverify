@@ -555,7 +555,21 @@ public class JavaToLaurelCompiler {
                     String ownerName = methodSym.owner != null
                             ? methodSym.owner.getQualifiedName().toString()
                             : "";
-                    if (ownerName.equals("org.strata.jverify.builtin.JArray")) {
+                    // Match either the qualified-name form
+                    // (org.strata.jverify.builtin.JArray) or its
+                    // post-MoveStaticMethodsToStaticType form
+                    // (org.strata.jverify.builtin.JArray?static).
+                    // The `?static` suffix is appended by the
+                    // simplification that hoists static methods to
+                    // a synthetic static-type, which runs after
+                    // ArrayCompiler.
+                    String ownerStem = ownerName.endsWith("?static")
+                        ? ownerName.substring(0, ownerName.length() - "?static".length())
+                        : ownerName;
+                    boolean isJArray =
+                        ownerStem.equals("org.strata.jverify.builtin.JArray")
+                        || ownerStem.endsWith(".JArray");
+                    if (isJArray) {
                         if (simpleName.equals("get")) {
                             calleeName = "arrayGet";
                         }
