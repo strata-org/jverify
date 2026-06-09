@@ -30,6 +30,10 @@ public class JavaToLaurelCompiler {
     /// clauses. A 1-parameter postcondition lambda's parameter is renamed
     /// to this so the clause refers to the return value correctly.
     private static final String LAUREL_RESULT_BINDING = "result";
+    /// javac's synthetic source path for trees injected by a
+    /// simplification pass; Strata reports diagnostics for them against
+    /// this URI, which has no entry in our line map.
+    private static final String SYNTHETIC_UNKNOWN_PATH = "/<unknown>";
 
     private final JavaLowerer lowerer;
     private final MethodOrLoopContractCompiler contractCompiler;
@@ -93,6 +97,23 @@ public class JavaToLaurelCompiler {
         FilesMap filesMap = (uri, offset) -> {
             var lineMap = lineMaps.get(uri);
             if (lineMap == null) {
+                // Strata reports diagnostics for trees injected by a
+                // simplification pass against a synthesized "<unknown>"
+                // source path (e.g. ArrayCompiler's lowering of an
+                // initializer-list array). For that specific synthetic
+                // URI, return a 1:1 fallback Position so the diagnostic
+                // still threads through and surfaces as a user-visible
+                // Verifier error instead of being masked by an
+                // exception (the URI is still reported, so a developer
+                // inspecting raw_stderr can see the synthetic origin).
+                //
+                // For any other unmapped URI we keep failing fast: that
+                // indicates a real line-map collection bug, which we do
+                // not want to hide behind a misleading 1:1 location.
+                String path = uri.getPath();
+                if (path != null && path.endsWith(SYNTHETIC_UNKNOWN_PATH)) {
+                    return new Position(1, 1);
+                }
                 throw new RuntimeException("Could not find line map for " + uri);
             }
             long line = lineMap.getLineNumber(offset);
