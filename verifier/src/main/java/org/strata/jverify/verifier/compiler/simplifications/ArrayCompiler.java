@@ -67,11 +67,36 @@ public class ArrayCompiler extends TreeTranslator {
     public void visitAssign(JCTree.JCAssign tree) {
         if (tree.lhs instanceof JCTree.JCArrayAccess arrayAccess) {
             maker.pos = tree.pos;
+            var arrayExpr = arrayAccess.getExpression();
             tree.rhs = translate(tree.rhs);
 
-            result = maker.App(maker.Select(arrayAccess.getExpression(), setMethodSymbol),
-                    List.of(arrayAccess.getIndex(), tree.rhs));
-            result.type = tree.type;
+            if (arrayExpr instanceof JCTree.JCIdent ident) {
+                // `arr[i] = v` lowers to the pure map-store `arr.set(i, v)`
+                // (modelled in Laurel as arraySet, which returns a fresh
+                // map). To make the write observable by later reads we
+                // rebind the array variable: `arr = arr.set(i, v)`.
+                var setCall = maker.App(
+                        maker.Select(maker.Ident(ident.sym), setMethodSymbol),
+                        List.of(arrayAccess.getIndex(), tree.rhs));
+                setCall.type = arrayExpr.type;
+                var rebind = maker.Assign(maker.Ident(ident.sym), setCall);
+                rebind.type = arrayExpr.type;
+                result = rebind;
+            } else {
+                // We can only rebind a simple (assignable) local-variable
+                // array. For any other array expression — a field access,
+                // a method-call result, a nested index, etc. — we cannot
+                // make the store observable, so reject it with a clear
+                // error rather than silently dropping the write (which
+                // would mis-model the program).
+                reporter.reportError(tree, "notSupported",
+                        "array element assignment whose array is not a simple local variable");
+                var setCall = maker.App(
+                        maker.Select(arrayExpr, setMethodSymbol),
+                        List.of(arrayAccess.getIndex(), tree.rhs));
+                setCall.type = tree.type;
+                result = setCall;
+            }
         }
         else {
             super.visitAssign(tree);

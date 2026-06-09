@@ -140,6 +140,22 @@ public class JavaToLaurelCompiler {
             Optional.empty(), List.of(), Optional.empty(),
             Optional.empty(), Optional.empty()
         )));
+        // arraySet(arr, idx, value) returns a fresh Map<int,int>
+        // representing arr with the (idx -> value) mapping updated.
+        // Standard pure-functional map "store"; matches the JArray.set
+        // call ArrayCompiler emits for `arr[i] = v`. Uninterpreted (no
+        // congruence axioms beyond same-input -> same-output); a future
+        // refinement can add the read-after-write axiom
+        // (`arrayGet(arraySet(a, i, v), i) == v`).
+        commands.add(procedureCommand(function(
+            "arraySet",
+            List.of(parameter("arr", arrayMap),
+                    parameter("idx", intType()),
+                    parameter("value", intType())),
+            Optional.of(returnType(arrayMap)),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
         return commands;
     }
 
@@ -629,6 +645,14 @@ public class JavaToLaurelCompiler {
                             // the prelude) so Strata's resolver
                             // picks it up.
                             calleeName = "arrayNew_1";
+                        } else if (simpleName.equals("set")) {
+                            // ArrayCompiler lowers `arr[i] = v` to the
+                            // rebinding `arr = arr.set(i, v)`. We route
+                            // the set call to the pure map-store arraySet
+                            // (declared in the prelude); the surrounding
+                            // assignment makes the update observable to
+                            // later reads of `arr`.
+                            calleeName = "arraySet";
                         }
                     }
                     List<StmtExpr> args = new ArrayList<>();
