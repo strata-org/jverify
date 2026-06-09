@@ -119,6 +119,19 @@ public class JavaToLaurelCompiler {
     }
 
     private LaurelType translateType(com.sun.tools.javac.code.Type type) {
+        // Array types: encoded as a Laurel MapType(int, int) — the
+        // standard Boogie/SMT array model. The element type is
+        // deliberately erased to int (the type the array prelude
+        // functions in getPredefinedTypes are declared over), so every
+        // array, regardless of element type, type-checks uniformly
+        // against lengthOf / arrayGet / arraySet / arrayNew_1. This is
+        // sound for the int-family element types (int/short/byte/char,
+        // which are int-backed) and is a deliberate imprecision for
+        // wider (long), reference (Object[]), and nested array element
+        // types in this foundation.
+        if (type instanceof com.sun.tools.javac.code.Type.ArrayType) {
+            return mapType(intType(), intType());
+        }
         return switch (type.getTag()) {
             case INT -> compositeType("int32");
             case SHORT -> compositeType("int16");
