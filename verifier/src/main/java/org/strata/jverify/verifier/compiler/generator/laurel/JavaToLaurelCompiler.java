@@ -119,6 +119,15 @@ public class JavaToLaurelCompiler {
     }
 
     private LaurelType translateType(com.sun.tools.javac.code.Type type) {
+        // Array types: encoded as a Laurel MapType(int, elem). This is
+        // the standard Boogie/SMT array model and matches the JArray
+        // runtime model the ArrayCompiler simplification rewrites
+        // body-level `arr[i]` accesses to. With this translation, an
+        // `int[] xs` parameter becomes a Laurel `Map<int, int>`, which
+        // Strata can reason about via its map-theory axioms.
+        if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType) {
+            return mapType(intType(), translateType(arrayType.elemtype));
+        }
         return switch (type.getTag()) {
             case INT -> compositeType("int32");
             case SHORT -> compositeType("int16");
