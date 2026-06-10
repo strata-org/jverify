@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"ConstantValue"})
-@JVerifyTest(exitCode = 4, methodsVerified = 5, errorCount = 2)
+@JVerifyTest(exitCode = 4, methodsVerified = 8, errorCount = 2)
 class VerifyDoWhile {
     /**
      * do-while with break exiting the loop early.
@@ -97,6 +97,83 @@ class VerifyDoWhile {
             x = x + 1;
         }
         check(x == 3);
+    }
+
+    /**
+     * Nested do-while loops, each exited via an unlabeled {@code break}.
+     * Exercises two stacked do-while label frames: the inner {@code break} must
+     * resolve to the inner loop's break label and the outer {@code break} to the
+     * outer loop's, leaving the loop variables at their break-time values.
+     * The postconditions are derived from the break guards (not the loop
+     * conditions), so they are unaffected by the exit-condition gap.
+     */
+    static void nestedDoWhileBreak() {
+        int i = 0;
+        do {
+            invariant(0 <= i && i <= 3);
+            int j = 0;
+            do {
+                invariant(0 <= j && j <= 2);
+                if (j == 2) {
+                    break;
+                }
+                j = j + 1;
+            } while (j < 100);
+            check(j == 2);
+            if (i == 3) {
+                break;
+            }
+            i = i + 1;
+        } while (i < 100);
+        check(i == 3);
+    }
+
+    /**
+     * Labeled do-while with {@code break} to the outer label from inside a nested loop.
+     * Exercises the {@code javaLabel = pendingLabel} capture in the do-while desugaring:
+     * the outer loop's label frame must carry {@code "outer"} so that {@code break outer}
+     * resolves to the outer break label rather than the inner one. The break fires on a
+     * known state ({@code i == 2}), so the post-loop assertion is provable.
+     */
+    static void labeledDoWhileBreakToOuter() {
+        int i = 0;
+        outer:
+        do {
+            invariant(0 <= i && i <= 2);
+            int j = 0;
+            do {
+                invariant(0 <= j && j <= 5);
+                if (i == 2) {
+                    break outer;
+                }
+                j = j + 1;
+            } while (j < 3);
+            i = i + 1;
+        } while (i < 100);
+        check(i == 2);
+    }
+
+    /**
+     * Labeled do-while with {@code continue} to the outer label from inside a nested loop.
+     * {@code continue outer} must resolve to the outer loop's continue label (re-evaluating
+     * the outer condition rather than the inner one), relying on the {@code javaLabel}
+     * capture.
+     */
+    static void labeledDoWhileContinueToOuter() {
+        int i = 0;
+        outer:
+        do {
+            invariant(0 <= i && i <= 3);
+            i = i + 1;
+            int j = 0;
+            do {
+                invariant(0 <= j && j <= 3);
+                if (j == 0) {
+                    continue outer;
+                }
+                j = j + 1;
+            } while (j < 3);
+        } while (i < 3);
     }
 
     /**
