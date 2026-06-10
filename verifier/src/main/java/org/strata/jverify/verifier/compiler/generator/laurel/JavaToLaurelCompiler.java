@@ -635,9 +635,11 @@ public class JavaToLaurelCompiler {
                     boolean isJArray =
                         ownerStem.equals("org.strata.jverify.builtin.JArray")
                         || ownerStem.endsWith(".JArray");
+                    boolean prependArrayReceiver = false;
                     if (isJArray) {
                         if (simpleName.equals("get")) {
                             calleeName = "arrayGet";
+                            prependArrayReceiver = true;
                         } else if (simpleName.equals("create")) {
                             // ArrayCompiler lowers `new int[N]` and
                             // `{v0, ...}` to JArray.create(N). We
@@ -653,9 +655,18 @@ public class JavaToLaurelCompiler {
                             // assignment makes the update observable to
                             // later reads of `arr`.
                             calleeName = "arraySet";
+                            prependArrayReceiver = true;
                         }
                     }
                     List<StmtExpr> args = new ArrayList<>();
+                    // get/set are instance methods on the array; their
+                    // receiver is the array (a Map) and must be the first
+                    // argument of arrayGet/arraySet. (create is static, so
+                    // its array argument is already in invocation.args.)
+                    if (prependArrayReceiver
+                            && invocation.getMethodSelect() instanceof JCTree.JCFieldAccess receiverAccess) {
+                        args.add(convertExpression(receiverAccess.selected, renames));
+                    }
                     for (var arg : invocation.args) {
                         args.add(convertExpression(arg, renames));
                     }
