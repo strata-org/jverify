@@ -34,6 +34,7 @@ class Contracts2JqwikTest {
             import static org.strata.jverify.JVerify.*;
             class C {
                 @AsProperty
+                @Pure
                 int doubleIt(@ForAll int x) {
                     postcondition((Integer r) -> r == 2 * x);
                     throw new RuntimeException();
@@ -62,6 +63,7 @@ class Contracts2JqwikTest {
             import net.jqwik.api.ForAll;
             class C {
                 @AsProperty
+                @Pure
                 int abs(@ForAll int x) {
                     postcondition((Integer r) -> r >= 0);
                     postcondition((Integer r) -> r == x || r == -x);
@@ -97,6 +99,7 @@ class Contracts2JqwikTest {
             import static org.strata.jverify.JVerify.*;
             class C {
                 @AsProperty
+                @Pure
                 int divide(@ForAll int a, @ForAll int b) {
                     precondition(b != 0);
                     precondition(a >= 0);
@@ -120,6 +123,7 @@ class Contracts2JqwikTest {
             import net.jqwik.api.ForAll;
             class C {
                 @AsProperty
+                @Pure
                 int abs(@ForAll int x) {
                     postcondition((Integer r) -> r >= 0);
                     postcondition((Integer s) -> s == x || s == -x);
@@ -144,6 +148,7 @@ class Contracts2JqwikTest {
             import static org.strata.jverify.JVerify.*;
             class C {
                 @AsProperty
+                @Pure
                 int sumPositive(@ForAll int[] xs) {
                     precondition(forall((Integer i) -> i >= 0));
                     postcondition((Integer r) -> r >= 0);
@@ -160,6 +165,28 @@ class Contracts2JqwikTest {
             "executable postcondition should still be emitted");
         assertTrue(result.warnings.stream().anyMatch(w -> w.contains("non-executable")),
             "expected warning about non-executable clause; got: " + result.warnings);
+    }
+
+    @Test
+    void namedForAllProviderIsPreserved() {
+        // @ForAll("provider") must be carried through verbatim so custom
+        // @Provide generators keep working in the generated property.
+        String source = """
+            import org.strata.jverify.AsProperty;
+            import org.strata.jverify.Pure;
+            import net.jqwik.api.ForAll;
+            class C {
+                @AsProperty
+                @Pure
+                int first(@ForAll("sortedArrays") int[] arr) {
+                    postcondition((Integer r) -> arr.length == 0 || r == arr[0]);
+                    return arr.length == 0 ? -1 : arr[0];
+                }
+            }
+            """;
+        String out = translate(source);
+        assertTrue(out.contains("@ForAll(\"sortedArrays\") int[] arr"),
+            "expected the named provider to be preserved on the parameter; got:\n" + out);
     }
 
     @Test
@@ -180,6 +207,7 @@ class Contracts2JqwikTest {
             import net.jqwik.api.ForAll;
             class C {
                 @AsProperty
+                @Pure
                 boolean isEven(@ForAll int x) {
                     postcondition(x % 2 == 0 || x % 2 == 1);
                     throw new RuntimeException();
@@ -205,6 +233,7 @@ class Contracts2JqwikTest {
             import static org.strata.jverify.JVerify.*;
             class C {
                 @AsProperty
+                @Pure
                 public static int increment(@ForAll int n) {
                     postcondition((Integer r) -> r == old(n) + 1);
                     return n + 1;
@@ -227,10 +256,12 @@ class Contracts2JqwikTest {
     void frameClausesAreDropped() {
         String source = """
             import org.strata.jverify.AsProperty;
+            import org.strata.jverify.Pure;
             import net.jqwik.api.ForAll;
             import static org.strata.jverify.JVerify.*;
             class C {
                 @AsProperty
+                @Pure
                 public static int identity(@ForAll int n) {
                     reads(everything());
                     postcondition((Integer r) -> r == n);
@@ -240,11 +271,111 @@ class Contracts2JqwikTest {
             """;
         String out = translate(source);
         // reads(...) is a verifier-only frame clause; it must not appear in the
-        // generated test and must not break translation.
+        // generated test and must not break translation. (@Pure makes dropping
+        // the frame sound.)
         assertFalse(out.contains("reads("),
             "expected reads(...) frame clause dropped; got:\n" + out);
         assertTrue(out.contains("return (r == n)"),
             "expected the postcondition to still translate; got:\n" + out);
+    }
+
+    @Test
+    void narrowingModifiesWarnsButTranslates() {
+        // A non-pure method with a narrowing modifies clause is not provably
+        // frame-sound, so it translates but with a warning.
+        String source = """
+            import org.strata.jverify.AsProperty;
+            import net.jqwik.api.ForAll;
+            import static org.strata.jverify.JVerify.*;
+            class C {
+                @AsProperty
+                int bump(@ForAll int x) {
+                    modifies(this);
+                    postcondition((Integer r) -> r == x + 1);
+                    throw new RuntimeException();
+                }
+            }
+            """;
+        Contracts2Jqwik.Result result = Contracts2Jqwik.translate(source, "Test.java");
+        assertNotNull(result.output, "expected translation; warnings: " + result.warnings);
+        assertTrue(result.output.contains("bumpProperty"),
+            "expected the method to translate; got:\n" + result.output);
+        assertTrue(result.warnings.stream().anyMatch(w ->
+                w.contains("narrower than modifies(everything())")),
+            "expected a frame-soundness warning; got: " + result.warnings);
+    }
+
+    @Test
+    void impureEmptyFrameWarnsButTranslates() {
+        // A non-pure method with no modifies clause (empty frame) is not
+        // provably frame-sound, so it translates but with a warning.
+        String source = """
+            import org.strata.jverify.AsProperty;
+            import net.jqwik.api.ForAll;
+            class C {
+                @AsProperty
+                int bump(@ForAll int x) {
+                    postcondition((Integer r) -> r == x + 1);
+                    throw new RuntimeException();
+                }
+            }
+            """;
+        Contracts2Jqwik.Result result = Contracts2Jqwik.translate(source, "Test.java");
+        assertNotNull(result.output, "expected translation; warnings: " + result.warnings);
+        assertTrue(result.output.contains("bumpProperty"),
+            "expected the method to translate; got:\n" + result.output);
+        assertTrue(result.warnings.stream().anyMatch(w ->
+                w.contains("declares no modifies clause")),
+            "expected an empty-frame soundness warning; got: " + result.warnings);
+    }
+
+    @Test
+    void pureMethodTranslatesWithoutFrameWarning() {
+        // A @Pure method is provably frame-sound: translates with no frame warning.
+        String source = """
+            import org.strata.jverify.AsProperty;
+            import org.strata.jverify.Pure;
+            import net.jqwik.api.ForAll;
+            class C {
+                @AsProperty
+                @Pure
+                int doubleIt(@ForAll int x) {
+                    postcondition((Integer r) -> r == 2 * x);
+                    throw new RuntimeException();
+                }
+            }
+            """;
+        Contracts2Jqwik.Result result = Contracts2Jqwik.translate(source, "Test.java");
+        assertNotNull(result.output);
+        assertTrue(result.output.contains("doubleItProperty"), "pure method should translate");
+        assertTrue(result.warnings.stream().noneMatch(w -> w.contains("frame")),
+            "expected no frame warning for a @Pure method; got: " + result.warnings);
+    }
+
+    @Test
+    void modifiesEverythingTranslatesWithoutFrameWarning() {
+        // modifies(everything()) is a vacuous frame: translates with no frame warning.
+        String source = """
+            import org.strata.jverify.AsProperty;
+            import net.jqwik.api.ForAll;
+            import static org.strata.jverify.JVerify.*;
+            class C {
+                @AsProperty
+                int doubleIt(@ForAll int x) {
+                    modifies(everything());
+                    postcondition((Integer r) -> r == 2 * x);
+                    throw new RuntimeException();
+                }
+            }
+            """;
+        Contracts2Jqwik.Result result = Contracts2Jqwik.translate(source, "Test.java");
+        assertNotNull(result.output);
+        assertTrue(result.output.contains("doubleItProperty"),
+            "modifies(everything()) method should translate");
+        assertFalse(result.output.contains("modifies("),
+            "modifies clause must not leak into the generated test; got:\n" + result.output);
+        assertTrue(result.warnings.stream().noneMatch(w -> w.contains("frame")),
+            "expected no frame warning for modifies(everything()); got: " + result.warnings);
     }
 
     @Test
@@ -267,6 +398,9 @@ class Contracts2JqwikTest {
                 }
             }
             """;
+        // The narrowing modifies(sb) frame warns but still translates, so we
+        // reach the old-over-local path: old(sb.length()) references a local
+        // declared inside the contract body, which is skipped with a warning.
         Contracts2Jqwik.Result result = Contracts2Jqwik.translate(source, "Test.java");
         // No translatable postcondition remains, so no output.
         assertNull(result.output,

@@ -41,7 +41,8 @@ public final class Main {
         }
 
         String source = Files.readString(inputPath);
-        Contracts2Jqwik.Result result = Contracts2Jqwik.translate(source, inputPath.getFileName().toString());
+        Contracts2Jqwik.Result result =
+            Contracts2Jqwik.translate(source, inputPath.getFileName().toString());
 
         for (String warning : result.warnings) {
             System.err.println("warning: " + warning);

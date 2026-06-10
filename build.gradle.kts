@@ -78,6 +78,9 @@ project(":examples") {
 
         // https://mvnrepository.com/artifact/net.jqwik/jqwik-api
         testImplementation("net.jqwik:jqwik-api:1.9.2")
+        // jqwik engine (1.9.x only — see the resolution strategy below) so the
+        // generated @Property tests actually run on the JUnit Platform.
+        testRuntimeOnly("net.jqwik:jqwik-engine:1.9.2")
         
         implementation("com.fasterxml.jackson.core:jackson-core:2.16.1")
         implementation("com.fasterxml.jackson.core:jackson-databind:2.16.1")
