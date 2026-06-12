@@ -268,7 +268,29 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
     public static JCTree.JCBlock getContractBlock(JCTree.JCStatement outerBlock) {
+        if (!hasContractStructure(outerBlock)) {
+            throw new JavaViolationException(
+                    "Expected a contract-bearing block (a JCBlock whose first statement is a JCBlock), but got: "
+                            + (outerBlock == null ? "null" : outerBlock.getClass().getSimpleName()));
+        }
         return (JCTree.JCBlock) ((JCTree.JCBlock) outerBlock).getStatements().get(0);
+    }
+
+    /// True when `outerBlock` has the contract-bearing shape this
+    /// compiler produces: a JCBlock whose first statement is itself
+    /// a JCBlock (holding the precondition/postcondition/invariant
+    /// calls). Loop bodies authored without explicit invariants —
+    /// or javac-synthesized loop bodies (e.g. enhanced-for
+    /// desugared to while+iterator) — do not have this shape, so
+    /// callers should guard with this predicate before calling
+    /// `getContract` / `getContractBlock`, which otherwise throw
+    /// `JavaViolationException`.
+    public static boolean hasContractStructure(JCTree.JCStatement outerBlock) {
+        if (!(outerBlock instanceof JCTree.JCBlock blk)) {
+            return false;
+        }
+        var stmts = blk.getStatements();
+        return !stmts.isEmpty() && stmts.get(0) instanceof JCTree.JCBlock;
     }
 
     public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock) {

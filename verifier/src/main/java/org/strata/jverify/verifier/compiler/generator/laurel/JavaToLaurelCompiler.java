@@ -502,6 +502,22 @@ public class JavaToLaurelCompiler {
 
         private LoopParts extractLoopParts(JCTree.JCStatement body, Map<String, String> renames) {
             if (body instanceof JCTree.JCBlock loopBlock) {
+                // Only loops authored with an explicit invariant
+                // block (the contract-bearing shape produced by
+                // JVerify's contract authoring convention) have the
+                // structure getContract expects. Loop bodies
+                // without the wrapping contract block — including
+                // javac-synthesized while loops from enhanced-for
+                // desugaring — are processed as pure implementation
+                // statements with no invariants.
+                if (!MethodOrLoopContractCompiler.hasContractStructure(loopBlock)) {
+                    List<StmtExpr> stmts = new ArrayList<>();
+                    for (var s : loopBlock.getStatements()) {
+                        StmtExpr converted = convertStatement(s, renames);
+                        if (converted != null) stmts.add(converted);
+                    }
+                    return new LoopParts(List.of(), block(toSourceRange(loopBlock), stmts));
+                }
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
                 List<InvariantClause> invariants = new ArrayList<>();
                 for (var inv : loopContract.loopInvariants()) {
