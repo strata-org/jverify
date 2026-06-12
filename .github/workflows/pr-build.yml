@@ -35,7 +35,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'corretto'
-          java-version: '23'
+          java-version: '25'
           cache: gradle
       - name: Build Strata
         uses: leanprover/lean-action@v1
