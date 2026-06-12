@@ -168,7 +168,11 @@ public class JavaToLaurelCompiler {
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
-        return sym.outermostClass().name + "_" + sym.name;
+        // Use the outermost class's fully-qualified (package-included) name,
+        // sanitised like the CompositeType sort names ('$' -> '.'), so two
+        // same-named classes in different packages don't produce colliding
+        // procedure names.
+        return sym.outermostClass().getQualifiedName().toString().replace('$', '.') + "_" + sym.name;
     }
 
     private class StaticMethodCollector extends TreeScanner {
