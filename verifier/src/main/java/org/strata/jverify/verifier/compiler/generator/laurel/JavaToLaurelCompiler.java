@@ -93,13 +93,70 @@ public class JavaToLaurelCompiler {
     }
 
     private List<Command> getPredefinedTypes() {
-        return List.of(
+        var commands = new ArrayList<Command>(List.of(
             makeConstrainedType("int8", -128L, 127L),
             makeConstrainedType("int16", -32768L, 32767L),
             makeConstrainedType("int32", -2147483648L, 2147483647L),
             makeConstrainedType("int64", -9223372036854775808L, 9223372036854775807L),
             makeConstrainedType("char", 0L, 65535L)
-        );
+        ));
+
+        // Uninterpreted-function declaration for the array-as-map
+        // model. `arr.length` (JCFieldAccess in contract positions,
+        // where ArrayCompiler doesn't intercept) translates to a call
+        // against this. Strata's resolver requires a declaration; the
+        // empty body makes the function uninterpreted, so the only
+        // relation Strata enforces is "same input -> same output".
+        var arrayMap = mapType(intType(), intType());
+        commands.add(procedureCommand(function(
+            "lengthOf",
+            List.of(parameter("arr", arrayMap)),
+            Optional.of(returnType(intType())),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
+        // arrayGet(arr, idx) reads element `idx` from the Map<int,elem>
+        // that models the array. Used by both body-level `arr[i]` (via
+        // the JArray.get lowering) and contract-position array reads.
+        // Uninterpreted: same (arr, idx) yields the same value.
+        commands.add(procedureCommand(function(
+            "arrayGet",
+            List.of(parameter("arr", arrayMap),
+                    parameter("idx", intType())),
+            Optional.of(returnType(intType())),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
+        // arrayNew_1(N) returns a fresh Map<int,int> for a 1-D
+        // `new int[N]` allocation. ArrayCompiler also lowers
+        // `{v0, v1, ...}` literals to JArray.create(N) (the literal
+        // element values are dropped, only the length is retained).
+        // Uninterpreted same-input -> same-output function;
+        // multi-dimensional and richer arities can be added on demand.
+        commands.add(procedureCommand(function(
+            "arrayNew_1",
+            List.of(parameter("d0", intType())),
+            Optional.of(returnType(arrayMap)),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
+        // arraySet(arr, idx, value) returns a fresh Map<int,int>
+        // representing arr with the (idx -> value) mapping updated.
+        // Standard pure-functional map "store"; matches the JArray.set
+        // call ArrayCompiler emits for `arr[i] = v`. Uninterpreted (no
+        // congruence axioms beyond same-input -> same-output); a future
+        // refinement can add the read-after-write axiom
+        // (`arrayGet(arraySet(a, i, v), i) == v`).
+        commands.add(procedureCommand(function(
+            "arraySet",
+            List.of(parameter("arr", arrayMap),
+                    parameter("idx", intType()),
+                    parameter("value", intType())),
+            Optional.of(returnType(arrayMap)),
+            Optional.empty(), List.of(), Optional.empty(),
+            Optional.empty(), Optional.empty()
+        )));
+        return commands;
     }
 
     private Command makeConstrainedType(String name, long min, long max) {
@@ -119,6 +176,15 @@ public class JavaToLaurelCompiler {
     }
 
     private LaurelType translateType(com.sun.tools.javac.code.Type type) {
+        // Array types: encoded as a Laurel MapType(int, elem). This is
+        // the standard Boogie/SMT array model and matches the JArray
+        // runtime model the ArrayCompiler simplification rewrites
+        // body-level `arr[i]` accesses to. With this translation, an
+        // `int[] xs` parameter becomes a Laurel `Map<int, int>`, which
+        // Strata can reason about via its map-theory axioms.
+        if (type instanceof com.sun.tools.javac.code.Type.ArrayType arrayType) {
+            return mapType(intType(), translateType(arrayType.elemtype));
+        }
         return switch (type.getTag()) {
             case INT -> compositeType("int32");
             case SHORT -> compositeType("int16");
@@ -543,6 +609,55 @@ public class JavaToLaurelCompiler {
                     }
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
                     String calleeName = qualifiedMethodName(methodSym);
+                    String simpleName = methodSym.getSimpleName().toString();
+                    // Recognise the synthetic JArray.get call that
+                    // ArrayCompiler emits for body-level `arr[i]`. We
+                    // route get -> arrayGet (declared in the prelude
+                    // with same-input/same-output semantics).
+                    String ownerName = methodSym.owner != null
+                            ? methodSym.owner.getQualifiedName().toString()
+                            : "";
+                    // Match either the qualified-name form
+                    // (org.strata.jverify.builtin.JArray) or its
+                    // post-MoveStaticMethodsToStaticType form
+                    // (org.strata.jverify.builtin.JArray?static).
+                    // The `?static` suffix is appended by the
+                    // simplification that hoists static methods to
+                    // a synthetic static-type, which runs after
+                    // ArrayCompiler.
+                    String ownerStem = ownerName.endsWith("?static")
+                        ? ownerName.substring(0, ownerName.length() - "?static".length())
+                        : ownerName;
+                    boolean isJArray =
+                        ownerStem.equals("org.strata.jverify.builtin.JArray")
+                        || ownerStem.endsWith(".JArray");
+                    if (isJArray) {
+                        if (simpleName.equals("get")) {
+                            calleeName = "arrayGet";
+                        } else if (simpleName.equals("create")) {
+                            // ArrayCompiler lowers `new int[N]` and
+                            // `{v0, ...}` to JArray.create(N). We
+                            // rewrite to arrayNew_1 (declared in
+                            // the prelude) so Strata's resolver
+                            // picks it up.
+                            calleeName = "arrayNew_1";
+                        } else if (simpleName.equals("set")) {
+                            // ArrayCompiler lowers `arr[i] = v` to
+                            // JArray.set(arr, i, v). We rewrite to
+                            // arraySet (declared in the prelude).
+                            // Caveat: the call returns a FRESH map
+                            // with the (i -> v) update, but it is
+                            // emitted as a discarded statement-level
+                            // expression, so the original `arr`
+                            // variable is not actually rebound.
+                            // Properties that read the value back
+                            // through `arr[i]` will see the pre-update
+                            // value. Future work: teach ArrayCompiler
+                            // to lift the assignment into
+                            // `arr = JArray.set(arr, i, v)`.
+                            calleeName = "arraySet";
+                        }
+                    }
                     List<StmtExpr> args = new ArrayList<>();
                     for (var arg : invocation.args) {
                         args.add(convertExpression(arg, renames));
@@ -570,6 +685,88 @@ public class JavaToLaurelCompiler {
                 // expression's type.
                 case JCTree.JCFieldAccess fa when fa.type.constValue() != null ->
                     convertConstantValue(toSourceRange(fa), fa.type.getTag(), fa.type.constValue());
+                case JCTree.JCFieldAccess fieldAccess -> {
+                    SourceRange sr = toSourceRange(fieldAccess);
+                    // Special-case `arr.length` for array-typed receivers.
+                    // In JVerify's array-as-map model there is no
+                    // intrinsic length; translate to a call to the
+                    // uninterpreted Laurel function `lengthOf` we
+                    // declare in the prelude (see getPredefinedTypes).
+                    // Strata's resolver requires a declaration, so a
+                    // pure free identifier wouldn't work; the
+                    // declaration also gives same-input/same-output
+                    // semantics so multiple references to the same
+                    // `arr.length` are consistent.
+                    if (fieldAccess.name.toString().equals("length")
+                            && fieldAccess.selected.type instanceof
+                                com.sun.tools.javac.code.Type.ArrayType) {
+                        StmtExpr arr = convertExpression(fieldAccess.selected, renames);
+                        yield call(sr, identifier(sr, "lengthOf"),
+                                java.util.List.of(arr));
+                    }
+                    // Inline static final compile-time constants
+                    // (e.g. `private static final int SENTINEL = ...`).
+                    // javac records the constant value on the field's
+                    // VarSymbol when the initialiser is a constant
+                    // expression; we read it back and emit a Laurel
+                    // literal.
+                    var sym = TreeInfo.symbol(fieldAccess);
+                    if (sym instanceof Symbol.VarSymbol var
+                            && var.getConstantValue() != null) {
+                        Object cv = var.getConstantValue();
+                        if (cv instanceof Boolean b) {
+                            yield literalBool(sr, b);
+                        }
+                        if (cv instanceof Number n) {
+                            yield longLiteral(sr, n.longValue());
+                        }
+                    }
+                    throw new JavaViolationException(
+                        "Unsupported field access: " + fieldAccess);
+                }
+                case JCTree.JCArrayAccess arrayAccess -> {
+                    // `arr[i]` for a single-dimension array reads
+                    // from the Map<int, elem> we use to model the
+                    // array. Translate to an `arrayGet(arr, i)`
+                    // call against the Laurel function we declare
+                    // in the prelude. Note: ArrayCompiler often
+                    // intercepts these in the body and rewrites to
+                    // JArray.get; this case is the fallback for
+                    // contract-position array reads.
+                    SourceRange sr = toSourceRange(arrayAccess);
+                    StmtExpr arr = convertExpression(arrayAccess.indexed, renames);
+                    StmtExpr idx = convertExpression(arrayAccess.index, renames);
+                    yield call(sr, identifier(sr, "arrayGet"),
+                            java.util.List.of(arr, idx));
+                }
+                case JCTree.JCNewArray newArray -> {
+                    // Two source forms reach here:
+                    //   `new int[N]`  — dims=[N], elems=null
+                    //   `{v0, v1, ...}` (or `new int[]{v0, ...}`)
+                    //                 — dims=[], elems=[v0, ...]
+                    // The sized form translates to arrayNew_1
+                    // (declared in the prelude); the initializer-list
+                    // form translates to arrayInit_<n> (per-arity
+                    // axiomatization can be added on demand — until
+                    // then it surfaces as a resolution error).
+                    SourceRange sr = toSourceRange(newArray);
+                    if (newArray.elems != null) {
+                        // Initializer-list form `{v0, v1, ...}`.
+                        List<StmtExpr> args = new ArrayList<>();
+                        for (var e : newArray.elems) {
+                            args.add(convertExpression(e, renames));
+                        }
+                        String fn = "arrayInit_" + args.size();
+                        yield call(sr, identifier(sr, fn), args);
+                    }
+                    // Sized form `new int[N]`.
+                    List<StmtExpr> dimArgs = new ArrayList<>();
+                    for (var d : newArray.dims) {
+                        dimArgs.add(convertExpression(d, renames));
+                    }
+                    String fn = "arrayNew_" + dimArgs.size();
+                    yield call(sr, identifier(sr, fn), dimArgs);
+                }
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
         }

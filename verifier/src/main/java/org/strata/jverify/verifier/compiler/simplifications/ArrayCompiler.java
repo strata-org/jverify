@@ -22,6 +22,7 @@ public class ArrayCompiler extends TreeTranslator {
     private final TreeMaker maker;
     private final JavacElements elements;
     private final Names names;
+    private final com.sun.tools.javac.code.Symtab symtab;
 
     public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {
         for (var env : envs) {
@@ -34,6 +35,7 @@ public class ArrayCompiler extends TreeTranslator {
         this.maker = TreeMaker.instance(context);
         this.elements = JavacElements.instance(context);
         this.names = Names.instance(context);
+        this.symtab = com.sun.tools.javac.code.Symtab.instance(context);
         this.reporter = Reporter.instance(context);
 
         arraySymbol = elements.getTypeElement(COM_AWS_JVERIFY_BUILTIN_JARRAY);
@@ -103,8 +105,22 @@ public class ArrayCompiler extends TreeTranslator {
         maker.pos = newArray.pos;
         JCTree.JCExpression size;
         if (newArray.getInitializers() != null && !newArray.getInitializers().isEmpty()) {
-            reporter.reportError(newArray, "notSupported", "new array with initializers");
-            size = maker.Literal(0);
+            // Initializer-list form `{v0, v1, ...}` (or
+            // `new int[]{v0, ...}`): we lower this to
+            // `JArray.create(N)` where N is the literal length.
+            // The contents are then unconstrained — Strata sees a
+            // fresh array of the right length but nondet entries.
+            // This is coarse but lets verification proceed; users
+            // who rely on the literal contents (rather than just
+            // bounds-style reasoning) will need to add explicit
+            // assumptions or wait for a per-arity arrayInit_N
+            // axiomatization on the JavaToLaurelCompiler side.
+            JCTree.JCLiteral sizeLit =
+                maker.Literal(newArray.getInitializers().size());
+            // Set the literal's type so downstream attribution
+            // (line-map resolution, etc.) doesn't trip.
+            sizeLit.type = symtab.intType;
+            size = sizeLit;
         } else {
             size = newArray.getDimensions().head;
         }
