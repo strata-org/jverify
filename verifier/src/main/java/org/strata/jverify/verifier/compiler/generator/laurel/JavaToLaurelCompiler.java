@@ -26,6 +26,11 @@ import java.util.*;
 import static org.strata.jverify.laurel.Laurel.*;
 
 public class JavaToLaurelCompiler {
+    /// The name Laurel binds a procedure's return value to inside ensures
+    /// clauses. A 1-parameter postcondition lambda's parameter is renamed
+    /// to this so the clause refers to the return value correctly.
+    private static final String LAUREL_RESULT_BINDING = "result";
+
     private final JavaLowerer lowerer;
     private final MethodOrLoopContractCompiler contractCompiler;
     private final JVerifyUtils jverifyUtils;
@@ -238,13 +243,24 @@ public class JavaToLaurelCompiler {
             if (method.body != null) {
                 MethodOrLoopContract contract = contractCompiler.getContract(method.body);
                 for (var pre : contract.preconditions()) {
-                    requires.add(requiresClause(convertExpression(pre.get()), Optional.empty()));
+                    var preExpr = pre.get();
+                    StmtExpr converted = (preExpr instanceof JCTree.JCLambda lambda)
+                            ? convertLambdaBody(lambda, Map.of())
+                            : convertExpression(preExpr);
+                    requires.add(requiresClause(converted, Optional.empty()));
                 }
                 for (var post : contract.postconditions()) {
                     var postExpr = post.get();
-                    if (postExpr instanceof JCTree.JCLambda lambda && lambda.params.size() == 1) {
-                        var paramName = lambda.params.getFirst().name.toString();
-                        var renames = Map.of(paramName, "result");
+                    if (postExpr instanceof JCTree.JCLambda lambda) {
+                        // A 1-param postcondition lambda binds the return
+                        // value (renamed to Laurel's canonical
+                        // LAUREL_RESULT_BINDING); a 0-param lambda
+                        // (postcondition(BooleanSupplier), e.g. on a void
+                        // method) captures the enclosing scope directly and
+                        // needs no rename.
+                        Map<String, String> renames = lambda.params.size() == 1
+                                ? Map.of(lambda.params.getFirst().name.toString(), LAUREL_RESULT_BINDING)
+                                : Map.of();
                         ensures.add(ensuresClause(convertLambdaBody(lambda, renames), Optional.empty()));
                     } else {
                         ensures.add(ensuresClause(convertExpression(postExpr), Optional.empty()));
