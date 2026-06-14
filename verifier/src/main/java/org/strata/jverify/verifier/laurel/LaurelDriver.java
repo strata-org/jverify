@@ -241,6 +241,26 @@ public class LaurelDriver implements Driver {
             int verifierExitCode = process.waitFor();
             if (verifierExitCode != 0 && diagnostics.isEmpty()) {
                 options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
+                // Soundness: a non-zero Strata exit with no parsed
+                // diagnostics means verification aborted (e.g. an internal
+                // Strata exception such as a failed termination check).
+                // Surface it as an error so the result can never be read as
+                // a vacuous "0 errors / verified" -- the same invariant the
+                // Laurel-to-Core soundness net enforces on the Strata side.
+                var abortUri = methodStatuses.keySet().stream().findFirst()
+                        .orElse(Paths.get("strata").toUri());
+                var abortPos = new org.strata.jverify.common.Position(1, 1);
+                diagnostics.add(new StrataDiagnostic(abortUri,
+                        new Range(abortPos, abortPos),
+                        "verification aborted: Strata exited with code "
+                        + verifierExitCode + " without reporting diagnostics: "
+                        + preDiagnosticOutput.toString().strip()));
+                failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
+                // The run aborted before producing per-method results, so
+                // the optimistic "Verified" defaults are not trustworthy:
+                // do not report any method as verified or skipped.
+                verifiedCount = 0;
+                skippedCount = 0;
             }
             var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
             return new JVerifyResults(diagnostics, exitCode,
