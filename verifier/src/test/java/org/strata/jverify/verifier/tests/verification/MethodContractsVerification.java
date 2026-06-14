@@ -41,6 +41,19 @@ public class MethodContractsVerification {
         return true;
     }
 
+    /**
+     * A {@code @Pure} method that also carries a postcondition. Strata rejects a
+     * {@code function} that declares postconditions, so such a method must be
+     * emitted as an opaque {@code procedure} (keyed off whether it can stay
+     * transparent), not a {@code function}. Before that fix this failed
+     * translation; this method is the regression guard.
+     */
+    @Pure
+    public static int pureWithPostcondition(int x) {
+        postcondition((int r) -> r == x);
+        return x;
+    }
+
     int postconditionNameClash(int x) {
         postcondition((int res) -> res == x);
         int res;
