@@ -32,7 +32,7 @@
 
 # Integration
 <!-- - [Partially verifying a codebase](./partial_verification.md) -->
-<!-- - [Testing unverified contracts](./testing_unverified_contracts.md) -->
+- [Testing unverified contracts](./testing_unverified_contracts.md)
 <!-- - [Adding contracts to third-party code](./external_contracts.md) -->
 <!-- - [Runtime checking of contracts](./runtime_checking.md) -->
 <!-- - [Erase verification code during compilation](./erase_verification.md) -->

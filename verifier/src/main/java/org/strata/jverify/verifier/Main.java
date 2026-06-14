@@ -60,6 +60,13 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--verbose", description = "")
     private boolean verbose;
     
+    @Option(names = "--emit-laurel", paramLabel = "FILE",
+            description = "Write the serialized Laurel program (post-Java-to-Laurel translation) to this file "
+                    + "and exit without running verification. This separates compilation (Java to the Laurel "
+                    + "IR) from verification (Laurel IR to SMT), so the emitted Ion can be fed to Strata "
+                    + "separately.")
+    private Path emitLaurel;
+    
     @Option(names = "--track-time", description = "")
     private boolean trackTime;
 
@@ -88,7 +95,7 @@ class AppCommand implements Callable<Integer> {
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         var positionFilter = PositionFilter.getPositionFilter(includeFilterDependencies, filterPositionString);
         var verifierOptions = new VerifierOptions(writer, workingDirectory, strataPath, classpathEntries,
-                null, showRanges, contractPathEntries,
+                emitLaurel, emitLaurel != null, showRanges, contractPathEntries,
                 paths, verifyByDefault, false, 
                 positionFilter, verbose, trackTime);
         

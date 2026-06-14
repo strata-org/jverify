@@ -99,6 +99,15 @@ public class LaurelDriver implements Driver {
                 return files;
             });
 
+            // --emit-laurel separates compilation (Java -> Laurel IR) from
+            // verification (Laurel IR -> SMT): once the serialized Laurel
+            // program has been written, stop here without invoking the
+            // backend. Verification can then be run separately on the
+            // emitted Ion.
+            if (verifierOptions.emitLaurelOnly()) {
+                return new JVerifyResults(diagnostics, CommandLine.ExitCode.OK, null);
+            }
+
             var results = runVerifier(analysisResult.filesMap(), serializedProgram);
             var allDiagnostics = new ArrayList<>(diagnostics);
             allDiagnostics.addAll(results.diagnostics());
