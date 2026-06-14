@@ -252,28 +252,56 @@ public class JavaToLaurelCompiler {
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
-        // `outermostClass()` walks the owner chain to the first ClassSymbol,
-        // casting along the way; some invocations (record accessors of types
-        // declared inside an anonymous class, or built-ins on synthetic Symtab
-        // entries) reach here with a non-ClassSymbol owner and throw
-        // ClassCastException. Fall back to the immediate owner in that case.
-        Symbol.ClassSymbol outer;
+        // Immediately-enclosing class's fully-qualified (package-included) name,
+        // sanitised like the CompositeType sort names ('$' -> '.'). The immediate
+        // (not outermost) enclosing class keeps nested-class methods distinct:
+        // `Outer.Inner.foo` -> `Outer.Inner_foo`, not the `Outer.foo`-colliding
+        // `Outer_foo`; keeping the package makes it stable across same-named
+        // classes in different packages.
+        //
+        // Some invocations (record accessors of types declared inside an
+        // anonymous class, or built-ins on synthetic Symtab entries) have an
+        // owner chain with no enclosing ClassSymbol -- `enclClass()` returns
+        // null there (where `outermostClass()` used to throw). Fall back to the
+        // immediate owner's name so such a symbol degrades gracefully instead of
+        // aborting the whole source file.
+        Symbol.ClassSymbol enclosing;
         try {
-            outer = sym.outermostClass();
+            enclosing = sym.enclClass();
         } catch (ClassCastException e) {
-            outer = null;
+            enclosing = null;
         }
-        if (outer != null) {
-            // Fully-qualified (package-included) name, sanitised like the
-            // CompositeType sort names ('$' -> '.'), so two same-named classes
-            // in different packages don't produce colliding procedure names.
-            return outer.getQualifiedName().toString().replace('$', '.') + "_" + sym.name;
+        if (enclosing != null) {
+            return enclosing.getQualifiedName().toString().replace('$', '.') + "_" + sym.name;
         }
         Symbol owner = sym.owner;
         String prefix = (owner != null && owner.name != null)
                 ? owner.name.toString()
                 : "$unknown";
         return prefix + "_" + sym.name;
+    }
+
+    /**
+     * Refuse overloaded methods. The flat {@code Class_method} mangling collapses
+     * every overload of a name onto a single Laurel procedure name, so two
+     * declarations like {@code void bar(int)} and {@code void bar(String)} would
+     * silently collide. Detect this by counting the source-declared (non-synthetic)
+     * methods of that name in the enclosing class; refuse with a clear diagnostic
+     * when there is more than one. Synthetic members (e.g. record accessors and the
+     * canonical constructor) are excluded so records aren't mis-counted.
+     */
+    private static void refuseIfOverloaded(Symbol.MethodSymbol sym) {
+        int sameName = 0;
+        for (Symbol member : sym.enclClass().members().getSymbolsByName(sym.name)) {
+            if (member instanceof Symbol.MethodSymbol && (member.flags() & Flags.SYNTHETIC) == 0) {
+                sameName++;
+            }
+        }
+        if (sameName > 1) {
+            throw new JavaViolationException(
+                    "overloaded method '" + sym.name + "' (enclosing class declares "
+                            + sameName + " methods with this name); overloading is not supported");
+        }
     }
 
     private class StaticMethodCollector extends TreeScanner {
@@ -378,6 +406,7 @@ public class JavaToLaurelCompiler {
         private void translateStaticMethod(JCTree.JCMethodDecl method) {
             // TODO: when overloaded methods are supported, disambiguate names
             //  (e.g. by appending parameter type suffixes) to avoid duplicate procedure names in Laurel.
+            refuseIfOverloaded(method.sym);
             String methodName = qualifiedMethodName(method.sym);
 
             List<Parameter> params = new ArrayList<>();
@@ -769,6 +798,7 @@ public class JavaToLaurelCompiler {
                         yield convertJVerifyCall(invocation, jverifyMethod, renames);
                     }
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
+                    refuseIfOverloaded(methodSym);
                     String calleeName = qualifiedMethodName(methodSym);
                     List<StmtExpr> args = new ArrayList<>();
                     for (var arg : invocation.args) {
