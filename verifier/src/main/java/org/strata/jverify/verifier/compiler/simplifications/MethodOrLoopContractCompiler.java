@@ -268,7 +268,18 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
     public static JCTree.JCBlock getContractBlock(JCTree.JCStatement outerBlock) {
-        return (JCTree.JCBlock) ((JCTree.JCBlock) outerBlock).getStatements().get(0);
+        // The expected shape is a block whose first statement is itself a block
+        // (the JVerify contract prologue). Lower-generated or otherwise raw method
+        // bodies don't match; surface that as a JavaViolationException so the
+        // per-method translation catch turns it into a graceful skip rather than
+        // letting a ClassCastException escape and abort the whole run.
+        if (!(outerBlock instanceof JCTree.JCBlock block)
+                || block.getStatements().isEmpty()
+                || !(block.getStatements().get(0) instanceof JCTree.JCBlock contractBlock)) {
+            throw new JavaViolationException(
+                    "Method body is not in the expected contract-block shape");
+        }
+        return contractBlock;
     }
 
     public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock) {
