@@ -184,6 +184,18 @@ public class JavaToLaurelCompiler {
         private final Deque<LabelEntry> labelStack = new ArrayDeque<>();
         private String pendingLabel = null;
 
+        // Per-method parameter renames. Set at the start of
+        // visitMethodDef when a parameter name clashes with a
+        // Laurel-reserved identifier (currently only "result").
+        // Saved / restored per method visit (see visitMethodDef)
+        // so renames stay scoped to the method subtree. Read by
+        // the single-arg convertExpression / convertStatement
+        // overloads as the default renames map, so the rewrite
+        // propagates into precondition / postcondition /
+        // assertion / body translations without threading the
+        // map manually through every call site.
+        private Map<String, String> currentParamRenames = Map.of();
+
         /** Check if a statement tree contains break or continue (at the current loop level). */
         private boolean containsBreakOrContinue(JCTree.JCStatement stmt) {
             boolean[] found = {false};
@@ -245,15 +257,23 @@ public class JavaToLaurelCompiler {
 
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl method) {
-            if ((method.mods.flags & Flags.STATIC) != 0) {
-                try {
-                    translateStaticMethod(method);
-                } catch (JavaViolationException e) {
-                    reporter.reportError(method, "translatorError", e.getMessage());
-                    annotationCompiler.markSkipped(currentCompilationUnit, method);
+            // Save / restore the per-method rename state so it stays
+            // scoped to this method (and its nested declarations) and
+            // never leaks to sibling methods.
+            Map<String, String> previousParamRenames = currentParamRenames;
+            try {
+                if ((method.mods.flags & Flags.STATIC) != 0) {
+                    try {
+                        translateStaticMethod(method);
+                    } catch (JavaViolationException e) {
+                        reporter.reportError(method, "translatorError", e.getMessage());
+                        annotationCompiler.markSkipped(currentCompilationUnit, method);
+                    }
                 }
+                super.visitMethodDef(method);
+            } finally {
+                currentParamRenames = previousParamRenames;
             }
-            super.visitMethodDef(method);
         }
 
         private void translateStaticMethod(JCTree.JCMethodDecl method) {
@@ -262,9 +282,34 @@ public class JavaToLaurelCompiler {
             String methodName = qualifiedMethodName(method.sym);
 
             List<Parameter> params = new ArrayList<>();
+            // When a user parameter is literally named "result"
+            // it would clash with Strata's reserved binding for
+            // the procedure return value (which the
+            // postcondition lambda also renames to). Rename
+            // the parameter to a fresh name and propagate the
+            // rewrite into all body / contract conversions
+            // via currentParamRenames (a visitor-scope field).
+            Set<String> existingParamNames = new HashSet<>();
             for (var param : method.params) {
-                params.add(parameter(param.name.toString(), translateType(param.type)));
+                existingParamNames.add(param.name.toString());
             }
+            Map<String, String> paramRenames = new HashMap<>();
+            for (var param : method.params) {
+                String pname = param.name.toString();
+                if (pname.equals("result")) {
+                    // Pick a target that does not collide with any
+                    // other parameter, so the rename cannot
+                    // reintroduce the very clash we are avoiding.
+                    String renamed = freshName("__user_result", existingParamNames);
+                    paramRenames.put(pname, renamed);
+                    pname = renamed;
+                }
+                params.add(parameter(pname, translateType(param.type)));
+            }
+            // Map.copyOf is an immutable snapshot, so the per-method
+            // rename state cannot be mutated in place; visitMethodDef
+            // saves and restores this field around the subtree.
+            currentParamRenames = Map.copyOf(paramRenames);
 
             Optional<ReturnType> retType = Optional.empty();
             if (method.restype != null && method.restype.type != null
@@ -285,7 +330,14 @@ public class JavaToLaurelCompiler {
                     var postExpr = post.get();
                     if (postExpr instanceof JCTree.JCLambda lambda && lambda.params.size() == 1) {
                         var paramName = lambda.params.getFirst().name.toString();
-                        var renames = Map.of(paramName, "result");
+                        // result is Strata-canonical for return
+                        // bindings. Combine the lambda-parameter
+                        // rename with the user-parameter renames
+                        // (e.g. when a parameter is named
+                        // "result") so both rewrites apply
+                        // inside the postcondition body.
+                        Map<String, String> renames = new HashMap<>(paramRenames);
+                        renames.put(paramName, "result");
                         ensures.add(ensuresClause(convertLambdaBody(lambda, renames), Optional.empty()));
                     } else {
                         ensures.add(ensuresClause(convertExpression(postExpr), Optional.empty()));
@@ -326,6 +378,22 @@ public class JavaToLaurelCompiler {
                     : procedure(toSourceRange(method), methodName, params,
                             retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody);
             procedures.add(proc);
+        }
+
+        /// Returns `base` if it is not already present in `taken`,
+        /// otherwise appends the smallest positive integer suffix
+        /// that makes the name unique. Used to choose a rename
+        /// target for a user parameter named "result" that cannot
+        /// collide with another parameter in the same procedure.
+        private static String freshName(String base, Set<String> taken) {
+            if (!taken.contains(base)) {
+                return base;
+            }
+            int suffix = 1;
+            while (taken.contains(base + suffix)) {
+                suffix++;
+            }
+            return base + suffix;
         }
 
         private StmtExpr convertBlock(JCTree.JCBlock blk, Map<String, String> renames) {
@@ -524,7 +592,11 @@ public class JavaToLaurelCompiler {
         }
 
         private StmtExpr convertExpression(JCTree.JCExpression expr) {
-            return convertExpression(expr, Map.of());
+            // Use the per-method parameter renames so any
+            // user-parameter rewrite (e.g. "result" -> "__user_result")
+            // is applied transparently throughout the method's
+            // contracts and body.
+            return convertExpression(expr, currentParamRenames);
         }
 
         private StmtExpr convertLambdaBody(JCTree.JCLambda lambda, Map<String, String> renames) {
