@@ -10,7 +10,7 @@ import java.util.function.IntPredicate;
 import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(methodsVerified = 10, errorCount = 0)
+@JVerifyTest(methodsVerified = 11, errorCount = 0)
 public class MethodContractsVerification {
 
     private int y;
@@ -56,6 +56,15 @@ public class MethodContractsVerification {
         int res;
         res = x;
         return res;
+    }
+
+    // 0-argument postcondition (postcondition(BooleanSupplier)): the lambda
+    // takes no parameters and captures the enclosing scope directly rather
+    // than binding the return value. Paired with a 0-argument precondition.
+    int zeroArgPostcondition(int x) {
+        precondition(() -> x > 0);
+        postcondition(() -> x > 0);
+        return x;
     }
 
     /**

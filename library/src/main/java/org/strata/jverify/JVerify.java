@@ -80,6 +80,18 @@ public class JVerify {
     }
 
     /**
+     * Declare a postcondition for a void method (or any method whose return
+     * value is not needed). The {@link BooleanSupplier} takes no arguments and
+     * captures the enclosing scope directly, e.g.
+     * {@code postcondition(() -> x >= 0)}.
+     * <p>
+     * Like the other JVerify contract primitives, this is a marker interpreted
+     * by the verifier and has no effect at runtime.
+     */
+    public static void postcondition(BooleanSupplier predicate) {
+    }
+
+    /**
      * Return the precondition of the given expression
      * Currently only works when the expression is a method call
      * and only works for method calls that return a value.
