@@ -433,6 +433,12 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCIf ifStmt -> {
                     StmtExpr cond = convertExpression(ifStmt.cond, renames);
                     StmtExpr thenBranch = convertStatement(ifStmt.thenpart, renames);
+                    // convertStatement returns null for droppable statements (e.g. a
+                    // valueless `return;`). The Laurel node requires a non-null then-branch,
+                    // so substitute an empty block, mirroring the else-branch guard below.
+                    if (thenBranch == null) {
+                        thenBranch = block(toSourceRange(ifStmt.thenpart), List.of());
+                    }
                     Optional<ElseBranch> elseB = Optional.empty();
                     if (ifStmt.elsepart != null) {
                         StmtExpr elseStmt = convertStatement(ifStmt.elsepart, renames);
@@ -528,6 +534,11 @@ public class JavaToLaurelCompiler {
                         pendingLabel = null;
                         try {
                             StmtExpr body = convertStatement(labeledStmt.body, renames);
+                            // convertStatement returns null for droppable statements (e.g. a
+                            // valueless `return;`); the labelled block requires a non-null body.
+                            if (body == null) {
+                                body = block(toSourceRange(labeledStmt.body), List.of());
+                            }
                             yield labelledBlock(toSourceRange(labeledStmt), List.of(body), breakLbl);
                         } finally {
                             labelStack.pop();
