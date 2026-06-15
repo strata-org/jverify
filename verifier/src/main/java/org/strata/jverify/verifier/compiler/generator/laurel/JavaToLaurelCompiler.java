@@ -86,12 +86,6 @@ public class JavaToLaurelCompiler {
             lineMaps.put(compilationUnit.sourcefile.toUri(), compilationUnit.getLineMap());
         }
 
-        // Transitive-emittability fixpoint: a procedure can only be emitted if
-        // every user-method it calls is also emitted; otherwise Strata reports
-        // an unresolved name. Dropping a procedure can make its callers
-        // undefined too, so iterate to a fixpoint. Dropped methods are demoted
-        // to Skipped (silently for instance methods — see visitMethodDef) so the
-        // count stays honest.
         // First drop methods whose mangled name collides with another method's
         // (e.g. cross-package or adversarial nested-class names the flat
         // Class_method scheme can't disambiguate). Emitting both would produce a
@@ -392,16 +386,16 @@ public class JavaToLaurelCompiler {
         }
     }
 
+    private static boolean isStatic(JCTree.JCMethodDecl method) {
+        return (method.mods.flags & Flags.STATIC) != 0;
+    }
+
     /**
      * Whether {@code sym} is a non-static instance field whose value is not a
      * compile-time constant. Reading or writing such a field needs a {@code self#x}
      * field access against the enclosing composite, which carries no fields yet
      * (Step 8a). Static fields and compile-time constants are handled elsewhere.
      */
-    private static boolean isStatic(JCTree.JCMethodDecl method) {
-        return (method.mods.flags & Flags.STATIC) != 0;
-    }
-
     private static boolean isNonConstantInstanceField(Symbol sym) {
         return sym instanceof Symbol.VarSymbol varSym
                 && varSym.getKind() == javax.lang.model.element.ElementKind.FIELD
