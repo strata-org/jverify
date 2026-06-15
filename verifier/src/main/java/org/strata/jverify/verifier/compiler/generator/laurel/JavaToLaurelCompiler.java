@@ -86,12 +86,10 @@ public class JavaToLaurelCompiler {
             lineMaps.put(compilationUnit.sourcefile.toUri(), compilationUnit.getLineMap());
         }
 
-        // First drop methods whose mangled name collides with another method's
-        // (e.g. cross-package or adversarial nested-class names the flat
-        // Class_method scheme can't disambiguate). Emitting both would produce a
-        // duplicate Laurel symbol that Strata rejects abnormally; skip every
-        // method in a colliding group. Done before the fixpoint so that callers
-        // of a dropped colliding method are then transitively dropped too.
+        // Drop methods whose mangled name collides with another's (the flat
+        // Class_method scheme can't disambiguate some nested/cross-package names):
+        // emitting both gives a duplicate Laurel symbol Strata rejects, so skip
+        // the whole group. Before the fixpoint, so callers cascade-drop.
         var byMangledName = new HashMap<String, List<EmittedProcedure>>();
         for (var procs : proceduresPerUnit.values()) {
             for (var ep : procs) {
@@ -334,19 +332,16 @@ public class JavaToLaurelCompiler {
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
-        // Immediately-enclosing class's fully-qualified (package-included) name,
-        // sanitised like the CompositeType sort names ('$' -> '.'). The immediate
-        // (not outermost) enclosing class keeps nested-class methods distinct:
-        // `Outer.Inner.foo` -> `Outer.Inner_foo`, not the `Outer.foo`-colliding
-        // `Outer_foo`; keeping the package makes it stable across same-named
-        // classes in different packages.
+        // Package-qualified, immediately-enclosing class name ('$' -> '.') + '_'
+        // + method. The immediate (not outermost) class keeps nested-class methods
+        // distinct: `Outer.Inner.foo` -> `Outer.Inner_foo`, not the `Outer.foo`-
+        // colliding `Outer_foo`. The package keeps it cross-class stable.
         //
-        // Some invocations (record accessors of types declared inside an
-        // anonymous class, or built-ins on synthetic Symtab entries) have an
-        // owner chain with no enclosing ClassSymbol -- `enclClass()` returns
-        // null there (where `outermostClass()` used to throw). Fall back to the
-        // immediate owner's name so such a symbol degrades gracefully instead of
-        // aborting the whole source file.
+        // Some invocations (record accessors of types in an anonymous class, or
+        // built-ins on synthetic Symtab entries) have no enclosing ClassSymbol --
+        // enclClass() returns null there (where outermostClass() used to throw).
+        // Fall back to the immediate owner so such a symbol degrades gracefully
+        // instead of aborting the whole source file.
         Symbol.ClassSymbol enclosing;
         try {
             enclosing = sym.enclClass();
@@ -393,8 +388,8 @@ public class JavaToLaurelCompiler {
     /**
      * Whether {@code sym} is a non-static instance field whose value is not a
      * compile-time constant. Reading or writing such a field needs a {@code self#x}
-     * field access against the enclosing composite, which carries no fields yet
-     * (Step 8a). Static fields and compile-time constants are handled elsewhere.
+     * field access against the enclosing composite, which carries no fields yet.
+     * Static fields and compile-time constants are handled elsewhere.
      */
     private static boolean isNonConstantInstanceField(Symbol sym) {
         return sym instanceof Symbol.VarSymbol varSym
@@ -406,7 +401,7 @@ public class JavaToLaurelCompiler {
     /**
      * Refuse an instance-field access. Field reads/writes require the composite
      * to carry fields and {@code self#x} access syntax, which lands with the
-     * constructor/field work in Step 8a. Until then, refuse so a getter or
+     * constructor/field work (deferred). Until then, refuse so a getter or
      * mutator surfaces as a graceful skip rather than an unresolved Laurel name
      * or an unsound empty-modifies frame. Declared as returning {@link StmtExpr}
      * so it can stand in expression position; it always throws.
@@ -539,44 +534,31 @@ public class JavaToLaurelCompiler {
 
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl method) {
-            // Skip, without translating or reporting, members that carry no
-            // user-authored contract to verify:
-            //  - synthetic / Lower-generated members (record accessors etc.);
-            //  - constructors, which are deferred to Step 8a (constructor
-            //    synthesis + chained super()/this()). Emitting a Class_<init>
-            //    procedure now would embed '<init>' in the name and expose the
-            //    synthesized super() chain; silently skipping matches the prior
-            //    behaviour (the old STATIC gate already skipped them) so no
-            //    previously-green class regresses to a spurious diagnostic.
+            // Skip, without translating or reporting, members with no
+            // user-authored contract to verify. Silent skipping matches the
+            // prior behaviour (the old STATIC gate skipped these), so no
+            // previously-green class regresses to a spurious diagnostic.
             boolean skip = (method.mods.flags & Flags.SYNTHETIC) != 0
+                    // Constructors (deferred): emitting Class_<init> would embed
+                    // '<init>' in the name and expose the synthesized super() chain.
                     || JVerifyUtils.isConstructor(method.sym)
-                    // Anonymous and local classes have no qualified name, so their
-                    // methods would all mangle to the same `_method` name and
-                    // collide in Laurel's global scope (e.g. four anonymous
-                    // `consume` overrides -> "Duplicate definition"). Nested/anon
-                    // class support is Step 8d; skip them silently for now.
+                    // Anonymous/local classes have no qualified name, so their
+                    // methods would all mangle to `_method` and collide.
                     || method.sym.enclClass().getQualifiedName().isEmpty()
-                    // @Verify(false): opted out of verification, body already
-                    // stripped — don't emit a procedure shell (which would hit
-                    // Strata limits such as constrained return types on bodiless
-                    // functions). Already recorded as Skipped, so the count is
-                    // unaffected.
+                    // @Verify(false): opted out; body already stripped, so a
+                    // procedure shell would be empty (and already counted Skipped).
                     || annotationCompiler.isSkipped(currentCompilationUnit, method);
             if (!skip) {
                 boolean methodIsStatic = isStatic(method);
                 try {
                     translateMethod(method);
                 } catch (JavaViolationException e) {
-                    // Always demote to Skipped so the driver doesn't count an
-                    // un-emitted method as Verified (the silent-verification bug).
+                    // Demote to Skipped so an un-emitted method isn't counted
+                    // Verified. Report a diagnostic only for static methods:
+                    // instance-method support is partial, so their bodies often
+                    // hit not-yet-supported constructs, and reporting each would
+                    // be noise. Static methods keep the #398 skip-with-diagnostic.
                     annotationCompiler.markSkipped(currentCompilationUnit, method);
-                    // Only surface a diagnostic for STATIC methods. Instance-method
-                    // support is partial (Step 3b): many bodies legitimately hit
-                    // not-yet-supported constructs (fields, generics, instanceof,
-                    // polymorphic dispatch, ...). Reporting each as an error would
-                    // be noise here — per-construct instance-method diagnostics are
-                    // Step 6's job. Static methods keep reporting, preserving the
-                    // #398 graceful-skip-with-diagnostic behaviour.
                     if (methodIsStatic) {
                         reporter.reportError(method, "translatorError", e.getMessage());
                     }
@@ -600,14 +582,10 @@ public class JavaToLaurelCompiler {
             List<Parameter> params = new ArrayList<>();
             if (!methodIsStatic) {
                 // Instance methods take the receiver as an explicit first
-                // parameter named `self`. The enclosing class's opaque
-                // composite sort is declared via translateType. This is the
-                // static-call-with-self encoding (see PLAN.md §1): instance
-                // calls become Laurel .StaticCall, never .InstanceCall/.This.
-                // TODO(strata-gap-1): static-call-with-self encoding of instance methods.
-                // When strata-org/Strata#1172 lands, emit native instance procedures /
-                // .InstanceCall (obj#method) instead of the synthesized `self` parameter.
-                // See PLAN.md §12.
+                // `self` parameter, so calls lower to Laurel .StaticCall rather
+                // than .InstanceCall/.This (which Strata does not yet support).
+                // TODO(strata-gap-1): when strata-org/Strata#1172 lands, emit
+                // native instance calls (obj#method) and drop the `self` param.
                 referencedCompositeTypes.add(
                         method.sym.enclClass().getQualifiedName().toString().replace('$', '.'));
                 params.add(parameter("self", translateType(method.sym.enclClass().type)));
@@ -704,23 +682,13 @@ public class JavaToLaurelCompiler {
                     ? Optional.of(body(methodBody))
                     : Optional.empty();
 
-            // Strata rejects transparent (visible-body) procedures unless they're functional;
-            // emit an OpaqueSpec to mark the body opaque otherwise. A pure method stays a
-            // transparent `function` only when it has no ensures clauses (the schema can't
-            // carry ensures without an OpaqueSpec wrapper, and Strata rejects a `function`
-            // that carries postconditions — see LaurelToCoreTranslator.lean). A pure method
-            // *with* postconditions must therefore be emitted as an opaque `procedure`.
-            // Strata also rejects a `function` whose return type lowers to a
-            // constrained type (int8/int16/int32/int64/char — see
-            // ConstrainedTypeElim.lean "constrained return types on functions are
-            // not yet supported"), so such a pure method is emitted as an opaque
-            // procedure too.
+            // A pure method stays a transparent `function` only with no
+            // postconditions and a non-constrained return; Strata rejects a
+            // `function` carrying either (LaurelToCoreTranslator.lean,
+            // ConstrainedTypeElim.lean), so otherwise emit an opaque procedure.
             // modifies is always empty: jverify doesn't yet emit modifies clauses.
-            // TODO(strata-gap-2): @Pure methods with postconditions / constrained
-            // returns are emitted as opaque procedures rather than functions.
-            // When strata-org/Strata#1173 lands (or functions are removed per
-            // #1352), drop the constrained-return and ensures carve-outs and let
-            // pure methods stay transparent functions. See PLAN.md §12.
+            // TODO(strata-gap-2): drop these carve-outs when Strata#1173 lands
+            // (or when functions are removed, Strata#1352).
             boolean canStayTransparent = isPure && ensures.isEmpty()
                     && !hasConstrainedReturn(method);
             Optional<OpaqueSpec> optSpec = canStayTransparent
@@ -1013,8 +981,8 @@ public class JavaToLaurelCompiler {
         /**
          * The {@code self} argument for an instance call: the converted receiver
          * for an explicit {@code obj.m(...)}, or {@code self} for an implicit-this
-         * {@code m(...)}. {@code super.m(...)} is refused — Step 3b's static
-         * mangling can't express the super-dispatch target soundly.
+         * {@code m(...)}. {@code super.m(...)} is refused — static mangling can't
+         * express the super-dispatch target soundly.
          */
         private StmtExpr receiverSelf(JCTree.JCExpression methodSelect, Map<String, String> renames) {
             if (methodSelect instanceof JCTree.JCFieldAccess fieldAccess) {
@@ -1027,7 +995,7 @@ public class JavaToLaurelCompiler {
                 // `new_(T)` value, which has no procedure-typed shape to pass as
                 // `self`; emitting the call anyway makes Strata fail to unify the
                 // argument. Refuse for a graceful skip until constructor-allocated
-                // values can be captured into a temporary (Step 8a).
+                // values can be captured into a temporary (deferred).
                 var unwrapped = selected;
                 while (unwrapped instanceof JCTree.JCParens parens) {
                     unwrapped = parens.expr;
@@ -1075,7 +1043,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCIdent ident when isNonConstantInstanceField(ident.sym) ->
                     // A bare reference to an instance field (implicit `this.x`)
                     // would need a `self#x` field read against the composite,
-                    // which carries no fields yet (Step 8a). Refuse so it
+                    // which carries no fields yet (deferred). Refuse so it
                     // surfaces as a graceful skip rather than an unresolved name.
                     refuseFieldAccess();
                 case JCTree.JCIdent ident -> {
@@ -1103,26 +1071,20 @@ public class JavaToLaurelCompiler {
                     List<StmtExpr> args = new ArrayList<>();
                     if (!calleeStatic) {
                         // Instance call: prepend the receiver as the `self`
-                        // argument (static-call-with-self encoding). Refuse
-                        // polymorphic dispatch — a call through a supertype
-                        // reference whose target overrides — since static
-                        // mangling would route to the wrong implementation.
-                        // TODO(strata-gap-1): receiver-prepended .StaticCall for instance calls.
-                        // When strata-org/Strata#1172 lands, emit obj#method (.InstanceCall)
-                        // and drop the receiver-as-first-arg rewrite. See PLAN.md §12.
-                        // TODO(strata-gap-3): polymorphic-dispatch refusal.
-                        // When strata-org/Strata#1174 lands, remove refuseIfPolymorphicDispatch
-                        // and dispatch on the receiver's runtime type. See PLAN.md §12.
+                        // argument. Refuse polymorphic dispatch, since static
+                        // mangling would route a supertype-typed call to the
+                        // wrong override.
+                        // TODO(strata-gap-1): emit obj#method when Strata#1172 lands.
+                        // TODO(strata-gap-3): drop this refusal when Strata#1174
+                        // adds runtime dispatch.
                         refuseIfPolymorphicDispatch(methodSym);
                         args.add(receiverSelf(invocation.getMethodSelect(), renames));
                     }
                     String calleeName = qualifiedMethodName(methodSym);
-                    // Record a call to a user method this translator is
-                    // responsible for emitting (has a source tree, not in an
-                    // anonymous/local class). The fixpoint in analyzeJavaCode
-                    // drops this caller if the callee ends up not emitted.
-                    // Library/contract methods (no source tree) resolve through
-                    // other mechanisms and are not tracked here.
+                    // Record calls to user methods we emit (have a source tree,
+                    // not anon/local), so the fixpoint drops this caller if the
+                    // callee isn't emitted. Library/contract methods (no source
+                    // tree) resolve elsewhere and aren't tracked.
                     if (currentReferencedCallees != null
                             && index.getTree(methodSym) != null
                             && !methodSym.enclClass().getQualifiedName().isEmpty()) {
@@ -1155,9 +1117,8 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCFieldAccess fa when fa.type.constValue() != null ->
                     convertConstantValue(toSourceRange(fa), fa.type.getTag(), fa.type.constValue());
                 case JCTree.JCFieldAccess fa when isNonConstantInstanceField(fa.sym) ->
-                    // `this.x` / `obj.x` instance-field read: needs a `self#x`
-                    // field access against a composite that carries fields,
-                    // which lands in Step 8a. Refuse for now (graceful skip).
+                    // `this.x` / `obj.x` instance-field read: needs `self#x` on a
+                    // composite that carries fields (deferred). Refuse for now.
                     refuseFieldAccess();
                 case JCTree.JCNewClass newClass -> {
                     // `new T(...)` for class / record types: produce
@@ -1173,15 +1134,11 @@ public class JavaToLaurelCompiler {
                     // still error until the datatype encoding
                     // lands.
                     if (inContractContext) {
-                        // `new T(...)` lowers to a heap-allocating Laurel block.
-                        // Strata lifts such imperative blocks out of procedure
-                        // bodies but NOT out of requires/ensures expressions, so a
-                        // `new` inside a contract reaches Core as an un-lowered
-                        // block ("block expression should have been lowered").
-                        // This also covers lambdas/method references inside a
-                        // contract, which LambdaToAnonymousClassCompiler rewrites
-                        // to `new <anon>()`. Refuse for a graceful skip until the
-                        // Strata-side lift covers contract expressions.
+                        // `new` (and lambdas, which lower to `new <anon>()`)
+                        // produces a heap-allocating block. Strata lifts such
+                        // blocks out of bodies but not out of contract expressions,
+                        // where they reach Core unlowered ("block expression should
+                        // have been lowered"). Refuse until Strata lifts in contracts.
                         throw new JavaViolationException(
                                 "object allocation (including lambdas) inside a contract is not yet supported");
                     }
