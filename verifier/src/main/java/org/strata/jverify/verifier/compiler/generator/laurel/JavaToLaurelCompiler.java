@@ -26,12 +26,23 @@ import java.util.*;
 import static org.strata.jverify.laurel.Laurel.*;
 
 public class JavaToLaurelCompiler {
+    /// The name Laurel binds a procedure's return value to inside ensures
+    /// clauses. A 1-parameter postcondition lambda's parameter is renamed
+    /// to this so the clause refers to the return value correctly.
+    private static final String LAUREL_RESULT_BINDING = "result";
+
     private final JavaLowerer lowerer;
     private final MethodOrLoopContractCompiler contractCompiler;
     private final JVerifyUtils jverifyUtils;
     private final Reporter reporter;
     private final VerifyAnnotationCompiler annotationCompiler;
     JCTree.JCCompilationUnit currentCompilationUnit;
+
+    /// Names of class/record/sealed types referenced as opaque Laurel
+    /// CompositeType sorts during translation. Each must be declared with
+    /// a compositeCommand so Strata's resolver can find the sort; insertion
+    /// order is preserved for deterministic output.
+    private final Set<String> referencedCompositeTypes = new LinkedHashSet<>();
 
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
@@ -49,6 +60,7 @@ public class JavaToLaurelCompiler {
 
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
         boolean first = true;
+        Set<String> emittedCompositeTypes = new HashSet<>();
         for (var compilationUnit : loweredResult.parsed()) {
             if (lowerer.isContractSource(compilationUnit)) {
                 continue;
@@ -61,6 +73,15 @@ public class JavaToLaurelCompiler {
             if (first) {
                 commands.addAll(getPredefinedTypes());
                 first = false;
+            }
+            // Declare each opaque composite sort referenced so far that has
+            // not been declared yet, before the procedures that use it, so
+            // Strata's resolver can find the sort.
+            for (var typeName : referencedCompositeTypes) {
+                if (emittedCompositeTypes.add(typeName)) {
+                    commands.add(compositeCommand(
+                            composite(typeName, Optional.empty(), List.of(), List.of())));
+                }
             }
             for (var proc : visitor.procedures) {
                 commands.add(procedureCommand(proc));
@@ -153,12 +174,34 @@ public class JavaToLaurelCompiler {
      * no declaration is available.
      */
     private LaurelType translateType(com.sun.tools.javac.code.Type type, JCTree.JCModifiers modifiers) {
+        // Class / interface types (including sealed hierarchies and
+        // records): encode as an opaque Laurel CompositeType named
+        // after the source-side type. Strata treats unbound composite
+        // types as uninterpreted reference sorts, which is enough
+        // for parameter-position acceptance (e.g.
+        // `static void leftIdentityNone(PathLengthRange r)`).
+        // Body-level operations on the value (instanceof, pattern
+        // match, record-component reads, constructors) need
+        // additional translation that is NOT part of this commit;
+        // they will surface as separate convertExpression errors.
+        if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
+            String name = classType.tsym.getQualifiedName().toString();
+            // Use the fully-qualified name (with the `$` nested-class
+            // separator normalised to `.`) as the CompositeType sort
+            // name. Keeping the package makes the name stable and
+            // collision-free across two same-named classes in
+            // different packages.
+            String sortName = name.replace('$', '.');
+            referencedCompositeTypes.add(sortName);
+            return compositeType(sortName);
+        }
         // @Nat constrains the value to be a natural number (>= 0); @Unbounded drops the
         // fixed-width overflow bound and treats the value as a mathematical integer.
         boolean isNat = JVerifyUtils.isAnnotated(type, org.strata.jverify.Nat.class)
                 || JVerifyUtils.isAnnotated(modifiers, org.strata.jverify.Nat.class);
         boolean isUnbounded = JVerifyUtils.isAnnotated(type, org.strata.jverify.Unbounded.class)
                 || JVerifyUtils.isAnnotated(modifiers, org.strata.jverify.Unbounded.class);
+
         return switch (type.getTag()) {
             case INT -> integerType(isNat, isUnbounded, "int32", "nat31");
             case SHORT -> integerType(isNat, isUnbounded, "int16", "nat15");
@@ -184,7 +227,11 @@ public class JavaToLaurelCompiler {
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
-        return sym.outermostClass().name + "_" + sym.name;
+        // Use the outermost class's fully-qualified (package-included) name,
+        // sanitised like the CompositeType sort names ('$' -> '.'), so two
+        // same-named classes in different packages don't produce colliding
+        // procedure names.
+        return sym.outermostClass().getQualifiedName().toString().replace('$', '.') + "_" + sym.name;
     }
 
     private class StaticMethodCollector extends TreeScanner {
@@ -205,6 +252,7 @@ public class JavaToLaurelCompiler {
                 // Don't descend into nested loops — their break/continue don't target us
                 @Override public void visitWhileLoop(JCTree.JCWhileLoop tree) {}
                 @Override public void visitForLoop(JCTree.JCForLoop tree) {}
+                @Override public void visitDoLoop(JCTree.JCDoWhileLoop tree) {}
             });
             return found[0];
         }
@@ -290,13 +338,24 @@ public class JavaToLaurelCompiler {
             if (method.body != null) {
                 MethodOrLoopContract contract = contractCompiler.getContract(method.body);
                 for (var pre : contract.preconditions()) {
-                    requires.add(requiresClause(convertExpression(pre.get()), Optional.empty()));
+                    var preExpr = pre.get();
+                    StmtExpr converted = (preExpr instanceof JCTree.JCLambda lambda)
+                            ? convertLambdaBody(lambda, Map.of())
+                            : convertExpression(preExpr);
+                    requires.add(requiresClause(converted, Optional.empty()));
                 }
                 for (var post : contract.postconditions()) {
                     var postExpr = post.get();
-                    if (postExpr instanceof JCTree.JCLambda lambda && lambda.params.size() == 1) {
-                        var paramName = lambda.params.getFirst().name.toString();
-                        var renames = Map.of(paramName, "result");
+                    if (postExpr instanceof JCTree.JCLambda lambda) {
+                        // A 1-param postcondition lambda binds the return
+                        // value (renamed to Laurel's canonical
+                        // LAUREL_RESULT_BINDING); a 0-param lambda
+                        // (postcondition(BooleanSupplier), e.g. on a void
+                        // method) captures the enclosing scope directly and
+                        // needs no rename.
+                        Map<String, String> renames = lambda.params.size() == 1
+                                ? Map.of(lambda.params.getFirst().name.toString(), LAUREL_RESULT_BINDING)
+                                : Map.of();
                         ensures.add(ensuresClause(convertLambdaBody(lambda, renames), Optional.empty()));
                     } else {
                         ensures.add(ensuresClause(convertExpression(postExpr), Optional.empty()));
@@ -469,6 +528,38 @@ public class JavaToLaurelCompiler {
                                 breakLbl, continueLbl);
                     });
                 }
+                case JCTree.JCDoWhileLoop doWhile -> {
+                    // Desugar do-while using while(true) + exit(!cond):
+                    //   labelledBlock(breakLbl, [
+                    //     while (true) invariants:[I] {
+                    //       labelledBlock(continueLbl, [ body ]);
+                    //       if (!cond) exit(breakLbl);
+                    //     }
+                    //   ])
+                    // The exit(!cond) is OUTSIDE the continueLbl block so that
+                    // continue re-evaluates the condition (doesn't skip it).
+                    // Invariant is checked at while-entry before every iteration
+                    // including the first — no soundness gap as discussed in #418.
+                    var sr = toSourceRange(doWhile);
+                    // Do-while always needs labels: the desugaring itself uses exit(breakLbl)
+                    var breakLbl = freshLabel("loop_break");
+                    var continueLbl = freshLabel("loop_continue");
+                    var javaLabel = pendingLabel;
+                    pendingLabel = null;
+                    labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
+                    try {
+                        var cond = convertExpression(doWhile.cond, renames);
+                        var parts = extractLoopParts(doWhile.body, renames);
+                        var exitIfDone = ifThenElse(sr, not(sr, cond),
+                                exit(sr, breakLbl), Optional.empty());
+                        var wrappedBody = labelledBlock(sr, List.of(parts.body), continueLbl);
+                        var whileBody = block(sr, List.of(wrappedBody, exitIfDone));
+                        var whileNode = while_(sr, literalBool(sr, true), parts.invariants, whileBody);
+                        yield labelledBlock(sr, List.of(whileNode), breakLbl);
+                    } finally {
+                        labelStack.pop();
+                    }
+                }
                 case JCTree.JCBreak breakStmt -> {
                     yield exit(toSourceRange(breakStmt), resolveBreakLabel(breakStmt));
                 }
@@ -522,6 +613,22 @@ public class JavaToLaurelCompiler {
 
         private LoopParts extractLoopParts(JCTree.JCStatement body, Map<String, String> renames) {
             if (body instanceof JCTree.JCBlock loopBlock) {
+                // Only loops authored with an explicit invariant
+                // block (the contract-bearing shape produced by
+                // JVerify's contract authoring convention) have the
+                // structure getContract expects. Loop bodies
+                // without the wrapping contract block — including
+                // javac-synthesized while loops from enhanced-for
+                // desugaring — are processed as pure implementation
+                // statements with no invariants.
+                if (!MethodOrLoopContractCompiler.hasContractStructure(loopBlock)) {
+                    List<StmtExpr> stmts = new ArrayList<>();
+                    for (var s : loopBlock.getStatements()) {
+                        StmtExpr converted = convertStatement(s, renames);
+                        if (converted != null) stmts.add(converted);
+                    }
+                    return new LoopParts(List.of(), block(toSourceRange(loopBlock), stmts));
+                }
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
                 List<InvariantClause> invariants = new ArrayList<>();
                 for (var inv : loopContract.loopInvariants()) {
@@ -590,6 +697,54 @@ public class JavaToLaurelCompiler {
                 // expression's type.
                 case JCTree.JCFieldAccess fa when fa.type.constValue() != null ->
                     convertConstantValue(toSourceRange(fa), fa.type.getTag(), fa.type.constValue());
+                case JCTree.JCNewClass newClass -> {
+                    // `new T(...)` for class / record types: produce
+                    // a Laurel `new_(T)` value of the matching
+                    // CompositeType. Constructor arguments are NOT
+                    // captured into the resulting value yet — that
+                    // would need a Laurel datatype declaration with
+                    // constructor args matching the source. For
+                    // verification of identity-style properties
+                    // that compare references (e.g. `cover(None, r)
+                    // == r`) the opaque value is sufficient. Body-
+                    // level inspection of record components will
+                    // still error until the datatype encoding
+                    // lands.
+                    SourceRange sr = toSourceRange(newClass);
+                    String name = newClass.type.tsym
+                            .getQualifiedName().toString()
+                            .replace('$', '.');
+                    // Declare the opaque composite sort even when the type
+                    // appears only here (in `new T(...)`) and never in a
+                    // type position, so the new_(T) value resolves.
+                    referencedCompositeTypes.add(name);
+                    // Translate each argument so unsupported argument
+                    // expressions still surface as errors, but DISCARD
+                    // the result: the opaque new_(T) value models only
+                    // the reference identity, not the constructor's
+                    // arguments or their side effects. Capturing those
+                    // needs a Laurel datatype encoding and expression
+                    // sequencing (let/temporaries), which is future
+                    // work.
+                    for (var arg : newClass.args) {
+                        convertExpression(arg, renames);
+                    }
+                    yield new_(sr, name);
+                }
+                case JCTree.JCInstanceOf instanceOf -> {
+                    // `r instanceof X`: the opaque-CompositeType
+                    // encoding carries no runtime tag, so the test
+                    // cannot be modelled precisely yet. Fail with a
+                    // clear, attributable error rather than emitting an
+                    // undeclared `instanceOf_<X>` predicate symbol
+                    // (which would surface only as a confusing
+                    // downstream "Resolution failed" message, and whose
+                    // simple-name form could even collide across
+                    // packages). A precise encoding needs a tagged
+                    // datatype representation; future work.
+                    throw new JavaViolationException(
+                        "instanceof on opaque reference types is not yet supported");
+                }
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
         }
