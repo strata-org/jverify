@@ -5,8 +5,10 @@ JVerify can currently only be used by building it from source.
 ## Prerequisites
 
 1. **Java 23.** If you have a different default Java version installed, pass `-Dorg.gradle.java.home=path-to-java-23` to the gradle commands below.
-2. **[Lean 4](https://lean-lang.org/)** (via `elan`) — needed to build the [Strata](https://github.com/strata-org/Strata) verification back-end.
-3. **[cvc5](https://cvc5.github.io/)** SMT solver on your `PATH`.
+2. **Java 17.** Required by the subprojects library, common, and javac-plugin.
+3. **[Lean 4](https://lean-lang.org/)** (via `elan`) — needed to build the [Strata](https://github.com/strata-org/Strata) verification back-end.
+4. **[cvc5](https://cvc5.github.io/)** SMT solver on your `PATH`.
+5. **[z3](https://github.com/Z3Prover/z3)** SMT solver (v4.15.2 recommended) on your `PATH`. 
 
 ## Building
 
@@ -20,12 +22,15 @@ JVerify can currently only be used by building it from source.
    ./gradlew installDist     # macOS / Linux
    ./gradlew.bat installDist # Windows
    ```
-4. Build the Strata back-end:
+4. Build the Strata back-end. The `strata` command-line executable lives in the `StrataCLI`
+   sub-package, so build from there (this also builds the `Strata` library it depends on):
    ```
-   cd Strata && lake build && cd ..
+   cd Strata/StrataCLI && lake build && cd ../..
    ```
 5. Point JVerify at the Strata project directory by setting the `JVERIFY_STRATA` environment variable:
    ```
    export JVERIFY_STRATA=$(pwd)/Strata
    ```
-   (or pass `--strata /path/to/Strata` on every JVerify invocation).
+   (or pass `--strata /path/to/Strata` on every JVerify invocation). This is the Strata
+   repository root, *not* the `StrataCLI` sub-directory — JVerify locates the `strata`
+   executable under `StrataCLI` itself.

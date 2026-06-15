@@ -215,6 +215,13 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
                 null
         );
         result.sym = methodSymbol;
+        // Without setting result.type, javac's Lower.visitMethodDef
+        // (Lower.java:2664) NPEs on tree.type.getReturnType() when
+        // walking the synthetic anonymous class.
+        // createImplementationMethod sets it for the SAM method; mirror
+        // that here for the synthetic constructor so both methods of the
+        // lambda's anonymous class survive Lower.
+        result.type = methodSymbol.type;
         return result;
     }
 
