@@ -604,6 +604,10 @@ public class JavaToLaurelCompiler {
                 // composite sort is declared via translateType. This is the
                 // static-call-with-self encoding (see PLAN.md §1): instance
                 // calls become Laurel .StaticCall, never .InstanceCall/.This.
+                // TODO(strata-gap-1): static-call-with-self encoding of instance methods.
+                // When strata-org/Strata#1172 lands, emit native instance procedures /
+                // .InstanceCall (obj#method) instead of the synthesized `self` parameter.
+                // See PLAN.md §12.
                 referencedCompositeTypes.add(
                         method.sym.enclClass().getQualifiedName().toString().replace('$', '.'));
                 params.add(parameter("self", translateType(method.sym.enclClass().type)));
@@ -712,6 +716,11 @@ public class JavaToLaurelCompiler {
             // not yet supported"), so such a pure method is emitted as an opaque
             // procedure too.
             // modifies is always empty: jverify doesn't yet emit modifies clauses.
+            // TODO(strata-gap-2): @Pure methods with postconditions / constrained
+            // returns are emitted as opaque procedures rather than functions.
+            // When strata-org/Strata#1173 lands (or functions are removed per
+            // #1352), drop the constrained-return and ensures carve-outs and let
+            // pure methods stay transparent functions. See PLAN.md §12.
             boolean canStayTransparent = isPure && ensures.isEmpty()
                     && !hasConstrainedReturn(method);
             Optional<OpaqueSpec> optSpec = canStayTransparent
@@ -1097,8 +1106,13 @@ public class JavaToLaurelCompiler {
                         // argument (static-call-with-self encoding). Refuse
                         // polymorphic dispatch — a call through a supertype
                         // reference whose target overrides — since static
-                        // mangling would route to the wrong implementation
-                        // (tracked by Strata #1174).
+                        // mangling would route to the wrong implementation.
+                        // TODO(strata-gap-1): receiver-prepended .StaticCall for instance calls.
+                        // When strata-org/Strata#1172 lands, emit obj#method (.InstanceCall)
+                        // and drop the receiver-as-first-arg rewrite. See PLAN.md §12.
+                        // TODO(strata-gap-3): polymorphic-dispatch refusal.
+                        // When strata-org/Strata#1174 lands, remove refuseIfPolymorphicDispatch
+                        // and dispatch on the receiver's runtime type. See PLAN.md §12.
                         refuseIfPolymorphicDispatch(methodSym);
                         args.add(receiverSelf(invocation.getMethodSelect(), renames));
                     }
