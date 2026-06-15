@@ -6,6 +6,7 @@ import org.strata.jverify.verifier.VerifierOptions;
 import org.strata.jverify.verifier.compiler.JavaViolationException;
 import org.strata.jverify.verifier.compiler.Reporter;
 import org.strata.jverify.verifier.compiler.frontend.JavaLowerer;
+import org.strata.jverify.verifier.compiler.frontend.JVerifyIndex;
 import org.strata.jverify.verifier.compiler.simplifications.JVerifyUtils;
 import org.strata.jverify.verifier.compiler.simplifications.MethodOrLoopContract;
 import org.strata.jverify.verifier.compiler.simplifications.MethodOrLoopContractCompiler;
@@ -40,7 +41,7 @@ public class JavaToLaurelCompiler {
     private final JVerifyUtils jverifyUtils;
     private final Reporter reporter;
     private final VerifyAnnotationCompiler annotationCompiler;
-    private final org.strata.jverify.verifier.compiler.frontend.JVerifyIndex index;
+    private final JVerifyIndex index;
     JCTree.JCCompilationUnit currentCompilationUnit;
 
     /// Names of class/record/sealed types referenced as opaque Laurel
@@ -55,7 +56,7 @@ public class JavaToLaurelCompiler {
         jverifyUtils = JVerifyUtils.instance(context);
         reporter = Reporter.instance(context);
         annotationCompiler = VerifyAnnotationCompiler.instance(context);
-        index = org.strata.jverify.verifier.compiler.frontend.JVerifyIndex.instance(context);
+        index = JVerifyIndex.instance(context);
     }
 
     public record AnalysisResult(List<LaurelFile> files, FilesMap filesMap) {}
@@ -109,7 +110,7 @@ public class JavaToLaurelCompiler {
                     if (hasMissingCallee) {
                         it.remove();
                         emittedNames.remove(ep.mangledName());
-                        boolean isStatic = (ep.methodDecl().mods.flags & Flags.STATIC) != 0;
+                        boolean isStatic = isStatic(ep.methodDecl());
                         annotationCompiler.markSkipped(ep.compilationUnit(), ep.methodDecl());
                         if (isStatic) {
                             reporter.reportError(ep.methodDecl(), "translatorError",
@@ -364,6 +365,10 @@ public class JavaToLaurelCompiler {
      * field access against the enclosing composite, which carries no fields yet
      * (Step 8a). Static fields and compile-time constants are handled elsewhere.
      */
+    private static boolean isStatic(JCTree.JCMethodDecl method) {
+        return (method.mods.flags & Flags.STATIC) != 0;
+    }
+
     private static boolean isNonConstantInstanceField(Symbol sym) {
         return sym instanceof Symbol.VarSymbol varSym
                 && varSym.getKind() == javax.lang.model.element.ElementKind.FIELD
@@ -379,7 +384,7 @@ public class JavaToLaurelCompiler {
      * or an unsound empty-modifies frame. Declared as returning {@link StmtExpr}
      * so it can stand in expression position; it always throws.
      */
-    private static StmtExpr refuseFieldAccess(SourceRange sr) {
+    private static StmtExpr refuseFieldAccess() {
         throw new JavaViolationException(
                 "instance field access is not yet supported");
     }
@@ -528,7 +533,7 @@ public class JavaToLaurelCompiler {
                     // unaffected.
                     || annotationCompiler.isSkipped(currentCompilationUnit, method);
             if (!skip) {
-                boolean isStatic = (method.mods.flags & Flags.STATIC) != 0;
+                boolean methodIsStatic = isStatic(method);
                 try {
                     translateMethod(method);
                 } catch (JavaViolationException e) {
@@ -542,7 +547,7 @@ public class JavaToLaurelCompiler {
                     // be noise here — per-construct instance-method diagnostics are
                     // Step 6's job. Static methods keep reporting, preserving the
                     // #398 graceful-skip-with-diagnostic behaviour.
-                    if (isStatic) {
+                    if (methodIsStatic) {
                         reporter.reportError(method, "translatorError", e.getMessage());
                     }
                 }
@@ -551,7 +556,7 @@ public class JavaToLaurelCompiler {
         }
 
         private void translateMethod(JCTree.JCMethodDecl method) {
-            boolean isStatic = (method.mods.flags & Flags.STATIC) != 0;
+            boolean methodIsStatic = isStatic(method);
 
             // Collect the user-method callees referenced while translating this
             // body, for the transitive-emittability fixpoint (see analyzeJavaCode).
@@ -563,7 +568,7 @@ public class JavaToLaurelCompiler {
             String methodName = qualifiedMethodName(method.sym);
 
             List<Parameter> params = new ArrayList<>();
-            if (!isStatic) {
+            if (!methodIsStatic) {
                 // Instance methods take the receiver as an explicit first
                 // parameter named `self`. The enclosing class's opaque
                 // composite sort is declared via translateType. This is the
@@ -939,8 +944,20 @@ public class JavaToLaurelCompiler {
                 }
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
                 List<InvariantClause> invariants = new ArrayList<>();
-                for (var inv : loopContract.loopInvariants()) {
-                    invariants.add(invariantClause(toSourceRange(inv.get()), convertExpression(inv.get(), renames)));
+                // A loop invariant is a contract expression, like a pre/postcondition:
+                // an object allocation (or lambda) in it would leak an un-lowered
+                // `new_` block that Strata can't lift out of contract position. Mark
+                // the context so such allocations are refused gracefully here too.
+                boolean savedContractContext = inContractContext;
+                inContractContext = true;
+                try {
+                    for (var inv : loopContract.loopInvariants()) {
+                        // Thread the invariant's source range (see #439) so a
+                        // Strata diagnostic points at the user's invariant() call.
+                        invariants.add(invariantClause(toSourceRange(inv.get()), convertExpression(inv.get(), renames)));
+                    }
+                } finally {
+                    inContractContext = savedContractContext;
                 }
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
                 List<StmtExpr> stmts = new ArrayList<>();
@@ -966,6 +983,19 @@ public class JavaToLaurelCompiler {
                 if (selected instanceof JCTree.JCIdent ident
                         && ident.name == ident.name.table.names._super) {
                     throw new JavaViolationException("super call — not yet supported");
+                }
+                // A `new T(...)` receiver (`new T().m()`) converts to an opaque
+                // `new_(T)` value, which has no procedure-typed shape to pass as
+                // `self`; emitting the call anyway makes Strata fail to unify the
+                // argument. Refuse for a graceful skip until constructor-allocated
+                // values can be captured into a temporary (Step 8a).
+                var unwrapped = selected;
+                while (unwrapped instanceof JCTree.JCParens parens) {
+                    unwrapped = parens.expr;
+                }
+                if (unwrapped instanceof JCTree.JCNewClass) {
+                    throw new JavaViolationException(
+                            "method call on a freshly-allocated receiver is not yet supported");
                 }
                 return convertExpression(selected, renames);
             }
@@ -1008,7 +1038,7 @@ public class JavaToLaurelCompiler {
                     // would need a `self#x` field read against the composite,
                     // which carries no fields yet (Step 8a). Refuse so it
                     // surfaces as a graceful skip rather than an unresolved name.
-                    refuseFieldAccess(toSourceRange(ident));
+                    refuseFieldAccess();
                 case JCTree.JCIdent ident -> {
                     String name = ident.name.toString();
                     yield identifier(toSourceRange(ident), renames.getOrDefault(name, name));
@@ -1084,7 +1114,7 @@ public class JavaToLaurelCompiler {
                     // `this.x` / `obj.x` instance-field read: needs a `self#x`
                     // field access against a composite that carries fields,
                     // which lands in Step 8a. Refuse for now (graceful skip).
-                    refuseFieldAccess(toSourceRange(fa));
+                    refuseFieldAccess();
                 case JCTree.JCNewClass newClass -> {
                     // `new T(...)` for class / record types: produce
                     // a Laurel `new_(T)` value of the matching
