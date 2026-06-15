@@ -92,10 +92,44 @@ public class JavaToLaurelCompiler {
         // undefined too, so iterate to a fixpoint. Dropped methods are demoted
         // to Skipped (silently for instance methods — see visitMethodDef) so the
         // count stays honest.
-        var emittedNames = new HashSet<String>();
+        // First drop methods whose mangled name collides with another method's
+        // (e.g. cross-package or adversarial nested-class names the flat
+        // Class_method scheme can't disambiguate). Emitting both would produce a
+        // duplicate Laurel symbol that Strata rejects abnormally; skip every
+        // method in a colliding group. Done before the fixpoint so that callers
+        // of a dropped colliding method are then transitively dropped too.
+        var byMangledName = new HashMap<String, List<EmittedProcedure>>();
         for (var procs : proceduresPerUnit.values()) {
             for (var ep : procs) {
-                emittedNames.add(ep.mangledName());
+                byMangledName.computeIfAbsent(ep.mangledName(), k -> new ArrayList<>()).add(ep);
+            }
+        }
+        var collisions = new HashSet<EmittedProcedure>();
+        for (var group : byMangledName.values()) {
+            if (group.size() > 1) {
+                for (var ep : group) {
+                    collisions.add(ep);
+                    if (isStatic(ep.methodDecl())) {
+                        reporter.reportError(ep.methodDecl(), "translatorError",
+                                "method name '" + ep.mangledName()
+                                        + "' collides with another method after name mangling");
+                    }
+                    annotationCompiler.markSkipped(ep.compilationUnit(), ep.methodDecl());
+                }
+            }
+        }
+        for (var procs : proceduresPerUnit.values()) {
+            procs.removeAll(collisions);
+        }
+
+        // Transitive-emittability fixpoint, keyed on method-symbol identity (not
+        // the mangled name, so collisions handled above don't alias here): a
+        // procedure can only be emitted if every user method it calls is also
+        // emitted. Dropping one can undefine its callers, so iterate to a fixpoint.
+        var emittedSymbols = new HashSet<Symbol.MethodSymbol>();
+        for (var procs : proceduresPerUnit.values()) {
+            for (var ep : procs) {
+                emittedSymbols.add(ep.methodDecl().sym);
             }
         }
         boolean changed = true;
@@ -105,17 +139,16 @@ public class JavaToLaurelCompiler {
                 var it = procs.iterator();
                 while (it.hasNext()) {
                     var ep = it.next();
-                    boolean hasMissingCallee = ep.referencedCalleeNames().stream()
-                            .anyMatch(name -> !emittedNames.contains(name));
+                    boolean hasMissingCallee = ep.referencedCallees().stream()
+                            .anyMatch(callee -> !emittedSymbols.contains(callee));
                     if (hasMissingCallee) {
                         it.remove();
-                        emittedNames.remove(ep.mangledName());
-                        boolean isStatic = isStatic(ep.methodDecl());
-                        annotationCompiler.markSkipped(ep.compilationUnit(), ep.methodDecl());
-                        if (isStatic) {
+                        emittedSymbols.remove(ep.methodDecl().sym);
+                        if (isStatic(ep.methodDecl())) {
                             reporter.reportError(ep.methodDecl(), "translatorError",
                                     "call to a method that could not be translated");
                         }
+                        annotationCompiler.markSkipped(ep.compilationUnit(), ep.methodDecl());
                         changed = true;
                     }
                 }
@@ -407,20 +440,23 @@ public class JavaToLaurelCompiler {
 
     /**
      * A translated procedure together with the bookkeeping needed for the
-     * transitive-emittability fixpoint: the source method (to demote to Skipped
-     * if dropped), its own mangled name, and the mangled names of the user
-     * methods its body calls. If any referenced callee is not ultimately
-     * emitted, this procedure must be dropped too (else Strata reports an
-     * unresolved name), which may cascade to its own callers.
+     * transitive-emittability fixpoint: the source method (its symbol is the
+     * stable identity used for dropping; the decl is needed to demote it to
+     * Skipped), its emitted Laurel name, and the symbols of the user methods
+     * its body calls. If any referenced callee is not ultimately emitted, this
+     * procedure must be dropped too (else Strata reports an unresolved name),
+     * which may cascade to its own callers. The callee set is keyed on method
+     * symbols, not mangled names, so two distinct methods that happen to mangle
+     * to the same Laurel name don't alias each other in the fixpoint.
      */
     record EmittedProcedure(Procedure procedure, JCTree.JCMethodDecl methodDecl,
                             JCTree.JCCompilationUnit compilationUnit,
-                            String mangledName, Set<String> referencedCalleeNames) {}
+                            String mangledName, Set<Symbol.MethodSymbol> referencedCallees) {}
 
     private class StaticMethodCollector extends TreeScanner {
         final List<EmittedProcedure> procedures = new ArrayList<>();
         /** Callee mangled names referenced by the method currently being translated. */
-        private Set<String> currentReferencedCallees = null;
+        private Set<Symbol.MethodSymbol> currentReferencedCallees = null;
         /** True while converting a requires/ensures expression (contract context). */
         private boolean inContractContext = false;
         private int labelCounter = 0;
@@ -1082,7 +1118,7 @@ public class JavaToLaurelCompiler {
                     if (currentReferencedCallees != null
                             && index.getTree(methodSym) != null
                             && !methodSym.enclClass().getQualifiedName().isEmpty()) {
-                        currentReferencedCallees.add(calleeName);
+                        currentReferencedCallees.add(methodSym);
                     }
                     for (var arg : invocation.args) {
                         args.add(convertExpression(arg, renames));
