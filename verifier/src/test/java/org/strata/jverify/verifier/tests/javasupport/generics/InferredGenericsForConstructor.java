@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.javasupport.generics;
 
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(methodsVerified = 6, errorCount = 0)
+@JVerifyTest(methodsVerified = 4, errorCount = 0)
 public class InferredGenericsForConstructor {
     record Value() {}
     static class GenericClass<T> {

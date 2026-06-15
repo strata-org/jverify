@@ -9,7 +9,7 @@ import static org.strata.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(methodsVerified = 2, errorCount = 0)
+@JVerifyTest(methodsVerified = 1, errorCount = 0)
 class ImpureNumericOperatorsVerification {
     public int foo() {
         var l = 3;

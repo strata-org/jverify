@@ -7,7 +7,7 @@ import java.util.function.IntPredicate;
 
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(methodsVerified = 26, errorCount = 0)
+@JVerifyTest(methodsVerified = 23, errorCount = 0)
 public class AvoidNameCollisionsTest {
 
     void set(int set, int r_set) {}

@@ -240,6 +240,30 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     }
 
     /**
+     * Whether the given method was recorded as {@code Skipped} (e.g. via
+     * {@code @Verify(false)}). Such methods are opted out of verification: their
+     * body has already been stripped, so JavaToLaurelCompiler should not emit a
+     * procedure shell for them (which would otherwise hit Strata limits such as
+     * constrained return types on bodiless functions).
+     *
+     * Returns false when the method has no recorded entry (synthetic / no-body
+     * methods), matching {@link #markSkipped}'s no-entry semantics.
+     */
+    public boolean isSkipped(JCTree.JCCompilationUnit compilationUnit, JCTree.JCMethodDecl methodDecl) {
+        var uriStatuses = methodStatusPerUri.get(compilationUnit.getSourceFile().toUri());
+        if (uriStatuses == null) {
+            return false;
+        }
+        return uriStatuses.streamNodes()
+                .map(node -> node.getValue())
+                .filter(status -> status.getMethodTree() == methodDecl)
+                .findFirst()
+                .map(status -> status.getVerificationStatus()
+                        == JavaMethodVerificationStatus.VerificationStatus.Skipped)
+                .orElse(false);
+    }
+
+    /**
      * Demote a method's entry from Verified to Skipped. Called by
      * JavaToLaurelCompiler when per-method translation throws
      * JavaViolationException, so the driver doesn't report the method as

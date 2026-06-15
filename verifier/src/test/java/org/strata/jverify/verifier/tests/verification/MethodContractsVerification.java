@@ -10,7 +10,7 @@ import java.util.function.IntPredicate;
 import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(methodsVerified = 11, errorCount = 0)
+@JVerifyTest(methodsVerified = 8, errorCount = 0)
 public class MethodContractsVerification {
 
     private int y;
