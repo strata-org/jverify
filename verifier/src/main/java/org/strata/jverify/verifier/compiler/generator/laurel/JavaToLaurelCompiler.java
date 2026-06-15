@@ -382,7 +382,7 @@ public class JavaToLaurelCompiler {
                 }
                 case JCTree.JCReturn retStmt -> {
                     if (retStmt.expr != null) {
-                        yield return_(toSourceRange(retStmt), convertExpression(retStmt.expr));
+                        yield return_(toSourceRange(retStmt), Optional.of(convertExpression(retStmt.expr)));
                     }
                     yield null;
                 }

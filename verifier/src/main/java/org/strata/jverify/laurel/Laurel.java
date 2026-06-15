@@ -40,6 +40,9 @@ public class Laurel {
     public static StmtExpr string(SourceRange sourceRange, java.lang.String s) { return new StmtExpr.String_(sourceRange, s); }
     public static StmtExpr string(java.lang.String s) { return new StmtExpr.String_(SourceRange.NONE, s); }
 
+    public static StmtExpr bvLiteral(SourceRange sourceRange, long value, long width) { if (value < 0) throw new IllegalArgumentException("value must be non-negative"); if (width < 0) throw new IllegalArgumentException("width must be non-negative"); return new StmtExpr.BvLiteral(sourceRange, java.math.BigInteger.valueOf(value), java.math.BigInteger.valueOf(width)); }
+    public static StmtExpr bvLiteral(long value, long width) { if (value < 0) throw new IllegalArgumentException("value must be non-negative"); if (width < 0) throw new IllegalArgumentException("width must be non-negative"); return new StmtExpr.BvLiteral(SourceRange.NONE, java.math.BigInteger.valueOf(value), java.math.BigInteger.valueOf(width)); }
+
     public static StmtExpr hole(SourceRange sourceRange) { return new StmtExpr.Hole(sourceRange); }
     public static StmtExpr hole() { return new StmtExpr.Hole(SourceRange.NONE); }
 
@@ -184,8 +187,8 @@ public class Laurel {
     public static StmtExpr assume(SourceRange sourceRange, StmtExpr cond) { return new StmtExpr.Assume(sourceRange, cond); }
     public static StmtExpr assume(StmtExpr cond) { return new StmtExpr.Assume(SourceRange.NONE, cond); }
 
-    public static StmtExpr return_(SourceRange sourceRange, StmtExpr value) { return new StmtExpr.Return(sourceRange, value); }
-    public static StmtExpr return_(StmtExpr value) { return new StmtExpr.Return(SourceRange.NONE, value); }
+    public static StmtExpr return_(SourceRange sourceRange, java.util.Optional<StmtExpr> value) { return new StmtExpr.Return(sourceRange, value); }
+    public static StmtExpr return_(java.util.Optional<StmtExpr> value) { return new StmtExpr.Return(SourceRange.NONE, value); }
 
     public static StmtExpr block(SourceRange sourceRange, java.util.List<StmtExpr> stmts) { return new StmtExpr.Block(sourceRange, stmts); }
     public static StmtExpr block(java.util.List<StmtExpr> stmts) { return new StmtExpr.Block(SourceRange.NONE, stmts); }
