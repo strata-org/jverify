@@ -102,6 +102,7 @@ public class JavaToLaurelCompiler {
                 for (var ep : group) {
                     collisions.add(ep);
                     if (isStatic(ep.methodDecl())) {
+                        reporter.compilationUnit = ep.compilationUnit();
                         reporter.reportError(ep.methodDecl(), "translatorError",
                                 "method name '" + ep.mangledName()
                                         + "' collides with another method after name mangling");
@@ -137,6 +138,7 @@ public class JavaToLaurelCompiler {
                         it.remove();
                         emittedSymbols.remove(ep.methodDecl().sym);
                         if (isStatic(ep.methodDecl())) {
+                            reporter.compilationUnit = ep.compilationUnit();
                             reporter.reportError(ep.methodDecl(), "translatorError",
                                     "call to a method that could not be translated");
                         }
@@ -1012,22 +1014,26 @@ public class JavaToLaurelCompiler {
         }
 
         /**
-         * Refuse a call that requires virtual dispatch on a polymorphic receiver.
-         * When the resolved method overrides a supertype method, static
-         * {@code Class_method} mangling routes to the static-type declarer rather
-         * than the runtime target, which is unsound for calls through a supertype
-         * reference. Tracked by Strata #1174; refuse until dispatch lands.
+         * Refuse a call unless it is provably monomorphic. Static
+         * {@code Class_method} mangling resolves a call against the receiver's
+         * STATIC type, so any call that could dispatch to an override at runtime
+         * (the receiver holds a subtype) would verify against the wrong contract —
+         * JVerify enforces no behavioural subtyping. Refuse such calls until
+         * runtime dispatch lands (Strata#1174).
          *
-         * A call cannot dispatch polymorphically — so is safe — when the callee
-         * or its enclosing class is {@code final} or the method is {@code private}
-         * (e.g. {@code String.length()} on the final class String can only ever
-         * resolve to one implementation). Don't refuse those.
+         * A call cannot dispatch polymorphically — so is safe — only when the
+         * callee is {@code final}/{@code private} or its enclosing class is
+         * {@code final} (e.g. {@code String.length()}): then no override can
+         * exist. Note this must NOT be keyed on whether the callee itself
+         * overrides a supertype — the unsound case is a non-overriding method
+         * that IS overridden by a subtype, reached through a supertype-typed
+         * reference.
          */
         private void refuseIfPolymorphicDispatch(Symbol.MethodSymbol methodSym) {
             long flags = methodSym.flags();
             boolean cannotDispatch = (flags & (Flags.FINAL | Flags.PRIVATE)) != 0
                     || (methodSym.enclClass().flags() & Flags.FINAL) != 0;
-            if (!cannotDispatch && jverifyUtils.getBase(methodSym) != null) {
+            if (!cannotDispatch) {
                 throw new JavaViolationException(
                         "polymorphic dispatch through interface/superclass is not yet supported");
             }
@@ -1071,14 +1077,20 @@ public class JavaToLaurelCompiler {
                     List<StmtExpr> args = new ArrayList<>();
                     if (!calleeStatic) {
                         // Instance call: prepend the receiver as the `self`
-                        // argument. Refuse polymorphic dispatch, since static
-                        // mangling would route a supertype-typed call to the
-                        // wrong override.
+                        // argument. Compute the receiver first so its own
+                        // refusals (super-call, freshly-allocated receiver) win
+                        // when they apply — those name the precise unsupported
+                        // shape, whereas the polymorphic-dispatch refusal is the
+                        // general fallback for any non-monomorphic call. Then
+                        // refuse polymorphic dispatch, since static mangling
+                        // would route a supertype-typed call to the wrong
+                        // override.
                         // TODO(strata-gap-1): emit obj#method when Strata#1172 lands.
                         // TODO(strata-gap-3): drop this refusal when Strata#1174
                         // adds runtime dispatch.
+                        var selfArg = receiverSelf(invocation.getMethodSelect(), renames);
                         refuseIfPolymorphicDispatch(methodSym);
-                        args.add(receiverSelf(invocation.getMethodSelect(), renames));
+                        args.add(selfArg);
                     }
                     String calleeName = qualifiedMethodName(methodSym);
                     // Record calls to user methods we emit (have a source tree,

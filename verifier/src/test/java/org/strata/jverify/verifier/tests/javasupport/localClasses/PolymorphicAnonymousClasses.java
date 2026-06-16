@@ -5,7 +5,7 @@ import org.strata.jverify.ContractException;
 import org.strata.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("Convert2Lambda")
-@JVerifyTest(methodsVerified = 28, errorCount = 0)
+@JVerifyTest(methodsVerified = 25, methodsSkipped = 3, errorCount = 0)
 public class PolymorphicAnonymousClasses {
 
     void capturedGenericType(MyConsumer<Anything> consumer, Anything anything) {
