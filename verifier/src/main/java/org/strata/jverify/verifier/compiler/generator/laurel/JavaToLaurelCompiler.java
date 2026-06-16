@@ -430,15 +430,11 @@ public class JavaToLaurelCompiler {
     }
 
     /**
-     * A translated procedure together with the bookkeeping needed for the
-     * transitive-emittability fixpoint: the source method (its symbol is the
-     * stable identity used for dropping; the decl is needed to demote it to
-     * Skipped), its emitted Laurel name, and the symbols of the user methods
-     * its body calls. If any referenced callee is not ultimately emitted, this
-     * procedure must be dropped too (else Strata reports an unresolved name),
-     * which may cascade to its own callers. The callee set is keyed on method
-     * symbols, not mangled names, so two distinct methods that happen to mangle
-     * to the same Laurel name don't alias each other in the fixpoint.
+     * A translated procedure plus the bookkeeping the emittability fixpoint
+     * needs: the source method/decl (to demote to Skipped if dropped), the
+     * emitted Laurel name, and the symbols of the user methods it calls. Callees
+     * are keyed by symbol, not mangled name, so two methods mangling alike don't
+     * alias in the fixpoint.
      */
     record EmittedProcedure(Procedure procedure, JCTree.JCMethodDecl methodDecl,
                             JCTree.JCCompilationUnit compilationUnit,
@@ -446,7 +442,7 @@ public class JavaToLaurelCompiler {
 
     private class StaticMethodCollector extends TreeScanner {
         final List<EmittedProcedure> procedures = new ArrayList<>();
-        /** Callee mangled names referenced by the method currently being translated. */
+        /** User-method callees referenced by the method currently being translated. */
         private Set<Symbol.MethodSymbol> currentReferencedCallees = null;
         /** True while converting a requires/ensures expression (contract context). */
         private boolean inContractContext = false;
@@ -1014,20 +1010,16 @@ public class JavaToLaurelCompiler {
         }
 
         /**
-         * Refuse a call unless it is provably monomorphic. Static
-         * {@code Class_method} mangling resolves a call against the receiver's
-         * STATIC type, so any call that could dispatch to an override at runtime
-         * (the receiver holds a subtype) would verify against the wrong contract —
-         * JVerify enforces no behavioural subtyping. Refuse such calls until
-         * runtime dispatch lands (Strata#1174).
+         * Refuse a call unless provably monomorphic. {@code Class_method} mangling
+         * resolves against the receiver's STATIC type, so a call that dispatches to
+         * an override at runtime would verify against the wrong contract (JVerify
+         * has no behavioural subtyping). Safe only when no override can exist:
+         * callee {@code final}/{@code private} or enclosing class {@code final}
+         * (e.g. {@code String.length()}). Refuse until dispatch lands (Strata#1174).
          *
-         * A call cannot dispatch polymorphically — so is safe — only when the
-         * callee is {@code final}/{@code private} or its enclosing class is
-         * {@code final} (e.g. {@code String.length()}): then no override can
-         * exist. Note this must NOT be keyed on whether the callee itself
-         * overrides a supertype — the unsound case is a non-overriding method
-         * that IS overridden by a subtype, reached through a supertype-typed
-         * reference.
+         * Must NOT be keyed on whether the callee itself overrides a supertype —
+         * the unsound case is a non-overriding method that IS overridden by a
+         * subtype, reached through a supertype-typed reference.
          */
         private void refuseIfPolymorphicDispatch(Symbol.MethodSymbol methodSym) {
             long flags = methodSym.flags();
