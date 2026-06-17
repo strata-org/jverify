@@ -157,6 +157,7 @@ class IncrementDecrement {
 
     static int doubleIt(int n) {
         precondition(n >= 0 && n <= 100);
+        postcondition((int r) -> r == n * 2);
         return n * 2;
     }
 
@@ -165,6 +166,7 @@ class IncrementDecrement {
         // doubleIt(x++) passes the OLD x (3); x becomes 4 after.
         int r = doubleIt(x++);
         check(x == 4);
+        check(r == 6);
     }
 
     static void preIncrementAsFunctionArgument() {
@@ -172,5 +174,6 @@ class IncrementDecrement {
         // doubleIt(++x) passes the NEW x (4); x becomes 4 after.
         int r = doubleIt(++x);
         check(x == 4);
+        check(r == 8);
     }
 }
