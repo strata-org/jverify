@@ -659,6 +659,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCUnary unary -> convertUnary(unary, renames);
                 case JCTree.JCAssign asgn ->
                         assign(toSourceRange(asgn), convertExpression(asgn.lhs, renames), convertExpression(asgn.rhs, renames));
+                case JCTree.JCAssignOp assignOp -> convertCompoundAssign(assignOp, renames);
                 case JCTree.JCConditional cond ->
                         ifThenElse(toSourceRange(cond), convertExpression(cond.cond, renames),
                                 convertExpression(cond.truepart, renames),
@@ -793,8 +794,26 @@ public class JavaToLaurelCompiler {
             return switch (unary.getTag()) {
                 case NOT -> not(sr, inner);
                 case NEG -> neg(sr, inner);
+                case POS -> inner;
+                case PREINC, POSTINC -> assign(sr, inner, add(sr, convertExpression(unary.arg, renames), longLiteral(sr, 1)));
+                case PREDEC, POSTDEC -> assign(sr, inner, sub(sr, convertExpression(unary.arg, renames), longLiteral(sr, 1)));
                 default -> throw new JavaViolationException("Unsupported unary op: " + unary.getTag());
             };
+        }
+
+        private StmtExpr convertCompoundAssign(JCTree.JCAssignOp assignOp, Map<String, String> renames) {
+            StmtExpr lhs = convertExpression(assignOp.lhs, renames);
+            StmtExpr rhs = convertExpression(assignOp.rhs, renames);
+            SourceRange sr = toSourceRange(assignOp);
+            StmtExpr value = switch (assignOp.getTag()) {
+                case PLUS_ASG -> add(sr, lhs, rhs);
+                case MINUS_ASG -> sub(sr, lhs, rhs);
+                case MUL_ASG -> mul(sr, lhs, rhs);
+                case DIV_ASG -> divT(sr, lhs, rhs);
+                case MOD_ASG -> modT(sr, lhs, rhs);
+                default -> throw new JavaViolationException("Unsupported compound assignment op: " + assignOp.getTag());
+            };
+            return assign(sr, convertExpression(assignOp.lhs, renames), value);
         }
 
         private StmtExpr convertJVerifyCall(JCTree.JCMethodInvocation invocation,

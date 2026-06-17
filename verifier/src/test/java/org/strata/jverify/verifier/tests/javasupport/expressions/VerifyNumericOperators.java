@@ -9,9 +9,9 @@ import static org.strata.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 1, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 1, errorCount = 1)
 class VerifyNumericOperators {
-    public void foo() {
+    static void foo() {
         var l = 3L;
         var r = 3L;
         l++;
