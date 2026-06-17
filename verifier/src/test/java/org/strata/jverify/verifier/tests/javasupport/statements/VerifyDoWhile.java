@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"ConstantValue"})
-@JVerifyTest(exitCode = 4, methodsVerified = 8, errorCount = 2)
+@JVerifyTest(exitCode = 4, methodsVerified = 8, methodsInvalid = 3, errorCount = 3)
 class VerifyDoWhile {
     /**
      * do-while with break exiting the loop early.
@@ -176,6 +176,21 @@ class VerifyDoWhile {
         } while (i < 3);
     }
 
+
+    /**
+     * Negative regression test: the invariant holds on entry but is not preserved by the loop body.
+     * Once x reaches 5 the body increments it to 6 while the loop continues (6 < 10), violating x <= 5.
+     * This MUST be rejected by the verifier.
+     */
+    static void whileBadInvariant() {
+        var x = 0;
+        while (x < 10) {
+            invariant(x >= 0 && x <= 5);
+//                    ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+            x = x + 1;
+        }
+    }
+
     /**
      * Negative regression test for unsoundness case (Bug 3) from the original review in #418:
      * The invariant is FALSE on the first iteration (x == -1 violates x >= 0).
@@ -183,7 +198,10 @@ class VerifyDoWhile {
      */
     static void doWhileBadInitialInvariant() {
         int x = -1;
-        do { invariant(x >= 0); x = x + 1; } while (x < 5);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+        do {
+            invariant(x >= 0);
+//                    ^^^^^^ Error: assertion could not be proved
+            x = x + 1;
+        } while (x < 5);
     }
 }
