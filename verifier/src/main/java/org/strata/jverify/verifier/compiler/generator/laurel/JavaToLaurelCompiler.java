@@ -497,10 +497,10 @@ public class JavaToLaurelCompiler {
                     yield ifThenElse(toSourceRange(ifStmt), cond, thenBranch, elseB);
                 }
                 case JCTree.JCReturn retStmt -> {
-                    if (retStmt.expr != null) {
-                        yield return_(toSourceRange(retStmt), Optional.of(convertExpression(retStmt.expr, renames)));
-                    }
-                    yield null;
+                    Optional<StmtExpr> value = retStmt.expr != null
+                            ? Optional.of(convertExpression(retStmt.expr, renames))
+                            : Optional.empty();
+                    yield return_(toSourceRange(retStmt), value);
                 }
                 case JCTree.JCWhileLoop whileStmt -> {
                     var sr = toSourceRange(whileStmt);
