@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, StmtExpr.Int, StmtExpr.Real, StmtExpr.String_, StmtExpr.Hole, StmtExpr.NondetHole, StmtExpr.VarDecl, StmtExpr.Call, StmtExpr.New, StmtExpr.FieldAccess, StmtExpr.Identifier, StmtExpr.Parenthesis, StmtExpr.Assign, StmtExpr.MultiAssign, StmtExpr.Add, StmtExpr.Sub, StmtExpr.Mul, StmtExpr.Div, StmtExpr.Mod, StmtExpr.DivT, StmtExpr.ModT, StmtExpr.Eq, StmtExpr.Neq, StmtExpr.Gt, StmtExpr.Lt, StmtExpr.Le, StmtExpr.Ge, StmtExpr.And, StmtExpr.Or, StmtExpr.AndThen, StmtExpr.OrElse, StmtExpr.Implies, StmtExpr.StrConcat, StmtExpr.Not, StmtExpr.Neg, StmtExpr.ForallExpr, StmtExpr.ExistsExpr, StmtExpr.IfThenElse, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Return, StmtExpr.Block, StmtExpr.LabelledBlock, StmtExpr.Exit, StmtExpr.While, StmtExpr.ForLoop, StmtExpr.IsType, StmtExpr.AsType {
+public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, StmtExpr.Int, StmtExpr.Real, StmtExpr.String_, StmtExpr.BvLiteral, StmtExpr.Hole, StmtExpr.NondetHole, StmtExpr.VarDecl, StmtExpr.Call, StmtExpr.New, StmtExpr.FieldAccess, StmtExpr.Identifier, StmtExpr.Parenthesis, StmtExpr.Assign, StmtExpr.MultiAssign, StmtExpr.Add, StmtExpr.Sub, StmtExpr.Mul, StmtExpr.Div, StmtExpr.Mod, StmtExpr.DivT, StmtExpr.ModT, StmtExpr.Eq, StmtExpr.Neq, StmtExpr.Gt, StmtExpr.Lt, StmtExpr.Le, StmtExpr.Ge, StmtExpr.And, StmtExpr.Or, StmtExpr.AndThen, StmtExpr.OrElse, StmtExpr.Implies, StmtExpr.StrConcat, StmtExpr.Not, StmtExpr.Neg, StmtExpr.PreIncr, StmtExpr.PreDecr, StmtExpr.PostIncr, StmtExpr.PostDecr, StmtExpr.ForallExpr, StmtExpr.ExistsExpr, StmtExpr.IfThenElse, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Return, StmtExpr.Block, StmtExpr.LabelledBlock, StmtExpr.Exit, StmtExpr.While, StmtExpr.ForLoop, StmtExpr.IsType, StmtExpr.AsType {
     public record LiteralBool(
         SourceRange sourceRange,
         boolean b
@@ -57,6 +57,22 @@ public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, Stmt
         public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
             var sexp = $s.newOp("Laurel.string", sourceRange());
             sexp.add($s.serializeStrlit(s()));
+            return sexp;
+        }
+    }
+
+    public record BvLiteral(
+        SourceRange sourceRange,
+        java.math.BigInteger value, java.math.BigInteger width
+    ) implements StmtExpr {
+        @Override
+        public java.lang.String operationName() { return "Laurel.bvLiteral"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.bvLiteral", sourceRange());
+            sexp.add($s.serializeNum(value()));
+            sexp.add($s.serializeNum(width()));
             return sexp;
         }
     }
@@ -547,6 +563,66 @@ public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, Stmt
         }
     }
 
+    public record PreIncr(
+        SourceRange sourceRange,
+        StmtExpr target
+    ) implements StmtExpr {
+        @Override
+        public java.lang.String operationName() { return "Laurel.preIncr"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.preIncr", sourceRange());
+            sexp.add($s.serialize(target()));
+            return sexp;
+        }
+    }
+
+    public record PreDecr(
+        SourceRange sourceRange,
+        StmtExpr target
+    ) implements StmtExpr {
+        @Override
+        public java.lang.String operationName() { return "Laurel.preDecr"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.preDecr", sourceRange());
+            sexp.add($s.serialize(target()));
+            return sexp;
+        }
+    }
+
+    public record PostIncr(
+        SourceRange sourceRange,
+        StmtExpr target
+    ) implements StmtExpr {
+        @Override
+        public java.lang.String operationName() { return "Laurel.postIncr"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.postIncr", sourceRange());
+            sexp.add($s.serialize(target()));
+            return sexp;
+        }
+    }
+
+    public record PostDecr(
+        SourceRange sourceRange,
+        StmtExpr target
+    ) implements StmtExpr {
+        @Override
+        public java.lang.String operationName() { return "Laurel.postDecr"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.postDecr", sourceRange());
+            sexp.add($s.serialize(target()));
+            return sexp;
+        }
+    }
+
     public record ForallExpr(
         SourceRange sourceRange,
         java.lang.String name, LaurelType ty, java.util.Optional<Trigger> trigger, StmtExpr body
@@ -633,7 +709,7 @@ public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, Stmt
 
     public record Return(
         SourceRange sourceRange,
-        StmtExpr value
+        java.util.Optional<StmtExpr> value
     ) implements StmtExpr {
         @Override
         public java.lang.String operationName() { return "Laurel.return"; }
@@ -641,7 +717,7 @@ public sealed interface StmtExpr extends Node permits StmtExpr.LiteralBool, Stmt
         @Override
         public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
             var sexp = $s.newOp("Laurel.return", sourceRange());
-            sexp.add($s.serialize(value()));
+            sexp.add($s.serializeOption(value(), $s::serialize));
             return sexp;
         }
     }

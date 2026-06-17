@@ -119,16 +119,35 @@ public class JavaToLaurelCompiler {
             makeConstrainedType("int16", -32768L, 32767L),
             makeConstrainedType("int32", -2147483648L, 2147483647L),
             makeConstrainedType("int64", -9223372036854775808L, 9223372036854775807L),
-            makeConstrainedType("char", 0L, 65535L)
+            makeConstrainedType("char", 0L, 65535L),
+            // @Nat counterparts: the value must be a natural number (>= 0). The upper
+            // bound is the same as the corresponding signed type, so e.g. a @Nat int
+            // ranges over 0..2^31-1.
+            makeConstrainedType("nat7", 0L, 127L),
+            makeConstrainedType("nat15", 0L, 32767L),
+            makeConstrainedType("nat31", 0L, 2147483647L),
+            makeConstrainedType("nat63", 0L, 9223372036854775807L),
+            // @Unbounded @Nat: a natural number without an upper bound.
+            makeConstrainedType("nat", 0L, null)
         );
     }
 
-    private Command makeConstrainedType(String name, long min, long max) {
+    /**
+     * Create a constrained integer type {@code name} bounded by {@code x >= min} and
+     * {@code x <= max}. Either bound may be null to leave that side unconstrained, e.g.
+     * {@code min = 0, max = null} yields the unbounded {@code nat}.
+     */
+    private Command makeConstrainedType(String name, Long min, Long max) {
         var sr = toSourceRange(currentCompilationUnit);
         var x = identifier(sr, "x");
-        var minExpr = longLiteral(sr, min);
-        var maxExpr = longLiteral(sr, max);
-        var constraint = and(sr, ge(sr, x, minExpr), le(sr, x, maxExpr));
+        var bounds = new ArrayList<StmtExpr>();
+        if (min != null) {
+            bounds.add(ge(sr, x, longLiteral(sr, min)));
+        }
+        if (max != null) {
+            bounds.add(le(sr, x, longLiteral(sr, max)));
+        }
+        var constraint = bounds.stream().reduce((a, b) -> and(sr, a, b)).orElse(literalBool(sr, true));
         var witness = int_(sr, 0);
         return constrainedTypeCommand(sr, constrainedType(sr, name, "x", intType(sr), constraint, witness));
     }
@@ -140,6 +159,21 @@ public class JavaToLaurelCompiler {
     }
 
     private LaurelType translateType(com.sun.tools.javac.code.Type type) {
+        return translateType(type, null);
+    }
+
+    /**
+     * Translate a Java type to a Laurel type, honouring {@code @Nat} / {@code @Unbounded}
+     * type-use annotations also present on the given modifiers.
+     *
+     * <p>These annotations can reach us in two ways: attached to the resolved
+     * {@link com.sun.tools.javac.code.Type} (e.g. on method parameters and return types),
+     * or only on the declaration's modifiers (e.g. on local variable declarations, where
+     * javac strips the type-use annotation off the resolved type and the declared type
+     * tree). We look in both places via {@code modifiers}, which may be {@code null} when
+     * no declaration is available.
+     */
+    private LaurelType translateType(com.sun.tools.javac.code.Type type, JCTree.JCModifiers modifiers) {
         // Class / interface types (including sealed hierarchies and
         // records): encode as an opaque Laurel CompositeType named
         // after the source-side type. Strata treats unbound composite
@@ -161,15 +195,35 @@ public class JavaToLaurelCompiler {
             referencedCompositeTypes.add(sortName);
             return compositeType(sortName);
         }
+        // @Nat constrains the value to be a natural number (>= 0); @Unbounded drops the
+        // fixed-width overflow bound and treats the value as a mathematical integer.
+        boolean isNat = JVerifyUtils.isAnnotated(type, org.strata.jverify.Nat.class)
+                || JVerifyUtils.isAnnotated(modifiers, org.strata.jverify.Nat.class);
+        boolean isUnbounded = JVerifyUtils.isAnnotated(type, org.strata.jverify.Unbounded.class)
+                || JVerifyUtils.isAnnotated(modifiers, org.strata.jverify.Unbounded.class);
+
         return switch (type.getTag()) {
-            case INT -> compositeType("int32");
-            case SHORT -> compositeType("int16");
-            case BYTE -> compositeType("int8");
-            case LONG -> compositeType("int64");
+            case INT -> integerType(isNat, isUnbounded, "int32", "nat31");
+            case SHORT -> integerType(isNat, isUnbounded, "int16", "nat15");
+            case BYTE -> integerType(isNat, isUnbounded, "int8", "nat7");
+            case LONG -> integerType(isNat, isUnbounded, "int64", "nat63");
             case CHAR -> compositeType("char");
             case BOOLEAN -> boolType();
             default -> throw new JavaViolationException("Unsupported type: " + type);
         };
+    }
+
+    /**
+     * Pick the Laurel type for an integral Java type given its {@code @Nat}/{@code @Unbounded}
+     * annotations. {@code bounded}/{@code boundedNat} are the fixed-width type names for the
+     * default and {@code @Nat} cases; {@code @Unbounded} maps to the unbounded {@code int}
+     * (or {@code nat} when also {@code @Nat}).
+     */
+    private LaurelType integerType(boolean isNat, boolean isUnbounded, String bounded, String boundedNat) {
+        if (isUnbounded) {
+            return isNat ? compositeType("nat") : intType();
+        }
+        return compositeType(isNat ? boundedNat : bounded);
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
@@ -268,7 +322,7 @@ public class JavaToLaurelCompiler {
 
             List<Parameter> params = new ArrayList<>();
             for (var param : method.params) {
-                params.add(parameter(param.name.toString(), translateType(param.type)));
+                params.add(parameter(param.name.toString(), translateType(param.type, param.mods)));
             }
 
             Optional<ReturnType> retType = Optional.empty();
@@ -423,7 +477,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCExpressionStatement exprStmt -> convertExpression(exprStmt.expr, renames);
                 case JCTree.JCBlock blk -> convertBlock(blk, renames);
                 case JCTree.JCVariableDecl varDecl -> {
-                    LaurelType type = translateType(varDecl.type);
+                    LaurelType type = translateType(varDecl.type, varDecl.mods);
                     Optional<Initializer> optAssign = varDecl.init != null
                             ? Optional.of(initializer(convertExpression(varDecl.init, renames)))
                             : Optional.empty();
@@ -444,7 +498,7 @@ public class JavaToLaurelCompiler {
                 }
                 case JCTree.JCReturn retStmt -> {
                     if (retStmt.expr != null) {
-                        yield return_(toSourceRange(retStmt), convertExpression(retStmt.expr, renames));
+                        yield return_(toSourceRange(retStmt), Optional.of(convertExpression(retStmt.expr, renames)));
                     }
                     yield null;
                 }
@@ -739,6 +793,10 @@ public class JavaToLaurelCompiler {
             return switch (unary.getTag()) {
                 case NOT -> not(sr, inner);
                 case NEG -> neg(sr, inner);
+                case PREINC -> preIncr(sr, inner);
+                case PREDEC -> preDecr(sr, inner);
+                case POSTINC -> postIncr(sr, inner);
+                case POSTDEC -> postDecr(sr, inner);
                 default -> throw new JavaViolationException("Unsupported unary op: " + unary.getTag());
             };
         }
@@ -771,7 +829,7 @@ public class JavaToLaurelCompiler {
                     StmtExpr qBody = convertLambdaBody(lambda, renames);
                     for (int i = lambda.params.size() - 1; i >= 0; i--) {
                         var p = lambda.params.get(i);
-                        var ty = translateType(p.type);
+                        var ty = translateType(p.type, p.mods);
                         qBody = name.equals("forall")
                                 ? forallExpr(sr, p.name.toString(), ty, Optional.empty(), qBody)
                                 : existsExpr(sr, p.name.toString(), ty, Optional.empty(), qBody);
