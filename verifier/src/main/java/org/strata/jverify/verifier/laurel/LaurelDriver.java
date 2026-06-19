@@ -116,9 +116,25 @@ public class LaurelDriver implements Driver {
     }
 
     public JVerifyResults runVerifier(FilesMap filesMap, IonValue serializedProgram) {
-        var processBuilder = new ProcessBuilder(
+        var command = new ArrayList<>(List.of(
                 "lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"
-        );
+        ));
+        // Forward --keep-all-files so Strata writes the intermediate Laurel and Core IR for
+        // debugging. Strata treats the value as a path *prefix* (it appends ".<n>.<phase>.<ext>")
+        // and creates the prefix's parent directory. We resolve the user-provided directory to an
+        // absolute path (the process runs from the StrataCLI subdirectory, so a relative path would
+        // otherwise be interpreted relative to that) and use "<dir>/program" as the prefix, so every
+        // emitted file lands inside the requested folder.
+        if (verifierOptions.keepAllFilesDir() != null) {
+            var prefix = verifierOptions.workingDirectory()
+                    .resolve(verifierOptions.keepAllFilesDir())
+                    .resolve("program")
+                    .toAbsolutePath()
+                    .normalize();
+            command.add("--keep-all-files");
+            command.add(prefix.toString());
+        }
+        var processBuilder = new ProcessBuilder(command);
         // The `strata` executable lives in the StrataCLI subpackage, so `lake` must be invoked from there.
         processBuilder.directory(verifierOptions.backendPath().resolve("StrataCLI").toFile());
         return verifierOptions.time("Running Strata", () -> {

@@ -70,6 +70,12 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--track-time", description = "")
     private boolean trackTime;
 
+    @Option(names = "--keep-all-files", paramLabel = "DIR",
+            description = "Keep the intermediate Strata IR (Laurel and Core programs emitted after each "
+                    + "pipeline phase) in this directory. The directory is created if it does not exist. "
+                    + "Useful for debugging verification.")
+    private Path keepAllFilesDir;
+
     @Override
     public Integer call() throws IOException {
         var writer = new PrintWriter(spec.commandLine().getOut());
@@ -97,7 +103,7 @@ class AppCommand implements Callable<Integer> {
         var verifierOptions = new VerifierOptions(writer, workingDirectory, strataPath, classpathEntries,
                 emitLaurel, emitLaurel != null, showRanges, contractPathEntries,
                 paths, verifyByDefault, false, 
-                positionFilter, verbose, trackTime);
+                positionFilter, verbose, trackTime, keepAllFilesDir);
         
         return verifierOptions.time("Calling Driver.verifyJavaPaths", () -> {
             try {

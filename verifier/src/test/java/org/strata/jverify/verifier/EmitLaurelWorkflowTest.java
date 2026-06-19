@@ -104,6 +104,7 @@ public class EmitLaurelWorkflowTest {
                 base.continueOnErrors(),
                 base.positionFilter(),
                 base.verbose(),
-                base.shouldTrackTime());
+                base.shouldTrackTime(),
+                base.keepAllFilesDir());
     }
 }
