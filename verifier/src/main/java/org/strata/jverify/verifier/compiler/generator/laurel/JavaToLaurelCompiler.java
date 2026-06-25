@@ -504,6 +504,19 @@ public class JavaToLaurelCompiler {
             return convertStatement(statement, Map.of());
         }
 
+        /**
+         * Convert a statement that appears in a position requiring a non-null
+         * {@link StmtExpr} (an if/else branch, a labeled-statement body, or a
+         * non-block loop body). An empty statement ({@code ;}) converts to
+         * {@code null}, which cannot be serialized as a Laurel node; substitute
+         * an empty block so e.g. {@code if (c) ;} and {@code for (..) ;} are
+         * valid no-ops rather than crashing the Ion serializer with an NPE.
+         */
+        private StmtExpr convertStatementOrEmpty(JCTree.JCStatement statement, Map<String, String> renames) {
+            StmtExpr converted = convertStatement(statement, renames);
+            return converted != null ? converted : block(toSourceRange(statement), List.of());
+        }
+
         private StmtExpr convertStatement(JCTree.JCStatement statement, Map<String, String> renames) {
             return switch (statement) {
                 case JCTree.JCAssert assertStmt ->
@@ -520,7 +533,7 @@ public class JavaToLaurelCompiler {
                 }
                 case JCTree.JCIf ifStmt -> {
                     StmtExpr cond = convertExpression(ifStmt.cond, renames);
-                    StmtExpr thenBranch = convertStatement(ifStmt.thenpart, renames);
+                    StmtExpr thenBranch = convertStatementOrEmpty(ifStmt.thenpart, renames);
                     Optional<ElseBranch> elseB = Optional.empty();
                     if (ifStmt.elsepart != null) {
                         StmtExpr elseStmt = convertStatement(ifStmt.elsepart, renames);
@@ -615,7 +628,7 @@ public class JavaToLaurelCompiler {
                         labelStack.push(new LabelEntry(pendingLabel, breakLbl, null));
                         pendingLabel = null;
                         try {
-                            StmtExpr body = convertStatement(labeledStmt.body, renames);
+                            StmtExpr body = convertStatementOrEmpty(labeledStmt.body, renames);
                             yield labelledBlock(toSourceRange(labeledStmt), List.of(body), breakLbl);
                         } finally {
                             labelStack.pop();
@@ -676,7 +689,7 @@ public class JavaToLaurelCompiler {
                 }
                 return new LoopParts(invariants, block(toSourceRange(loopBlock), stmts));
             } else {
-                return new LoopParts(List.of(), convertStatement(body, renames));
+                return new LoopParts(List.of(), convertStatementOrEmpty(body, renames));
             }
         }
 
