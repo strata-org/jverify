@@ -76,4 +76,39 @@ abstract class ListContract<E> implements List<E> {
                         0 <= i && i < size() && get(i).equals(o)));
         throw new ContractException();
     }
+
+    @Override
+    @Pure
+    public List<E> subList(@Nat int fromIndex, @Nat int toIndex) {
+        reads(everything());
+        decreases(0);
+        precondition(0 <= fromIndex && fromIndex <= toIndex && toIndex <= size());
+        // The sublist has length toIndex-fromIndex and its element i is
+        // the receiver's element fromIndex+i. Mirrors the JBMC List model's
+        // element-array view (java_bytecode_axiomatic.cpp LIST_GET).
+        postcondition((List<E> r) ->
+                r.size() == toIndex - fromIndex &&
+                JVerify.forall((int i) ->
+                        i < 0 || i >= r.size() || r.get(i) == get(fromIndex + i)));
+        throw new ContractException();
+    }
+
+    @Override
+    @Pure
+    public boolean equals(Object o) {
+        reads(everything());
+        decreases(0);
+        // Extensional list equality: same length and pointwise-equal
+        // elements. Element comparison uses JVerify.jequals (structural
+        // equality for pure element types, reference equality for impure
+        // ones) to match java.util.List#equals, rather than `==`, which
+        // would model reference equality and be unsound for
+        // distinct-but-equal elements.
+        postcondition((boolean r) ->
+                r == (o instanceof List<?> other &&
+                        other.size() == size() &&
+                        JVerify.forall((int i) ->
+                                i < 0 || i >= size() || JVerify.jequals(get(i), other.get(i)))));
+        throw new ContractException();
+    }
 }
