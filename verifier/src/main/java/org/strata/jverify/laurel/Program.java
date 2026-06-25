@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public record Program(java.util.List<Procedure> staticProcedures, java.util.List<Field> staticFields, java.util.List<TypeDefinition> types, java.util.List<Constant> constants) {
+public record Program(java.util.List<Procedure> staticProcedures, java.util.List<Field> staticFields, java.util.List<TypeDefinition> types, java.util.List<Constant> constants) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         var _l_staticProcedures = ion.newEmptyList();

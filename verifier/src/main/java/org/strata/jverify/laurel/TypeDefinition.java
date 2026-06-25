@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface TypeDefinition permits TypeDefinition.Composite, TypeDefinition.Constrained, TypeDefinition.Datatype, TypeDefinition.Alias {
+public sealed interface TypeDefinition extends ToIon permits TypeDefinition.Composite, TypeDefinition.Constrained, TypeDefinition.Datatype, TypeDefinition.Alias {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Composite(CompositeType ty) implements TypeDefinition {

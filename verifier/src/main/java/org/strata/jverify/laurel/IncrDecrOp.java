@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface IncrDecrOp permits IncrDecrOp.Incr, IncrDecrOp.Decr {
+public sealed interface IncrDecrOp extends ToIon permits IncrDecrOp.Incr, IncrDecrOp.Decr {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Incr() implements IncrDecrOp {

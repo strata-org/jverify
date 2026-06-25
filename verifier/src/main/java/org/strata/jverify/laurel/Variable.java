@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface Variable permits Variable.Local, Variable.Field, Variable.Declare {
+public sealed interface Variable extends ToIon permits Variable.Local, Variable.Field, Variable.Declare {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Local(Identifier name) implements Variable {

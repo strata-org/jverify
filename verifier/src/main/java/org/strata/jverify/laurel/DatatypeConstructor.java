@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public record DatatypeConstructor(Identifier name, java.util.List<Parameter> args, Identifier testerName) {
+public record DatatypeConstructor(Identifier name, java.util.List<Parameter> args, Identifier testerName) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         s.put("name", name().toIon(ion));

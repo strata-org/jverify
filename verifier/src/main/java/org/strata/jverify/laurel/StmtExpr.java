@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface StmtExpr permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Exit, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.PureFieldUpdate, StmtExpr.StaticCall, StmtExpr.PrimitiveOp, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.InstanceCall, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole {
+public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Exit, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.PureFieldUpdate, StmtExpr.StaticCall, StmtExpr.PrimitiveOp, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.InstanceCall, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record IfThenElse(AstNode cond, AstNode thenBranch, AstNode elseBranch) implements StmtExpr {
@@ -28,7 +28,7 @@ public sealed interface StmtExpr permits StmtExpr.IfThenElse, StmtExpr.Block, St
         }
     }
 
-    public record While(AstNode cond, java.util.List<AstNode> invariants, AstNode decreases, AstNode body, java.lang.Object postTest) implements StmtExpr {
+    public record While(AstNode cond, java.util.List<AstNode> invariants, AstNode decreases, AstNode body, boolean postTest) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -39,7 +39,7 @@ public sealed interface StmtExpr permits StmtExpr.IfThenElse, StmtExpr.Block, St
         sexp.add(_l1);
         sexp.add((decreases() != null ? decreases().toIon(ion) : ion.newNull()));
         sexp.add(body().toIon(ion));
-        sexp.add(ion.newNull());
+        sexp.add(ion.newBool(postTest()));
         return sexp;
         }
     }
@@ -175,7 +175,7 @@ public sealed interface StmtExpr permits StmtExpr.IfThenElse, StmtExpr.Block, St
         }
     }
 
-    public record PrimitiveOp(Operation operator, java.util.List<AstNode> arguments, java.lang.Object skipProof) implements StmtExpr {
+    public record PrimitiveOp(Operation operator, java.util.List<AstNode> arguments, boolean skipProof) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -184,7 +184,7 @@ public sealed interface StmtExpr permits StmtExpr.IfThenElse, StmtExpr.Block, St
         var _l1 = ion.newEmptyList();
         for (var e : arguments()) _l1.add(e.toIon(ion));
         sexp.add(_l1);
-        sexp.add(ion.newNull());
+        sexp.add(ion.newBool(skipProof()));
         return sexp;
         }
     }
@@ -361,13 +361,13 @@ public sealed interface StmtExpr permits StmtExpr.IfThenElse, StmtExpr.Block, St
         }
     }
 
-    public record Hole(java.lang.Object deterministic, java.lang.Object type) implements StmtExpr {
+    public record Hole(boolean deterministic, AstNode type) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("Hole"));
-        sexp.add(ion.newNull());
-        sexp.add(ion.newNull());
+        sexp.add(ion.newBool(deterministic()));
+        sexp.add((type() != null ? type().toIon(ion) : ion.newNull()));
         return sexp;
         }
     }

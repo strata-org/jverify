@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public record Identifier(java.lang.String text, Long uniqueId, FileRange source) {
+public record Identifier(java.lang.String text, Long uniqueId, FileRange source) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         s.put("text", ion.newString(text()));

@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface Operation permits Operation.Eq, Operation.Neq, Operation.And, Operation.Or, Operation.Not, Operation.Implies, Operation.AndThen, Operation.OrElse, Operation.Neg, Operation.Add, Operation.Sub, Operation.Mul, Operation.Div, Operation.Mod, Operation.DivT, Operation.ModT, Operation.Lt, Operation.Leq, Operation.Gt, Operation.Geq, Operation.StrConcat {
+public sealed interface Operation extends ToIon permits Operation.Eq, Operation.Neq, Operation.And, Operation.Or, Operation.Not, Operation.Implies, Operation.AndThen, Operation.OrElse, Operation.Neg, Operation.Add, Operation.Sub, Operation.Mul, Operation.Div, Operation.Mod, Operation.DivT, Operation.ModT, Operation.Lt, Operation.Leq, Operation.Gt, Operation.Geq, Operation.StrConcat {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Eq() implements Operation {

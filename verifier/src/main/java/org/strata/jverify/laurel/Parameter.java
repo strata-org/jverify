@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public record Parameter(Identifier name, AstNode type) {
+public record Parameter(Identifier name, AstNode type) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         s.put("name", name().toIon(ion));

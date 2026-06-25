@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface Body permits Body.Transparent, Body.Opaque, Body.Abstract, Body.External {
+public sealed interface Body extends ToIon permits Body.Transparent, Body.Opaque, Body.Abstract, Body.External {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Transparent(AstNode body) implements Body {

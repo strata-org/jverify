@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface QuantifierMode permits QuantifierMode.Forall, QuantifierMode.Exists {
+public sealed interface QuantifierMode extends ToIon permits QuantifierMode.Forall, QuantifierMode.Exists {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Forall() implements QuantifierMode {
