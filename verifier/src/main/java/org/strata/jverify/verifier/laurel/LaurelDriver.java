@@ -4,7 +4,6 @@ import com.amazon.ion.*;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
 import org.strata.jverify.common.Range;
-import org.strata.jverify.laurel.IonSerializer;
 import org.strata.jverify.verifier.*;
 import org.strata.jverify.verifier.compiler.Reporter;
 import org.strata.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
@@ -65,7 +64,6 @@ public class LaurelDriver implements Driver {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
                 var ion = IonSystemBuilder.standard().build();
-                var serializer = new IonSerializer(ion);
                 IonList files = ion.newEmptyList();
 
                 for (LaurelFile file : analysisResult.files()) {
@@ -80,9 +78,7 @@ public class LaurelDriver implements Driver {
                     header.add(ion.newSymbol("program"));
                     header.add(ion.newString("Laurel"));
                     programAsIon.add(header);
-                    for (var command : file.commands()) {
-                        programAsIon.add(serializer.serializeCommand(command));
-                    }
+                    programAsIon.add(file.program().toIon(ion));
                     strataFile.put("program", programAsIon);
 
                     files.add(strataFile);
@@ -99,6 +95,10 @@ public class LaurelDriver implements Driver {
                 return files;
             });
 
+            if (verifierOptions.emitLaurelOnly()) {
+                return new JVerifyResults(diagnostics, CommandLine.ExitCode.OK, null);
+            }
+
             var results = runVerifier(analysisResult.filesMap(), serializedProgram);
             var allDiagnostics = new ArrayList<>(diagnostics);
             allDiagnostics.addAll(results.diagnostics());
@@ -110,7 +110,7 @@ public class LaurelDriver implements Driver {
         var processBuilder = new ProcessBuilder(
                 "lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"
         );
-        processBuilder.directory(verifierOptions.backendPath().toFile());
+        processBuilder.directory(verifierOptions.backendPath().resolve("StrataCLI").toFile());
         return verifierOptions.time("Running Strata", () -> {
             try (var process = new AutoClosingProcessWrapper(processBuilder.redirectErrorStream(true).start()))
             {
