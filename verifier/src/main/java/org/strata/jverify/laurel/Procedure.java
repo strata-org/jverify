@@ -1,47 +1,25 @@
 package org.strata.jverify.laurel;
 
-public sealed interface Procedure extends Node permits Procedure.Procedure_, Procedure.Function {
-    public record Procedure_(
-        SourceRange sourceRange,
-        java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body
-    ) implements Procedure {
-        @Override
-        public java.lang.String operationName() { return "Laurel.procedure"; }
-
-        @Override
-        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
-            var sexp = $s.newOp("Laurel.procedure", sourceRange());
-            sexp.add($s.serializeIdent(name()));
-            sexp.add($s.serializeSeq(parameters(), "commaSepList", $s::serialize));
-            sexp.add($s.serializeOption(returnType(), $s::serialize));
-            sexp.add($s.serializeOption(returnParameters(), $s::serialize));
-            sexp.add($s.serializeSeq(requires(), "seq", $s::serialize));
-            sexp.add($s.serializeOption(invokeOn(), $s::serialize));
-            sexp.add($s.serializeOption(opaqueSpec(), $s::serialize));
-            sexp.add($s.serializeOption(body(), $s::serialize));
-            return sexp;
-        }
-    }
-
-    public record Function(
-        SourceRange sourceRange,
-        java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body
-    ) implements Procedure {
-        @Override
-        public java.lang.String operationName() { return "Laurel.function"; }
-
-        @Override
-        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
-            var sexp = $s.newOp("Laurel.function", sourceRange());
-            sexp.add($s.serializeIdent(name()));
-            sexp.add($s.serializeSeq(parameters(), "commaSepList", $s::serialize));
-            sexp.add($s.serializeOption(returnType(), $s::serialize));
-            sexp.add($s.serializeOption(returnParameters(), $s::serialize));
-            sexp.add($s.serializeSeq(requires(), "seq", $s::serialize));
-            sexp.add($s.serializeOption(invokeOn(), $s::serialize));
-            sexp.add($s.serializeOption(opaqueSpec(), $s::serialize));
-            sexp.add($s.serializeOption(body(), $s::serialize));
-            return sexp;
-        }
+public record Procedure(Identifier name, java.util.List<Parameter> inputs, java.util.List<Parameter> outputs, java.util.List<Condition> preconditions, AstNode decreases, boolean isFunctional, Body body, AstNode invokeOn, java.util.List<AstNode> axioms) {
+    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var s = ion.newEmptyStruct();
+        s.put("name", name().toIon(ion));
+        var _l_inputs = ion.newEmptyList();
+        for (var e : inputs()) _l_inputs.add(e.toIon(ion));
+        s.put("inputs", _l_inputs);
+        var _l_outputs = ion.newEmptyList();
+        for (var e : outputs()) _l_outputs.add(e.toIon(ion));
+        s.put("outputs", _l_outputs);
+        var _l_preconditions = ion.newEmptyList();
+        for (var e : preconditions()) _l_preconditions.add(e.toIon(ion));
+        s.put("preconditions", _l_preconditions);
+        s.put("decreases", (decreases() != null ? decreases().toIon(ion) : ion.newNull()));
+        s.put("isFunctional", ion.newBool(isFunctional()));
+        s.put("body", body().toIon(ion));
+        s.put("invokeOn", (invokeOn() != null ? invokeOn().toIon(ion) : ion.newNull()));
+        var _l_axioms = ion.newEmptyList();
+        for (var e : axioms()) _l_axioms.add(e.toIon(ion));
+        s.put("axioms", _l_axioms);
+        return s;
     }
 }

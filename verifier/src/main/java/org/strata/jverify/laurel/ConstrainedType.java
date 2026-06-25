@@ -1,22 +1,13 @@
 package org.strata.jverify.laurel;
 
-public sealed interface ConstrainedType extends Node permits ConstrainedType.Of {
-    public record Of(
-        SourceRange sourceRange,
-        java.lang.String name, java.lang.String valueName, LaurelType base, StmtExpr constraint, StmtExpr witness
-    ) implements ConstrainedType {
-        @Override
-        public java.lang.String operationName() { return "Laurel.constrainedType"; }
-
-        @Override
-        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
-            var sexp = $s.newOp("Laurel.constrainedType", sourceRange());
-            sexp.add($s.serializeIdent(name()));
-            sexp.add($s.serializeIdent(valueName()));
-            sexp.add($s.serialize(base()));
-            sexp.add($s.serialize(constraint()));
-            sexp.add($s.serialize(witness()));
-            return sexp;
-        }
+public record ConstrainedType(Identifier name, java.lang.Object base, Identifier valueName, java.lang.Object constraint, java.lang.Object witness) {
+    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var s = ion.newEmptyStruct();
+        s.put("name", name().toIon(ion));
+        s.put("base", ion.newNull());
+        s.put("valueName", valueName().toIon(ion));
+        s.put("constraint", ion.newNull());
+        s.put("witness", ion.newNull());
+        return s;
     }
 }

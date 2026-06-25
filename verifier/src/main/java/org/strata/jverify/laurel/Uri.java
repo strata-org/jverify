@@ -1,10 +1,9 @@
 package org.strata.jverify.laurel;
 
-public record Parameter(Identifier name, AstNode type) {
+public record Uri(java.lang.String path) {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
-        s.put("name", name().toIon(ion));
-        s.put("type", type().toIon(ion));
+        s.put("_0", ion.newString(path()));
         return s;
     }
 }
