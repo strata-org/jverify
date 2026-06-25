@@ -257,6 +257,24 @@ public class JavaToLaurelCompiler {
             return found[0];
         }
 
+        /** Check if a method body contains any loop. A @Pure function with
+         *  a loop cannot be a transparent (pure-expression) function body --
+         *  Strata function bodies allow only let-bindings and a final
+         *  if-then-else -- so we emit such a function uninterpreted. */
+        private boolean bodyContainsLoop(JCTree.JCBlock body) {
+            boolean[] found = {false};
+            body.accept(new TreeScanner() {
+                @Override public void visitForLoop(JCTree.JCForLoop tree) { found[0] = true; }
+                // Foreach is future-proofing: it is not yet reachable here
+                // (there is no supported iterable type and no enhanced-for
+                // translation case), so it cannot be exercised by a test yet.
+                @Override public void visitForeachLoop(JCTree.JCEnhancedForLoop tree) { found[0] = true; }
+                @Override public void visitWhileLoop(JCTree.JCWhileLoop tree) { found[0] = true; }
+                @Override public void visitDoLoop(JCTree.JCDoWhileLoop tree) { found[0] = true; }
+            });
+            return found[0];
+        }
+
         private String freshLabel(String prefix) {
             return prefix + "_" + (labelCounter++);
         }
@@ -375,11 +393,27 @@ public class JavaToLaurelCompiler {
                 }
             }
 
+            boolean isPure = jverifyUtils.isPure(method.sym);
+            // A @Pure function whose body contains a loop cannot be a
+            // transparent (pure-expression) function body, so drop the
+            // body and emit it uninterpreted (a sound over-approximation)
+            // rather than producing an untranslatable block expression.
+            if (isPure && method.body != null && methodBody != null
+                    && bodyContainsLoop(method.body)) {
+                if (!ensures.isEmpty()) {
+                    // Dropping the body would silently discard the
+                    // postcondition (it cannot be checked against an
+                    // uninterpreted function), so refuse instead.
+                    throw new JavaViolationException(
+                        "@Pure function with a loop and a postcondition is not yet supported");
+                }
+                methodBody = null;
+            }
+
             Optional<Body> optBody = methodBody != null
                     ? Optional.of(body(methodBody))
                     : Optional.empty();
 
-            boolean isPure = jverifyUtils.isPure(method.sym);
             // Strata rejects transparent (visible-body) procedures unless they're functional;
             // emit an OpaqueSpec to mark the body opaque otherwise. Pure functions stay
             // transparent only when they have no ensures clauses (the schema can't carry
