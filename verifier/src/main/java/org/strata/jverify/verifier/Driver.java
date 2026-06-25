@@ -57,13 +57,25 @@ public interface Driver {
         }
         
         var verificationResults = results.verificationResults();
+        int errorCount = verificationResults != null
+                ? verificationResults.verificationFailedAssertions()
+                : results.diagnostics().size();
+        // Soundness backstop: a non-zero exit code must never be reported
+        // as "0 errors". Any failure path that reaches here without a
+        // counted diagnostic (e.g. Strata failing to start) is surfaced as
+        // a failure rather than a vacuous success.
+        if (errorCount == 0 && results.exitCode() != 0) {
+            pw.println("Verification did not complete (exit code "
+                    + results.exitCode() + "); reporting as failed.");
+            errorCount = 1;
+        }
         if (verificationResults != null) {
-            pw.println(String.format("Found %s errors", verificationResults.verificationFailedAssertions()));
+            pw.println(String.format("Found %s errors", errorCount));
             pw.println(String.format("Verified methods: %s", verificationResults.verificationPassedMethods()));
             pw.println(String.format("Failed methods: %s", verificationResults.verificationFailedMethods()));
             pw.println(String.format("Skipped methods: %s", verificationResults.verificationSkippedMethods()));
         } else {
-            pw.println(String.format("Found %s errors", results.diagnostics().size()));
+            pw.println(String.format("Found %s errors", errorCount));
         }
     }
 
