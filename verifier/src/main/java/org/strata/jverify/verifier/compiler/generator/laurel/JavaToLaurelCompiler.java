@@ -55,6 +55,10 @@ public class JavaToLaurelCompiler {
         return new AstNode<>(expr, null);
     }
 
+    private static AstNode<Variable> nodeVar(Variable v) {
+        return new AstNode<>(v, null);
+    }
+
     private static AstNode<HighType> node(HighType type) {
         return new AstNode<>(type, null);
     }
@@ -73,7 +77,7 @@ public class JavaToLaurelCompiler {
         if (init == null) {
             return new StmtExpr.Var(decl);
         }
-        return new StmtExpr.Assign(List.of(node(new StmtExpr.Var(decl))), node(init));
+        return new StmtExpr.Assign(List.of(nodeVar(decl)), node(init));
     }
 
     // --- Main analysis entry point ---
@@ -429,7 +433,7 @@ public class JavaToLaurelCompiler {
                     var decl = new Variable.Declare(param);
                     if (varDecl.init != null) {
                         yield new StmtExpr.Assign(
-                            List.of(node(new StmtExpr.Var(decl))),
+                            List.of(nodeVar(decl)),
                             node(convertExpression(varDecl.init, renames)));
                     } else {
                         yield new StmtExpr.Var(decl);
@@ -580,6 +584,19 @@ public class JavaToLaurelCompiler {
             }
         }
 
+        private Variable convertVariable(JCTree.JCExpression expr, Map<String, String> renames) {
+            return switch (expr) {
+                case JCTree.JCIdent ident -> {
+                    String name = ident.name.toString();
+                    yield new Variable.Local(ident(renames.getOrDefault(name, name)));
+                }
+                case JCTree.JCFieldAccess fa ->
+                    new Variable.Field(node(convertExpression(fa.selected, renames)), ident(fa.name.toString()));
+                case JCTree.JCParens parens -> convertVariable(parens.expr, renames);
+                default -> throw new JavaViolationException("Unsupported variable expression: " + expr.getClass().getSimpleName());
+            };
+        }
+
         private StmtExpr convertExpression(JCTree.JCExpression expr, Map<String, String> renames) {
             return switch (expr) {
                 case JCTree.JCLiteral literal -> convertLiteral(literal);
@@ -592,7 +609,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCBinary binary -> convertBinary(binary, renames);
                 case JCTree.JCUnary unary -> convertUnary(unary, renames);
                 case JCTree.JCAssign asgn ->
-                        new StmtExpr.Assign(List.of(node(convertExpression(asgn.lhs, renames))),
+                        new StmtExpr.Assign(List.of(nodeVar(convertVariable(asgn.lhs, renames))),
                                 node(convertExpression(asgn.rhs, renames)));
                 case JCTree.JCConditional cond ->
                         new StmtExpr.IfThenElse(node(convertExpression(cond.cond, renames)),
@@ -678,10 +695,10 @@ public class JavaToLaurelCompiler {
             return switch (unary.getTag()) {
                 case NOT -> primitiveOp(new Operation.Not(), inner);
                 case NEG -> primitiveOp(new Operation.Neg(), inner);
-                case PREINC -> new StmtExpr.IncrDecr(new IncrDecrMode.Pre(), new IncrDecrOp.Incr(), inner);
-                case PREDEC -> new StmtExpr.IncrDecr(new IncrDecrMode.Pre(), new IncrDecrOp.Decr(), inner);
-                case POSTINC -> new StmtExpr.IncrDecr(new IncrDecrMode.Post(), new IncrDecrOp.Incr(), inner);
-                case POSTDEC -> new StmtExpr.IncrDecr(new IncrDecrMode.Post(), new IncrDecrOp.Decr(), inner);
+                case PREINC -> new StmtExpr.IncrDecr(new IncrDecrMode.Pre(), new IncrDecrOp.Incr(), nodeVar(convertVariable(unary.arg, renames)));
+                case PREDEC -> new StmtExpr.IncrDecr(new IncrDecrMode.Pre(), new IncrDecrOp.Decr(), nodeVar(convertVariable(unary.arg, renames)));
+                case POSTINC -> new StmtExpr.IncrDecr(new IncrDecrMode.Post(), new IncrDecrOp.Incr(), nodeVar(convertVariable(unary.arg, renames)));
+                case POSTDEC -> new StmtExpr.IncrDecr(new IncrDecrMode.Post(), new IncrDecrOp.Decr(), nodeVar(convertVariable(unary.arg, renames)));
                 default -> throw new JavaViolationException("Unsupported unary op: " + unary.getTag());
             };
         }
