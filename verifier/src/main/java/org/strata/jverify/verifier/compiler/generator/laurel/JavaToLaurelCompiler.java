@@ -211,7 +211,28 @@ public class JavaToLaurelCompiler {
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
-        return sym.outermostClass().getQualifiedName().toString().replace('$', '.') + "_" + sym.name;
+        // `outermostClass()` walks the owner chain to the first ClassSymbol,
+        // casting along the way; some invocations (record accessors of types
+        // declared inside an anonymous class, or built-ins on synthetic Symtab
+        // entries) reach here with a non-ClassSymbol owner and throw
+        // ClassCastException. Fall back to the immediate owner in that case.
+        Symbol.ClassSymbol outer;
+        try {
+            outer = sym.outermostClass();
+        } catch (ClassCastException e) {
+            outer = null;
+        }
+        if (outer != null) {
+            // Fully-qualified (package-included) name, sanitised like the
+            // CompositeType sort names ('$' -> '.'), so two same-named classes
+            // in different packages don't produce colliding procedure names.
+            return outer.getQualifiedName().toString().replace('$', '.') + "_" + sym.name;
+        }
+        Symbol owner = sym.owner;
+        String prefix = (owner != null && owner.name != null)
+                ? owner.name.toString()
+                : "$unknown";
+        return prefix + "_" + sym.name;
     }
 
     private class StaticMethodCollector extends TreeScanner {

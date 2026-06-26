@@ -307,12 +307,38 @@ public class JVerifyUtils {
      * Otherwise, returns {@code null}.
      */
     public static Symbol.MethodSymbol getJVerifyMethod(JCTree.JCMethodInvocation invocation) {
-        var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
+        var sym = TreeInfo.symbol(invocation.getMethodSelect());
+        if (!(sym instanceof Symbol.MethodSymbol methodSymbol)) {
+            // Some method invocations (e.g. record-component
+            // accessors, anonymous-class virtual calls) reach
+            // this with a non-MethodSymbol owner; treat them
+            // as definitely-not-JVerify.
+            return null;
+        }
         return fromJVerify(methodSymbol) ? methodSymbol : null;
     }
 
     private static boolean fromJVerify(Symbol.MethodSymbol methodSymbol) {
-        return methodSymbol.outermostClass().className().contentEquals(JVerifyUtils.JVERIFY_CLASS);
+        // `methodSymbol.outermostClass()` casts the symbol's
+        // owner chain up to ClassSymbol. For some invocations
+        // — typically record-component accessors of types
+        // declared inside an anonymous class, or method
+        // invocations on synthetic Symtab entries — the chain
+        // contains a non-ClassSymbol entry (e.g. Symtab$6,
+        // PackageSymbol, MethodSymbol) and the cast throws
+        // ClassCastException. Catching it and returning false
+        // is sound: such symbols cannot be the JVerify class
+        // itself, so the call is definitely-not-from-JVerify.
+        Symbol.ClassSymbol outer;
+        try {
+            outer = methodSymbol.outermostClass();
+        } catch (ClassCastException e) {
+            return false;
+        }
+        if (outer == null) {
+            return false;
+        }
+        return outer.className().contentEquals(JVerifyUtils.JVERIFY_CLASS);
     }
     
 }
