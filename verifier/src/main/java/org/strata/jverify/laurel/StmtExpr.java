@@ -3,7 +3,7 @@ package org.strata.jverify.laurel;
 public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Exit, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.PureFieldUpdate, StmtExpr.StaticCall, StmtExpr.PrimitiveOp, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.InstanceCall, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
-    public record IfThenElse(AstNode cond, AstNode thenBranch, AstNode elseBranch) implements StmtExpr {
+    public record IfThenElse(AstNode<StmtExpr> cond, AstNode<StmtExpr> thenBranch, AstNode<StmtExpr> elseBranch) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -15,7 +15,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Block(java.util.List<AstNode> statements, java.lang.String label) implements StmtExpr {
+    public record Block(java.util.List<AstNode<StmtExpr>> statements, java.lang.String label) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -28,7 +28,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record While(AstNode cond, java.util.List<AstNode> invariants, AstNode decreases, AstNode body, boolean postTest) implements StmtExpr {
+    public record While(AstNode<StmtExpr> cond, java.util.List<AstNode<StmtExpr>> invariants, AstNode<StmtExpr> decreases, AstNode<StmtExpr> body, boolean postTest) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -54,7 +54,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Return(AstNode value) implements StmtExpr {
+    public record Return(AstNode<StmtExpr> value) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -125,7 +125,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Assign(java.util.List<AstNode> targets, AstNode value) implements StmtExpr {
+    public record Assign(java.util.List<AstNode<Variable>> targets, AstNode<StmtExpr> value) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -138,7 +138,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record IncrDecr(IncrDecrMode mode, IncrDecrOp op, AstNode target) implements StmtExpr {
+    public record IncrDecr(IncrDecrMode mode, IncrDecrOp op, AstNode<Variable> target) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -150,7 +150,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record PureFieldUpdate(AstNode target, Identifier fieldName, AstNode newValue) implements StmtExpr {
+    public record PureFieldUpdate(AstNode<StmtExpr> target, Identifier fieldName, AstNode<StmtExpr> newValue) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -162,7 +162,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record StaticCall(Identifier callee, java.util.List<AstNode> arguments) implements StmtExpr {
+    public record StaticCall(Identifier callee, java.util.List<AstNode<StmtExpr>> arguments) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -175,7 +175,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record PrimitiveOp(Operation operator, java.util.List<AstNode> arguments, boolean skipProof) implements StmtExpr {
+    public record PrimitiveOp(Operation operator, java.util.List<AstNode<StmtExpr>> arguments, boolean skipProof) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -209,7 +209,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record ReferenceEquals(AstNode lhs, AstNode rhs) implements StmtExpr {
+    public record ReferenceEquals(AstNode<StmtExpr> lhs, AstNode<StmtExpr> rhs) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -220,7 +220,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record AsType(AstNode target, AstNode targetType) implements StmtExpr {
+    public record AsType(AstNode<StmtExpr> target, AstNode<HighType> targetType) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -231,7 +231,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record IsType(AstNode target, AstNode type) implements StmtExpr {
+    public record IsType(AstNode<StmtExpr> target, AstNode<HighType> type) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -242,7 +242,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record InstanceCall(AstNode target, Identifier callee, java.util.List<AstNode> arguments) implements StmtExpr {
+    public record InstanceCall(AstNode<StmtExpr> target, Identifier callee, java.util.List<AstNode<StmtExpr>> arguments) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -256,7 +256,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Quantifier(QuantifierMode mode, Parameter param, AstNode trigger, AstNode body) implements StmtExpr {
+    public record Quantifier(QuantifierMode mode, Parameter param, AstNode<StmtExpr> trigger, AstNode<StmtExpr> body) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -269,7 +269,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Assigned(AstNode name) implements StmtExpr {
+    public record Assigned(AstNode<StmtExpr> name) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -279,7 +279,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Old(AstNode value) implements StmtExpr {
+    public record Old(AstNode<StmtExpr> value) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -289,7 +289,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Fresh(AstNode value) implements StmtExpr {
+    public record Fresh(AstNode<StmtExpr> value) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -309,7 +309,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Assume(AstNode condition) implements StmtExpr {
+    public record Assume(AstNode<StmtExpr> condition) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -319,7 +319,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record ProveBy(AstNode value, AstNode proof) implements StmtExpr {
+    public record ProveBy(AstNode<StmtExpr> value, AstNode<StmtExpr> proof) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -330,7 +330,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record ContractOf(ContractType type, AstNode function) implements StmtExpr {
+    public record ContractOf(ContractType type, AstNode<StmtExpr> function) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -361,7 +361,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Hole(boolean deterministic, AstNode type) implements StmtExpr {
+    public record Hole(boolean deterministic, AstNode<HighType> type) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();

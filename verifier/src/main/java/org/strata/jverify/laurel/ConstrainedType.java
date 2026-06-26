@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public record ConstrainedType(Identifier name, AstNode base, Identifier valueName, AstNode constraint, AstNode witness) implements ToIon {
+public record ConstrainedType(Identifier name, AstNode<HighType> base, Identifier valueName, AstNode<StmtExpr> constraint, AstNode<StmtExpr> witness) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         s.put("name", name().toIon(ion));

@@ -63,7 +63,7 @@ public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.
         }
     }
 
-    public record TSet(AstNode elementType) implements HighType {
+    public record TSet(AstNode<HighType> elementType) implements HighType {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -73,7 +73,7 @@ public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.
         }
     }
 
-    public record TMap(AstNode keyType, AstNode valueType) implements HighType {
+    public record TMap(AstNode<HighType> keyType, AstNode<HighType> valueType) implements HighType {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -94,7 +94,7 @@ public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.
         }
     }
 
-    public record Applied(AstNode base, java.util.List<AstNode> typeArguments) implements HighType {
+    public record Applied(AstNode<HighType> base, java.util.List<AstNode<HighType>> typeArguments) implements HighType {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -107,7 +107,7 @@ public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.
         }
     }
 
-    public record Pure(AstNode base) implements HighType {
+    public record Pure(AstNode<HighType> base) implements HighType {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -117,7 +117,7 @@ public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.
         }
     }
 
-    public record Intersection(java.util.List<AstNode> types) implements HighType {
+    public record Intersection(java.util.List<AstNode<HighType>> types) implements HighType {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -159,7 +159,7 @@ public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.
         }
     }
 
-    public record MultiValuedExpr(java.util.List<AstNode> types) implements HighType {
+    public record MultiValuedExpr(java.util.List<AstNode<HighType>> types) implements HighType {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();

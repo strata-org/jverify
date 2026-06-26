@@ -13,7 +13,7 @@ public sealed interface Variable extends ToIon permits Variable.Local, Variable.
         }
     }
 
-    public record Field(AstNode target, Identifier fieldName) implements Variable {
+    public record Field(AstNode<StmtExpr> target, Identifier fieldName) implements Variable {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();

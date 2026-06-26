@@ -3,7 +3,7 @@ package org.strata.jverify.laurel;
 public sealed interface Body extends ToIon permits Body.Transparent, Body.Opaque, Body.Abstract, Body.External {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
-    public record Transparent(AstNode body) implements Body {
+    public record Transparent(AstNode<StmtExpr> body) implements Body {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -13,7 +13,7 @@ public sealed interface Body extends ToIon permits Body.Transparent, Body.Opaque
         }
     }
 
-    public record Opaque(java.util.List<Condition> postconditions, AstNode implementation, java.util.List<AstNode> modifies) implements Body {
+    public record Opaque(java.util.List<Condition> postconditions, AstNode<StmtExpr> implementation, java.util.List<AstNode<StmtExpr>> modifies) implements Body {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();

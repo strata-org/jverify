@@ -51,15 +51,15 @@ public class JavaToLaurelCompiler {
         return new Identifier(name, null, null);
     }
 
-    private static AstNode node(StmtExpr expr) {
-        return new AstNode(expr, null);
+    private static AstNode<StmtExpr> node(StmtExpr expr) {
+        return new AstNode<>(expr, null);
     }
 
-    private static AstNode node(HighType type) {
-        return new AstNode(type, null);
+    private static AstNode<HighType> node(HighType type) {
+        return new AstNode<>(type, null);
     }
 
-    private static StmtExpr primitiveOp(Operation op, AstNode... args) {
+    private static StmtExpr primitiveOp(Operation op, AstNode<StmtExpr>... args) {
         return new StmtExpr.PrimitiveOp(op, List.of(args), false);
     }
 
@@ -339,7 +339,7 @@ public class JavaToLaurelCompiler {
 
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(method.body);
                 if (!implStatements.isEmpty()) {
-                    List<AstNode> stmts = new ArrayList<>();
+                    List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                     for (var statement : implStatements) {
                         StmtExpr converted = convertStatement(statement);
                         if (converted != null) {
@@ -380,7 +380,7 @@ public class JavaToLaurelCompiler {
             procedures.add(proc);
         }
 
-        private StmtExpr emitLoop(StmtExpr cond, List<AstNode> invariants, StmtExpr loopBody,
+        private StmtExpr emitLoop(StmtExpr cond, List<AstNode<StmtExpr>> invariants, StmtExpr loopBody,
                                   StmtExpr step, List<StmtExpr> preamble,
                                   String breakLbl, String continueLbl) {
             if (breakLbl != null) {
@@ -392,7 +392,7 @@ public class JavaToLaurelCompiler {
                     whileBody = wrappedBody;
                 }
                 StmtExpr whileNode = new StmtExpr.While(node(cond), invariants, null, node(whileBody), false);
-                List<AstNode> outerStmts = new ArrayList<>();
+                List<AstNode<StmtExpr>> outerStmts = new ArrayList<>();
                 for (var p : preamble) outerStmts.add(node(p));
                 outerStmts.add(node(whileNode));
                 return new StmtExpr.Block(outerStmts, breakLbl);
@@ -401,7 +401,7 @@ public class JavaToLaurelCompiler {
                 if (preamble.isEmpty()) {
                     return whileNode;
                 }
-                List<AstNode> stmts = new ArrayList<>();
+                List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                 for (var p : preamble) stmts.add(node(p));
                 stmts.add(node(whileNode));
                 return new StmtExpr.Block(stmts, null);
@@ -438,7 +438,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCIf ifStmt -> {
                     StmtExpr cond = convertExpression(ifStmt.cond, renames);
                     StmtExpr thenBranch = convertStatementOrEmpty(ifStmt.thenpart, renames);
-                    AstNode elseNode = null;
+                    AstNode<StmtExpr> elseNode = null;
                     if (ifStmt.elsepart != null) {
                         StmtExpr elseStmt = convertStatement(ifStmt.elsepart, renames);
                         if (elseStmt != null) {
@@ -448,7 +448,7 @@ public class JavaToLaurelCompiler {
                     yield new StmtExpr.IfThenElse(node(cond), node(thenBranch), elseNode);
                 }
                 case JCTree.JCReturn retStmt -> {
-                    AstNode value = retStmt.expr != null ? node(convertExpression(retStmt.expr, renames)) : null;
+                    AstNode<StmtExpr> value = retStmt.expr != null ? node(convertExpression(retStmt.expr, renames)) : null;
                     yield new StmtExpr.Return(value);
                 }
                 case JCTree.JCWhileLoop whileStmt -> {
@@ -525,7 +525,7 @@ public class JavaToLaurelCompiler {
         }
 
         private StmtExpr convertBlock(JCTree.JCBlock blk, Map<String, String> renames) {
-            List<AstNode> statements = new ArrayList<>();
+            List<AstNode<StmtExpr>> statements = new ArrayList<>();
             for (var statement : blk.stats) {
                 StmtExpr converted = convertStatement(statement, renames);
                 if (converted != null) {
@@ -551,12 +551,12 @@ public class JavaToLaurelCompiler {
             throw new JavaViolationException("Unsupported lambda body");
         }
 
-        private record LoopParts(List<AstNode> invariants, StmtExpr body) {}
+        private record LoopParts(List<AstNode<StmtExpr>> invariants, StmtExpr body) {}
 
         private LoopParts extractLoopParts(JCTree.JCStatement body, Map<String, String> renames) {
             if (body instanceof JCTree.JCBlock loopBlock) {
                 if (!MethodOrLoopContractCompiler.hasContractStructure(loopBlock)) {
-                    List<AstNode> stmts = new ArrayList<>();
+                    List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                     for (var s : loopBlock.getStatements()) {
                         StmtExpr converted = convertStatement(s, renames);
                         if (converted != null) stmts.add(node(converted));
@@ -564,12 +564,12 @@ public class JavaToLaurelCompiler {
                     return new LoopParts(List.of(), new StmtExpr.Block(stmts, null));
                 }
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
-                List<AstNode> invariants = new ArrayList<>();
+                List<AstNode<StmtExpr>> invariants = new ArrayList<>();
                 for (var inv : loopContract.loopInvariants()) {
                     invariants.add(node(convertExpression(inv.get(), renames)));
                 }
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
-                List<AstNode> stmts = new ArrayList<>();
+                List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                 for (var s : implStatements) {
                     StmtExpr converted = convertStatement(s, renames);
                     if (converted != null) stmts.add(node(converted));
@@ -605,14 +605,14 @@ public class JavaToLaurelCompiler {
                     }
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
                     String calleeName = qualifiedMethodName(methodSym);
-                    List<AstNode> args = new ArrayList<>();
+                    List<AstNode<StmtExpr>> args = new ArrayList<>();
                     for (var arg : invocation.args) {
                         args.add(node(convertExpression(arg, renames)));
                     }
                     yield new StmtExpr.StaticCall(ident(calleeName), args);
                 }
                 case JCTree.LetExpr letExpr -> {
-                    List<AstNode> stmts = new ArrayList<>();
+                    List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                     for (var def : letExpr.defs) {
                         StmtExpr converted = convertStatement(def, renames);
                         if (converted != null) stmts.add(node(converted));
@@ -653,8 +653,8 @@ public class JavaToLaurelCompiler {
         }
 
         private StmtExpr convertBinary(JCTree.JCBinary binary, Map<String, String> renames) {
-            AstNode lhs = node(convertExpression(binary.lhs, renames));
-            AstNode rhs = node(convertExpression(binary.rhs, renames));
+            AstNode<StmtExpr> lhs = node(convertExpression(binary.lhs, renames));
+            AstNode<StmtExpr> rhs = node(convertExpression(binary.rhs, renames));
             return switch (binary.getTag()) {
                 case PLUS -> primitiveOp(new Operation.Add(), lhs, rhs);
                 case MINUS -> primitiveOp(new Operation.Sub(), lhs, rhs);
@@ -674,7 +674,7 @@ public class JavaToLaurelCompiler {
         }
 
         private StmtExpr convertUnary(JCTree.JCUnary unary, Map<String, String> renames) {
-            AstNode inner = node(convertExpression(unary.arg, renames));
+            AstNode<StmtExpr> inner = node(convertExpression(unary.arg, renames));
             return switch (unary.getTag()) {
                 case NOT -> primitiveOp(new Operation.Not(), inner);
                 case NEG -> primitiveOp(new Operation.Neg(), inner);
