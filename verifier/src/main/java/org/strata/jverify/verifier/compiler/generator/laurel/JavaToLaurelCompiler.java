@@ -411,7 +411,10 @@ public class JavaToLaurelCompiler {
             boolean canStayTransparent = isPure && postconditions.isEmpty();
             if (methodBody == null) {
                 if (postconditions.isEmpty()) {
-                    body = new Body.External();
+                    // Opaque with no implementation = uninterpreted function
+                    // (matches what the DDM path produces for a function with
+                    // no body; Body.External is reserved for built-in primitives)
+                    body = new Body.Opaque(List.of(), null, List.of());
                 } else {
                     body = new Body.Abstract(postconditions);
                 }
@@ -444,7 +447,13 @@ public class JavaToLaurelCompiler {
                 outerStmts.add(node(whileNode));
                 return new StmtExpr.Block(outerStmts, breakLbl);
             } else {
-                StmtExpr whileNode = new StmtExpr.While(node(cond), invariants, null, node(loopBody), false);
+                StmtExpr whileBody;
+                if (step != null) {
+                    whileBody = new StmtExpr.Block(List.of(node(loopBody), node(step)), null);
+                } else {
+                    whileBody = loopBody;
+                }
+                StmtExpr whileNode = new StmtExpr.While(node(cond), invariants, null, node(whileBody), false);
                 if (preamble.isEmpty()) {
                     return whileNode;
                 }
@@ -613,7 +622,7 @@ public class JavaToLaurelCompiler {
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
                 List<AstNode<StmtExpr>> invariants = new ArrayList<>();
                 for (var inv : loopContract.loopInvariants()) {
-                    invariants.add(node(convertExpression(inv.get(), renames)));
+                    invariants.add(node(convertExpression(inv.get(), renames), inv.get()));
                 }
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
                 List<AstNode<StmtExpr>> stmts = new ArrayList<>();
