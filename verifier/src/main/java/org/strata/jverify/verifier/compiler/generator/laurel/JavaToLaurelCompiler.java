@@ -47,15 +47,6 @@ public class JavaToLaurelCompiler {
 
     // --- Helper methods for constructing AST nodes ---
 
-    private FileRange sourceFor(JCTree tree) {
-        if (tree == null || currentCompilationUnit == null) return null;
-        int start = tree.getStartPosition();
-        int end = tree.getEndPosition(currentCompilationUnit.endPositions);
-        if (start < 0 || end < 0) return null;
-        var uri = new Uri(currentCompilationUnit.sourcefile.toUri().toString());
-        return new FileRange(uri, new SourceRange(new Raw(start), new Raw(end)));
-    }
-
     /** Get the best source tree for a statement — for expression statements,
      *  use the expression (excludes the semicolon). */
     private static JCTree sourceTreeFor(JCTree.JCStatement stmt) {
@@ -70,6 +61,7 @@ public class JavaToLaurelCompiler {
     }
 
     private FileRange toFileRange(JCTree tree) {
+        if (tree == null || currentCompilationUnit == null) return null;
         int startPos = TreeInfo.getStartPos(tree);
         int endPos = TreeInfo.getEndPos(tree, currentCompilationUnit.endPositions);
         if (endPos == -1) endPos = startPos;
@@ -83,10 +75,6 @@ public class JavaToLaurelCompiler {
 
     private static AstNode<StmtExpr> node(StmtExpr expr) {
         return new AstNode<>(expr, null);
-    }
-
-    private AstNode<StmtExpr> node(StmtExpr expr, JCTree tree) {
-        return new AstNode<>(expr, sourceFor(tree));
     }
 
     private static AstNode<Variable> nodeVar(Variable v) {
@@ -382,7 +370,7 @@ public class JavaToLaurelCompiler {
                     StmtExpr converted = (preExpr instanceof JCTree.JCLambda lambda)
                             ? convertLambdaBody(lambda, Map.of())
                             : convertExpression(preExpr);
-                    preconditions.add(new Condition(node(converted), null, false));
+                    preconditions.add(new Condition(node(converted, preExpr), null, false));
                 }
                 for (var post : contract.postconditions()) {
                     var postExpr = post.get();
@@ -390,9 +378,9 @@ public class JavaToLaurelCompiler {
                         Map<String, String> renames = lambda.params.size() == 1
                                 ? Map.of(lambda.params.getFirst().name.toString(), LAUREL_RESULT_BINDING)
                                 : Map.of();
-                        postconditions.add(new Condition(node(convertLambdaBody(lambda, renames)), null, false));
+                        postconditions.add(new Condition(node(convertLambdaBody(lambda, renames), lambda.body), null, false));
                     } else {
-                        postconditions.add(new Condition(node(convertExpression(postExpr)), null, false));
+                        postconditions.add(new Condition(node(convertExpression(postExpr), postExpr), null, false));
                     }
                 }
 

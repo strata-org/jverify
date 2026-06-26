@@ -8,7 +8,7 @@ import static org.strata.jverify.JVerify.*;
 class PostconditionFailure {
     static int alwaysZero(int x) {
         postcondition((int res) -> res > 0);
-//                                 ^^^^^^^ Error: assertion does not hold
+//                                 ^^^^^^^ Error: postcondition does not hold
         return 0;
     }
 }
