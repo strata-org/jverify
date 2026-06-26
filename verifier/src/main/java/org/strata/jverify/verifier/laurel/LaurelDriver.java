@@ -64,35 +64,32 @@ public class LaurelDriver implements Driver {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
                 var ion = IonSystemBuilder.standard().build();
-                IonList files = ion.newEmptyList();
 
+                // Combine all file programs into a single Program
+                var allProcedures = new ArrayList<org.strata.jverify.laurel.Procedure>();
+                var allFields = new ArrayList<org.strata.jverify.laurel.Field>();
+                var allTypes = new ArrayList<org.strata.jverify.laurel.TypeDefinition>();
+                var allConstants = new ArrayList<org.strata.jverify.laurel.Constant>();
                 for (LaurelFile file : analysisResult.files()) {
-                    IonStruct strataFile = ion.newEmptyStruct();
-
-                    String filePath = Paths.get("").toUri().relativize(file.uri()).toString();
-                    strataFile.put("filePath", ion.newString(filePath));
-
-                    // Create the program Ion structure
-                    IonList programAsIon = ion.newEmptyList();
-                    IonSexp header = ion.newEmptySexp();
-                    header.add(ion.newSymbol("program"));
-                    header.add(ion.newString("Laurel"));
-                    programAsIon.add(header);
-                    programAsIon.add(file.program().toIon(ion));
-                    strataFile.put("program", programAsIon);
-
-                    files.add(strataFile);
+                    var prog = file.program();
+                    allProcedures.addAll(prog.staticProcedures());
+                    allFields.addAll(prog.staticFields());
+                    allTypes.addAll(prog.types());
+                    allConstants.addAll(prog.constants());
                 }
+                var combined = new org.strata.jverify.laurel.Program(
+                        allProcedures, allFields, allTypes, allConstants);
+                var programIon = combined.toIon(ion);
 
                 if (verifierOptions.printSerializedOutputProgram() != null) {
                     try {
                         Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
-                        Files.writeString(verifierOptions.printSerializedOutputProgram(), files.toPrettyString());
+                        Files.writeString(verifierOptions.printSerializedOutputProgram(), programIon.toPrettyString());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }
-                return files;
+                return programIon;
             });
 
             if (verifierOptions.emitLaurelOnly()) {
