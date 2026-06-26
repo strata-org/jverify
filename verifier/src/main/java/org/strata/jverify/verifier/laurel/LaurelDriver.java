@@ -4,7 +4,6 @@ import com.amazon.ion.*;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
 import org.strata.jverify.common.Range;
-import org.strata.jverify.laurel.IonSerializer;
 import org.strata.jverify.verifier.*;
 import org.strata.jverify.verifier.compiler.Reporter;
 import org.strata.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
@@ -65,45 +64,34 @@ public class LaurelDriver implements Driver {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
                 var ion = IonSystemBuilder.standard().build();
-                IonList files = ion.newEmptyList();
 
+                // Combine all file programs into a single Program
+                var allProcedures = new ArrayList<org.strata.jverify.laurel.Procedure>();
+                var allFields = new ArrayList<org.strata.jverify.laurel.Field>();
+                var allTypes = new ArrayList<org.strata.jverify.laurel.TypeDefinition>();
+                var allConstants = new ArrayList<org.strata.jverify.laurel.Constant>();
                 for (LaurelFile file : analysisResult.files()) {
-                    IonStruct strataFile = ion.newEmptyStruct();
-
-                    String filePath = Paths.get("").toUri().relativize(file.uri()).toString();
-                    strataFile.put("filePath", ion.newString(filePath));
-
-                    // Create the program Ion structure
-                    IonList programAsIon = ion.newEmptyList();
-                    IonSexp header = ion.newEmptySexp();
-                    header.add(ion.newSymbol("program"));
-                    header.add(ion.newString("Laurel"));
-                    programAsIon.add(header);
-                    var serializer = new IonSerializer(ion);
-                    for (var command : file.commands()) {
-                        programAsIon.add(serializer.serializeCommand(command));
-                    }
-                    strataFile.put("program", programAsIon);
-
-                    files.add(strataFile);
+                    var prog = file.program();
+                    allProcedures.addAll(prog.staticProcedures());
+                    allFields.addAll(prog.staticFields());
+                    allTypes.addAll(prog.types());
+                    allConstants.addAll(prog.constants());
                 }
+                var combined = new org.strata.jverify.laurel.Program(
+                        allProcedures, allFields, allTypes, allConstants);
+                var programIon = combined.toIon(ion);
 
                 if (verifierOptions.printSerializedOutputProgram() != null) {
                     try {
                         Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
-                        Files.writeString(verifierOptions.printSerializedOutputProgram(), files.toPrettyString());
+                        Files.writeString(verifierOptions.printSerializedOutputProgram(), programIon.toPrettyString());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }
-                return files;
+                return programIon;
             });
 
-            // --emit-laurel separates compilation (Java -> Laurel IR) from
-            // verification (Laurel IR -> SMT): once the serialized Laurel
-            // program has been written, stop here without invoking the
-            // backend. Verification can then be run separately on the
-            // emitted Ion.
             if (verifierOptions.emitLaurelOnly()) {
                 return new JVerifyResults(diagnostics, CommandLine.ExitCode.OK, null);
             }
@@ -119,7 +107,6 @@ public class LaurelDriver implements Driver {
         var processBuilder = new ProcessBuilder(
                 "lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"
         );
-        // The `strata` executable lives in the StrataCLI subpackage, so `lake` must be invoked from there.
         processBuilder.directory(verifierOptions.backendPath().resolve("StrataCLI").toFile());
         return verifierOptions.time("Running Strata", () -> {
             try (var process = new AutoClosingProcessWrapper(processBuilder.redirectErrorStream(true).start()))
@@ -131,8 +118,10 @@ public class LaurelDriver implements Driver {
                 }
                 return parseStrataOutput(filesMap, verifierOptions, process.getProcess());
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() +
-                        "\nError message: " + e.getMessage());
+                var msg = "Failed to use Strata at: " + verifierOptions.backendPath() +
+                        "\nError message: " + e.getMessage();
+                verifierOptions.outWriter().println(msg);
+                System.err.println(msg);
                 return new JVerifyResults(new ArrayList<>(), -1, null);
             }
         });
@@ -174,7 +163,7 @@ public class LaurelDriver implements Driver {
             String line;
             boolean inDiagnosticsSection = false;
             StringBuilder preDiagnosticOutput = new StringBuilder();
-            Pattern diagnosticPattern = Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
+            Pattern diagnosticPattern = Pattern.compile("^(.*?):(\\d+)-(\\d+): (.+)$");
 
             while ((line = strataOutput.readLine()) != null) {
                 if (options.verbose()) {
@@ -200,14 +189,32 @@ public class LaurelDriver implements Driver {
                         // parse them as URIs rather than treating the URI string as
                         // a filesystem path, which would miss the filesMap and lose
                         // the source location (reported as 1:1).
-                        var uri = filePath.startsWith("file:")
-                                ? URI.create(filePath)
-                                : Paths.get(filePath).toUri();
+                        URI uri;
+                        try {
+                            if (filePath.isEmpty() || filePath.equals("<unknown>")) {
+                                // No source location — use a synthetic path
+                                uri = Paths.get("unknown").toUri();
+                            } else {
+                                uri = filePath.startsWith("file:")
+                                        ? URI.create(filePath)
+                                        : Paths.get(filePath).toUri();
+                            }
+                        } catch (Exception e) {
+                            // Invalid path (e.g., "<unknown>" on Windows)
+                            continue;
+                        }
 
-                        var range = new Range(
-                                filesMap.computePositionFromFileOffset(uri, startOffset),
-                                filesMap.computePositionFromFileOffset(uri, endOffset)
-                        );
+                        Range range;
+                        try {
+                            range = new Range(
+                                    filesMap.computePositionFromFileOffset(uri, startOffset),
+                                    filesMap.computePositionFromFileOffset(uri, endOffset)
+                            );
+                        } catch (Exception e) {
+                            // URI not in filesMap — use position 1:1
+                            var pos = new org.strata.jverify.common.Position(1, 1);
+                            range = new Range(pos, pos);
+                        }
 
                         var diagnostic = new StrataDiagnostic(uri, range, message);
                         diagnostics.add(diagnostic);

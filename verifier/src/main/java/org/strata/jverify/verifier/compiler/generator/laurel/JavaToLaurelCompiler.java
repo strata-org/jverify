@@ -23,12 +23,7 @@ import javax.tools.JavaFileObject;
 import java.net.URI;
 import java.util.*;
 
-import static org.strata.jverify.laurel.Laurel.*;
-
 public class JavaToLaurelCompiler {
-    /// The name Laurel binds a procedure's return value to inside ensures
-    /// clauses. A 1-parameter postcondition lambda's parameter is renamed
-    /// to this so the clause refers to the return value correctly.
     private static final String LAUREL_RESULT_BINDING = "result";
 
     private final JavaLowerer lowerer;
@@ -38,10 +33,6 @@ public class JavaToLaurelCompiler {
     private final VerifyAnnotationCompiler annotationCompiler;
     JCTree.JCCompilationUnit currentCompilationUnit;
 
-    /// Names of class/record/sealed types referenced as opaque Laurel
-    /// CompositeType sorts during translation. Each must be declared with
-    /// a compositeCommand so Strata's resolver can find the sort; insertion
-    /// order is preserved for deterministic output.
     private final Set<String> referencedCompositeTypes = new LinkedHashSet<>();
 
     public JavaToLaurelCompiler(Context context) {
@@ -54,9 +45,69 @@ public class JavaToLaurelCompiler {
 
     public record AnalysisResult(List<LaurelFile> files, FilesMap filesMap) {}
 
+    // --- Helper methods for constructing AST nodes ---
+
+    /** Get the best source tree for a statement — for expression statements,
+     *  use the expression (excludes the semicolon). */
+    private static JCTree sourceTreeFor(JCTree.JCStatement stmt) {
+        if (stmt instanceof JCTree.JCExpressionStatement exprStmt) {
+            return exprStmt.expr;
+        }
+        return stmt;
+    }
+
+    private static Identifier ident(String name) {
+        return new Identifier(name, null, null);
+    }
+
+    private FileRange toFileRange(JCTree tree) {
+        if (tree == null || currentCompilationUnit == null) return null;
+        int startPos = TreeInfo.getStartPos(tree);
+        int endPos = TreeInfo.getEndPos(tree, currentCompilationUnit.endPositions);
+        if (endPos == -1) endPos = startPos;
+        var filePath = currentCompilationUnit.sourcefile.toUri().toString();
+        return new FileRange(new Uri(filePath), new SourceRange(new Raw(startPos), new Raw(endPos)));
+    }
+
+    private AstNode<StmtExpr> node(StmtExpr expr, JCTree tree) {
+        return new AstNode<>(expr, toFileRange(tree));
+    }
+
+    private static AstNode<StmtExpr> node(StmtExpr expr) {
+        return new AstNode<>(expr, null);
+    }
+
+    private static AstNode<Variable> nodeVar(Variable v) {
+        return new AstNode<>(v, null);
+    }
+
+    private static AstNode<HighType> node(HighType type) {
+        return new AstNode<>(type, null);
+    }
+
+    private static StmtExpr primitiveOp(Operation op, AstNode<StmtExpr>... args) {
+        return new StmtExpr.PrimitiveOp(op, List.of(args), false);
+    }
+
+    private static StmtExpr var_(String name) {
+        return new StmtExpr.Var(new Variable.Local(ident(name)));
+    }
+
+    private static StmtExpr varDecl(String name, HighType type, StmtExpr init) {
+        var param = new Parameter(ident(name), node(type));
+        var decl = new Variable.Declare(param);
+        if (init == null) {
+            return new StmtExpr.Var(decl);
+        }
+        return new StmtExpr.Assign(List.of(nodeVar(decl)), node(init));
+    }
+
+    // --- Main analysis entry point ---
+
     public AnalysisResult analyzeJavaCode(VerifierOptions verifierOptions, List<JavaFileObject> readFiles) {
         var result = new ArrayList<LaurelFile>();
         var loweredResult = lowerer.lowerJava(verifierOptions, readFiles);
+        if (loweredResult == null) return null;
 
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
         boolean first = true;
@@ -69,24 +120,24 @@ public class JavaToLaurelCompiler {
             reporter.compilationUnit = compilationUnit;
             var visitor = new StaticMethodCollector();
             compilationUnit.accept(visitor);
-            List<Command> commands = new ArrayList<>();
+
+            List<TypeDefinition> types = new ArrayList<>();
+            List<Procedure> procs = new ArrayList<>();
+
             if (first) {
-                commands.addAll(getPredefinedTypes());
+                types.addAll(getPredefinedTypes());
                 first = false;
             }
-            // Declare each opaque composite sort referenced so far that has
-            // not been declared yet, before the procedures that use it, so
-            // Strata's resolver can find the sort.
             for (var typeName : referencedCompositeTypes) {
                 if (emittedCompositeTypes.add(typeName)) {
-                    commands.add(compositeCommand(
-                            composite(typeName, Optional.empty(), List.of(), List.of())));
+                    types.add(new TypeDefinition.Composite(
+                        new CompositeType(ident(typeName), List.of(), List.of(), List.of())));
                 }
             }
-            for (var proc : visitor.procedures) {
-                commands.add(procedureCommand(proc));
-            }
-            result.add(new LaurelFile(compilationUnit.sourcefile.toUri(), commands));
+            procs.addAll(visitor.procedures);
+
+            var program = new Program(procs, List.of(), types, List.of());
+            result.add(new LaurelFile(compilationUnit.sourcefile.toUri(), program));
             lineMaps.put(compilationUnit.sourcefile.toUri(), compilationUnit.getLineMap());
         }
 
@@ -104,99 +155,60 @@ public class JavaToLaurelCompiler {
         return new AnalysisResult(result, filesMap);
     }
 
-    SourceRange toSourceRange(JCTree node) {
-        int startPos = TreeInfo.getStartPos(node);
-        int endPos = TreeInfo.getEndPos(node, currentCompilationUnit.endPositions);
-        if (endPos == -1) {
-            endPos = startPos;
-        }
-        return new SourceRange(startPos, endPos);
-    }
-
-    private List<Command> getPredefinedTypes() {
+    private List<TypeDefinition> getPredefinedTypes() {
         return List.of(
             makeConstrainedType("int8", -128L, 127L),
             makeConstrainedType("int16", -32768L, 32767L),
             makeConstrainedType("int32", -2147483648L, 2147483647L),
             makeConstrainedType("int64", -9223372036854775808L, 9223372036854775807L),
             makeConstrainedType("char", 0L, 65535L),
-            // @Nat counterparts: the value must be a natural number (>= 0). The upper
-            // bound is the same as the corresponding signed type, so e.g. a @Nat int
-            // ranges over 0..2^31-1.
             makeConstrainedType("nat7", 0L, 127L),
             makeConstrainedType("nat15", 0L, 32767L),
             makeConstrainedType("nat31", 0L, 2147483647L),
             makeConstrainedType("nat63", 0L, 9223372036854775807L),
-            // @Unbounded @Nat: a natural number without an upper bound.
             makeConstrainedType("nat", 0L, null)
         );
     }
 
-    /**
-     * Create a constrained integer type {@code name} bounded by {@code x >= min} and
-     * {@code x <= max}. Either bound may be null to leave that side unconstrained, e.g.
-     * {@code min = 0, max = null} yields the unbounded {@code nat}.
-     */
-    private Command makeConstrainedType(String name, Long min, Long max) {
-        var sr = toSourceRange(currentCompilationUnit);
-        var x = identifier(sr, "x");
+    private TypeDefinition makeConstrainedType(String name, Long min, Long max) {
+        var x = var_("x");
         var bounds = new ArrayList<StmtExpr>();
         if (min != null) {
-            bounds.add(ge(sr, x, longLiteral(sr, min)));
+            bounds.add(primitiveOp(new Operation.Geq(), node(x), node(longLiteral(min))));
         }
         if (max != null) {
-            bounds.add(le(sr, x, longLiteral(sr, max)));
+            bounds.add(primitiveOp(new Operation.Leq(), node(x), node(longLiteral(max))));
         }
-        var constraint = bounds.stream().reduce((a, b) -> and(sr, a, b)).orElse(literalBool(sr, true));
-        var witness = int_(sr, 0);
-        return constrainedTypeCommand(sr, constrainedType(sr, name, "x", intType(sr), constraint, witness));
+        var constraint = bounds.stream()
+                .reduce((a, b) -> primitiveOp(new Operation.And(), node(a), node(b)))
+                .orElse(new StmtExpr.LiteralBool(true));
+        var witness = new StmtExpr.LiteralInt(0);
+        return new TypeDefinition.Constrained(new ConstrainedType(
+                ident(name), node(new HighType.TInt()), ident("x"), node(constraint), node(witness)));
     }
 
-    /** Create a Laurel integer literal for any long value, wrapping negatives in Neg. */
-    private static StmtExpr longLiteral(SourceRange sr, long val) {
-        if (val >= 0) return int_(sr, val);
-        return neg(sr, new StmtExpr.Int(sr, java.math.BigInteger.valueOf(val).negate()));
+    private static StmtExpr longLiteral(long val) {
+        if (val >= 0) return new StmtExpr.LiteralInt(val);
+        // LiteralInt serializes via ion.newInt(long) which handles negative values directly.
+        // However, the Lean-side deserializer may expect Neg(LiteralInt(posVal)) for negative
+        // numbers. For Long.MIN_VALUE, -val overflows, so emit the raw negative literal.
+        if (val == Long.MIN_VALUE) {
+            return new StmtExpr.LiteralInt(val);
+        }
+        return primitiveOp(new Operation.Neg(), node(new StmtExpr.LiteralInt(-val)));
     }
 
-    private LaurelType translateType(com.sun.tools.javac.code.Type type) {
+    private HighType translateType(com.sun.tools.javac.code.Type type) {
         return translateType(type, null);
     }
 
-    /**
-     * Translate a Java type to a Laurel type, honouring {@code @Nat} / {@code @Unbounded}
-     * type-use annotations also present on the given modifiers.
-     *
-     * <p>These annotations can reach us in two ways: attached to the resolved
-     * {@link com.sun.tools.javac.code.Type} (e.g. on method parameters and return types),
-     * or only on the declaration's modifiers (e.g. on local variable declarations, where
-     * javac strips the type-use annotation off the resolved type and the declared type
-     * tree). We look in both places via {@code modifiers}, which may be {@code null} when
-     * no declaration is available.
-     */
-    private LaurelType translateType(com.sun.tools.javac.code.Type type, JCTree.JCModifiers modifiers) {
-        // Class / interface types (including sealed hierarchies and
-        // records): encode as an opaque Laurel CompositeType named
-        // after the source-side type. Strata treats unbound composite
-        // types as uninterpreted reference sorts, which is enough
-        // for parameter-position acceptance (e.g.
-        // `static void leftIdentityNone(PathLengthRange r)`).
-        // Body-level operations on the value (instanceof, pattern
-        // match, record-component reads, constructors) need
-        // additional translation that is NOT part of this commit;
-        // they will surface as separate convertExpression errors.
+    private HighType translateType(com.sun.tools.javac.code.Type type, JCTree.JCModifiers modifiers) {
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
             String name = classType.tsym.getQualifiedName().toString();
-            // Use the fully-qualified name (with the `$` nested-class
-            // separator normalised to `.`) as the CompositeType sort
-            // name. Keeping the package makes the name stable and
-            // collision-free across two same-named classes in
-            // different packages.
             String sortName = name.replace('$', '.');
             referencedCompositeTypes.add(sortName);
-            return compositeType(sortName);
+            return new HighType.UserDefined(ident(sortName));
         }
-        // @Nat constrains the value to be a natural number (>= 0); @Unbounded drops the
-        // fixed-width overflow bound and treats the value as a mathematical integer.
         boolean isNat = JVerifyUtils.isAnnotated(type, org.strata.jverify.Nat.class)
                 || JVerifyUtils.isAnnotated(modifiers, org.strata.jverify.Nat.class);
         boolean isUnbounded = JVerifyUtils.isAnnotated(type, org.strata.jverify.Unbounded.class)
@@ -207,23 +219,17 @@ public class JavaToLaurelCompiler {
             case SHORT -> integerType(isNat, isUnbounded, "int16", "nat15");
             case BYTE -> integerType(isNat, isUnbounded, "int8", "nat7");
             case LONG -> integerType(isNat, isUnbounded, "int64", "nat63");
-            case CHAR -> compositeType("char");
-            case BOOLEAN -> boolType();
+            case CHAR -> new HighType.UserDefined(ident("char"));
+            case BOOLEAN -> new HighType.TBool();
             default -> throw new JavaViolationException("Unsupported type: " + type);
         };
     }
 
-    /**
-     * Pick the Laurel type for an integral Java type given its {@code @Nat}/{@code @Unbounded}
-     * annotations. {@code bounded}/{@code boundedNat} are the fixed-width type names for the
-     * default and {@code @Nat} cases; {@code @Unbounded} maps to the unbounded {@code int}
-     * (or {@code nat} when also {@code @Nat}).
-     */
-    private LaurelType integerType(boolean isNat, boolean isUnbounded, String bounded, String boundedNat) {
+    private HighType integerType(boolean isNat, boolean isUnbounded, String bounded, String boundedNat) {
         if (isUnbounded) {
-            return isNat ? compositeType("nat") : intType();
+            return isNat ? new HighType.UserDefined(ident("nat")) : new HighType.TInt();
         }
-        return compositeType(isNat ? boundedNat : bounded);
+        return new HighType.UserDefined(ident(isNat ? boundedNat : bounded));
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
@@ -255,18 +261,15 @@ public class JavaToLaurelCompiler {
         final List<Procedure> procedures = new ArrayList<>();
         private int labelCounter = 0;
 
-        /** Label stack entry for break/continue resolution. */
         private record LabelEntry(String javaLabel, String breakLabel, String continueLabel) {}
         private final Deque<LabelEntry> labelStack = new ArrayDeque<>();
         private String pendingLabel = null;
 
-        /** Check if a statement tree contains break or continue (at the current loop level). */
         private boolean containsBreakOrContinue(JCTree.JCStatement stmt) {
             boolean[] found = {false};
             stmt.accept(new TreeScanner() {
                 @Override public void visitBreak(JCTree.JCBreak tree) { found[0] = true; }
                 @Override public void visitContinue(JCTree.JCContinue tree) { found[0] = true; }
-                // Don't descend into nested loops — their break/continue don't target us
                 @Override public void visitWhileLoop(JCTree.JCWhileLoop tree) {}
                 @Override public void visitForLoop(JCTree.JCForLoop tree) {}
                 @Override public void visitDoLoop(JCTree.JCDoWhileLoop tree) {}
@@ -274,17 +277,10 @@ public class JavaToLaurelCompiler {
             return found[0];
         }
 
-        /** Check if a method body contains any loop. A @Pure function with
-         *  a loop cannot be a transparent (pure-expression) function body --
-         *  Strata function bodies allow only let-bindings and a final
-         *  if-then-else -- so we emit such a function uninterpreted. */
         private boolean bodyContainsLoop(JCTree.JCBlock body) {
             boolean[] found = {false};
             body.accept(new TreeScanner() {
                 @Override public void visitForLoop(JCTree.JCForLoop tree) { found[0] = true; }
-                // Foreach is future-proofing: it is not yet reachable here
-                // (there is no supported iterable type and no enhanced-for
-                // translation case), so it cannot be exercised by a test yet.
                 @Override public void visitForeachLoop(JCTree.JCEnhancedForLoop tree) { found[0] = true; }
                 @Override public void visitWhileLoop(JCTree.JCWhileLoop tree) { found[0] = true; }
                 @Override public void visitDoLoop(JCTree.JCDoWhileLoop tree) { found[0] = true; }
@@ -296,7 +292,6 @@ public class JavaToLaurelCompiler {
             return prefix + "_" + (labelCounter++);
         }
 
-        /** Set up loop labels, push to stack, execute body, pop stack. */
         private StmtExpr withLoopLabels(JCTree.JCStatement loopBody, java.util.function.BiFunction<String, String, StmtExpr> body) {
             boolean needsLabels = pendingLabel != null || containsBreakOrContinue(loopBody);
             String breakLbl = needsLabels ? freshLabel("loop_break") : null;
@@ -351,23 +346,21 @@ public class JavaToLaurelCompiler {
         }
 
         private void translateStaticMethod(JCTree.JCMethodDecl method) {
-            // TODO: when overloaded methods are supported, disambiguate names
-            //  (e.g. by appending parameter type suffixes) to avoid duplicate procedure names in Laurel.
             String methodName = qualifiedMethodName(method.sym);
 
-            List<Parameter> params = new ArrayList<>();
+            List<Parameter> inputs = new ArrayList<>();
             for (var param : method.params) {
-                params.add(parameter(param.name.toString(), translateType(param.type, param.mods)));
+                inputs.add(new Parameter(ident(param.name.toString()), node(translateType(param.type, param.mods))));
             }
 
-            Optional<ReturnType> retType = Optional.empty();
+            List<Parameter> outputs = new ArrayList<>();
             if (method.restype != null && method.restype.type != null
                     && method.restype.type.getTag() != TypeTag.VOID) {
-                retType = Optional.of(returnType(translateType(method.restype.type)));
+                outputs.add(new Parameter(ident(LAUREL_RESULT_BINDING), node(translateType(method.restype.type))));
             }
 
-            List<RequiresClause> requires = new ArrayList<>();
-            List<EnsuresClause> ensures = new ArrayList<>();
+            List<Condition> preconditions = new ArrayList<>();
+            List<Condition> postconditions = new ArrayList<>();
             StmtExpr methodBody = null;
 
             if (method.body != null) {
@@ -377,143 +370,97 @@ public class JavaToLaurelCompiler {
                     StmtExpr converted = (preExpr instanceof JCTree.JCLambda lambda)
                             ? convertLambdaBody(lambda, Map.of())
                             : convertExpression(preExpr);
-                    requires.add(requiresClause(converted, Optional.empty()));
+                    preconditions.add(new Condition(node(converted, preExpr), null, false));
                 }
                 for (var post : contract.postconditions()) {
                     var postExpr = post.get();
                     if (postExpr instanceof JCTree.JCLambda lambda) {
-                        // A 1-param postcondition lambda binds the return
-                        // value (renamed to Laurel's canonical
-                        // LAUREL_RESULT_BINDING); a 0-param lambda
-                        // (postcondition(BooleanSupplier), e.g. on a void
-                        // method) captures the enclosing scope directly and
-                        // needs no rename.
                         Map<String, String> renames = lambda.params.size() == 1
                                 ? Map.of(lambda.params.getFirst().name.toString(), LAUREL_RESULT_BINDING)
                                 : Map.of();
-                        ensures.add(ensuresClause(convertLambdaBody(lambda, renames), Optional.empty()));
+                        postconditions.add(new Condition(node(convertLambdaBody(lambda, renames), lambda.body), null, false));
                     } else {
-                        ensures.add(ensuresClause(convertExpression(postExpr), Optional.empty()));
+                        postconditions.add(new Condition(node(convertExpression(postExpr), postExpr), null, false));
                     }
                 }
 
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(method.body);
                 if (!implStatements.isEmpty()) {
-                    List<StmtExpr> stmts = new ArrayList<>();
+                    List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                     for (var statement : implStatements) {
                         StmtExpr converted = convertStatement(statement);
                         if (converted != null) {
-                            stmts.add(converted);
+                            stmts.add(node(converted, sourceTreeFor(statement)));
                         }
                     }
-                    methodBody = block(toSourceRange(method.body), stmts);
+                    methodBody = new StmtExpr.Block(stmts, null);
                 }
             }
 
             boolean isPure = jverifyUtils.isPure(method.sym);
-            // A @Pure function whose body contains a loop cannot be a
-            // transparent (pure-expression) function body, so drop the
-            // body and emit it uninterpreted (a sound over-approximation)
-            // rather than producing an untranslatable block expression.
             if (isPure && method.body != null && methodBody != null
                     && bodyContainsLoop(method.body)) {
-                if (!ensures.isEmpty()) {
-                    // Dropping the body would silently discard the
-                    // postcondition (it cannot be checked against an
-                    // uninterpreted function), so refuse instead.
+                if (!postconditions.isEmpty()) {
                     throw new JavaViolationException(
                         "@Pure function with a loop and a postcondition is not yet supported");
                 }
                 methodBody = null;
             }
 
-            Optional<Body> optBody = methodBody != null
-                    ? Optional.of(body(methodBody))
-                    : Optional.empty();
+            Body body;
+            boolean canStayTransparent = isPure && postconditions.isEmpty();
+            if (methodBody == null) {
+                if (postconditions.isEmpty()) {
+                    // Opaque with no implementation = uninterpreted function
+                    // (matches what the DDM path produces for a function with
+                    // no body; Body.External is reserved for built-in primitives)
+                    body = new Body.Opaque(List.of(), null, List.of());
+                } else {
+                    body = new Body.Abstract(postconditions);
+                }
+            } else if (canStayTransparent) {
+                body = new Body.Transparent(node(methodBody));
+            } else {
+                body = new Body.Opaque(postconditions, node(methodBody), List.of());
+            }
 
-            // Strata rejects transparent (visible-body) procedures unless they're functional;
-            // emit an OpaqueSpec to mark the body opaque otherwise. Pure functions stay
-            // transparent only when they have no ensures clauses (the schema can't carry
-            // ensures without an OpaqueSpec wrapper).
-            // modifies is always empty: jverify doesn't yet emit modifies clauses.
-            boolean canStayTransparent = isPure && ensures.isEmpty();
-            Optional<OpaqueSpec> optSpec = canStayTransparent
-                    ? Optional.empty()
-                    : Optional.of(opaqueSpec(ensures, List.of()));
-
-            Procedure proc = isPure
-                    ? function(toSourceRange(method), methodName, params,
-                            retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody)
-                    : procedure(toSourceRange(method), methodName, params,
-                            retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody);
+            var proc = new Procedure(
+                    ident(methodName), inputs, outputs, preconditions,
+                    null, isPure, body, null, List.of());
             procedures.add(proc);
         }
 
-        private StmtExpr convertBlock(JCTree.JCBlock blk, Map<String, String> renames) {
-            List<StmtExpr> statements = new ArrayList<>();
-            for (var statement : blk.stats) {
-                StmtExpr converted = convertStatement(statement, renames);
-                if (converted != null) {
-                    statements.add(converted);
-                }
-            }
-            return block(toSourceRange(blk), statements);
-        }
-
-        /**
-         * Emit a while loop with optional break/continue label wrapping.
-         *
-         * When labels are present, produces (for a for-loop with break/continue):
-         * <pre>
-         * labelledBlock(breakLbl, {
-         *   preamble...        // e.g. init for for-loops, sentinel decl for do-while
-         *   while (cond)
-         *     invariants: [...]
-         *   {
-         *     labelledBlock(continueLbl, { body });
-         *     step;            // null for while/do-while
-         *   }
-         * })
-         * </pre>
-         * break emits as exit(breakLbl), continue as exit(continueLbl).
-         * The step is outside the continue label so continue skips the body but still runs the step.
-         * @param sr source range
-         * @param cond loop condition
-         * @param invariants loop invariants
-         * @param loopBody the translated loop body
-         * @param step optional step expression (for-loops); null for while/do-while
-         * @param preamble statements to emit before the while (e.g. init, sentinel decl)
-         * @param breakLbl break label (null if no labels needed)
-         * @param continueLbl continue label (null if no labels needed)
-         */
-        private StmtExpr emitLoop(SourceRange sr, StmtExpr cond, List<InvariantClause> invariants,
-                                  StmtExpr loopBody, StmtExpr step, List<StmtExpr> preamble,
+        private StmtExpr emitLoop(StmtExpr cond, List<AstNode<StmtExpr>> invariants, StmtExpr loopBody,
+                                  StmtExpr step, List<StmtExpr> preamble,
                                   String breakLbl, String continueLbl) {
             if (breakLbl != null) {
-                StmtExpr wrappedBody = labelledBlock(sr, List.of(loopBody), continueLbl);
+                StmtExpr wrappedBody = new StmtExpr.Block(List.of(node(loopBody)), continueLbl);
                 StmtExpr whileBody;
                 if (step != null) {
-                    whileBody = block(sr, List.of(wrappedBody, step));
+                    whileBody = new StmtExpr.Block(List.of(node(wrappedBody), node(step)), null);
                 } else {
                     whileBody = wrappedBody;
                 }
-                StmtExpr whileNode = while_(sr, cond, invariants, whileBody);
-                List<StmtExpr> outerStmts = new ArrayList<>(preamble);
-                outerStmts.add(whileNode);
-                return labelledBlock(sr, outerStmts, breakLbl);
+                StmtExpr whileNode = new StmtExpr.While(node(cond), invariants, null, node(whileBody), false);
+                List<AstNode<StmtExpr>> outerStmts = new ArrayList<>();
+                for (var p : preamble) outerStmts.add(node(p));
+                outerStmts.add(node(whileNode));
+                return new StmtExpr.Block(outerStmts, breakLbl);
             } else {
+                StmtExpr whileBody;
                 if (step != null) {
-                    // Use forLoop IR node for simple for-loops without break/continue
-                    StmtExpr init = preamble.isEmpty() ? block(sr, List.of()) : preamble.getFirst();
-                    return forLoop(sr, init, cond, step, invariants, loopBody);
+                    whileBody = new StmtExpr.Block(List.of(node(loopBody), node(step)), null);
+                } else {
+                    whileBody = loopBody;
                 }
-                StmtExpr whileNode = while_(sr, cond, invariants, loopBody);
+                StmtExpr whileNode = new StmtExpr.While(node(cond), invariants, null, node(whileBody), false);
                 if (preamble.isEmpty()) {
                     return whileNode;
                 }
-                List<StmtExpr> stmts = new ArrayList<>(preamble);
-                stmts.add(whileNode);
-                return block(sr, stmts);
+                List<AstNode<StmtExpr>> stmts = new ArrayList<>();
+                for (var p : preamble) stmts.add(node(p));
+                stmts.add(node(whileNode));
+                return new StmtExpr.Block(stmts, null);
             }
         }
 
@@ -521,91 +468,70 @@ public class JavaToLaurelCompiler {
             return convertStatement(statement, Map.of());
         }
 
-        /**
-         * Convert a statement that appears in a position requiring a non-null
-         * {@link StmtExpr} (an if/else branch, a labeled-statement body, or a
-         * non-block loop body). An empty statement ({@code ;}) converts to
-         * {@code null}, which cannot be serialized as a Laurel node; substitute
-         * an empty block so e.g. {@code if (c) ;} and {@code for (..) ;} are
-         * valid no-ops rather than crashing the Ion serializer with an NPE.
-         */
         private StmtExpr convertStatementOrEmpty(JCTree.JCStatement statement, Map<String, String> renames) {
             StmtExpr converted = convertStatement(statement, renames);
-            return converted != null ? converted : block(toSourceRange(statement), List.of());
+            return converted != null ? converted : new StmtExpr.Block(List.of(), null);
         }
 
         private StmtExpr convertStatement(JCTree.JCStatement statement, Map<String, String> renames) {
             return switch (statement) {
                 case JCTree.JCAssert assertStmt ->
-                        assert_(toSourceRange(assertStmt), convertExpression(assertStmt.cond, renames), Optional.empty());
+                        new StmtExpr.Assert(new Condition(node(convertExpression(assertStmt.cond, renames)), null, false));
                 case JCTree.JCExpressionStatement exprStmt -> convertExpression(exprStmt.expr, renames);
                 case JCTree.JCBlock blk -> convertBlock(blk, renames);
                 case JCTree.JCVariableDecl varDecl -> {
-                    LaurelType type = translateType(varDecl.type, varDecl.mods);
-                    Optional<Initializer> optAssign = varDecl.init != null
-                            ? Optional.of(initializer(convertExpression(varDecl.init, renames)))
-                            : Optional.empty();
-                    yield varDecl(toSourceRange(varDecl), varDecl.name.toString(),
-                            Optional.of(typeAnnotation(type)), optAssign);
+                    HighType type = translateType(varDecl.type, varDecl.mods);
+                    var param = new Parameter(ident(varDecl.name.toString()), node(type));
+                    var decl = new Variable.Declare(param);
+                    if (varDecl.init != null) {
+                        yield new StmtExpr.Assign(
+                            List.of(nodeVar(decl)),
+                            node(convertExpression(varDecl.init, renames)));
+                    } else {
+                        yield new StmtExpr.Var(decl);
+                    }
                 }
                 case JCTree.JCIf ifStmt -> {
                     StmtExpr cond = convertExpression(ifStmt.cond, renames);
                     StmtExpr thenBranch = convertStatementOrEmpty(ifStmt.thenpart, renames);
-                    Optional<ElseBranch> elseB = Optional.empty();
+                    AstNode<StmtExpr> elseNode = null;
                     if (ifStmt.elsepart != null) {
                         StmtExpr elseStmt = convertStatement(ifStmt.elsepart, renames);
                         if (elseStmt != null) {
-                            elseB = Optional.of(elseBranch(elseStmt));
+                            elseNode = node(elseStmt);
                         }
                     }
-                    yield ifThenElse(toSourceRange(ifStmt), cond, thenBranch, elseB);
+                    yield new StmtExpr.IfThenElse(node(cond), node(thenBranch), elseNode);
                 }
                 case JCTree.JCReturn retStmt -> {
-                    Optional<StmtExpr> value = retStmt.expr != null
-                            ? Optional.of(convertExpression(retStmt.expr, renames))
-                            : Optional.empty();
-                    yield return_(toSourceRange(retStmt), value);
+                    AstNode<StmtExpr> value = retStmt.expr != null ? node(convertExpression(retStmt.expr, renames)) : null;
+                    yield new StmtExpr.Return(value);
                 }
                 case JCTree.JCWhileLoop whileStmt -> {
-                    var sr = toSourceRange(whileStmt);
                     yield withLoopLabels(whileStmt.body, (breakLbl, continueLbl) -> {
                         StmtExpr cond = convertExpression(whileStmt.cond, renames);
                         var parts = extractLoopParts(whileStmt.body, renames);
-                        return emitLoop(sr, cond, parts.invariants, parts.body, null, List.of(),
+                        return emitLoop(cond, parts.invariants, parts.body, null, List.of(),
                                 breakLbl, continueLbl);
                     });
                 }
                 case JCTree.JCForLoop forLoop -> {
                     if (forLoop.init.size() > 1 || forLoop.step.size() > 1)
                         throw new JavaViolationException("Multi-init or multi-step for loops are not supported");
-                    var sr = toSourceRange(forLoop);
                     yield withLoopLabels(forLoop.body, (breakLbl, continueLbl) -> {
-                        StmtExpr init = forLoop.init.isEmpty() ? block(sr, List.of())
+                        StmtExpr init = forLoop.init.isEmpty() ? new StmtExpr.Block(List.of(), null)
                                 : convertStatement(forLoop.init.getFirst(), renames);
                         StmtExpr cond = forLoop.cond != null
                                 ? convertExpression(forLoop.cond, renames)
-                                : literalBool(sr, true);
-                        StmtExpr step = forLoop.step.isEmpty() ? block(sr, List.of())
+                                : new StmtExpr.LiteralBool(true);
+                        StmtExpr step = forLoop.step.isEmpty() ? new StmtExpr.Block(List.of(), null)
                                 : convertStatement(forLoop.step.getFirst(), renames);
                         var parts = extractLoopParts(forLoop.body, renames);
-                        return emitLoop(sr, cond, parts.invariants, parts.body, step, List.of(init),
+                        return emitLoop(cond, parts.invariants, parts.body, step, List.of(init),
                                 breakLbl, continueLbl);
                     });
                 }
                 case JCTree.JCDoWhileLoop doWhile -> {
-                    // Desugar do-while using while(true) + exit(!cond):
-                    //   labelledBlock(breakLbl, [
-                    //     while (true) invariants:[I] {
-                    //       labelledBlock(continueLbl, [ body ]);
-                    //       if (!cond) exit(breakLbl);
-                    //     }
-                    //   ])
-                    // The exit(!cond) is OUTSIDE the continueLbl block so that
-                    // continue re-evaluates the condition (doesn't skip it).
-                    // Invariant is checked at while-entry before every iteration
-                    // including the first — no soundness gap as discussed in #418.
-                    var sr = toSourceRange(doWhile);
-                    // Do-while always needs labels: the desugaring itself uses exit(breakLbl)
                     var breakLbl = freshLabel("loop_break");
                     var continueLbl = freshLabel("loop_continue");
                     var javaLabel = pendingLabel;
@@ -614,39 +540,36 @@ public class JavaToLaurelCompiler {
                     try {
                         var cond = convertExpression(doWhile.cond, renames);
                         var parts = extractLoopParts(doWhile.body, renames);
-                        var exitIfDone = ifThenElse(sr, not(sr, cond),
-                                exit(sr, breakLbl), Optional.empty());
-                        var wrappedBody = labelledBlock(sr, List.of(parts.body), continueLbl);
-                        var whileBody = block(sr, List.of(wrappedBody, exitIfDone));
-                        var whileNode = while_(sr, literalBool(sr, true), parts.invariants, whileBody);
-                        yield labelledBlock(sr, List.of(whileNode), breakLbl);
+                        var notCond = primitiveOp(new Operation.Not(), node(cond));
+                        var exitIfDone = new StmtExpr.IfThenElse(node(notCond),
+                                node(new StmtExpr.Exit(breakLbl)), null);
+                        var wrappedBody = new StmtExpr.Block(List.of(node(parts.body)), continueLbl);
+                        var whileBody = new StmtExpr.Block(List.of(node(wrappedBody), node(exitIfDone)), null);
+                        var whileNode = new StmtExpr.While(node(new StmtExpr.LiteralBool(true)), parts.invariants, null, node(whileBody), false);
+                        yield new StmtExpr.Block(List.of(node(whileNode)), breakLbl);
                     } finally {
                         labelStack.pop();
                     }
                 }
                 case JCTree.JCBreak breakStmt -> {
-                    yield exit(toSourceRange(breakStmt), resolveBreakLabel(breakStmt));
+                    yield new StmtExpr.Exit(resolveBreakLabel(breakStmt));
                 }
                 case JCTree.JCContinue contStmt -> {
-                    yield exit(toSourceRange(contStmt), resolveContinueLabel(contStmt));
+                    yield new StmtExpr.Exit(resolveContinueLabel(contStmt));
                 }
                 case JCTree.JCLabeledStatement labeledStmt -> {
-                    // Set the pending label so the next loop picks it up
                     pendingLabel = labeledStmt.label.toString();
-                    // If the body is a loop, it will consume pendingLabel
-                    // If not, wrap in a labelledBlock for break-out-of-block
                     if (labeledStmt.body instanceof JCTree.JCWhileLoop
                             || labeledStmt.body instanceof JCTree.JCForLoop
                             || labeledStmt.body instanceof JCTree.JCDoWhileLoop) {
                         yield convertStatement(labeledStmt.body, renames);
                     } else {
-                        // Non-loop labeled statement: only break is valid (no continue)
-                        String breakLbl = freshLabel("label_break");
-                        labelStack.push(new LabelEntry(pendingLabel, breakLbl, null));
+                        String brkLbl = freshLabel("label_break");
+                        labelStack.push(new LabelEntry(pendingLabel, brkLbl, null));
                         pendingLabel = null;
                         try {
                             StmtExpr body = convertStatementOrEmpty(labeledStmt.body, renames);
-                            yield labelledBlock(toSourceRange(labeledStmt), List.of(body), breakLbl);
+                            yield new StmtExpr.Block(List.of(node(body)), brkLbl);
                         } finally {
                             labelStack.pop();
                         }
@@ -655,6 +578,17 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCSkip ignored -> null;
                 default -> throw new JavaViolationException("Unsupported statement: " + statement.getClass().getSimpleName());
             };
+        }
+
+        private StmtExpr convertBlock(JCTree.JCBlock blk, Map<String, String> renames) {
+            List<AstNode<StmtExpr>> statements = new ArrayList<>();
+            for (var statement : blk.stats) {
+                StmtExpr converted = convertStatement(statement, renames);
+                if (converted != null) {
+                    statements.add(node(converted, sourceTreeFor(statement)));
+                }
+            }
+            return new StmtExpr.Block(statements, null);
         }
 
         private StmtExpr convertExpression(JCTree.JCExpression expr) {
@@ -673,41 +607,46 @@ public class JavaToLaurelCompiler {
             throw new JavaViolationException("Unsupported lambda body");
         }
 
-        private record LoopParts(List<InvariantClause> invariants, StmtExpr body) {}
+        private record LoopParts(List<AstNode<StmtExpr>> invariants, StmtExpr body) {}
 
         private LoopParts extractLoopParts(JCTree.JCStatement body, Map<String, String> renames) {
             if (body instanceof JCTree.JCBlock loopBlock) {
-                // Only loops authored with an explicit invariant
-                // block (the contract-bearing shape produced by
-                // JVerify's contract authoring convention) have the
-                // structure getContract expects. Loop bodies
-                // without the wrapping contract block — including
-                // javac-synthesized while loops from enhanced-for
-                // desugaring — are processed as pure implementation
-                // statements with no invariants.
                 if (!MethodOrLoopContractCompiler.hasContractStructure(loopBlock)) {
-                    List<StmtExpr> stmts = new ArrayList<>();
+                    List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                     for (var s : loopBlock.getStatements()) {
                         StmtExpr converted = convertStatement(s, renames);
-                        if (converted != null) stmts.add(converted);
+                        if (converted != null) stmts.add(node(converted, s));
                     }
-                    return new LoopParts(List.of(), block(toSourceRange(loopBlock), stmts));
+                    return new LoopParts(List.of(), new StmtExpr.Block(stmts, null));
                 }
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
-                List<InvariantClause> invariants = new ArrayList<>();
+                List<AstNode<StmtExpr>> invariants = new ArrayList<>();
                 for (var inv : loopContract.loopInvariants()) {
-                    invariants.add(invariantClause(convertExpression(inv.get(), renames)));
+                    invariants.add(node(convertExpression(inv.get(), renames), inv.get()));
                 }
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
-                List<StmtExpr> stmts = new ArrayList<>();
+                List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                 for (var s : implStatements) {
                     StmtExpr converted = convertStatement(s, renames);
-                    if (converted != null) stmts.add(converted);
+                    if (converted != null) stmts.add(node(converted, s));
                 }
-                return new LoopParts(invariants, block(toSourceRange(loopBlock), stmts));
+                return new LoopParts(invariants, new StmtExpr.Block(stmts, null));
             } else {
                 return new LoopParts(List.of(), convertStatementOrEmpty(body, renames));
             }
+        }
+
+        private Variable convertVariable(JCTree.JCExpression expr, Map<String, String> renames) {
+            return switch (expr) {
+                case JCTree.JCIdent ident -> {
+                    String name = ident.name.toString();
+                    yield new Variable.Local(ident(renames.getOrDefault(name, name)));
+                }
+                case JCTree.JCFieldAccess fa ->
+                    new Variable.Field(node(convertExpression(fa.selected, renames)), ident(fa.name.toString()));
+                case JCTree.JCParens parens -> convertVariable(parens.expr, renames);
+                default -> throw new JavaViolationException("Unsupported variable expression: " + expr.getClass().getSimpleName());
+            };
         }
 
         private StmtExpr convertExpression(JCTree.JCExpression expr, Map<String, String> renames) {
@@ -715,18 +654,19 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCLiteral literal -> convertLiteral(literal);
                 case JCTree.JCIdent ident -> {
                     String name = ident.name.toString();
-                    yield identifier(toSourceRange(ident), renames.getOrDefault(name, name));
+                    yield var_(renames.getOrDefault(name, name));
                 }
                 case JCTree.JCParens parens ->
                         convertExpression(parens.expr, renames);
                 case JCTree.JCBinary binary -> convertBinary(binary, renames);
                 case JCTree.JCUnary unary -> convertUnary(unary, renames);
                 case JCTree.JCAssign asgn ->
-                        assign(toSourceRange(asgn), convertExpression(asgn.lhs, renames), convertExpression(asgn.rhs, renames));
+                        new StmtExpr.Assign(List.of(nodeVar(convertVariable(asgn.lhs, renames))),
+                                node(convertExpression(asgn.rhs, renames)));
                 case JCTree.JCConditional cond ->
-                        ifThenElse(toSourceRange(cond), convertExpression(cond.cond, renames),
-                                convertExpression(cond.truepart, renames),
-                                Optional.of(elseBranch(toSourceRange(cond.falsepart), convertExpression(cond.falsepart, renames))));
+                        new StmtExpr.IfThenElse(node(convertExpression(cond.cond, renames)),
+                                node(convertExpression(cond.truepart, renames)),
+                                node(convertExpression(cond.falsepart, renames)));
                 case JCTree.JCMethodInvocation invocation -> {
                     var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
                     if (jverifyMethod != null) {
@@ -734,78 +674,34 @@ public class JavaToLaurelCompiler {
                     }
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
                     String calleeName = qualifiedMethodName(methodSym);
-                    List<StmtExpr> args = new ArrayList<>();
+                    List<AstNode<StmtExpr>> args = new ArrayList<>();
                     for (var arg : invocation.args) {
-                        args.add(convertExpression(arg, renames));
+                        args.add(node(convertExpression(arg, renames)));
                     }
-                    yield call(toSourceRange(invocation),
-                            identifier(toSourceRange(invocation), calleeName), args);
+                    yield new StmtExpr.StaticCall(ident(calleeName), args);
                 }
-                // Synthesized by SwitchDesugarer to hoist a switch-expression's
-                // selector into a fresh local; lowers to a Laurel block (StmtExpr,
-                // usable in expression position). javac's Lower emits LetExpr for
-                // boxed compound-assign, postops, and pattern switches — all
-                // currently unsupported.
                 case JCTree.LetExpr letExpr -> {
-                    List<StmtExpr> stmts = new ArrayList<>();
+                    List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                     for (var def : letExpr.defs) {
                         StmtExpr converted = convertStatement(def, renames);
-                        if (converted != null) stmts.add(converted);
+                        if (converted != null) stmts.add(node(converted, def));
                     }
-                    stmts.add(convertExpression(letExpr.expr, renames));
-                    yield block(toSourceRange(letExpr), stmts);
+                    stmts.add(node(convertExpression(letExpr.expr, renames)));
+                    yield new StmtExpr.Block(stmts, null);
                 }
-                // Compile-time constant field access (e.g. `Foo.CONST` where
-                // CONST is `static final int CONST = 42`). javac keeps these as
-                // JCFieldAccess with the constant value attached on the
-                // expression's type.
                 case JCTree.JCFieldAccess fa when fa.type.constValue() != null ->
-                    convertConstantValue(toSourceRange(fa), fa.type.getTag(), fa.type.constValue());
+                    convertConstantValue(fa.type.getTag(), fa.type.constValue());
                 case JCTree.JCNewClass newClass -> {
-                    // `new T(...)` for class / record types: produce
-                    // a Laurel `new_(T)` value of the matching
-                    // CompositeType. Constructor arguments are NOT
-                    // captured into the resulting value yet — that
-                    // would need a Laurel datatype declaration with
-                    // constructor args matching the source. For
-                    // verification of identity-style properties
-                    // that compare references (e.g. `cover(None, r)
-                    // == r`) the opaque value is sufficient. Body-
-                    // level inspection of record components will
-                    // still error until the datatype encoding
-                    // lands.
-                    SourceRange sr = toSourceRange(newClass);
                     String name = newClass.type.tsym
                             .getQualifiedName().toString()
                             .replace('$', '.');
-                    // Declare the opaque composite sort even when the type
-                    // appears only here (in `new T(...)`) and never in a
-                    // type position, so the new_(T) value resolves.
                     referencedCompositeTypes.add(name);
-                    // Translate each argument so unsupported argument
-                    // expressions still surface as errors, but DISCARD
-                    // the result: the opaque new_(T) value models only
-                    // the reference identity, not the constructor's
-                    // arguments or their side effects. Capturing those
-                    // needs a Laurel datatype encoding and expression
-                    // sequencing (let/temporaries), which is future
-                    // work.
                     for (var arg : newClass.args) {
                         convertExpression(arg, renames);
                     }
-                    yield new_(sr, name);
+                    yield new StmtExpr.New(ident(name));
                 }
                 case JCTree.JCInstanceOf instanceOf -> {
-                    // `r instanceof X`: the opaque-CompositeType
-                    // encoding carries no runtime tag, so the test
-                    // cannot be modelled precisely yet. Fail with a
-                    // clear, attributable error rather than emitting an
-                    // undeclared `instanceOf_<X>` predicate symbol
-                    // (which would surface only as a confusing
-                    // downstream "Resolution failed" message, and whose
-                    // simple-name form could even collide across
-                    // packages). A precise encoding needs a tagged
-                    // datatype representation; future work.
                     throw new JavaViolationException(
                         "instanceof on opaque reference types is not yet supported");
                 }
@@ -814,53 +710,47 @@ public class JavaToLaurelCompiler {
         }
 
         private StmtExpr convertLiteral(JCTree.JCLiteral literal) {
-            return convertConstantValue(toSourceRange(literal), literal.typetag, literal.value);
+            return convertConstantValue(literal.typetag, literal.value);
         }
 
-        /// Lower a primitive compile-time constant value to a Laurel literal.
-        /// Used by JCLiteral and JCFieldAccess (where the value is attached
-        /// via Type.constValue()). Boolean values arrive as Integer 0/1 from
-        /// Type.constValue() — Java represents booleans as int internally.
-        private StmtExpr convertConstantValue(SourceRange sr, TypeTag tag, Object v) {
+        private StmtExpr convertConstantValue(TypeTag tag, Object v) {
             return switch (tag) {
-                case BOOLEAN -> literalBool(sr, ((Number) v).intValue() != 0);
-                case CHAR, INT, SHORT, BYTE, LONG -> longLiteral(sr, ((Number) v).longValue());
+                case BOOLEAN -> new StmtExpr.LiteralBool(((Number) v).intValue() != 0);
+                case CHAR, INT, SHORT, BYTE, LONG -> longLiteral(((Number) v).longValue());
                 default -> throw new JavaViolationException("Unsupported constant type tag: " + tag);
             };
         }
 
         private StmtExpr convertBinary(JCTree.JCBinary binary, Map<String, String> renames) {
-            StmtExpr lhs = convertExpression(binary.lhs, renames);
-            StmtExpr rhs = convertExpression(binary.rhs, renames);
-            SourceRange sr = toSourceRange(binary);
+            AstNode<StmtExpr> lhs = node(convertExpression(binary.lhs, renames));
+            AstNode<StmtExpr> rhs = node(convertExpression(binary.rhs, renames));
             return switch (binary.getTag()) {
-                case PLUS -> add(sr, lhs, rhs);
-                case MINUS -> sub(sr, lhs, rhs);
-                case MUL -> mul(sr, lhs, rhs);
-                case DIV -> divT(sr, lhs, rhs);
-                case MOD -> modT(sr, lhs, rhs);
-                case EQ -> eq(sr, lhs, rhs);
-                case NE -> neq(sr, lhs, rhs);
-                case GT -> gt(sr, lhs, rhs);
-                case LT -> lt(sr, lhs, rhs);
-                case GE -> ge(sr, lhs, rhs);
-                case LE -> le(sr, lhs, rhs);
-                case AND -> andThen(sr, lhs, rhs);
-                case OR -> orElse(sr, lhs, rhs);
+                case PLUS -> primitiveOp(new Operation.Add(), lhs, rhs);
+                case MINUS -> primitiveOp(new Operation.Sub(), lhs, rhs);
+                case MUL -> primitiveOp(new Operation.Mul(), lhs, rhs);
+                case DIV -> primitiveOp(new Operation.DivT(), lhs, rhs);
+                case MOD -> primitiveOp(new Operation.ModT(), lhs, rhs);
+                case EQ -> primitiveOp(new Operation.Eq(), lhs, rhs);
+                case NE -> primitiveOp(new Operation.Neq(), lhs, rhs);
+                case GT -> primitiveOp(new Operation.Gt(), lhs, rhs);
+                case LT -> primitiveOp(new Operation.Lt(), lhs, rhs);
+                case GE -> primitiveOp(new Operation.Geq(), lhs, rhs);
+                case LE -> primitiveOp(new Operation.Leq(), lhs, rhs);
+                case AND -> primitiveOp(new Operation.AndThen(), lhs, rhs);
+                case OR -> primitiveOp(new Operation.OrElse(), lhs, rhs);
                 default -> throw new JavaViolationException("Unsupported binary op: " + binary.getTag());
             };
         }
 
         private StmtExpr convertUnary(JCTree.JCUnary unary, Map<String, String> renames) {
-            StmtExpr inner = convertExpression(unary.arg, renames);
-            SourceRange sr = toSourceRange(unary);
+            AstNode<StmtExpr> inner = node(convertExpression(unary.arg, renames));
             return switch (unary.getTag()) {
-                case NOT -> not(sr, inner);
-                case NEG -> neg(sr, inner);
-                case PREINC -> preIncr(sr, inner);
-                case PREDEC -> preDecr(sr, inner);
-                case POSTINC -> postIncr(sr, inner);
-                case POSTDEC -> postDecr(sr, inner);
+                case NOT -> primitiveOp(new Operation.Not(), inner);
+                case NEG -> primitiveOp(new Operation.Neg(), inner);
+                case PREINC -> new StmtExpr.IncrDecr(new IncrDecrMode.Pre(), new IncrDecrOp.Incr(), nodeVar(convertVariable(unary.arg, renames)));
+                case PREDEC -> new StmtExpr.IncrDecr(new IncrDecrMode.Pre(), new IncrDecrOp.Decr(), nodeVar(convertVariable(unary.arg, renames)));
+                case POSTINC -> new StmtExpr.IncrDecr(new IncrDecrMode.Post(), new IncrDecrOp.Incr(), nodeVar(convertVariable(unary.arg, renames)));
+                case POSTDEC -> new StmtExpr.IncrDecr(new IncrDecrMode.Post(), new IncrDecrOp.Decr(), nodeVar(convertVariable(unary.arg, renames)));
                 default -> throw new JavaViolationException("Unsupported unary op: " + unary.getTag());
             };
         }
@@ -869,23 +759,22 @@ public class JavaToLaurelCompiler {
                                             Symbol.MethodSymbol jverifyMethod,
                                             Map<String, String> renames) {
             var name = jverifyMethod.getQualifiedName().toString();
-            SourceRange sr = toSourceRange(invocation);
             return switch (name) {
                 case "check" -> {
                     if (invocation.args.size() != 1)
                         throw new JavaViolationException("check should have a single argument");
-                    yield assert_(sr, convertExpression(invocation.args.getFirst(), renames), Optional.empty());
+                    yield new StmtExpr.Assert(new Condition(node(convertExpression(invocation.args.getFirst(), renames)), null, false));
                 }
                 case "assume" -> {
                     if (invocation.args.size() != 1)
                         throw new JavaViolationException("assume should have a single argument");
-                    yield assume(sr, convertExpression(invocation.args.getFirst(), renames));
+                    yield new StmtExpr.Assume(node(convertExpression(invocation.args.getFirst(), renames)));
                 }
                 case "implies" -> {
                     if (invocation.args.size() != 2)
                         throw new JavaViolationException("implies should have two arguments");
-                    yield or(sr, not(sr, convertExpression(invocation.args.get(0), renames)),
-                            convertExpression(invocation.args.get(1), renames));
+                    var notA = primitiveOp(new Operation.Not(), node(convertExpression(invocation.args.get(0), renames)));
+                    yield primitiveOp(new Operation.Or(), node(notA), node(convertExpression(invocation.args.get(1), renames)));
                 }
                 case "forall", "exists" -> {
                     if (invocation.args.size() != 1 || !(invocation.args.getFirst() instanceof JCTree.JCLambda lambda))
@@ -894,9 +783,11 @@ public class JavaToLaurelCompiler {
                     for (int i = lambda.params.size() - 1; i >= 0; i--) {
                         var p = lambda.params.get(i);
                         var ty = translateType(p.type, p.mods);
-                        qBody = name.equals("forall")
-                                ? forallExpr(sr, p.name.toString(), ty, Optional.empty(), qBody)
-                                : existsExpr(sr, p.name.toString(), ty, Optional.empty(), qBody);
+                        var param = new Parameter(ident(p.name.toString()), node(ty));
+                        var mode = name.equals("forall")
+                                ? (QuantifierMode) new QuantifierMode.Forall()
+                                : new QuantifierMode.Exists();
+                        qBody = new StmtExpr.Quantifier(mode, param, null, node(qBody));
                     }
                     yield qBody;
                 }

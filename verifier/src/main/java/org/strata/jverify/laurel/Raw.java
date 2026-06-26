@@ -1,10 +1,9 @@
 package org.strata.jverify.laurel;
 
-public record SourceRange(Raw start, Raw stop) implements ToIon {
+public record Raw(long byteIdx) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
-        s.put("start", start().toIon(ion));
-        s.put("stop", stop().toIon(ion));
+        s.put("byteIdx", ion.newInt(byteIdx()));
         return s;
     }
 }

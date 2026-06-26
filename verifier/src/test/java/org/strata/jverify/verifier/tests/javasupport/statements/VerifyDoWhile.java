@@ -200,7 +200,7 @@ class VerifyDoWhile {
         int x = -1;
         do {
             invariant(x >= 0);
-//                    ^^^^^^ Error: assertion could not be proved
+//                    ^^^^^^ Error: assertion does not hold
             x = x + 1;
         } while (x < 5);
     }
