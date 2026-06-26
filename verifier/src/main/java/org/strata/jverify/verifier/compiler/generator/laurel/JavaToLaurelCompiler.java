@@ -51,6 +51,18 @@ public class JavaToLaurelCompiler {
         return new Identifier(name, null, null);
     }
 
+    private FileRange toFileRange(JCTree tree) {
+        int startPos = TreeInfo.getStartPos(tree);
+        int endPos = TreeInfo.getEndPos(tree, currentCompilationUnit.endPositions);
+        if (endPos == -1) endPos = startPos;
+        var filePath = currentCompilationUnit.sourcefile.toUri().toString();
+        return new FileRange(new Uri(filePath), new SourceRange(new Raw(startPos), new Raw(endPos)));
+    }
+
+    private AstNode<StmtExpr> node(StmtExpr expr, JCTree tree) {
+        return new AstNode<>(expr, toFileRange(tree));
+    }
+
     private static AstNode<StmtExpr> node(StmtExpr expr) {
         return new AstNode<>(expr, null);
     }
@@ -368,7 +380,7 @@ public class JavaToLaurelCompiler {
                     for (var statement : implStatements) {
                         StmtExpr converted = convertStatement(statement);
                         if (converted != null) {
-                            stmts.add(node(converted));
+                            stmts.add(node(converted, statement));
                         }
                     }
                     methodBody = new StmtExpr.Block(stmts, null);
@@ -554,7 +566,7 @@ public class JavaToLaurelCompiler {
             for (var statement : blk.stats) {
                 StmtExpr converted = convertStatement(statement, renames);
                 if (converted != null) {
-                    statements.add(node(converted));
+                    statements.add(node(converted, statement));
                 }
             }
             return new StmtExpr.Block(statements, null);
@@ -584,7 +596,7 @@ public class JavaToLaurelCompiler {
                     List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                     for (var s : loopBlock.getStatements()) {
                         StmtExpr converted = convertStatement(s, renames);
-                        if (converted != null) stmts.add(node(converted));
+                        if (converted != null) stmts.add(node(converted, s));
                     }
                     return new LoopParts(List.of(), new StmtExpr.Block(stmts, null));
                 }
@@ -597,7 +609,7 @@ public class JavaToLaurelCompiler {
                 List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                 for (var s : implStatements) {
                     StmtExpr converted = convertStatement(s, renames);
-                    if (converted != null) stmts.add(node(converted));
+                    if (converted != null) stmts.add(node(converted, s));
                 }
                 return new LoopParts(invariants, new StmtExpr.Block(stmts, null));
             } else {
@@ -653,7 +665,7 @@ public class JavaToLaurelCompiler {
                     List<AstNode<StmtExpr>> stmts = new ArrayList<>();
                     for (var def : letExpr.defs) {
                         StmtExpr converted = convertStatement(def, renames);
-                        if (converted != null) stmts.add(node(converted));
+                        if (converted != null) stmts.add(node(converted, def));
                     }
                     stmts.add(node(convertExpression(letExpr.expr, renames)));
                     yield new StmtExpr.Block(stmts, null);
