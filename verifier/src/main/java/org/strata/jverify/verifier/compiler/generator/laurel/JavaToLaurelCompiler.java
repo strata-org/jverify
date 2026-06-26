@@ -47,6 +47,24 @@ public class JavaToLaurelCompiler {
 
     // --- Helper methods for constructing AST nodes ---
 
+    private FileRange sourceFor(JCTree tree) {
+        if (tree == null || currentCompilationUnit == null) return null;
+        int start = tree.getStartPosition();
+        int end = tree.getEndPosition(currentCompilationUnit.endPositions);
+        if (start < 0 || end < 0) return null;
+        var uri = new Uri(currentCompilationUnit.sourcefile.toUri().toString());
+        return new FileRange(uri, new SourceRange(new Raw(start), new Raw(end)));
+    }
+
+    /** Get the best source tree for a statement — for expression statements,
+     *  use the expression (excludes the semicolon). */
+    private static JCTree sourceTreeFor(JCTree.JCStatement stmt) {
+        if (stmt instanceof JCTree.JCExpressionStatement exprStmt) {
+            return exprStmt.expr;
+        }
+        return stmt;
+    }
+
     private static Identifier ident(String name) {
         return new Identifier(name, null, null);
     }
@@ -65,6 +83,10 @@ public class JavaToLaurelCompiler {
 
     private static AstNode<StmtExpr> node(StmtExpr expr) {
         return new AstNode<>(expr, null);
+    }
+
+    private AstNode<StmtExpr> node(StmtExpr expr, JCTree tree) {
+        return new AstNode<>(expr, sourceFor(tree));
     }
 
     private static AstNode<Variable> nodeVar(Variable v) {
@@ -380,7 +402,7 @@ public class JavaToLaurelCompiler {
                     for (var statement : implStatements) {
                         StmtExpr converted = convertStatement(statement);
                         if (converted != null) {
-                            stmts.add(node(converted, statement));
+                            stmts.add(node(converted, sourceTreeFor(statement)));
                         }
                     }
                     methodBody = new StmtExpr.Block(stmts, null);
@@ -566,7 +588,7 @@ public class JavaToLaurelCompiler {
             for (var statement : blk.stats) {
                 StmtExpr converted = convertStatement(statement, renames);
                 if (converted != null) {
-                    statements.add(node(converted, statement));
+                    statements.add(node(converted, sourceTreeFor(statement)));
                 }
             }
             return new StmtExpr.Block(statements, null);

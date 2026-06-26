@@ -163,7 +163,7 @@ public class LaurelDriver implements Driver {
             String line;
             boolean inDiagnosticsSection = false;
             StringBuilder preDiagnosticOutput = new StringBuilder();
-            Pattern diagnosticPattern = Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
+            Pattern diagnosticPattern = Pattern.compile("^(.*?):(\\d+)-(\\d+): (.+)$");
 
             while ((line = strataOutput.readLine()) != null) {
                 if (options.verbose()) {
@@ -191,9 +191,14 @@ public class LaurelDriver implements Driver {
                         // the source location (reported as 1:1).
                         URI uri;
                         try {
-                            uri = filePath.startsWith("file:")
-                                    ? URI.create(filePath)
-                                    : Paths.get(filePath).toUri();
+                            if (filePath.isEmpty() || filePath.equals("<unknown>")) {
+                                // No source location — use a synthetic path
+                                uri = Paths.get("unknown").toUri();
+                            } else {
+                                uri = filePath.startsWith("file:")
+                                        ? URI.create(filePath)
+                                        : Paths.get(filePath).toUri();
+                            }
                         } catch (Exception e) {
                             // Invalid path (e.g., "<unknown>" on Windows)
                             continue;
@@ -206,8 +211,9 @@ public class LaurelDriver implements Driver {
                                     filesMap.computePositionFromFileOffset(uri, endOffset)
                             );
                         } catch (Exception e) {
-                            // URI not in filesMap (e.g., "<unknown>" placeholder from Strata)
-                            continue;
+                            // URI not in filesMap — use position 1:1
+                            var pos = new org.strata.jverify.common.Position(1, 1);
+                            range = new Range(pos, pos);
                         }
 
                         var diagnostic = new StrataDiagnostic(uri, range, message);
