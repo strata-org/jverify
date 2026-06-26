@@ -185,12 +185,30 @@ public class LaurelDriver implements Driver {
                         int endOffset = Integer.parseInt(matcher.group(3));
                         String message = matcher.group(4);
 
-                        var uri = Paths.get(filePath).toUri();
+                        // Strata emits `file://` URIs (e.g. file:///abs/Path.java);
+                        // parse them as URIs rather than treating the URI string as
+                        // a filesystem path, which would miss the filesMap and lose
+                        // the source location (reported as 1:1).
+                        URI uri;
+                        try {
+                            uri = filePath.startsWith("file:")
+                                    ? URI.create(filePath)
+                                    : Paths.get(filePath).toUri();
+                        } catch (Exception e) {
+                            // Invalid path (e.g., "<unknown>" on Windows)
+                            continue;
+                        }
 
-                        var range = new Range(
-                                filesMap.computePositionFromFileOffset(uri, startOffset),
-                                filesMap.computePositionFromFileOffset(uri, endOffset)
-                        );
+                        Range range;
+                        try {
+                            range = new Range(
+                                    filesMap.computePositionFromFileOffset(uri, startOffset),
+                                    filesMap.computePositionFromFileOffset(uri, endOffset)
+                            );
+                        } catch (Exception e) {
+                            // URI not in filesMap (e.g., "<unknown>" placeholder from Strata)
+                            continue;
+                        }
 
                         var diagnostic = new StrataDiagnostic(uri, range, message);
                         diagnostics.add(diagnostic);
@@ -223,9 +241,27 @@ public class LaurelDriver implements Driver {
 
             int verifierExitCode = process.waitFor();
             if (verifierExitCode != 0 && diagnostics.isEmpty()) {
-                var msg = "Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput;
-                options.outWriter().println(msg);
-                System.err.println(msg);
+                options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
+                // Soundness: a non-zero Strata exit with no parsed
+                // diagnostics means verification aborted (e.g. an internal
+                // Strata exception such as a failed termination check).
+                // Surface it as an error so the result can never be read as
+                // a vacuous "0 errors / verified" -- the same invariant the
+                // Laurel-to-Core soundness net enforces on the Strata side.
+                var abortUri = methodStatuses.keySet().stream().findFirst()
+                        .orElse(Paths.get("strata").toUri());
+                var abortPos = new org.strata.jverify.common.Position(1, 1);
+                diagnostics.add(new StrataDiagnostic(abortUri,
+                        new Range(abortPos, abortPos),
+                        "verification aborted: Strata exited with code "
+                        + verifierExitCode + " without reporting diagnostics: "
+                        + preDiagnosticOutput.toString().strip()));
+                failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
+                // The run aborted before producing per-method results, so
+                // the optimistic "Verified" defaults are not trustworthy:
+                // do not report any method as verified or skipped.
+                verifiedCount = 0;
+                skippedCount = 0;
             }
             var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
             return new JVerifyResults(diagnostics, exitCode,
