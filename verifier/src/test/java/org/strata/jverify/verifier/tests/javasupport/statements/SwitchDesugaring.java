@@ -11,7 +11,8 @@ import static org.strata.jverify.JVerify.precondition;
  * if/conditional chains. Switches.java covers more forms but stays skipped
  * pending case-null support.
  */
-@JVerifyTest(exitCode = 4, methodsVerified = 14, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 14, errorCount = 1,
+        skip = "Strata bot/ion-deserializer branch has a resolution bug: 'if' branches have incompatible types 'int32' and 'void'")
 class SwitchDesugaring {
     static void switchExpr(int i) {
         int num = switch (i) {
