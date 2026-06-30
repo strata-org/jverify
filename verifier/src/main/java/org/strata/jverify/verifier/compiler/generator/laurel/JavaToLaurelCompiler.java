@@ -34,6 +34,27 @@ public class JavaToLaurelCompiler {
     /// simplification pass; Strata reports diagnostics for them against
     /// this URI, which has no entry in our line map.
     private static final String SYNTHETIC_UNKNOWN_PATH = "/<unknown>";
+    /// Suffix for the per-sort uninterpreted null-reference function
+    /// (`<sort>$null`) used to model `x == null` / `x != null` and standalone
+    /// `null` values on object references (which translate to opaque
+    /// composite sorts).
+    ///
+    /// <p>STOP-GAP. This per-sort null encoding is a front-end workaround
+    /// until Laurel gains first-class nullable support. The intended Laurel
+    /// model is:
+    /// <ul>
+    ///   <li>a shared {@code Null} value and a {@code Nullable<T>} type; and</li>
+    ///   <li>implicit conversions between {@code Nullable<T>} and {@code T}, so
+    ///       the front-end can translate {@code @Nullable Object x} to
+    ///       {@code var x: Nullable<Object>} and let Laurel insert the
+    ///       conversions.</li>
+    /// </ul>
+    /// Until then, {@code null} is modelled here as a distinguished element
+    /// {@code <sort>$null} of each reference sort. This should be removed in
+    /// favour of the Laurel model once it lands. See {@code NullReferenceTest}
+    /// for what this supports and {@code NullReferenceLimitationsTest} for what
+    /// it deliberately does not.
+    private static final String NULL_REF_SUFFIX = "$null";
 
     private final JavaLowerer lowerer;
     private final MethodOrLoopContractCompiler contractCompiler;
@@ -85,6 +106,30 @@ public class JavaToLaurelCompiler {
                 if (emittedCompositeTypes.add(typeName)) {
                     commands.add(compositeCommand(
                             composite(typeName, Optional.empty(), List.of(), List.of())));
+                    // Per-sort null reference: an uninterpreted 0-arg function
+                    // `<sort>$null` yields a distinguished value of the sort, so
+                    // `x == null` / `x != null` and standalone null on a
+                    // reference of this type can be modelled. Uninterpreted, so
+                    // the only fact is that it is one fixed element of the sort.
+                    //
+                    // SOUNDNESS ASSUMPTION: `<sort>$null` is per-sort —
+                    // `Base$null` and `Sub$null` are distinct opaque elements.
+                    // Composite sorts currently carry NO subtyping (the
+                    // extends-slot passed to `composite(...)` above is always
+                    // Optional.empty()), so a value of one reference sort is
+                    // never compared against another sort's `$null`, and the
+                    // distinct per-sort nulls are sound. If subtyping/upcasting
+                    // between composite sorts ever becomes expressible (a
+                    // subtype value reaching a supertype-typed slot, compared to
+                    // that slot's `$null`), this turns UNSOUND: two equal Java
+                    // nulls would appear distinct. That is exactly the case the
+                    // eventual single shared Laurel `Null` value is meant to
+                    // cover (see NULL_REF_SUFFIX).
+                    commands.add(procedureCommand(function(
+                            typeName + NULL_REF_SUFFIX, List.of(),
+                            Optional.of(returnType(compositeType(typeName))),
+                            Optional.empty(), List.of(), Optional.empty(),
+                            Optional.empty(), Optional.empty())));
                 }
             }
             for (var proc : visitor.procedures) {
@@ -279,6 +324,9 @@ public class JavaToLaurelCompiler {
     private class StaticMethodCollector extends TreeScanner {
         final List<Procedure> procedures = new ArrayList<>();
         private int labelCounter = 0;
+        // Resolved return type of the method currently being translated (null
+        // for void / none). Used to pick the reference sort for a `return null`.
+        private com.sun.tools.javac.code.Type currentMethodReturnType = null;
 
         /** Label stack entry for break/continue resolution. */
         private record LabelEntry(String javaLabel, String breakLabel, String continueLabel) {}
@@ -386,6 +434,7 @@ public class JavaToLaurelCompiler {
             }
 
             Optional<ReturnType> retType = Optional.empty();
+            currentMethodReturnType = (method.restype != null) ? method.restype.type : null;
             if (method.restype != null && method.restype.type != null
                     && method.restype.type.getTag() != TypeTag.VOID) {
                 retType = Optional.of(returnType(toSourceRange(method.restype), translateType(method.restype.type)));
@@ -577,7 +626,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCVariableDecl varDecl -> {
                     LaurelType type = translateType(varDecl.type, varDecl.mods);
                     Optional<Initializer> optAssign = varDecl.init != null
-                            ? Optional.of(initializer(convertExpression(varDecl.init, renames)))
+                            ? Optional.of(initializer(convertNullable(varDecl.init, varDecl.type, renames)))
                             : Optional.empty();
                     yield varDecl(toSourceRange(varDecl), varDecl.name.toString(),
                             Optional.of(typeAnnotation(type)), optAssign);
@@ -596,7 +645,7 @@ public class JavaToLaurelCompiler {
                 }
                 case JCTree.JCReturn retStmt -> {
                     Optional<StmtExpr> value = retStmt.expr != null
-                            ? Optional.of(convertExpression(retStmt.expr, renames))
+                            ? Optional.of(convertNullable(retStmt.expr, currentMethodReturnType, renames))
                             : Optional.empty();
                     yield return_(toSourceRange(retStmt), value);
                 }
@@ -756,7 +805,8 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCBinary binary -> convertBinary(binary, renames);
                 case JCTree.JCUnary unary -> convertUnary(unary, renames);
                 case JCTree.JCAssign asgn ->
-                        assign(toSourceRange(asgn), convertExpression(asgn.lhs, renames), convertExpression(asgn.rhs, renames));
+                        assign(toSourceRange(asgn), convertExpression(asgn.lhs, renames),
+                                convertNullable(asgn.rhs, asgn.lhs.type, renames));
                 case JCTree.JCConditional cond ->
                         ifThenElse(toSourceRange(cond), convertExpression(cond.cond, renames),
                                 convertExpression(cond.truepart, renames),
@@ -769,8 +819,32 @@ public class JavaToLaurelCompiler {
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
                     String calleeName = qualifiedMethodName(methodSym);
                     List<StmtExpr> args = new ArrayList<>();
+                    // Per-argument expected types from the resolved callee, so
+                    // a `null` argument picks up the parameter's reference sort.
+                    var calleeSym = com.sun.tools.javac.tree.TreeInfo.symbol(invocation.meth);
+                    List<com.sun.tools.javac.code.Type> paramTypes =
+                            (calleeSym instanceof Symbol.MethodSymbol ms)
+                                    ? ms.type.getParameterTypes() : null;
+                    int argIdx = 0;
                     for (var arg : invocation.args) {
-                        args.add(convertExpression(arg, renames));
+                        com.sun.tools.javac.code.Type expected;
+                        if (paramTypes != null && argIdx < paramTypes.size()) {
+                            expected = paramTypes.get(argIdx);
+                        } else if (paramTypes != null && !paramTypes.isEmpty()
+                                && calleeSym instanceof Symbol.MethodSymbol vms && vms.isVarArgs()
+                                && paramTypes.get(paramTypes.size() - 1)
+                                        instanceof com.sun.tools.javac.code.Type.ArrayType vat) {
+                            // Spread argument beyond the declared parameters:
+                            // it takes the varargs element type, so a `null`
+                            // here picks up the element's reference sort.
+                            expected = vat.elemtype;
+                        } else {
+                            expected = null;
+                        }
+                        args.add(expected != null
+                                ? convertNullable(arg, expected, renames)
+                                : convertExpression(arg, renames));
+                        argIdx++;
                     }
                     yield call(toSourceRange(invocation),
                             identifier(toSourceRange(invocation), calleeName), args);
@@ -859,11 +933,90 @@ public class JavaToLaurelCompiler {
             return switch (tag) {
                 case BOOLEAN -> literalBool(sr, ((Number) v).intValue() != 0);
                 case CHAR, INT, SHORT, BYTE, LONG -> longLiteral(sr, ((Number) v).longValue());
+                case BOT -> throw new JavaViolationException(
+                        "could not determine a concrete class/interface reference type for this `null`. "
+                        + "`null` is supported in `== null` / `!= null` comparisons and, where the target "
+                        + "type is a class/interface reference, in `return`, local initialisers, "
+                        + "assignments, and call arguments; array and type-variable targets are not yet "
+                        + "supported as a standalone `null`");
                 default -> throw new JavaViolationException("Unsupported constant type tag: " + tag);
             };
         }
 
+        /// The distinguished null value of an object reference type:
+        /// `<sort>$null`, an uninterpreted element of the (otherwise opaque)
+        /// composite sort. Returns {@code null} when {@code type} is not an
+        /// object reference, so callers can fall back to the normal path.
+        private StmtExpr nullRefForType(SourceRange sr, com.sun.tools.javac.code.Type type) {
+            if (type instanceof com.sun.tools.javac.code.Type.ClassType ct) {
+                String sortName = ct.tsym.getQualifiedName().toString().replace('$', '.');
+                referencedCompositeTypes.add(sortName);
+                return call(sr, identifier(sr, sortName + NULL_REF_SUFFIX), List.of());
+            }
+            return null;
+        }
+
+        /// Whether {@code expr} is the {@code null} literal (Java's BOT-typed
+        /// null), peeling enclosing parentheses and casts (e.g. {@code (T) null}).
+        private static boolean isNullLiteral(JCTree.JCExpression expr) {
+            JCTree.JCExpression e = expr;
+            while (true) {
+                if (e instanceof JCTree.JCParens p) {
+                    e = p.expr;
+                } else if (e instanceof JCTree.JCTypeCast c && c.expr instanceof JCTree.JCExpression inner) {
+                    e = inner;
+                } else {
+                    break;
+                }
+            }
+            return e instanceof JCTree.JCLiteral l && l.typetag == TypeTag.BOT;
+        }
+
+        /// Convert an expression that may be the {@code null} literal, using
+        /// {@code expectedType} (the use-site target type) to pick the reference
+        /// sort for a standalone null. Non-null expressions, and bare nulls whose
+        /// expected type is not an object reference, fall back to the normal path.
+        private StmtExpr convertNullable(JCTree.JCExpression expr,
+                com.sun.tools.javac.code.Type expectedType, Map<String, String> renames) {
+            if (isNullLiteral(expr)) {
+                StmtExpr nullRef = nullRefForType(toSourceRange(expr), expectedType);
+                if (nullRef != null) {
+                    return nullRef;
+                }
+            }
+            return convertExpression(expr, renames);
+        }
+
         private StmtExpr convertBinary(JCTree.JCBinary binary, Map<String, String> renames) {
+            // Reference comparisons against the `null` literal. Object refs
+            // translate to opaque composite sorts with no built-in null, so a
+            // comparison is lowered against the sort's distinguished
+            // `<sort>$null` value (see nullRefForType); arrays are never null in
+            // the map model and fold to a boolean; `null == null` also folds.
+            if (binary.getTag() == JCTree.Tag.EQ || binary.getTag() == JCTree.Tag.NE) {
+                boolean lhsNull = isNullLiteral(binary.lhs);
+                boolean rhsNull = isNullLiteral(binary.rhs);
+                if (lhsNull && rhsNull) {
+                    SourceRange sr = toSourceRange(binary);
+                    return literalBool(sr, binary.getTag() == JCTree.Tag.EQ);
+                }
+                if (lhsNull ^ rhsNull) {
+                    var other = lhsNull ? binary.rhs : binary.lhs;
+                    SourceRange sr = toSourceRange(binary);
+                    if (other.type instanceof com.sun.tools.javac.code.Type.ArrayType) {
+                        return literalBool(sr, binary.getTag() == JCTree.Tag.NE);
+                    }
+                    StmtExpr nullRef = nullRefForType(sr, other.type);
+                    if (nullRef != null) {
+                        StmtExpr otherExpr = convertExpression(other, renames);
+                        return binary.getTag() == JCTree.Tag.EQ
+                                ? eq(sr, otherExpr, nullRef)
+                                : neq(sr, otherExpr, nullRef);
+                    }
+                    // Other reference comparisons (e.g. type variables) fall
+                    // through to the normal path, which surfaces a clear error.
+                }
+            }
             StmtExpr lhs = convertExpression(binary.lhs, renames);
             StmtExpr rhs = convertExpression(binary.rhs, renames);
             SourceRange sr = toSourceRange(binary);
