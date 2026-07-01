@@ -22,7 +22,8 @@ public record VerifierOptions(PrintWriter outWriter,
                               boolean continueOnErrors,
                               @Nullable PositionFilter positionFilter,
                               boolean verbose,
-                              boolean shouldTrackTime) {
+                              boolean shouldTrackTime,
+                              @Nullable Path keepAllFilesDir) {
     public <T> T time(String name, Supplier<T> supply) {
         if (!shouldTrackTime) {
             return supply.get();

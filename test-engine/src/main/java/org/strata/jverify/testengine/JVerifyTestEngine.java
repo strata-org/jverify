@@ -270,7 +270,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 true,
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
-                positionFilter, true, false
+                positionFilter, true, false, null
         );
     }
 
