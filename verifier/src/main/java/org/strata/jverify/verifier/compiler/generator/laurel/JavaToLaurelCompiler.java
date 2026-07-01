@@ -864,6 +864,36 @@ public class JavaToLaurelCompiler {
         }
 
         private StmtExpr convertBinary(JCTree.JCBinary binary, Map<String, String> renames) {
+            // Handle comparisons against the `null` literal before
+            // recursing into operand conversion. In JVerify's
+            // array-as-map model an array-typed value is never null, so
+            // `arr == null` / `arr != null` fold to a boolean constant
+            // (and the BOT-typed null literal stays off the
+            // convertLiteral path). The fold is restricted to array-
+            // typed operands so it can't silently mask the nullability
+            // of ordinary object references.
+            if (binary.getTag() == JCTree.Tag.EQ || binary.getTag() == JCTree.Tag.NE) {
+                boolean lhsNull = (binary.lhs instanceof JCTree.JCLiteral l)
+                        && l.typetag == TypeTag.BOT;
+                boolean rhsNull = (binary.rhs instanceof JCTree.JCLiteral r)
+                        && r.typetag == TypeTag.BOT;
+                if (lhsNull && rhsNull) {
+                    // null == null -> true; null != null -> false.
+                    SourceRange sr = toSourceRange(binary);
+                    return literalBool(sr, binary.getTag() == JCTree.Tag.EQ);
+                }
+                if (lhsNull ^ rhsNull) {
+                    // Only fold when the non-null operand is an array-
+                    // typed (map-backed) expression; other reference
+                    // comparisons fall through to the normal path.
+                    var other = lhsNull ? binary.rhs : binary.lhs;
+                    if (other.type instanceof com.sun.tools.javac.code.Type.ArrayType) {
+                        // x == null -> false; x != null -> true.
+                        SourceRange sr = toSourceRange(binary);
+                        return literalBool(sr, binary.getTag() == JCTree.Tag.NE);
+                    }
+                }
+            }
             StmtExpr lhs = convertExpression(binary.lhs, renames);
             StmtExpr rhs = convertExpression(binary.rhs, renames);
             SourceRange sr = toSourceRange(binary);
