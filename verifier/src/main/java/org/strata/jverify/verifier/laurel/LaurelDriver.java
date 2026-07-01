@@ -18,7 +18,9 @@ import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -202,7 +204,7 @@ public class LaurelDriver implements Driver {
                         // the source location (reported as 1:1).
                         var uri = filePath.startsWith("file:")
                                 ? URI.create(filePath)
-                                : Paths.get(filePath).toUri();
+                                : toDiagnosticUri(filePath);
 
                         var range = new Range(
                                 filesMap.computePositionFromFileOffset(uri, startOffset),
@@ -270,6 +272,36 @@ public class LaurelDriver implements Driver {
 
     }
 
+    /// Build a URI for a Strata diagnostic's (non-`file:`) source path.
+    /// Normally this is a real filesystem path, but Strata also reports
+    /// diagnostics for simplification-injected trees against a synthetic
+    /// "<unknown>" path, which is not a legal filesystem path on every
+    /// platform ('<' and '>' are illegal on Windows). Fall back to a
+    /// directly constructed file URI in that case so the diagnostic still
+    /// threads through to the JavaToLaurelCompiler line-map fallback
+    /// instead of crashing with InvalidPathException.
+    private static URI toDiagnosticUri(String filePath) {
+        try {
+            return Paths.get(filePath).toUri();
+        } catch (InvalidPathException e) {
+            return syntheticFileUri(filePath);
+        }
+    }
+
+    /// Construct a `file:` URI from a path that is not a legal filesystem
+    /// path on this platform. The multi-argument URI constructor
+    /// percent-encodes illegal characters; getPath() decodes them back, so
+    /// the line-map fallback's path-suffix match still triggers.
+    static URI syntheticFileUri(String filePath) {
+        String path = filePath.startsWith("/") ? filePath : "/" + filePath;
+        try {
+            return new URI("file", null, path, null);
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(
+                    "Could not construct URI for diagnostic path: " + filePath, e);
+        }
+    }
+
     public static class StrataDiagnostic implements Diagnostic<JavaFileObject>, DiagnosticWithRange {
         private static final int SEVERITY_ERROR = 1;
         private static final int SEVERITY_WARNING = 2;
@@ -307,7 +339,13 @@ public class LaurelDriver implements Driver {
 
         @Override
         public String filename() {
-            return Paths.get(uri.getPath()).getFileName().toString();
+            // Avoid Paths.get here: the diagnostic URI may be the synthetic
+            // "<unknown>" path, which is not a legal filesystem path on
+            // every platform. URI paths always use '/', so the file name is
+            // the segment after the last '/'.
+            String path = uri.getPath();
+            int slash = path.lastIndexOf('/');
+            return slash >= 0 ? path.substring(slash + 1) : path;
         }
 
         @Override

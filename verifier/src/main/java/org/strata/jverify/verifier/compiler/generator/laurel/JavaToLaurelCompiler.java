@@ -30,6 +30,10 @@ public class JavaToLaurelCompiler {
     /// clauses. A 1-parameter postcondition lambda's parameter is renamed
     /// to this so the clause refers to the return value correctly.
     private static final String LAUREL_RESULT_BINDING = "result";
+    /// javac's synthetic source path for trees injected by a
+    /// simplification pass; Strata reports diagnostics for them against
+    /// this URI, which has no entry in our line map.
+    private static final String SYNTHETIC_UNKNOWN_PATH = "/<unknown>";
 
     private final JavaLowerer lowerer;
     private final MethodOrLoopContractCompiler contractCompiler;
@@ -93,6 +97,27 @@ public class JavaToLaurelCompiler {
         FilesMap filesMap = (uri, offset) -> {
             var lineMap = lineMaps.get(uri);
             if (lineMap == null) {
+                // jverify threads a source range from the generating Java
+                // tree into every synthesized clause/binding (see the
+                // requires/ensures/invariant construction above), so a
+                // diagnostic should normally carry a real user-source
+                // location. If one still arrives against Strata's synthetic
+                // "<unknown>" path, some synthesis site failed to thread its
+                // source -- a jverify bug. Surface it LOUDLY (so it is not
+                // hidden behind a misleading location) but do not crash: a
+                // 1:1 fallback keeps the underlying Strata diagnostic visible
+                // to the user instead of masking it with an exception.
+                //
+                // Any OTHER unmapped URI indicates a real line-map collection
+                // bug; keep failing fast there.
+                String path = uri.getPath();
+                if (path != null && path.endsWith(SYNTHETIC_UNKNOWN_PATH)) {
+                    System.err.println("[jverify] internal: a Strata diagnostic was reported "
+                            + "against a source-less synthesized node (" + uri + "); a synthesis "
+                            + "pass did not thread a source range from its generating context. "
+                            + "Falling back to 1:1 -- please report this as a jverify bug.");
+                    return new Position(1, 1);
+                }
                 throw new RuntimeException("Could not find line map for " + uri);
             }
             long line = lineMap.getLineNumber(offset);
@@ -357,13 +382,13 @@ public class JavaToLaurelCompiler {
 
             List<Parameter> params = new ArrayList<>();
             for (var param : method.params) {
-                params.add(parameter(param.name.toString(), translateType(param.type, param.mods)));
+                params.add(parameter(toSourceRange(param), param.name.toString(), translateType(param.type, param.mods)));
             }
 
             Optional<ReturnType> retType = Optional.empty();
             if (method.restype != null && method.restype.type != null
                     && method.restype.type.getTag() != TypeTag.VOID) {
-                retType = Optional.of(returnType(translateType(method.restype.type)));
+                retType = Optional.of(returnType(toSourceRange(method.restype), translateType(method.restype.type)));
             }
 
             List<RequiresClause> requires = new ArrayList<>();
@@ -377,7 +402,11 @@ public class JavaToLaurelCompiler {
                     StmtExpr converted = (preExpr instanceof JCTree.JCLambda lambda)
                             ? convertLambdaBody(lambda, Map.of())
                             : convertExpression(preExpr);
-                    requires.add(requiresClause(converted, Optional.empty()));
+                    // Thread the originating clause's source range so a
+                    // Strata diagnostic on this (possibly renamed/synthesized)
+                    // clause points at the user's precondition rather than the
+                    // synthetic "<unknown>" path.
+                    requires.add(requiresClause(toSourceRange(preExpr), converted, Optional.empty()));
                 }
                 for (var post : contract.postconditions()) {
                     var postExpr = post.get();
@@ -391,9 +420,14 @@ public class JavaToLaurelCompiler {
                         Map<String, String> renames = lambda.params.size() == 1
                                 ? Map.of(lambda.params.getFirst().name.toString(), LAUREL_RESULT_BINDING)
                                 : Map.of();
-                        ensures.add(ensuresClause(convertLambdaBody(lambda, renames), Optional.empty()));
+                        // Thread the postcondition lambda's source range: when
+                        // the renamed `result` binding collides with a user
+                        // parameter, Strata's duplicate-definition diagnostic
+                        // then points at this `ensures` clause instead of the
+                        // synthetic "<unknown>" path.
+                        ensures.add(ensuresClause(toSourceRange(postExpr), convertLambdaBody(lambda, renames), Optional.empty()));
                     } else {
-                        ensures.add(ensuresClause(convertExpression(postExpr), Optional.empty()));
+                        ensures.add(ensuresClause(toSourceRange(postExpr), convertExpression(postExpr), Optional.empty()));
                     }
                 }
 
@@ -696,7 +730,7 @@ public class JavaToLaurelCompiler {
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
                 List<InvariantClause> invariants = new ArrayList<>();
                 for (var inv : loopContract.loopInvariants()) {
-                    invariants.add(invariantClause(convertExpression(inv.get(), renames)));
+                    invariants.add(invariantClause(toSourceRange(inv.get()), convertExpression(inv.get(), renames)));
                 }
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
                 List<StmtExpr> stmts = new ArrayList<>();
