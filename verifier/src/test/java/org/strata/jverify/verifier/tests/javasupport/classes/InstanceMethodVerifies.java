@@ -7,18 +7,12 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 /**
- * Positive happy-path for the static-call-with-self instance-method encoding: an
- * instance method's real contract is actually CHECKED (not vacuously verified)
- * and discharged through the {@code self}-parameter translation.
- *
- * <p>The class is {@code final} so every instance method is provably monomorphic
- * and passes {@code refuseIfPolymorphicDispatch}. Each method carries a real,
- * checkable contract over its own parameters/return; {@code @Unbounded} keeps the
- * arithmetic free of the (unrelated) bounded-int overflow obligation. The
- * negative twin — a violated instance-method contract IS caught — lives in
- * {@link InstanceMethodContractViolated}.
- *
- * <p>Verified count is 4: the three methods plus the implicit constructor.
+ * Positive happy-path for the static-call-with-self encoding: instance methods'
+ * real contracts are actually CHECKED (not vacuously verified) through the
+ * {@code self}-parameter translation. The class is {@code final} so calls are
+ * monomorphic (pass refuseIfPolymorphicDispatch); {@code @Unbounded} avoids the
+ * unrelated bounded-int overflow obligation. Verified count 4 = 3 methods +
+ * implicit constructor. Negative twin: {@link InstanceMethodContractViolated}.
  */
 @JVerifyTest(methodsVerified = 4, errorCount = 0)
 final class InstanceMethodVerifies {

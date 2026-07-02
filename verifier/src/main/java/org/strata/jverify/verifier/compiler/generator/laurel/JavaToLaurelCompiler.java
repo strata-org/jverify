@@ -67,12 +67,9 @@ public class JavaToLaurelCompiler {
 
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
 
-        // Pass 1: translate every compilation unit, collecting candidate
-        // procedures (with their referenced user-method callees) per unit.
-        // Emission is deferred to Pass 2 so the transitive-emittability fixpoint
-        // can run across the whole program before anything is written. A
-        // LinkedHashMap preserves compilation-unit order for deterministic Pass 2
-        // emission (and deterministic fixpoint diagnostics).
+        // Pass 1: translate every unit, collecting candidate procedures. Emission
+        // is deferred to Pass 2 so the fixpoint below can run across the whole
+        // program first. LinkedHashMap keeps unit order for deterministic output.
         var proceduresPerUnit = new LinkedHashMap<JCTree.JCCompilationUnit, List<EmittedProcedure>>();
         for (var compilationUnit : loweredResult.parsed()) {
             if (lowerer.isContractSource(compilationUnit)) {
@@ -148,19 +145,11 @@ public class JavaToLaurelCompiler {
         FilesMap filesMap = (uri, offset) -> {
             var lineMap = lineMaps.get(uri);
             if (lineMap == null) {
-                // jverify threads a source range from the generating Java
-                // tree into every synthesized clause/binding (see the
-                // requires/ensures/invariant construction above), so a
-                // diagnostic should normally carry a real user-source
-                // location. If one still arrives against Strata's synthetic
-                // "<unknown>" path, some synthesis site failed to thread its
-                // source -- a jverify bug. Surface it LOUDLY (so it is not
-                // hidden behind a misleading location) but do not crash: a
-                // 1:1 fallback keeps the underlying Strata diagnostic visible
-                // to the user instead of masking it with an exception.
-                //
-                // Any OTHER unmapped URI indicates a real line-map collection
-                // bug; keep failing fast there.
+                // A diagnostic against Strata's synthetic "<unknown>" path means a
+                // synthesis site failed to thread a source range (a jverify bug):
+                // warn loudly but fall back to 1:1 so the underlying Strata
+                // diagnostic still surfaces. Any other unmapped URI is a real
+                // line-map bug -- fail fast.
                 String path = uri.getPath();
                 if (path != null && path.endsWith(SYNTHETIC_UNKNOWN_PATH)) {
                     System.err.println("[jverify] internal: a Strata diagnostic was reported "
@@ -311,12 +300,9 @@ public class JavaToLaurelCompiler {
     private static final char MANGLE_SEPARATOR = '?';
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
-        // Package-qualified, immediately-enclosing class name ('$' -> '.') then
+        // Package-qualified immediate-enclosing class name ('$' -> '.') then
         // MANGLE_SEPARATOR then the method. The immediate (not outermost) class
         // keeps nested-class methods distinct: `Outer.Inner.foo` -> `Outer.Inner?foo`.
-        // The package keeps it cross-class stable. A symbol with no enclosing class
-        // is refused by enclosingClassOrRefuse (every caller runs refuseIfOverloaded,
-        // which routes through it, first), so this never sees a null enclosing class.
         return enclosingClassOrRefuse(sym).getQualifiedName().toString().replace('$', '.')
                 + MANGLE_SEPARATOR + sym.name;
     }
@@ -386,12 +372,10 @@ public class JavaToLaurelCompiler {
     }
 
     /**
-     * Refuse an instance-field access. Field reads/writes require the composite
-     * to carry fields and {@code self#x} access syntax, which lands with the
-     * constructor/field work (deferred). Until then, refuse so a getter or
-     * mutator surfaces as a graceful skip rather than an unresolved Laurel name
-     * or an unsound empty-modifies frame. Declared as returning {@link StmtExpr}
-     * so it can stand in expression position; it always throws.
+     * Refuse an instance-field access: reads/writes need {@code self#x} on a
+     * composite that carries no fields yet (deferred with the constructor/field
+     * work), so refuse for a graceful skip rather than an unsound translation.
+     * Returns {@link StmtExpr} to stand in expression position, but always throws.
      */
     private static StmtExpr refuseFieldAccess() {
         throw new JavaViolationException(
@@ -544,16 +528,12 @@ public class JavaToLaurelCompiler {
                     // @Verify(false): opted out; body already stripped, so a
                     // procedure shell would be empty (and already counted Skipped).
                     || annotationCompiler.isSkipped(currentCompilationUnit, method);
-            // A generated (implicit) constructor has no user body to verify, so
-            // counting it vacuously Verified is sound and is the documented
-            // convention (JVerifyTest: "+1 per class for the implicit
-            // constructor"). Any OTHER skipped member, though, emits no Laurel yet
-            // still holds a Verified interval-tree entry — so a user constructor or
-            // anonymous/local-class method carrying a real precondition/
-            // postcondition (or an in-body check) would be counted Verified with
-            // its obligations never checked (a false Verified). Demote those.
-            // markSkipped is a no-op when there is no entry (synthetic or bodiless
-            // members), so this doesn't inflate the Skipped count.
+            // A skipped member emits no Laurel but still holds a Verified
+            // interval-tree entry, so a skipped user constructor / anon-class
+            // method with a real contract would be a false Verified — demote it.
+            // Exception: a generated implicit constructor has no user body, so its
+            // vacuous Verified is sound (the documented "+1 per class" convention).
+            // markSkipped no-ops when there's no entry, so it can't inflate Skipped.
             boolean isGeneratedConstructor = (method.mods.flags & Flags.GENERATEDCONSTR) != 0;
             if (skip) {
                 if (!isGeneratedConstructor) {
@@ -627,10 +607,8 @@ public class JavaToLaurelCompiler {
                         StmtExpr converted = (preExpr instanceof JCTree.JCLambda lambda)
                                 ? convertLambdaBody(lambda, Map.of())
                                 : convertExpression(preExpr);
-                        // Thread the originating clause's source range so a
-                        // Strata diagnostic on this (possibly renamed/synthesized)
-                        // clause points at the user's precondition rather than the
-                        // synthetic "<unknown>" path.
+                        // Thread the clause's source range so a Strata diagnostic
+                        // points at the user's precondition, not "<unknown>".
                         requires.add(requiresClause(toSourceRange(preExpr), converted, Optional.empty()));
                     }
                     for (var post : contract.postconditions()) {
@@ -645,11 +623,8 @@ public class JavaToLaurelCompiler {
                             Map<String, String> renames = lambda.params.size() == 1
                                     ? Map.of(lambda.params.getFirst().name.toString(), LAUREL_RESULT_BINDING)
                                     : Map.of();
-                            // Thread the postcondition lambda's source range: when
-                            // the renamed `result` binding collides with a user
-                            // parameter, Strata's duplicate-definition diagnostic
-                            // then points at this `ensures` clause instead of the
-                            // synthetic "<unknown>" path.
+                            // Thread the source range here too (see the requires
+                            // clause above).
                             ensures.add(ensuresClause(toSourceRange(postExpr), convertLambdaBody(lambda, renames), Optional.empty()));
                         } else {
                             ensures.add(ensuresClause(toSourceRange(postExpr), convertExpression(postExpr), Optional.empty()));
@@ -1081,18 +1056,13 @@ public class JavaToLaurelCompiler {
                     boolean calleeStatic = (methodSym.flags() & Flags.STATIC) != 0;
                     List<StmtExpr> args = new ArrayList<>();
                     if (!calleeStatic) {
-                        // Instance call: prepend the receiver as the `self`
-                        // argument. Compute the receiver first so its own
-                        // refusals (super-call, freshly-allocated receiver) win
-                        // when they apply — those name the precise unsupported
-                        // shape, whereas the polymorphic-dispatch refusal is the
-                        // general fallback for any non-monomorphic call. Then
-                        // refuse polymorphic dispatch, since static mangling
-                        // would route a supertype-typed call to the wrong
-                        // override.
+                        // Instance call: prepend the receiver as the `self` arg.
+                        // Compute the receiver first so its specific refusals
+                        // (super-call, fresh-receiver) win over the general
+                        // polymorphic-dispatch fallback.
                         // TODO(strata-gap-1): emit obj#method when Strata#1172 lands.
-                        // TODO(strata-gap-3): drop this refusal when Strata#1174
-                        // adds runtime dispatch.
+                        // TODO(strata-gap-3): drop the dispatch refusal when
+                        // Strata#1174 adds runtime dispatch.
                         var selfArg = receiverSelf(invocation.getMethodSelect(), renames);
                         refuseIfPolymorphicDispatch(methodSym);
                         args.add(selfArg);
