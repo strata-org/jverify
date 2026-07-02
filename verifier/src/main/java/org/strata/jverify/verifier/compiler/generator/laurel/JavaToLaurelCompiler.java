@@ -465,21 +465,22 @@ public class JavaToLaurelCompiler {
                     ? Optional.of(body(methodBody))
                     : Optional.empty();
 
-            // Strata rejects transparent (visible-body) procedures unless they're functional;
-            // emit an OpaqueSpec to mark the body opaque otherwise. Pure functions stay
-            // transparent only when they have no ensures clauses (the schema can't carry
-            // ensures without an OpaqueSpec wrapper).
+            // A @Pure method with no ensures is emitted as a *transparent*
+            // procedure (visible body, no OpaqueSpec); with ensures it is
+            // opaque (the schema can't carry ensures without an OpaqueSpec
+            // wrapper). Non-pure methods are always opaque.
             // modifies is always empty: jverify doesn't yet emit modifies clauses.
             boolean canStayTransparent = isPure && ensures.isEmpty();
             Optional<OpaqueSpec> optSpec = canStayTransparent
                     ? Optional.empty()
                     : Optional.of(opaqueSpec(ensures, List.of()));
 
-            Procedure proc = isPure
-                    ? function(toSourceRange(method), methodName, params,
-                            retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody)
-                    : procedure(toSourceRange(method), methodName, params,
-                            retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody);
+            // Laurel functions are being removed (Strata #1408); a @Pure method
+            // now emits a procedure (transparent when it has no ensures) rather
+            // than a function. Transparent procedures give callers the same
+            // body-visible semantics that functions previously did.
+            Procedure proc = procedure(toSourceRange(method), methodName, params,
+                    retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody);
             procedures.add(proc);
         }
 
