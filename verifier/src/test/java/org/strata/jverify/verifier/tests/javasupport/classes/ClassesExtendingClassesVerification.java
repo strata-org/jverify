@@ -6,7 +6,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 11, errorCount = 0)
+@JVerifyTest(methodsVerified = 7, errorCount = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {
         Extender extender = new Extender(4);

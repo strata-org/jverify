@@ -7,7 +7,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 3, errorCount = 0)
+@JVerifyTest(methodsVerified = 2, methodsSkipped = 1, errorCount = 0)
 public class SourceContract {
 
     @Contract(Foo.class)

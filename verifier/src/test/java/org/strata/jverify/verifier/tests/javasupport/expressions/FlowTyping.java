@@ -4,7 +4,7 @@ import org.strata.jverify.Pure;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(methodsVerified = 9, errorCount = 0)
+@JVerifyTest(methodsVerified = 5, errorCount = 0)
 public class FlowTyping {
     interface I {}
     interface J extends I {

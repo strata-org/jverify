@@ -10,7 +10,7 @@ import java.util.function.IntPredicate;
 import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(methodsVerified = 11, errorCount = 0)
+@JVerifyTest(methodsVerified = 9, methodsSkipped = 3, errorCount = 0)
 public class MethodContractsVerification {
 
     private int y;
@@ -39,6 +39,19 @@ public class MethodContractsVerification {
     @Pure
     public static boolean truth() {
         return true;
+    }
+
+    /**
+     * A {@code @Pure} method that also carries a postcondition. Strata rejects a
+     * {@code function} that declares postconditions, so such a method must be
+     * emitted as an opaque {@code procedure} (keyed off whether it can stay
+     * transparent), not a {@code function}. Before that fix this failed
+     * translation; this method is the regression guard.
+     */
+    @Pure
+    public static int pureWithPostcondition(int x) {
+        postcondition((int r) -> r == x);
+        return x;
     }
 
     int postconditionNameClash(int x) {

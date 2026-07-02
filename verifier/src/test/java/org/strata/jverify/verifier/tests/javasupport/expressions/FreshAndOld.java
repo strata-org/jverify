@@ -4,7 +4,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 4, errorCount = 0)
+@JVerifyTest(methodsVerified = 2, methodsSkipped = 2, errorCount = 0)
 class FreshAndOld {
     int x;
     

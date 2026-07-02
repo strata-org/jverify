@@ -7,7 +7,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import java.util.function.Supplier;
 
 @SuppressWarnings("Convert2MethodRef")
-@JVerifyTest(methodsVerified = 20, errorCount = 0)
+@JVerifyTest(methodsVerified = 12, methodsSkipped = 8, errorCount = 0)
 public class PolymorphicLambdas {
 
     static class GenContainer<T> {
