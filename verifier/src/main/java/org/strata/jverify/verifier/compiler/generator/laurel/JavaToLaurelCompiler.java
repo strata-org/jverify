@@ -70,9 +70,10 @@ public class JavaToLaurelCompiler {
         // Pass 1: translate every compilation unit, collecting candidate
         // procedures (with their referenced user-method callees) per unit.
         // Emission is deferred to Pass 2 so the transitive-emittability fixpoint
-        // can run across the whole program before anything is written.
-        var unitsInOrder = new ArrayList<JCTree.JCCompilationUnit>();
-        var proceduresPerUnit = new HashMap<JCTree.JCCompilationUnit, List<EmittedProcedure>>();
+        // can run across the whole program before anything is written. A
+        // LinkedHashMap preserves compilation-unit order for deterministic Pass 2
+        // emission (and deterministic fixpoint diagnostics).
+        var proceduresPerUnit = new LinkedHashMap<JCTree.JCCompilationUnit, List<EmittedProcedure>>();
         for (var compilationUnit : loweredResult.parsed()) {
             if (lowerer.isContractSource(compilationUnit)) {
                 continue;
@@ -81,42 +82,11 @@ public class JavaToLaurelCompiler {
             reporter.compilationUnit = compilationUnit;
             var visitor = new StaticMethodCollector();
             compilationUnit.accept(visitor);
-            unitsInOrder.add(compilationUnit);
             proceduresPerUnit.put(compilationUnit, visitor.procedures);
             lineMaps.put(compilationUnit.sourcefile.toUri(), compilationUnit.getLineMap());
         }
 
-        // Drop methods whose mangled name collides with another's (the flat
-        // Class_method scheme can't disambiguate some nested/cross-package names):
-        // emitting both gives a duplicate Laurel symbol Strata rejects, so skip
-        // the whole group. Before the fixpoint, so callers cascade-drop.
-        var byMangledName = new HashMap<String, List<EmittedProcedure>>();
-        for (var procs : proceduresPerUnit.values()) {
-            for (var ep : procs) {
-                byMangledName.computeIfAbsent(ep.mangledName(), k -> new ArrayList<>()).add(ep);
-            }
-        }
-        var collisions = new HashSet<EmittedProcedure>();
-        for (var group : byMangledName.values()) {
-            if (group.size() > 1) {
-                for (var ep : group) {
-                    collisions.add(ep);
-                    if (isStatic(ep.methodDecl())) {
-                        reporter.compilationUnit = ep.compilationUnit();
-                        reporter.reportError(ep.methodDecl(), "translatorError",
-                                "method name '" + ep.mangledName()
-                                        + "' collides with another method after name mangling");
-                    }
-                    annotationCompiler.markSkipped(ep.compilationUnit(), ep.methodDecl());
-                }
-            }
-        }
-        for (var procs : proceduresPerUnit.values()) {
-            procs.removeAll(collisions);
-        }
-
-        // Transitive-emittability fixpoint, keyed on method-symbol identity (not
-        // the mangled name, so collisions handled above don't alias here): a
+        // Transitive-emittability fixpoint, keyed on method-symbol identity: a
         // procedure can only be emitted if every user method it calls is also
         // emitted. Dropping one can undefine its callers, so iterate to a fixpoint.
         var emittedSymbols = new HashSet<Symbol.MethodSymbol>();
@@ -153,9 +123,8 @@ public class JavaToLaurelCompiler {
         // opaque composite sort before the procedures that use it.
         boolean first = true;
         Set<String> emittedCompositeTypes = new HashSet<>();
-        for (var compilationUnit : unitsInOrder) {
+        for (var compilationUnit : proceduresPerUnit.keySet()) {
             currentCompilationUnit = compilationUnit;
-            reporter.compilationUnit = compilationUnit;
             List<Command> commands = new ArrayList<>();
             if (first) {
                 commands.addAll(getPredefinedTypes());
@@ -333,45 +302,61 @@ public class JavaToLaurelCompiler {
         return compositeType(isNat ? boundedNat : bounded);
     }
 
+    /// Separator between the enclosing-class name and the method name in a
+    /// mangled procedure name. '?' cannot appear in a Java identifier, so the
+    /// join is injective: no two distinct (class, method) pairs can produce the
+    /// same mangled name (a '_' join could -- e.g. `Outer.Inner.foo` vs a method
+    /// `Inner_foo` on `Outer`). Matches the convention in
+    /// MoveStaticMethodsToStaticType, which uses '?' for the same reason.
+    private static final char MANGLE_SEPARATOR = '?';
+
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
-        // Package-qualified, immediately-enclosing class name ('$' -> '.') + '_'
-        // + method. The immediate (not outermost) class keeps nested-class methods
-        // distinct: `Outer.Inner.foo` -> `Outer.Inner_foo`, not the `Outer.foo`-
-        // colliding `Outer_foo`. The package keeps it cross-class stable.
-        //
-        // Some invocations (record accessors of types in an anonymous class, or
-        // built-ins on synthetic Symtab entries) have no enclosing ClassSymbol --
-        // enclClass() returns null there (where outermostClass() used to throw).
-        // Fall back to the immediate owner so such a symbol degrades gracefully
-        // instead of aborting the whole source file.
+        // Package-qualified, immediately-enclosing class name ('$' -> '.') then
+        // MANGLE_SEPARATOR then the method. The immediate (not outermost) class
+        // keeps nested-class methods distinct: `Outer.Inner.foo` -> `Outer.Inner?foo`.
+        // The package keeps it cross-class stable. A symbol with no enclosing class
+        // is refused by enclosingClassOrRefuse (every caller runs refuseIfOverloaded,
+        // which routes through it, first), so this never sees a null enclosing class.
+        return enclosingClassOrRefuse(sym).getQualifiedName().toString().replace('$', '.')
+                + MANGLE_SEPARATOR + sym.name;
+    }
+
+    /**
+     * The enclosing {@link Symbol.ClassSymbol} of {@code sym}, or refuse if there
+     * is none. {@code enclClass()} walks the owner chain casting to ClassSymbol;
+     * some callees (record accessors of types in an anonymous class, built-ins on
+     * synthetic Symtab entries) have a non-ClassSymbol owner and make it return
+     * null or throw ClassCastException. Callers that dereference the result must
+     * route through here so such a symbol becomes a graceful per-method skip
+     * rather than an uncaught crash that aborts the whole source file.
+     */
+    private static Symbol.ClassSymbol enclosingClassOrRefuse(Symbol.MethodSymbol sym) {
         Symbol.ClassSymbol enclosing;
         try {
             enclosing = sym.enclClass();
         } catch (ClassCastException e) {
             enclosing = null;
         }
-        if (enclosing != null) {
-            return enclosing.getQualifiedName().toString().replace('$', '.') + "_" + sym.name;
+        if (enclosing == null) {
+            throw new JavaViolationException(
+                    "method '" + sym.name + "' has no enclosing class symbol (not yet supported)");
         }
-        Symbol owner = sym.owner;
-        String prefix = (owner != null && owner.name != null)
-                ? owner.name.toString()
-                : "$unknown";
-        return prefix + "_" + sym.name;
+        return enclosing;
     }
 
     /**
-     * Refuse overloaded methods. The flat {@code Class_method} mangling collapses
-     * every overload of a name onto a single Laurel procedure name, so two
-     * declarations like {@code void bar(int)} and {@code void bar(String)} would
-     * silently collide. Detect this by counting the source-declared (non-synthetic)
-     * methods of that name in the enclosing class; refuse with a clear diagnostic
-     * when there is more than one. Synthetic members (e.g. record accessors and the
-     * canonical constructor) are excluded so records aren't mis-counted.
+     * Refuse overloaded methods. The mangled name (see {@link #qualifiedMethodName})
+     * carries only the class and method name, not the signature, so every overload
+     * of a name collapses onto a single Laurel procedure name — {@code void bar(int)}
+     * and {@code void bar(String)} would silently collide. Detect this by counting
+     * the source-declared (non-synthetic) methods of that name in the enclosing
+     * class; refuse with a clear diagnostic when there is more than one. Synthetic
+     * members (e.g. record accessors and the canonical constructor) are excluded so
+     * records aren't mis-counted.
      */
     private static void refuseIfOverloaded(Symbol.MethodSymbol sym) {
         int sameName = 0;
-        for (Symbol member : sym.enclClass().members().getSymbolsByName(sym.name)) {
+        for (Symbol member : enclosingClassOrRefuse(sym).members().getSymbolsByName(sym.name)) {
             if (member instanceof Symbol.MethodSymbol && (member.flags() & Flags.SYNTHETIC) == 0) {
                 sameName++;
             }
@@ -414,31 +399,44 @@ public class JavaToLaurelCompiler {
     }
 
     /**
-     * Whether the method returns a primitive integral/char type, which lowers to
-     * a Laurel constrained type (int8/int16/int32/int64/char). Strata cannot yet
-     * carry a constrained return on a transparent {@code function}, so such a
-     * {@code @Pure} method must be emitted as an opaque {@code procedure}.
+     * Whether the method's return type lowers to a Laurel constrained type
+     * (a bounded int, a nat, or char) rather than an unconstrained one. Strata
+     * cannot yet carry a constrained return on a transparent {@code function}
+     * (ConstrainedTypeElim.lean), so such a {@code @Pure} method must be emitted
+     * as an opaque {@code procedure}.
+     *
+     * <p>A plain {@code @Unbounded} integral return lowers to the unconstrained
+     * {@code int} (see {@link #translateType}), so it is NOT constrained and can
+     * stay a transparent function — which matters because only a transparent
+     * function inlines into its callers. {@code @Unbounded @Nat} keeps a lower
+     * bound, so it stays constrained; {@code char} has no unbounded form.
      */
-    private static boolean hasConstrainedReturn(JCTree.JCMethodDecl method) {
+    private boolean hasConstrainedReturn(JCTree.JCMethodDecl method) {
         if (method.restype == null || method.restype.type == null) {
             return false;
         }
-        return switch (method.restype.type.getTag()) {
-            case INT, SHORT, BYTE, LONG, CHAR -> true;
+        var type = method.restype.type;
+        boolean isUnbounded = JVerifyUtils.isAnnotated(type, org.strata.jverify.Unbounded.class)
+                || JVerifyUtils.isAnnotated(method.mods, org.strata.jverify.Unbounded.class);
+        boolean isNat = JVerifyUtils.isAnnotated(type, org.strata.jverify.Nat.class)
+                || JVerifyUtils.isAnnotated(method.mods, org.strata.jverify.Nat.class);
+        return switch (type.getTag()) {
+            // A plain @Unbounded (not @Nat) integral return is the unconstrained
+            // `int`; everything else lowers to a bounded/nat constrained type.
+            case INT, SHORT, BYTE, LONG -> !(isUnbounded && !isNat);
+            case CHAR -> true;
             default -> false;
         };
     }
 
     /**
      * A translated procedure plus the bookkeeping the emittability fixpoint
-     * needs: the source method/decl (to demote to Skipped if dropped), the
-     * emitted Laurel name, and the symbols of the user methods it calls. Callees
-     * are keyed by symbol, not mangled name, so two methods mangling alike don't
-     * alias in the fixpoint.
+     * needs: the source method/decl (to demote to Skipped if dropped) and the
+     * symbols of the user methods it calls, keyed by symbol identity.
      */
     record EmittedProcedure(Procedure procedure, JCTree.JCMethodDecl methodDecl,
                             JCTree.JCCompilationUnit compilationUnit,
-                            String mangledName, Set<Symbol.MethodSymbol> referencedCallees) {}
+                            Set<Symbol.MethodSymbol> referencedCallees) {}
 
     private class StaticMethodCollector extends TreeScanner {
         final List<EmittedProcedure> procedures = new ArrayList<>();
@@ -546,7 +544,22 @@ public class JavaToLaurelCompiler {
                     // @Verify(false): opted out; body already stripped, so a
                     // procedure shell would be empty (and already counted Skipped).
                     || annotationCompiler.isSkipped(currentCompilationUnit, method);
-            if (!skip) {
+            // A generated (implicit) constructor has no user body to verify, so
+            // counting it vacuously Verified is sound and is the documented
+            // convention (JVerifyTest: "+1 per class for the implicit
+            // constructor"). Any OTHER skipped member, though, emits no Laurel yet
+            // still holds a Verified interval-tree entry — so a user constructor or
+            // anonymous/local-class method carrying a real precondition/
+            // postcondition (or an in-body check) would be counted Verified with
+            // its obligations never checked (a false Verified). Demote those.
+            // markSkipped is a no-op when there is no entry (synthetic or bodiless
+            // members), so this doesn't inflate the Skipped count.
+            boolean isGeneratedConstructor = (method.mods.flags & Flags.GENERATEDCONSTR) != 0;
+            if (skip) {
+                if (!isGeneratedConstructor) {
+                    annotationCompiler.markSkipped(currentCompilationUnit, method);
+                }
+            } else {
                 boolean methodIsStatic = isStatic(method);
                 try {
                     translateMethod(method);
@@ -699,7 +712,7 @@ public class JavaToLaurelCompiler {
                     : procedure(toSourceRange(method), methodName, params,
                             retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody);
             procedures.add(new EmittedProcedure(proc, method, currentCompilationUnit,
-                    methodName, currentReferencedCallees));
+                    currentReferencedCallees));
             currentReferencedCallees = null;
         }
 
@@ -1010,9 +1023,9 @@ public class JavaToLaurelCompiler {
         }
 
         /**
-         * Refuse a call unless provably monomorphic. {@code Class_method} mangling
-         * resolves against the receiver's STATIC type, so a call that dispatches to
-         * an override at runtime would verify against the wrong contract (JVerify
+         * Refuse a call unless provably monomorphic. The mangled name resolves
+         * against the receiver's STATIC type, so a call that dispatches to an
+         * override at runtime would verify against the wrong contract (JVerify
          * has no behavioural subtyping). Safe only when no override can exist:
          * callee {@code final}/{@code private} or enclosing class {@code final}
          * (e.g. {@code String.length()}). Refuse until dispatch lands (Strata#1174).
@@ -1024,7 +1037,7 @@ public class JavaToLaurelCompiler {
         private void refuseIfPolymorphicDispatch(Symbol.MethodSymbol methodSym) {
             long flags = methodSym.flags();
             boolean cannotDispatch = (flags & (Flags.FINAL | Flags.PRIVATE)) != 0
-                    || (methodSym.enclClass().flags() & Flags.FINAL) != 0;
+                    || (enclosingClassOrRefuse(methodSym).flags() & Flags.FINAL) != 0;
             if (!cannotDispatch) {
                 throw new JavaViolationException(
                         "polymorphic dispatch through interface/superclass is not yet supported");
@@ -1088,7 +1101,9 @@ public class JavaToLaurelCompiler {
                     // Record calls to user methods we emit (have a source tree,
                     // not anon/local), so the fixpoint drops this caller if the
                     // callee isn't emitted. Library/contract methods (no source
-                    // tree) resolve elsewhere and aren't tracked.
+                    // tree) resolve elsewhere and aren't tracked. enclClass() is
+                    // non-null here (refuseIfOverloaded above would have refused
+                    // otherwise); the empty-name check filters anon/local callees.
                     if (currentReferencedCallees != null
                             && index.getTree(methodSym) != null
                             && !methodSym.enclClass().getQualifiedName().isEmpty()) {
