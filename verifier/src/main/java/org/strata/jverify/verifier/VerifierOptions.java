@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 
 public record VerifierOptions(PrintWriter outWriter,
                               Path workingDirectory,
-                              Path backendPath,
+                              @Nullable Path backendPath,
                               Collection<Path> extraClassPathEntries,
                               @Nullable Path printSerializedOutputProgram,
                               boolean emitLaurelOnly,

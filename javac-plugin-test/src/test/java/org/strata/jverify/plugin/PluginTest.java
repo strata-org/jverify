@@ -26,7 +26,6 @@ import java.util.List;
 
 import java.lang.classfile.*;
 
-@SuppressWarnings("preview")
 public class PluginTest {
 
     @Test

@@ -118,11 +118,26 @@ public class LaurelDriver implements Driver {
     }
 
     public JVerifyResults runVerifier(FilesMap filesMap, IonValue serializedProgram) {
-        var processBuilder = new ProcessBuilder(
-                "lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"
-        );
-        // The `strata` executable lives in the StrataCLI subpackage, so `lake` must be invoked from there.
-        processBuilder.directory(verifierOptions.backendPath().resolve("StrataCLI").toFile());
+        final List<String> baseCommand;
+        if (verifierOptions.backendPath() != null) {
+            // Explicit --strata path: invoke via `lake exe` from the StrataCLI subdir.
+            baseCommand = List.of("lake", "exe", "-q", "strata");
+        } else {
+            // Rely on `strata` being on PATH. Under Brazil this is achieved
+            // by declaring StrataCLI as a build-tool: its `runtime/bin/` is
+            // prepended to PATH by `brazil-build`, and that PATH is inherited
+            // by Gradle and by each Test task's forked JVM.
+            baseCommand = List.of("strata");
+        }
+        var command = new ArrayList<String>(baseCommand);
+        command.add("laurelAnalyzeBinary");
+        command.add("--solver");
+        command.add("z3");
+        var processBuilder = new ProcessBuilder(command);
+        if (verifierOptions.backendPath() != null) {
+            // The `strata` executable lives in the StrataCLI subpackage, so `lake` must be invoked from there.
+            processBuilder.directory(verifierOptions.backendPath().resolve("StrataCLI").toFile());
+        }
         return verifierOptions.time("Running Strata", () -> {
             try (var process = new AutoClosingProcessWrapper(processBuilder.redirectErrorStream(true).start()))
             {
