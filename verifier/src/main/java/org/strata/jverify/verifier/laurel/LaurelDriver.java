@@ -148,7 +148,10 @@ public class LaurelDriver implements Driver {
                 }
                 return parseStrataOutput(filesMap, verifierOptions, process.getProcess());
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() +
+                String location = verifierOptions.backendPath() != null
+                        ? verifierOptions.backendPath().toString()
+                        : "strata on PATH (pass --strata <path> or set JVERIFY_STRATA)";
+                verifierOptions.outWriter().println("Failed to use Strata at: " + location +
                         "\nError message: " + e.getMessage());
                 return new JVerifyResults(new ArrayList<>(), -1, null);
             }
