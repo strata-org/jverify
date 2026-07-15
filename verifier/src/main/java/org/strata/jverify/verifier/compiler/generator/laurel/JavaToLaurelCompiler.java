@@ -475,11 +475,10 @@ public class JavaToLaurelCompiler {
                     ? Optional.empty()
                     : Optional.of(opaqueSpec(ensures, List.of()));
 
-            Procedure proc = isPure
-                    ? function(toSourceRange(method), methodName, params,
-                            retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody)
-                    : procedure(toSourceRange(method), methodName, params,
-                            retType, Optional.empty(), requires, Optional.empty(), optSpec, optBody);
+            Procedure proc = procedure(toSourceRange(method), methodName, params,
+                            retType, /*returnParameters=*/Optional.empty(), requires, 
+                            /*invokeOn=*/Optional.empty(), /*entry=*/Optional.empty(), 
+                            optSpec, optBody);
             procedures.add(proc);
         }
 

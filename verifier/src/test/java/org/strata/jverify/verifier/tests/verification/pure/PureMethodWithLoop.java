@@ -32,9 +32,7 @@ import static org.strata.jverify.JVerify.precondition;
                   + "so no function twin is created and congruence is "
                   + "lost. Fixing this requires modeling @Pure "
                   + "differently in the frontend (e.g. an uninterpreted-"
-                  + "function stub in a Transparent body). Not a "
-                  + "Brazil-wiring issue; not solver-dependent (same "
-                  + "failure under z3 4.8.17 and z3 4.12.6).")
+                  + "function stub in a Transparent body).")
 class PureMethodWithLoop {
 
     @Pure

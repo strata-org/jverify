@@ -151,6 +151,9 @@ public class Laurel {
     public static StmtExpr neg(SourceRange sourceRange, StmtExpr inner) { return new StmtExpr.Neg(sourceRange, inner); }
     public static StmtExpr neg(StmtExpr inner) { return new StmtExpr.Neg(SourceRange.NONE, inner); }
 
+    public static StmtExpr old(SourceRange sourceRange, StmtExpr inner) { return new StmtExpr.Old(sourceRange, inner); }
+    public static StmtExpr old(StmtExpr inner) { return new StmtExpr.Old(SourceRange.NONE, inner); }
+
     public static StmtExpr preIncr(SourceRange sourceRange, StmtExpr target) { return new StmtExpr.PreIncr(sourceRange, target); }
     public static StmtExpr preIncr(StmtExpr target) { return new StmtExpr.PreIncr(SourceRange.NONE, target); }
 
@@ -208,6 +211,9 @@ public class Laurel {
     public static StmtExpr forLoop(SourceRange sourceRange, StmtExpr init, StmtExpr cond, StmtExpr step, java.util.List<InvariantClause> invariants, StmtExpr body) { return new StmtExpr.ForLoop(sourceRange, init, cond, step, invariants, body); }
     public static StmtExpr forLoop(StmtExpr init, StmtExpr cond, StmtExpr step, java.util.List<InvariantClause> invariants, StmtExpr body) { return new StmtExpr.ForLoop(SourceRange.NONE, init, cond, step, invariants, body); }
 
+    public static StmtExpr doWhile(SourceRange sourceRange, StmtExpr body, StmtExpr cond, java.util.List<InvariantClause> invariants) { return new StmtExpr.DoWhile(sourceRange, body, cond, invariants); }
+    public static StmtExpr doWhile(StmtExpr body, StmtExpr cond, java.util.List<InvariantClause> invariants) { return new StmtExpr.DoWhile(SourceRange.NONE, body, cond, invariants); }
+
     public static Parameter parameter(SourceRange sourceRange, java.lang.String name, LaurelType paramType) { return new Parameter.Of(sourceRange, name, paramType); }
     public static Parameter parameter(java.lang.String name, LaurelType paramType) { return new Parameter.Of(SourceRange.NONE, name, paramType); }
 
@@ -247,11 +253,26 @@ public class Laurel {
     public static InvokeOnClause invokeOnClause(SourceRange sourceRange, StmtExpr trigger) { return new InvokeOnClause.Of(sourceRange, trigger); }
     public static InvokeOnClause invokeOnClause(StmtExpr trigger) { return new InvokeOnClause.Of(SourceRange.NONE, trigger); }
 
-    public static RequiresClause requiresClause(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new RequiresClause.Of(sourceRange, cond, errorMessage); }
-    public static RequiresClause requiresClause(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new RequiresClause.Of(SourceRange.NONE, cond, errorMessage); }
+    public static EntryClause entryClause(SourceRange sourceRange) { return new EntryClause.Of(sourceRange); }
+    public static EntryClause entryClause() { return new EntryClause.Of(SourceRange.NONE); }
 
-    public static EnsuresClause ensuresClause(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new EnsuresClause.Of(sourceRange, cond, errorMessage); }
-    public static EnsuresClause ensuresClause(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new EnsuresClause.Of(SourceRange.NONE, cond, errorMessage); }
+    public static RequiresClause requiresClause(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new RequiresClause.RequiresClause_(sourceRange, cond, errorMessage); }
+    public static RequiresClause requiresClause(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new RequiresClause.RequiresClause_(SourceRange.NONE, cond, errorMessage); }
+
+    public static RequiresClause freeRequiresClause(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new RequiresClause.FreeRequiresClause(sourceRange, cond, errorMessage); }
+    public static RequiresClause freeRequiresClause(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new RequiresClause.FreeRequiresClause(SourceRange.NONE, cond, errorMessage); }
+
+    public static RequiresClause checkedRequiresClause(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new RequiresClause.CheckedRequiresClause(sourceRange, cond, errorMessage); }
+    public static RequiresClause checkedRequiresClause(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new RequiresClause.CheckedRequiresClause(SourceRange.NONE, cond, errorMessage); }
+
+    public static EnsuresClause ensuresClause(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new EnsuresClause.EnsuresClause_(sourceRange, cond, errorMessage); }
+    public static EnsuresClause ensuresClause(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new EnsuresClause.EnsuresClause_(SourceRange.NONE, cond, errorMessage); }
+
+    public static EnsuresClause freeEnsuresClause(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new EnsuresClause.FreeEnsuresClause(sourceRange, cond, errorMessage); }
+    public static EnsuresClause freeEnsuresClause(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new EnsuresClause.FreeEnsuresClause(SourceRange.NONE, cond, errorMessage); }
+
+    public static EnsuresClause checkedEnsuresClause(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new EnsuresClause.CheckedEnsuresClause(sourceRange, cond, errorMessage); }
+    public static EnsuresClause checkedEnsuresClause(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new EnsuresClause.CheckedEnsuresClause(SourceRange.NONE, cond, errorMessage); }
 
     public static ModifiesClause modifiesClause(SourceRange sourceRange, java.util.List<StmtExpr> refs) { return new ModifiesClause.ModifiesClause_(sourceRange, refs); }
     public static ModifiesClause modifiesClause(java.util.List<StmtExpr> refs) { return new ModifiesClause.ModifiesClause_(SourceRange.NONE, refs); }
@@ -271,11 +292,8 @@ public class Laurel {
     public static Body externalBody(SourceRange sourceRange) { return new Body.ExternalBody(sourceRange); }
     public static Body externalBody() { return new Body.ExternalBody(SourceRange.NONE); }
 
-    public static Procedure procedure(SourceRange sourceRange, java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Procedure_(sourceRange, name, parameters, returnType, returnParameters, requires, invokeOn, opaqueSpec, body); }
-    public static Procedure procedure(java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Procedure_(SourceRange.NONE, name, parameters, returnType, returnParameters, requires, invokeOn, opaqueSpec, body); }
-
-    public static Procedure function(SourceRange sourceRange, java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Function(sourceRange, name, parameters, returnType, returnParameters, requires, invokeOn, opaqueSpec, body); }
-    public static Procedure function(java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Function(SourceRange.NONE, name, parameters, returnType, returnParameters, requires, invokeOn, opaqueSpec, body); }
+    public static Procedure procedure(SourceRange sourceRange, java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<EntryClause> entry, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Of(sourceRange, name, parameters, returnType, returnParameters, requires, invokeOn, entry, opaqueSpec, body); }
+    public static Procedure procedure(java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<EntryClause> entry, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Of(SourceRange.NONE, name, parameters, returnType, returnParameters, requires, invokeOn, entry, opaqueSpec, body); }
 
     public static Composite composite(SourceRange sourceRange, java.lang.String name, java.util.Optional<Extends> extending, java.util.List<Field> fields, java.util.List<Procedure> procedures) { return new Composite.Of(sourceRange, name, extending, fields, procedures); }
     public static Composite composite(java.lang.String name, java.util.Optional<Extends> extending, java.util.List<Field> fields, java.util.List<Procedure> procedures) { return new Composite.Of(SourceRange.NONE, name, extending, fields, procedures); }
