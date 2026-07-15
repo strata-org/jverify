@@ -49,7 +49,7 @@ To verify your own code, add the JVerify library as a compile-time dependency so
 
 ```kotlin
 dependencies {
-    implementation("org.strata.jverify:library:1.0-SNAPSHOT")
+    implementation("io.github.strata-org:library:0.1.0-SNAPSHOT")
     // ...
 }
 ```

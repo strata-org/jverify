@@ -11,9 +11,9 @@ You can also add the JVerify annotation processor directly to your build configu
 ```kotlin
 dependencies {
     // Depend on the library for specification annotations and methods
-    implementation("org.strata.jverify:library:1.0-SNAPSHOT")
+    implementation("io.github.strata-org:library:0.1.0-SNAPSHOT")
     // Depend on the annotation processor to erase specification code when building
-    annotationProcessor("org.strata.jverify:javac-plugin:1.0-SNAPSHOT")
+    annotationProcessor("io.github.strata-org:javac-plugin:0.1.0-SNAPSHOT")
     ...
 }
 ```
