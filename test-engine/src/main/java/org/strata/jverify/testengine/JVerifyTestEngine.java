@@ -43,6 +43,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionContext> {
     static final Logger LOGGER = Logger.getLogger(JVerifyTestEngine.class.getName());
 
+    // Must agree with the version set in Config (`StrataJavaFrontEnd-1.0`) and
+    // build.gradle.kts (`version = "1.0"`), which govern the jar names under
+    // build/lib/ that getVerifierOptions() below resolves.
+    private static final String PKG_VERSION = "1.0";
+
     @Override
     public String getId() {
         return "jverify-test-engine";
@@ -252,12 +257,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter) {
-        // Resolved via brazil-runtime-exec; no explicit path needed.
+        // Resolved via `strata` on the build-tool PATH (StrataCLI in Config); no explicit path needed.
         Path backendPath = null;
         var buildLib = Path.of("../build/lib");
-        var libraryJar = buildLib.resolve("library-1.0.jar");
-        var verifierJar = buildLib.resolve("verifier-1.0.jar");
-        var libraryForTestingClassPath = buildLib.resolve("library-for-testing-1.0.jar");
+        var libraryJar = buildLib.resolve("library-" + PKG_VERSION + ".jar");
+        var verifierJar = buildLib.resolve("verifier-" + PKG_VERSION + ".jar");
+        var libraryForTestingClassPath = buildLib.resolve("library-for-testing-" + PKG_VERSION + ".jar");
         var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
