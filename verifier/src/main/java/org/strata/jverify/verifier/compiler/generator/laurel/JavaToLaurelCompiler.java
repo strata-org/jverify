@@ -29,7 +29,9 @@ public class JavaToLaurelCompiler {
     /// The name Laurel binds a procedure's return value to inside ensures
     /// clauses. A 1-parameter postcondition lambda's parameter is renamed
     /// to this so the clause refers to the return value correctly.
-    private static final String LAUREL_RESULT_BINDING = "result";
+    /// Since Strata commit 72f3a6e the short `: T` return form auto-generates
+    /// an output parameter named `$result` (a reserved name), not `result`.
+    private static final String LAUREL_RESULT_BINDING = "$result";
     /// javac's synthetic source path for trees injected by a
     /// simplification pass; Strata reports diagnostics for them against
     /// this URI, which has no entry in our line map.
