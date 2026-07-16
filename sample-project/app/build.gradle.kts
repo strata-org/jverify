@@ -22,12 +22,12 @@ repositories {
 
 dependencies {
     // Depend on the library for specification annotations and methods
-    implementation("org.strata.jverify:library:1.0-SNAPSHOT")
+    implementation("io.github.strata-org:library:0.1.0-SNAPSHOT")
     // Depend on the verifier as a build tool
     // TODO: Figure out correct dependency type, and declare the verifier's correctly
-    implementation("org.strata.jverify:verifier:1.0-SNAPSHOT")
+    implementation("io.github.strata-org:verifier:0.1.0-SNAPSHOT")
     // Depend on the annotation processor to erase specification code when building
-    annotationProcessor("org.strata.jverify:javac-plugin:1.0-SNAPSHOT")
+    annotationProcessor("io.github.strata-org:javac-plugin:0.1.0-SNAPSHOT")
 
     // Use JUnit Jupiter for testing.
     testImplementation(libs.junit.jupiter)
@@ -89,6 +89,6 @@ tasks.register<JavaExec>("verify") {
             it.toString().endsWith(".jar")
         }.asPath,
         "--contract-path",
-        "../../builtin-contracts/build/libs/builtin-contracts-1.0-SNAPSHOT-sources.jar"
+        "../../builtin-contracts/build/libs/builtin-contracts-0.1.0-SNAPSHOT-sources.jar"
     )
 }

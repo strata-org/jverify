@@ -1,3 +1,4 @@
+import java.util.concurrent.Callable
 import org.jetbrains.gradle.ext.ActionDelegationConfig
 import org.jetbrains.gradle.ext.delegateActions
 import org.jetbrains.gradle.ext.runConfigurations
@@ -12,8 +13,14 @@ plugins {
 }
 
 allprojects {
-    group = "org.strata.jverify"
-    version = "1.0-SNAPSHOT"
+    // Maven Central group id, verified via GitHub org ownership (strata-org).
+    // Note: this is the *published coordinate* group only — Java package names
+    // remain org.strata.jverify.*
+    group = "io.github.strata-org"
+    // Version is a real (non-SNAPSHOT) release when publishing to Maven Central.
+    // Override at build time with -Pversion=0.1.0. Defaults to a local SNAPSHOT.
+    version = (findProperty("version") as String?)?.takeIf { it != "unspecified" }
+        ?: "0.1.0-SNAPSHOT"
 
     apply(plugin = "java")
 
@@ -392,16 +399,127 @@ project(":test-engine") {
     }
 }
 
+// Modules published to Maven Central.
+//
+// `library`, `javac-plugin` and `verifier` are the artifacts consumers use
+// directly. `common` is included because `javac-plugin` and `verifier` depend
+// on it — without it their published POMs would reference a coordinate that
+// does not exist on Central and consumer builds would fail to resolve.
+val publishedModules = setOf("library", "common", "javac-plugin", "verifier")
+
 subprojects {
     apply(plugin = "maven-publish")
+
+    if (name !in publishedModules) {
+        return@subprojects
+    }
+
+    apply(plugin = "signing")
+
+    // Central requires a -sources.jar and a -javadoc.jar alongside the main jar.
+    java {
+        withSourcesJar()
+        withJavadocJar()
+    }
+
+    // Javadoc on these modules uses internal JDK compiler APIs (com.sun.tools.javac.*)
+    // via --add-exports; don't fail the build on the resulting doclint warnings.
+    tasks.withType<Javadoc>().configureEach {
+        (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:none", "-quiet")
+    }
 
     configure<PublishingExtension> {
         publications {
             create<MavenPublication>("mavenJava") {
                 from(components["java"])
+
+                pom {
+                    name.set("JVerify :: ${project.name}")
+                    description.set("JVerify is a program verifier for Java, built on Strata.")
+                    url.set("https://github.com/strata-org/jverify")
+
+                    licenses {
+                        license {
+                            name.set("Apache License, Version 2.0")
+                            url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                            distribution.set("repo")
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id.set("strata-org")
+                            name.set("Strata")
+                            url.set("https://github.com/strata-org")
+                        }
+                    }
+
+                    scm {
+                        connection.set("scm:git:https://github.com/strata-org/jverify.git")
+                        developerConnection.set("scm:git:ssh://git@github.com/strata-org/jverify.git")
+                        url.set("https://github.com/strata-org/jverify")
+                    }
+                }
+            }
+        }
+
+        // Stage all modules into a single local directory. The whole directory
+        // is then zipped and uploaded to the Central Portal in one bundle.
+        repositories {
+            maven {
+                name = "centralStaging"
+                url = uri(rootProject.layout.buildDirectory.dir("staging-deploy"))
             }
         }
     }
+
+    // Sign publications. Configure the key via gradle properties or env vars:
+    //   ORG_GRADLE_PROJECT_signingInMemoryKey       (ASCII-armored private key)
+    //   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword
+    // Signing is skipped for SNAPSHOT builds so local development stays friction-free.
+    configure<SigningExtension> {
+        val signingKey = findProperty("signingInMemoryKey") as String?
+        val signingPassword = findProperty("signingInMemoryKeyPassword") as String?
+        val isSnapshot = version.toString().endsWith("SNAPSHOT")
+
+        // Evaluate lazily: the task graph isn't built at configuration time.
+        // Signing is required only for a release build that actually publishes.
+        setRequired(Callable {
+            !isSnapshot && gradle.taskGraph.allTasks.any { it.name.startsWith("publish") }
+        })
+
+        if (signingKey != null) {
+            useInMemoryPgpKeys(signingKey, signingPassword ?: "")
+        }
+        sign(extensions.getByType<PublishingExtension>().publications["mavenJava"])
+    }
+}
+
+// Wipe the staging directory before a fresh publish so stale artifacts from a
+// previous version don't leak into the uploaded bundle.
+val cleanStaging by tasks.registering(Delete::class) {
+    delete(layout.buildDirectory.dir("staging-deploy"))
+}
+
+// Publish every published module into the shared staging directory.
+val publishToStaging by tasks.registering {
+    description = "Stages all Central-published modules into build/staging-deploy."
+    group = "publishing"
+    dependsOn(cleanStaging)
+    publishedModules.forEach { module ->
+        dependsOn(":$module:publishMavenJavaPublicationToCentralStagingRepository")
+    }
+}
+
+// Zip the staged repository into the bundle expected by the Central Portal
+// upload API (POST /api/v1/publisher/upload). Produces build/central-bundle.zip.
+val centralBundle by tasks.registering(Zip::class) {
+    description = "Builds the Maven Central Portal upload bundle from the staging directory."
+    group = "publishing"
+    dependsOn(publishToStaging)
+    from(layout.buildDirectory.dir("staging-deploy"))
+    archiveFileName.set("central-bundle.zip")
+    destinationDirectory.set(layout.buildDirectory)
 }
 
 // Reject jqwik >= 1.10.0 across the entire build.
