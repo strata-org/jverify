@@ -442,37 +442,82 @@ public class JavaToLaurelCompiler {
 
         /**
          * Check if a method body has any effect that Strata's frame check
-         * classifies as a heap write: an instance-field assignment, or a
-         * call to a non-JVerify method (which conservatively may itself
-         * write the heap -- we do not run our own transitive effect
-         * analysis and cannot inspect callee bodies here).
+         * classifies as a heap write:
+         * <ul>
+         *   <li>an instance-field assignment ({@code JCAssign} whose LHS is
+         *       a non-static {@code JCFieldAccess}),</li>
+         *   <li>a pre/post-{@code ++}/{@code --} whose target is a
+         *       non-static field ({@code convertUnary} emits these as
+         *       Laurel {@code preIncr}/{@code postIncr}/etc. on the
+         *       field-access, which is a real heap write),</li>
+         *   <li>a compound assignment ({@code JCAssignOp}) whose LHS is a
+         *       non-static field, defensively (compound assign on fields
+         *       is currently rejected up front elsewhere, but if that
+         *       changes we don't want a silent regression here),</li>
+         *   <li>a call to a non-JVerify, non-{@code @Pure} method (which
+         *       conservatively may itself write the heap; we do not run
+         *       our own transitive effect analysis and cannot inspect
+         *       callee bodies here).</li>
+         * </ul>
          *
-         * <p>When the user did not supply {@code modifies(...)}, such
-         * bodies get a synthesized {@code modifies *} so Strata accepts
-         * both the direct write and any transitively propagated heap
-         * effect from the callee. Sound but coarse: callers must assume
-         * every field may change. A follow-up will narrow to per-field
-         * clauses once we track write targets precisely enough.
+         * <p>{@code @Pure} user methods are exempt from the call-triggered
+         * fallback: pure methods have no heap effect by definition, and
+         * treating them as heap-writing would force every caller into an
+         * OpaqueSpec, defeating call-site inlining and call-determinism
+         * for the {@code @Pure}-composition pattern this feature is meant
+         * to enable.
+         *
+         * <p>When the user did not supply {@code modifies(...)} but this
+         * method returns {@code true}, a wildcard {@code modifies *} is
+         * synthesized so Strata accepts both the direct write and any
+         * transitively propagated heap effect from an impure callee.
+         * Sound but coarse: callers must assume every field may change.
+         * A follow-up will narrow to per-field clauses once we track
+         * write targets precisely enough.
          */
         private boolean bodyPotentiallyWritesHeap(JCTree.JCBlock body) {
             boolean[] found = {false};
             body.accept(new TreeScanner() {
                 @Override public void visitAssign(JCTree.JCAssign tree) {
-                    if (tree.lhs instanceof JCTree.JCFieldAccess fa
-                            && fa.sym instanceof Symbol.VarSymbol vs
-                            && (vs.flags() & Flags.STATIC) == 0) {
+                    if (writesInstanceField(tree.lhs)) found[0] = true;
+                    super.visitAssign(tree);
+                }
+                @Override public void visitUnary(JCTree.JCUnary tree) {
+                    var tag = tree.getTag();
+                    if ((tag == JCTree.Tag.POSTINC || tag == JCTree.Tag.PREINC
+                            || tag == JCTree.Tag.POSTDEC || tag == JCTree.Tag.PREDEC)
+                            && writesInstanceField(tree.arg)) {
                         found[0] = true;
                     }
-                    super.visitAssign(tree);
+                    super.visitUnary(tree);
+                }
+                @Override public void visitAssignop(JCTree.JCAssignOp tree) {
+                    if (writesInstanceField(tree.lhs)) found[0] = true;
+                    super.visitAssignop(tree);
                 }
                 @Override public void visitApply(JCTree.JCMethodInvocation tree) {
                     // Calls to the JVerify library (check/assume/precondition/
-                    // modifies/etc.) do not themselves write the heap; anything
-                    // else conservatively might.
-                    if (JVerifyUtils.getJVerifyMethod(tree) == null) {
+                    // modifies/etc.) never write the heap. @Pure user methods
+                    // also have no heap effect; treating them as heap-writing
+                    // would force their callers into an OpaqueSpec and defeat
+                    // call-site inlining for the @Pure-composition pattern.
+                    if (JVerifyUtils.getJVerifyMethod(tree) == null
+                            && !isPureCall(tree)) {
                         found[0] = true;
                     }
                     super.visitApply(tree);
+                }
+
+                private boolean writesInstanceField(JCTree.JCExpression lhs) {
+                    return lhs instanceof JCTree.JCFieldAccess fa
+                            && fa.sym instanceof Symbol.VarSymbol vs
+                            && (vs.flags() & Flags.STATIC) == 0;
+                }
+
+                private boolean isPureCall(JCTree.JCMethodInvocation tree) {
+                    return TreeInfo.symbol(tree.getMethodSelect())
+                            instanceof Symbol.MethodSymbol ms
+                            && jverifyUtils.isPure(ms);
                 }
             });
             return found[0];
