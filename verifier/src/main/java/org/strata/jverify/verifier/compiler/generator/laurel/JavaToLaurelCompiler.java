@@ -347,16 +347,26 @@ public class JavaToLaurelCompiler {
     }
 
     /**
-     * Ensure the composite owning {@code fieldSym} is declared with every one of its
-     * source-declared instance fields, so Strata's heap parameterization can resolve
-     * {@code owner.field} reads/writes. Called from the field-access (read) and
-     * field-assign (write) arms of {@link StaticMethodCollector#convertExpression}.
+     * Ensure the composite owning {@code fieldSym} is declared with a
+     * declaration for that specific field, so Strata's heap parameterization
+     * can resolve {@code owner.field} reads/writes. Called from the
+     * field-access (read) and field-assign (write) arms of
+     * {@link StaticMethodCollector#convertExpression}.
      *
-     * <p>Populates {@link #compositeFields} lazily: the first reference to any field
-     * on a given owner records every instance field of that owner at once. Fields are
-     * kept in source order (via {@link LinkedHashMap}) for deterministic output.
+     * <p>Only the accessed field is emitted, not every field on the class:
+     * for library-contract classes ({@code @Contract(SomeLibraryClass.class)}),
+     * {@link org.strata.jverify.verifier.compiler.simplifications.ExternalContractCompiler}
+     * re-parents the contract's ghost fields onto the library class's symbol,
+     * so walking every declared field on {@code owner} would drag in the
+     * library class's real (often internally-represented, e.g. {@code int[]})
+     * fields that JVerify cannot translate. Emitting only the accessed field
+     * side-steps that entirely.
+     *
+     * <p>Fields are kept in insertion order (via {@link LinkedHashMap}) for
+     * deterministic output; subsequent references to the same field on the
+     * same owner are idempotent.
      */
-    private void ensureFieldsOnComposite(Symbol.VarSymbol fieldSym) {
+    private void ensureFieldOnComposite(Symbol.VarSymbol fieldSym) {
         if (!(fieldSym.owner instanceof Symbol.ClassSymbol owner)) {
             // Field owned by something other than a class (e.g. a lambda's synthetic
             // capture) -- Strata cannot represent this as a composite field. Skip;
@@ -368,20 +378,13 @@ public class JavaToLaurelCompiler {
         referencedCompositeTypes.add(sortName);
         LinkedHashMap<String, Field> fields = compositeFields.computeIfAbsent(
                 sortName, k -> new LinkedHashMap<>());
-        // Walk every instance field declared on the owner (not just the one accessed),
-        // so a class that is only referenced via a single field access still gets a
-        // complete composite declaration.
-        for (Symbol member : owner.getEnclosedElements()) {
-            if (!(member instanceof Symbol.VarSymbol vs)) continue;
-            if ((vs.flags() & Flags.STATIC) != 0) continue;
-            String name = vs.name.toString();
-            if (fields.containsKey(name)) continue;
-            LaurelType fieldType = translateType(vs.type);
-            Field f = (vs.flags() & Flags.FINAL) != 0
-                    ? immutableField(name, fieldType)
-                    : mutableField(name, fieldType);
-            fields.put(name, f);
-        }
+        String name = fieldSym.name.toString();
+        if (fields.containsKey(name)) return;
+        LaurelType fieldType = translateType(fieldSym.type);
+        Field f = (fieldSym.flags() & Flags.FINAL) != 0
+                ? immutableField(name, fieldType)
+                : mutableField(name, fieldType);
+        fields.put(name, f);
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
@@ -992,7 +995,7 @@ public class JavaToLaurelCompiler {
                         && (vs.flags() & Flags.STATIC) == 0 -> {
                     SourceRange sr = toSourceRange(fa);
                     StmtExpr obj = convertExpression(fa.selected, renames);
-                    ensureFieldsOnComposite(vs);
+                    ensureFieldOnComposite(vs);
                     yield fieldAccess(sr, obj, fa.name.toString());
                 }
                 case JCTree.JCNewClass newClass -> {
