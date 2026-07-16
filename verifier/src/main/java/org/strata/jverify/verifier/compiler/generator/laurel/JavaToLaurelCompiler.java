@@ -64,6 +64,16 @@ public class JavaToLaurelCompiler {
     /// each helper is written into the first file that references it and
     /// skipped in subsequent files (same pattern as `emittedCompositeTypes`).
     private final Set<String> emittedCastHelpers = new HashSet<>();
+    
+    /// Fields to declare on each composite. Populated on-demand when a
+    /// `JCFieldAccess` (read) or `JCAssign` with a `JCFieldAccess` LHS
+    /// (write) is translated: the owning class symbol contributes all
+    /// its instance-field declarations at once. Strata's
+    /// `resolveQualifiedFieldName` requires each field to be declared
+    /// on its owning composite for heap parameterization to fire.
+    /// Insertion order is preserved (both across composites and across
+    /// fields within a composite) for deterministic output.
+    private final Map<String, LinkedHashMap<String, Field>> compositeFields = new LinkedHashMap<>();
 
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
@@ -97,11 +107,16 @@ public class JavaToLaurelCompiler {
             }
             // Declare each opaque composite sort referenced so far that has
             // not been declared yet, before the procedures that use it, so
-            // Strata's resolver can find the sort.
+            // Strata's resolver can find the sort. Include any instance
+            // fields recorded for this composite -- required for Strata's
+            // heap parameterization pass to resolve `c.x` reads/writes.
             for (var typeName : referencedCompositeTypes) {
                 if (emittedCompositeTypes.add(typeName)) {
+                    List<Field> fields = compositeFields.containsKey(typeName)
+                            ? new ArrayList<>(compositeFields.get(typeName).values())
+                            : List.of();
                     commands.add(compositeCommand(
-                            composite(typeName, Optional.empty(), List.of(), List.of())));
+                            composite(typeName, Optional.empty(), fields, List.of())));
                 }
             }
             // Emit cast helper procedures (see convertTypeCast) before the
@@ -322,6 +337,53 @@ public class JavaToLaurelCompiler {
         return compositeType(sr, isNat ? boundedNat : bounded);
     }
 
+    /**
+     * Sort name used to declare {@code cls} as a Laurel composite. Fully qualified with
+     * the package included and the nested-class {@code $} separator normalised to
+     * {@code .}, matching how {@link #translateType} names class-typed sorts.
+     */
+    private static String compositeSortName(Symbol.ClassSymbol cls) {
+        return cls.getQualifiedName().toString().replace('$', '.');
+    }
+
+    /**
+     * Ensure the composite owning {@code fieldSym} is declared with every one of its
+     * source-declared instance fields, so Strata's heap parameterization can resolve
+     * {@code owner.field} reads/writes. Called from the field-access (read) and
+     * field-assign (write) arms of {@link StaticMethodCollector#convertExpression}.
+     *
+     * <p>Populates {@link #compositeFields} lazily: the first reference to any field
+     * on a given owner records every instance field of that owner at once. Fields are
+     * kept in source order (via {@link LinkedHashMap}) for deterministic output.
+     */
+    private void ensureFieldsOnComposite(Symbol.VarSymbol fieldSym) {
+        if (!(fieldSym.owner instanceof Symbol.ClassSymbol owner)) {
+            // Field owned by something other than a class (e.g. a lambda's synthetic
+            // capture) -- Strata cannot represent this as a composite field. Skip;
+            // the emit-time resolver will surface a "field not found" if the ref
+            // actually reaches Laurel.
+            return;
+        }
+        String sortName = compositeSortName(owner);
+        referencedCompositeTypes.add(sortName);
+        LinkedHashMap<String, Field> fields = compositeFields.computeIfAbsent(
+                sortName, k -> new LinkedHashMap<>());
+        // Walk every instance field declared on the owner (not just the one accessed),
+        // so a class that is only referenced via a single field access still gets a
+        // complete composite declaration.
+        for (Symbol member : owner.getEnclosedElements()) {
+            if (!(member instanceof Symbol.VarSymbol vs)) continue;
+            if ((vs.flags() & Flags.STATIC) != 0) continue;
+            String name = vs.name.toString();
+            if (fields.containsKey(name)) continue;
+            LaurelType fieldType = translateType(vs.type);
+            Field f = (vs.flags() & Flags.FINAL) != 0
+                    ? immutableField(name, fieldType)
+                    : mutableField(name, fieldType);
+            fields.put(name, f);
+        }
+    }
+
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
         // `outermostClass()` walks the owner chain to the first ClassSymbol,
         // casting along the way; some invocations (record accessors of types
@@ -366,6 +428,31 @@ public class JavaToLaurelCompiler {
                 @Override public void visitWhileLoop(JCTree.JCWhileLoop tree) {}
                 @Override public void visitForLoop(JCTree.JCForLoop tree) {}
                 @Override public void visitDoLoop(JCTree.JCDoWhileLoop tree) {}
+            });
+            return found[0];
+        }
+
+        /**
+         * Check if a method body writes to any instance field. A field
+         * write is heap-mutating and requires a matching {@code modifies}
+         * clause on an opaque procedure or Strata's frame check rejects it.
+         * When the user did not supply {@code modifies(...)}, we
+         * conservatively emit {@code modifies *} for such bodies so
+         * verification succeeds; a follow-up will narrow to per-field
+         * clauses once we track write targets precisely enough to
+         * distinguish local-heap vs caller-visible writes.
+         */
+        private boolean bodyWritesField(JCTree.JCBlock body) {
+            boolean[] found = {false};
+            body.accept(new TreeScanner() {
+                @Override public void visitAssign(JCTree.JCAssign tree) {
+                    if (tree.lhs instanceof JCTree.JCFieldAccess fa
+                            && fa.sym instanceof Symbol.VarSymbol vs
+                            && (vs.flags() & Flags.STATIC) == 0) {
+                        found[0] = true;
+                    }
+                    super.visitAssign(tree);
+                }
             });
             return found[0];
         }
@@ -466,6 +553,7 @@ public class JavaToLaurelCompiler {
 
             List<RequiresClause> requires = new ArrayList<>();
             List<EnsuresClause> ensures = new ArrayList<>();
+            List<ModifiesClause> modifies = new ArrayList<>();
             StmtExpr methodBody = null;
 
             if (method.body != null) {
@@ -504,6 +592,12 @@ public class JavaToLaurelCompiler {
                     }
                 }
 
+                for (var mod : contract.modifies()) {
+                    var modExpr = mod.get();
+                    modifies.add(modifiesClause(toSourceRange(modExpr),
+                            List.of(convertExpression(modExpr))));
+                }
+
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(method.body);
                 if (!implStatements.isEmpty()) {
                     List<StmtExpr> stmts = new ArrayList<>();
@@ -514,6 +608,16 @@ public class JavaToLaurelCompiler {
                         }
                     }
                     methodBody = block(toSourceRange(method.body), stmts);
+                }
+
+                // Fallback: if the user did not supply a `modifies(...)`
+                // clause but the body writes to an instance field, emit a
+                // wildcard so Strata's frame check accepts the heap effect.
+                // Sound but coarse -- callers must assume any field may
+                // change. Users who need precision should write an explicit
+                // `modifies(...)`.
+                if (modifies.isEmpty() && bodyWritesField(method.body)) {
+                    modifies.add(modifiesWildcard(toSourceRange(method.body)));
                 }
             }
 
@@ -540,13 +644,12 @@ public class JavaToLaurelCompiler {
 
             // Strata rejects transparent (visible-body) procedures unless they're functional;
             // emit an OpaqueSpec to mark the body opaque otherwise. Pure functions stay
-            // transparent only when they have no ensures clauses (the schema can't carry
-            // ensures without an OpaqueSpec wrapper).
-            // modifies is always empty: jverify doesn't yet emit modifies clauses.
-            boolean canStayTransparent = isPure && ensures.isEmpty();
+            // transparent only when they have no ensures / modifies clauses (the schema
+            // can't carry either without an OpaqueSpec wrapper).
+            boolean canStayTransparent = isPure && ensures.isEmpty() && modifies.isEmpty();
             Optional<OpaqueSpec> optSpec = canStayTransparent
                     ? Optional.empty()
-                    : Optional.of(opaqueSpec(ensures, List.of()));
+                    : Optional.of(opaqueSpec(ensures, modifies));
 
             Procedure proc = procedure(toSourceRange(method), methodName, params,
                             retType, /*returnParameters=*/Optional.empty(), requires, 
@@ -867,6 +970,16 @@ public class JavaToLaurelCompiler {
                 // expression's type.
                 case JCTree.JCFieldAccess fa when fa.type.constValue() != null ->
                     convertConstantValue(toSourceRange(fa), fa.type.getTag(), fa.type.constValue());
+                // Instance-field read: `obj.field`. Strata's heap parameterization
+                // pass rewrites this into a `readField(heap, obj, "Owner.field")`
+                // call using the owning composite's field declaration.
+                case JCTree.JCFieldAccess fa when fa.sym instanceof Symbol.VarSymbol vs
+                        && (vs.flags() & Flags.STATIC) == 0 -> {
+                    SourceRange sr = toSourceRange(fa);
+                    StmtExpr obj = convertExpression(fa.selected, renames);
+                    ensureFieldsOnComposite(vs);
+                    yield fieldAccess(sr, obj, fa.name.toString());
+                }
                 case JCTree.JCNewClass newClass -> {
                     // `new T(...)` for class / record types: produce
                     // a Laurel `new_(T)` value of the matching
