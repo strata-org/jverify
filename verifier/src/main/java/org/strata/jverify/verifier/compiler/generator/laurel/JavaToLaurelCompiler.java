@@ -467,6 +467,14 @@ public class JavaToLaurelCompiler {
          * for the {@code @Pure}-composition pattern this feature is meant
          * to enable.
          *
+         * <p>Spec-method subtrees ({@code precondition(...)},
+         * {@code postcondition(...)}, {@code invariant(...)},
+         * {@code reads(...)}, {@code modifies(...)}, {@code decreases(...)})
+         * describe the method's specification, not its runtime effect, so
+         * traversal stops at their argument lambda. Otherwise an impure
+         * call *inside a postcondition lambda* would incorrectly mark the
+         * enclosing method as heap-writing.
+         *
          * <p>When the user did not supply {@code modifies(...)} but this
          * method returns {@code true}, a wildcard {@code modifies *} is
          * synthesized so Strata accepts both the direct write and any
@@ -496,11 +504,18 @@ public class JavaToLaurelCompiler {
                     super.visitAssignop(tree);
                 }
                 @Override public void visitApply(JCTree.JCMethodInvocation tree) {
-                    // Calls to the JVerify library (check/assume/precondition/
-                    // modifies/etc.) never write the heap. @Pure user methods
-                    // also have no heap effect; treating them as heap-writing
-                    // would force their callers into an OpaqueSpec and defeat
-                    // call-site inlining for the @Pure-composition pattern.
+                    // Spec-method calls (precondition / postcondition /
+                    // invariant / reads / modifies / decreases) describe the
+                    // method's specification, not its runtime effect. Skip
+                    // their subtrees entirely so an impure call inside a
+                    // postcondition lambda doesn't mark the enclosing method
+                    // as heap-writing.
+                    if (isSpecMethodCall(tree)) return;
+                    // Calls to the JVerify library (check/assume/etc.) never
+                    // write the heap. @Pure user methods also have no heap
+                    // effect; treating them as heap-writing would force their
+                    // callers into an OpaqueSpec and defeat call-site
+                    // inlining for the @Pure-composition pattern.
                     if (JVerifyUtils.getJVerifyMethod(tree) == null
                             && !isPureCall(tree)) {
                         found[0] = true;
@@ -518,6 +533,16 @@ public class JavaToLaurelCompiler {
                     return TreeInfo.symbol(tree.getMethodSelect())
                             instanceof Symbol.MethodSymbol ms
                             && jverifyUtils.isPure(ms);
+                }
+
+                private boolean isSpecMethodCall(JCTree.JCMethodInvocation tree) {
+                    var jverifyMethod = JVerifyUtils.getJVerifyMethod(tree);
+                    if (jverifyMethod == null) return false;
+                    return switch (jverifyMethod.getQualifiedName().toString()) {
+                        case "precondition", "postcondition", "invariant",
+                                "reads", "modifies", "decreases" -> true;
+                        default -> false;
+                    };
                 }
             });
             return found[0];
