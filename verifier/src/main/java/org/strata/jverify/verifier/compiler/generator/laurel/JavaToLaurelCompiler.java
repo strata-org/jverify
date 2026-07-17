@@ -50,6 +50,21 @@ public class JavaToLaurelCompiler {
     /// order is preserved for deterministic output.
     private final Set<String> referencedCompositeTypes = new LinkedHashSet<>();
 
+    /// (helperName -> Procedure) for every cast helper referenced anywhere
+    /// in the program. Lives at the whole-program scope (not per file)
+    /// because all files share one Laurel program scope: emitting the
+    /// same `$cast_to_<T>_from_<S>` helper in two files makes Strata
+    /// reject the duplicate. A LinkedHashMap keeps insertion order for
+    /// deterministic output.
+    private final java.util.LinkedHashMap<String, Procedure> castHelpers =
+            new java.util.LinkedHashMap<>();
+
+    /// Names of cast helpers already emitted in the output. Guards against
+    /// re-emitting the same helper when we visit multiple compilation units:
+    /// each helper is written into the first file that references it and
+    /// skipped in subsequent files (same pattern as `emittedCompositeTypes`).
+    private final Set<String> emittedCastHelpers = new HashSet<>();
+
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
@@ -87,6 +102,16 @@ public class JavaToLaurelCompiler {
                 if (emittedCompositeTypes.add(typeName)) {
                     commands.add(compositeCommand(
                             composite(typeName, Optional.empty(), List.of(), List.of())));
+                }
+            }
+            // Emit cast helper procedures (see convertTypeCast) before the
+            // procedures that call them, so Strata's resolver can find them.
+            // Skip helpers already emitted in an earlier file -- all Laurel
+            // files share one program scope, so a repeated helper would be
+            // a duplicate definition.
+            for (var entry : castHelpers.entrySet()) {
+                if (emittedCastHelpers.add(entry.getKey())) {
+                    commands.add(procedureCommand(entry.getValue()));
                 }
             }
             for (var proc : visitor.procedures) {
@@ -140,23 +165,42 @@ public class JavaToLaurelCompiler {
         return new SourceRange(startPos, endPos);
     }
 
+    /// Bounds for each built-in constrained integer type. Single source of
+    /// truth: `getPredefinedTypes()` emits the constrained-type prelude from
+    /// this map, and `castHelperBoundsFor(name)` reads back the same bounds
+    /// when synthesising a cast helper's `requires` clause -- otherwise the
+    /// cast's range check could drift from the target type's own constraint
+    /// (a soundness-critical invariant).
+    ///
+    /// Value: `{min, max}`; a `null` element means "unbounded on that side"
+    /// (e.g. `nat` has no upper bound). Insertion order is preserved so the
+    /// emitted prelude order stays deterministic.
+    ///
+    /// Nat majors' upper bound matches the signed type of the same width,
+    /// so a `@Nat int` (nat31) ranges over 0..2^31-1.
+    private static final java.util.LinkedHashMap<String, Long[]> BOUNDS = new java.util.LinkedHashMap<>();
+    static {
+        BOUNDS.put("int8",  new Long[]{-128L, 127L});
+        BOUNDS.put("int16", new Long[]{-32768L, 32767L});
+        BOUNDS.put("int32", new Long[]{-2147483648L, 2147483647L});
+        BOUNDS.put("int64", new Long[]{Long.MIN_VALUE, Long.MAX_VALUE});
+        BOUNDS.put("char",  new Long[]{0L, 65535L});
+        // @Nat counterparts: >= 0, upper bound same as the signed counterpart.
+        BOUNDS.put("nat7",  new Long[]{0L, 127L});
+        BOUNDS.put("nat15", new Long[]{0L, 32767L});
+        BOUNDS.put("nat31", new Long[]{0L, 2147483647L});
+        BOUNDS.put("nat63", new Long[]{0L, Long.MAX_VALUE});
+        // @Unbounded @Nat: >= 0 with no upper bound.
+        BOUNDS.put("nat",   new Long[]{0L, null});
+    }
+
     private List<Command> getPredefinedTypes() {
-        return List.of(
-            makeConstrainedType("int8", -128L, 127L),
-            makeConstrainedType("int16", -32768L, 32767L),
-            makeConstrainedType("int32", -2147483648L, 2147483647L),
-            makeConstrainedType("int64", -9223372036854775808L, 9223372036854775807L),
-            makeConstrainedType("char", 0L, 65535L),
-            // @Nat counterparts: the value must be a natural number (>= 0). The upper
-            // bound is the same as the corresponding signed type, so e.g. a @Nat int
-            // ranges over 0..2^31-1.
-            makeConstrainedType("nat7", 0L, 127L),
-            makeConstrainedType("nat15", 0L, 32767L),
-            makeConstrainedType("nat31", 0L, 2147483647L),
-            makeConstrainedType("nat63", 0L, 9223372036854775807L),
-            // @Unbounded @Nat: a natural number without an upper bound.
-            makeConstrainedType("nat", 0L, null)
-        );
+        var commands = new ArrayList<Command>();
+        for (var entry : BOUNDS.entrySet()) {
+            commands.add(makeConstrainedType(entry.getKey(),
+                    entry.getValue()[0], entry.getValue()[1]));
+        }
+        return commands;
     }
 
     /**
@@ -844,12 +888,156 @@ public class JavaToLaurelCompiler {
                     throw new JavaViolationException(
                         "instanceof on opaque reference types is not yet supported");
                 }
+                case JCTree.JCTypeCast cast -> convertTypeCast(cast, renames);
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
         }
 
         private StmtExpr convertLiteral(JCTree.JCLiteral literal) {
             return convertConstantValue(toSourceRange(literal), literal.typetag, literal.value);
+        }
+
+        /// A Java type cast (explicit or implicit) — `(T) x`. Emitted as a
+        /// call to a helper procedure:
+        ///
+        ///   (T) x    →    $cast_to_T$_from_<S>(x)
+        ///
+        /// where `<S>` is the source type. The helper is declared once at
+        /// file scope with `requires T$constraint(x)` and
+        /// `ensures $result == x`. The call's precondition becomes a proof
+        /// obligation at the cast site; for widening it's trivially
+        /// satisfied, for narrowing it's the real proof obligation. This
+        /// mirrors how JVerify already treats in-type overflow (e.g.
+        /// `Integer.MAX_VALUE + 1` fails the `int32` range check instead
+        /// of silently wrapping). Design: `docs/jccast-design.md`.
+        ///
+        /// We emit a call rather than an `AsType` because Strata's
+        /// `LaurelToCoreSchemaPass` has no translation for expression-
+        /// position `AsType`. Calls are handled uniformly in body and
+        /// contract positions, so the same cast semantics apply inside
+        /// `precondition(...)` and `postcondition(...)` as well.
+        ///
+        /// Since Laurel does not support polymorphism, we generate one
+        /// helper per (source, target) type pair on demand and stash the
+        /// resulting Procedure into `castHelpers` so it can be emitted at
+        /// file scope alongside `getPredefinedTypes()`.
+        private StmtExpr convertTypeCast(JCTree.JCTypeCast cast, Map<String, String> renames) {
+            SourceRange sr = toSourceRange(cast);
+            StmtExpr operand = convertExpression(cast.expr, renames);
+            LaurelType targetType = translateType(cast.type);
+            LaurelType sourceType = translateType(cast.expr.type);
+            // Restrict to primitive integer targets (the CR's stated scope):
+            // one of the built-in constrained integer types (int8/16/32/64,
+            // char, nat*) or the raw `int` for `@Unbounded int` / `@Unbounded
+            // @Nat int`. `translateType` maps every class/interface reference
+            // to a CompositeType too, and for those the helper would need to
+            // emit `ensures $result == x` where the two sides have different
+            // composite sorts -- Strata rejects the '==' at resolution,
+            // surfacing both at the helper's synthetic SourceRange.NONE and
+            // at the user's cast site. Fall through to the unsupported-
+            // expression path instead so users see a single clean diagnostic.
+            String targetName = laurelIntegerTypeName(targetType);
+            if (targetName == null) {
+                throw new JavaViolationException(
+                        "Cast to " + cast.type + " is not yet supported");
+            }
+            String sourceName = laurelTypeName(sourceType);
+            String helperName = "$cast_to_" + targetName + "_from_" + sourceName;
+            registerCastHelper(helperName, sourceName, sourceType, targetName, targetType);
+            return call(sr, identifier(sr, helperName), List.of(operand));
+        }
+
+        /// Returns the mangling name for {@code targetType} if it is one of
+        /// the primitive-integer targets this pass handles, else {@code null}.
+        /// Accepted targets:
+        ///   * CompositeType whose name is a known constrained-integer sort
+        ///     (`int8`/`int16`/`int32`/`int64`/`char`/`nat7`/`nat15`/`nat31`/
+        ///     `nat63`/`nat`)
+        ///   * IntType (the raw Laurel int, used for `@Unbounded int`)
+        private String laurelIntegerTypeName(LaurelType targetType) {
+            if (targetType instanceof LaurelType.CompositeType c
+                    && boundsFor(c.name()) != null) {
+                return c.name();
+            }
+            if (targetType instanceof LaurelType.IntType) {
+                return "int";
+            }
+            return null;
+        }
+
+        /// Name of a Laurel type for helper-name mangling. CompositeType
+        /// carries its name directly; the raw `intType()` is spelled
+        /// `int` (for `@Unbounded int`).
+        private String laurelTypeName(LaurelType ty) {
+            if (ty instanceof LaurelType.CompositeType c) return c.name();
+            if (ty instanceof LaurelType.IntType) return "int";
+            throw new JavaViolationException("Unsupported cast source type: " + ty);
+        }
+
+        /// Register (once) the helper procedure for a given cast:
+        ///
+        ///   procedure <helperName>(x: <sourceType>): <targetName>
+        ///     requires <inline bounds for targetName>  summary "cast from <S> to <T>"
+        ///     opaque(ensures $result == x)
+        ///
+        /// The `requires` bounds are inlined (rather than calling
+        /// `<targetName>$constraint(x)`) because that constraint helper is
+        /// generated by Strata's `ConstrainedTypeElim` pass, which runs
+        /// AFTER the initial resolve — so a call to it in frontend-emitted
+        /// Laurel would fail resolution.
+        ///
+        /// Each requires clause carries a `summary` string. Strata's
+        /// Verifier renders it as `"<summary> does not hold"` at
+        /// failure sites, so the diagnostic reads "cast from int to short
+        /// does not hold" rather than the generic "precondition does not
+        /// hold".
+        ///
+        /// `opaque` marks the procedure as having a specification but no
+        /// visible body — the postcondition is what callers see.
+        private void registerCastHelper(String helperName, String sourceName,
+                                        LaurelType sourceType, String targetName,
+                                        LaurelType targetType) {
+            if (castHelpers.containsKey(helperName)) return;
+            var sr = SourceRange.NONE;
+            var x = identifier(sr, "x");
+            Long[] bounds = boundsFor(targetName);
+            var castLabel = Optional.of(errorSummary(sr,
+                    "cast from " + sourceName + " to " + targetName));
+            var requiresList = new java.util.ArrayList<RequiresClause>();
+            if (bounds != null) {
+                if (bounds[0] != null) {
+                    requiresList.add(requiresClause(sr,
+                            ge(sr, x, longLiteral(sr, bounds[0])), castLabel));
+                }
+                if (bounds[1] != null) {
+                    requiresList.add(requiresClause(sr,
+                            le(sr, x, longLiteral(sr, bounds[1])), castLabel));
+                }
+            }
+            // `@Unbounded int` targets have no bounds check at all (widening
+            // from any bounded source is unconditionally sound); requiresList
+            // is left empty and only the ensures pins `$result == x`.
+            var resultEqX = eq(sr, identifier(sr, LAUREL_RESULT_BINDING), x);
+            var ensures = List.of(ensuresClause(sr, resultEqX, Optional.empty()));
+            var proc = procedure(sr, helperName,
+                    List.of(parameter(sr, "x", sourceType)),
+                    Optional.of(returnType(sr, targetType)),
+                    /*returnParameters=*/ Optional.empty(),
+                    requiresList,
+                    /*invokeOn=*/ Optional.empty(),
+                    /*entry=*/ Optional.empty(),
+                    Optional.of(opaqueSpec(sr, ensures, List.of())),
+                    /*body=*/ Optional.empty());
+            castHelpers.put(helperName, proc);
+        }
+
+        /// Bounds for the built-in constrained integer types, as declared
+        /// in the shared {@link JavaToLaurelCompiler#BOUNDS} table. Returns
+        /// {@code {min, max}} (a {@code null} element means "unbounded on
+        /// that side"), or {@code null} if the target isn't a built-in
+        /// constrained-integer sort.
+        private Long[] boundsFor(String targetName) {
+            return BOUNDS.get(targetName);
         }
 
         /// Lower a primitive compile-time constant value to a Laurel literal.

@@ -230,6 +230,7 @@ public class JavaLowerer {
                     
                     List<UnitsCompiler> phases = new ArrayList<>();
                     phases.add(JavaLowerer.this::insertFloatingPointCasts);
+                    phases.add(JavaLowerer.this::insertImplicitCasts);
                     phases.add(JavaLowerer.this::unlambda);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
@@ -303,6 +304,14 @@ public class JavaLowerer {
 
     private List<JCTree.JCCompilationUnit> insertFloatingPointCasts(List<JCTree.JCCompilationUnit> units) {
         var inserter = new FloatingPointCastInserter(context);
+        for (var unit : units) {
+            inserter.translate(unit);
+        }
+        return units;
+    }
+
+    private List<JCTree.JCCompilationUnit> insertImplicitCasts(List<JCTree.JCCompilationUnit> units) {
+        var inserter = new org.strata.jverify.verifier.compiler.simplifications.ImplicitCastInserter(context);
         for (var unit : units) {
             inserter.translate(unit);
         }
