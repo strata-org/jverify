@@ -1,6 +1,7 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
@@ -9,7 +10,7 @@ import static org.strata.jverify.JVerify.*;
  * Tests increment/decrement on object fields.
  * Skipped: JVerify does not yet support instance field access.
  */
-@JVerifyTest(skip = "JVerify: field increment requires class/instance support", exitCode = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS}, exitCode = 0)
 class IncrementDecrementField {
     static class Counter {
         int n;

@@ -2,8 +2,9 @@ package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 22)
 public class ImpureExpressionsVerification {
     @Pure
     int nestedImpureExpressionInPureContext() {

@@ -62,7 +62,7 @@ public class LaurelDriver implements Driver {
             }
         }
         if (analysisResult == null || (hasErrors && !verifierOptions.continueOnErrors())) {
-            return new JVerifyResults(diagnostics, CommandLine.ExitCode.USAGE, null);
+            return new JVerifyResults.NoVerdict(diagnostics, CommandLine.ExitCode.USAGE);
         } else {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
@@ -117,13 +117,21 @@ public class LaurelDriver implements Driver {
             // backend. Verification can then be run separately on the
             // emitted Ion.
             if (verifierOptions.emitLaurelOnly()) {
-                return new JVerifyResults(diagnostics, CommandLine.ExitCode.OK, null);
+                return new JVerifyResults.NoVerdict(diagnostics, CommandLine.ExitCode.OK);
             }
 
             var results = runVerifier(analysisResult.filesMap(), serializedProgram);
-            var allDiagnostics = new ArrayList<>(diagnostics);
+            var allDiagnostics = new ArrayList<Diagnostic<?>>(diagnostics);
             allDiagnostics.addAll(results.diagnostics());
-            return new JVerifyResults(allDiagnostics, results.exitCode(), results.verificationResults());
+            // Preserve the variant while prepending the compile-phase diagnostics.
+            return switch (results) {
+                case JVerifyResults.Ran r ->
+                        new JVerifyResults.Ran(allDiagnostics, r.exitCode(), r.verificationResults());
+                case JVerifyResults.DidNotRun d ->
+                        new JVerifyResults.DidNotRun(allDiagnostics, d.exitCode());
+                case JVerifyResults.NoVerdict n ->
+                        new JVerifyResults.NoVerdict(allDiagnostics, n.exitCode());
+            };
         }
     }
 
@@ -163,7 +171,8 @@ public class LaurelDriver implements Driver {
                         : "strata on PATH (pass --strata <path> or set JVERIFY_STRATA)";
                 verifierOptions.outWriter().println("Failed to use Strata at: " + location +
                         "\nError message: " + e.getMessage());
-                return new JVerifyResults(new ArrayList<>(), -1, null);
+                // Backend failed to launch: not a verification outcome.
+                return new JVerifyResults.DidNotRun(new ArrayList<>(), -1);
             }
         });
     }
@@ -273,35 +282,66 @@ public class LaurelDriver implements Driver {
             }
 
             int verifierExitCode = process.waitFor();
-            if (verifierExitCode != 0 && diagnostics.isEmpty()) {
+            if (verifierExitCode != 0) {
                 options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
-                // Soundness: a non-zero Strata exit with no parsed
-                // diagnostics means verification aborted (e.g. an internal
-                // Strata exception such as a failed termination check).
-                // Surface it as an error so the result can never be read as
-                // a vacuous "0 errors / verified" -- the same invariant the
-                // Laurel-to-Core soundness net enforces on the Strata side.
-                var abortUri = methodStatuses.keySet().stream().findFirst()
-                        .orElse(Paths.get("strata").toUri());
-                var abortPos = new org.strata.jverify.common.Position(1, 1);
-                diagnostics.add(new StrataDiagnostic(abortUri,
-                        new Range(abortPos, abortPos),
-                        "verification aborted: Strata exited with code "
-                        + verifierExitCode + " without reporting diagnostics: "
-                        + preDiagnosticOutput.toString().strip()));
-                failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
-                // The run aborted before producing per-method results, so
-                // the optimistic "Verified" defaults are not trustworthy:
-                // do not report any method as verified or skipped.
-                verifiedCount = 0;
-                skippedCount = 0;
             }
-            var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
-            return new JVerifyResults(diagnostics, exitCode,
-                    new VerificationResults(verifiedCount, failedCount, 
+            var abortUri = methodStatuses.keySet().stream().findFirst()
+                    .orElse(Paths.get("strata").toUri());
+            return classifyRun(verifierExitCode, diagnostics,
+                    preDiagnosticOutput.toString(), abortUri,
+                    new VerificationResults(verifiedCount, failedCount,
                             failedAssertionsCount.getValue(), skippedCount));
         }
 
+    }
+
+    /**
+     * Classify a finished backend run into its {@link JVerifyResults} variant.
+     *
+     * <p>Any non-zero exit is abnormal death: laurelAnalyzeBinary exits 0 on
+     * every completed verification (pass or fail) -- exit 4 is synthesized here
+     * from parsed diagnostics -- so a non-zero process exit means Strata
+     * crashed (Lean panic / kill / OOM), never a normal "found failures" run.
+     * This is a cross-package invariant of StrataCLI's {@code
+     * laurelAnalyzeBinaryCommand} (in StrataMainLib.lean): that callback prints
+     * the diagnostics block and returns without an {@code IO.Process.exit}, so
+     * "found failures" never becomes a non-zero exit on this path (unlike
+     * laurelInterpretCommand, which does exit with failuresFound). If that
+     * callback is ever changed to exit non-zero on failures, every xfail test
+     * that reaches a verdict would start throwing here -- so it must not.
+     * It is classified {@link JVerifyResults.DidNotRun} regardless of whether
+     * some diagnostics were printed before the crash; otherwise a crash
+     * mid-print returns a partial Ran verdict that an xfail test swallows as an
+     * "expected" AssertionError (a false green). The abort diagnostic is only
+     * synthesized when nothing was parsed (keeps the #447 backstop reporting
+     * for the empty case); a crash after partial output is already surfaced
+     * loud via the DidNotRun return.
+     *
+     * <p>Extracted (and package-visible) so this classification -- the
+     * soundness core of the sealed-results tripwire -- is pinned by unit tests
+     * (LaurelDriverClassifyTest); a refactor that regresses it must fail there.
+     */
+    static JVerifyResults classifyRun(int verifierExitCode,
+                                      java.util.List<Diagnostic<?>> diagnostics,
+                                      String preDiagnosticOutput,
+                                      java.net.URI abortUri,
+                                      VerificationResults verdict) {
+        boolean aborted = verifierExitCode != 0;
+        // Copy: a classifier should not mutate its argument.
+        diagnostics = new java.util.ArrayList<>(diagnostics);
+        if (aborted && diagnostics.isEmpty()) {
+            var abortPos = new org.strata.jverify.common.Position(1, 1);
+            diagnostics.add(new StrataDiagnostic(abortUri,
+                    new Range(abortPos, abortPos),
+                    "verification aborted: Strata exited with code "
+                    + verifierExitCode + " without reporting diagnostics: "
+                    + preDiagnosticOutput.strip()));
+        }
+        var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
+        if (aborted) {
+            return new JVerifyResults.DidNotRun(diagnostics, exitCode);
+        }
+        return new JVerifyResults.Ran(diagnostics, exitCode, verdict);
     }
 
     private static final Pattern DIAGNOSTIC_PATTERN =

@@ -4,11 +4,12 @@ import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 6, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 6, errorCount = 1)
 public class InterfaceContractVerification {
     @SuppressWarnings("UnnecessaryLocalVariable")
     public void root() {

@@ -2,13 +2,14 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import org.strata.jverify.*;
 
 import static org.strata.jverify.JVerify.*;
 
 // Class that test the support of array allocation and accesses
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 6, errorCount = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_ARRAYS, Blocker.STRATA_FRESH}, exitCode = 4, methodsVerified = 6, errorCount = 2)
 class ArraysVerification {
     
     interface SupplyArray {

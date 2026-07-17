@@ -5,8 +5,9 @@ import org.strata.jverify.ContractException;
 import org.strata.jverify.Pure;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, exitCode = 22)
 public class WildcardsResolution {
     
     boolean isNull(Container<?> elements) {

@@ -1,8 +1,9 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC}, exitCode = 2)
 @SuppressWarnings("ConstantValue")
 class ResolutionErrorsBooleanOperators {
     public void foo() {

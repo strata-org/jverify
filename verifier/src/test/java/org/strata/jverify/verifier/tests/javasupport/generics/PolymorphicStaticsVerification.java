@@ -2,11 +2,12 @@ package org.strata.jverify.verifier.tests.javasupport.generics;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 4, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, exitCode = 4, methodsVerified = 4, errorCount = 1)
 public class PolymorphicStaticsVerification {
     record R() {}
     static class Generic<T> {

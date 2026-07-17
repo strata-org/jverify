@@ -2,11 +2,12 @@ package org.strata.jverify.verifier.tests.javasupport.lambdas;
 
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 21, errorCount = 3)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ANON, Blocker.FRONTEND_DISPATCH}, exitCode = 4, methodsVerified = 21, errorCount = 3)
 public class Lambdas {
     private static final SomethingDoer containsMethodReference = Lambdas::staticDoSomething;
     private static final SomethingDoer containsLambda = (int x, int y) -> staticDoSomething(x, y);

@@ -2,13 +2,14 @@ package org.strata.jverify.verifier.tests.verification.abstractContracts;
 
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", methodsVerified = 2, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, methodsVerified = 2, errorCount = 0)
 public class AllMatchContract {
 
     @SuppressWarnings("ConstantValue")

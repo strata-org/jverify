@@ -2,8 +2,9 @@ package org.strata.jverify.verifier.tests.javasupport.generics;
 
 import org.strata.jverify.Impure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, exitCode = 22)
 public class PolymorphismResolutionErrors {
     
     public static <T> void modifiableObjectIsNotTop(T value) {

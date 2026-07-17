@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport.interfaces;
 
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 10, errorCount = 5)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH, Blocker.STRATA_OTHER}, exitCode = 4, methodsVerified = 10, errorCount = 5)
 class InterfacesVerification {
     public void root(I i) {
         var a = i.f(1);

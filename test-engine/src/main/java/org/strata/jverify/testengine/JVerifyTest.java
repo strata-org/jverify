@@ -59,4 +59,23 @@ public @interface JVerifyTest {
      * Expected number of Java methods to have been skipped during verification.
      */
     int methodsSkipped() default -1;
+
+    /**
+     * Mark this test as an EXPECTED FAILURE (xfail): the feature under test is
+     * known-broken today. The engine still RUNS it, but inverts the outcome:
+     *  - if it still fails as expected -> reported as skipped (build stays green);
+     *  - if it now unexpectedly PASSES (all expectations met) -> the build FAILS
+     *    (XPASS), signalling that the marker should be removed.
+     * This replaces the old {@code skip="..."} short-circuit, so a feature that
+     * starts working can never stay silently skipped. Every xfail must list its
+     * {@link #blockedBy()}.
+     */
+    boolean expectedToFail() default false;
+
+    /**
+     * The blocker(s) that make this an {@link #expectedToFail()} test. Must be
+     * non-empty when {@code expectedToFail} is true. A test lists ALL of its
+     * blockers; it is only expected to start passing once every one has cleared.
+     */
+    Blocker[] blockedBy() default {};
 }

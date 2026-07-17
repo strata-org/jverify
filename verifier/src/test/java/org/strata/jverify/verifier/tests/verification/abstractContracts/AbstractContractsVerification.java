@@ -1,10 +1,11 @@
 package org.strata.jverify.verifier.tests.verification.abstractContracts;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 14, errorCount = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 14, errorCount = 2)
 public class AbstractContractsVerification {
     int midConsumer(Mid mid, int x) {
         precondition(preconditionOf(mid.foo(x)));

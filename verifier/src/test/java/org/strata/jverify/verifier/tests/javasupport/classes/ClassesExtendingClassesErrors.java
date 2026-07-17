@@ -2,8 +2,9 @@ package org.strata.jverify.verifier.tests.javasupport.classes;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 22)
 public class ClassesExtendingClassesErrors {}
 
 class ExtenderErrors extends ExtendeeErrors {

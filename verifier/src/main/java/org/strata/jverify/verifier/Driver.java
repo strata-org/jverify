@@ -56,7 +56,7 @@ public interface Driver {
             pw.println(formatDiagnostic(getVerifierOptions().showFilepaths(), diagnostic));
         }
         
-        var verificationResults = results.verificationResults();
+        var verificationResults = results.verdictOrNull();
         int errorCount = verificationResults != null
                 ? verificationResults.verificationFailedAssertions()
                 : results.diagnostics().size();

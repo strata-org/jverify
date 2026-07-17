@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport.generics;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", methodsVerified = 10, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, methodsVerified = 10, errorCount = 0)
 public class PolymorphismWithoutBounds {
 
     public static <T> void objectIsTop(T value) {

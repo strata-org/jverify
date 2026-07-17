@@ -3,13 +3,14 @@ package org.strata.jverify.verifier.tests.javasupport.localClasses;
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
 @SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef", "ConstantValue", "NewObjectEquality"})
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 27, errorCount = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ANON, Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 27, errorCount = 4)
 public class LocalAndAnonymousClasses {
 
     void noCaptures() {
