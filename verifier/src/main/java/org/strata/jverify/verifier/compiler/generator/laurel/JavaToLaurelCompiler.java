@@ -392,6 +392,19 @@ public class JavaToLaurelCompiler {
         fields.put(name, f);
     }
 
+    /**
+     * True iff {@code expr} is a call to a JVerify library method whose simple
+     * name is {@code name} (e.g. `everything`, `isAbstract`). Used to
+     * recognise JVerify spec-only stubs that appear as arguments to contract
+     * calls such as {@code modifies(everything())}.
+     */
+    private static boolean isJVerifyCallNamed(JCTree.JCExpression expr, String name) {
+        if (!(expr instanceof JCTree.JCMethodInvocation inv)) return false;
+        var jverifyMethod = JVerifyUtils.getJVerifyMethod(inv);
+        return jverifyMethod != null
+                && jverifyMethod.getQualifiedName().toString().equals(name);
+    }
+
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
         // `outermostClass()` walks the owner chain to the first ClassSymbol,
         // casting along the way; some invocations (record accessors of types
@@ -685,8 +698,19 @@ public class JavaToLaurelCompiler {
 
                 for (var mod : contract.modifies()) {
                     var modExpr = mod.get();
-                    modifies.add(modifiesClause(toSourceRange(modExpr),
-                            List.of(convertExpression(modExpr))));
+                    // modifies(everything()) is the user's way of writing an
+                    // unconstrained frame: map it to Laurel's modifiesWildcard,
+                    // which is exactly the fallback we synthesize below when
+                    // the user supplies no modifies clause. Doing this up front
+                    // avoids sending `everything()` -- a JVerify spec-only stub
+                    // -- through convertExpression, which would throw
+                    // "Unsupported JVerify method: everything".
+                    if (isJVerifyCallNamed(modExpr, "everything")) {
+                        modifies.add(modifiesWildcard(toSourceRange(modExpr)));
+                    } else {
+                        modifies.add(modifiesClause(toSourceRange(modExpr),
+                                List.of(convertExpression(modExpr))));
+                    }
                 }
 
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(method.body);

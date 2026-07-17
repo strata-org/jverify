@@ -15,7 +15,7 @@ import static org.strata.jverify.JVerify.*;
  * not named in the clause survive, and (c) fields that WERE named are
  * havoc'd (checks that would need those fields fixed fail).
  */
-@JVerifyTest(methodsVerified = 13, errorCount = 3, exitCode = 4)
+@JVerifyTest(methodsVerified = 15, errorCount = 4, exitCode = 4)
 class FieldAccessModifies {
     static class Point {
         int x;
@@ -155,5 +155,39 @@ class FieldAccessModifies {
         p.x = 1;
         cleanBodyImpurePostcondLambda(p);
         check(p.x == 1);
+    }
+
+    // ---- Case 7: modifies(everything()) ---------------------------------
+    //
+    // `everything()` is a JVerify spec-only stub. Sending it through
+    // convertExpression would throw "Unsupported JVerify method: everything";
+    // instead the frontend recognises `modifies(everything())` up front and
+    // maps it to Laurel's modifiesWildcard. Same semantics as omitting the
+    // modifies clause on a body that writes fields (both synthesize
+    // modifiesWildcard), so the two spellings are interchangeable at the
+    // call site.
+
+    /** Explicit `modifies(everything())` on a callee that writes a field. */
+    static void writesEverything(Point p) {
+        modifies(everything());
+        postcondition(() -> p.x == 42);
+        p.x = 42;
+    }
+
+    /** Postcondition transfers under the wildcard frame. */
+    static void callerOfWritesEverythingOK() {
+        Point p = new Point();
+        writesEverything(p);
+        check(p.x == 42);
+    }
+
+    /** Field NOT named by the postcondition is havoc'd under the wildcard,
+     *  matching Case 2 (no-modifies) behavior. */
+    static void callerOfWritesEverythingHavocsYKO() {
+        Point p = new Point();
+        p.y = 5;
+        writesEverything(p);
+        check(p.y == 5);
+//      ^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 }
