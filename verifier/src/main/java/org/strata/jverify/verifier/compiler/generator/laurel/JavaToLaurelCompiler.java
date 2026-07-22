@@ -165,6 +165,20 @@ public class JavaToLaurelCompiler {
         return new SourceRange(startPos, endPos);
     }
 
+    /**
+     * Range of a declared-type syntax tree, or {@link SourceRange#NONE} when the tree is
+     * missing or synthetic (javac reports no position, e.g. for {@code var} declarations
+     * whose type tree is inferred). Used to stamp translated {@link LaurelType}s, whose
+     * resolved {@link com.sun.tools.javac.code.Type} carries no tree position of its own.
+     */
+    SourceRange typeRangeOrNone(JCTree node) {
+        if (node == null) {
+            return SourceRange.NONE;
+        }
+        SourceRange sr = toSourceRange(node);
+        return sr.start() < 0 ? SourceRange.NONE : sr;
+    }
+
     /// Bounds for each built-in constrained integer type. Single source of
     /// truth: `getPredefinedTypes()` emits the constrained-type prelude from
     /// this map, and `castHelperBoundsFor(name)` reads back the same bounds
@@ -230,7 +244,11 @@ public class JavaToLaurelCompiler {
     }
 
     private LaurelType translateType(com.sun.tools.javac.code.Type type) {
-        return translateType(type, null);
+        return translateType(type, null, SourceRange.NONE);
+    }
+
+    private LaurelType translateType(com.sun.tools.javac.code.Type type, JCTree.JCModifiers modifiers) {
+        return translateType(type, modifiers, SourceRange.NONE);
     }
 
     /**
@@ -243,8 +261,15 @@ public class JavaToLaurelCompiler {
      * javac strips the type-use annotation off the resolved type and the declared type
      * tree). We look in both places via {@code modifiers}, which may be {@code null} when
      * no declaration is available.
+     *
+     * <p>{@code sr} is the source range to stamp on the produced Laurel type. A resolved
+     * {@link com.sun.tools.javac.code.Type} is a symbol-table entity with no tree position,
+     * so the caller must supply the range of the declared type's syntax tree (e.g.
+     * {@code method.restype}, {@code varDecl.vartype}) where one exists;
+     * {@link SourceRange#NONE} serializes as a null range, which Strata treats as
+     * "no location" and can only report at a whole-file fallback position.
      */
-    private LaurelType translateType(com.sun.tools.javac.code.Type type, JCTree.JCModifiers modifiers) {
+    private LaurelType translateType(com.sun.tools.javac.code.Type type, JCTree.JCModifiers modifiers, SourceRange sr) {
         // Class / interface types (including sealed hierarchies and
         // records): encode as an opaque Laurel CompositeType named
         // after the source-side type. Strata treats unbound composite
@@ -264,7 +289,7 @@ public class JavaToLaurelCompiler {
             // different packages.
             String sortName = name.replace('$', '.');
             referencedCompositeTypes.add(sortName);
-            return compositeType(sortName);
+            return compositeType(sr, sortName);
         }
         // @Nat constrains the value to be a natural number (>= 0); @Unbounded drops the
         // fixed-width overflow bound and treats the value as a mathematical integer.
@@ -274,12 +299,12 @@ public class JavaToLaurelCompiler {
                 || JVerifyUtils.isAnnotated(modifiers, org.strata.jverify.Unbounded.class);
 
         return switch (type.getTag()) {
-            case INT -> integerType(isNat, isUnbounded, "int32", "nat31");
-            case SHORT -> integerType(isNat, isUnbounded, "int16", "nat15");
-            case BYTE -> integerType(isNat, isUnbounded, "int8", "nat7");
-            case LONG -> integerType(isNat, isUnbounded, "int64", "nat63");
-            case CHAR -> compositeType("char");
-            case BOOLEAN -> boolType();
+            case INT -> integerType(sr, isNat, isUnbounded, "int32", "nat31");
+            case SHORT -> integerType(sr, isNat, isUnbounded, "int16", "nat15");
+            case BYTE -> integerType(sr, isNat, isUnbounded, "int8", "nat7");
+            case LONG -> integerType(sr, isNat, isUnbounded, "int64", "nat63");
+            case CHAR -> compositeType(sr, "char");
+            case BOOLEAN -> boolType(sr);
             default -> throw new JavaViolationException("Unsupported type: " + type);
         };
     }
@@ -290,11 +315,11 @@ public class JavaToLaurelCompiler {
      * default and {@code @Nat} cases; {@code @Unbounded} maps to the unbounded {@code int}
      * (or {@code nat} when also {@code @Nat}).
      */
-    private LaurelType integerType(boolean isNat, boolean isUnbounded, String bounded, String boundedNat) {
+    private LaurelType integerType(SourceRange sr, boolean isNat, boolean isUnbounded, String bounded, String boundedNat) {
         if (isUnbounded) {
-            return isNat ? compositeType("nat") : intType();
+            return isNat ? compositeType(sr, "nat") : intType(sr);
         }
-        return compositeType(isNat ? boundedNat : bounded);
+        return compositeType(sr, isNat ? boundedNat : bounded);
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
@@ -428,13 +453,15 @@ public class JavaToLaurelCompiler {
 
             List<Parameter> params = new ArrayList<>();
             for (var param : method.params) {
-                params.add(parameter(toSourceRange(param), param.name.toString(), translateType(param.type, param.mods)));
+                params.add(parameter(toSourceRange(param), param.name.toString(),
+                        translateType(param.type, param.mods, typeRangeOrNone(param.vartype))));
             }
 
             Optional<ReturnType> retType = Optional.empty();
             if (method.restype != null && method.restype.type != null
                     && method.restype.type.getTag() != TypeTag.VOID) {
-                retType = Optional.of(returnType(toSourceRange(method.restype), translateType(method.restype.type)));
+                retType = Optional.of(returnType(toSourceRange(method.restype),
+                        translateType(method.restype.type, null, typeRangeOrNone(method.restype))));
             }
 
             List<RequiresClause> requires = new ArrayList<>();
@@ -620,7 +647,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCExpressionStatement exprStmt -> convertExpression(exprStmt.expr, renames);
                 case JCTree.JCBlock blk -> convertBlock(blk, renames);
                 case JCTree.JCVariableDecl varDecl -> {
-                    LaurelType type = translateType(varDecl.type, varDecl.mods);
+                    LaurelType type = translateType(varDecl.type, varDecl.mods, typeRangeOrNone(varDecl.vartype));
                     Optional<Initializer> optAssign = varDecl.init != null
                             ? Optional.of(initializer(convertExpression(varDecl.init, renames)))
                             : Optional.empty();
