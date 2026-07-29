@@ -7,7 +7,8 @@ public record JVerifyTestRecord(String skip, boolean verifyByDefault, boolean us
                                 String[] additionalFiles,
                                 int methodsInvalid, int errorCount, int methodsVerified,
                                 int methodsSkipped,
-                                boolean expectedToFail, Blocker[] blockedBy) implements JVerifyTest {
+                                boolean expectedToFail, Blocker[] blockedBy,
+                                boolean interpret, String entry, int fuel) implements JVerifyTest {
     @Override
     public Class<? extends Annotation> annotationType() {
         return JVerifyTest.class;
