@@ -25,7 +25,9 @@ class Car {
 
 #### Modifies
 
-JVerify requires that methods without `@Pure` are explicit about which objects they modify, which can be specified using `modifies` calls. The `modifies` method takes one or multiple objects, and allows the remainder of the calling method to modify these.
+Methods without `@Pure` should be explicit about which objects they modify, which can be specified using `modifies` calls. The `modifies` method takes one or multiple objects, and allows the remainder of the calling method to modify these.
+
+If you omit `modifies` from a method that does modify the heap, JVerify does not reject it: it infers `modifies` on *everything* instead. That is always sound, but it is coarse — at every call site, callers must assume any field of any object may have changed, so facts they established before the call are lost. Write an explicit `modifies(...)` whenever you want callers to keep that information.
 
 Example:
 
