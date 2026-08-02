@@ -26,6 +26,6 @@ class InterpretCalleePreconditionFails {
     @InterpretEntry
     static void run() {
         int r = addOne(0);
-//      ^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^^^^ Error: precondition does not hold
     }
 }
