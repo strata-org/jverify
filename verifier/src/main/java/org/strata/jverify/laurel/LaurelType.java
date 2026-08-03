@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface LaurelType extends Node permits LaurelType.IntType, LaurelType.BoolType, LaurelType.RealType, LaurelType.Float64Type, LaurelType.StringType, LaurelType.BvType, LaurelType.CoreType, LaurelType.MapType, LaurelType.CompositeType {
+public sealed interface LaurelType extends Node permits LaurelType.IntType, LaurelType.BoolType, LaurelType.RealType, LaurelType.Float64Type, LaurelType.StringType, LaurelType.BvType, LaurelType.CoreType, LaurelType.MapType, LaurelType.AppliedType, LaurelType.CompositeType, LaurelType.ParenType {
     public record IntType(
         SourceRange sourceRange
     ) implements LaurelType {
@@ -112,6 +112,22 @@ public sealed interface LaurelType extends Node permits LaurelType.IntType, Laur
         }
     }
 
+    public record AppliedType(
+        SourceRange sourceRange,
+        java.lang.String base, java.util.List<LaurelType> args
+    ) implements LaurelType {
+        @Override
+        public java.lang.String operationName() { return "Laurel.appliedType"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.appliedType", sourceRange());
+            sexp.add($s.serializeIdent(base()));
+            sexp.add($s.serializeSeq(args(), "commaSepList", $s::serialize));
+            return sexp;
+        }
+    }
+
     public record CompositeType(
         SourceRange sourceRange,
         java.lang.String name
@@ -123,6 +139,21 @@ public sealed interface LaurelType extends Node permits LaurelType.IntType, Laur
         public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
             var sexp = $s.newOp("Laurel.compositeType", sourceRange());
             sexp.add($s.serializeIdent(name()));
+            return sexp;
+        }
+    }
+
+    public record ParenType(
+        SourceRange sourceRange,
+        LaurelType inner
+    ) implements LaurelType {
+        @Override
+        public java.lang.String operationName() { return "Laurel.parenType"; }
+
+        @Override
+        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
+            var sexp = $s.newOp("Laurel.parenType", sourceRange());
+            sexp.add($s.serialize(inner()));
             return sexp;
         }
     }

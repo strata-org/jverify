@@ -25,8 +25,14 @@ public class Laurel {
     public static LaurelType mapType(SourceRange sourceRange, LaurelType keyType, LaurelType valueType) { return new LaurelType.MapType(sourceRange, keyType, valueType); }
     public static LaurelType mapType(LaurelType keyType, LaurelType valueType) { return new LaurelType.MapType(SourceRange.NONE, keyType, valueType); }
 
+    public static LaurelType appliedType(SourceRange sourceRange, java.lang.String base, java.util.List<LaurelType> args) { return new LaurelType.AppliedType(sourceRange, base, args); }
+    public static LaurelType appliedType(java.lang.String base, java.util.List<LaurelType> args) { return new LaurelType.AppliedType(SourceRange.NONE, base, args); }
+
     public static LaurelType compositeType(SourceRange sourceRange, java.lang.String name) { return new LaurelType.CompositeType(sourceRange, name); }
     public static LaurelType compositeType(java.lang.String name) { return new LaurelType.CompositeType(SourceRange.NONE, name); }
+
+    public static LaurelType parenType(SourceRange sourceRange, LaurelType inner) { return new LaurelType.ParenType(sourceRange, inner); }
+    public static LaurelType parenType(LaurelType inner) { return new LaurelType.ParenType(SourceRange.NONE, inner); }
 
     public static StmtExpr literalBool(SourceRange sourceRange, boolean b) { return new StmtExpr.LiteralBool(sourceRange, b); }
     public static StmtExpr literalBool(boolean b) { return new StmtExpr.LiteralBool(SourceRange.NONE, b); }
@@ -76,8 +82,26 @@ public class Laurel {
     public static StmtExpr assign(SourceRange sourceRange, StmtExpr target, StmtExpr value) { return new StmtExpr.Assign(sourceRange, target, value); }
     public static StmtExpr assign(StmtExpr target, StmtExpr value) { return new StmtExpr.Assign(SourceRange.NONE, target, value); }
 
-    public static AssignTarget assignTargetDecl(SourceRange sourceRange, java.lang.String name, LaurelType targetType) { return new AssignTarget.AssignTargetDecl(sourceRange, name, targetType); }
-    public static AssignTarget assignTargetDecl(java.lang.String name, LaurelType targetType) { return new AssignTarget.AssignTargetDecl(SourceRange.NONE, name, targetType); }
+    public static StmtExpr addAssign(SourceRange sourceRange, StmtExpr target, StmtExpr value) { return new StmtExpr.AddAssign(sourceRange, target, value); }
+    public static StmtExpr addAssign(StmtExpr target, StmtExpr value) { return new StmtExpr.AddAssign(SourceRange.NONE, target, value); }
+
+    public static StmtExpr subAssign(SourceRange sourceRange, StmtExpr target, StmtExpr value) { return new StmtExpr.SubAssign(sourceRange, target, value); }
+    public static StmtExpr subAssign(StmtExpr target, StmtExpr value) { return new StmtExpr.SubAssign(SourceRange.NONE, target, value); }
+
+    public static StmtExpr mulAssign(SourceRange sourceRange, StmtExpr target, StmtExpr value) { return new StmtExpr.MulAssign(sourceRange, target, value); }
+    public static StmtExpr mulAssign(StmtExpr target, StmtExpr value) { return new StmtExpr.MulAssign(SourceRange.NONE, target, value); }
+
+    public static StmtExpr divAssign(SourceRange sourceRange, StmtExpr target, StmtExpr value) { return new StmtExpr.DivAssign(sourceRange, target, value); }
+    public static StmtExpr divAssign(StmtExpr target, StmtExpr value) { return new StmtExpr.DivAssign(SourceRange.NONE, target, value); }
+
+    public static StmtExpr modAssign(SourceRange sourceRange, StmtExpr target, StmtExpr value) { return new StmtExpr.ModAssign(sourceRange, target, value); }
+    public static StmtExpr modAssign(StmtExpr target, StmtExpr value) { return new StmtExpr.ModAssign(SourceRange.NONE, target, value); }
+
+    public static StmtExpr strConcatAssign(SourceRange sourceRange, StmtExpr target, StmtExpr value) { return new StmtExpr.StrConcatAssign(sourceRange, target, value); }
+    public static StmtExpr strConcatAssign(StmtExpr target, StmtExpr value) { return new StmtExpr.StrConcatAssign(SourceRange.NONE, target, value); }
+
+    public static AssignTarget assignTargetDecl(SourceRange sourceRange, java.lang.String name, java.util.Optional<TypeAnnotation> targetType) { return new AssignTarget.AssignTargetDecl(sourceRange, name, targetType); }
+    public static AssignTarget assignTargetDecl(java.lang.String name, java.util.Optional<TypeAnnotation> targetType) { return new AssignTarget.AssignTargetDecl(SourceRange.NONE, name, targetType); }
 
     public static AssignTarget assignTargetVar(SourceRange sourceRange, java.lang.String name) { return new AssignTarget.AssignTargetVar(sourceRange, name); }
     public static AssignTarget assignTargetVar(java.lang.String name) { return new AssignTarget.AssignTargetVar(SourceRange.NONE, name); }
@@ -190,6 +214,9 @@ public class Laurel {
     public static StmtExpr assume(SourceRange sourceRange, StmtExpr cond) { return new StmtExpr.Assume(sourceRange, cond); }
     public static StmtExpr assume(StmtExpr cond) { return new StmtExpr.Assume(SourceRange.NONE, cond); }
 
+    public static StmtExpr throw_(SourceRange sourceRange, StmtExpr value) { return new StmtExpr.Throw(sourceRange, value); }
+    public static StmtExpr throw_(StmtExpr value) { return new StmtExpr.Throw(SourceRange.NONE, value); }
+
     public static StmtExpr return_(SourceRange sourceRange, java.util.Optional<StmtExpr> value) { return new StmtExpr.Return(sourceRange, value); }
     public static StmtExpr return_(java.util.Optional<StmtExpr> value) { return new StmtExpr.Return(SourceRange.NONE, value); }
 
@@ -201,6 +228,18 @@ public class Laurel {
 
     public static StmtExpr exit(SourceRange sourceRange, java.lang.String label) { return new StmtExpr.Exit(sourceRange, label); }
     public static StmtExpr exit(java.lang.String label) { return new StmtExpr.Exit(SourceRange.NONE, label); }
+
+    public static CatchGuard catchGuard(SourceRange sourceRange, StmtExpr predicate) { return new CatchGuard.Of(sourceRange, predicate); }
+    public static CatchGuard catchGuard(StmtExpr predicate) { return new CatchGuard.Of(SourceRange.NONE, predicate); }
+
+    public static CatchClause catchClause(SourceRange sourceRange, java.lang.String binding, java.util.Optional<CatchGuard> guard, StmtExpr body) { return new CatchClause.Of(sourceRange, binding, guard, body); }
+    public static CatchClause catchClause(java.lang.String binding, java.util.Optional<CatchGuard> guard, StmtExpr body) { return new CatchClause.Of(SourceRange.NONE, binding, guard, body); }
+
+    public static FinallyClause finallyClause(SourceRange sourceRange, StmtExpr body) { return new FinallyClause.Of(sourceRange, body); }
+    public static FinallyClause finallyClause(StmtExpr body) { return new FinallyClause.Of(SourceRange.NONE, body); }
+
+    public static StmtExpr tryCatch(SourceRange sourceRange, StmtExpr body, java.util.List<CatchClause> catches, java.util.Optional<FinallyClause> finallyClause) { return new StmtExpr.TryCatch(sourceRange, body, catches, finallyClause); }
+    public static StmtExpr tryCatch(StmtExpr body, java.util.List<CatchClause> catches, java.util.Optional<FinallyClause> finallyClause) { return new StmtExpr.TryCatch(SourceRange.NONE, body, catches, finallyClause); }
 
     public static InvariantClause invariantClause(SourceRange sourceRange, StmtExpr cond) { return new InvariantClause.Of(sourceRange, cond); }
     public static InvariantClause invariantClause(StmtExpr cond) { return new InvariantClause.Of(SourceRange.NONE, cond); }
@@ -244,8 +283,11 @@ public class Laurel {
     public static DatatypeConstructorList datatypeConstructorList(SourceRange sourceRange, java.util.List<DatatypeConstructor> constructors) { return new DatatypeConstructorList.Of(sourceRange, constructors); }
     public static DatatypeConstructorList datatypeConstructorList(java.util.List<DatatypeConstructor> constructors) { return new DatatypeConstructorList.Of(SourceRange.NONE, constructors); }
 
-    public static Datatype datatype(SourceRange sourceRange, java.lang.String name, DatatypeConstructorList constructors) { return new Datatype.Of(sourceRange, name, constructors); }
-    public static Datatype datatype(java.lang.String name, DatatypeConstructorList constructors) { return new Datatype.Of(SourceRange.NONE, name, constructors); }
+    public static TypeParams typeParams(SourceRange sourceRange, java.util.List<java.lang.String> params) { return new TypeParams.Of(sourceRange, params); }
+    public static TypeParams typeParams(java.util.List<java.lang.String> params) { return new TypeParams.Of(SourceRange.NONE, params); }
+
+    public static Datatype datatype(SourceRange sourceRange, java.lang.String name, java.util.Optional<TypeParams> typeParams, DatatypeConstructorList constructors) { return new Datatype.Of(sourceRange, name, typeParams, constructors); }
+    public static Datatype datatype(java.lang.String name, java.util.Optional<TypeParams> typeParams, DatatypeConstructorList constructors) { return new Datatype.Of(SourceRange.NONE, name, typeParams, constructors); }
 
     public static ReturnType returnType(SourceRange sourceRange, LaurelType returnType) { return new ReturnType.Of(sourceRange, returnType); }
     public static ReturnType returnType(LaurelType returnType) { return new ReturnType.Of(SourceRange.NONE, returnType); }
@@ -283,8 +325,20 @@ public class Laurel {
     public static ReturnParameters returnParameters(SourceRange sourceRange, java.util.List<Parameter> parameters) { return new ReturnParameters.Of(sourceRange, parameters); }
     public static ReturnParameters returnParameters(java.util.List<Parameter> parameters) { return new ReturnParameters.Of(SourceRange.NONE, parameters); }
 
-    public static OpaqueSpec opaqueSpec(SourceRange sourceRange, java.util.List<EnsuresClause> ensures, java.util.List<ModifiesClause> modifies) { return new OpaqueSpec.Of(sourceRange, ensures, modifies); }
-    public static OpaqueSpec opaqueSpec(java.util.List<EnsuresClause> ensures, java.util.List<ModifiesClause> modifies) { return new OpaqueSpec.Of(SourceRange.NONE, ensures, modifies); }
+    public static ThrowsClause throwsClause(SourceRange sourceRange, java.lang.String binding, LaurelType throwsType) { return new ThrowsClause.Of(sourceRange, binding, throwsType); }
+    public static ThrowsClause throwsClause(java.lang.String binding, LaurelType throwsType) { return new ThrowsClause.Of(SourceRange.NONE, binding, throwsType); }
+
+    public static ThrowsOnSpecClause throwsOnEnsures(SourceRange sourceRange, StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new ThrowsOnSpecClause.ThrowsOnEnsures(sourceRange, cond, errorMessage); }
+    public static ThrowsOnSpecClause throwsOnEnsures(StmtExpr cond, java.util.Optional<ErrorSummary> errorMessage) { return new ThrowsOnSpecClause.ThrowsOnEnsures(SourceRange.NONE, cond, errorMessage); }
+
+    public static ThrowsOnSpecClause throwsOnModifies(SourceRange sourceRange, java.util.List<StmtExpr> refs) { return new ThrowsOnSpecClause.ThrowsOnModifies(sourceRange, refs); }
+    public static ThrowsOnSpecClause throwsOnModifies(java.util.List<StmtExpr> refs) { return new ThrowsOnSpecClause.ThrowsOnModifies(SourceRange.NONE, refs); }
+
+    public static ThrowsOnClause throwsOnClause(SourceRange sourceRange, StmtExpr guard, java.util.List<ThrowsOnSpecClause> clauses) { return new ThrowsOnClause.Of(sourceRange, guard, clauses); }
+    public static ThrowsOnClause throwsOnClause(StmtExpr guard, java.util.List<ThrowsOnSpecClause> clauses) { return new ThrowsOnClause.Of(SourceRange.NONE, guard, clauses); }
+
+    public static OpaqueSpec opaqueSpec(SourceRange sourceRange, java.util.List<EnsuresClause> ensures, java.util.List<ModifiesClause> modifies, java.util.List<ThrowsOnClause> throwsOn) { return new OpaqueSpec.Of(sourceRange, ensures, modifies, throwsOn); }
+    public static OpaqueSpec opaqueSpec(java.util.List<EnsuresClause> ensures, java.util.List<ModifiesClause> modifies, java.util.List<ThrowsOnClause> throwsOn) { return new OpaqueSpec.Of(SourceRange.NONE, ensures, modifies, throwsOn); }
 
     public static Body body(SourceRange sourceRange, StmtExpr body) { return new Body.Body_(sourceRange, body); }
     public static Body body(StmtExpr body) { return new Body.Body_(SourceRange.NONE, body); }
@@ -292,8 +346,8 @@ public class Laurel {
     public static Body externalBody(SourceRange sourceRange) { return new Body.ExternalBody(sourceRange); }
     public static Body externalBody() { return new Body.ExternalBody(SourceRange.NONE); }
 
-    public static Procedure procedure(SourceRange sourceRange, java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<EntryClause> entry, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Of(sourceRange, name, parameters, returnType, returnParameters, requires, invokeOn, entry, opaqueSpec, body); }
-    public static Procedure procedure(java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<EntryClause> entry, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Of(SourceRange.NONE, name, parameters, returnType, returnParameters, requires, invokeOn, entry, opaqueSpec, body); }
+    public static Procedure procedure(SourceRange sourceRange, java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.Optional<ThrowsClause> throws_, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<EntryClause> entry, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Of(sourceRange, name, parameters, returnType, returnParameters, throws_, requires, invokeOn, entry, opaqueSpec, body); }
+    public static Procedure procedure(java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.Optional<ThrowsClause> throws_, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<EntryClause> entry, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body) { return new Procedure.Of(SourceRange.NONE, name, parameters, returnType, returnParameters, throws_, requires, invokeOn, entry, opaqueSpec, body); }
 
     public static Composite composite(SourceRange sourceRange, java.lang.String name, java.util.Optional<Extends> extending, java.util.List<Field> fields, java.util.List<Procedure> procedures) { return new Composite.Of(sourceRange, name, extending, fields, procedures); }
     public static Composite composite(java.lang.String name, java.util.Optional<Extends> extending, java.util.List<Field> fields, java.util.List<Procedure> procedures) { return new Composite.Of(SourceRange.NONE, name, extending, fields, procedures); }
