@@ -1908,6 +1908,22 @@ public class JavaToLaurelCompiler {
                     var notA = primitiveOp(new Operation.Not(), node(convertExpression(invocation.args.get(0), renames)));
                     yield primitiveOp(new Operation.Or(), node(notA), node(convertExpression(invocation.args.get(1), renames)));
                 }
+                // `jequals(a, b)` is observational equality: `==` on primitives,
+                // reference equality on impure composites, structural equality on
+                // pure ones. Laurel's `Eq` is defined with exactly those semantics
+                // (see LaurelAST.lean `Operation.Eq`), so this lowers to the same
+                // node `convertBinary` emits for Java `==`. `$eq` carries a
+                // placeholder `int -> int -> bool` signature in
+                // CoreDefinitionsForLaurel, but resolution special-cases it to
+                // require only operand consistency and Core lowers it to
+                // polymorphic equality, so composite and bool operands are fine.
+                case "jequals" -> {
+                    if (invocation.args.size() != 2)
+                        throw new JavaViolationException("jequals should have two arguments");
+                    yield primitiveOp(new Operation.Eq(),
+                            node(convertExpression(invocation.args.get(0), renames)),
+                            node(convertExpression(invocation.args.get(1), renames)));
+                }
                 case "forall", "exists" -> {
                     if (invocation.args.size() != 1 || !(invocation.args.getFirst() instanceof JCTree.JCLambda lambda))
                         throw new JavaViolationException(name + " requires a single lambda argument");
