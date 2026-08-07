@@ -28,6 +28,10 @@ public class JavaToLaurelCompiler {
     /// Since Strata commit 72f3a6e the short `: T` return form auto-generates
     /// an output parameter named `$result` (a reserved name), not `result`.
     private static final String LAUREL_RESULT_BINDING = "$result";
+    /// Synthesized name binding the thrown value in a procedure's `throws (e: T)`
+    /// clause. Referenced by `throwsOn` case postconditions once the exceptional
+    /// contract DSL lands; until then it is declared and unused.
+    private static final String THROWN_BINDING = "$thrown";
 
     /**
      * Wrap modifies {@code targets} into the degenerate group form every frontend
@@ -79,6 +83,13 @@ public class JavaToLaurelCompiler {
     /// Insertion order is preserved (both across composites and across
     /// fields within a composite) for deterministic output.
     private final Map<String, LinkedHashMap<String, Field>> compositeFields = new LinkedHashMap<>();
+
+    /// Superclass links for composites that need their Java hierarchy modelled
+    /// (today: exception types, whose `catch` guards and multi-`throws` joins
+    /// depend on `extends` chains -- see docs/exceptions-design.md §1). Maps a
+    /// composite sort name to its direct parent's sort name. Composites absent
+    /// from this map are emitted with no `extending` clause, as before.
+    private final Map<String, String> compositeExtends = new LinkedHashMap<>();
 
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
@@ -283,8 +294,11 @@ public class JavaToLaurelCompiler {
                 List<Field> fields = compositeFields.containsKey(typeName)
                         ? new ArrayList<>(compositeFields.get(typeName).values())
                         : List.of();
+                List<Identifier> extending = compositeExtends.containsKey(typeName)
+                        ? List.of(ident(compositeExtends.get(typeName)))
+                        : List.of();
                 composites.add(new TypeDefinition.Composite(
-                        new CompositeType(ident(typeName), List.of(), fields, List.of())));
+                        new CompositeType(ident(typeName), extending, fields, List.of())));
             }
             var firstFile = result.getFirst();
             var firstProgram = firstFile.program();
@@ -476,6 +490,86 @@ public class JavaToLaurelCompiler {
      */
     private static String compositeSortName(Symbol.ClassSymbol cls) {
         return cls.getQualifiedName().toString().replace('$', '.');
+    }
+
+    /**
+     * Translate a method's Java {@code throws} clause into the declared Laurel
+     * exceptional type (docs/exceptions-design.md §1). Laurel declares at most
+     * one exceptional exit, so {@code throws E1, E2} joins to the least common
+     * ancestor of the thrown classes; the classes on each chain up to the join
+     * are declared as composites with their {@code extends} links so the join
+     * type-checks and per-type claims (`e is E1`) stay meaningful.
+     */
+    private AstNode<HighType> translateThrowsClause(
+            com.sun.tools.javac.util.List<JCTree.JCExpression> thrownTrees) {
+        List<Symbol.ClassSymbol> thrown = new ArrayList<>();
+        for (var tree : thrownTrees) {
+            if (!(tree.type instanceof com.sun.tools.javac.code.Type.ClassType ct)
+                    || !(ct.tsym instanceof Symbol.ClassSymbol cls)) {
+                // e.g. a generic exception parameter: `<X extends Exception> ... throws X`.
+                throw new JavaViolationException(
+                        "Unsupported thrown type in throws clause: " + tree);
+            }
+            thrown.add(cls);
+        }
+        Symbol.ClassSymbol join = thrown.getFirst();
+        for (var cls : thrown.subList(1, thrown.size())) {
+            join = leastCommonAncestor(cls, join);
+        }
+        for (var cls : thrown) {
+            registerHierarchyUpTo(cls, join);
+        }
+        String joinSort = compositeSortName(join);
+        referencedCompositeTypes.add(joinSort);
+        return node(new HighType.UserDefined(ident(joinSort)),
+                typeRangeOrNone(thrownTrees.getFirst()));
+    }
+
+    /** The direct superclass of {@code cls}, or null at the top of the chain. */
+    private static Symbol.ClassSymbol superclassOf(Symbol.ClassSymbol cls) {
+        return (cls.getSuperclass() instanceof com.sun.tools.javac.code.Type.ClassType sup
+                && sup.tsym instanceof Symbol.ClassSymbol parent) ? parent : null;
+    }
+
+    /**
+     * Least common ancestor of two classes along their superclass chains.
+     * Interfaces are irrelevant: thrown types are classes and Java classes have
+     * single inheritance. Always terminates at worst at {@code java.lang.Object}.
+     */
+    private static Symbol.ClassSymbol leastCommonAncestor(Symbol.ClassSymbol a,
+                                                          Symbol.ClassSymbol b) {
+        var bChain = new LinkedHashSet<Symbol.ClassSymbol>();
+        for (Symbol.ClassSymbol c = b; c != null; c = superclassOf(c)) {
+            bChain.add(c);
+        }
+        for (Symbol.ClassSymbol c = a; c != null; c = superclassOf(c)) {
+            if (bChain.contains(c)) {
+                return c;
+            }
+        }
+        // Unreachable for thrown types (all chains meet at Throwable/Object),
+        // but fail loud rather than emit a type the join cannot name.
+        throw new JavaViolationException("thrown types share no common ancestor");
+    }
+
+    /**
+     * Declare {@code cls} and every class on its superclass chain up to (but
+     * not including) {@code stopAt} as composites, each with its {@code extends}
+     * link recorded in {@link #compositeExtends}. {@code stopAt} itself is
+     * declared by the caller, without a link -- nothing above the join is
+     * dragged into the program.
+     */
+    private void registerHierarchyUpTo(Symbol.ClassSymbol cls, Symbol.ClassSymbol stopAt) {
+        for (Symbol.ClassSymbol c = cls; c != null && c != stopAt; c = superclassOf(c)) {
+            Symbol.ClassSymbol parent = superclassOf(c);
+            if (parent == null) {
+                break;
+            }
+            String childSort = compositeSortName(c);
+            referencedCompositeTypes.add(childSort);
+            referencedCompositeTypes.add(compositeSortName(parent));
+            compositeExtends.putIfAbsent(childSort, compositeSortName(parent));
+        }
     }
 
     /**
@@ -782,6 +876,19 @@ public class JavaToLaurelCompiler {
                         translateTypeWithRange(method.restype.type, null, typeRangeOrNone(method.restype))));
             }
 
+            // Exceptional exit: the Java `throws` clause is the single source of
+            // the declared exceptional type (docs/exceptions-design.md §1). The
+            // binding name is synthesized; `$` keeps it collision-free (no Java
+            // identifier can carry it) and Strata freshens its own carrier names
+            // independently. A method with no `throws` clause keeps no
+            // exceptional exit, exactly as before.
+            Optional<AstNode<HighType>> throwsType = Optional.empty();
+            Optional<Identifier> throwsBinding = Optional.empty();
+            if (method.thrown != null && !method.thrown.isEmpty()) {
+                throwsType = Optional.of(translateThrowsClause(method.thrown));
+                throwsBinding = Optional.of(ident(THROWN_BINDING));
+            }
+
             List<Condition> preconditions = new ArrayList<>();
             List<Condition> postconditions = new ArrayList<>();
             // `Body.Opaque` carries modifies as a list of guarded groups; JVerify
@@ -918,11 +1025,11 @@ public class JavaToLaurelCompiler {
                     ident(methodName), inputs, outputs, preconditions,
                     /*decreases=*/Optional.empty(), body, /*invokeOn=*/Optional.empty(),
                     isInterpretEntry, /*axioms=*/List.of(),
-                    // Exceptional contract: JVerify does not lower Java `throws` into
-                    // Laurel's exceptional channel yet, so no declared throws type, no
-                    // bound name for the thrown value, and no `throwsOn` cases. Every
-                    // procedure it emits declares no exceptional exit.
-                    /*throwsType=*/Optional.empty(), /*throwsBinding=*/Optional.empty(),
+                    // Exceptional contract: the declared type and binding come from
+                    // the Java `throws` clause (translated above). `throwsOn`
+                    // behaviour cases arrive with the exceptional-contract DSL
+                    // (docs/exceptions-design.md §3), not yet lowered.
+                    throwsType, throwsBinding,
                     /*throwsOn=*/List.of());
             procedures.add(proc);
         }
