@@ -28,6 +28,17 @@ public class JavaToLaurelCompiler {
     /// Since Strata commit 72f3a6e the short `: T` return form auto-generates
     /// an output parameter named `$result` (a reserved name), not `result`.
     private static final String LAUREL_RESULT_BINDING = "$result";
+
+    /**
+     * Wrap modifies {@code targets} into the degenerate group form every frontend
+     * emits: one unguarded {@link ModifiesGroup} that is always present, even when
+     * the target list is empty (an empty group is the opaque default "nothing
+     * changes" frame -- dropping it would leave the procedure unframed). Guards
+     * are attached later, inside Strata, by {@code EliminateExceptions}.
+     */
+    private static List<ModifiesGroup> unguardedModifies(List<AstNode<StmtExpr>> targets) {
+        return List.of(new ModifiesGroup(targets, Optional.empty(), Optional.empty()));
+    }
     /// javac's synthetic source path for trees injected by a simplification
     /// pass; Strata reports diagnostics for them against this URI, which has
     /// no entry in our line map.
@@ -773,7 +784,10 @@ public class JavaToLaurelCompiler {
 
             List<Condition> preconditions = new ArrayList<>();
             List<Condition> postconditions = new ArrayList<>();
-            // `Body.Opaque` carries modifies as plain expression nodes.
+            // `Body.Opaque` carries modifies as a list of guarded groups; JVerify
+            // emits the degenerate form every frontend uses -- one unguarded
+            // group holding the user's targets (see `unguardedModifies`). Guards
+            // are attached later, inside Strata, by `EliminateExceptions`.
             List<AstNode<StmtExpr>> modifies = new ArrayList<>();
             StmtExpr methodBody = null;
 
@@ -870,18 +884,18 @@ public class JavaToLaurelCompiler {
                     // Opaque with no implementation = uninterpreted function
                     // (matches what the DDM path produces for a function with
                     // no body; Body.External is reserved for built-in primitives)
-                    body = new Body.Opaque(List.of(), Optional.empty(), List.of());
+                    body = new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of()));
                 } else if (modifies.isEmpty()) {
                     body = new Body.Abstract(postconditions);
                 } else {
                     // `Body.Abstract` cannot carry a frame, so a body-less
                     // procedure with modifies stays Opaque (no implementation).
-                    body = new Body.Opaque(postconditions, Optional.empty(), modifies);
+                    body = new Body.Opaque(postconditions, Optional.empty(), unguardedModifies(modifies));
                 }
             } else if (canStayTransparent) {
                 body = new Body.Transparent(node(methodBody));
             } else {
-                body = new Body.Opaque(postconditions, Optional.of(node(methodBody)), modifies);
+                body = new Body.Opaque(postconditions, Optional.of(node(methodBody)), unguardedModifies(modifies));
             }
 
             // Carry the producer's @InterpretEntry marker through to Laurel so
@@ -1344,7 +1358,7 @@ public class JavaToLaurelCompiler {
                     List.of(new Parameter(ident(LAUREL_RESULT_BINDING), node(targetType))),
                     preconditions,
                     /*decreases=*/ Optional.empty(),
-                    new Body.Opaque(postconditions, /*implementation=*/ Optional.empty(), List.of()),
+                    new Body.Opaque(postconditions, /*implementation=*/ Optional.empty(), unguardedModifies(List.of())),
                     /*invokeOn=*/ Optional.empty(),
                     /*isInterpretEntry=*/ false,
                     /*axioms=*/ List.of(),
