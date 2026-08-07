@@ -91,6 +91,13 @@ public class JavaToLaurelCompiler {
     /// from this map are emitted with no `extending` clause, as before.
     private final Map<String, String> compositeExtends = new LinkedHashMap<>();
 
+    /// The declared exceptional join of the method currently being translated
+    /// (the class the `throws` clause resolves to, after the multi-throws LCA
+    /// join), or null when it declares none. Set by `translateStaticMethod`;
+    /// read by `convertStatement`'s `throw` case, which requires a declared
+    /// exceptional exit and checks the thrown type fits under it.
+    private Symbol.ClassSymbol currentThrowsJoin;
+
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
@@ -521,8 +528,19 @@ public class JavaToLaurelCompiler {
         }
         String joinSort = compositeSortName(join);
         referencedCompositeTypes.add(joinSort);
+        currentThrowsJoin = join;
         return node(new HighType.UserDefined(ident(joinSort)),
                 typeRangeOrNone(thrownTrees.getFirst()));
+    }
+
+    /** True iff {@code cls} is {@code ancestor} or below it on the superclass chain. */
+    private static boolean isSubclassOf(Symbol.ClassSymbol cls, Symbol.ClassSymbol ancestor) {
+        for (Symbol.ClassSymbol c = cls; c != null; c = superclassOf(c)) {
+            if (c == ancestor) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The direct superclass of {@code cls}, or null at the top of the chain. */
@@ -884,6 +902,7 @@ public class JavaToLaurelCompiler {
             // exceptional exit, exactly as before.
             Optional<AstNode<HighType>> throwsType = Optional.empty();
             Optional<Identifier> throwsBinding = Optional.empty();
+            currentThrowsJoin = null;
             if (method.thrown != null && !method.thrown.isEmpty()) {
                 throwsType = Optional.of(translateThrowsClause(method.thrown));
                 throwsBinding = Optional.of(ident(THROWN_BINDING));
@@ -1182,6 +1201,38 @@ public class JavaToLaurelCompiler {
                             labelStack.pop();
                         }
                     }
+                }
+                case JCTree.JCThrow throwStmt -> {
+                    // A `throw` needs the method's declared exceptional exit to
+                    // land on (docs/exceptions-design.md §1): the declaration is
+                    // where the thrown type, the caller's view, and the coming
+                    // `throwsOn` contract DSL all hang. Java lets an unchecked
+                    // throw go undeclared; JVerify does not.
+                    if (currentThrowsJoin == null) {
+                        throw new JavaViolationException(
+                                "throw requires the enclosing method to declare the thrown type"
+                                        + " in its throws clause");
+                    }
+                    if (!(throwStmt.expr.type instanceof com.sun.tools.javac.code.Type.ClassType ct)
+                            || !(ct.tsym instanceof Symbol.ClassSymbol thrownCls)) {
+                        throw new JavaViolationException(
+                                "Unsupported thrown expression type: " + throwStmt.expr.type);
+                    }
+                    // javac enforces declaration for checked exceptions only; an
+                    // unchecked throw outside the declared hierarchy is legal
+                    // Java, but under JVerify's declared-throws discipline it
+                    // would escape the exceptional contract -- reject it here
+                    // rather than as a Strata-side type error.
+                    if (!isSubclassOf(thrownCls, currentThrowsJoin)) {
+                        throw new JavaViolationException(
+                                "thrown type '" + thrownCls.getQualifiedName()
+                                        + "' is not covered by the declared throws clause ('"
+                                        + currentThrowsJoin.getQualifiedName() + "')");
+                    }
+                    // Link the thrown class up to the declared join so the Laurel
+                    // `throw` value type-checks against the `throws (e: T)` type.
+                    registerHierarchyUpTo(thrownCls, currentThrowsJoin);
+                    yield new StmtExpr.Throw(node(convertExpression(throwStmt.expr, renames), throwStmt.expr));
                 }
                 case JCTree.JCSkip ignored -> null;
                 default -> throw new JavaViolationException("Unsupported statement: " + statement.getClass().getSimpleName());
