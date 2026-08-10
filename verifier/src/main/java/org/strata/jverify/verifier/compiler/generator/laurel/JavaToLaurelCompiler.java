@@ -562,6 +562,16 @@ public class JavaToLaurelCompiler {
                         typeRangeOrNone(thrownTrees.getFirst())));
     }
 
+    /** True iff {@code cls} has {@code java.lang.Throwable} on its superclass chain. */
+    private static boolean isThrowableSubtype(Symbol.ClassSymbol cls) {
+        for (Symbol.ClassSymbol c = cls; c != null; c = superclassOf(c)) {
+            if (c.getQualifiedName().contentEquals("java.lang.Throwable")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** True iff {@code cls} is {@code ancestor} or below it on the superclass chain. */
     private static boolean isSubclassOf(Symbol.ClassSymbol cls, Symbol.ClassSymbol ancestor) {
         for (Symbol.ClassSymbol c = cls; c != null; c = superclassOf(c)) {
@@ -994,6 +1004,7 @@ public class JavaToLaurelCompiler {
 
             List<Condition> preconditions = new ArrayList<>();
             List<Condition> postconditions = new ArrayList<>();
+            List<ThrowsOnBlock> throwsOnBlocks = new ArrayList<>();
             // `Body.Opaque` carries modifies as a list of guarded groups; JVerify
             // emits the degenerate form every frontend uses -- one unguarded
             // group holding the user's targets (see `unguardedModifies`). Guards
@@ -1038,6 +1049,39 @@ public class JavaToLaurelCompiler {
                     } else {
                         modifies.add(node(convertExpression(modExpr), modExpr));
                     }
+                }
+
+                // Exceptional behavior cases (docs/exceptions-design.md §3):
+                // each `throwsOn(...).postcondition(...).modifies(...)` chain becomes a
+                // Laurel `ThrowsOnBlock`. The guard converts as a plain
+                // boolean expression (Strata's resolution rejects heap-reading
+                // guards with its own diagnostic); a case postcondition binds
+                // the thrown value by renaming its lambda parameter to the
+                // `throws (e: T)` binding; a case frame entry converts exactly
+                // like a normal modifies entry.
+                if (!contract.throwsOnCases().isEmpty() && currentThrowsJoin == null) {
+                    throw new JavaViolationException(
+                            "throwsOn requires the method to declare the thrown type"
+                                    + " in its throws clause");
+                }
+                for (var c : contract.throwsOnCases()) {
+                    var guardExpr = c.guard().get();
+                    List<Condition> casePosts = new ArrayList<>();
+                    for (var post : c.postconditions()) {
+                        casePosts.add(convertCasePostcondition(post.get()));
+                    }
+                    List<AstNode<StmtExpr>> caseModifies = new ArrayList<>();
+                    for (var mod : c.modifies()) {
+                        var modExpr = mod.get();
+                        if (isJVerifyCallNamed(modExpr, "everything")) {
+                            caseModifies.add(node(new StmtExpr.All(), modExpr));
+                        } else {
+                            caseModifies.add(node(convertExpression(modExpr), modExpr));
+                        }
+                    }
+                    throwsOnBlocks.add(new ThrowsOnBlock(
+                            node(convertExpression(guardExpr), guardExpr),
+                            casePosts, caseModifies));
                 }
 
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(method.body);
@@ -1128,11 +1172,9 @@ public class JavaToLaurelCompiler {
                     /*decreases=*/Optional.empty(), body, /*invokeOn=*/Optional.empty(),
                     isInterpretEntry, /*axioms=*/List.of(),
                     // Exceptional contract: the declared type and binding come from
-                    // the Java `throws` clause (translated above). `throwsOn`
-                    // behaviour cases arrive with the exceptional-contract DSL,
-                    // not yet lowered.
-                    throwsType, throwsBinding,
-                    /*throwsOn=*/List.of());
+                    // the Java `throws` clause, the behaviour cases from the
+                    // `throwsOn(...).postcondition(...).modifies(...)` contract chains.
+                    throwsType, throwsBinding, throwsOnBlocks);
             procedures.add(proc);
         }
 
@@ -1370,6 +1412,46 @@ public class JavaToLaurelCompiler {
             };
         }
 
+        /**
+         * A case's {@code .postcondition(...)} property. The lambda's one
+         * parameter must be typed at the method's declared throws type -- the
+         * property then converts with the parameter renamed to the
+         * `throws (e: T)` binding, so it speaks about the thrown value
+         * directly. Per-type claims narrow inside the property with
+         * {@code instanceof} and a cast (both supported for exception types),
+         * mirroring how Laurel's own per-type claims are written
+         * (`e is T ==> (e as T)...`). Requiring the declared type keeps the
+         * binding's typing exact; a subtype-typed parameter would silently
+         * weaken nothing and dereference wrongly, so it is refused with the
+         * narrowing idiom in the message.
+         */
+        private Condition convertCasePostcondition(JCTree.JCExpression sigExpr) {
+            // The unlambda phase may have wrapped the lambda in a functional-
+            // interface cast (see LambdaToAnonymousClassCompiler.visitApply).
+            while (sigExpr instanceof JCTree.JCTypeCast cast) {
+                sigExpr = cast.expr;
+            }
+            if (!(sigExpr instanceof JCTree.JCLambda lambda) || lambda.params.size() != 1) {
+                throw new JavaViolationException(
+                        "the argument to a throwsOn case's postcondition must be a one-parameter lambda");
+            }
+            var param = lambda.params.getFirst();
+            if (!(param.type instanceof com.sun.tools.javac.code.Type.ClassType ct)
+                    || !(ct.tsym instanceof Symbol.ClassSymbol paramCls)
+                    || paramCls != currentThrowsJoin) {
+                throw new JavaViolationException(
+                        "a throwsOn case's postcondition parameter must be typed at the method's declared throws type"
+                                + (currentThrowsJoin != null
+                                        ? " ('" + currentThrowsJoin.getQualifiedName() + "')"
+                                        : "")
+                                + "; narrow with instanceof and a cast inside the property");
+            }
+            Map<String, String> renames = Map.of(param.name.toString(), THROWN_BINDING);
+            StmtExpr converted = convertLambdaBody(lambda, renames);
+            return new Condition(node(converted, lambda.body), Optional.empty(),
+                    new ConditionMode.Both());
+        }
+
         /** The classes a catch arm's parameter covers (several for a multi-catch). */
         private List<Symbol.ClassSymbol> caughtClassesOf(JCTree.JCCatch catcher) {
             var param = catcher.param;
@@ -1564,10 +1646,40 @@ public class JavaToLaurelCompiler {
                     yield new StmtExpr.New(ident(name), /*typeArgs=*/List.of());
                 }
                 case JCTree.JCInstanceOf instanceOf -> {
+                    // Exception types are composites with their `extends`
+                    // chains declared, so a plain type test maps directly onto
+                    // Laurel's `is` -- and per-type case-postcondition claims depend on
+                    // it (docs/exceptions-design.md §3). Other reference types
+                    // stay unsupported: they are opaque sorts with no declared
+                    // hierarchy, so `is` on them would be vacuous.
+                    if (!(instanceOf.pattern instanceof JCTree.JCBindingPattern)
+                            && instanceOf.pattern.type instanceof com.sun.tools.javac.code.Type.ClassType ct
+                            && ct.tsym instanceof Symbol.ClassSymbol cls
+                            && isThrowableSubtype(cls)) {
+                        registerHierarchyUpToThrowable(cls);
+                        yield new StmtExpr.IsType(
+                                node(convertExpression(instanceOf.expr, renames), instanceOf.expr),
+                                node(new HighType.UserDefined(ident(compositeSortName(cls))),
+                                        typeRangeOrNone(instanceOf.pattern)));
+                    }
                     throw new JavaViolationException(
                         "instanceof on opaque reference types is not yet supported");
                 }
-                case JCTree.JCTypeCast cast -> convertTypeCast(cast, renames);
+                case JCTree.JCTypeCast cast -> {
+                    // A cast to an exception type is Laurel's `as` (its
+                    // embedded type-test assertion is discharged by the
+                    // `instanceof` antecedent in the per-type claim idiom).
+                    if (cast.type instanceof com.sun.tools.javac.code.Type.ClassType ct
+                            && ct.tsym instanceof Symbol.ClassSymbol cls
+                            && isThrowableSubtype(cls)) {
+                        registerHierarchyUpToThrowable(cls);
+                        yield new StmtExpr.AsType(
+                                node(convertExpression(cast.expr, renames), cast.expr),
+                                node(new HighType.UserDefined(ident(compositeSortName(cls))),
+                                        typeRangeOrNone(cast.clazz)));
+                    }
+                    yield convertTypeCast(cast, renames);
+                }
                 default -> throw new JavaViolationException("Unsupported expression: " + expr.getClass().getSimpleName());
             };
         }

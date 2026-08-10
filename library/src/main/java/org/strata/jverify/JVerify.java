@@ -141,6 +141,69 @@ public class JVerify {
     }
 
     /**
+     * Open an <em>exceptional behavior case</em>: when {@code condition} holds on
+     * entry, this method <strong>must</strong> throw. The
+     * condition may only read parameters, not the heap.
+     * <p>
+     * The case's clauses chain off the returned handle, so a case is one
+     * statement and a clause cannot exist without its case:
+     * {@code throwsOn(b == 0).postcondition((AppException e) -> ...).modifies(log);}
+     * Stating any case claims the enumeration is complete: the verifier checks
+     * that every throwing path satisfies some case's condition, so
+     * {@code throwsOn(false)} states the method never throws, which is
+     * different from stating no case at all (which leaves throwing paths
+     * unconstrained).
+     * <p>
+     * Requires the method to declare its thrown type(s) in its {@code throws}
+     * clause. Like every contract primitive, a no-op at runtime.
+     */
+    public static ThrowsOnCase throwsOn(boolean condition) {
+        return ThrowsOnCase.INSTANCE;
+    }
+
+    /**
+     * One exceptional behavior case, opened by {@link #throwsOn}. The clause
+     * methods mirror the normal-exit vocabulary — {@code postcondition} and
+     * {@code modifies} — scoped to this case's throwing path, exactly as
+     * Laurel reuses {@code ensures}/{@code modifies} inside a
+     * {@code throwsOn} block. Each returns the case so clauses chain; all are
+     * no-ops at runtime.
+     */
+    public static final class ThrowsOnCase {
+        private static final ThrowsOnCase INSTANCE = new ThrowsOnCase();
+
+        private ThrowsOnCase() {
+        }
+
+        /**
+         * Exceptional postcondition of this case: when the case's throw
+         * happens, the property holds of the thrown value.
+         * <p>
+         * The lambda's parameter must be typed at the method's declared throws
+         * type (the least common ancestor, for a multi-type {@code throws}
+         * clause); narrow to a specific exception type inside the property
+         * with {@code instanceof} and a cast, e.g.
+         * {@code .postcondition((AppException e) -> implies(e instanceof ParseError, ((ParseError) e).code > 0))}.
+         * Several {@code postcondition} clauses in one case conjoin.
+         */
+        public <E extends Throwable> ThrowsOnCase postcondition(Predicate<E> property) {
+            return this;
+        }
+
+        /**
+         * Exceptional frame of this case: on the throwing path it covers, only
+         * the given object(s) may be modified. Same argument forms as
+         * {@link JVerify#modifies},
+         * including {@link JVerify#everything()}. An unstated exceptional frame
+         * means "nothing changes" on that path, mirroring the normal-path
+         * default.
+         */
+        public ThrowsOnCase modifies(Object object) {
+            return this;
+        }
+    }
+
+    /**
      * Can be used in reads clauses to refer to all objects
      */
     public static Object everything() {
