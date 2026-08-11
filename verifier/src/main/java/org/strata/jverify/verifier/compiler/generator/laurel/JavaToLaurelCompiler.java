@@ -310,11 +310,17 @@ public class JavaToLaurelCompiler {
                 List<Field> fields = compositeFields.containsKey(typeName)
                         ? new ArrayList<>(compositeFields.get(typeName).values())
                         : List.of();
-                List<Identifier> extending = compositeExtends.containsKey(typeName)
-                        ? List.of(ident(compositeExtends.get(typeName)))
+                // `extending` widened from `List<Identifier>` to `List<AstNode<HighType>>`
+                // with the poly grammar (a composite may extend a generic instantiation), so
+                // each parent name is wrapped as a `HighType.UserDefined`. Java has no
+                // generics surface here, so the parent is always a plain nominal type — but
+                // the parent itself must still be EMITTED: dropping it would silently undo
+                // mainline's composite-inheritance support.
+                List<AstNode<HighType>> extending = compositeExtends.containsKey(typeName)
+                        ? List.of(node(new HighType.UserDefined(ident(compositeExtends.get(typeName)))))
                         : List.of();
                 composites.add(new TypeDefinition.Composite(
-                        new CompositeType(ident(typeName), extending, fields, List.of())));
+                        new CompositeType(ident(typeName), /*typeArgs=*/List.of(), extending, fields, List.of())));
             }
             var firstFile = result.getFirst();
             var firstProgram = firstFile.program();
@@ -701,7 +707,7 @@ public class JavaToLaurelCompiler {
         // `isMutable` replaces the old immutableField/mutableField pair: a
         // `final` Java field is not mutable.
         boolean isMutable = (fieldSym.flags() & Flags.FINAL) == 0;
-        fields.put(name, new Field(ident(name), isMutable, node(fieldType)));
+        fields.put(name, new Field(ident(name), isMutable, node(fieldType), /*initializer=*/Optional.empty()));
     }
 
     /**
@@ -1118,7 +1124,7 @@ public class JavaToLaurelCompiler {
             }
 
             var proc = new Procedure(
-                    ident(methodName), inputs, outputs, preconditions,
+                    ident(methodName), /*typeArgs=*/List.of(), inputs, outputs, preconditions,
                     /*decreases=*/Optional.empty(), body, /*invokeOn=*/Optional.empty(),
                     isInterpretEntry, /*axioms=*/List.of(),
                     // Exceptional contract: the declared type and binding come from
@@ -1555,7 +1561,7 @@ public class JavaToLaurelCompiler {
                     for (var arg : newClass.args) {
                         convertExpression(arg, renames);
                     }
-                    yield new StmtExpr.New(ident(name));
+                    yield new StmtExpr.New(ident(name), /*typeArgs=*/List.of());
                 }
                 case JCTree.JCInstanceOf instanceOf -> {
                     throw new JavaViolationException(
@@ -1698,7 +1704,7 @@ public class JavaToLaurelCompiler {
             var postconditions = List.of(
                     new Condition(node(resultEqX), Optional.empty(), new ConditionMode.Both()));
             var proc = new Procedure(
-                    ident(helperName),
+                    ident(helperName), /*typeArgs=*/List.of(),
                     List.of(new Parameter(ident("x"), node(sourceType))),
                     List.of(new Parameter(ident(LAUREL_RESULT_BINDING), node(targetType))),
                     preconditions,

@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.TBool, HighType.TInt, HighType.TFloat64, HighType.TReal, HighType.TString, HighType.TSet, HighType.TMap, HighType.UserDefined, HighType.Applied, HighType.Intersection, HighType.TBv, HighType.Unknown, HighType.MultiValuedExpr {
+public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.TBool, HighType.TInt, HighType.TFloat64, HighType.TReal, HighType.TString, HighType.TSet, HighType.TMap, HighType.UserDefined, HighType.TVar, HighType.Applied, HighType.Intersection, HighType.TBv, HighType.Unknown, HighType.MultiValuedExpr {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record TVoid() implements HighType {
@@ -89,6 +89,16 @@ public sealed interface HighType extends ToIon permits HighType.TVoid, HighType.
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("UserDefined"));
+        sexp.add(name().toIon(ion));
+        return sexp;
+        }
+    }
+
+    public record TVar(Identifier name) implements HighType {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("TVar"));
         sexp.add(name().toIon(ion));
         return sexp;
         }

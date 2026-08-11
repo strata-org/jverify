@@ -1,9 +1,12 @@
 package org.strata.jverify.laurel;
 
-public record CompositeType(Identifier name, java.util.List<Identifier> extending, java.util.List<Field> fields, java.util.List<Procedure> instanceProcedures) implements ToIon {
+public record CompositeType(Identifier name, java.util.List<Identifier> typeArgs, java.util.List<AstNode<HighType>> extending, java.util.List<Field> fields, java.util.List<Procedure> instanceProcedures) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         s.put("name", name().toIon(ion));
+        var _l_typeArgs = ion.newEmptyList();
+        for (var e : typeArgs()) _l_typeArgs.add(e.toIon(ion));
+        s.put("typeArgs", _l_typeArgs);
         var _l_extending = ion.newEmptyList();
         for (var e : extending()) _l_extending.add(e.toIon(ion));
         s.put("extending", _l_extending);

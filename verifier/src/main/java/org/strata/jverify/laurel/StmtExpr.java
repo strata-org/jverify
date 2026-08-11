@@ -187,12 +187,15 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record New(Identifier ref) implements StmtExpr {
+    public record New(Identifier ref, java.util.List<AstNode<HighType>> typeArgs) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("New"));
         sexp.add(ref().toIon(ion));
+        var _l1 = ion.newEmptyList();
+        for (var e : typeArgs()) _l1.add(e.toIon(ion));
+        sexp.add(_l1);
         return sexp;
         }
     }
