@@ -16,9 +16,10 @@ import static org.strata.jverify.JVerify.throwsOn;
  * use, so it starts passing exactly when the constructor path works.
  */
 @JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_EXCEPTIONS},
-        methodsVerified = 4) // value() + 3 implicit/explicit constructors
+        methodsVerified = 3) // value(), IndexError(int), and the test class's implicit constructor
 class WishlistConstructorData {
     static class IndexError extends Exception {
+//         ^ warning: missing contract for method '<init>' in class 'java.lang.Exception'
         final int badIndex;
 
         IndexError(int badIndex) {

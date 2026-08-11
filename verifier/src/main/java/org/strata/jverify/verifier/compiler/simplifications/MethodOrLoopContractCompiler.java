@@ -139,7 +139,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         maker.pos = loopBody.get().pos;
         List<JCTree.JCStatement> newStatements = getNewStatements(loop, getStatements(loopBody.get()), false);
         loopBody.set(maker.Block(0, newStatements));
-        var contract = getContract(loopBody.get());
+        var contract = getContract(loopBody.get(), false);
         checkEmptyExpressions(loop, contract.preconditions(), "preconditions", "loop");
         checkEmptyExpressions(loop, contract.postconditions(), "postconditions", "loop");
         checkEmptyExpressions(loop,
@@ -157,7 +157,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         if (tree.body != null) {
             var allowFooter = JVerifyUtils.isConstructor(tree.sym);
             tree.body.stats = getNewStatements(tree, tree.body.getStatements(), allowFooter);
-            var contract = getContract(tree.body);
+            var contract = getContract(tree.body, false);
             checkEmptyExpressions(tree, contract.loopInvariants(), "invariants", "method");
         } if (tree.sym.getAnnotation(EmptyContract.class) != null) {
             tree.body = maker.Block(0, getNewStatements(tree, List.nil(), false));        
@@ -329,6 +329,19 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
     }
 
     public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock) {
+        return getContract(outerBlock, true);
+    }
+
+    /**
+     * Collect the contract. {@code rejectDetachedCaseClauses} guards the
+     * captured/detached-ThrowsOnCase refusals: the translation phase passes
+     * {@code true} (a {@link JavaViolationException} there is a per-method
+     * skip with a diagnostic), while the earlier tree-rewriting visitors pass
+     * {@code false} -- an exception thrown inside a javac visitor would abort
+     * the whole compilation rather than skip the method.
+     */
+    public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock,
+                                            boolean rejectDetachedCaseClauses) {
         var contractBlock = getContractBlock(outerBlock);
         ArrayList<Property<JCTree.JCExpression>> precondition = new ArrayList<>();
         ArrayList<Property<JCTree.JCExpression>> postcondition = new ArrayList<>();
@@ -339,6 +352,13 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         ArrayList<MethodOrLoopContract.ThrowsOnCase> throwsOnCases = new ArrayList<>();
 
         for (var contractStatement : contractBlock.getStatements()) {
+            // A captured case handle -- `ThrowsOnCase c = throwsOn(...)` --
+            // never reaches this loop: a variable declaration ends the
+            // contract block, so the declaration (and everything after it)
+            // converts as body statements, where the `throwsOn` call is
+            // refused as an unsupported JVerify method. The check below covers
+            // the other detachment shape: a clause called on a handle that is
+            // in scope without a chain (e.g. a field).
             if (!((JCTree.JCStatement) contractStatement instanceof JCTree.JCExpressionStatement expressionStatement
                     && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
                 continue;
@@ -354,9 +374,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 if (caseBase.args.size() != 1) {
                     throw new JavaViolationException("A throwsOn call must have exactly one argument");
                 }
-                var throwsOnCase = new MethodOrLoopContract.ThrowsOnCase(
-                        Property.fromElement(caseBase.getArguments(), 0),
-                        new ArrayList<>(), new ArrayList<>());
+                ArrayList<Property<JCTree.JCExpression>> casePostconditions = new ArrayList<>();
+                ArrayList<Property<JCTree.JCExpression>> caseModifies = new ArrayList<>();
                 for (var link : caseLinks) {
                     var linkName = ((JCTree.JCFieldAccess) link.meth).name.toString();
                     if (link.args.size() != 1) {
@@ -365,22 +384,42 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                     }
                     switch (linkName) {
                         case "postcondition" ->
-                            throwsOnCase.postconditions().add(Property.fromElement(link.getArguments(), 0));
+                            casePostconditions.add(Property.fromElement(link.getArguments(), 0));
                         case "modifies" ->
-                            throwsOnCase.modifies().add(Property.fromElement(link.getArguments(), 0));
+                            caseModifies.add(Property.fromElement(link.getArguments(), 0));
                         default ->
-                            // Unreachable while ThrowsOnCase declares only the
-                            // two clause methods; kept as a guard for drift.
+                            // Drift guard: a new clause method added to
+                            // `ThrowsOnCase` without a parser arm should fail
+                            // loudly. (Inherited Object methods in a chain
+                            // never reach this switch -- a statement whose
+                            // outermost call is not JVerify-owned ends the
+                            // contract header and converts as body, where the
+                            // inner `throwsOn` is refused.)
                             throw new JavaViolationException(
                                     "Unsupported throwsOn case clause: " + linkName);
                     }
                 }
-                throwsOnCases.add(throwsOnCase);
+                throwsOnCases.add(new MethodOrLoopContract.ThrowsOnCase(
+                        Property.fromElement(caseBase.getArguments(), 0),
+                        casePostconditions, caseModifies));
                 continue;
             }
             var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
             if (jverifyMethod == null) {
                 continue;
+            }
+            // `ThrowsOnCase` is nested in JVerify, so its clause methods
+            // resolve as JVerify-owned; reaching one here (rather than through
+            // `throwsOnChainBase` above) means the receiver is a captured
+            // handle, not a chain -- the clause has been detached from its
+            // case. Refuse rather than misfile it as the normal-exit clause of
+            // the same name.
+            if (rejectDetachedCaseClauses
+                    && jverifyMethod.owner.getSimpleName().contentEquals("ThrowsOnCase")) {
+                throw new JavaViolationException(
+                        "a throwsOn case clause must chain directly off throwsOn(...);"
+                                + " calling '" + jverifyMethod.getQualifiedName()
+                                + "' on a captured handle detaches it from its case");
             }
             var methodName = jverifyMethod.getQualifiedName().toString();
             switch (methodName) {

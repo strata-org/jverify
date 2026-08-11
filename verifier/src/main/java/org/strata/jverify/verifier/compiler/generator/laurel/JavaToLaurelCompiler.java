@@ -1554,6 +1554,9 @@ public class JavaToLaurelCompiler {
                     return new LoopParts(List.of(), new StmtExpr.Block(stmts, Optional.empty()));
                 }
                 MethodOrLoopContract loopContract = contractCompiler.getContract(loopBlock);
+                // (A `throwsOn` in a loop contract is rejected earlier, by
+                // `MethodOrLoopContractCompiler.visitLoop`'s wrongContract
+                // check -- cases are method contracts.)
                 List<AstNode<StmtExpr>> invariants = new ArrayList<>();
                 for (var inv : loopContract.loopInvariants()) {
                     invariants.add(node(convertExpression(inv.get(), renames), inv.get()));
