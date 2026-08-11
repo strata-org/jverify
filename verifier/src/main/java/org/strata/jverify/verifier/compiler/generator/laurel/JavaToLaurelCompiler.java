@@ -99,9 +99,10 @@ public class JavaToLaurelCompiler {
     private Symbol.ClassSymbol currentThrowsJoin;
 
     /// The catch types of the `try` bodies enclosing the statement currently
-    /// being converted, innermost last (one entry per `try`, all arms
-    /// flattened). A `throw` whose type an enclosing arm catches needs no
-    /// declared `throws` -- mirroring javac's own checked-exception rule.
+    /// being converted, innermost first (`push` prepends; one entry per `try`,
+    /// all arms flattened -- order is irrelevant to the `anyMatch` consumer).
+    /// A `throw` whose type an enclosing arm catches needs no declared
+    /// `throws` -- mirroring javac's own checked-exception rule.
     /// Scoped to the `try` BODY only: a throw inside a catch arm or finally
     /// block answers to the next try out, exactly as in Java.
     private final Deque<List<Symbol.ClassSymbol>> enclosingCatchTypes = new ArrayDeque<>();
@@ -507,15 +508,29 @@ public class JavaToLaurelCompiler {
         return cls.getQualifiedName().toString().replace('$', '.');
     }
 
+    /** A translated {@code throws} clause: the join class and its Laurel type node. */
+    private record DeclaredThrows(Symbol.ClassSymbol join, AstNode<HighType> type) {}
+
     /**
      * Translate a method's Java {@code throws} clause into the declared Laurel
      * exceptional type (docs/exceptions-design.md §1). Laurel declares at most
      * one exceptional exit, so {@code throws E1, E2} joins to the least common
-     * ancestor of the thrown classes; the classes on each chain up to the join
-     * are declared as composites with their {@code extends} links so the join
-     * type-checks and per-type claims (`e is E1`) stay meaningful.
+     * ancestor of the thrown classes. Each thrown class is declared as a
+     * composite with its superclass chain linked all the way up to
+     * {@code Throwable}, not merely up to the join: a <em>caller</em> may
+     * catch any supertype of the declared type ({@code catch (Exception e)}
+     * around a call declaring {@code throws AppException}), and that guard's
+     * {@code is} test needs the chain between the two types linked no matter
+     * where they sit. Chains scoped to the join would leave the sorts
+     * unrelated and the handler dead.
+     *
+     * <p>The join can silently widen: unrelated thrown types join at a broad
+     * ancestor (up to {@code Exception}/{@code Throwable}). Precision is
+     * recoverable per case via the contract DSL's type claims (phase 4); a
+     * widening lint is deliberately deferred until that DSL exists to state
+     * the precise set.
      */
-    private AstNode<HighType> translateThrowsClause(
+    private DeclaredThrows translateThrowsClause(
             com.sun.tools.javac.util.List<JCTree.JCExpression> thrownTrees) {
         List<Symbol.ClassSymbol> thrown = new ArrayList<>();
         for (var tree : thrownTrees) {
@@ -532,13 +547,13 @@ public class JavaToLaurelCompiler {
             join = leastCommonAncestor(cls, join);
         }
         for (var cls : thrown) {
-            registerHierarchyUpTo(cls, join);
+            registerHierarchyUpToThrowable(cls);
         }
         String joinSort = compositeSortName(join);
         referencedCompositeTypes.add(joinSort);
-        currentThrowsJoin = join;
-        return node(new HighType.UserDefined(ident(joinSort)),
-                typeRangeOrNone(thrownTrees.getFirst()));
+        return new DeclaredThrows(join,
+                node(new HighType.UserDefined(ident(joinSort)),
+                        typeRangeOrNone(thrownTrees.getFirst())));
     }
 
     /** True iff {@code cls} is {@code ancestor} or below it on the superclass chain. */
@@ -598,22 +613,53 @@ public class JavaToLaurelCompiler {
     }
 
     /**
+     * Record that composite {@code child} extends {@code parent}, declaring
+     * both sorts. Membership in {@link #referencedCompositeTypes} and the edge
+     * in {@link #compositeExtends} always move together through this method,
+     * so a linked child cannot silently miss its declaration (or dangle).
+     *
+     * <p>Sort names are the key, and {@link #compositeSortName} folds the
+     * nested-class {@code $} into {@code .}, so a nested {@code Outer$Inner}
+     * and a top-level class named {@code Outer.Inner} would share a key; a
+     * conflicting parent edge for one key is refused loudly rather than
+     * silently keeping whichever arrived first.
+     */
+    private void linkExtends(Symbol.ClassSymbol child, Symbol.ClassSymbol parent) {
+        String childSort = compositeSortName(child);
+        String parentSort = compositeSortName(parent);
+        referencedCompositeTypes.add(childSort);
+        referencedCompositeTypes.add(parentSort);
+        String existing = compositeExtends.putIfAbsent(childSort, parentSort);
+        if (existing != null && !existing.equals(parentSort)) {
+            throw new JavaViolationException(
+                    "conflicting superclass links for composite '" + childSort
+                            + "': '" + existing + "' vs '" + parentSort + "'");
+        }
+    }
+
+    /**
      * Declare {@code cls} and every class on its superclass chain up to (but
      * not including) {@code stopAt} as composites, each with its {@code extends}
-     * link recorded in {@link #compositeExtends}. {@code stopAt} itself is
-     * declared by the caller, without a link -- nothing above the join is
+     * link recorded via {@link #linkExtends}. {@code stopAt} itself is
+     * declared by the caller, without a link -- nothing above the stop is
      * dragged into the program.
      */
     private void registerHierarchyUpTo(Symbol.ClassSymbol cls, Symbol.ClassSymbol stopAt) {
+        if (!isSubclassOf(cls, stopAt)) {
+            // Internal precondition, not a user error: callers derive stopAt
+            // from cls's own superclass chain. Violating it would make the
+            // `c != stopAt` loop walk to the top, silently dragging every
+            // class above the intended stop into the program.
+            throw new JavaViolationException(
+                    "internal: hierarchy stop '" + stopAt.getQualifiedName()
+                            + "' is not an ancestor of '" + cls.getQualifiedName() + "'");
+        }
         for (Symbol.ClassSymbol c = cls; c != null && c != stopAt; c = superclassOf(c)) {
             Symbol.ClassSymbol parent = superclassOf(c);
             if (parent == null) {
                 break;
             }
-            String childSort = compositeSortName(c);
-            referencedCompositeTypes.add(childSort);
-            referencedCompositeTypes.add(compositeSortName(parent));
-            compositeExtends.putIfAbsent(childSort, compositeSortName(parent));
+            linkExtends(c, parent);
         }
     }
 
@@ -923,16 +969,20 @@ public class JavaToLaurelCompiler {
 
             // Exceptional exit: the Java `throws` clause is the single source of
             // the declared exceptional type (docs/exceptions-design.md §1). The
-            // binding name is synthesized; `$` keeps it collision-free (no Java
-            // identifier can carry it) and Strata freshens its own carrier names
-            // independently. A method with no `throws` clause keeps no
-            // exceptional exit, exactly as before.
+            // binding name is synthesized; Java permits `$` in identifiers, but
+            // the JLS reserves it for generated code, so a user identifier
+            // spelled `$thrown` is out-of-convention rather than impossible --
+            // and Strata freshens its own carrier names independently. A method
+            // with no `throws` clause keeps no exceptional exit, exactly as
+            // before.
             Optional<AstNode<HighType>> throwsType = Optional.empty();
             Optional<Identifier> throwsBinding = Optional.empty();
             currentThrowsJoin = null;
             enclosingCatchTypes.clear();
             if (method.thrown != null && !method.thrown.isEmpty()) {
-                throwsType = Optional.of(translateThrowsClause(method.thrown));
+                DeclaredThrows declared = translateThrowsClause(method.thrown);
+                currentThrowsJoin = declared.join();
+                throwsType = Optional.of(declared.type());
                 throwsBinding = Optional.of(ident(THROWN_BINDING));
             }
 
@@ -1025,12 +1075,11 @@ public class JavaToLaurelCompiler {
             // nowhere to put either, so anything with a frame or a spec must
             // become Opaque/Abstract.
             //
-            // Nothing here carries `throwsOn` behaviour cases: JVerify does not yet
-            // lower Java `throws` into Laurel's exceptional channel, so every
-            // procedure it emits declares no exceptional exit and its contract
-            // describes the normal one only. In the record AST those cases live on
-            // `Procedure.throwsOn` rather than on the body, so they are supplied at
-            // the `new Procedure(...)` call below.
+            // Nothing here carries `throwsOn` behaviour cases: in the record AST
+            // those live on `Procedure.throwsOn` rather than on the body, so the
+            // exceptional contract DSL (phase 4) supplies them at the
+            // `new Procedure(...)` call below. The declared exceptional exit
+            // itself (`throwsType`/`throwsBinding`) is translated above.
             boolean canStayTransparent =
                     isPure && postconditions.isEmpty() && modifies.isEmpty();
             if (methodBody == null) {
@@ -1233,9 +1282,14 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCTry tryStmt -> {
                     // Defensive: javac's LOWER phase (already in the pipeline)
                     // desugars try-with-resources into try/finally before we
-                    // run, so resources should never survive to here. If a
-                    // javac change ever stops that, refuse rather than drop
-                    // the close() semantics silently.
+                    // run (verified -- see the TryWithResources fixture), so
+                    // resources never survive to here today. If a javac change
+                    // ever stops that, refuse rather than drop the close()
+                    // semantics silently. Note the desugared form's synthesized
+                    // `catch (Throwable t) ... throw t` still answers to the
+                    // declared-throws rule, so try-with-resources in a
+                    // non-throwing method is refused downstream with the
+                    // declared-throws diagnostic (design doc, Decision 4).
                     if (tryStmt.resources != null && !tryStmt.resources.isEmpty()) {
                         throw new JavaViolationException(
                                 "try-with-resources is not supported; use try/finally");
@@ -1297,9 +1351,11 @@ public class JavaToLaurelCompiler {
                                         + "' is not covered by the declared throws clause ('"
                                         + currentThrowsJoin.getQualifiedName() + "')");
                     } else {
-                        // Link the thrown class up to the declared join so the
-                        // Laurel `throw` value type-checks against `throws (e: T)`.
-                        registerHierarchyUpTo(thrownCls, currentThrowsJoin);
+                        // Link the whole chain, as the throws clause does: the
+                        // thrown class must relate to the declared join for the
+                        // Laurel `throw` to type-check, and to any supertype a
+                        // caller may catch for that guard's `is` test to hold.
+                        registerHierarchyUpToThrowable(thrownCls);
                     }
                     yield new StmtExpr.Throw(node(convertExpression(throwStmt.expr, renames), throwStmt.expr));
                 }
@@ -1308,27 +1364,6 @@ public class JavaToLaurelCompiler {
             };
         }
 
-        /**
-         * A Java {@code catch (E e)} arm as a Laurel {@link CatchClause}: the
-         * binding keeps its Java name, type dispatch becomes the guard
-         * {@code e is E} (a multi-catch {@code catch (A | B e)} becomes the
-         * disjunction of type tests, matching Java's own semantics of typing
-         * the binding at the alternatives' LCA), and arms stay in source order
-         * because Laurel tries clauses first-match-wins exactly as Java does.
-         *
-         * <p>The clause's {@code bindingType} is left {@code Unknown}: Strata's
-         * resolution computes it as the LCA of the exception types thrown in
-         * the {@code try} body, the same as for the Laurel textual frontend.
-         *
-         * <p>Each caught class is declared as a composite with its superclass
-         * chain up to {@code java.lang.Throwable}. The throw side (phase 2)
-         * links chains only up to the enclosing method's declared join, which
-         * cannot relate classes across hierarchies; catch dispatch depends on
-         * those relations (`e is E` on an unlinked sort would be vacuously
-         * false, silently turning a live arm into dead code), so the catch
-         * side links all the way up. The JCL ancestors this drags in
-         * (`Exception`, `Throwable`, ...) are empty, uninterpreted sorts.
-         */
         /** The classes a catch arm's parameter covers (several for a multi-catch). */
         private List<Symbol.ClassSymbol> caughtClassesOf(JCTree.JCCatch catcher) {
             var param = catcher.param;
@@ -1346,6 +1381,29 @@ public class JavaToLaurelCompiler {
             return caught;
         }
 
+        /**
+         * A Java {@code catch (E e)} arm as a Laurel {@link CatchClause}: the
+         * binding keeps its Java name, type dispatch becomes the guard
+         * {@code e is E} (a multi-catch {@code catch (A | B e)} becomes the
+         * disjunction of type tests, matching Java's own semantics of typing
+         * the binding at the alternatives' LCA), and arms stay in source order
+         * because Laurel tries clauses first-match-wins exactly as Java does.
+         *
+         * <p>The clause's {@code bindingType} is left {@code Unknown}: Strata's
+         * resolution computes it as the LCA of the exception types thrown in
+         * the {@code try} body, the same as for the Laurel textual frontend.
+         *
+         * <p>Each caught class is declared as a composite with its superclass
+         * chain up to {@code java.lang.Throwable}, matching the registration
+         * the throws-clause and throw sides perform. Both sides going all the
+         * way up is what keeps every {@code is} test between exception types
+         * meaningful ({@code e is E} over unrelated sorts would be vacuously
+         * false, silently turning a live arm into dead code) -- including a
+         * catch of a supertype of an exception that only arrives by
+         * propagation from a callee. The JCL ancestors this drags in
+         * ({@code Exception}, {@code Throwable}, ...) are empty,
+         * uninterpreted sorts.
+         */
         private CatchClause convertCatcher(JCTree.JCCatch catcher, Map<String, String> renames) {
             var param = catcher.param;
             String binding = param.name.toString();

@@ -8,10 +8,10 @@ accidentally rather than deliberately:
 - `throw` and `try`/`catch`/`finally` have no cases in
   `JavaToLaurelCompiler.convertStatement`; they fall into the default
   `"Unsupported statement: JCThrow"` / `"... JCTry"` and the per-method catch
-  (`JavaToLaurelCompiler.java:750-755`) marks the whole method Skipped.
+  in `translateStaticMethod` marks the whole method Skipped.
 - `throws` clauses on method signatures are silently ignored. Every emitted
   `Procedure` carries `throwsType/throwsBinding = empty, throwsOn = []`
-  (`JavaToLaurelCompiler.java:921-925`).
+  (see `translateStaticMethod`).
 - The contract DSL (`JVerify.precondition/postcondition/modifies/...`) has no
   exceptional form: a method's contract describes its normal exit only.
 
@@ -57,24 +57,23 @@ touching the DSL:
 ### What the frontend gives us to work with
 
 - Composites: classes referenced by translated code become Laurel `composite`
-  types (`referencedCompositeTypes`, `JavaToLaurelCompiler.java:282-288`) —
+  types (`referencedCompositeTypes` in `JavaToLaurelCompiler`) —
   but always with an empty `extending` list, although the `CompositeType`
   binding has the slot. Exception hierarchies need real `extends` chains:
   catch guards lower to `e is T` tests and multi-throws joins need common
   ancestors.
 - `new E(...)`: `convertExpression`'s `JCNewClass` case
-  (`JavaToLaurelCompiler.java:1205-1214`) emits `StmtExpr.New` and discards
+  emits `StmtExpr.New` and discards
   the constructor arguments. Thrown values that carry data (`badIndex`-style
   fields) depend on how constructor translation evolves; phase 1 sequences
   around it (see Phasing).
 - `instanceof` on opaque reference types is rejected
-  (`JavaToLaurelCompiler.java:1215-1218`). Catch dispatch does not need it —
+  (see `convertExpression`). Catch dispatch does not need it —
   catch guards are generated on the Laurel side — but user code testing a
   caught exception's type does. Out of scope here; noted as a follow-up.
 - javac's LOWER phase (already in the pipeline, `JavaLowerer.java`) desugars
-  some sugar for us. Whether it desugars try-with-resources into plain
-  try/finally in our configuration must be verified during implementation;
-  the design does not depend on either answer (see Decisions).
+  some sugar for us — including try-with-resources into plain try/finally
+  (verified; see Decision 4 and the `TryWithResources` fixture).
 - The internal `throw new ContractException()` idiom (contract-only bodies,
   `ExternalContractCompiler.isContractThrow`) never reaches
   `convertStatement`; adding a real `JCThrow` case does not disturb it.
@@ -88,9 +87,16 @@ exceptional type. For `throws E`, the procedure gets
 `throwsType = E, throwsBinding = e` (binding name synthesized; Strata
 freshens against collisions). For `throws E1, E2`, the declared type is the
 least common ancestor of `E1..En` among the *modeled* classes, and the precise
-set is recoverable per case via type claims in case postconditions. The
-composites for each `Ei`, the LCA, and every
-class on the chains between them are emitted with their `extending` links.
+set is recoverable per case via type claims in case postconditions. Each
+thrown class is emitted as a composite with its superclass chain linked all
+the way up to `Throwable` — not merely up to the join — because a *caller*
+may catch any supertype of the declared type, and that guard's `is` test
+needs the two types related no matter where they sit (pinned by
+`supertypeCatchOfPropagated`).
+
+The join silently widens when the declared types are unrelated (up to a broad
+JCL ancestor like `Exception`); a widening lint is deliberately deferred to
+the DSL phase, where the per-case type claims can state the precise set.
 
 A `throw` statement in a method with no `throws` clause is a per-construct
 diagnostic ("declare the thrown type in the method's `throws` clause"), not a
@@ -107,7 +113,7 @@ hangs.
 | multi-catch `catch (A \| B e)` | one `CatchClause`, guard `e is A \|\| e is B` | The binding is typed at the LCA, as in Java. |
 | several `catch` arms | one `CatchClause` per arm, in order | Laurel tries guards in clause order; Java's "first applicable arm" semantics carries over directly. |
 | `try { } finally { }` | `FinallyClause` | Laurel runs the arm on normal, thrown, and `return`/`break` unwinding paths — same as Java; nothing to encode manually. |
-| try-with-resources | see Decisions | Either free via javac LOWER or a per-construct diagnostic. |
+| try-with-resources | desugared to try/finally by javac LOWER | See Decision 4: the desugared re-throw needs the declared-throws rule satisfied. |
 | re-throw from a catch arm | `Throw` inside the arm | Already covered by Laurel's widened-propagation lowering. |
 
 The `break`/`continue`/`return`-through-`finally` interaction is Laurel's
@@ -185,8 +191,9 @@ requires their absence rather than modeling them as catchable events.
 Consequences:
 
 - `catch (NullPointerException e)` around code whose NPE-freedom is proven is
-  dead by construction; phase 1 rejects catching a type no reachable `throw`
-  can produce with a per-construct diagnostic rather than verifying vacuously.
+  dead by construction; today such an arm is translated as-is and its guard
+  simply never holds (nothing explicitly thrown reaches it). A dead-arm lint
+  is future work, not implemented in these phases.
 - Explicitly *throwing* an unchecked exception is fine — declare it in the
   `throws` clause (legal Java, see §1) and it participates like any other.
 
@@ -201,10 +208,12 @@ Consequences:
    builtin-contracts model them.
 3. **Unforced exceptional postconditions not offered** (deliberate
    strictness, see §4).
-4. **try-with-resources**: verify during implementation whether javac LOWER
-   (already applied) desugars it to try/finally in our configuration. If yes,
-   it is free; if no, per-construct diagnostic ("use try/finally") until
-   someone asks.
+4. **try-with-resources**: javac LOWER (already applied) desugars it to
+   try/finally in our configuration — verified, pinned by the
+   `TryWithResources` fixture. The catch is the desugared
+   `catch (Throwable t) ... throw t`: the re-throw answers to the
+   declared-throws rule, so the form is refused in methods that cannot cover
+   `Throwable`. A friendlier per-construct diagnostic is future work.
 5. **Interpret mode out of scope**: thrown values are heap composites and the
    interpreter has no heap; exception tests are verify-mode only, matching
    the Laurel test suites' split.
