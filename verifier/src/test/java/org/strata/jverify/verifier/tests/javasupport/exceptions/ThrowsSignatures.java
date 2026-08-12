@@ -3,7 +3,7 @@ package org.strata.jverify.verifier.tests.javasupport.exceptions;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
- * Phase 1 of exception support (docs/exceptions-design.md, Phasing §1): a
+ * Phase 1 of exception support: a
  * method's Java {@code throws} clause becomes the procedure's declared Laurel
  * exceptional exit ({@code throws (e: T)}), exception classes become
  * composites with their {@code extends} chains, and multi-{@code throws}

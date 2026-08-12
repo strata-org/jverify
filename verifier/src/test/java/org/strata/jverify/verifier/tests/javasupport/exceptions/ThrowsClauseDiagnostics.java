@@ -3,7 +3,7 @@ package org.strata.jverify.verifier.tests.javasupport.exceptions;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
- * The {@code throws}-clause refusal (docs/exceptions-design.md §1): a thrown
+ * The {@code throws}-clause refusal: a thrown
  * type must resolve to a class. A generic exception parameter
  * ({@code <X extends Exception> ... throws X}) has no class to declare as the
  * exceptional exit, so the method is refused rather than mis-modelled at the

@@ -3,7 +3,7 @@ package org.strata.jverify.verifier.tests.javasupport.exceptions;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
- * try-with-resources today (docs/exceptions-design.md, Decision 4): javac's
+ * try-with-resources today: javac's
  * LOWER phase (already in the pipeline) desugars the form into try/finally
  * before translation -- verified by this fixture, whose resources never reach
  * the translator's defensive refusal. What survives is the desugared

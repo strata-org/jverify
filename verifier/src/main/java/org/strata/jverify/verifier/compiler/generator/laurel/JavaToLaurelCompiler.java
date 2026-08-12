@@ -86,7 +86,7 @@ public class JavaToLaurelCompiler {
 
     /// Superclass links for composites that need their Java hierarchy modelled
     /// (today: exception types, whose `catch` guards and multi-`throws` joins
-    /// depend on `extends` chains -- see docs/exceptions-design.md §1). Maps a
+    /// depend on `extends` chains). Maps a
     /// composite sort name to its direct parent's sort name. Composites absent
     /// from this map are emitted with no `extending` clause, as before.
     private final Map<String, String> compositeExtends = new LinkedHashMap<>();
@@ -513,7 +513,7 @@ public class JavaToLaurelCompiler {
 
     /**
      * Translate a method's Java {@code throws} clause into the declared Laurel
-     * exceptional type (docs/exceptions-design.md §1). Laurel declares at most
+     * exceptional type. Laurel declares at most
      * one exceptional exit, so {@code throws E1, E2} joins to the least common
      * ancestor of the thrown classes. Each thrown class is declared as a
      * composite with its superclass chain linked all the way up to
@@ -968,7 +968,7 @@ public class JavaToLaurelCompiler {
             }
 
             // Exceptional exit: the Java `throws` clause is the single source of
-            // the declared exceptional type (docs/exceptions-design.md §1). The
+            // the declared exceptional type. The
             // binding name is synthesized; Java permits `$` in identifiers, but
             // the JLS reserves it for generated code, so a user identifier
             // spelled `$thrown` is out-of-convention rather than impossible --
@@ -1123,8 +1123,8 @@ public class JavaToLaurelCompiler {
                     isInterpretEntry, /*axioms=*/List.of(),
                     // Exceptional contract: the declared type and binding come from
                     // the Java `throws` clause (translated above). `throwsOn`
-                    // behaviour cases arrive with the exceptional-contract DSL
-                    // (docs/exceptions-design.md §3), not yet lowered.
+                    // behaviour cases arrive with the exceptional-contract DSL,
+                    // not yet lowered.
                     throwsType, throwsBinding,
                     /*throwsOn=*/List.of());
             procedures.add(proc);
@@ -1289,7 +1289,7 @@ public class JavaToLaurelCompiler {
                     // `catch (Throwable t) ... throw t` still answers to the
                     // declared-throws rule, so try-with-resources in a
                     // non-throwing method is refused downstream with the
-                    // declared-throws diagnostic (design doc, Decision 4).
+                    // declared-throws diagnostic (pinned by TryWithResources).
                     if (tryStmt.resources != null && !tryStmt.resources.isEmpty()) {
                         throw new JavaViolationException(
                                 "try-with-resources is not supported; use try/finally");
@@ -1326,7 +1326,7 @@ public class JavaToLaurelCompiler {
                     }
                     // A `throw` needs somewhere to land: an enclosing catch arm
                     // that covers its type, or the method's declared exceptional
-                    // exit (docs/exceptions-design.md §1) -- the declaration is
+                    // exit -- the declaration is
                     // where the thrown type, the caller's view, and the coming
                     // `throwsOn` contract DSL all hang. Java lets an unchecked
                     // throw go undeclared and uncaught; JVerify does not.
