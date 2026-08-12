@@ -20,7 +20,7 @@ import static org.strata.jverify.JVerify.throwsOn;
  * prove its handler dead, and {@code throwsOn(false)} states the method
  * never throws.
  */
-@JVerifyTest(methodsVerified = 28) // 23 static methods + 5 implicit constructors
+@JVerifyTest(methodsVerified = 29) // 24 static methods + 5 implicit constructors
 class ThrowsOnContract {
     static class AppException extends Exception {}
 //         ^ warning: missing contract for method '<init>' in class 'java.lang.Exception'
@@ -54,6 +54,16 @@ class ThrowsOnContract {
         declared throws type; several clauses in one chain conjoin). */
     static int parse(int x) throws AppException {
         throwsOn(x < 0).postcondition((AppException e) -> e instanceof ParseError);
+        if (x < 0) {
+            throw new ParseError();
+        }
+        return x;
+    }
+
+    /** A parenthesized chain base is still one chain: the parser sees
+        through the parens rather than misreading the clause as detached. */
+    static int parenChain(int x) throws AppException {
+        (throwsOn(x < 0)).postcondition((AppException e) -> e instanceof ParseError);
         if (x < 0) {
             throw new ParseError();
         }
