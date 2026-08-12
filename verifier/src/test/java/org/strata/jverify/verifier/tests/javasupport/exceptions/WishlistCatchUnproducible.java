@@ -4,7 +4,7 @@ import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
- * Wishlist (docs/exceptions-design.md §5): catching a type no reachable
+ * Wishlist: catching a type no reachable
  * throw can produce should be a per-construct diagnostic, not a silently
  * dead arm. Implicit runtime exceptions are proof obligations -- the NPE
  * here is proven absent, so this handler can never run; today it verifies

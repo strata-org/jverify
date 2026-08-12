@@ -7,7 +7,7 @@ import static org.strata.jverify.JVerify.implies;
 import static org.strata.jverify.JVerify.throwsOn;
 
 /**
- * Wishlist (docs/exceptions-design.md, Decision 6): exceptions carrying data
+ * Wishlist: exceptions carrying data
  * through their constructor. {@code new E(args)} discards constructor
  * arguments today (JavaToLaurelCompiler's JCNewClass case), so a case
  * postcondition about a field the constructor set is unprovable.

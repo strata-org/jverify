@@ -9,7 +9,7 @@ import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.throwsOn;
 
 /**
- * Phase 4 of exception support (docs/exceptions-design.md, Phasing §4): the
+ * Phase 4 of exception support: the
  * exceptional contract DSL. {@code throwsOn(C)} opens an exceptional
  * behavior case whose condition <em>forces</em> the throw; the
  * case's clauses chain off it, reusing the normal-exit vocabulary scoped to

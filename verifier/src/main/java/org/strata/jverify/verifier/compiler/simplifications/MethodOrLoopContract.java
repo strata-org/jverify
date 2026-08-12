@@ -22,8 +22,7 @@ public record MethodOrLoopContract(
 
     /**
      * One exceptional behavior case: a {@code throwsOn(guard)} call chain with
-     * its {@code .postcondition(...)}/{@code .modifies(...)} clause links. See
-     * docs/exceptions-design.md §3.
+     * its {@code .postcondition(...)}/{@code .modifies(...)} clause links.
      */
     public record ThrowsOnCase(
             Property<JCTree.JCExpression> guard,

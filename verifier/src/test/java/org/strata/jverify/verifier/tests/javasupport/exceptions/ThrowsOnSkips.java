@@ -6,8 +6,8 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.throwsOn;
 
 /**
- * Translator-level refusals of the exceptional-contract DSL
- * (docs/exceptions-design.md §3): a case needs a declared {@code throws}
+ * Translator-level refusals of the exceptional-contract DSL:
+ * a case needs a declared {@code throws}
  * clause to hang on, a case postcondition's parameter must be typed at the
  * declared throws type (single or joined), and a case must be one chained
  * statement (captured/detached handles are refused, not misfiled). All

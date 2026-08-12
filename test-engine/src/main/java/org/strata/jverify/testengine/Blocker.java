@@ -29,10 +29,10 @@ public enum Blocker {
     FRONTEND_OTHER,
     /** Anonymous / local class synthesis. */
     FRONTEND_ANON,
-    /** Exception-support gaps (docs/exceptions-design.md): constructs the
-     *  phased plan defers -- throw bodies in switch EXPRESSIONS, exceptions
-     *  carrying constructor data, catching provably-unproducible types, and
-     *  whatever else the design's Decisions section parks. */
+    /** Exception-support gaps deliberately deferred -- throw bodies in
+     *  switch EXPRESSIONS, exceptions carrying constructor data, catching
+     *  provably-unproducible types (see the Wishlist* fixtures under
+     *  tests/javasupport/exceptions). */
     FRONTEND_EXCEPTIONS,
     /** Overload name mangling. */
     FRONTEND_OVERLOAD,
