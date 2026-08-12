@@ -5,6 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.everything;
 import static org.strata.jverify.JVerify.implies;
+import static org.strata.jverify.JVerify.modifies;
 import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.throwsOn;
 
@@ -19,7 +20,7 @@ import static org.strata.jverify.JVerify.throwsOn;
  * prove its handler dead, and {@code throwsOn(false)} states the method
  * never throws.
  */
-@JVerifyTest(methodsVerified = 19) // 14 static methods + 5 implicit constructors
+@JVerifyTest(methodsVerified = 28) // 23 static methods + 5 implicit constructors
 class ThrowsOnContract {
     static class AppException extends Exception {}
 //         ^ warning: missing contract for method '<init>' in class 'java.lang.Exception'
@@ -170,6 +171,109 @@ class ThrowsOnContract {
             throw new AppException();
         }
         return x;
+    }
+
+    /** Every contracted method above is also called, so each contract is
+        exercised from the caller side -- the transfer is what contracts are
+        for. The callers observe, per callee: the per-type claim (parse),
+        conjoined claims (multiLink), the flat+chained split (flatAndChained),
+        the join-typed claim (joinParam), the case frame preserving unrelated
+        state (chainWithFrame), the guard's backward inference (pureWithCase),
+        and dead handlers (neverThrows). */
+    static int callsParse(int x) {
+        try {
+            return parse(x);
+        } catch (AppException e) {
+            check(e instanceof ParseError);
+            return -1;
+        }
+    }
+
+    static int callsNeverThrows(int x) {
+        try {
+            return neverThrows(x);
+        } catch (AppException e) {
+            check(false); // dead: throwsOn(false) rules every throwing path out
+            return -1;
+        }
+    }
+
+    /** The case frame transfers: on the throwing path only `log` may change,
+        so the caller's other cell provably survives. */
+    static int callsChainWithFrame(int x) {
+        Cell log = new Cell();
+        Cell other = new Cell();
+        other.val = 5;
+        try {
+            return chainWithFrame(log, x);
+        } catch (AppException e) {
+            check(other.val == 5);
+            check(e instanceof ParseError);
+            return -1;
+        }
+    }
+
+    /** everything() transfers as "assume nothing survived". */
+    static int callsCaseFrameEverything(Cell log, int x) {
+        try {
+            return caseFrameEverything(log, x);
+        } catch (AppException e) {
+            return -1;
+        }
+    }
+
+    static int callsMultiLink(Cell log, int x) {
+        try {
+            return multiLink(log, x);
+        } catch (AppException e) {
+            check(e instanceof ParseError);
+            check(!(e instanceof IoError));
+            return -1;
+        }
+    }
+
+    static int callsFlatAndChained(int x) {
+        try {
+            int r = flatAndChained(x);
+            check(r >= 0);
+            return r;
+        } catch (AppException e) {
+            check(e instanceof ParseError);
+            return -1;
+        }
+    }
+
+    static int callsJoinParam(int x) {
+        try {
+            return joinParam(x);
+        } catch (AppException e) {
+            check(e instanceof ParseError);
+            return -1;
+        }
+    }
+
+    static int callsUnframedCaseByDefault(Cell log, int x) {
+        try {
+            return unframedCaseByDefault(log, x);
+        } catch (AppException e) {
+            return -1;
+        }
+    }
+
+    /** Exhaustiveness in reverse: the only stated case is x < 0, so landing
+        in the handler proves the guard held. The caller must give up its own
+        frame: the callee's THROWING path is unframed (@Pure covers the
+        normal path's frame, not the exceptional one's), and a call whose
+        exceptional path may change anything defeats the caller's implicit
+        "nothing changes" default. */
+    static int callsPureWithCase(int x) {
+        modifies(everything());
+        try {
+            return pureWithCase(x);
+        } catch (AppException e) {
+            check(x < 0);
+            return -1;
+        }
     }
 
     /** Caller side, forwards: the callee's condition holds, so the throw is
