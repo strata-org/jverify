@@ -1034,21 +1034,7 @@ public class JavaToLaurelCompiler {
                 }
 
                 for (var mod : contract.modifies()) {
-                    var modExpr = mod.get();
-                    // modifies(everything()) is the user's way of writing an
-                    // unconstrained frame: map it to Laurel's modifiesWildcard,
-                    // which is exactly the fallback we synthesize below when
-                    // the user supplies no modifies clause. Doing this up front
-                    // avoids sending `everything()` -- a JVerify spec-only stub
-                    // -- through convertExpression, which would throw
-                    // "Unsupported JVerify method: everything".
-                    if (isJVerifyCallNamed(modExpr, "everything")) {
-                        // `StmtExpr.All` is the record-AST spelling of the
-                        // modifies wildcard.
-                        modifies.add(node(new StmtExpr.All(), modExpr));
-                    } else {
-                        modifies.add(node(convertExpression(modExpr), modExpr));
-                    }
+                    modifies.add(convertModifiesEntry(mod.get()));
                 }
 
                 // Exceptional behavior cases:
@@ -1072,12 +1058,7 @@ public class JavaToLaurelCompiler {
                     }
                     List<AstNode<StmtExpr>> caseModifies = new ArrayList<>();
                     for (var mod : c.modifies()) {
-                        var modExpr = mod.get();
-                        if (isJVerifyCallNamed(modExpr, "everything")) {
-                            caseModifies.add(node(new StmtExpr.All(), modExpr));
-                        } else {
-                            caseModifies.add(node(convertExpression(modExpr), modExpr));
-                        }
+                        caseModifies.add(convertModifiesEntry(mod.get()));
                     }
                     throwsOnBlocks.add(new ThrowsOnBlock(
                             node(convertExpression(guardExpr), guardExpr),
@@ -1425,6 +1406,21 @@ public class JavaToLaurelCompiler {
          * weaken nothing and dereference wrongly, so it is refused with the
          * narrowing idiom in the message.
          */
+        /**
+         * One {@code modifies}/case-{@code .modifies} frame entry.
+         * {@code modifies(everything())} is the user's way of writing an
+         * unconstrained frame: map it to Laurel's modifies wildcard
+         * ({@code StmtExpr.All}) up front, because {@code everything()} is a
+         * JVerify spec-only stub that {@code convertExpression} would refuse
+         * ("Unsupported JVerify method: everything"). Shared by the
+         * normal-exit and per-case frame loops so the bypass has one home.
+         */
+        private AstNode<StmtExpr> convertModifiesEntry(JCTree.JCExpression modExpr) {
+            return isJVerifyCallNamed(modExpr, "everything")
+                    ? node(new StmtExpr.All(), modExpr)
+                    : node(convertExpression(modExpr), modExpr);
+        }
+
         private Condition convertCasePostcondition(JCTree.JCExpression sigExpr) {
             // The unlambda phase may have wrapped the lambda in a functional-
             // interface cast (see LambdaToAnonymousClassCompiler.visitApply).
