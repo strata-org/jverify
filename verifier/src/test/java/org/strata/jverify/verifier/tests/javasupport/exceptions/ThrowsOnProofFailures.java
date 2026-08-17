@@ -12,7 +12,6 @@ import static org.strata.jverify.JVerify.throwsOn;
  * its own diagnostic, surfaced here through the whole pipeline.
  */
 @JVerifyTest(
-        continueOnErrors = true,
         exitCode = 4, // verification errors present
         methodsVerified = 5, // fine(), readCell(), + 3 implicit constructors
         methodsInvalid = 1, // heapGuard(); also arms the errorCount expectation
