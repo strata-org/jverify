@@ -2,12 +2,11 @@ package org.strata.jverify.verifier.tests.verification.shouldVerify;
 
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS}, verifyByDefault = false, exitCode = 4, methodsVerified = 1, errorCount = 1)
+@JVerifyTest(verifyByDefault = false, exitCode = 4, methodsVerified = 1, errorCount = 1)
 public class VerifyOffByDefault {}
 
 @Verify

@@ -2,11 +2,10 @@ package org.strata.jverify.verifier.tests.javasupport.nestedClasses;
 
 import org.strata.jverify.Nullable;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS}, exitCode = 4, methodsVerified = 3, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 3, errorCount = 1)
 public class NestedStaticClass {
     @Nullable
     StaticNestee nestee;

@@ -29,8 +29,12 @@ class ResultGuardsTest {
     }
 
     private static JVerifyTest noCountAnnotation() {
-        // all counts default to -1 (no count expectation); exit code 2 (a usage error).
-        return JVerifyTestEngine.makeJVerifyTestAnnotation(true, 2, -1, 0, false, true);
+        // NO count expectation: every count must be -1. The 4th argument is
+        // `assertionsFailed`, which the factory stores as `errorCount`; 0 there
+        // declares "expect zero errors", which IS an expectation, so pass -1 for
+        // "unset". (It read 0 while `errorCount` was gated on `methodsInvalid`
+        // and never consulted.) Exit code 2 = a usage error.
+        return JVerifyTestEngine.makeJVerifyTestAnnotation(true, 2, -1, -1, false, true);
     }
 
     @Test

@@ -1,12 +1,11 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 
 @SuppressWarnings({"ConstantValue", "PointlessBooleanExpression"})
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS}, exitCode = 4, methodsVerified = 1, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 1, errorCount = 1)
 class VerifyBooleanOperators {
     public void foo() {
         var p = true;

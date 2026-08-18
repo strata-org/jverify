@@ -50,6 +50,12 @@ public class Reporter {
         reportDiagnostic(position, JCDiagnostic.DiagnosticType.ERROR, key, args);
     }
 
+    /** As {@link #reportError(JCTree, String, Object...)}, but at a chosen severity. */
+    public void reportDiagnostic(JCTree tree, JCDiagnostic.DiagnosticType type,
+                                 String key, Object... args) {
+        reportDiagnostic(positionFromNode(tree, compilationUnit), type, key, args);
+    }
+
     public void reportDiagnostic(IOrigin origin, JCDiagnostic.DiagnosticType type,  String key, Object... args) {
         reportDiagnostic(positionFromOrigin(origin), type, key, args);
     }

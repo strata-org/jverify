@@ -57,8 +57,21 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return null;
     }
 
+    /**
+     * Whether {@code method}'s body is [contract, implementation] -- the shape this
+     * pass produces.
+     *
+     * <p>Delegates to {@link #getImplementationBlock} instead of repeating
+     * `statements[1] instanceof JCBlock`, which indexed 1 unguarded: on a body of fewer
+     * than two statements {@code com.sun.tools.javac.util.List.get} threw
+     * {@code IndexOutOfBoundsException} out of a boolean-returning predicate. Only an
+     * undeclared pass-ordering invariant kept it from firing -- the sole caller runs
+     * after every body is rewritten to exactly [contract, implementation]. A body with
+     * no implementation block now yields {@code false}, which the caller's guard
+     * already treats as "do not register".
+     */
     public static boolean hasImplementation(JCTree.JCMethodDecl method) {
-        return method.body != null && method.body.getStatements().get(1) instanceof JCTree.JCBlock;
+        return method.body != null && getImplementationBlock(method.body) != null;
     }
 
     public java.util.List<JCTree.JCCompilationUnit> transform(java.util.List<JCTree.JCCompilationUnit> envs) {

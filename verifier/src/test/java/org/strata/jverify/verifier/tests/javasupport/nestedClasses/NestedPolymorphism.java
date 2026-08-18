@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 6, errorCount = 0)
+@JVerifyTest(methodsVerified = 3, errorCount = 0)
 public class NestedPolymorphism {
 
     static class DummySuper { }
@@ -33,6 +33,7 @@ public class NestedPolymorphism {
 
             @Pure
             public U getValue() {
+//                   ^ warning: instance method 'getValue' was not verified: Unsupported type: U
                 reads(this);
                 return value;
             }

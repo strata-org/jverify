@@ -6,10 +6,11 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import java.util.function.IntPredicate;
 
-@JVerifyTest(methodsVerified = 3, errorCount = 0)
+@JVerifyTest(methodsVerified = 2, errorCount = 0)
 public class PureLambda {
 
     void lambdaBecomesPureWhenSamIs() {
+//       ^ warning: instance method 'lambdaBecomesPureWhenSamIs' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         takesFunction(i -> true);
     }
     
