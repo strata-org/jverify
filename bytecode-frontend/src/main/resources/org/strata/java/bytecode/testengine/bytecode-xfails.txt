@@ -35,76 +35,33 @@ XFAIL  org.strata.jverify.verifier.tests.verification.TranslatorSkip            
 
 # --- Force-run: JFE marks these expectedToFail, the bytecode frontend passes ---
 
-# Passes on bytecode (currently vacuously: instance-method bodies are not
-# translated yet, so the declared counts are met without exercising the
-# contract machinery). Revisit when instance-method translation lands.
-RUN    org.strata.jverify.verifier.tests.verification.abstractContracts.AllMatchContract     bytecode passes; source-frontend abstract-contract gap does not apply
+# JFE refuses the compound assignment (JCAssignOp) in the instance method;
+# javac desugars it before bytecode, so this frontend translates and
+# verifies it -- a genuine bytecode advantage, like TranslatorSkip's.
+RUN    org.strata.jverify.verifier.tests.javasupport.expressions.VerifyNumericOperators     compound assignment is desugared away in bytecode
 
 # ============================================================================
-# Mainline sync (RefusalGates / per-method refusal diagnostics).
-#
-# JFE's source frontend gained a feature that emits, per method it cannot
-# translate, a `warning: instance method 'X' was not verified: <reason>` plus
-# `error: call to 'X', which could not be translated` at call sites, and new
-# refusal gates (overloading, polymorphic dispatch, reserved names,
-# allocation-in-contract, ...). The bytecode frontend does not reproduce these
-# diagnostics -- it skips silently, emits its own message, or surfaces a
-# downstream Strata error -- so the shared fixtures that now assert them fail
-# on this frontend. All are documented gaps, not regressions (the bytecode
-# pipeline itself was unchanged by the sync).
+# Erased source signals: JFE refuses these constructs at the SOURCE level
+# with a reason javac then compiles away (compound assignments desugar to
+# plain ones, type variables erase where no Signature survives, method refs
+# lower to lambdas, `$result` is a lexical gate). The bytecode frontend
+# either handles the desugared form or refuses with a different (honest)
+# reason, so the pinned reason string cannot be reproduced byte-exactly.
 # ============================================================================
-
-# Overloading refusal (enclosing/inherited overloads are refused by name).
-XFAIL  org.strata.jverify.verifier.tests.javasupport.AvoidNameCollisionsTest              FRONTEND_OVERLOAD    overloading-refusal diagnostic not reproduced from bytecode
-XFAIL  org.strata.jverify.verifier.tests.javasupport.CallToOptedOutOverload               FRONTEND_OVERLOAD    call-to-untranslated-overload diagnostic not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.CrossClassOverloadRefusal    FRONTEND_OVERLOAD    cross-class overload refusal not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.InheritedNameOverload        FRONTEND_OVERLOAD    inherited-overload refusal not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.StaticOverloadRefusal                FRONTEND_OVERLOAD    static overload refusal not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.PrivateSupertypeOverload     FRONTEND_OVERLOAD    private-supertype overload refusal not reproduced
-
-# Polymorphic dispatch / type-variable methods (refused per method).
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.ClassesExtendingClassesVerification  FRONTEND_DISPATCH  polymorphic-dispatch refusal diagnostic not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.generics.InferredGenericsForConstructor      FRONTEND_DISPATCH  dispatch/type-variable refusal diagnostic not reproduced
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.ClassesExtendingClassesVerification  FRONTEND_DISPATCH  matching refusal warning emitted, but a spurious unattributed Strata diagnostic remains
 XFAIL  org.strata.jverify.verifier.tests.javasupport.lambdas.PolymorphicLambdas                   FRONTEND_DISPATCH  type-variable method refusal diagnostic not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.lambdas.namecollision.SameLineAndColumnLambdaA  FRONTEND_DISPATCH  polymorphic-dispatch refusal (cross-file) not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.localClasses.PolymorphicAnonymousClasses     FRONTEND_DISPATCH  polymorphic-dispatch refusal diagnostic not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.nestedClasses.NestedPolymorphism             FRONTEND_DISPATCH  type-variable method refusal diagnostic not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness                FRONTEND_DISPATCH  polymorphic-dispatch refusal diagnostic not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.statements.VerifyStatements                  FRONTEND_DISPATCH  added instance methods now assert dispatch-refusal warnings
-XFAIL  org.strata.jverify.verifier.tests.javasupport.wildcards.WildcardsNotSupported              FRONTEND_DISPATCH  polymorphic-dispatch refusal diagnostic not reproduced
-XFAIL  org.strata.jverify.verifier.tests.verification.pure.PureLambda                             FRONTEND_DISPATCH  polymorphic-dispatch refusal diagnostic not reproduced
-
-# Per-method refusal-diagnostic feature (warning + call-site error) generally.
-XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.FlowTyping                       FRONTEND_DIAGNOSTIC  instanceof/flow refusal warnings not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.LocalClassDedup                              FRONTEND_DIAGNOSTIC  refusal-warning deduplication not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.RefusalDedup                                 FRONTEND_DIAGNOSTIC  refusal-warning deduplication not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.CascadeDepth3                        FRONTEND_DIAGNOSTIC  cascade call-could-not-be-translated diagnostics not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ImpureNumericOperatorsVerification  FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproduced
-XFAIL  org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass       FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproduced
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.CascadeDepth3                        FRONTEND_OTHER       depth3 refusal reason differs: JCAssignOp is desugared away; bf refuses the static-field write instead (cascade errors and counts match)
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ImpureNumericOperatorsVerification  FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
+XFAIL  org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass       FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
 XFAIL  org.strata.jverify.verifier.tests.verification.MethodContractsVerification                 FRONTEND_DIAGNOSTIC  method-ref/lambda refusal warnings not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.ReservedResultName                           FRONTEND_DIAGNOSTIC  '$result is reserved' refusal not reproduced (surfaces as a Strata error)
-XFAIL  org.strata.jverify.verifier.tests.verification.CrossFileTransitiveSkip                     FRONTEND_DIAGNOSTIC  cross-file transitive call-could-not-be-translated not reproduced
-XFAIL  org.strata.jverify.verifier.tests.verification.TransitiveSkip                              FRONTEND_DIAGNOSTIC  transitive call-could-not-be-translated not reproduced
-
-# Instance-method handling the new fixtures exercise (contracts, counts,
-# no-verdict): the bytecode frontend translates only static methods.
-XFAIL  org.strata.jverify.verifier.tests.javasupport.InstanceContractsChecked                     FRONTEND_INSTANCE_METHODS  instance-method contracts not translated
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.InstanceMethodCallVerifies           FRONTEND_INSTANCE_METHODS  instance-method translation not supported (no verdict)
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.InstanceMethodContractViolated       FRONTEND_INSTANCE_METHODS  instance-method contracts not translated
-XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ImplicitThisModifies             FRONTEND_INSTANCE_METHODS  instance-method translation not supported (no verdict)
-XFAIL  org.strata.jverify.verifier.tests.javasupport.Jequals                                      FRONTEND_INSTANCE_METHODS  instance-method translation not supported (no verdict)
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.ConstructorsVerified                 FRONTEND_INSTANCE_METHODS  constructor/instance verified-count mismatch
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.SkippedConstructorContractNotVerified  FRONTEND_INSTANCE_METHODS  constructor/instance verified-count mismatch
-XFAIL  org.strata.jverify.verifier.tests.javasupport.nestedClasses.NestedStaticClass              FRONTEND_INSTANCE_METHODS  failing assertion now sits in an untranslated instance method
-XFAIL  org.strata.jverify.verifier.tests.verification.shouldVerify.VerifyOffByDefault             FRONTEND_INSTANCE_METHODS  failing assertion now sits in an untranslated instance method
-XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.VerifyBooleanOperators           FRONTEND_INSTANCE_METHODS  failing assertion now sits in an untranslated instance method
-
-# fresh() spec method.
-XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.FreshAndOld                      STRATA_FRESH         JVerify.fresh not supported
+XFAIL  org.strata.jverify.verifier.tests.javasupport.ReservedResultName                           FRONTEND_DIAGNOSTIC  '$result is reserved' is a source-lexical gate; in bytecode it is an ordinary local and surfaces as a Strata error
 
 # Other bytecode-specific divergences.
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.NewReceiverRefusal                   FRONTEND_OTHER       method call on freshly-allocated receiver: different message
-XFAIL  org.strata.jverify.verifier.tests.javasupport.statements.NewInLoopInvariantRefusal         FRONTEND_OTHER       allocation-in-contract refusal: different message
+# NOTE: JFE mainline currently FAILS this fixture identically (same
+# "Resolution failed: 'C$value' is not defined"): Strata does not resolve an
+# inherited instance procedure through the subclass receiver's sort even
+# with the extends edge linked. Revisit when JFE mainline goes green here.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.FinalReceiverInheritedCall           FRONTEND_OTHER       inherited-procedure resolution fails in Strata; JFE mainline fails identically
 XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.SubtypeFlow                          FRONTEND_OTHER       spurious Strata subtype-sort errors where JFE verifies clean
 XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.SubtypeSortFlow                      FRONTEND_OTHER       spurious Strata subtype-sort errors where JFE verifies clean
-XFAIL  org.strata.jverify.verifier.tests.javasupport.statements.BareForLoop                       FRONTEND_OTHER       bare-for assertion span differs from source frontend
+XFAIL  org.strata.jverify.verifier.tests.javasupport.statements.BareForLoop                       FRONTEND_OTHER       bare-for loop-node caret: JFE anchors at the `for` keyword (synthesized, javac has no JCForLoop end position); bf's CRT-derived span points at the update expression

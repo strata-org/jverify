@@ -188,6 +188,12 @@ public class Decompiler {
 
     public static final DataKey<Span> SPAN = new DataKey<>() { };  // [bytecode] public: read by the Laurel generator
     /**
+     * [bytecode] Marks a type declaration hoisted from an ANONYMOUS class
+     * (no InnerClasses source name). Public: the Laurel generator defers
+     * anonymous-class methods silently, exactly as JFE does.
+     */
+    public static final DataKey<Boolean> ANONYMOUS = new DataKey<>() { };
+    /**
      * Marks a comparison whose operands are floating-point, and which therefore is NOT totally ordered:
      * with a NaN operand every one of {@code <}, {@code <=}, {@code >}, {@code >=} is false, so negating
      * such a test by flipping its operator changes the answer.
@@ -2923,7 +2929,11 @@ public class Decompiler {
             if (!self.equals(directOuter(pool.get(inner), ic))) continue;   // not OUR nested class
             ClassModel nested = pool.get(inner);
             if (nested == null) continue;                            // classfile not in this compilation
-            decl.addMember(buildDecl(nested, pool, ic));
+            var member = buildDecl(nested, pool, ic);
+            if (ic.innerName().isEmpty()) {
+                member.setData(ANONYMOUS, true);                     // hoisted anonymous class
+            }
+            decl.addMember(member);
         }
     }
 
