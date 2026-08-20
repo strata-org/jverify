@@ -3759,34 +3759,6 @@ public class BytecodeToLaurelCompiler {
     private record Callee(String declaringFqn, java.lang.classfile.MethodModel method) {
     }
 
-    /** Lazily-parsed JCL classfile models (java.lang.Object etc.), null-capable. */
-    private final Map<String, java.lang.classfile.ClassModel> jclClassModels = new HashMap<>();
-
-    /**
-     * The classfile model for {@code fqn}: this compilation's classes first,
-     * then the runtime's own (read as a classloader resource, which the JRT
-     * filesystem serves for JCL classes). Null when unresolvable.
-     */
-    private java.lang.classfile.ClassModel classModelFor(String fqn) {
-        var cm = programClassModels.get(fqn);
-        if (cm != null) {
-            return cm;
-        }
-        if (jclClassModels.containsKey(fqn)) {
-            return jclClassModels.get(fqn);
-        }
-        java.lang.classfile.ClassModel parsed = null;
-        try (var in = ClassLoader.getSystemResourceAsStream(fqn.replace('.', '/') + ".class")) {
-            if (in != null) {
-                parsed = java.lang.classfile.ClassFile.of().parse(in.readAllBytes());
-            }
-        } catch (java.io.IOException e) {
-            // fall through: cache the miss
-        }
-        jclClassModels.put(fqn, parsed);
-        return parsed;
-    }
-
     /**
      * Find the (non-synthetic) method {@code name} on {@code receiverFqn} or
      * its program-class ancestry, ancestor-nearest-first from the receiver.
@@ -3845,15 +3817,37 @@ public class BytecodeToLaurelCompiler {
      * receiver's type). More than one signature refuses; same-signature
      * overRIDES are fine.
      */
+    /** Canonical erased-parameter signature of a classfile method (JVM descriptors). */
+    private static String paramDescriptors(java.lang.classfile.MethodModel m) {
+        return m.methodTypeSymbol().parameterList().stream()
+                .map(java.lang.constant.ClassDesc::descriptorString)
+                .toList().toString();
+    }
+
+    /** Canonical erased-parameter signature of a reflected method (same format). */
+    private static String paramDescriptors(java.lang.reflect.Method m) {
+        return java.util.Arrays.stream(m.getParameterTypes())
+                .map(Class::descriptorString)
+                .toList().toString();
+    }
+
+    /** The loaded Class for {@code fqn}, or null (initialization suppressed). */
+    private static Class<?> tryLoadClass(String fqn) {
+        try {
+            return Class.forName(fqn, false, BytecodeToLaurelCompiler.class.getClassLoader());
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     private void enforceAncestryOverloadGate(String receiverFqn, String name) {
         var signatures = new java.util.LinkedHashSet<String>();
         boolean beyondReceiver = false;
         boolean anyBeyond = false;
-        for (String fqn = receiverFqn; fqn != null; ) {
-            var cm = classModelFor(fqn);
-            if (cm == null) {
-                break;
-            }
+        // Program-class portion: the classfile models of this compilation.
+        String fqn = receiverFqn;
+        while (fqn != null && programClassModels.containsKey(fqn)) {
+            var cm = programClassModels.get(fqn);
             for (var m : cm.methods()) {
                 if (!m.methodName().stringValue().equals(name)
                         || (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
@@ -3868,16 +3862,38 @@ public class BytecodeToLaurelCompiler {
                 if (isOptedOut(cm, m)) {
                     continue; // emits no procedure, so it cannot collide
                 }
-                if (signatures.add(m.methodTypeSymbol().parameterList().toString()) && beyondReceiver) {
+                if (signatures.add(paramDescriptors(m)) && beyondReceiver) {
                     anyBeyond = true;
                 }
             }
             beyondReceiver = true;
-            // Walk the full closure, JCL included (JFE uses javacTypes
-            // closure: Object.toString() collides with a user toString(x)).
             fqn = cm.superclass()
                     .map(sup -> sup.asInternalName().replace('/', '.').replace('$', '.'))
                     .orElse(null);
+        }
+        // JCL/library ancestry via REFLECTION. Reading these classfiles as
+        // classpath resources is not portable (the JRT does not serve them
+        // as resources on every runtime -- it works on the dev desktop but
+        // not the build fleet); the loaded Class is always available. JFE
+        // uses javacTypes.closure() here, e.g. Object.toString() colliding
+        // with a user toString(x).
+        if (fqn != null) {
+            for (Class<?> c = tryLoadClass(fqn); c != null; c = c.getSuperclass()) {
+                for (var m : c.getDeclaredMethods()) {
+                    int mod = m.getModifiers();
+                    if (!m.getName().equals(name) || m.isSynthetic() || m.isBridge()
+                            || java.lang.reflect.Modifier.isStatic(mod)) {
+                        continue;
+                    }
+                    if (beyondReceiver && java.lang.reflect.Modifier.isPrivate(mod)) {
+                        continue;
+                    }
+                    if (signatures.add(paramDescriptors(m)) && beyondReceiver) {
+                        anyBeyond = true;
+                    }
+                }
+                beyondReceiver = true;
+            }
         }
         if (signatures.size() > 1) {
             String where = anyBeyond
