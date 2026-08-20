@@ -320,33 +320,18 @@ public class BytecodeToLaurelCompiler {
         demoteCallersOfRefusedMethods();
         dropRefusedProcedures();
 
-        // Composite declarations: all referenced class-typed sorts, each with
-        // only its accessed fields (JFE's scheme), after the prelude types.
-        // Ancestors first: Laurel builds a composite's scope by copying each
-        // parent's, so a parent must be declared before its children.
-        var orderedComposites = new java.util.LinkedHashSet<String>();
-        for (var typeName : referencedCompositeTypes) {
-            var chain = new ArrayDeque<String>();
-            for (String c = typeName; c != null && referencedCompositeTypes.contains(c);
-                    c = compositeExtends.get(c)) {
-                chain.push(c);
-            }
-            orderedComposites.addAll(chain);
-        }
+        // Composite declarations: every referenced class-typed sort together
+        // with its full Java supertype closure (superclass chain + interfaces,
+        // transitively including Object), each with only its accessed fields.
+        // Port of JFE's emitComposite: every sort `extends` its DIRECT
+        // supertypes and Strata walks those edges transitively, so a subtype
+        // value flows to any supertype-typed position exactly as Java subtyping
+        // allows. ANCESTORS FIRST: Laurel builds a composite's scope by copying
+        // each parent's, so a parent must be declared before its children.
         List<TypeDefinition> types = new ArrayList<>(getPredefinedTypes());
-        for (var typeName : orderedComposites) {
-            List<org.strata.jverify.laurel.Field> fields = compositeFields.containsKey(typeName)
-                    ? new ArrayList<>(compositeFields.get(typeName).values())
-                    : List.of();
-            // Extends edge (exception hierarchies): recorded by linkExtends;
-            // the JCL ancestors this declares (Exception, Throwable, ...) are
-            // empty, uninterpreted sorts (JFE's scheme).
-            List<AstNode<HighType>> extending = compositeExtends.containsKey(typeName)
-                    ? List.of(node(new HighType.UserDefined(ident(compositeExtends.get(typeName)))))
-                    : List.of();
-            types.add(new TypeDefinition.Composite(new org.strata.jverify.laurel.CompositeType(
-                    ident(typeName), /*typeArgs=*/List.of(), extending, fields,
-                    instanceProcsBySort.getOrDefault(typeName, List.of()))));
+        var emittedComposites = new java.util.HashSet<String>();
+        for (var typeName : new ArrayList<>(referencedCompositeTypes)) {
+            emitCompositeClosure(typeName, emittedComposites, types);
         }
         List<Procedure> allProcedures = new ArrayList<>(castHelpers.values());
         allProcedures.addAll(procedures);
@@ -1315,6 +1300,128 @@ public class BytecodeToLaurelCompiler {
         }
     }
 
+    /** The Laurel sort name of {@code java.lang.Object} (JFE's OBJECT_SORT). */
+    private static final String OBJECT_SORT = "Object";
+
+    /**
+     * Emit composite {@code sortName} and its full supertype closure, ANCESTORS
+     * FIRST (parents before children, as Laurel requires for scope copying).
+     * Mirror of JFE's {@code emitComposite}: each sort {@code extends} its
+     * direct supertypes (superclass + interfaces); a sort with no supertype
+     * other than itself gets an explicit {@code Object} parent (an interface
+     * has no superclass edge -- JLS 4.10.2 -- and a synthetic lambda class
+     * carries no supertype). Strata walks these edges transitively, so a value
+     * of a subtype flows to any supertype-typed position.
+     */
+    // Package-private (not private) so ClosureHelpersTest can exercise the
+    // supertype-closure helpers below in isolation.
+    void emitCompositeClosure(String sortName, java.util.Set<String> emitted, List<TypeDefinition> out) {
+        if (!emitted.add(sortName)) {
+            return;
+        }
+        List<AstNode<HighType>> extending = new ArrayList<>();
+        for (String parent : directSupertypeSorts(sortName)) {
+            emitCompositeClosure(parent, emitted, out);
+            extending.add(node(new HighType.UserDefined(ident(parent))));
+        }
+        if (extending.isEmpty() && !OBJECT_SORT.equals(sortName)) {
+            emitCompositeClosure(OBJECT_SORT, emitted, out);
+            extending.add(node(new HighType.UserDefined(ident(OBJECT_SORT))));
+        }
+        List<org.strata.jverify.laurel.Field> fields = compositeFields.containsKey(sortName)
+                ? new ArrayList<>(compositeFields.get(sortName).values())
+                : List.of();
+        out.add(new TypeDefinition.Composite(new org.strata.jverify.laurel.CompositeType(
+                ident(sortName), /*typeArgs=*/List.of(), extending, fields,
+                instanceProcsBySort.getOrDefault(sortName, List.of()))));
+    }
+
+    /**
+     * The sort names of {@code sortName}'s DIRECT Java supertypes: its
+     * superclass (if any) followed by its directly-implemented interfaces.
+     * Program types resolve from their classfiles; JCL/library types via
+     * reflection on the loaded {@code Class} (never classpath resources, which
+     * are unavailable on the build fleet). {@code java.lang.Object} maps to the
+     * {@code Object} sort.
+     */
+    List<String> directSupertypeSorts(String sortName) {
+        var out = new ArrayList<String>();
+        // An interface has no superclass edge: bytecode records Object as its
+        // super_class, but JLS 4.10.2 makes Object a DIRECT supertype only of a
+        // superinterface-less interface (handled by the Object fallback in
+        // emitCompositeClosure), matching JFE's getSuperclass()==noType.
+        String sup = isInterface(sortName) ? null : superclassOf(sortName);
+        if (sup != null) {
+            out.add(sortNameForFqn(sup));
+        }
+        for (String iface : directInterfacesOf(sortName)) {
+            String s = sortNameForFqn(iface);
+            if (!out.contains(s)) {
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Reflectively load {@code dottedName}, which is a composite SORT name: its
+     * nested-class separators were flattened from {@code $} to {@code .} (by
+     * {@code sortNameForFqn} and the {@code asInternalName().replace('$','.')}
+     * used when recording interfaces). {@code Class.forName} needs the binary
+     * name with {@code $} for a nested class, and a dotted sort name is
+     * ambiguous (package dots vs. nesting dots are indistinguishable), so mirror
+     * {@link #loadClassModel}: try the name as-is, then progressively rewrite
+     * trailing {@code .} to {@code $} until it loads. Returns null if none do.
+     */
+    Class<?> loadClassReflectively(String dottedName) {
+        Class<?> c = tryLoadClass(dottedName);
+        if (c != null) {
+            return c;
+        }
+        for (int dot = dottedName.lastIndexOf('.'); dot > 0; dot = dottedName.lastIndexOf('.', dot - 1)) {
+            String binary = dottedName.substring(0, dot) + "$" + dottedName.substring(dot + 1).replace('.', '$');
+            c = tryLoadClass(binary);
+            if (c != null) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /** Direct interface fqns of {@code fqn} (classfile if a program type, else reflection). */
+    List<String> directInterfacesOf(String fqn) {
+        var out = new ArrayList<String>();
+        var model = programClassModels.get(fqn);
+        if (model != null) {
+            for (var iface : model.interfaces()) {
+                out.add(iface.asInternalName().replace('/', '.').replace('$', '.'));
+            }
+            return out;
+        }
+        Class<?> c = loadClassReflectively(fqn);
+        if (c != null) {
+            for (Class<?> i : c.getInterfaces()) {
+                out.add(i.getName().replace('$', '.'));
+            }
+        }
+        return out;
+    }
+
+    /** The composite sort name for an fqn: {@code Object} for java.lang.Object, else the dotted fqn. */
+    String sortNameForFqn(String fqn) {
+        return fqn.equals("java.lang.Object") ? OBJECT_SORT : fqn.replace('$', '.');
+    }
+
+    /** True iff {@code fqn} is an interface (classfile flags if a program type, else reflection). */
+    boolean isInterface(String fqn) {
+        var model = programClassModels.get(fqn);
+        if (model != null) {
+            return (model.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_INTERFACE) != 0;
+        }
+        Class<?> c = loadClassReflectively(fqn);
+        return c != null && c.isInterface();
+    }
+
     /**
      * The direct superclass fqn of {@code fqn}, or null at the top of the
      * chain (or for an unresolvable class). Program classes resolve from
@@ -1326,13 +1433,12 @@ public class BytecodeToLaurelCompiler {
         if (prog != null) {
             return prog;
         }
-        try {
-            Class<?> c = Class.forName(fqn, false, getClass().getClassLoader());
-            Class<?> s = c.getSuperclass();
-            return s == null ? null : s.getName().replace('$', '.');
-        } catch (ClassNotFoundException e) {
+        Class<?> c = loadClassReflectively(fqn);
+        if (c == null) {
             return null;
         }
+        Class<?> s = c.getSuperclass();
+        return s == null ? null : s.getName().replace('$', '.');
     }
 
     /** True iff {@code fqn} is {@code ancestor} or below it on the superclass chain. */
@@ -3831,11 +3937,17 @@ public class BytecodeToLaurelCompiler {
                 .toList().toString();
     }
 
-    /** The loaded Class for {@code fqn}, or null (initialization suppressed). */
+    /**
+     * The loaded Class for {@code fqn}, or null when it is genuinely absent
+     * (initialization suppressed). A {@link LinkageError} -- a class that is
+     * found but cannot be linked, e.g. a missing transitive dependency -- is
+     * NOT swallowed: it propagates so a misconfigured classpath fails loudly
+     * instead of silently degrading a composite sort to {@code extends Object}.
+     */
     private static Class<?> tryLoadClass(String fqn) {
         try {
             return Class.forName(fqn, false, BytecodeToLaurelCompiler.class.getClassLoader());
-        } catch (Throwable t) {
+        } catch (ClassNotFoundException e) {
             return null;
         }
     }
