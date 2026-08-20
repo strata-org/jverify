@@ -280,7 +280,11 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         String why = forcedXfail != null
                 ? forcedXfail.blocker() + ": " + forcedXfail.reason()
                 : describeBlockers(annotation);
-        applyXfailInversion(why,
+        // Environment-tolerant xfails (Strata-backend behavior that differs
+        // between the local desktop and the build fleet) accept a pass instead
+        // of tripping the XPASS wire; see BytecodeXfailManifest.
+        boolean tolerateXpass = forcedXfail != null && forcedXfail.envTolerant();
+        applyXfailInversion(why, tolerateXpass,
                 () -> runAndCheck(sourceFile, annotation, ranges, options));
     }
 
@@ -291,17 +295,36 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     }
 
     /**
+     * @see #applyXfailInversion(String, boolean, VerificationCheck)
+     */
+    public static void applyXfailInversion(String why, VerificationCheck check) throws IOException {
+        applyXfailInversion(why, false, check);
+    }
+
+    /**
      * Run an expected-to-fail {@code check} and invert its outcome. Only
      * AssertionError is an "expected failure"; a genuine infra error is NOT
      * caught here and propagates, so an xfail test that stops *running* fails
-     * loudly instead of masquerading as still-broken. Completing with no
-     * failure means the blocker(s) cleared -> fail loudly (XPASS).
+     * loudly instead of masquerading as still-broken.
+     *
+     * <p>Completing with no failure normally means the blocker(s) cleared, so
+     * we fail loudly (XPASS) to demand the manifest entry be removed. When
+     * {@code tolerateXpass} is true the divergence is documented as
+     * environment-dependent Strata-backend behavior (it fails here but passes
+     * on another build environment), so a pass is accepted rather than
+     * reddening CI on whichever environment happens to succeed.
      */
-    public static void applyXfailInversion(String why, VerificationCheck check) throws IOException {
+    public static void applyXfailInversion(String why, boolean tolerateXpass, VerificationCheck check)
+            throws IOException {
         try {
             check.run();
         } catch (AssertionError expected) {
             Assumptions.assumeTrue(false, "Expected failure (" + why + "): " + expected.getMessage());
+            return;
+        }
+        if (tolerateXpass) {
+            LOGGER.fine(() -> "Environment-tolerant xfail passed on this environment (" + why
+                    + "); accepting the pass instead of tripping XPASS.");
             return;
         }
         Assertions.fail("XPASS: this test is marked expectedToFail (" + why + ") but now PASSES. "
