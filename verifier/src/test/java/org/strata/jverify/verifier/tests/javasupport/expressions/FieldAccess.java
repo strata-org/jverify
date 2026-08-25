@@ -26,7 +26,7 @@ class FieldAccess {
         Point p = new Point();
         p.x = 42;
         check(p.x == 41);
-//      ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void writeTwoFields() {
@@ -58,7 +58,7 @@ class FieldAccess {
         p.y = 4;
         int z = p.x + p.y;
         check(z == 8);
-//      ^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void writesToArg(Point p) {
