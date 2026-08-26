@@ -11,7 +11,7 @@ import static org.strata.jverify.JVerify.*;
  * Java primitive casts. JVerify translates each cast into a call to a
  * synthesized helper procedure:
  *
- *   (T) x    →    $cast_to_T_from_S(x)
+ *   (T) x    →    java?cast_to_T_from_S(x)
  *
  * where S is the source type. The helper is emitted once per (S, T)
  * pair at file scope, with `requires` clauses expressing the target

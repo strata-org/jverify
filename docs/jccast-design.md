@@ -62,7 +62,7 @@ swaps to raw `int` / `nat`. `FLOAT`/`DOUBLE` throw
   `varDecl(name: T := x)` lift) is currently lowered.
 
 - **Helper-procedure calls** (what shipped).
-  Emit each cast `(T) x` as a call `$cast_to_T_from_S(x)` to a
+  Emit each cast `(T) x` as a call `java?cast_to_T_from_S(x)` to a
   per-(source, target) helper procedure with a `requires` clause that
   encodes `T`'s range constraint. Uniform in every position
   (body, `precondition`, `postcondition`, return, if-condition) because
@@ -287,7 +287,7 @@ private StmtExpr convertTypeCast(JCTree.JCTypeCast cast, Map<String,String> rena
     var sourceType = translateType(cast.expr.type);
     var targetName = ((LaurelType.CompositeType) targetType).name();
     var sourceName = laurelTypeName(sourceType);
-    var helperName = "$cast_to_" + targetName + "_from_" + sourceName;
+    var helperName = "java?cast_to_" + targetName + "_from_" + sourceName;
     registerCastHelper(helperName, sourceName, sourceType, targetName);
     return call(sr, identifier(sr, helperName), List.of(operand));
 }
@@ -296,7 +296,7 @@ private StmtExpr convertTypeCast(JCTree.JCTypeCast cast, Map<String,String> rena
 `registerCastHelper` emits (once per pair) an opaque procedure:
 
 ```
-procedure $cast_to_int16_from_int32(x: int32): int16
+procedure java?cast_to_int16_from_int32(x: int32): int16
   requires x >= -32768  summary "cast from int32 to int16"
   requires x <= 32767   summary "cast from int32 to int16"
   opaque(ensures $result == x)
@@ -393,9 +393,9 @@ Positive tests (`PrimitiveCasts.java`):
 ## Open design points
 
 1. **`@Nat` and `@Unbounded` interaction.** Casts from `@Unbounded int`
-   to `int32` produce a `$cast_to_int32_from_int` helper with the
+   to `int32` produce a `java?cast_to_int32_from_int` helper with the
    `int32` bounds as its requires. Casts from `int32` to
-   `@Unbounded int` produce a `$cast_to_int_from_int32` helper with
+   `@Unbounded int` produce a `java?cast_to_int_from_int32` helper with
    no bounds (widening; trivially discharged).
 
 2. **Float/double.** `translateType` still throws on `FLOAT`/`DOUBLE`;

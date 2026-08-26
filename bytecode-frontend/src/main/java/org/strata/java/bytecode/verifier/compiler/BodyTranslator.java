@@ -552,7 +552,7 @@ final class BodyTranslator {
             staticTypeOf.put(n, thisTypeRef());
             return n;
         }
-        return e(LaurelFactory.var_(ctx.method.renames.getOrDefault(name, name)));
+        return e(LaurelFactory.varForLocal(ctx.method.renames, name));
     }
 
     private TypeRef thisTypeRef() {
@@ -671,8 +671,8 @@ final class BodyTranslator {
         String name = localName(slot);
         String laurelName = name.equals("this")
                 ? LaurelFactory.LAUREL_SELF_BINDING
-                : ctx.method.renames.getOrDefault(name, name);
-        return new AstNode<>(new Variable.Local(LaurelFactory.ident(laurelName)), SourceMap.UNKNOWN_RANGE);
+                : LaurelFactory.laurelLocalName(ctx.method.renames, name);
+        return new AstNode<>(new Variable.Local(LaurelFactory.reservedIdent(laurelName)), SourceMap.UNKNOWN_RANGE);
     }
 
     /** STORE: declaration-or-assignment decision ladder. */
@@ -755,7 +755,7 @@ final class BodyTranslator {
         }
         AstNode<StmtExpr> top = stack.peek();
         String laurelName = nm.equals("this")
-                ? LaurelFactory.LAUREL_SELF_BINDING : ctx.method.renames.getOrDefault(nm, nm);
+                ? LaurelFactory.LAUREL_SELF_BINDING : LaurelFactory.laurelLocalName(ctx.method.renames, nm);
         if (!(top.val() instanceof StmtExpr.Var var)
                 || !(var.var_() instanceof Variable.Local local)
                 || !local.name().text().equals(laurelName)) {
@@ -856,7 +856,7 @@ final class BodyTranslator {
         @SuppressWarnings("unchecked")
         AstNode<StmtExpr>[] pair = new AstNode[]{a, b};
         AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
-                LaurelFactory.ident("$cmp3$" + boxType), List.of(a, b)));
+                LaurelFactory.ident("java?cmp3$" + boxType), List.of(a, b)));
         cmp3.put(n, pair);
         if (nanHigh != null) {
             cmp3NanHigh.put(n, nanHigh);
@@ -1217,7 +1217,7 @@ final class BodyTranslator {
         }
         HighType sourceType = inferCastSourceType(operand);
         String sourceName = LaurelFactory.laurelTypeName(sourceType);
-        String helperName = "$cast_to_" + laurelTarget + "_from_" + sourceName;
+        String helperName = "java?cast_to_" + laurelTarget + "_from_" + sourceName;
         ctx.lf.registerCastHelper(helperName, sourceName, sourceType, laurelTarget, targetType);
         AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
                 LaurelFactory.ident(helperName), List.of(operand)));
@@ -1239,8 +1239,8 @@ final class BodyTranslator {
             }
         }
         if (operand.val() instanceof StmtExpr.StaticCall call
-                && call.callee().text().startsWith("$cast_to_")) {
-            String t = call.callee().text().substring("$cast_to_".length());
+                && call.callee().text().startsWith("java?cast_to_")) {
+            String t = call.callee().text().substring("java?cast_to_".length());
             int from = t.indexOf("_from_");
             String name = from >= 0 ? t.substring(0, from) : t;
             return name.equals("int") ? new HighType.TInt()
@@ -1430,7 +1430,7 @@ final class BodyTranslator {
                 : new HighType.UserDefined(LaurelFactory.ident(narrow));
         HighType sourceType = inferCastSourceType(v);
         String sourceName = LaurelFactory.laurelTypeName(sourceType);
-        String helperName = "$cast_to_" + narrow + "_from_" + sourceName;
+        String helperName = "java?cast_to_" + narrow + "_from_" + sourceName;
         ctx.lf.registerCastHelper(helperName, sourceName, sourceType, narrow, targetType);
         return e(new StmtExpr.StaticCall(LaurelFactory.ident(helperName), List.of(v)));
     }

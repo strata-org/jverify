@@ -1083,7 +1083,7 @@ public class BytecodeToLaurelCompiler {
             if (rt == null) {
                 rt = TypeRef.ofDescriptor(retDesc, natR, unbR);
             }
-            outputs.add(new org.strata.jverify.laurel.Parameter(ident(LAUREL_RESULT_BINDING),
+            outputs.add(new org.strata.jverify.laurel.Parameter(LaurelFactory.reservedIdent(LAUREL_RESULT_BINDING),
                     node(rt.toLaurel(typeParams, resolver, composites))));
             if (rt.kind() == TypeRef.Kind.CLASS) {
                 ctx.method.returnSort = qualifyTypeName(rt.nameWithScope());
