@@ -35,7 +35,7 @@ import static org.strata.jverify.JVerify.*;
  *     postcondition, return, and nested inside binary/conditional
  *     expressions.
  */
-@JVerifyTest(exitCode = 4, errorCount = 26, methodsVerified=42)
+@JVerifyTest(exitCode = 4, errorCount = 30, methodsVerified=41)
 class PrimitiveCasts {
 
     // ============================================================
@@ -341,8 +341,12 @@ class PrimitiveCasts {
     // implicates the helper's ensures clause (`$result == x`).
     // ============================================================
 
+    // `x` is an unconstrained `int`, so the narrowing cast's range check is a
+    // real obligation here just as it would be in the body. The method name is
+    // aspirational: writing the cast in the precondition does not assume it.
     static int assumesFitsInShort(int x) {
         precondition(((short) x) >= 0);
+//                    ^^^^^^^^^ Error: cast from int32 to int16 does not hold
         return x;
     }
 
@@ -352,6 +356,7 @@ class PrimitiveCasts {
     static int postconditionCastFails(int x) {
         postcondition((int res) -> res == (short) x);
 //                                 ^^^^^^^^^^^^^^^^ Error: postcondition does not hold
+//                                        ^^^^^^^^^ Error: cast from int32 to int16 does not hold
         return x;
     }
 
@@ -368,9 +373,21 @@ class PrimitiveCasts {
 
     // Postcondition where the cast is on the result binding. `res`
     // (bound to the returned value) isn't constrained to fit short.
+    //
+    // The bare "precondition does not hold" is the cast helper's *input*
+    // type-constraint (`requires int32$constraint(x)`, added by Strata's
+    // ConstrainedTypeElim and carrying no summary). It is true — `res` is an
+    // `int` — but not provable here: a postcondition helper assumes the
+    // procedure's `requires` clauses, and the fact that an *output* satisfies
+    // its type constraint is an `ensures`, so it is not in scope. Casting a
+    // parameter instead (`postconditionCastFails` above) has no such gap,
+    // because a parameter's constraint is a `requires`. Same limitation as
+    // `postconditionCastVerifies` above.
     static int postconditionCastOnResultFails(int x) {
         postcondition((int res) -> ((short) res) == res);
 //                                 ^^^^^^^^^^^^^^^^^^^^ Error: postcondition does not hold
+//                                  ^^^^^^^^^^^ Error: cast from int32 to int16 does not hold
+//                                  ^^^^^^^^^^^ Error: precondition does not hold
         return x;
     }
 
