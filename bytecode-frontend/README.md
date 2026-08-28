@@ -3,22 +3,34 @@
 A prototype **bytecode-based** Strata frontend, hosted inside the
 StrataJavaFrontEnd (JFE) package as sibling Gradle modules. Where JFE compiles
 Java *source* to Laurel (Strata's IR) through javac internals, this frontend
-compiles **JVM classfiles**:
+translates **JVM classfiles** directly:
 
 ```
-.java --javac -g -Xjcov--> .class --java.lang.classfile--> CFG
-    --structurer--> JavaParser AST (+ CharacterRangeTable spans)
-    --Laurel generator--> Laurel --Ion--> strata laurelAnalyzeBinary --> diagnostics
+.java --javac -g -Xjcov--> .class --java.lang.classfile--> CFG + dominators
+    --direct translator (BodyTranslator + ControlFlowStructurer)--> Laurel
+        (+ CharacterRangeTable spans as source ranges)
+    --Ion--> strata laurelAnalyzeBinary --> diagnostics
 ```
 
-Input classfiles must be compiled with `-g -Xjcov` so local-variable names,
-line numbers, and statement-level source ranges (CharacterRangeTable) survive.
+There is no intermediate Java AST: instructions translate to Laurel
+expressions on a simulated operand stack (`BodyTranslator`, with
+`InvokeTranslator`/`SpecCallTranslator`/`FieldAccessTranslator` for calls,
+JVerify spec calls, and field access), and structured control flow is
+recovered from the CFG and emitted as Laurel statements (`ControlFlowStructurer`'s
+region walker, with `LoopEmitter`/`SwitchEmitter`/`TryEmitter` per construct).
+Declarations, contracts, and annotations are read straight off the classfiles
+(`Declarations`, validated by `ContractValidator`), orchestrated by
+`BytecodeToLaurelCompiler`.
+
+Input classfiles must be compiled with `-g -Xjcov` so local-variable names
+and statement-level source ranges (CharacterRangeTable) survive.
 
 ## Modules
 
-- **`bytecode-frontend`** -- the decompiler (`org.strata.java.bytecode.frontend`), the
-  Laurel generator and driver (`org.strata.java.bytecode.verifier`), and the test
-  engine (`org.strata.java.bytecode.testengine`).
+- **`bytecode-frontend`** -- classfile analysis (CFG/dominators/CRT/locals,
+  `org.strata.java.bytecode.frontend`), the direct Laurel translator and
+  driver (`org.strata.java.bytecode.verifier`), and the test engine
+  (`org.strata.java.bytecode.testengine`).
 - **The CLASS-retention spec library** is built by isolated tasks in this
   module's `build.gradle.kts` block (`generateBytecodeLibSources` ->
   `compileBytecodeLib` -> `bytecodeLibJar`), not as a separate Gradle module.
@@ -39,7 +51,7 @@ source file, or test references the bytecode frontend. Concretely:
   (`BytecodeTestEngine`) and the xfail manifest are bytecode-frontend-owned.
 - **The spec library** is the one place JFE and the bytecode frontend genuinely differ:
   annotation retention must be `CLASS` (not JFE's `SOURCE`) so `@Pure`/`@Nat`/
-  `@Unbounded`/`@Contract` survive into classfiles where the decompiler reads
+  `@Unbounded`/`@Contract` survive into classfiles where the frontend reads
   them. Rather than maintain a second copy, the `generateBytecodeLibSources`
   task copies `:library`'s sources at build time, rewriting only the retention
   token, and `compileBytecodeLib`/`bytecodeLibJar` compile them into a plain
@@ -64,7 +76,7 @@ worker and spuriously activate the engine under, e.g., `:examples:test`.
 
 ## Tests
 
-- `./... :bytecode-frontend:test` -- the bytecode frontend's own unit tests (decompiler, driver,
+- `./... :bytecode-frontend:test` -- the bytecode frontend's own unit tests (frontend, driver,
   backend smoke), plain JUnit.
 - `./... :bytecode-frontend:corpusTest` -- runs **JFE's `@JVerifyTest` verification
   corpus** (compiled `:verifier` test classes) through the bytecode frontend, a
@@ -73,7 +85,7 @@ worker and spuriously activate the engine under, e.g., `:examples:test`.
   [`bytecode-xfails.txt`](src/main/resources/org/strata/java/bytecode/testengine/bytecode-xfails.txt),
   never as edits to JFE's fixtures. Wired into `check`.
 
-See [docs/parity-matrix.md](docs/parity-matrix.md) for the current pass/skip
-standing and the remaining gaps versus JFE. Build with `brazil-build` (it puts
+The xfail manifest is the single source of truth for the remaining divergences
+versus JFE (each entry documents why). Build with `brazil-build` (it puts
 `strata`/`z3`/`cvc5` on `PATH`); a plain `gradlew` run cannot launch the Strata
 backend.

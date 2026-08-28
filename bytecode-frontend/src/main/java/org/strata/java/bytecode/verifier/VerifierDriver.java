@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 /**
  * End-to-end verification driver: javac ({@code -g -Xjcov}) -> classfiles ->
- * Decompiler -> Laurel -> StrataCLI. The bytecode-frontend counterpart of
+ * direct bytecode-to-Laurel translation -> StrataCLI. The bytecode-frontend counterpart of
  * JFE's {@code Driver.getDriver(options).verifyJavaFiles(files)}.
  */
 public class VerifierDriver {
@@ -74,14 +74,14 @@ public class VerifierDriver {
                 return new JVerifyResults.NoVerdict(diagnostics, 2 /* picocli USAGE */);
             }
 
-            // 2. Decompile + compile to Laurel.
+            // 2. Read the classfiles + compile to Laurel.
             Map<URI, String> sources = new LinkedHashMap<>();
             for (var file : readFiles) {
                 sources.put(file.toUri(), file.getCharContent(false).toString());
             }
-            var classes = options.time("Decompiling classfiles", () -> {
+            var classes = options.time("Reading classfiles", () -> {
                 try {
-                    return BytecodeFrontend.decompile(classesDir);
+                    return BytecodeFrontend.readClasses(classesDir);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

@@ -55,7 +55,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
  * JUnit Platform engine that runs JVerify-style verification tests through
  * the bytecode frontend. Port of StrataJavaFrontEnd's {@code JVerifyTestEngine}
  * with the javac driver swapped for {@code VerifierDriver} (javac -g -Xjcov ->
- * decompile -> Laurel -> Strata); discovery, markup matching, xfail
+ * classfiles -> Laurel -> Strata); discovery, markup matching, xfail
  * inversion, and expectation checking are unchanged.
  */
 @AutoService(TestEngine.class)
@@ -444,7 +444,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         // library must be the CLASS-retention variant (bytecode-frontend-lib.jar, passed
         // by the corpusTest task) -- the JVerify class LOADED in this JVM is
         // JFE's SOURCE-retention :library, whose annotations would not
-        // survive into the classfiles the decompiler reads. The test-engine
+        // survive into the classfiles the frontend reads. The test-engine
         // and library-for-testing entries are position-independent and come
         // from the loaded classes' code sources.
         var libraryClassPath = Path.of(java.util.Objects.requireNonNull(

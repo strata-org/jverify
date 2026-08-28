@@ -1,4 +1,4 @@
-# Bytecode-frontend xfail manifest (StrataJVMFrontEnd).
+# Bytecode-frontend xfail manifest.
 #
 # The verification corpus is owned by StrataJavaFrontEnd (JFE) and shared
 # verbatim; its @JVerifyTest annotations encode the SOURCE frontend's
