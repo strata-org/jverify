@@ -301,6 +301,15 @@ public class StrataBackend {
         int endOffset = Integer.parseInt(matcher.group(3));
         String message = matcher.group(4);
 
+        if (filePath.contains("<unknown>")) {
+            // A range the frontend deliberately stamped UNKNOWN (the input
+            // carries no statement spans there): a real finding, just
+            // without a source position -- not a malformed line.
+            var pos = new Position(1, 1);
+            return new StrataDiagnostic(malformedFallbackUri, new Range(pos, pos),
+                    message + " (no source position: the input carries no statement spans there)");
+        }
+
         try {
             // Strata emits `file://` URIs; parse them as URIs rather than as
             // filesystem paths, which would miss the filesMap and lose the

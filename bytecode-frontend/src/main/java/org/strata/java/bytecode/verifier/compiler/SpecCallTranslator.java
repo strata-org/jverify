@@ -272,6 +272,7 @@ final class SpecCallTranslator {
         try {
             BodyTranslator inner = new BodyTranslator(ctx, ish.slotName(), ish.slotDesc(), Set.of());
             inner.cm = b.cm;
+            inner.isInstance = !impl.flags().has(java.lang.reflect.AccessFlag.STATIC);
             inner.locals = ish.locals();
             inner.crt = ish.crt();   // the impl method's OWN CRT (its pcs key it)
             var seq = ish.seq();
