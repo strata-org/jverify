@@ -120,7 +120,12 @@ public class BytecodeToLaurelCompiler {
             src.lineIndexes.put(entry.getKey(), new LineIndex(entry.getValue()));
             src.sourceTexts.put(entry.getKey(), entry.getValue());
         }
-        reportInputTier(sources, classes);
+        if (reportInputTier(sources, classes)) {
+            // Self-enforcing: a caller that never checks the reporter must
+            // not translate (and then "verify") an input we refused.
+            throw new RefusedInputException(
+                    "input carries no debug information; see the reported error");
+        }
         for (var cls : classes) {
             String fqn = JavaNames.dottedFqn(cls.internalName());
             resolver.knownClasses.put(fqn, fqn);
@@ -857,11 +862,12 @@ public class BytecodeToLaurelCompiler {
      * Report the detected input tier ONCE per run, so degraded feedback is
      * never a surprise: FULL is silent, DEBUG/BARE warn about the precision
      * loss, and an input with no debug information at all refuses (its
-     * feedback would carry no source positions).
+     * feedback would carry no source positions). Returns true when the
+     * input is refused.
      */
-    private void reportInputTier(Map<URI, String> sources, List<ClassSource> classes) {
+    private boolean reportInputTier(Map<URI, String> sources, List<ClassSource> classes) {
         if (classes.isEmpty()) {
-            return;   // nothing to classify (and nothing will be verified)
+            return false;   // nothing to classify (and nothing will be verified)
         }
         var facts = org.strata.java.bytecode.frontend.CompilationFacts.NONE_OBSERVED;
         for (var cls : classes) {
@@ -879,11 +885,15 @@ public class BytecodeToLaurelCompiler {
             case BARE -> reporter.reportWarning(anchor, Reporter.NO_RANGE,
                     "input compiled without -g (no local-variable debug info): diagnostics carry"
                             + " method precision only and locals get synthetic names");
-            case NONE -> reporter.reportError(anchor, Reporter.NO_RANGE,
-                    "input carries no debug information (compiled with -g:none or stripped):"
-                            + " verification feedback would have no source positions; recompile"
-                            + " with -g -Xjcov (best), -g, or default javac flags");
+            case NONE -> {
+                reporter.reportError(anchor, Reporter.NO_RANGE,
+                        "input carries no debug information (compiled with -g:none or stripped):"
+                                + " verification feedback would have no source positions; recompile"
+                                + " with -g -Xjcov (best), -g, or default javac flags");
+                return true;
+            }
         }
+        return false;
     }
 
     private void recordStatus(FileRange range, MethodVerificationStatus status) {
@@ -1581,7 +1591,7 @@ public class BytecodeToLaurelCompiler {
                 // an implicit one here and counts Verified.
                 boolean explicitCtor = org.strata.java.bytecode.frontend.CompilationFacts.of(cm).hasCrt()
                         ? crtExplicitCtor
-                        : structuralExplicitCtor(m);
+                        : structuralExplicitCtor(cm, m);
                 tree.insert(0, 0, new MethodVerificationStatus(name, Reporter.NO_RANGE,
                         explicitCtor || classOptedOut
                                 ? MethodVerificationStatus.VerificationStatus.Skipped
@@ -1591,30 +1601,68 @@ public class BytecodeToLaurelCompiler {
     }
 
     /**
-     * CRT-free explicit-constructor detection: declared parameters, or any
-     * instruction beyond the implicit ctor's exact
-     * {@code aload_0; invokespecial <init>; return} shape.
+     * CRT-free explicit-constructor detection, approximating "javac wrote
+     * CRT entries for this ctor": source-declared parameters, or any
+     * source-attributable instruction. Compiler-synthesized ctor plumbing is
+     * discounted on both sides: the enclosing-instance parameter of a
+     * non-static inner class (MethodParameters/ACC_MANDATED is only written
+     * under {@code -parameters}, so it is detected from the InnerClasses
+     * attribute + the first parameter's type), and the synthetic code
+     * shapes (the super call, {@code this$}/{@code val$} field stores, the
+     * {@code Objects.requireNonNull} enclosing-instance check).
      */
-    private static boolean structuralExplicitCtor(java.lang.classfile.MethodModel m) {
-        if (m.methodTypeSymbol().parameterCount() > 0) {
+    private static boolean structuralExplicitCtor(java.lang.classfile.ClassModel cm,
+                                                  java.lang.classfile.MethodModel m) {
+        String self = cm.thisClass().asInternalName();
+        var mt = m.methodTypeSymbol();
+        int declaredParams = mt.parameterCount();
+        for (var ic : org.strata.java.bytecode.frontend.ClassfileQueries.innerClassesOf(cm)) {
+            if (!ic.innerClass().asInternalName().equals(self)) {
+                continue;
+            }
+            if (ic.innerName().isEmpty()) {
+                return false;   // anonymous: a source ctor cannot exist
+            }
+            if ((ic.flagsMask() & java.lang.classfile.ClassFile.ACC_STATIC) == 0) {
+                String outer = org.strata.java.bytecode.frontend.ClassfileQueries.directOuter(cm, ic);
+                if (outer != null && declaredParams > 0
+                        && mt.parameterType(0).descriptorString().equals("L" + outer + ";")) {
+                    declaredParams--;   // the mandated enclosing instance
+                }
+            }
+            break;
+        }
+        if (declaredParams > 0) {
             return true;
         }
         var code = m.code().orElse(null);
         if (code == null) {
             return false;
         }
-        var instrs = new ArrayList<java.lang.classfile.Instruction>();
         for (var el : code) {
-            if (el instanceof java.lang.classfile.Instruction in) {
-                instrs.add(in);
+            if (!(el instanceof java.lang.classfile.Instruction in)) {
+                continue;
+            }
+            boolean synthetic = switch (in) {
+                case java.lang.classfile.instruction.LoadInstruction l -> true;
+                case java.lang.classfile.instruction.StackInstruction s -> true;
+                case java.lang.classfile.instruction.ReturnInstruction r -> true;
+                case java.lang.classfile.instruction.InvokeInstruction inv ->
+                        (inv.opcode() == java.lang.classfile.Opcode.INVOKESPECIAL
+                                && inv.name().stringValue().equals("<init>"))
+                        || (inv.opcode() == java.lang.classfile.Opcode.INVOKESTATIC
+                                && inv.owner().asInternalName().equals("java/util/Objects")
+                                && inv.name().stringValue().equals("requireNonNull"));
+                case java.lang.classfile.instruction.FieldInstruction fi ->
+                        fi.opcode() == java.lang.classfile.Opcode.PUTFIELD
+                                && (fi.name().stringValue().startsWith("this$")
+                                        || fi.name().stringValue().startsWith("val$"));
+                default -> false;
+            };
+            if (!synthetic) {
+                return true;    // source-attributable code (field initializers included)
             }
         }
-        return !(instrs.size() == 3
-                && instrs.get(0) instanceof java.lang.classfile.instruction.LoadInstruction ld
-                && ld.slot() == 0
-                && instrs.get(1) instanceof java.lang.classfile.instruction.InvokeInstruction inv
-                && inv.opcode() == java.lang.classfile.Opcode.INVOKESPECIAL
-                && inv.name().stringValue().equals("<init>")
-                && instrs.get(2) instanceof java.lang.classfile.instruction.ReturnInstruction);
+        return false;
     }
 }

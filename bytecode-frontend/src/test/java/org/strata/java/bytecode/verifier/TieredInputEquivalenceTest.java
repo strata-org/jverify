@@ -95,6 +95,18 @@ class TieredInputEquivalenceTest {
                     stored = stored > 0 ? stored + by : by;
                     return stored;
                 }
+
+                // Non-static inner class: its ctor is compiler-synthesized
+                // (enclosing-instance parameter + preamble) and must be
+                // classified implicit -> Verified on every tier.
+                class Helper {
+                    int doubled(int v) {
+                        precondition(v >= 0);
+                        precondition(v <= 1000);
+                        check(v + v >= v);
+                        return v + v;
+                    }
+                }
             }
             """;
 
@@ -172,7 +184,8 @@ class TieredInputEquivalenceTest {
         assertEquals(4, ran.exitCode());
         assertEquals(expectedFailureLines(), diagnosticLines(ran),
                 () -> ran.diagnostics().stream().map(d -> d.getMessage(null)).toList().toString());
-        assertEquals(2, ran.verificationResults().verificationPassedMethods());   // clamp, countTo
+        // clamp, countTo, Helper.doubled, and Helper's implicit (synthesized) ctor.
+        assertEquals(4, ran.verificationResults().verificationPassedMethods());
         assertEquals(2, ran.verificationResults().verificationFailedMethods());   // doubleIt, bump
         assertEquals(1, ran.verificationResults().verificationSkippedMethods());  // explicit ctor
     }
@@ -218,11 +231,11 @@ class TieredInputEquivalenceTest {
 
     @Test
     void strippedInputRefuses(@TempDir Path tmp) throws Exception {
-        var run = run(tmp, "none", List.of("-g:none", "-proc:none"));
-        assertTrue(run.reporter().hasErrors(), "input without debug info must refuse");
-        assertTrue(run.reporter().diagnostics().stream()
-                        .anyMatch(d -> d.getMessage(null).contains("no debug information")),
-                () -> "diagnostics: " + run.reporter().diagnostics());
-        assertEquals(null, run.results(), "verification must not run on refused input");
+        // Self-enforcing: analyze() throws, so even a caller that never
+        // checks the reporter cannot verify a refused input.
+        var thrown = org.junit.jupiter.api.Assertions.assertThrows(
+                org.strata.java.bytecode.verifier.compiler.RefusedInputException.class,
+                () -> run(tmp, "none", List.of("-g:none", "-proc:none")));
+        assertTrue(thrown.getMessage().contains("no debug information"), thrown.getMessage());
     }
 }

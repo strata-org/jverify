@@ -86,10 +86,17 @@ public class VerifierDriver {
                     throw new RuntimeException(e);
                 }
             });
-            var analysis = options.time("Compiling bytecode to Laurel",
-                    () -> new BytecodeToLaurelCompiler(reporter, options.verifyByDefault(),
-                            List.copyOf(options.classPathEntries()))
-                            .analyze(sources, classes));
+            org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler.AnalysisResult analysis;
+            try {
+                analysis = options.time("Compiling bytecode to Laurel",
+                        () -> new BytecodeToLaurelCompiler(reporter, options.verifyByDefault(),
+                                List.copyOf(options.classPathEntries()))
+                                .analyze(sources, classes));
+            } catch (org.strata.java.bytecode.verifier.compiler.RefusedInputException e) {
+                // The input cannot be verified at all (no debug information);
+                // the reason is already on the reporter.
+                return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
+            }
 
             var diagnostics = new ArrayList<>(reporter.diagnostics());
             if (reporter.hasErrors() && !options.continueOnErrors()) {
