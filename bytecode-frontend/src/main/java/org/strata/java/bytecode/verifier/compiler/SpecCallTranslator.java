@@ -300,6 +300,7 @@ final class SpecCallTranslator {
                 } catch (StructException e) {
                     inner = new BodyTranslator(ctx, ish.slotName(), ish.slotDesc(), Set.of());
                     inner.cm = b.cm;
+                    inner.isInstance = !iStatic;   // as the primary path sets it: slot 0 is `this`
                     inner.locals = ish.locals();
                     inner.crt = ish.crt();
                     inner.seqToBci = MethodBodyFactory.bciTable(seq);
