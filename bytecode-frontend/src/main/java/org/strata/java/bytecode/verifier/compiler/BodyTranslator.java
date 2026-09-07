@@ -46,10 +46,10 @@ import org.strata.java.bytecode.frontend.StructException;
  * tables.
  *
  * <p><b>Range discipline.</b> Every sub-expression of a statement carries
- * the statement's narrowed source range. Expressions are built bottom-up
+ * the statement's CRT span (line:column). Expressions are built bottom-up
  * before their owning statement is known, so nodes carry UNKNOWN_RANGE until
- * {@link #addStmt}, which computes the statement's range (CRT span narrowed
- * per {@link Narrow}) and restamps the subtree via
+ * {@link #addStmt}, which computes the statement's range (its CRT span; see
+ * {@link #stmtRange}) and restamps the subtree via
  * {@link TranslationContext#placeStatement}.
  *
  * <p><b>Deferred refusals.</b> Some bytecode shapes are refused only when
@@ -198,17 +198,17 @@ final class BodyTranslator {
     }
 
     /**
-     * Position fallback for input compiled without {@code -Xjcov}: the
-     * trimmed source line of the instruction's LineNumberTable entry, else
-     * the method's default range. Never taken when a CRT exists ({@code
-     * crt.isEmpty()} gate), so FULL-tier stamping is untouched.
+     * Position fallback for input compiled without {@code -Xjcov}: a point at
+     * (line, 1) for the instruction's LineNumberTable line, else the method's
+     * default range. Never taken when a CRT exists ({@code crt.isEmpty()}
+     * gate), so FULL-tier stamping is untouched.
      */
     private FileRange lineFallbackRange(int seqIdx) {
-        if (crt.isEmpty() && lines != null && ctx.src.index != null
+        if (crt.isEmpty() && lines != null
                 && seqToBci != null && seqIdx >= 0 && seqIdx < seqToBci.length) {
             int line = lines.lineAt(seqToBci[seqIdx]);
             if (line > 0) {
-                FileRange r = ctx.src.trimmedLineRange(line);
+                FileRange r = ctx.src.lineRange(line);
                 if (r != SourceMap.UNKNOWN_RANGE) {
                     return r;
                 }
@@ -217,47 +217,30 @@ final class BodyTranslator {
         return ctx.src.defaultRange;
     }
 
-    /** How a statement's raw CRT span narrows to its stamped source range. */
-    enum Narrow {
-        /** Raw CRT span (non-ExpressionStmt statements: return, throw, ...). */
-        RAW,
-        /** Trailing ';' and whitespace stripped (ExpressionStmt that is not a declaration). */
-        STRIP_SEMI,
-        /** Declarations keep the semicolon (ExpressionStmt(VariableDeclarationExpr)). */
-        DECL
-    }
-
     /**
-     * The statement's FileRange: the CRT span of the instruction at
-     * {@code seqIdx}, mapped to source offsets with the {@link Narrow}ing
-     * applied. Returns the context's current default range when no span is
-     * known.
+    /**
+     * The statement's FileRange: the CRT statement span of the instruction at
+     * {@code seqIdx} (its bytecode-native line:column), or the context's
+     * current default range when no span is known. CRT spans are
+     * statement-level -- the end includes the trailing ';' and there is no
+     * source to trim it, so the span stands as-is.
      */
-    FileRange stmtRange(int seqIdx, Narrow narrow, boolean containsLambda) {
+    FileRange stmtRange(int seqIdx, boolean containsLambda) {
         Span span = spanAt(seqIdx);
-        if (span.isNone() || ctx.src.index == null) {
+        if (span.isNone()) {
             return lineFallbackRange(seqIdx);
         }
-        int start = ctx.src.index.offset(span.beginLine(), span.beginCol());
-        int end = ctx.src.index.offset(span.endLine(), span.endCol());
+        int beginLine = span.beginLine();
+        int beginCol = span.beginCol();
         // A statement that materializes a lambda carries the invokedynamic's
         // CRT window, which starts at the class declaration rather than the
-        // statement (keyed on the statement containing a lambda).
+        // statement; with no source to find the first non-blank column, anchor
+        // at the start of the span's last line instead.
         if (span.beginLine() != span.endLine() && containsLambda) {
-            int lineStart = ctx.src.index.offset(span.endLine(), 1);
-            int firstNonWs = lineStart;
-            while (firstNonWs < end && Character.isWhitespace(ctx.src.source.charAt(firstNonWs))) {
-                firstNonWs++;
-            }
-            start = firstNonWs;
+            beginLine = span.endLine();
+            beginCol = 1;
         }
-        if (narrow == Narrow.STRIP_SEMI) {
-            while (end > start && (ctx.src.source.charAt(end - 1) == ';'
-                    || Character.isWhitespace(ctx.src.source.charAt(end - 1)))) {
-                end--;
-            }
-        }
-        return ctx.src.rangeOf(start, end);
+        return ctx.src.rangeOf(beginLine, beginCol, span.endLine(), span.endCol());
     }
 
     /**
@@ -302,7 +285,9 @@ final class BodyTranslator {
         if (needle != null) {
             // Array creation with initializers: reported at the first
             // element's text, then aborted with ReportedViolation.
-            ctx.reporter.reportError(ctx.src.uri, ctx.src.pointRangeAt(needle),
+            // No sub-statement anchor from bytecode: report at the enclosing
+            // statement's range.
+            ctx.reporter.reportError(ctx.src.uri, ctx.src.positionRange(ctx.src.defaultRange),
                     "new array with initializers is not supported");
             throw new BytecodeToLaurelCompiler.ReportedViolation();
         }
@@ -399,23 +384,19 @@ final class BodyTranslator {
         return out;
     }
 
-    /** Emit a statement stamped with the current instruction's narrowed range. */
-    void addStmt(StmtExpr stmt, Narrow narrow) {
-        addStmtAt(stmt, pos, narrow, false);
+    /** Emit a statement stamped with the current instruction's CRT span range. */
+    void addStmt(StmtExpr stmt) {
+        addStmtAt(stmt, pos, false);
     }
 
-    void addStmtAt(StmtExpr stmt, int seqIdx, Narrow narrow, boolean containsLambda) {
+    void addStmtAt(StmtExpr stmt, int seqIdx, boolean containsLambda) {
         AstNode<StmtExpr> raw = e(stmt);
-        FileRange range = stmtRange(seqIdx, narrow, containsLambda);
-        // The per-statement default range: refusal reports inside this
-        // statement (pointRangeAt needles) anchor within it.
+        FileRange range = stmtRange(seqIdx, containsLambda);
+        // The per-statement default range: a refusal reported inside this
+        // statement anchors within it (via positionRange(defaultRange)).
         ctx.src.defaultRange = range;
         checkPlaceable(raw);
-        AstNode<StmtExpr> placed = place(raw, range);
-        if (narrow == Narrow.STRIP_SEMI) {
-            stripSemiAt.put(placed, seqIdx);
-        }
-        stmts.add(placed);
+        stmts.add(place(raw, range));
     }
 
     /**
@@ -445,13 +426,6 @@ final class BodyTranslator {
             remapIdentity(oc.get(i), nc.get(i));
         }
     }
-
-    /**
-     * Statements placed with the semicolon-stripped narrowing -> their seq
-     * index: loop-body statements are re-stamped with the FULL statement
-     * range (semicolon included), which only differs for these.
-     */
-    final Map<AstNode<StmtExpr>, Integer> stripSemiAt = new IdentityHashMap<>();
 
     // --- Locals: slot naming and typing ---
 
@@ -714,9 +688,9 @@ final class BodyTranslator {
                             Optional.of(LaurelFactory.node(
                                     t.toLaurel(ctx.typeParams, ctx.resolver, ctx.composites))));
             var declare = new AstNode<Variable>(new Variable.Declare(param), SourceMap.UNKNOWN_RANGE);
-            addStmt(new StmtExpr.Assign(List.of(declare), val), Narrow.DECL);
+            addStmt(new StmtExpr.Assign(List.of(declare), val));
         } else {
-            addStmt(new StmtExpr.Assign(List.of(localVarTarget(si.slot())), val), Narrow.STRIP_SEMI);
+            addStmt(new StmtExpr.Assign(List.of(localVarTarget(si.slot())), val));
         }
     }
 
@@ -733,7 +707,7 @@ final class BodyTranslator {
             return;
         }
         addStmt(new StmtExpr.CompoundAssign(c >= 0 ? new Operation.Add() : new Operation.Sub(),
-                localVarTarget(ii.slot()), e(new StmtExpr.LiteralInt(Math.abs(c)))), Narrow.STRIP_SEMI);
+                localVarTarget(ii.slot()), e(new StmtExpr.LiteralInt(Math.abs(c)))));
     }
 
     /** Emit a deferred mid-expression iinc as the statement it would have been. */
@@ -745,7 +719,7 @@ final class BodyTranslator {
         int c = pendingIncDelta;
         pendingIncSlot = -1;
         addStmt(new StmtExpr.CompoundAssign(c >= 0 ? new Operation.Add() : new Operation.Sub(),
-                localVarTarget(slot), e(new StmtExpr.LiteralInt(Math.abs(c)))), Narrow.STRIP_SEMI);
+                localVarTarget(slot), e(new StmtExpr.LiteralInt(Math.abs(c)))));
     }
 
     /** Replace an unconsumed stacked read of {@code nm} with a postfix inc/dec. */
@@ -1127,9 +1101,9 @@ final class BodyTranslator {
                     if (lambdas.containsKey(v) && ctx.method.returnSort != null) {
                         ctx.composites.referencedCompositeTypes.add(ctx.method.returnSort);
                         addStmt(new StmtExpr.Return(Optional.of(e(new StmtExpr.New(
-                                LaurelFactory.ident(ctx.method.returnSort), List.of())))), Narrow.RAW);
+                                LaurelFactory.ident(ctx.method.returnSort), List.of())))));
                     } else {
-                        addStmt(new StmtExpr.Return(Optional.of(coerce(v, retDesc))), Narrow.RAW);
+                        addStmt(new StmtExpr.Return(Optional.of(coerce(v, retDesc))));
                     }
                 }
                 // A bare `return` in the middle of a method becomes the Laurel
@@ -1145,7 +1119,7 @@ final class BodyTranslator {
                     String thrownFqn = thrownStaticTypeFqn(v);
                     checkThrowCoverage(thrownFqn, v);
                     ctx.composites.registerHierarchyUpToThrowable(thrownFqn);
-                    FileRange range = stmtRange(pos, Narrow.RAW, false);
+                    FileRange range = stmtRange(pos, false);
                     AstNode<StmtExpr> placed = place(before, range);
                     stmts.add(placed);
                     throwStmts.put(placed, thrownFqn);
@@ -1339,7 +1313,7 @@ final class BodyTranslator {
             case POP -> {
                 AstNode<StmtExpr> v = stack.pop();
                 if (callNodes.contains(v)) {
-                    addStmt(v.val(), Narrow.STRIP_SEMI);
+                    addStmt(v.val());
                 } else {
                     SpecStmt spec = specStmts.get(v);
                     if (spec != null && spec.name().equals("throwsOn")) {
@@ -1350,7 +1324,7 @@ final class BodyTranslator {
                                 || spec.links().stream().anyMatch(l -> l.lambdaArg() != null);
                         AstNode<StmtExpr> raw = e(new StmtExpr.LiteralString("$spec$throwsOn"));
                         AstNode<StmtExpr> placed = ctx.placeStatement(raw,
-                                stmtRange(pos, Narrow.STRIP_SEMI, hasLambda));
+                                stmtRange(pos, hasLambda));
                         stmts.add(placed);
                         specStmts.put(placed, spec);
                     }
@@ -1659,7 +1633,7 @@ final class BodyTranslator {
             var target = new AstNode<Variable>(new Variable.Field(recv,
                     LaurelFactory.ident(gf.name().stringValue())), SourceMap.UNKNOWN_RANGE);
             addStmt(new StmtExpr.CompoundAssign(aop, target,
-                    coerce(rhs, gf.typeSymbol().descriptorString())), Narrow.STRIP_SEMI);
+                    coerce(rhs, gf.typeSymbol().descriptorString())));
             return (j + 1) - k;
         }
         return 0;

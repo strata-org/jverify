@@ -19,7 +19,6 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -144,13 +143,14 @@ class TieredInputEquivalenceTest {
         }
         var pool = BytecodeFrontend.readClasses(classes);
         var reporter = new Reporter();
+        // The frontend gets the input URI only (paths, no source text).
         var analysis = new BytecodeToLaurelCompiler(reporter, true, List.of(libraryClasses()))
-                .analyze(Map.of(src.toUri(), SOURCE), pool);
+                .analyze(List.of(src.toUri()), pool);
         if (reporter.hasErrors()) {
             return new Run(reporter, null);
         }
         var results = new StrataBackend(options())
-                .verifyProgram(analysis.program(), analysis.filesMap(), analysis.methodStatuses());
+                .verifyProgram(analysis.program(), analysis.positions(), analysis.methodStatuses());
         return new Run(reporter, results);
     }
 
@@ -176,6 +176,13 @@ class TieredInputEquivalenceTest {
                 .toList();
     }
 
+    private static List<Integer> diagnosticColumns(JVerifyResults results) {
+        return results.diagnostics().stream()
+                .map(d -> ((DiagnosticWithRange) d).getRange().start().character())
+                .sorted()
+                .toList();
+    }
+
     @Test
     void fullTierBaseline(@TempDir Path tmp) throws Exception {
         var run = run(tmp, "full", FULL);
@@ -184,6 +191,10 @@ class TieredInputEquivalenceTest {
         assertEquals(4, ran.exitCode());
         assertEquals(expectedFailureLines(), diagnosticLines(ran),
                 () -> ran.diagnostics().stream().map(d -> d.getMessage(null)).toList().toString());
+        // FULL carries COLUMN precision (CRT begin column): both failures sit
+        // on indented statements, so their start column is past column 1.
+        assertTrue(diagnosticColumns(ran).stream().allMatch(c -> c > 1),
+                () -> "FULL should carry column precision, got columns " + diagnosticColumns(ran));
         // clamp, countTo, Helper.doubled, and Helper's implicit (synthesized) ctor.
         assertEquals(4, ran.verificationResults().verificationPassedMethods());
         assertEquals(2, ran.verificationResults().verificationFailedMethods());   // doubleIt, bump
@@ -225,8 +236,12 @@ class TieredInputEquivalenceTest {
         assertEquals(fullRan.verificationResults().verificationFailedAssertions(),
                 degradedRan.verificationResults().verificationFailedAssertions());
 
-        // Positions degrade to LINE precision, never further: same lines as FULL.
+        // Positions degrade to LINE precision, never further: same lines as
+        // FULL, but the column collapses to 1 (LineNumberTable has no column).
         assertEquals(diagnosticLines(fullRan), diagnosticLines(degradedRan));
+        assertTrue(diagnosticColumns(degradedRan).stream().allMatch(c -> c == 1),
+                () -> "DEBUG/BARE should carry line precision only (column 1), got "
+                        + diagnosticColumns(degradedRan));
     }
 
     @Test

@@ -25,11 +25,12 @@ import org.strata.jverify.laurel.Variable;
 import org.strata.java.bytecode.frontend.BytecodeFrontend.ClassSource;
 import org.strata.jverify.verifier.IntervalTree;
 import org.strata.java.bytecode.verifier.MethodVerificationStatus;
-import org.strata.jverify.verifier.laurel.FilesMap;
+import org.strata.java.bytecode.verifier.laurel.PositionResolver;
 
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -105,22 +106,19 @@ public class BytecodeToLaurelCompiler {
     }
 
     public record AnalysisResult(Program program,
-                                 FilesMap filesMap,
+                                 PositionResolver positions,
                                  Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {
     }
 
     /**
-     * @param sources source text by URI (used for spans -> byte offsets and
-     *        for narrowing contract ranges; must be the exact text javac saw)
-     * @param classes the pooled top-level classes; each is matched to its
-     *        source via the SourceFile attribute's file name
+     * @param sourceUris the input source-file URIs (paths only, NO content):
+     *        each class is matched to its URI by the SourceFile attribute's
+     *        file name so diagnostics carry the right file. All positions come
+     *        from the bytecode (CRT/LNT), never from the source text.
+     * @param classes the pooled top-level classes
      */
-    public AnalysisResult analyze(Map<URI, String> sources, List<ClassSource> classes) {
-        for (var entry : sources.entrySet()) {
-            src.lineIndexes.put(entry.getKey(), new LineIndex(entry.getValue()));
-            src.sourceTexts.put(entry.getKey(), entry.getValue());
-        }
-        if (reportInputTier(sources, classes)) {
+    public AnalysisResult analyze(Collection<URI> sourceUris, List<ClassSource> classes) {
+        if (reportInputTier(sourceUris, classes)) {
             // Self-enforcing: a caller that never checks the reporter must
             // not translate (and then "verify") an input we refused.
             throw new RefusedInputException(
@@ -164,7 +162,7 @@ public class BytecodeToLaurelCompiler {
         var typeTrees = new HashMap<String, Declarations.TypeNode>();
         for (var cls : classes) {
             String fqn = JavaNames.dottedFqn(cls.internalName());
-            URI uri = sourceUriFor(cls, sources.keySet());
+            URI uri = sourceUriFor(cls, sourceUris);
             Declarations.TypeNode root = Declarations.typeTreeOf(cls);
             typeTrees.put(cls.internalName(), root);
             decls.collect(root, uri);
@@ -181,9 +179,7 @@ public class BytecodeToLaurelCompiler {
         new ContractValidator(reporter, src, decls, resolver).validate();
 
         for (var cls : classes) {
-            src.uri = sourceUriFor(cls, sources.keySet());
-            src.source = src.uri != null ? sources.get(src.uri) : null;
-            src.index = src.uri != null ? src.lineIndexes.get(src.uri) : null;
+            src.uri = sourceUriFor(cls, sourceUris);
             compileUnit(cls, typeTrees.get(cls.internalName()));
         }
 
@@ -213,14 +209,8 @@ public class BytecodeToLaurelCompiler {
         allProcedures.addAll(procedures);
         var program = new Program(allProcedures, List.of(), types, List.of());
 
-        FilesMap filesMap = (uri, offset) -> {
-            var index = src.lineIndexes.get(uri);
-            if (index == null) {
-                throw new RuntimeException("Could not find line map for " + uri);
-            }
-            return index.position(offset);
-        };
-        return new AnalysisResult(program, filesMap, methodStatuses);
+        return new AnalysisResult(program,
+                positionResolver(java.util.Set.copyOf(sourceUris)), methodStatuses);
     }
 
     /**
@@ -300,13 +290,27 @@ public class BytecodeToLaurelCompiler {
         return resolver.loadClassModel(fqn);
     }
 
-    private String sourceOf(URI uri) {
-        return src.sourceOf(uri);
-    }
-
     /** Match a pooled class to its source file by the SourceFile attribute name. */
     private static URI sourceUriFor(ClassSource cls, Iterable<URI> sourceUris) {
         return SourceMap.sourceUriFor(cls, sourceUris);
+    }
+
+    /**
+     * The diagnostic position resolver for a run over {@code knownUris}:
+     * unpack a synthetic (line, column) offset via {@link PositionCodec}
+     * (Strata echoes it back opaquely), but throw for a URI that was never a
+     * frontend input -- so the diagnostic parser degrades it to a counted
+     * malformed-diagnostic instead of fabricating a position for a phantom
+     * file (the behavior the per-file line map used to provide).
+     */
+    static PositionResolver positionResolver(java.util.Set<URI> knownUris) {
+        return (uri, offset) -> {
+            if (!knownUris.contains(uri)) {
+                throw new IllegalArgumentException(
+                        "diagnostic for a file that was not a frontend input: " + uri);
+            }
+            return PositionCodec.decode(offset);
+        };
     }
 
     // --- Node helpers (extracted to {@link LaurelFactory}; thin delegates keep call sites stable) ---
@@ -359,14 +363,6 @@ public class BytecodeToLaurelCompiler {
     }
 
     // --- Ranges from CRT spans (extracted to {@link SourceMap}) ---
-
-    private FileRange argumentRange(FileRange callRange) {
-        return src.argumentRange(callRange);
-    }
-
-    private FileRange lambdaBodyRange(FileRange callRange) {
-        return src.lambdaBodyRange(callRange);
-    }
 
     private Range positionRange(FileRange range) {
         return src.positionRange(range);
@@ -762,7 +758,7 @@ public class BytecodeToLaurelCompiler {
             var param = new ParameterOpt(ident(h.name()),
                     Optional.of(node(t.toLaurel(ctx.typeParams, resolver, composites))));
             StmtExpr decl = new StmtExpr.Var(new Variable.Declare(param));
-            FileRange range = body.stmtRange(h.seqIdx(), BodyTranslator.Narrow.DECL, false);
+            FileRange range = body.stmtRange(h.seqIdx(), false);
             out.add(ctx.placeStatement(body.e(decl), range));
         }
         return out;
@@ -865,7 +861,7 @@ public class BytecodeToLaurelCompiler {
      * feedback would carry no source positions). Returns true when the
      * input is refused.
      */
-    private boolean reportInputTier(Map<URI, String> sources, List<ClassSource> classes) {
+    private boolean reportInputTier(Collection<URI> sourceUris, List<ClassSource> classes) {
         if (classes.isEmpty()) {
             return false;   // nothing to classify (and nothing will be verified)
         }
@@ -876,7 +872,7 @@ public class BytecodeToLaurelCompiler {
                 facts = facts.or(org.strata.java.bytecode.frontend.CompilationFacts.of(nested));
             }
         }
-        URI anchor = sources.keySet().stream().findFirst().orElse(null);
+        URI anchor = sourceUris.stream().findFirst().orElse(null);
         switch (facts.tier()) {
             case FULL -> { }
             case DEBUG -> reporter.reportWarning(anchor, Reporter.NO_RANGE,
@@ -994,11 +990,14 @@ public class BytecodeToLaurelCompiler {
         ctx.beginMethod(info);
 
         // Input compiled without -Xjcov: no statement spans exist, so anchor
-        // every emitted range at the method name instead. Diagnostics then
-        // carry method precision and per-method accounting still attributes.
+        // every emitted range at the method's LineNumberTable line envelope.
+        // Diagnostics then carry method (line) precision and per-method
+        // accounting still attributes.
         FileRange methodAnchor = UNKNOWN_RANGE;
         if (shape.crt().isEmpty()) {
-            methodAnchor = src.methodAnchorRangeOf(bareName, info.ordinal);
+            if (shape.lines() != null) {
+                methodAnchor = src.lineSpanRange(shape.lines().minLine(), shape.lines().maxLine());
+            }
             src.defaultRange = methodAnchor;
         }
 
@@ -1188,9 +1187,8 @@ public class BytecodeToLaurelCompiler {
                 throw new JavaViolationException(
                         "A call to 'precondition' may have only one argument");
             }
-            FileRange stmtRange = stmt.source();
+            FileRange condRange = stmt.source();   // statement-level; no sub-range from bytecode
             boolean lambda = spec.lambdaArg() != null;
-            FileRange condRange = lambda ? lambdaBodyRange(stmtRange) : argumentRange(stmtRange);
             src.defaultRange = condRange;
             AstNode<StmtExpr> converted;
             if (lambda) {
@@ -1212,9 +1210,8 @@ public class BytecodeToLaurelCompiler {
                 throw new JavaViolationException(
                         "A call to 'postcondition' may have only one argument");
             }
-            FileRange stmtRange = stmt.source();
+            FileRange condRange = stmt.source();   // statement-level; no sub-range from bytecode
             boolean lambda = spec.lambdaArg() != null;
-            FileRange condRange = lambda ? lambdaBodyRange(stmtRange) : argumentRange(stmtRange);
             src.defaultRange = condRange;
             AstNode<StmtExpr> converted;
             if (lambda) {
@@ -1240,7 +1237,7 @@ public class BytecodeToLaurelCompiler {
                 throw new JavaViolationException(
                         "A call to 'modifies' may have only one argument");
             }
-            FileRange argRange = argumentRange(stmt.source());
+            FileRange argRange = stmt.source();
             src.defaultRange = argRange;
             var arg = spec.args().get(0);
             var argSpec = body.specStmts.get(arg);
@@ -1260,7 +1257,7 @@ public class BytecodeToLaurelCompiler {
         for (var stmt : throwsOns) {
             var spec = body.specStmts.get(stmt);
             FileRange stmtRange = stmt.source();
-            FileRange guardRange = argumentRange(stmtRange);
+            FileRange guardRange = stmtRange;
             src.defaultRange = guardRange;
             var guardArg = spec.args().get(0);
             body.checkPlaceable(guardArg);
@@ -1385,7 +1382,11 @@ public class BytecodeToLaurelCompiler {
                 || !isThrowableSubtype(superFqn)) {
             return;
         }
-        reporter.reportWarning(src.uri, src.classKeywordRangeOf(node.name()),
+        // Anchor at this class's declaration line (the earliest member line,
+        // per MethodBodyFactory.classDeclLine), where the source frontend
+        // reports it.
+        reporter.reportWarning(src.uri,
+                src.linePoint(org.strata.java.bytecode.frontend.MethodBodyFactory.classDeclLine(node.cm())),
                 "missing contract for method '<init>' in class '" + superFqn + "'");
     }
 
@@ -1436,7 +1437,7 @@ public class BytecodeToLaurelCompiler {
         boolean isInterpretEntry = hasAnnotation(m, "InterpretEntry");
         boolean isStatic = m.flags().has(java.lang.reflect.AccessFlag.STATIC);
         if (!isStatic && isInterpretEntry) {
-            reporter.reportError(src.uri, src.namePointRangeOf(name, ordinal, mRange),
+            reporter.reportError(src.uri, src.pointOf(mRange),
                     "@InterpretEntry method '" + name + "' must be static");
             recordStatus(mRange, new MethodVerificationStatus(name,
                     mRange == UNKNOWN_RANGE ? Reporter.NO_RANGE : positionRange(mRange),
@@ -1454,7 +1455,7 @@ public class BytecodeToLaurelCompiler {
             return;
         }
         var info = new MethodGraph.MethodInfo(fqn, name, isStatic,
-                src.uri, src.namePointRangeOf(name, ordinal, mRange), ordinal, !verify);
+                src.uri, src.pointOf(mRange), ordinal, !verify);
         graph.methodInfos.put(info.key(), info);
         try {
             translateMethod(fqn, node.cm(), m, info, verify, isInterpretEntry);
@@ -1539,7 +1540,7 @@ public class BytecodeToLaurelCompiler {
         } catch (JavaViolationException e) {
             var info = new MethodGraph.MethodInfo(node.fqn(), name,
                     m.flags().has(java.lang.reflect.AccessFlag.STATIC),
-                    src.uri, src.bodylessNamePointOf(name), 0, !verify);
+                    src.uri, Reporter.NO_RANGE, 0, !verify);
             info.refused = true;
             graph.methodInfos.putIfAbsent(info.key(), info);
             reportRefusal(info, e.getMessage());

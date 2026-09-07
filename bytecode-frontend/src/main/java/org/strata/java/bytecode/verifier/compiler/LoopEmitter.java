@@ -94,7 +94,6 @@ final class LoopEmitter {
             }
             s.ctxStack.pop();
             List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts);
-            restampLoopBody(bodyStmts);
             out.add(s.place(buildDoWhile(cond, invariants, bodyStmts, c), latch));
             return exit;
         }
@@ -115,7 +114,6 @@ final class LoopEmitter {
                 ControlFlowStructurer.Ctx c = new ControlFlowStructurer.Ctx(true, header, exit, latch, latch);
                 s.ensureLabels(c);
                 List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts);
-                restampLoopBody(bodyStmts);
                 out.add(s.place(buildDoWhile(cond, invariants, bodyStmts, c), header));
                 return exit;
             }
@@ -139,7 +137,6 @@ final class LoopEmitter {
             List<AstNode<StmtExpr>> bodyStmts = s.region(bodyEntry, ControlFlowStructurer.plus(ControlFlowStructurer.plus(stop, header), exit));
             s.ctxStack.pop();
             List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts);
-            restampLoopBody(bodyStmts);
             out.add(s.place(buildPreTested(cond, invariants, bodyStmts, header, out, c), header));
             return exit;
         }
@@ -159,7 +156,6 @@ final class LoopEmitter {
             s.ctxStack.pop();
         }
         List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts);
-        restampLoopBody(bodyStmts);
         AstNode<StmtExpr> whileNode = body.e(new StmtExpr.While(
                 body.e(new StmtExpr.LiteralBool(true)), invariants, Optional.empty(),
                 s.blockOf(bodyStmts), false));
@@ -192,7 +188,7 @@ final class LoopEmitter {
                         throw new JavaViolationException(
                                 "A call to 'invariant' may have only one argument");
                     }
-                    FileRange argRange = ctx.src.argumentRange(bodyStmts.get(i).source());
+                    FileRange argRange = bodyStmts.get(i).source();
                     AstNode<StmtExpr> arg;
                     if (spec.lambdaArg() != null) {
                         arg = body.translateLambdaBody(spec.lambdaArg(), Map.of());
@@ -219,32 +215,6 @@ final class LoopEmitter {
             bodyStmts.subList(0, i).clear();
         }
         return invariants;
-    }
-
-    /**
-     * Loop-body statements carry the FULL statement range, semicolon
-     * included: re-stamp the top-level
-     * statements that were placed with the stripped narrowing. Identity keys
-     * of rebuilt call nodes are remapped so the driver's heap-write walk
-     * still resolves them.
-     */
-    private void restampLoopBody(List<AstNode<StmtExpr>> bodyStmts) {
-        for (int i = 0; i < bodyStmts.size(); i++) {
-            AstNode<StmtExpr> s = bodyStmts.get(i);
-            if (body.specStmts.containsKey(s)) {
-                continue;   // markers keep identity (mid-body refusal)
-            }
-            Integer at = body.stripSemiAt.get(s);
-            if (at == null) {
-                continue;
-            }
-            FileRange full = body.stmtRange(at, BodyTranslator.Narrow.RAW, false);
-            ctx.method.statementNodes.remove(s);
-            AstNode<StmtExpr> re = LaurelTrees.rerange(s, full, ctx.method.statementNodes);
-            ctx.method.statementNodes.add(re);
-            body.remapIdentity(s, re);
-            bodyStmts.set(i, re);
-        }
     }
 
     /** do-while as the driver encoded it: while(true){ {body}:cont; if(!cond) exit(break); } wrapped :break. */

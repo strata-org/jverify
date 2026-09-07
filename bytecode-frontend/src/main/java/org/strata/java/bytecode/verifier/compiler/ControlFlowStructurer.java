@@ -759,7 +759,7 @@ final class ControlFlowStructurer {
         int seqIdx = terminatorOf(blkId);
         FileRange range = seqIdx < 0
                 ? ctx.src.defaultRange
-                : body.stmtRange(seqIdx, BodyTranslator.Narrow.RAW, false);
+                : body.stmtRange(seqIdx, false);
         return body.place(raw, range);
     }
 
@@ -774,11 +774,11 @@ final class ControlFlowStructurer {
     Span spanOfNode(AstNode<StmtExpr> n) {
         // Recover the CRT span from the node's stamped FileRange line/col.
         FileRange r = n.source();
-        if (r == SourceMap.UNKNOWN_RANGE || ctx.src.index == null) {
+        if (r == SourceMap.UNKNOWN_RANGE) {
             return Span.NONE;
         }
-        var start = ctx.src.index.position((int) r.range().start().byteIdx());
-        var stop = ctx.src.index.position((int) r.range().stop().byteIdx());
+        var start = PositionCodec.decode(r.range().start().byteIdx());
+        var stop = PositionCodec.decode(r.range().stop().byteIdx());
         return new Span(start.line(), start.character(), stop.line(), stop.character());
     }
 
