@@ -35,7 +35,7 @@ import static org.strata.jverify.JVerify.*;
  *     postcondition, return, and nested inside binary/conditional
  *     expressions.
  */
-@JVerifyTest(exitCode = 4, errorCount = 30, methodsVerified=41)
+@JVerifyTest(exitCode = 4, errorCount = 29, methodsVerified=41)
 class PrimitiveCasts {
 
     // ============================================================
@@ -372,22 +372,23 @@ class PrimitiveCasts {
     }
 
     // Postcondition where the cast is on the result binding. `res`
-    // (bound to the returned value) isn't constrained to fit short.
+    // (bound to the returned value) isn't constrained to fit short, so the
+    // range check is a genuine failure — same as `postconditionCastFails`
+    // above, which casts a parameter.
     //
-    // The bare "precondition does not hold" is the cast helper's *input*
-    // type-constraint (`requires int32$constraint(x)`, added by Strata's
-    // ConstrainedTypeElim and carrying no summary). It is true — `res` is an
-    // `int` — but not provable here: a postcondition helper assumes the
-    // procedure's `requires` clauses, and the fact that an *output* satisfies
-    // its type constraint is an `ensures`, so it is not in scope. Casting a
-    // parameter instead (`postconditionCastFails` above) has no such gap,
-    // because a parameter's constraint is a `requires`. Same limitation as
-    // `postconditionCastVerifies` above.
+    // This method used to report a third, spurious diagnostic: a bare
+    // "precondition does not hold" for the cast helper's *input*
+    // type-constraint (`requires int32$constraint(res)`, added by Strata's
+    // ConstrainedTypeElim and carrying no summary). It was true — `res` is an
+    // `int` — but unprovable, because a postcondition helper saw only the
+    // procedure's `requires` clauses and the fact that an *output* satisfies its
+    // type constraint is an `ensures`. Strata now gives each postcondition
+    // helper the `ensures` clauses that precede it, so that constraint is in
+    // scope and only the two real errors remain.
     static int postconditionCastOnResultFails(int x) {
         postcondition((int res) -> ((short) res) == res);
 //                                 ^^^^^^^^^^^^^^^^^^^^ Error: postcondition does not hold
 //                                  ^^^^^^^^^^^ Error: cast from int32 to int16 does not hold
-//                                  ^^^^^^^^^^^ Error: precondition does not hold
         return x;
     }
 
