@@ -174,7 +174,20 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record StaticCall(Identifier callee, java.util.List<AstNode<StmtExpr>> arguments) implements StmtExpr {
+    public record StaticCall(Identifier callee, java.util.List<AstNode<StmtExpr>> arguments, java.util.List<AstNode<HighType>> typeArgs) implements StmtExpr {
+        /**
+         * A call with no type arguments. `typeArgs` carries a generic call's INFERRED
+         * instantiation, which only Laurel's resolution pass produces -- a front end has
+         * nothing to put there, so every construction site here uses this form. The field
+         * must still be emitted: `StaticCall` encodes as a positional Ion sexp, and the
+         * deserializer reads one element per constructor field (`mkIndexRead`, which has no
+         * default branch even for a field declared `:= default`), so omitting it fails with
+         * "Missing argument at index 3".
+         */
+        public StaticCall(Identifier callee, java.util.List<AstNode<StmtExpr>> arguments) {
+            this(callee, arguments, java.util.List.of());
+        }
+
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -183,6 +196,9 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         var _l1 = ion.newEmptyList();
         for (var e : arguments()) _l1.add(e.toIon(ion));
         sexp.add(_l1);
+        var _l2 = ion.newEmptyList();
+        for (var e : typeArgs()) _l2.add(e.toIon(ion));
+        sexp.add(_l2);
         return sexp;
         }
     }

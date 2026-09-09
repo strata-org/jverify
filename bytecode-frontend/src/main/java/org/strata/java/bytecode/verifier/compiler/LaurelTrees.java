@@ -111,7 +111,7 @@ final class LaurelTrees {
             case StmtExpr.PureFieldUpdate n -> new StmtExpr.PureFieldUpdate(rerange(n.target(), range, stop),
                     n.fieldName(), rerange(n.newValue(), range, stop));
             case StmtExpr.StaticCall n -> new StmtExpr.StaticCall(n.callee(),
-                    rerangeAll(n.arguments(), range, stop));
+                    rerangeAll(n.arguments(), range, stop), n.typeArgs());
             case StmtExpr.New n -> n;
             case StmtExpr.This n -> n;
             case StmtExpr.ReferenceEquals n -> new StmtExpr.ReferenceEquals(rerange(n.lhs(), range, stop),
