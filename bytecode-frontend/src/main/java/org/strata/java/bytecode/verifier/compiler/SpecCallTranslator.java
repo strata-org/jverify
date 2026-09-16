@@ -147,6 +147,7 @@ final class SpecCallTranslator {
             if (i >= lambda.captureCount()) {
                 Locals.Scope ps = iloc.at(slot, 0);
                 String pn = ps != null ? ps.name() : ish.slotName().getOrDefault(slot, "p" + i);
+                LaurelFactory.refuseReservedName(pn);
                 binderNames.add(pn);
                 binderTypes.add(TypeRef.ofDescriptor(imt.parameterType(i).descriptorString())
                         .toLaurel(ctx.typeParams, ctx.resolver, ctx.composites));

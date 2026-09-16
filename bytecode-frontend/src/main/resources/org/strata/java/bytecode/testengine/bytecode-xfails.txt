@@ -44,7 +44,7 @@ RUN    org.strata.jverify.verifier.tests.javasupport.expressions.VerifyNumericOp
 # Erased source signals: JFE refuses these constructs at the SOURCE level
 # with a reason javac then compiles away (compound assignments desugar to
 # plain ones, type variables erase where no Signature survives, method refs
-# lower to lambdas, `$result` is a lexical gate). The bytecode frontend
+# lower to lambdas). The bytecode frontend
 # either handles the desugared form or refuses with a different (honest)
 # reason, so the pinned reason string cannot be reproduced byte-exactly.
 # ============================================================================
@@ -53,7 +53,6 @@ XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.CascadeDepth3      
 XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ImpureNumericOperatorsVerification  FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
 XFAIL  org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass       FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
 XFAIL  org.strata.jverify.verifier.tests.verification.MethodContractsVerification                 FRONTEND_DIAGNOSTIC  method-ref/lambda refusal warnings not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.ReservedResultName                           FRONTEND_DIAGNOSTIC  JFE's '$result is reserved' refusal is a source-lexical gate with no bytecode equivalent; laurelSafeName escapes the leading $ to @, so the three binders translate cleanly and all 5 methods verify instead of 2 verified / 3 skipped
 
 # ============================================================================
 # Positions with no bytecode source: the verdict, counts, and diagnostic

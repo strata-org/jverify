@@ -11,11 +11,11 @@ import static org.strata.jverify.JVerify.*;
  * identifier, so the frontend's naming cannot prevent a user binder of that
  * name. Such methods are refused for a graceful skip with an attributable
  * diagnostic; previously they aborted Strata with an unattributable type-check error
- * (pre-existing on the base commit for static methods too). Covers all three
- * binder sites: parameter, local, quantifier. Verified 2 = clean + implicit
- * constructor; skipped 3 = the refused methods.
+ * (pre-existing on the base commit for static methods too). Covers all four
+ * binder sites: parameter, local, hoisted local, quantifier. Verified 2 =
+ * clean + implicit constructor; skipped 4 = the refused methods.
  */
-@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsVerified = 2, methodsSkipped = 3, errorCount = 0)
+@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsVerified = 2, methodsSkipped = 4, errorCount = 0)
 final class ReservedResultName {
 
     static void viaParam(@Unbounded int $result) {
@@ -29,6 +29,17 @@ final class ReservedResultName {
         @Unbounded int $result = a;
         check($result == a);
         return a;
+    }
+
+    static void viaHoistedLocal(@Unbounded int a) {
+//              ^ error: identifier '$result' is reserved by the verifier
+        @Unbounded int $result;
+        if (a > 0) {
+            $result = 1;
+        } else {
+            $result = 2;
+        }
+        check($result == $result);
     }
 
     static void viaQuantifier(@Unbounded int a) {

@@ -681,10 +681,12 @@ final class BodyTranslator {
         }
         if (declared.add(varKey(si.slot()))) {
             // Declaration (old: VariableDeclarationExpr -> convertVariableDeclaration).
+            String nm = localName(si.slot());
+            LaurelFactory.refuseReservedName(nm);
             TypeRef t = localTypeRef(si.slot());
             ParameterOpt param = t == null
-                    ? new ParameterOpt(LaurelFactory.ident(localName(si.slot())), Optional.empty())
-                    : new ParameterOpt(LaurelFactory.ident(localName(si.slot())),
+                    ? new ParameterOpt(LaurelFactory.ident(nm), Optional.empty())
+                    : new ParameterOpt(LaurelFactory.ident(nm),
                             Optional.of(LaurelFactory.node(
                                     t.toLaurel(ctx.typeParams, ctx.resolver, ctx.composites))));
             var declare = new AstNode<Variable>(new Variable.Declare(param), SourceMap.UNKNOWN_RANGE);

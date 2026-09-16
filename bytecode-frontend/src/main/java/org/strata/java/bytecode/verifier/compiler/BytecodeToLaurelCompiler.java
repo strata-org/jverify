@@ -752,6 +752,7 @@ public class BytecodeToLaurelCompiler {
             BodyTranslator body, TranslationContext ctx) {
         var out = new ArrayList<AstNode<StmtExpr>>();
         for (var h : shape.hoisted()) {
+            LaurelFactory.refuseReservedName(h.name());
             TypeRef t = h.genericType() != null
                     ? TypeRef.ofRendered(h.genericType(), false, false)
                     : TypeRef.ofDescriptor(h.desc(), false, false);
@@ -1042,6 +1043,7 @@ public class BytecodeToLaurelCompiler {
             String desc = mt.parameterType(i).descriptorString();
             var ps = shape.locals().at(slot, 0);
             String pname = ps != null ? ps.name() : shape.slotName().getOrDefault(slot, "v" + slot);
+            LaurelFactory.refuseReservedName(pname);
             // ACC_VARARGS: the declaration reads `T...`, so the COMPONENT
             // type is what translates (JFE sees the source `T`).
             boolean va = varargs && i == paramCount - 1 && desc.startsWith("[");

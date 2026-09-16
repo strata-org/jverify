@@ -115,6 +115,37 @@ final class LaurelFactory {
     }
 
     /**
+     * Refuse a user binder literally spelled {@code $result}, matching JFE's
+     * {@code refuseReservedName}. Strata's short {@code : T} return form generates an
+     * output parameter named {@code $result} (emitted unescaped via
+     * {@link #reservedIdent}) for every returning procedure, so a user binder of that
+     * name would collide inside Strata. {@code laurelSafeName} would escape it to
+     * {@code @result} and translate cleanly, but JFE deliberately refuses at the source
+     * level with an attributable diagnostic; we mirror that so the shared corpus outcome
+     * (skip with this reason) matches. Only the exact spelling {@code $result} is
+     * reserved -- a leading {@code $} on any other name is escaped, not refused.
+     *
+     * <p>Call at binder sites only (params, locals, lambda/quantifier binders), never
+     * inside {@link #ident}, which also escapes non-binder names (method/class/type).
+     *
+     * <p>Mirroring JFE is not the end state: the collision exists only because the
+     * generated output binding is spelled {@code $result}, a name a Java user can
+     * legally take. Renaming it into the {@code ?} namespace ({@code java?result},
+     * as {@link #LAUREL_SELF_BINDING} and {@link #THROWN_BINDING} already are, and
+     * Strata accepts any sole-output name) would delete this gate and JFE's alike,
+     * and close the one gap neither can reach: a bodyless method's parameters carry
+     * no name in bytecode (no Code, no LVT), so this gate can never fire for them.
+     * That rename touches JFE and flips Skipped methods to verified, so it is a
+     * separate CR, not this one.
+     */
+    static void refuseReservedName(String name) {
+        if (LAUREL_RESULT_BINDING.equals(name)) {
+            throw new JavaViolationException(
+                    "identifier '" + LAUREL_RESULT_BINDING + "' is reserved by the verifier");
+        }
+    }
+
+    /**
      * The Laurel identifier text for a local that the postcondition-lambda rewrite may
      * have renamed. A rename *target* ({@code $result}) is JVerify's own choice, so it
      * passes through unescaped; an unrenamed name came from the user's Java and is
