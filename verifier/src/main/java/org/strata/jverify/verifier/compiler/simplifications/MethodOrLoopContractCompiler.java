@@ -6,6 +6,7 @@ import org.strata.jverify.common.Common;
 import org.strata.jverify.verifier.compiler.JavaViolationException;
 import org.strata.jverify.verifier.compiler.Reporter;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
@@ -313,8 +314,11 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             java.util.List<JCTree.JCMethodInvocation> links) {
         var stack = new ArrayDeque<JCTree.JCMethodInvocation>();
         var cur = invocation;
+        // Descend through the receiver chain; skipParens keeps a
+        // parenthesized link -- `(throwsOn(C)).postcondition(...)` -- one
+        // chain rather than a "detached handle" refusal.
         while (cur.meth instanceof JCTree.JCFieldAccess fa
-                && fa.selected instanceof JCTree.JCMethodInvocation inner) {
+                && TreeInfo.skipParens(fa.selected) instanceof JCTree.JCMethodInvocation inner) {
             stack.push(cur);
             cur = inner;
         }
