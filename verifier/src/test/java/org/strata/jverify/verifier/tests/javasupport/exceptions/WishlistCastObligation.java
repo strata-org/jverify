@@ -16,7 +16,8 @@ import static org.strata.jverify.JVerify.throwsOn;
  * fixed; then this pins that the obligation actually fires.
  */
 @JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_EXCEPTIONS},
-        continueOnErrors = true, exitCode = 0,
+        continueOnErrors = true,
+        exitCode = 4, // the future obligation is a verify-path diagnostic
         methodsVerified = 3, // 3 implicit constructors
         methodsInvalid = 1, // castObligation(): the cast obligation must fail
         errorCount = 1)

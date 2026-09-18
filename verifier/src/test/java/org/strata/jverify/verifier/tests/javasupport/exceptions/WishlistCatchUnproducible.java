@@ -11,6 +11,11 @@ import org.strata.jverify.testengine.JVerifyTest;
  * vacuously, which hides the dead code. The test states the future
  * expectation (one error) and is expected to fail until the diagnostic
  * exists.
+ *
+ * <p>When closing this gap, also settle the exit code: as declared
+ * (exitCode = 0) the XPASS tripwire assumes a frontend refusal/skip; if the
+ * diagnostic instead surfaces on the verify path, exitCode must become 4 or
+ * the assertion is swallowed as still-blocked forever.
  */
 @JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_EXCEPTIONS},
         continueOnErrors = true, exitCode = 0,
