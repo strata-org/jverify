@@ -127,6 +127,76 @@ public class BytecodeToLaurelCompiler {
     private final Map<String, String> programSuper = new HashMap<>();
     /** Composite sort -> its extended (parent) sort (JFE's compositeExtends). */
     private final Map<String, String> compositeExtends = new LinkedHashMap<>();
+    /** Instance procedures per composite sort (JFE's instanceProcsBySort). */
+    private final Map<String, List<Procedure>> instanceProcsBySort = new LinkedHashMap<>();
+    /** Classfile models of this compilation by fqn ('$'->'.'), for the dispatch/overload gates. */
+    private final Map<String, java.lang.classfile.ClassModel> programClassModels = new HashMap<>();
+
+    /**
+     * Synthesized receiver parameter on instance procedures (JFE's
+     * LAUREL_SELF_BINDING). '?' is outside Java's identifier grammar but
+     * inside Strata's, so no user local can collide; Strata's
+     * LiftInstanceProcedures prepends the receiver argument, so the lifted
+     * procedure must declare it first.
+     */
+    static final String LAUREL_SELF_BINDING = "self?";
+
+    /**
+     * Everything the refusal-propagation fixpoint needs about a translated or
+     * refused method (JFE keys this on MethodSymbols; here the key is
+     * "classFqn#name", unique because overloads are refused).
+     */
+    private static final class MethodInfo {
+        final String classFqn;
+        final String name;
+        final boolean isStatic;
+        final URI uri;
+        final Range namePoint;
+        /** Distinguishes same-name overload declarations (JFE keys on MethodSymbol identity). */
+        final int ordinal;
+        /** Opted out of verification: refusals demote silently, never diagnose. */
+        final boolean quiet;
+        MethodVerificationStatus status;
+        Procedure proc;         // emitted procedure, for the drop pass
+        String sort;            // composite sort holding proc (null for statics)
+        boolean refused;        // translation threw, or demoted by the fixpoint
+        final java.util.Set<String> callees = new java.util.LinkedHashSet<>();
+
+        MethodInfo(String classFqn, String name, boolean isStatic, URI uri, Range namePoint,
+                   int ordinal, boolean quiet) {
+            this.classFqn = classFqn;
+            this.name = name;
+            this.isStatic = isStatic;
+            this.uri = uri;
+            this.namePoint = namePoint;
+            this.ordinal = ordinal;
+            this.quiet = quiet;
+        }
+
+        /** Per-declaration identity (dedup key). */
+        String key() {
+            return classFqn + "#" + name + "@" + ordinal;
+        }
+
+        /** By-name identity: what a call edge can actually reference. */
+        String nameKey() {
+            return classFqn + "#" + name;
+        }
+    }
+
+    private final Map<String, MethodInfo> methodInfos = new LinkedHashMap<>();
+    /** The method being translated (callee edges are recorded on it). */
+    private MethodInfo currentMethodInfo;
+    /** Fqn of the class whose method is being translated: the type of `this`. */
+    private String currentClassFqn;
+    /** The current method's class-typed return sort, or null (for opaque lambda returns). */
+    private String currentReturnSort;
+    /** Converting a contract argument (precondition/postcondition/invariant/modifies). */
+    private boolean inContractContext;
+    /** Type-parameter names in scope (method + enclosing class): refuse as JFE's Unsupported type: T. */
+    private java.util.Set<String> currentTypeParams = java.util.Set.of();
+    /** Diagnostic dedup (JFE's reportedInstanceRefusals): methodKey -> reasons reported. */
+    private final Map<String, java.util.Set<String>> reportedRefusals = new HashMap<>();
 
     // Per-file state
     private URI currentUri;
@@ -193,6 +263,11 @@ public class BytecodeToLaurelCompiler {
             String fqn = cls.internalName().replace('/', '.').replace('$', '.');
             knownClasses.put(fqn, fqn);
             knownClasses.put(simpleName(fqn), fqn);
+            programClassModels.put(fqn, cls.classModel());
+            for (var nested : cls.nestedModels()) {
+                programClassModels.put(
+                        nested.thisClass().asInternalName().replace('/', '.').replace('$', '.'), nested);
+            }
             // Superclass edges straight from the classfiles: authoritative for
             // the exception-hierarchy walks (isSubclassOf / LCA / extends links).
             cls.classModel().superclass().ifPresent(sup ->
@@ -236,10 +311,30 @@ public class BytecodeToLaurelCompiler {
             compileUnit(cls);
         }
 
+        // Refusal propagation (JFE's demoteCallersOfRefusedMethods): a method
+        // that calls a refused one is itself demoted -- soundness, since its
+        // callee's contract was never established. Iterated to a fixpoint so
+        // A -> B -> C chains demote fully, then the demoted methods' emitted
+        // procedures are dropped (an InstanceCall/StaticCall to an unemitted
+        // procedure would die in Strata resolution).
+        demoteCallersOfRefusedMethods();
+        dropRefusedProcedures();
+
         // Composite declarations: all referenced class-typed sorts, each with
         // only its accessed fields (JFE's scheme), after the prelude types.
-        List<TypeDefinition> types = new ArrayList<>(getPredefinedTypes());
+        // Ancestors first: Laurel builds a composite's scope by copying each
+        // parent's, so a parent must be declared before its children.
+        var orderedComposites = new java.util.LinkedHashSet<String>();
         for (var typeName : referencedCompositeTypes) {
+            var chain = new ArrayDeque<String>();
+            for (String c = typeName; c != null && referencedCompositeTypes.contains(c);
+                    c = compositeExtends.get(c)) {
+                chain.push(c);
+            }
+            orderedComposites.addAll(chain);
+        }
+        List<TypeDefinition> types = new ArrayList<>(getPredefinedTypes());
+        for (var typeName : orderedComposites) {
             List<org.strata.jverify.laurel.Field> fields = compositeFields.containsKey(typeName)
                     ? new ArrayList<>(compositeFields.get(typeName).values())
                     : List.of();
@@ -250,7 +345,8 @@ public class BytecodeToLaurelCompiler {
                     ? List.of(node(new HighType.UserDefined(ident(compositeExtends.get(typeName)))))
                     : List.of();
             types.add(new TypeDefinition.Composite(new org.strata.jverify.laurel.CompositeType(
-                    ident(typeName), /*typeArgs=*/List.of(), extending, fields, List.of())));
+                    ident(typeName), /*typeArgs=*/List.of(), extending, fields,
+                    instanceProcsBySort.getOrDefault(typeName, List.of()))));
         }
         List<Procedure> allProcedures = new ArrayList<>(castHelpers.values());
         allProcedures.addAll(procedures);
@@ -266,6 +362,77 @@ public class BytecodeToLaurelCompiler {
         return new AnalysisResult(program, filesMap, methodStatuses);
     }
 
+    /**
+     * Port of JFE's demoteCallersOfRefusedMethods: one round marks every
+     * method that calls an already-refused one, reporting {@code call to
+     * 'X', which could not be translated} (severity by the CALLER's own
+     * staticness, anchored at the caller's declaration name, deduped per
+     * (caller, reason) -- the demotion itself is never deduped). Iterated to
+     * a fixpoint: A -> B -> C with C refused demotes B in round one and A in
+     * round two. Terminates because the refused set only grows and is
+     * bounded by the method count.
+     */
+    private void demoteCallersOfRefusedMethods() {
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            // A call edge is by name (that is all a Laurel call carries), so
+            // a callee name is refused when ANY declaration of it is. Quiet
+            // (opted-out) refusals are excluded: calls to opted-out methods
+            // are refused at the call site by the arity-aware check, and an
+            // opted-out overload must not poison calls to its emitted
+            // sibling (JFE keys demotion on symbols, not names).
+            var refusedNames = new java.util.HashSet<String>();
+            for (var info : methodInfos.values()) {
+                if (info.refused && !info.quiet) {
+                    refusedNames.add(info.nameKey());
+                }
+            }
+            for (var info : methodInfos.values()) {
+                if (info.refused) {
+                    continue;
+                }
+                for (String calleeKey : info.callees) {
+                    if (!refusedNames.contains(calleeKey)) {
+                        continue;
+                    }
+                    info.refused = true;
+                    if (info.status != null) {
+                        info.status.setVerificationStatus(
+                                MethodVerificationStatus.VerificationStatus.Skipped);
+                    }
+                    reportRefusal(info, "call to '"
+                            + calleeKey.substring(calleeKey.indexOf('#') + 1)
+                            + "', which could not be translated");
+                    changed = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * Drop the emitted procedures of demoted methods (JFE's post-fixpoint
+     * drop pass): their bodies reference unemitted callees, and Strata would
+     * fail resolution on them.
+     */
+    private void dropRefusedProcedures() {
+        for (var info : methodInfos.values()) {
+            if (!info.refused || info.proc == null) {
+                continue;
+            }
+            if (info.sort == null) {
+                procedures.remove(info.proc);
+            } else {
+                var list = instanceProcsBySort.get(info.sort);
+                if (list != null) {
+                    list.remove(info.proc);
+                }
+            }
+            info.proc = null;
+        }
+    }
+
     private void collectDeclarations(String fqn, TypeDeclaration<?> decl, URI uri) {
         sourceTypes.put(fqn, decl);
         if (decl.getAnnotationByName("Contract").isPresent()) {
@@ -276,6 +443,8 @@ public class BytecodeToLaurelCompiler {
             contractDecls.add(new Object[]{fqn, decl, uri});
         }
         var fields = declaredFields.computeIfAbsent(fqn, k -> new LinkedHashMap<>());
+        // Same disambiguation as compileType's walk, so sourceTypes keys agree.
+        var nestedNameCounts = new HashMap<String, Integer>();
         for (var member : decl.getMembers()) {
             if (member instanceof com.github.javaparser.ast.body.FieldDeclaration fieldDecl) {
                 for (VariableDeclarator v : fieldDecl.getVariables()) {
@@ -287,7 +456,7 @@ public class BytecodeToLaurelCompiler {
                         m.getAnnotationByName("Pure").isPresent());
             }
             if (member instanceof TypeDeclaration<?> nested) {
-                collectDeclarations(fqn + "." + nested.getNameAsString(), nested, uri);
+                collectDeclarations(nestedFqn(fqn, nested, nestedNameCounts), nested, uri);
             }
         }
         // Record components are fields too.
@@ -1101,6 +1270,11 @@ public class BytecodeToLaurelCompiler {
         // sort named by the fully qualified source type (JFE's scheme; Strata
         // treats unbound composites as uninterpreted reference sorts).
         if (type instanceof com.github.javaparser.ast.type.ClassOrInterfaceType cls) {
+            // A type variable (recovered by the decompiler from the Signature
+            // attribute) refuses exactly as JFE's TypeVar arm does.
+            if (cls.getScope().isEmpty() && currentTypeParams.contains(cls.getNameAsString())) {
+                throw new JavaViolationException("Unsupported type: " + cls.getNameAsString());
+            }
             String sortName = qualifyTypeName(cls.getNameWithScope());
             referencedCompositeTypes.add(sortName);
             return new HighType.UserDefined(ident(sortName));
@@ -1321,6 +1495,29 @@ public class BytecodeToLaurelCompiler {
             if (contractClasses.contains(modelFqn)) {
                 continue; // @Contract classes are spec definitions, not user code
             }
+            // Constructors are never translated (JFE defers them: emitting
+            // one would embed '<init>' in the name and expose the
+            // synthesized super() chain). A USER-WRITTEN constructor is
+            // demoted to Skipped -- its (unchecked) contract must not be
+            // reported green; the implicit constructor's vacuous Verified is
+            // sound and gives JFE's "+1 per class" convention. The decompiled
+            // AST distinguishes them: the decompiler drops the trivial form,
+            // so a surviving ConstructorDeclaration means user-written.
+            // The decompiler drops a trivial explicit ctor (identical bytecode
+            // to the implicit one), so the AST alone under-detects. The
+            // classfile still tells them apart: -Xjcov writes CharacterRange
+            // entries only for SOURCE constructs, so an explicit constructor
+            // (trivial or not) carries a CRT and the implicit one does not.
+            boolean astExplicitCtor = sourceTypes.get(modelFqn) != null
+                    && sourceTypes.get(modelFqn).getMembers().stream()
+                            .anyMatch(mem -> mem instanceof com.github.javaparser.ast.body.ConstructorDeclaration);
+            // The implicit constructor inherits its class's opt-out (JFE
+            // seeds the interval entry from the @Verify stack): an opted-out
+            // class's "+1 per class" is a Skipped, not a Verified.
+            var classAnno = verifyAnnotation(cm);
+            boolean classOptedOut = classAnno != null
+                    ? !verifyValue(classAnno, "value", true)
+                    : !verifyByDefault;
             for (var m : cm.methods()) {
                 String name = m.methodName().stringValue();
                 if (!name.equals("<init>")) {
@@ -1330,8 +1527,16 @@ public class BytecodeToLaurelCompiler {
                         | java.lang.classfile.ClassFile.ACC_BRIDGE)) != 0) {
                     continue;
                 }
+                boolean crtExplicitCtor = m.code()
+                        .map(code -> code.attributes().stream()
+                                .anyMatch(a -> a instanceof
+                                        java.lang.classfile.attribute.CharacterRangeTableAttribute crt
+                                        && !crt.characterRangeTable().isEmpty()))
+                        .orElse(false);
                 tree.insert(0, 0, new MethodVerificationStatus(name, Reporter.NO_RANGE,
-                        MethodVerificationStatus.VerificationStatus.Verified));
+                        astExplicitCtor || crtExplicitCtor || classOptedOut
+                                ? MethodVerificationStatus.VerificationStatus.Skipped
+                                : MethodVerificationStatus.VerificationStatus.Verified));
             }
         }
     }
@@ -1372,7 +1577,7 @@ public class BytecodeToLaurelCompiler {
             return ShouldVerifyMode.Inherit;
         }
         boolean should = true;
-        boolean overrideChildren = true;
+        boolean overrideChildren = false; // @Verify's declared default
         var ann = verify.get();
         if (ann instanceof com.github.javaparser.ast.expr.SingleMemberAnnotationExpr single
                 && single.getMemberValue() instanceof BooleanLiteralExpr b) {
@@ -1401,6 +1606,9 @@ public class BytecodeToLaurelCompiler {
         warnMissingSuperInitContract(fqn, decl);
         pushShouldVerify(verifyModeOf(decl));
         try {
+            // Local classes hoisted from different methods may share a name
+            // (JFE keys on symbols; here the repeat count disambiguates).
+            var nestedNameCounts = new HashMap<String, Integer>();
             for (var member : decl.getMembers()) {
                 if (member instanceof MethodDeclaration method) {
                     compileMethod(fqn, method);
@@ -1409,12 +1617,30 @@ public class BytecodeToLaurelCompiler {
                 // classfile pool entries; Decompiler re-nests them here,
                 // so walk them too under their own name.
                 if (member instanceof TypeDeclaration<?> nested) {
-                    compileType(fqn + "." + nested.getNameAsString(), nested);
+                    // A hoisted ANONYMOUS class is deferred exactly as JFE
+                    // defers it: methods demote to Skipped, no diagnostic.
+                    if (nested.containsData(org.strata.java.bytecode.frontend.Decompiler.ANONYMOUS)) {
+                        for (var m : nested.getMethods()) {
+                            if (m.getBody().isPresent()) {
+                                recordStatus(m, methodRange(m),
+                                        MethodVerificationStatus.VerificationStatus.Skipped);
+                            }
+                        }
+                        continue;
+                    }
+                    compileType(nestedFqn(fqn, nested, nestedNameCounts), nested);
                 }
             }
         } finally {
             shouldVerifies.pop();
         }
+    }
+
+    private static String nestedFqn(String outerFqn, TypeDeclaration<?> nested,
+                                    HashMap<String, Integer> counts) {
+        String name = nested.getNameAsString();
+        int occurrence = counts.merge(name, 1, Integer::sum);
+        return outerFqn + "." + name + (occurrence > 1 ? "$" + occurrence : "");
     }
 
     private void compileMethod(String fqn, MethodDeclaration method) {
@@ -1426,13 +1652,14 @@ public class BytecodeToLaurelCompiler {
                 : MethodVerificationStatus.VerificationStatus.Skipped;
 
         // Methods of anonymous/local classes declared inside this method's
-        // body are registered too (JFE's scanner visits them as class decls);
-        // they inherit this method's context and are not translated.
+        // body: JFE defers them (no qualified enclosing name -> the sort is
+        // only reachable by flatname) and demotes them to Skipped silently.
         for (var anon : method.findAll(com.github.javaparser.ast.expr.ObjectCreationExpr.class)) {
             anon.getAnonymousClassBody().ifPresent(members -> {
                 for (var m : members) {
                     if (m instanceof MethodDeclaration anonMethod && anonMethod.getBody().isPresent()) {
-                        recordStatus(anonMethod, methodRange(anonMethod), verifiedOrSkipped);
+                        recordStatus(anonMethod, methodRange(anonMethod),
+                                MethodVerificationStatus.VerificationStatus.Skipped);
                     }
                 }
             });
@@ -1440,47 +1667,155 @@ public class BytecodeToLaurelCompiler {
         for (var local : method.findAll(com.github.javaparser.ast.stmt.LocalClassDeclarationStmt.class)) {
             for (var m : local.getClassDeclaration().getMembers()) {
                 if (m instanceof MethodDeclaration localMethod && localMethod.getBody().isPresent()) {
-                    recordStatus(localMethod, methodRange(localMethod), verifiedOrSkipped);
+                    recordStatus(localMethod, methodRange(localMethod),
+                            MethodVerificationStatus.VerificationStatus.Skipped);
                 }
             }
         }
 
         boolean isInterpretEntry = method.getAnnotationByName("InterpretEntry").isPresent();
-        if (!method.isStatic()) {
-            if (isInterpretEntry) {
-                // JFE rejects the marker on instance methods with a clear
-                // diagnostic instead of silently ignoring it.
-                reporter.reportError(currentUri, namePointRange(method),
-                        "@InterpretEntry method '" + method.getNameAsString() + "' must be static");
-                recordStatus(method, methodRange(method),
-                        MethodVerificationStatus.VerificationStatus.Skipped);
-                return;
-            }
-            // JFE registers instance methods (with bodies, including empty
-            // ones) as Verified/Skipped even though it doesn't translate
-            // them. A body-less @EmptyContract method counts too: JFE's
-            // contract compiler synthesizes a contract body for it.
-            if (method.getBody().isPresent()
-                    || method.getAnnotationByName("EmptyContract").isPresent()) {
-                recordStatus(method, methodRange(method), verifiedOrSkipped);
-            }
+        if (!method.isStatic() && isInterpretEntry) {
+            // JFE rejects the marker on instance methods with a clear
+            // diagnostic instead of silently ignoring it.
+            reporter.reportError(currentUri, namePointRange(method),
+                    "@InterpretEntry method '" + method.getNameAsString() + "' must be static");
+            recordStatus(method, methodRange(method),
+                    MethodVerificationStatus.VerificationStatus.Skipped);
             return;
         }
         if (method.getBody().isEmpty()) {
             if (method.getAnnotationByName("EmptyContract").isPresent()) {
                 recordStatus(method, methodRange(method), verifiedOrSkipped);
+                return;
             }
+            // JFE attempts body-less (abstract/interface) methods too: a
+            // refusal reports at the declaration, but no interval entry is
+            // seeded (JFE seeds only methods with bodies), so counts stay
+            // unaffected and nothing is emitted.
+            probeBodylessMethod(fqn, method, verify);
             return;
         }
+        // Ordinal among same-name siblings: distinguishes overload
+        // declarations, which share a by-name key.
+        int ordinal = 0;
+        if (method.getParentNode().orElse(null)
+                instanceof com.github.javaparser.ast.body.TypeDeclaration<?> td) {
+            ordinal = (int) td.getMethods().stream()
+                    .filter(m -> m.getNameAsString().equals(method.getNameAsString()))
+                    .toList().indexOf(method);
+        }
+        var info = new MethodInfo(fqn, method.getNameAsString(), method.isStatic(),
+                currentUri, namePointRange(method), ordinal, !verify);
+        methodInfos.put(info.key(), info);
+        currentMethodInfo = info;
+        currentClassFqn = fqn;
         try {
-            translateStaticMethod(fqn, method, verify, isInterpretEntry);
+            translateMethod(fqn, method, verify, isInterpretEntry);
         } catch (ReportedViolation e) {
             // Already reported at its own source position; only record the skip.
-            recordStatus(method, methodRange(method), MethodVerificationStatus.VerificationStatus.Skipped);
+            info.refused = true;
+            recordRefusedStatus(info, method);
         } catch (JavaViolationException e) {
-            reporter.reportError(currentUri, namePointRange(method), e.getMessage());
-            recordStatus(method, methodRange(method), MethodVerificationStatus.VerificationStatus.Skipped);
+            info.refused = true;
+            reportRefusal(info, e.getMessage());
+            recordRefusedStatus(info, method);
+        } finally {
+            currentMethodInfo = null;
         }
+    }
+
+    /**
+     * JFE-parity refusal detection for a body-less method: the gates JFE's
+     * translateMethod hits before the body (declaration overload, parameter
+     * and return types, type variables). Nothing is recorded or emitted --
+     * only the diagnostic is reproduced.
+     */
+    private void probeBodylessMethod(String fqn, MethodDeclaration method, boolean verify) {
+        var savedTypeParams = currentTypeParams;
+        try {
+            var typeParams = new java.util.HashSet<String>();
+            method.getTypeParameters().forEach(tp -> typeParams.add(tp.getNameAsString()));
+            if (sourceTypes.get(fqn)
+                    instanceof com.github.javaparser.ast.body.ClassOrInterfaceDeclaration cid) {
+                cid.getTypeParameters().forEach(tp -> typeParams.add(tp.getNameAsString()));
+            }
+            currentTypeParams = typeParams;
+            refuseIfOverloaded(fqn, method.getNameAsString(), method.isStatic());
+            for (Parameter param : method.getParameters()) {
+                translateType(param.getType());
+            }
+            if (!method.getType().isVoidType()) {
+                translateType(method.getType());
+            }
+        } catch (JavaViolationException e) {
+            var info = new MethodInfo(fqn, method.getNameAsString(), method.isStatic(),
+                    currentUri, bodylessNamePoint(method), 0, !verify);
+            info.refused = true;
+            methodInfos.putIfAbsent(info.key(), info);
+            reportRefusal(info, e.getMessage());
+        } finally {
+            currentTypeParams = savedTypeParams;
+        }
+    }
+
+    /**
+     * Declaration anchor for a body-less method: no CRT span exists, so the
+     * name position is recovered by the declaration's shape -- an ABSTRACT
+     * declaration ends its parameter list with {@code ;} (an implementation
+     * opens {@code '{'}), and is not preceded by a receiver dot (a call).
+     */
+    private Range bodylessNamePoint(MethodDeclaration method) {
+        if (currentSource == null || currentIndex == null) {
+            return Reporter.NO_RANGE;
+        }
+        var matcher = java.util.regex.Pattern
+                .compile("\\b" + java.util.regex.Pattern.quote(method.getNameAsString())
+                        + "\\s*\\([^)]*\\)\\s*;")
+                .matcher(currentSource);
+        while (matcher.find()) {
+            int at = matcher.start();
+            if (at > 0 && currentSource.charAt(at - 1) == '.') {
+                continue; // a call through a receiver, not a declaration
+            }
+            var start = currentIndex.position(at);
+            return new Range(start,
+                    new org.strata.jverify.common.Position(start.line(), start.character() + 1));
+        }
+        return Reporter.NO_RANGE;
+    }
+
+    /**
+     * Report a method's translation refusal with JFE's severity asymmetry: a
+     * static method's failure is an error ({@code translatorError={0}}), an
+     * instance method's a warning ({@code instanceMethodNotVerified}) --
+     * instance support is deliberately partial, so a refusal demotes to an
+     * honest Skipped instead of failing the build. Both anchor at the refused
+     * method's own name (JFE's JCMethodDecl preferred position). The
+     * diagnostic is deduped per (method, reason); the demotion never is.
+     */
+    private void reportRefusal(MethodInfo info, String reason) {
+        if (info.quiet) {
+            return; // opted-out methods demote silently (JFE never translates them loudly)
+        }
+        if (!reportedRefusals.computeIfAbsent(info.key(), k -> new java.util.LinkedHashSet<>())
+                .add(reason)) {
+            return;
+        }
+        if (info.isStatic) {
+            reporter.reportError(info.uri, info.namePoint, reason);
+        } else {
+            reporter.reportWarning(info.uri, info.namePoint,
+                    "instance method '" + info.name + "' was not verified: " + reason);
+        }
+    }
+
+    private void recordRefusedStatus(MethodInfo info, MethodDeclaration method) {
+        var range = methodRange(method);
+        var status = new MethodVerificationStatus(method.getNameAsString(),
+                range == UNKNOWN_RANGE ? Reporter.NO_RANGE : positionRange(range),
+                MethodVerificationStatus.VerificationStatus.Skipped);
+        info.status = status;
+        recordStatus(method, range, status);
     }
 
     /**
@@ -1503,20 +1838,44 @@ public class BytecodeToLaurelCompiler {
      * statement.
      */
     private Range namePointRange(MethodDeclaration method) {
-        var range = methodRange(method);
-        if (currentSource == null || range == UNKNOWN_RANGE) {
+        if (currentSource == null) {
             return Reporter.NO_RANGE;
         }
-        int bodyStart = (int) range.range().start().byteIdx();
-        var matcher = java.util.regex.Pattern
-                .compile("\\b" + java.util.regex.Pattern.quote(method.getNameAsString()) + "\\s*\\(")
-                .matcher(currentSource);
+        var range = methodRange(method);
+        var pattern = java.util.regex.Pattern
+                .compile("\\b" + java.util.regex.Pattern.quote(method.getNameAsString()) + "\\s*\\(");
         int namePos = -1;
-        while (matcher.find() && matcher.start() < bodyStart) {
-            namePos = matcher.start();
-        }
-        if (namePos < 0) {
-            return positionRange(range);
+        if (range == UNKNOWN_RANGE) {
+            // No CRT span to anchor on (an empty body). Fall back to the
+            // declaration's ordinal among same-named siblings: source order
+            // matches classfile order, so the k-th declaration is the k-th
+            // occurrence of `name(` in the file.
+            int ordinal = 0;
+            if (method.getParentNode().orElse(null)
+                    instanceof com.github.javaparser.ast.body.TypeDeclaration<?> td) {
+                ordinal = (int) td.getMethods().stream()
+                        .filter(m -> m.getNameAsString().equals(method.getNameAsString()))
+                        .toList().indexOf(method);
+            }
+            var matcher = pattern.matcher(currentSource);
+            for (int i = 0; matcher.find(); i++) {
+                if (i == ordinal) {
+                    namePos = matcher.start();
+                    break;
+                }
+            }
+            if (namePos < 0) {
+                return Reporter.NO_RANGE;
+            }
+        } else {
+            int bodyStart = (int) range.range().start().byteIdx();
+            var matcher = pattern.matcher(currentSource);
+            while (matcher.find() && matcher.start() < bodyStart) {
+                namePos = matcher.start();
+            }
+            if (namePos < 0) {
+                return positionRange(range);
+            }
         }
         var start = currentIndex.position(namePos);
         return new Range(start, new org.strata.jverify.common.Position(start.line(), start.character() + 1));
@@ -1561,6 +1920,17 @@ public class BytecodeToLaurelCompiler {
                     String fqn = knownClasses.get(owner.getNameAsString());
                     if (fqn != null) {
                         return !pureMethods.getOrDefault(fqn + "_" + call.getNameAsString(), false);
+                    }
+                    // An instance call on a typed receiver: pure iff the
+                    // resolved callee is @Pure (same map, keyed by its
+                    // declaring class).
+                    String receiverFqn = staticTypeFqn(owner);
+                    if (receiverFqn != null) {
+                        var callee = findCallee(receiverFqn, call.getNameAsString());
+                        if (callee != null) {
+                            return !pureMethods.getOrDefault(
+                                    callee.declaringFqn() + "_" + call.getNameAsString(), false);
+                        }
                     }
                 }
                 return true; // unknown callee: conservatively heap-writing
@@ -1607,6 +1977,15 @@ public class BytecodeToLaurelCompiler {
 
     private void recordStatus(MethodDeclaration method, FileRange range,
                               MethodVerificationStatus.VerificationStatus status) {
+        recordStatus(method, range, new MethodVerificationStatus(method.getNameAsString(),
+                range == UNKNOWN_RANGE ? Reporter.NO_RANGE : positionRange(range), status));
+    }
+
+    /**
+     * Insert an existing status record (shared with a {@link MethodInfo}, so
+     * the refusal-propagation fixpoint can later demote it in place).
+     */
+    private void recordStatus(MethodDeclaration method, FileRange range, MethodVerificationStatus status) {
         if (currentUri == null) {
             return;
         }
@@ -1615,23 +1994,43 @@ public class BytecodeToLaurelCompiler {
             // A method with no CRT spans (typically an empty body) still
             // counts — JFE registers every non-synthetic method declaration.
             // The line-0 interval keeps it out of diagnostic attribution.
-            tree.insert(0, 0, new MethodVerificationStatus(
-                    method.getNameAsString(), Reporter.NO_RANGE, status));
+            tree.insert(0, 0, status);
             return;
         }
         var posRange = positionRange(range);
-        tree.insert(posRange.start().line(), posRange.end().line(),
-                new MethodVerificationStatus(method.getNameAsString(), posRange, status));
+        tree.insert(posRange.start().line(), posRange.end().line(), status);
     }
 
-    private void translateStaticMethod(String classFqn, MethodDeclaration method,
-                                       boolean verify, boolean isInterpretEntry) {
-        String methodName = classFqn + "_" + method.getNameAsString();
+    private void translateMethod(String classFqn, MethodDeclaration method,
+                                 boolean verify, boolean isInterpretEntry) {
+        boolean isStatic = method.isStatic();
+        // An instance procedure lives INSIDE its composite under the bare
+        // method name (Strata's LiftInstanceProcedures lifts it to
+        // <Composite>$<method>); a static keeps the mangled top-level name.
+        String methodName = isStatic
+                ? classFqn + "_" + method.getNameAsString()
+                : method.getNameAsString();
+        // Overloading refusal at the declaration (JFE runs overloadRefusal
+        // first in translateMethod): a Laurel procedure name carries no
+        // signature, so a same-named sibling makes by-name resolution
+        // ambiguous.
+        refuseIfOverloaded(classFqn, method.getNameAsString(), isStatic);
 
         if (isInterpretEntry && !method.getParameters().isEmpty()) {
             throw new JavaViolationException(
                     "@InterpretEntry method '" + method.getNameAsString() + "' must take no arguments");
         }
+
+        // Type parameters in scope: the decompiler recovers them from the
+        // Signature attribute, and any use refuses with JFE's message
+        // (JFE: translateType's "Unsupported type: T" for a TypeVar).
+        var typeParams = new java.util.HashSet<String>();
+        method.getTypeParameters().forEach(tp -> typeParams.add(tp.getNameAsString()));
+        if (sourceTypes.get(classFqn)
+                instanceof com.github.javaparser.ast.body.ClassOrInterfaceDeclaration cid) {
+            cid.getTypeParameters().forEach(tp -> typeParams.add(tp.getNameAsString()));
+        }
+        currentTypeParams = typeParams;
         // The decompiler marks bytecode it could not structure with
         // "TODO unsupported: <OP>" comments (irreducible or infinite-loop
         // control flow). The reconstructed statement list is not the real
@@ -1647,15 +2046,27 @@ public class BytecodeToLaurelCompiler {
         }
 
         var inputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
+        if (!isStatic) {
+            // REQUIRED by Strata, not a choice here: LiftInstanceProcedures
+            // rewrites `obj#method(args)` by PREPENDING the receiver, so the
+            // lifted procedure must declare it first for arities to line up.
+            referencedCompositeTypes.add(classFqn);
+            inputs.add(new org.strata.jverify.laurel.Parameter(
+                    ident(LAUREL_SELF_BINDING), node(new HighType.UserDefined(ident(classFqn)))));
+        }
         for (Parameter param : method.getParameters()) {
             inputs.add(new org.strata.jverify.laurel.Parameter(
                     ident(param.getNameAsString()), node(translateType(param.getType()))));
         }
 
         var outputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
+        currentReturnSort = null;
         if (!method.getType().isVoidType()) {
             outputs.add(new org.strata.jverify.laurel.Parameter(
                     ident(LAUREL_RESULT_BINDING), node(translateType(method.getType()))));
+            if (method.getType() instanceof com.github.javaparser.ast.type.ClassOrInterfaceType cot) {
+                currentReturnSort = qualifyTypeName(cot.getNameWithScope());
+            }
         }
 
         // The declared exceptional exit: `throws E1, E2` joins to the least
@@ -1709,9 +2120,10 @@ public class BytecodeToLaurelCompiler {
                     ? lambdaBodyRange(stmtRange)
                     : argumentRange(stmtRange);
             currentStatementRange = condRange;
-            StmtExpr converted = arg instanceof com.github.javaparser.ast.expr.LambdaExpr lambda
-                    ? convertLambdaBody(lambda)
-                    : convertExpression(arg);
+            StmtExpr converted = inContract(() ->
+                    arg instanceof com.github.javaparser.ast.expr.LambdaExpr lambda
+                            ? convertLambdaBody(lambda)
+                            : convertExpression(arg));
             preconditions.add(new Condition(node(converted, condRange),
                     Optional.empty(), new ConditionMode.Both()));
         }
@@ -1726,7 +2138,8 @@ public class BytecodeToLaurelCompiler {
                     ? lambdaBodyRange(stmtRange)
                     : argumentRange(stmtRange);
             currentStatementRange = condRange;
-            postconditions.add(new Condition(node(convertPostconditionArgument(arg), condRange),
+            postconditions.add(new Condition(
+                    node(inContract(() -> convertPostconditionArgument(arg)), condRange),
                     Optional.empty(), new ConditionMode.Both()));
         }
 
@@ -1742,7 +2155,7 @@ public class BytecodeToLaurelCompiler {
             if (jverifyCallName(arg) != null && jverifyCallName(arg).equals("everything")) {
                 explicitModifies.add(node(new StmtExpr.All(), argRange));
             } else {
-                explicitModifies.add(node(convertExpression(arg), argRange));
+                explicitModifies.add(node(inContract(() -> convertExpression(arg)), argRange));
             }
         }
 
@@ -1847,10 +2260,99 @@ public class BytecodeToLaurelCompiler {
                 // from the Java `throws` clause, the behavior cases from the
                 // throwsOn(...) contract chains.
                 throwsType, throwsBinding, throwsOnBlocks);
-        procedures.add(proc);
-        recordStatus(method, methodRange(method), verify
-                ? MethodVerificationStatus.VerificationStatus.Verified
-                : MethodVerificationStatus.VerificationStatus.Skipped);
+        if (isStatic) {
+            procedures.add(proc);
+        } else {
+            instanceProcsBySort.computeIfAbsent(classFqn, k -> new ArrayList<>()).add(proc);
+        }
+        var range = methodRange(method);
+        var status = new MethodVerificationStatus(method.getNameAsString(),
+                range == UNKNOWN_RANGE ? Reporter.NO_RANGE : positionRange(range),
+                verify ? MethodVerificationStatus.VerificationStatus.Verified
+                       : MethodVerificationStatus.VerificationStatus.Skipped);
+        recordStatus(method, range, status);
+        if (currentMethodInfo != null) {
+            currentMethodInfo.status = status;
+            currentMethodInfo.proc = proc;
+            currentMethodInfo.sort = isStatic ? null : classFqn;
+        }
+    }
+
+    /**
+     * JFE's declaration-site overloadRefusal: refuse any method whose class
+     * declares more than one non-synthetic, non-bridge method of the same
+     * name (checked against the classfile's method table, which is exactly
+     * what by-name Laurel resolution would see). Statics and instance
+     * methods live in different Laurel namespaces (Class?name vs the
+     * composite), so only same-staticness siblings collide; opted-out
+     * methods emit no procedure, so they cannot collide either.
+     */
+    private void refuseIfOverloaded(String classFqn, String name, boolean isStatic) {
+        var cm = programClassModels.get(classFqn);
+        if (cm == null) {
+            return;
+        }
+        long count = cm.methods().stream()
+                .filter(m -> m.methodName().stringValue().equals(name))
+                .filter(m -> (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
+                        | java.lang.classfile.ClassFile.ACC_BRIDGE)) == 0)
+                .filter(m -> ((m.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_STATIC) != 0)
+                        == isStatic)
+                .filter(m -> !isOptedOut(cm, m))
+                .count();
+        if (count > 1) {
+            throw new JavaViolationException("overloaded method '" + name
+                    + "' (enclosing class declares " + count + " methods with this name); "
+                    + "overloading is not supported");
+        }
+    }
+
+    /** The {@code @Verify} annotation on an element's RuntimeInvisibleAnnotations, or null. */
+    private static java.lang.classfile.Annotation verifyAnnotation(
+            java.lang.classfile.AttributedElement element) {
+        var annos = element
+                .findAttribute(java.lang.classfile.Attributes.runtimeInvisibleAnnotations())
+                .map(java.lang.classfile.attribute.RuntimeInvisibleAnnotationsAttribute::annotations)
+                .orElse(List.of());
+        for (var a : annos) {
+            if (a.className().stringValue().equals("Lorg/strata/jverify/Verify;")) {
+                return a;
+            }
+        }
+        return null;
+    }
+
+    private static boolean verifyValue(java.lang.classfile.Annotation verify, String element,
+                                       boolean defaultValue) {
+        for (var el : verify.elements()) {
+            if (el.name().stringValue().equals(element)
+                    && el.value() instanceof java.lang.classfile.AnnotationValue.OfBoolean b) {
+                return b.booleanValue();
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
+     * JFE's resolved (stacked) opt-out status for a classfile method: the
+     * method's own {@code @Verify} wins unless the class's says
+     * {@code overrideChildren}; with neither, the class-level value, then
+     * verify-by-default, decides. Readable from the classfile because the
+     * spec library compiled against is the CLASS-retention variant.
+     */
+    private boolean isOptedOut(java.lang.classfile.ClassModel cm, java.lang.classfile.MethodModel m) {
+        var classAnno = verifyAnnotation(cm);
+        var methodAnno = verifyAnnotation(m);
+        if (classAnno != null && verifyValue(classAnno, "overrideChildren", false)) {
+            return !verifyValue(classAnno, "value", true);
+        }
+        if (methodAnno != null) {
+            return !verifyValue(methodAnno, "value", true);
+        }
+        if (classAnno != null) {
+            return !verifyValue(classAnno, "value", true);
+        }
+        return !verifyByDefault;
     }
 
     /**
@@ -1986,6 +2488,20 @@ public class BytecodeToLaurelCompiler {
                         node(thenBranch, statementRange(ifStmt.getThenStmt())), elseNode);
             }
             case ReturnStmt retStmt -> {
+                // A returned lambda/method reference: JFE's unlambda pre-pass
+                // lowers it to an anonymous class and the body emits an
+                // opaque allocation -- the anonymous subtype is
+                // indistinguishable from the interface sort itself here, so
+                // allocate the return sort directly.
+                if (retStmt.getExpression().isPresent() && currentReturnSort != null
+                        && (skipParens(retStmt.getExpression().get())
+                                        instanceof com.github.javaparser.ast.expr.MethodReferenceExpr
+                                || skipParens(retStmt.getExpression().get())
+                                        instanceof com.github.javaparser.ast.expr.LambdaExpr)) {
+                    referencedCompositeTypes.add(currentReturnSort);
+                    yield new StmtExpr.Return(Optional.of(node(
+                            new StmtExpr.New(ident(currentReturnSort), List.of()))));
+                }
                 Optional<AstNode<StmtExpr>> value = retStmt.getExpression().isPresent()
                         ? Optional.of(node(convertExpression(retStmt.getExpression().get())))
                         : Optional.empty();
@@ -2545,7 +3061,8 @@ public class BytecodeToLaurelCompiler {
             var saved = currentStatementRange;
             currentStatementRange = argRange;
             try {
-                invariants.add(node(convertExpression(specArgument(inv, "invariant")), argRange));
+                invariants.add(node(
+                        inContract(() -> convertExpression(specArgument(inv, "invariant"))), argRange));
             } finally {
                 currentStatementRange = saved;
             }
@@ -2652,11 +3169,28 @@ public class BytecodeToLaurelCompiler {
 
     // --- Expressions ---
 
+    /**
+     * A static field (the decompiler owner-qualifies it: {@code C.counter})
+     * has no receiver object, so it cannot lower to the composite heap model;
+     * emitting it as an instance field dies later in Strata resolution.
+     * Refused up front instead. (Compile-time constants never reach here --
+     * javac inlines them into the bytecode.)
+     */
+    private void refuseStaticFieldAccess(com.github.javaparser.ast.expr.FieldAccessExpr fa) {
+        if (skipParens(fa.getScope()) instanceof NameExpr owner
+                && !owner.getNameAsString().equals("this")
+                && declaredTypeOf(owner) == null
+                && knownClasses.containsKey(owner.getNameAsString())) {
+            throw new JavaViolationException("static field access is not yet supported");
+        }
+    }
+
     private Variable convertVariable(Expression expr) {
         return switch (expr) {
             case NameExpr name -> new Variable.Local(
                     ident(renames.getOrDefault(name.getNameAsString(), name.getNameAsString())));
             case com.github.javaparser.ast.expr.FieldAccessExpr fa -> {
+                refuseStaticFieldAccess(fa);
                 ensureFieldOnComposite(fa);
                 yield new Variable.Field(node(convertExpression(fa.getScope())),
                         ident(fa.getNameAsString()));
@@ -2705,6 +3239,11 @@ public class BytecodeToLaurelCompiler {
     /** The fully qualified static type of an expression, or null when unknown. */
     private String staticTypeFqn(Expression expr) {
         expr = skipParens(expr);
+        // The receiver: its static type is the enclosing class.
+        if (expr instanceof com.github.javaparser.ast.expr.ThisExpr
+                || (expr instanceof NameExpr n && n.getNameAsString().equals("this"))) {
+            return currentClassFqn;
+        }
         if (expr instanceof NameExpr name) {
             Type type = declaredTypeOf(name);
             if (type instanceof com.github.javaparser.ast.type.ClassOrInterfaceType cls) {
@@ -2738,8 +3277,15 @@ public class BytecodeToLaurelCompiler {
                     yield longLiteral(Long.parseLong(text.endsWith("L")
                             ? text.substring(0, text.length() - 1) : text));
                 }
+                // The receiver: slot 0 of an instance method, rendered `this`
+                // by the decompiler's local table. Lowers to the synthesized
+                // self? parameter (JFE's LAUREL_SELF_BINDING).
+                if (text.equals("this")) {
+                    yield var_(LAUREL_SELF_BINDING);
+                }
                 yield var_(renames.getOrDefault(text, text));
             }
+            case com.github.javaparser.ast.expr.ThisExpr t -> var_(LAUREL_SELF_BINDING);
             case EnclosedExpr enc -> convertExpression(enc.getInner());
             case BinaryExpr binary -> convertBinary(binary);
             case UnaryExpr unary -> convertUnary(unary);
@@ -2771,11 +3317,18 @@ public class BytecodeToLaurelCompiler {
             // Instance-field read: Strata's heap parameterization rewrites
             // this into a readField call on the owning composite (JFE scheme).
             case com.github.javaparser.ast.expr.FieldAccessExpr fa -> {
+                refuseStaticFieldAccess(fa);
                 ensureFieldOnComposite(fa);
                 yield new StmtExpr.Var(new Variable.Field(
                         node(convertExpression(fa.getScope())), ident(fa.getNameAsString())));
             }
             case com.github.javaparser.ast.expr.ObjectCreationExpr newExpr -> {
+                if (inContractContext) {
+                    // JFE's refuseAllocationInContract: a contract must not
+                    // allocate (its meaning would depend on evaluation).
+                    throw new JavaViolationException(
+                            "object allocation (including lambdas) inside a contract is not yet supported");
+                }
                 String name = qualifyTypeName(newExpr.getType().getNameWithScope());
                 referencedCompositeTypes.add(name);
                 for (var arg : newExpr.getArguments()) {
@@ -2799,7 +3352,31 @@ public class BytecodeToLaurelCompiler {
                         "Unsupported expression: " + expr.getClass().getSimpleName());
             }
             default -> throw new JavaViolationException(
-                    "Unsupported expression: " + expr.getClass().getSimpleName());
+                    "Unsupported expression: " + javacNodeName(expr));
+        };
+    }
+
+    /** Run a conversion with the contract-context flag set (allocation refusals). */
+    private <T> T inContract(java.util.function.Supplier<T> conversion) {
+        boolean saved = inContractContext;
+        inContractContext = true;
+        try {
+            return conversion.get();
+        } finally {
+            inContractContext = saved;
+        }
+    }
+
+    /**
+     * The javac tree-node name JFE's refusal messages carry for this
+     * javaparser node. JFE's unlambda pre-pass turns method references into
+     * lambdas before the translator refuses them, so both map to JCLambda.
+     */
+    private static String javacNodeName(Expression expr) {
+        return switch (expr) {
+            case com.github.javaparser.ast.expr.LambdaExpr l -> "JCLambda";
+            case com.github.javaparser.ast.expr.MethodReferenceExpr r -> "JCLambda";
+            default -> expr.getClass().getSimpleName();
         };
     }
 
@@ -2808,8 +3385,15 @@ public class BytecodeToLaurelCompiler {
             throw new JavaViolationException("Multi-variable declarations are not supported");
         }
         VariableDeclarator v = decl.getVariable(0);
-        var typeNode = node(translateType(v.getType()));
-        var param = new ParameterOpt(ident(v.getNameAsString()), Optional.of(typeNode));
+        // The decompiler prints `var` when the local has no LVT entry (an
+        // unnamed `var _` binding): no type to translate, so declare the
+        // Laurel local untyped and let inference type it from the initializer.
+        boolean untyped = v.getType() instanceof com.github.javaparser.ast.type.VarType
+                || (v.getType() instanceof com.github.javaparser.ast.type.ClassOrInterfaceType c
+                        && c.getScope().isEmpty() && c.getNameAsString().equals("var"));
+        var param = untyped
+                ? new ParameterOpt(ident(v.getNameAsString()), Optional.empty())
+                : new ParameterOpt(ident(v.getNameAsString()), Optional.of(node(translateType(v.getType()))));
         var declared = new Variable.Declare(param);
         if (v.getInitializer().isPresent()) {
             return new StmtExpr.Assign(List.of(nodeVar(declared)),
@@ -3064,6 +3648,72 @@ public class BytecodeToLaurelCompiler {
         if (scope.isPresent() && skipParens(scope.get()) instanceof MethodCallExpr chained) {
             convertCall(chained);
         }
+        // Receiver-shape refusals first (JFE's receiverRefusal), so a super
+        // call / freshly-allocated receiver names its own cause instead of
+        // the general dispatch refusal.
+        if (scope.isPresent()) {
+            if (scope.get() instanceof com.github.javaparser.ast.expr.SuperExpr) {
+                throw new JavaViolationException("super call is not yet supported");
+            }
+            if (skipParens(scope.get()) instanceof com.github.javaparser.ast.expr.ObjectCreationExpr) {
+                throw new JavaViolationException(
+                        "method call on a freshly-allocated receiver is not yet supported");
+            }
+        }
+        // An instance call on a program-class receiver: `this.m(...)` (how
+        // the decompiler renders every implicit-this call) or an explicit
+        // receiver expression. Distinguished from a static call by the scope
+        // being a value, not a class name (a local shadowing a class name
+        // resolves as the local, matching Java scoping).
+        String bareName = call.getNameAsString();
+        boolean scopeIsValue = scope.isPresent()
+                && (skipParens(scope.get()) instanceof com.github.javaparser.ast.expr.ThisExpr
+                        || (skipParens(scope.get()) instanceof NameExpr n
+                                && (n.getNameAsString().equals("this") || declaredTypeOf(n) != null))
+                        || skipParens(scope.get()) instanceof com.github.javaparser.ast.expr.FieldAccessExpr
+                        || skipParens(scope.get()) instanceof CastExpr);
+        if (scopeIsValue) {
+            String receiverFqn = staticTypeFqn(skipParens(scope.get()));
+            if (receiverFqn == null || !programClassModels.containsKey(receiverFqn)) {
+                throw new JavaViolationException("call to '" + bareName
+                        + "' on a receiver whose static type is not a class is not yet supported");
+            }
+            var callee = findCallee(receiverFqn, bareName);
+            if (callee == null) {
+                throw new JavaViolationException("call to '" + bareName
+                        + "' on a receiver whose static type is not a class is not yet supported");
+            }
+            if (isOptedOut(programClassModels.get(callee.declaringFqn()), callee.method())) {
+                throw new JavaViolationException(
+                        "call to '" + bareName + "', which could not be translated");
+            }
+            enforceDispatchGate(receiverFqn, callee, bareName);
+            enforceAncestryOverloadGate(receiverFqn, bareName);
+            // A callee inherited from an ancestor resolves by name against
+            // the receiver's composite, so Strata needs the extends chain
+            // linked from the receiver's sort up to the declaring one (else
+            // "Resolution failed: 'Receiver$callee' is not defined").
+            if (!callee.declaringFqn().equals(receiverFqn)) {
+                for (String fqn = receiverFqn;
+                        fqn != null && !fqn.equals(callee.declaringFqn());
+                        fqn = programSuper.get(fqn)) {
+                    String parent = programSuper.get(fqn);
+                    if (parent == null) {
+                        break;
+                    }
+                    linkExtends(fqn, parent);
+                }
+            }
+            if (currentMethodInfo != null) {
+                currentMethodInfo.callees.add(callee.declaringFqn() + "#" + bareName);
+            }
+            var receiver = node(convertExpression(scope.get()));
+            List<AstNode<StmtExpr>> args = new ArrayList<>();
+            for (var arg : call.getArguments()) {
+                args.add(node(convertExpression(arg)));
+            }
+            return new StmtExpr.InstanceCall(receiver, ident(bareName), args);
+        }
         // A user static call: the decompiler owner-qualifies static calls, so
         // resolve the scope name against the classes of this compilation.
         if (scope.isEmpty() || !(scope.get() instanceof NameExpr owner)) {
@@ -3074,13 +3724,172 @@ public class BytecodeToLaurelCompiler {
             throw new JavaViolationException(
                     "Call to unknown class '" + owner.getNameAsString() + "' is not supported");
         }
-        String calleeName = fqn + "_" + call.getNameAsString();
+        // JFE applies overloadRefusal to static callees at each call site.
+        refuseIfOverloaded(fqn, bareName, true);
+        // A call to an opted-out method is refused: both overloads mangle to
+        // the same Laurel name, so binding to the emitted sibling would be
+        // wrong contract, wrong arity. Resolved arity-aware -- the emitted
+        // same-name sibling must stay callable (CallToOptedOutOverload).
+        var staticCm = programClassModels.get(fqn);
+        if (staticCm != null) {
+            for (var m : staticCm.methods()) {
+                if (m.methodName().stringValue().equals(bareName)
+                        && (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
+                                | java.lang.classfile.ClassFile.ACC_BRIDGE)) == 0
+                        && (m.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_STATIC) != 0
+                        && m.methodTypeSymbol().parameterCount() == call.getArguments().size()
+                        && isOptedOut(staticCm, m)) {
+                    throw new JavaViolationException(
+                            "call to '" + bareName + "', which could not be translated");
+                }
+            }
+        }
+        if (currentMethodInfo != null) {
+            currentMethodInfo.callees.add(fqn + "#" + bareName);
+        }
+        String calleeName = fqn + "_" + bareName;
         List<AstNode<StmtExpr>> args = new ArrayList<>();
         for (var arg : call.getArguments()) {
             args.add(node(convertExpression(arg)));
         }
         return new StmtExpr.StaticCall(ident(calleeName), args);
     }
+
+    /** A located callee: the classfile method plus the class that declares it. */
+    private record Callee(String declaringFqn, java.lang.classfile.MethodModel method) {
+    }
+
+    /** Lazily-parsed JCL classfile models (java.lang.Object etc.), null-capable. */
+    private final Map<String, java.lang.classfile.ClassModel> jclClassModels = new HashMap<>();
+
+    /**
+     * The classfile model for {@code fqn}: this compilation's classes first,
+     * then the runtime's own (read as a classloader resource, which the JRT
+     * filesystem serves for JCL classes). Null when unresolvable.
+     */
+    private java.lang.classfile.ClassModel classModelFor(String fqn) {
+        var cm = programClassModels.get(fqn);
+        if (cm != null) {
+            return cm;
+        }
+        if (jclClassModels.containsKey(fqn)) {
+            return jclClassModels.get(fqn);
+        }
+        java.lang.classfile.ClassModel parsed = null;
+        try (var in = ClassLoader.getSystemResourceAsStream(fqn.replace('.', '/') + ".class")) {
+            if (in != null) {
+                parsed = java.lang.classfile.ClassFile.of().parse(in.readAllBytes());
+            }
+        } catch (java.io.IOException e) {
+            // fall through: cache the miss
+        }
+        jclClassModels.put(fqn, parsed);
+        return parsed;
+    }
+
+    /**
+     * Find the (non-synthetic) method {@code name} on {@code receiverFqn} or
+     * its program-class ancestry, ancestor-nearest-first from the receiver.
+     */
+    private Callee findCallee(String receiverFqn, String name) {
+        for (String fqn = receiverFqn; fqn != null; fqn = programSuper.get(fqn)) {
+            var cm = programClassModels.get(fqn);
+            if (cm == null) {
+                break;
+            }
+            for (var m : cm.methods()) {
+                if (m.methodName().stringValue().equals(name)
+                        && (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
+                                | java.lang.classfile.ClassFile.ACC_BRIDGE
+                                | java.lang.classfile.ClassFile.ACC_STATIC)) == 0) {
+                    return new Callee(fqn, m);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * JFE's dispatchRefusal: an instance call is translatable only when
+     * provably monomorphic -- the callee is final or private, or its
+     * declaring class is final, or the receiver's static type is a final
+     * class. Deliberately not keyed on whether the callee overrides
+     * something: the unsound case is a non-overriding method overridden by a
+     * subtype later.
+     */
+    private void enforceDispatchGate(String receiverFqn, Callee callee, String name) {
+        int mflags = callee.method().flags().flagsMask();
+        if ((mflags & (java.lang.classfile.ClassFile.ACC_FINAL
+                | java.lang.classfile.ClassFile.ACC_PRIVATE)) != 0) {
+            return;
+        }
+        var declaring = programClassModels.get(callee.declaringFqn());
+        if (declaring != null
+                && (declaring.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_FINAL) != 0) {
+            return;
+        }
+        var receiver = programClassModels.get(receiverFqn);
+        if (receiver != null
+                && (receiver.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_FINAL) != 0) {
+            return;
+        }
+        throw new JavaViolationException(
+                "polymorphic dispatch through interface/superclass is not yet supported");
+    }
+
+    /**
+     * JFE's ancestryOverloadRefusal: by-name resolution must be unambiguous
+     * over the receiver's supertype closure. Counts distinct erased
+     * parameter signatures of {@code name}, skipping synthetic/bridge members
+     * and private members of strict supertypes (JLS 8.2: not members of the
+     * receiver's type). More than one signature refuses; same-signature
+     * overRIDES are fine.
+     */
+    private void enforceAncestryOverloadGate(String receiverFqn, String name) {
+        var signatures = new java.util.LinkedHashSet<String>();
+        boolean beyondReceiver = false;
+        boolean anyBeyond = false;
+        for (String fqn = receiverFqn; fqn != null; ) {
+            var cm = classModelFor(fqn);
+            if (cm == null) {
+                break;
+            }
+            for (var m : cm.methods()) {
+                if (!m.methodName().stringValue().equals(name)
+                        || (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
+                                | java.lang.classfile.ClassFile.ACC_BRIDGE
+                                | java.lang.classfile.ClassFile.ACC_STATIC)) != 0) {
+                    continue;
+                }
+                if (beyondReceiver
+                        && (m.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_PRIVATE) != 0) {
+                    continue;
+                }
+                if (isOptedOut(cm, m)) {
+                    continue; // emits no procedure, so it cannot collide
+                }
+                if (signatures.add(m.methodTypeSymbol().parameterList().toString()) && beyondReceiver) {
+                    anyBeyond = true;
+                }
+            }
+            beyondReceiver = true;
+            // Walk the full closure, JCL included (JFE uses javacTypes
+            // closure: Object.toString() collides with a user toString(x)).
+            fqn = cm.superclass()
+                    .map(sup -> sup.asInternalName().replace('/', '.').replace('$', '.'))
+                    .orElse(null);
+        }
+        if (signatures.size() > 1) {
+            String where = anyBeyond
+                    ? "'" + receiverFqn + "' and its supertypes"
+                    : "'" + receiverFqn + "'";
+            throw new JavaViolationException("overloaded method '" + name + "' ("
+                    + signatures.size() + " signatures visible on " + where
+                    + "); overloading is not supported");
+        }
+    }
+
+
 
     private StmtExpr convertJVerifyCall(MethodCallExpr call, String name) {
         return switch (name) {
@@ -3102,6 +3911,18 @@ public class BytecodeToLaurelCompiler {
                 }
                 var notA = primitiveOp(new Operation.Not(), node(convertExpression(call.getArgument(0))));
                 yield primitiveOp(new Operation.Or(), node(notA), node(convertExpression(call.getArgument(1))));
+            }
+            case "jequals" -> {
+                // Observational equality: Laurel's Eq is specified with
+                // exactly jequals's semantics (== on primitives, reference
+                // equality on impure composites), so it lowers to the same
+                // node the translator emits for Java's == (JFE scheme).
+                if (call.getArguments().size() != 2) {
+                    throw new JavaViolationException("jequals should have two arguments");
+                }
+                yield primitiveOp(new Operation.Eq(),
+                        node(convertExpression(call.getArgument(0))),
+                        node(convertExpression(call.getArgument(1))));
             }
             case "forall", "exists" -> {
                 if (call.getArguments().size() != 1
