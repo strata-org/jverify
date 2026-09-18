@@ -4,6 +4,7 @@ import org.strata.jverify.common.Position;
 import org.strata.jverify.laurel.*;
 import org.strata.jverify.verifier.VerifierOptions;
 import org.strata.jverify.verifier.compiler.JavaViolationException;
+import org.strata.jverify.verifier.compiler.LoweredResult;
 import org.strata.jverify.verifier.compiler.Reporter;
 import org.strata.jverify.verifier.compiler.frontend.JavaLowerer;
 import org.strata.jverify.verifier.compiler.simplifications.JVerifyUtils;
@@ -12,12 +13,14 @@ import org.strata.jverify.verifier.compiler.simplifications.MethodOrLoopContract
 import org.strata.jverify.verifier.compiler.simplifications.VerifyAnnotationCompiler;
 import org.strata.jverify.verifier.laurel.FilesMap;
 import com.sun.tools.javac.code.Flags;
+import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.Name;
 
 import javax.tools.JavaFileObject;
 import java.net.URI;
@@ -27,6 +30,12 @@ import java.util.Optional;
 public class JavaToLaurelCompiler {
     /// Since Strata commit 72f3a6e the short `: T` return form auto-generates
     /// an output parameter named `$result` (a reserved name), not `result`.
+    /// Name of the synthesized receiver parameter on instance-method procedures.
+    /// '?' is outside Java's identifier grammar (JLS 3.8 -- unlike '$', which is
+    /// legal) but inside Strata's, so no user parameter or local can collide with
+    /// it. {@link #MANGLE_SEPARATOR} relies on the same property.
+    private static final String LAUREL_SELF_BINDING = "self?";
+
     private static final String LAUREL_RESULT_BINDING = "$result";
     /// Synthesized name binding the thrown value in a procedure's `throws (e: T)`
     /// clause. Referenced by `throwsOn` case postconditions once the exceptional
@@ -48,6 +57,15 @@ public class JavaToLaurelCompiler {
     /// no entry in our line map.
     private static final String SYNTHETIC_UNKNOWN_PATH = "/<unknown>";
 
+    /**
+     * When set, a diagnostic against a source-less synthesized node throws instead
+     * of warning. The build turns this on for every test task: such a diagnostic is a
+     * jverify bug that is invisible in normal output, so only the suite can catch it.
+     * Production runs leave it off and degrade gracefully via the {@code FilesMap}
+     * fallback below.
+     */
+    private static final String STRICT_SOURCE_RANGES_PROPERTY = "jverify.strictSourceRanges";
+
     private final JavaLowerer lowerer;
     private final MethodOrLoopContractCompiler contractCompiler;
     private final JVerifyUtils jverifyUtils;
@@ -55,7 +73,100 @@ public class JavaToLaurelCompiler {
     private final VerifyAnnotationCompiler annotationCompiler;
     JCTree.JCCompilationUnit currentCompilationUnit;
 
-    private final Set<String> referencedCompositeTypes = new LinkedHashSet<>();
+    /// Sort name -> the javac symbol it came from. The symbol lets emission derive
+    /// each sort's Java supertype closure for its `extends` edges. First symbol seen
+    /// for a name wins (later references name the same type); insertion order is
+    /// preserved for deterministic output.
+    /// The composite sort at the root of the reference hierarchy. Declared
+    /// parentless; `addParent` gives every other sort a path to it.
+    private static final String OBJECT_SORT = "java.lang.Object";
+
+    private final com.sun.tools.javac.code.Symtab symtab;
+
+    private final Map<String, Symbol.TypeSymbol> referencedCompositeTypes = new LinkedHashMap<>();
+    /// Reasons already reported per method, so a construct hit repeatedly in one body
+    /// warns once rather than per occurrence.
+    ///
+    /// Keyed on the SYMBOL, not a rendering of it. A string key identifies a method
+    /// only as well as its spelling: `MethodSymbol.toString()` is `name(paramTypes)`
+    /// with no owner, and `owner.toString()` is the class's name, shared by two local
+    /// classes declared in different methods -- so a string key drops the second of
+    /// two refusals, the silence this reporting exists to remove. javac gives each
+    /// declaration its own Symbol instance, so identity is exact.
+    private final Map<Symbol.MethodSymbol, Set<String>> reportedInstanceRefusals = new HashMap<>();
+
+    /// Records `reason` for `sym`, returning whether it is new (i.e. worth reporting).
+    /** One demotion round: mark every method that calls an already-refused one, and
+        report whether it demoted anything. `markSkipped` stays the single writer of
+        refusal state, so progress is read back from the authoritative set rather than
+        from a counter -- an anonymous TreeScanner cannot assign to a captured local. */
+    private boolean demoteCallersOfRefusedMethods(LoweredResult loweredResult) {
+        final var refusedSymbols = annotationCompiler.skippedMethodSymbols();
+        final int refusedBefore = refusedSymbols.size();
+        for (var compilationUnit : loweredResult.parsed()) {
+            if (lowerer.isContractSource(compilationUnit)) {
+                continue;
+            }
+            final JCTree.JCCompilationUnit unit = compilationUnit;
+            unit.accept(new TreeScanner() {
+                private JCTree.JCMethodDecl current = null;
+
+                @Override
+                public void visitMethodDef(JCTree.JCMethodDecl method) {
+                    var saved = current;
+                    current = method;
+                    super.visitMethodDef(method);
+                    current = saved;
+                }
+
+                @Override
+                public void visitApply(JCTree.JCMethodInvocation tree) {
+                    if (current != null && current.sym != null && current.body != null
+                            && !refusedSymbols.contains(current.sym)
+                            && TreeInfo.symbol(tree.getMethodSelect())
+                                    instanceof Symbol.MethodSymbol callee
+                            && refusedSymbols.contains(callee)) {
+                        // Severity mirrors the callee's: a static caller errors, an
+                        // instance caller warns. Erroring unconditionally made a
+                        // fixture whose refusals are all on instance methods exit
+                        // non-zero, never reaching a verdict -- and it would contradict
+                        // the callee, which only warns.
+                        //
+                        // Either way, name the callee: "a method could not be
+                        // translated" left the user guessing which call was
+                        // responsible, and the callee's own diagnostic is on another
+                        // line (often another file).
+                        reporter.compilationUnit = unit;
+                        String because = "call to '" + callee.name + "', which could not be translated";
+                        // Demotion runs for every detected call -- the soundness half.
+                        // Only the DIAGNOSTIC is deduped: the caller is reported at
+                        // its own declaration, so two refused callees in one body
+                        // would stack identical messages on one position. The key
+                        // includes the callee, so distinct callees each get a line.
+                        if (firstReportOf(current.sym, because)) {
+                            if ((current.mods.flags & Flags.STATIC) != 0) {
+                                reporter.reportError(current, "translatorError", because);
+                            } else {
+                                reporter.reportDiagnostic(current,
+                                        JCDiagnostic.DiagnosticType.WARNING,
+                                        "instanceMethodNotVerified",
+                                        current.name.toString(), because);
+                            }
+                        }
+                        annotationCompiler.markSkipped(unit, current);
+                    }
+                    super.visitApply(tree);
+                }
+            });
+        }
+        return annotationCompiler.skippedMethodSymbols().size() > refusedBefore;
+    }
+
+    private boolean firstReportOf(Symbol.MethodSymbol sym, String reason) {
+        return reportedInstanceRefusals
+                .computeIfAbsent(sym, k -> new HashSet<>())
+                .add(reason);
+    }
 
     /// (helperName -> Procedure) for every cast helper referenced anywhere
     /// in the program. Lives at the whole-program scope (not per file)
@@ -82,6 +193,26 @@ public class JavaToLaurelCompiler {
     /// declared on its owning composite for heap parameterization to fire.
     /// Insertion order is preserved (both across composites and across
     /// fields within a composite) for deterministic output.
+    /// Sort name -> instance procedures declared on it. Instance methods are emitted
+    /// inside their composite (the backend lifts them), so they are collected across
+    /// all compilation units and attached at emission.
+    /// Symbols of methods opted out of verification (@Verify(false), resolved
+    /// through the annotation stack). Snapshotted before any unit is translated:
+    /// the overload gates also fire at CALL SITES, where a call in one unit can
+    /// name a method in another, so taking it up front keeps refusals independent
+    /// of translation order.
+    private final Set<Symbol> optedOutMethods = new HashSet<>();
+
+    private final com.sun.tools.javac.code.Types javacTypes;
+
+    private final Map<String, List<Procedure>> instanceProcsBySort = new LinkedHashMap<>();
+
+    /// Method symbol -> the Procedure emitted for it. Lets the post-loop
+    /// caller-drop remove a procedure by IDENTITY; matching on the mangled name
+    /// would re-derive the static/instance naming rules and tie the drop to that
+    /// spelling.
+    private final Map<Symbol.MethodSymbol, Procedure> procedureBySymbol = new LinkedHashMap<>();
+
     private final Map<String, LinkedHashMap<String, Field>> compositeFields = new LinkedHashMap<>();
 
     /// Superclass links for composites that need their Java hierarchy modelled
@@ -108,6 +239,8 @@ public class JavaToLaurelCompiler {
     private final Deque<List<Symbol.ClassSymbol>> enclosingCatchTypes = new ArrayDeque<>();
 
     public JavaToLaurelCompiler(Context context) {
+        symtab = com.sun.tools.javac.code.Symtab.instance(context);
+        javacTypes = com.sun.tools.javac.code.Types.instance(context);
         lowerer = context.get(JavaLowerer.class);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
         jverifyUtils = JVerifyUtils.instance(context);
@@ -142,6 +275,17 @@ public class JavaToLaurelCompiler {
         return new Identifier(name, Optional.empty(), UNKNOWN_RANGE);
     }
 
+    /**
+     * A named identifier carrying a source range. Strata locates some synthesized
+     * conditions via the identifier naming their procedure -- the modifies frame in
+     * ModifiesClauses.buildQuantifiedFrame takes proc.name.source -- so a range-less
+     * procedure name is unattributable: reported at <unknown>(1:1) and dropped from
+     * the per-method counts.
+     */
+    private Identifier ident(String name, JCTree tree) {
+        return new Identifier(name, Optional.empty(), toFileRange(tree));
+    }
+
     private FileRange toFileRange(JCTree tree) {
         if (tree == null || currentCompilationUnit == null) return UNKNOWN_RANGE;
         // `convertExpression` looks through parentheses, so a parenthesized tree
@@ -153,9 +297,38 @@ public class JavaToLaurelCompiler {
         }
         int startPos = TreeInfo.getStartPos(tree);
         int endPos = TreeInfo.getEndPos(tree, currentCompilationUnit.endPositions);
-        if (endPos == -1) endPos = startPos;
+        if (endPos == -1) {
+            // javac records no end position for some statement trees (a `for` loop
+            // among them), and a zero-width range underlines nothing: the caret in
+            // an IDE has no extent, and the test suite's `^^^` convention cannot
+            // express width 0, so such a diagnostic cannot be pinned by a fixture.
+            // Fall back to the first token at `startPos` -- for a `for` loop that is
+            // the `for` keyword, which is what a reader expects the loop's implicit
+            // obligations to underline.
+            endPos = startPos + firstTokenLength(startPos);
+        }
         var filePath = currentCompilationUnit.sourcefile.toUri().toString();
         return new FileRange(new Uri(filePath), new SourceRange(new Raw(startPos), new Raw(endPos)));
+    }
+
+    /**
+     * Length of the identifier/keyword token starting at {@code pos} in the current
+     * source, or 1 if the character there is not part of one. Gives a tree with no
+     * recorded end position a range with real extent.
+     */
+    private int firstTokenLength(int pos) {
+        CharSequence text;
+        try {
+            text = currentCompilationUnit.sourcefile.getCharContent(true);
+        } catch (java.io.IOException e) {
+            return 1;
+        }
+        if (pos < 0 || pos >= text.length()) return 1;
+        int end = pos;
+        while (end < text.length() && Character.isJavaIdentifierPart(text.charAt(end))) {
+            end++;
+        }
+        return Math.max(1, end - pos);
     }
 
     private AstNode<StmtExpr> node(StmtExpr expr, JCTree tree) {
@@ -257,6 +430,7 @@ public class JavaToLaurelCompiler {
         if (loweredResult == null) return null;
 
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
+        optedOutMethods.addAll(annotationCompiler.skippedMethodSymbols());
         boolean first = true;
         for (var compilationUnit : loweredResult.parsed()) {
             if (lowerer.isContractSource(compilationUnit)) {
@@ -296,6 +470,84 @@ public class JavaToLaurelCompiler {
             lineMaps.put(compilationUnit.sourcefile.toUri(), compilationUnit.getLineMap());
         }
 
+        // A method that CALLS one refused during translation cannot be emitted
+        // either: its call names an undeclared Laurel procedure, surfacing as
+        // `Resolution failed: 'Pkg.Class?static?callee' is not defined` -- an internal
+        // mangled symbol the user never wrote. Blame the caller at its own call site,
+        // and count it Skipped so methodsSkipped stays honest.
+        //
+        // After the loop, so every unit's refusals are known, which is what the
+        // cross-unit case needs -- the same reason composites are emitted below rather
+        // than per unit. An opted-out callee is caught at the call site before the
+        // caller is translated; this scan handles the callee whose own TRANSLATION
+        // failed, unknowable until it is attempted. Iterated to a FIXPOINT. A -> B -> C with C refused demotes B on the first
+        // round; without a second round A stays translated while B's procedure is
+        // dropped below, so A's body calls an unemitted callee and the program dies
+        // with `Resolution failed: '...?static?B' is not defined` -- the unattributable
+        // failure this scan exists to prevent, one level deeper (CascadeDepth3 pins it).
+        //
+        // `skippedMethodSymbols()` RECOMPUTES from `methodStatusPerUri`, so re-reading it
+        // each round is the authoritative view and `markSkipped` is the only writer. That
+        // is deliberate: the original defect was exactly one snapshot of this set going
+        // stale against the live `isSkipped` the drop pass below reads, so keeping a
+        // second, hand-synchronised copy here would reintroduce the same divergence.
+        // Re-read per ROUND rather than per method, so a round sees one consistent view
+        // and the diagnostic order does not depend on traversal position.
+        //
+        // Terminates because the skipped set only grows and is bounded by the method
+        // count; a demotion cycle (A and B calling each other, one refused) is fine --
+        // the `!contains(current.sym)` guard stops an already-refused method being
+        // re-examined. Round count is bounded by the longest refused call chain, which is
+        // shallow in practice, so re-walking the trees per round costs nothing measurable
+        // beside verification; a worklist over a precomputed reverse call graph would be
+        // asymptotically better but needs a Symbol -> (unit, decl) map, which keying on
+        // symbols exists to avoid. Two things need no per-round handling: severity keys on
+        // the CALLER's own static-ness, not the chain's origin, and re-reporting is
+        // prevented by `firstReportOf(current.sym, because)`, whose key includes the callee.
+        //
+        // A narrow call scan rather than re-running the collector: re-translating
+        // re-reports every diagnostic (measured -- one fault produced two identical
+        // errors) and Reporter has no suppression hook. Keyed on SYMBOLS via
+        // `skippedMethodSymbols()`, so no symbol-to-tree lookup is needed.
+        while (demoteCallersOfRefusedMethods(loweredResult)) {
+            // Repeat until a round demotes nothing new: a refused C demotes B, and only
+            // the next round can see B in order to demote A.
+        }
+
+        // Drop the procedures for methods the scan above just skipped. `markSkipped`
+        // fixes only the ACCOUNTING; the procedure was already collected during the
+        // loop, and leaving it in keeps the call to the unemitted callee -- the
+        // `Resolution failed: '...?static?callee' is not defined` above.
+        //
+        // `Program` is an immutable record, so each file is rebuilt rather than
+        // mutated, as in the composite post-pass below.
+        var droppedProcedures = new HashSet<Procedure>();
+        for (var entry : procedureBySymbol.entrySet()) {
+            var decl = entry.getKey();
+            for (var unit : loweredResult.parsed()) {
+                var tree = TreeInfo.declarationFor(decl, unit);
+                if (tree instanceof JCTree.JCMethodDecl md
+                        && annotationCompiler.isSkipped(unit, md)) {
+                    droppedProcedures.add(entry.getValue());
+                    break;
+                }
+            }
+        }
+        if (!droppedProcedures.isEmpty()) {
+            for (int i = 0; i < result.size(); i++) {
+                var file = result.get(i);
+                var prog = file.program();
+                var kept = prog.staticProcedures().stream()
+                        .filter(p -> !droppedProcedures.contains(p)).toList();
+                if (kept.size() != prog.staticProcedures().size()) {
+                    result.set(i, new LaurelFile(file.uri(), new Program(
+                            kept, prog.staticFields(), prog.types(), prog.constants())));
+                }
+            }
+            instanceProcsBySort.replaceAll((sort, procs) ->
+                    procs.stream().filter(p -> !droppedProcedures.contains(p)).toList());
+        }
+
         // Emit composite declarations after ALL compilation units have been
         // visited, so that field accesses discovered in later units are
         // included in the composite's field list. Composites are inserted into
@@ -306,21 +558,9 @@ public class JavaToLaurelCompiler {
         // than mutated in place.
         if (!result.isEmpty()) {
             List<TypeDefinition> composites = new ArrayList<>();
-            for (var typeName : referencedCompositeTypes) {
-                List<Field> fields = compositeFields.containsKey(typeName)
-                        ? new ArrayList<>(compositeFields.get(typeName).values())
-                        : List.of();
-                // `extending` widened from `List<Identifier>` to `List<AstNode<HighType>>`
-                // with the poly grammar (a composite may extend a generic instantiation), so
-                // each parent name is wrapped as a `HighType.UserDefined`. Java has no
-                // generics surface here, so the parent is always a plain nominal type — but
-                // the parent itself must still be EMITTED: dropping it would silently undo
-                // mainline's composite-inheritance support.
-                List<AstNode<HighType>> extending = compositeExtends.containsKey(typeName)
-                        ? List.of(node(new HighType.UserDefined(ident(compositeExtends.get(typeName)))))
-                        : List.of();
-                composites.add(new TypeDefinition.Composite(
-                        new CompositeType(ident(typeName), /*typeArgs=*/List.of(), extending, fields, List.of())));
+            Set<String> emitted = new HashSet<>();
+            for (var entry : new ArrayList<>(referencedCompositeTypes.entrySet())) {
+                emitComposite(entry.getValue(), entry.getKey(), emitted, composites);
             }
             var firstFile = result.getFirst();
             var firstProgram = firstFile.program();
@@ -345,10 +585,21 @@ public class JavaToLaurelCompiler {
                 // bug; keep failing fast there.
                 String path = uri.getPath();
                 if (path != null && path.endsWith(SYNTHETIC_UNKNOWN_PATH)) {
-                    System.err.println("[jverify] internal: a Strata diagnostic was reported "
-                            + "against a source-less synthesized node (" + uri + "); a synthesis "
-                            + "pass did not thread a source range from its generating context. "
-                            + "Falling back to 1:1 -- please report this as a jverify bug.");
+                    String message = "a Strata diagnostic was reported against a source-less "
+                            + "synthesized node (" + uri + "); a synthesis pass did not thread a "
+                            + "source range from its generating context.";
+                    // Under test, FAIL: such a diagnostic is invisible to the user
+                    // (reported at <unknown>(1:1) and dropped from the per-method
+                    // counts), so it must not reach a release. In production stay
+                    // non-fatal -- the 1:1 fallback keeps the underlying Strata
+                    // diagnostic visible rather than masking it.
+                    if (Boolean.getBoolean(STRICT_SOURCE_RANGES_PROPERTY)) {
+                        throw new IllegalStateException("[jverify] internal: " + message
+                                + " Set -D" + STRICT_SOURCE_RANGES_PROPERTY + "=false to downgrade "
+                                + "this to a warning.");
+                    }
+                    System.err.println("[jverify] internal: " + message
+                            + " Falling back to 1:1 -- please report this as a jverify bug.");
                     return new Position(1, 1);
                 }
                 throw new RuntimeException("Could not find line map for " + uri);
@@ -471,9 +722,8 @@ public class JavaToLaurelCompiler {
         // additional translation that is NOT part of this commit;
         // they will surface as separate convertExpression errors.
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
-            String name = classType.tsym.getQualifiedName().toString();
-            String sortName = name.replace('$', '.');
-            referencedCompositeTypes.add(sortName);
+            String sortName = compositeSortName(classType.tsym);
+            referencedCompositeTypes.putIfAbsent(sortName, classType.tsym);
             return new HighType.UserDefined(ident(sortName));
         }
         boolean isNat = JVerifyUtils.isAnnotated(type, org.strata.jverify.Nat.class)
@@ -510,8 +760,141 @@ public class JavaToLaurelCompiler {
      * the package included and the nested-class {@code $} separator normalised to
      * {@code .}, matching how {@link #translateType} names class-typed sorts.
      */
-    private static String compositeSortName(Symbol.ClassSymbol cls) {
-        return cls.getQualifiedName().toString().replace('$', '.');
+    /**
+     * The enclosing {@link Symbol.ClassSymbol} of {@code sym}, or refuse if there
+     * is none. {@code enclClass()} walks the owner chain casting to ClassSymbol;
+     * some callees (record accessors of types in an anonymous class, built-ins on
+     * synthetic Symtab entries) have a non-ClassSymbol owner and make it return null
+     * or throw ClassCastException. Callers that dereference the result must route
+     * through here, turning such a symbol into a graceful per-method skip instead of
+     * an uncaught crash aborting the whole source file.
+     */
+    /**
+     * Refuse a user binder spelled like a Strata-reserved name. Strata's `: T`
+     * return form generates an output parameter named {@code $result} for every
+     * returning procedure, so a user binder of that name collides inside Strata
+     * ("Variable $result of type int already in context") and aborts the backend
+     * with no attributable location. '$' is a legal Java identifier character
+     * (JLS 3.8), so no spelling of our own binder avoids the collision, unlike the
+     * '?' in {@link #LAUREL_SELF_BINDING}. Refuse for a graceful skip with a
+     * diagnostic pointing at the offending binder.
+     */
+    /**
+     * Refuse an object allocation inside a contract expression. Returns
+     * {@link StmtExpr} so it can stand in expression position; always throws.
+     */
+    private static StmtExpr refuseAllocationInContract() {
+        throw new JavaViolationException(
+                "object allocation (including lambdas) inside a contract is not yet supported");
+    }
+
+    private static void refuseReservedName(Name name) {
+        if (name.contentEquals(LAUREL_RESULT_BINDING)) {
+            throw new JavaViolationException(
+                    "identifier '" + LAUREL_RESULT_BINDING + "' is reserved by the verifier");
+        }
+    }
+
+    static Symbol.ClassSymbol enclosingClassOrRefuse(Symbol.MethodSymbol sym) {
+        Symbol.ClassSymbol enclosing;
+        try {
+            enclosing = sym.enclClass();
+        } catch (ClassCastException e) {
+            enclosing = null;
+        }
+        if (enclosing == null) {
+            throw new JavaViolationException(
+                    "method '" + sym.name + "' has no enclosing class symbol (not yet supported)");
+        }
+        return enclosing;
+    }
+
+    /// Separator between the enclosing-class name and the method name in a
+    /// mangled procedure name. '?' cannot appear in a Java identifier (JLS 3.8), so
+    /// the join is injective where a '_' join is not: `Outer.Inner?foo` cannot be
+    /// forged, but `Outer.Inner_foo` is also how a method `Inner_foo` on `Outer` would
+    /// mangle. Not reachable for statics -- those are relocated into per-class
+    /// `<Class>?static` symbols first, so two never share an enclosing class -- but
+    /// instance methods keep theirs. Same convention as MoveStaticMethodsToStaticType.
+    private static final char MANGLE_SEPARATOR = '?';
+
+    /**
+     * Declare the composite sort {@code name} with its Java supertype closure,
+     * ANCESTORS FIRST. Every sort {@code extends} its direct supertypes (superclass
+     * + all interfaces, including {@code java.lang.Object}), and Strata's resolver
+     * walks those edges transitively, so a value flows to any supertype-typed
+     * position exactly as Java's subtyping allows. Lambdas and method references
+     * need no special case: their synthetic class carries its functional interface
+     * on {@code interfaces_field}, which {@code getInterfaces()} returns.
+     *
+     * <p>Ancestors-first is REQUIRED. Laurel builds a composite's field scope by
+     * copying each parent's scope when the child is resolved, so a parent declared
+     * AFTER its child leaves inherited fields undefined ("'field' is not defined").
+     * Reference order, which {@code referencedCompositeTypes} preserves, is not
+     * topological, so the recursion is what makes the emitted order safe.
+     *
+     * <p>{@code emitted} dedups across the whole program, not just within a file:
+     * all Laurel files share one scope, so a repeated declaration is a duplicate
+     * definition.
+     */
+    private void emitComposite(Symbol.TypeSymbol tsym, String name,
+            Set<String> emitted, List<TypeDefinition> out) {
+        if (!emitted.add(name)) {
+            return;
+        }
+        // `extending` widened to `List<AstNode<HighType>>` by the poly grammar: a
+        // composite may extend a generic instantiation. Java has no generics surface
+        // here, so every parent is a plain nominal type wrapped as `HighType.UserDefined`.
+        List<AstNode<HighType>> parents = new ArrayList<>();
+        if (tsym instanceof Symbol.ClassSymbol cls && tsym.type != null) {
+            com.sun.tools.javac.code.Type sup = cls.getSuperclass();
+            if (sup != null && sup.tsym != null && sup.getTag() != TypeTag.NONE) {
+                addParent(sup.tsym, name, parents, emitted, out);
+            }
+            for (var iface : cls.getInterfaces()) {
+                if (iface.tsym != null) {
+                    addParent(iface.tsym, name, parents, emitted, out);
+                }
+            }
+        }
+        if (parents.isEmpty() && !OBJECT_SORT.equals(name)) {
+            // Roots other than Object itself still have Object as a supertype:
+            // interfaces (getSuperclass() returns noType, but JLS 4.10.2 makes Object
+            // a direct supertype of a superinterface-less interface) and synthetic
+            // lambda classes (supertype field never set). Without this edge such a
+            // value cannot flow to an Object-typed position.
+            addParent(symtab.objectType.tsym, name, parents, emitted, out);
+        }
+        List<Field> fields = compositeFields.containsKey(name)
+                ? new ArrayList<>(compositeFields.get(name).values())
+                : List.of();
+        out.add(new TypeDefinition.Composite(new CompositeType(ident(name),
+                /*typeArgs=*/List.of(), parents, fields,
+                instanceProcsBySort.getOrDefault(name, List.of()))));
+    }
+
+    /** Emit {@code parentSym}'s sort (and its ancestors) and name it as a parent of
+     *  the sort being declared, unless it is that sort itself. */
+    private void addParent(Symbol.TypeSymbol parentSym, String childName,
+            List<AstNode<HighType>> parents, Set<String> emitted, List<TypeDefinition> out) {
+        String parent = compositeSortName(parentSym);
+        if (parent.isEmpty() || parent.equals(childName)) {
+            return;
+        }
+        emitComposite(parentSym, parent, emitted, out);
+        parents.add(node(new HighType.UserDefined(ident(parent))));
+    }
+
+    private static String compositeSortName(Symbol.TypeSymbol tsym) {
+        var name = tsym.getQualifiedName();
+        if (name.isEmpty() && tsym instanceof Symbol.ClassSymbol cls) {
+            // Anonymous and local classes have an EMPTY qualified name, so without
+            // this fallback they all share one empty-named sort: only the first
+            // declaration is emitted and every later class collides with it. The
+            // flatname (`pkg.Outer$1`) is unique per class.
+            name = cls.flatName();
+        }
+        return name.toString().replace('$', '.');
     }
 
     /** A translated {@code throws} clause: the join class and its Laurel type node. */
@@ -556,7 +939,7 @@ public class JavaToLaurelCompiler {
             registerHierarchyUpToThrowable(cls);
         }
         String joinSort = compositeSortName(join);
-        referencedCompositeTypes.add(joinSort);
+        referencedCompositeTypes.putIfAbsent(joinSort, join);
         return new DeclaredThrows(join,
                 node(new HighType.UserDefined(ident(joinSort)),
                         typeRangeOrNone(thrownTrees.getFirst())));
@@ -625,7 +1008,7 @@ public class JavaToLaurelCompiler {
             }
         }
         registerHierarchyUpTo(cls, stop);
-        referencedCompositeTypes.add(compositeSortName(stop));
+        referencedCompositeTypes.putIfAbsent(compositeSortName(stop), stop);
     }
 
     /**
@@ -633,6 +1016,17 @@ public class JavaToLaurelCompiler {
      * both sorts. Membership in {@link #referencedCompositeTypes} and the edge
      * in {@link #compositeExtends} always move together through this method,
      * so a linked child cannot silently miss its declaration (or dangle).
+     *
+     * <p>The {@code compositeExtends} edge is no longer what EMITS the parent.
+     * {@code emitComposite} derives each sort's parents from its javac symbol
+     * ({@code getSuperclass()} + {@code getInterfaces()}), which covers the whole
+     * supertype closure rather than one recorded edge, and subsumes what this map fed
+     * before -- verified: removing the write below leaves the suite green, and all six
+     * exception fixtures (five of which exercise exception subtype hierarchies) still
+     * pass. The map is kept for the conflict check that follows: two distinct classes
+     * whose sort names collide (a nested {@code Outer.Inner} versus a top-level class so
+     * named) must be refused loudly rather than silently keeping whichever arrived
+     * first.
      *
      * <p>Sort names are the key, and {@link #compositeSortName} folds the
      * nested-class {@code $} into {@code .}, so a nested {@code Outer$Inner}
@@ -643,8 +1037,8 @@ public class JavaToLaurelCompiler {
     private void linkExtends(Symbol.ClassSymbol child, Symbol.ClassSymbol parent) {
         String childSort = compositeSortName(child);
         String parentSort = compositeSortName(parent);
-        referencedCompositeTypes.add(childSort);
-        referencedCompositeTypes.add(parentSort);
+        referencedCompositeTypes.putIfAbsent(childSort, child);
+        referencedCompositeTypes.putIfAbsent(parentSort, parent);
         String existing = compositeExtends.putIfAbsent(childSort, parentSort);
         if (existing != null && !existing.equals(parentSort)) {
             throw new JavaViolationException(
@@ -708,7 +1102,7 @@ public class JavaToLaurelCompiler {
             return;
         }
         String sortName = compositeSortName(owner);
-        referencedCompositeTypes.add(sortName);
+        referencedCompositeTypes.putIfAbsent(sortName, owner);
         LinkedHashMap<String, Field> fields = compositeFields.computeIfAbsent(
                 sortName, k -> new LinkedHashMap<>());
         String name = fieldSym.name.toString();
@@ -734,32 +1128,25 @@ public class JavaToLaurelCompiler {
     }
 
     private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
-        // `outermostClass()` walks the owner chain to the first ClassSymbol,
-        // casting along the way; some invocations (record accessors of types
-        // declared inside an anonymous class, or built-ins on synthetic Symtab
-        // entries) reach here with a non-ClassSymbol owner and throw
-        // ClassCastException. Fall back to the immediate owner in that case.
-        Symbol.ClassSymbol outer;
-        try {
-            outer = sym.outermostClass();
-        } catch (ClassCastException e) {
-            outer = null;
-        }
-        if (outer != null) {
-            // Fully-qualified (package-included) name, sanitised like the
-            // CompositeType sort names ('$' -> '.'), so two same-named classes
-            // in different packages don't produce colliding procedure names.
-            return outer.getQualifiedName().toString().replace('$', '.') + "_" + sym.name;
-        }
-        Symbol owner = sym.owner;
-        String prefix = (owner != null && owner.name != null)
-                ? owner.name.toString()
-                : "$unknown";
-        return prefix + "_" + sym.name;
+        // Package-qualified IMMEDIATE-enclosing class name ('$' -> '.'), then
+        // MANGLE_SEPARATOR, then the method. The immediate (not outermost) class
+        // keeps nested-class methods distinct: `Outer.Inner.foo` mangles to
+        // `Outer.Inner?foo` instead of colliding with `Outer?foo`.
+        return enclosingClassOrRefuse(sym).getQualifiedName().toString().replace('$', '.')
+                + MANGLE_SEPARATOR + sym.name;
     }
 
     private class StaticMethodCollector extends TreeScanner {
         final List<Procedure> procedures = new ArrayList<>();
+        /// Class enclosing the method being translated, i.e. the static type of
+        /// `this`. An implicit-`this` call emits `self?#m(...)` with `self?` typed
+        /// as THIS class, so Strata resolves against this class's ancestry, not the
+        /// callee declarer's.
+        private Symbol.ClassSymbol currentEnclosingClass = null;
+        private final RefusalGates gates =
+                new RefusalGates(javacTypes, optedOutMethods);
+        /** True while converting a requires/ensures/invariant expression. */
+        private boolean inContractContext = false;
         private int labelCounter = 0;
 
         private record LabelEntry(String javaLabel, String breakLabel, String continueLabel) {}
@@ -837,6 +1224,10 @@ public class JavaToLaurelCompiler {
                     }
                     super.visitUnary(tree);
                 }
+                // Reached only for a target the translator accepts; `f += 1` on an
+                // instance field is refused earlier as an unsupported JCAssignOp, so no
+                // compound assignment to a field reaches the frame decision. This arm
+                // exists for symmetry with visitAssign.
                 @Override public void visitAssignop(JCTree.JCAssignOp tree) {
                     if (writesInstanceField(tree.lhs)) found[0] = true;
                     super.visitAssignop(tree);
@@ -861,10 +1252,23 @@ public class JavaToLaurelCompiler {
                     super.visitApply(tree);
                 }
 
+                /**
+                 * Whether this assignment target names heap state.
+                 *
+                 * <p>Both spellings count. A bare `f = ...` in an instance method is
+                 * an implicit `this.f = ...` and reaches javac as a `JCIdent`, not a
+                 * `JCFieldAccess`; matching only the qualified form left the
+                 * synthesized `modifies` wildcard off such a method, whose frame check
+                 * then failed on a write the frame should have covered.
+                 * `isHeapInstanceField` already encodes the non-static, non-constant
+                 * field test used elsewhere for exactly this decision.
+                 */
                 private boolean writesInstanceField(JCTree.JCExpression lhs) {
-                    return lhs instanceof JCTree.JCFieldAccess fa
-                            && fa.sym instanceof Symbol.VarSymbol vs
-                            && (vs.flags() & Flags.STATIC) == 0;
+                    return switch (lhs) {
+                        case JCTree.JCFieldAccess fa -> isHeapInstanceField(fa.sym);
+                        case JCTree.JCIdent id -> isHeapInstanceField(id.sym);
+                        default -> false;
+                    };
                 }
 
                 private boolean isPureCall(JCTree.JCMethodInvocation tree) {
@@ -947,12 +1351,55 @@ public class JavaToLaurelCompiler {
 
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl method) {
-            if ((method.mods.flags & Flags.STATIC) != 0) {
+            boolean isStatic = (method.mods.flags & Flags.STATIC) != 0;
+            // Deferred, and already skipped by the previous STATIC-only gate, so
+            // skipping them keeps previously-green classes green: constructors
+            // (emitting one would embed '<init>' in the name and expose the
+            // synthesized super() chain), synthetic members, and methods on an
+            // anonymous/local class (no qualified name on the enclosing class, so
+            // its sort is only reachable by flatname).
+            boolean deferred = JVerifyUtils.isConstructor(method.sym)
+                    || (method.mods.flags & Flags.SYNTHETIC) != 0
+                    || method.sym.enclClass() == null
+                    || method.sym.enclClass().getQualifiedName().isEmpty();
+            // A deferred member emits no Laurel but still holds a Verified entry in
+            // the interval tree, so a user constructor or anon-class method with a
+            // real contract would be reported Verified though Strata never checked
+            // it, and its unchecked obligations can surface against whatever the
+            // contract mentions. Demote it. Exception: a GENERATED implicit
+            // constructor has no user body, so its vacuous Verified is sound (the
+            // documented "+1 per class" convention). markSkipped no-ops without an
+            // entry, so this cannot inflate the Skipped count.
+            if (deferred && !isStatic && (method.mods.flags & Flags.GENERATEDCONSTR) == 0) {
+                annotationCompiler.markSkipped(currentCompilationUnit, method);
+            }
+            if (isStatic || (!deferred && !jverifyUtils.isInterpretEntry(method.sym))) {
                 try {
-                    translateStaticMethod(method);
+                    translateMethod(method, isStatic);
                 } catch (JavaViolationException e) {
-                    reporter.reportError(method, "translatorError", e.getMessage());
+                    // Demote so an un-emitted method is not counted Verified. This
+                    // demotion is what makes the asymmetry below safe: the fallback
+                    // state is Skipped (an honest "not checked"), not Verified.
+                    // Remove it and suppressing the diagnostic hides an unchecked
+                    // method behind a green run -- the two are coupled.
                     annotationCompiler.markSkipped(currentCompilationUnit, method);
+                    if (isStatic) {
+                        reporter.reportError(method, "translatorError", e.getMessage());
+                    } else {
+                        // Instance support is partial, so these bodies often hit a
+                        // not-yet-supported construct; an error per method would be
+                        // noise and fail builds over a known gap. But silence costs
+                        // the user the reason and the location: the only trace is the
+                        // aggregate "Skipped methods: N", which maps back to neither.
+                        // Warn instead, deduplicated by (method, reason) so a
+                        // construct hit repeatedly reports once.
+                        if (firstReportOf(method.sym, e.getMessage())) {
+                            reporter.reportDiagnostic(method,
+                                    JCDiagnostic.DiagnosticType.WARNING,
+                                    "instanceMethodNotVerified",
+                                    method.name.toString(), e.getMessage());
+                        }
+                    }
                 }
             } else if (jverifyUtils.isInterpretEntry(method.sym)) {
                 // @InterpretEntry marks a concrete-interpretation entry point that
@@ -967,11 +1414,27 @@ public class JavaToLaurelCompiler {
             super.visitMethodDef(method);
         }
 
-        private void translateStaticMethod(JCTree.JCMethodDecl method) {
-            String methodName = qualifiedMethodName(method.sym);
+        private void translateMethod(JCTree.JCMethodDecl method, boolean isStatic) {
+            RefusalGates.enforce(gates.overloadRefusal(method.sym));
+            currentEnclosingClass = enclosingClassOrRefuse(method.sym);
+            // An instance procedure lives INSIDE its composite under the bare method
+            // name; Strata's LiftInstanceProcedures pass lifts it to a top-level
+            // `<Composite>$<method>`. A static keeps the mangled name.
+            String methodName = isStatic
+                    ? qualifiedMethodName(method.sym)
+                    : method.sym.name.toString();
 
             List<Parameter> inputs = new ArrayList<>();
+            if (!isStatic) {
+                // REQUIRED by Strata, not a choice here: LiftInstanceProcedures
+                // rewrites `obj#method(args)` by PREPENDING the receiver to the
+                // argument list, so the lifted procedure must declare it first for
+                // the arities to line up.
+                inputs.add(new Parameter(ident(LAUREL_SELF_BINDING),
+                        node(translateType(enclosingClassOrRefuse(method.sym).type))));
+            }
             for (var param : method.params) {
+                refuseReservedName(param.name);
                 inputs.add(new Parameter(ident(param.name.toString()),
                         translateTypeWithRange(param.type, param.mods, typeRangeOrNone(param.vartype))));
             }
@@ -1014,6 +1477,10 @@ public class JavaToLaurelCompiler {
 
             if (method.body != null) {
                 MethodOrLoopContract contract = contractCompiler.getContract(method.body);
+                // Mark the context so the JCNewClass arm refuses allocation inside a
+                // contract expression (see that arm for why).
+                inContractContext = true;
+                try {
                 for (var pre : contract.preconditions()) {
                     var preExpr = pre.get();
                     StmtExpr converted = (preExpr instanceof JCTree.JCLambda lambda)
@@ -1063,6 +1530,10 @@ public class JavaToLaurelCompiler {
                     throwsOnBlocks.add(new ThrowsOnBlock(
                             node(convertExpression(guardExpr), guardExpr),
                             casePosts, caseModifies));
+                }
+
+                } finally {
+                    inContractContext = false;
                 }
 
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(method.body);
@@ -1149,46 +1620,66 @@ public class JavaToLaurelCompiler {
             }
 
             var proc = new Procedure(
-                    ident(methodName), /*typeArgs=*/List.of(), inputs, outputs, preconditions,
+                    ident(methodName, method), /*typeArgs=*/List.of(), inputs, outputs, preconditions,
                     /*decreases=*/Optional.empty(), body, /*invokeOn=*/Optional.empty(),
                     isInterpretEntry, /*axioms=*/List.of(),
                     // Exceptional contract: the declared type and binding come from
                     // the Java `throws` clause, the behaviour cases from the
                     // `throwsOn(...).postcondition(...).modifies(...)` contract chains.
                     throwsType, throwsBinding, throwsOnBlocks);
-            procedures.add(proc);
+            procedureBySymbol.put(method.sym, proc);
+            if (isStatic) {
+                procedures.add(proc);
+            } else {
+                // Emitted inside the composite (see emitComposite), not at top level.
+                Symbol.ClassSymbol owner = enclosingClassOrRefuse(method.sym);
+                String sort = compositeSortName(owner);
+                referencedCompositeTypes.putIfAbsent(sort, owner);
+                instanceProcsBySort.computeIfAbsent(sort, k -> new ArrayList<>()).add(proc);
+            }
         }
 
-        private StmtExpr emitLoop(StmtExpr cond, List<AstNode<StmtExpr>> invariants, StmtExpr loopBody,
+        /**
+         * Builds the Laurel `while` (plus the block scaffolding a `for`'s init/step
+         * and any break/continue labels need) for a Java loop.
+         *
+         * <p>{@code loop} is the originating Java tree. Every node synthesized here
+         * is stamped with its range: none corresponds to a distinct piece of Java
+         * syntax, but a diagnostic can still land on one -- the implicit "invariant
+         * holds on entry" check for a loop with no invariant lands on the `while`
+         * itself -- and a range-less node makes it unattributable (see
+         * {@link JavaToLaurelCompiler#ident(String, JCTree)}).
+         */
+        private StmtExpr emitLoop(JCTree loop, StmtExpr cond, List<AstNode<StmtExpr>> invariants, StmtExpr loopBody,
                                   StmtExpr step, List<StmtExpr> preamble,
                                   String breakLbl, String continueLbl) {
             if (breakLbl != null) {
-                StmtExpr wrappedBody = new StmtExpr.Block(List.of(node(loopBody)), Optional.of(continueLbl));
+                StmtExpr wrappedBody = new StmtExpr.Block(List.of(node(loopBody, loop)), Optional.of(continueLbl));
                 StmtExpr whileBody;
                 if (step != null) {
-                    whileBody = new StmtExpr.Block(List.of(node(wrappedBody), node(step)), Optional.empty());
+                    whileBody = new StmtExpr.Block(List.of(node(wrappedBody, loop), node(step, loop)), Optional.empty());
                 } else {
                     whileBody = wrappedBody;
                 }
-                StmtExpr whileNode = new StmtExpr.While(node(cond), invariants, Optional.empty(), node(whileBody), false);
+                StmtExpr whileNode = new StmtExpr.While(node(cond, loop), invariants, Optional.empty(), node(whileBody, loop), false);
                 List<AstNode<StmtExpr>> outerStmts = new ArrayList<>();
-                for (var p : preamble) outerStmts.add(node(p));
-                outerStmts.add(node(whileNode));
+                for (var p : preamble) outerStmts.add(node(p, loop));
+                outerStmts.add(node(whileNode, loop));
                 return new StmtExpr.Block(outerStmts, Optional.of(breakLbl));
             } else {
                 StmtExpr whileBody;
                 if (step != null) {
-                    whileBody = new StmtExpr.Block(List.of(node(loopBody), node(step)), Optional.empty());
+                    whileBody = new StmtExpr.Block(List.of(node(loopBody, loop), node(step, loop)), Optional.empty());
                 } else {
                     whileBody = loopBody;
                 }
-                StmtExpr whileNode = new StmtExpr.While(node(cond), invariants, Optional.empty(), node(whileBody), false);
+                StmtExpr whileNode = new StmtExpr.While(node(cond, loop), invariants, Optional.empty(), node(whileBody, loop), false);
                 if (preamble.isEmpty()) {
                     return whileNode;
                 }
                 List<AstNode<StmtExpr>> stmts = new ArrayList<>();
-                for (var p : preamble) stmts.add(node(p));
-                stmts.add(node(whileNode));
+                for (var p : preamble) stmts.add(node(p, loop));
+                stmts.add(node(whileNode, loop));
                 return new StmtExpr.Block(stmts, Optional.empty());
             }
         }
@@ -1209,6 +1700,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCExpressionStatement exprStmt -> convertExpression(exprStmt.expr, renames);
                 case JCTree.JCBlock blk -> convertBlock(blk, renames);
                 case JCTree.JCVariableDecl varDecl -> {
+                    refuseReservedName(varDecl.name);
                     var typeNode = translateTypeWithRange(varDecl.type, varDecl.mods, typeRangeOrNone(varDecl.vartype));
                     // `Declare` takes a `ParameterOpt`: the annotation is optional in
                     // Laurel, but javac has always resolved the declared type by here
@@ -1244,7 +1736,7 @@ public class JavaToLaurelCompiler {
                     yield withLoopLabels(whileStmt.body, (breakLbl, continueLbl) -> {
                         StmtExpr cond = convertExpression(whileStmt.cond, renames);
                         var parts = extractLoopParts(whileStmt.body, renames);
-                        return emitLoop(cond, parts.invariants, parts.body, null, List.of(),
+                        return emitLoop(whileStmt, cond, parts.invariants, parts.body, null, List.of(),
                                 breakLbl, continueLbl);
                     });
                 }
@@ -1260,7 +1752,7 @@ public class JavaToLaurelCompiler {
                         StmtExpr step = forLoop.step.isEmpty() ? new StmtExpr.Block(List.of(), Optional.empty())
                                 : convertStatement(forLoop.step.getFirst(), renames);
                         var parts = extractLoopParts(forLoop.body, renames);
-                        return emitLoop(cond, parts.invariants, parts.body, step, List.of(init),
+                        return emitLoop(forLoop, cond, parts.invariants, parts.body, step, List.of(init),
                                 breakLbl, continueLbl);
                     });
                 }
@@ -1273,13 +1765,15 @@ public class JavaToLaurelCompiler {
                     try {
                         var cond = convertExpression(doWhile.cond, renames);
                         var parts = extractLoopParts(doWhile.body, renames);
-                        var notCond = primitiveOp(new Operation.Not(), node(cond));
-                        var exitIfDone = new StmtExpr.IfThenElse(node(notCond),
-                                node(new StmtExpr.Exit(breakLbl)), Optional.empty());
-                        var wrappedBody = new StmtExpr.Block(List.of(node(parts.body)), Optional.of(continueLbl));
-                        var whileBody = new StmtExpr.Block(List.of(node(wrappedBody), node(exitIfDone)), Optional.empty());
-                        var whileNode = new StmtExpr.While(node(new StmtExpr.LiteralBool(true)), parts.invariants, Optional.empty(), node(whileBody), false);
-                        yield new StmtExpr.Block(List.of(node(whileNode)), Optional.of(breakLbl));
+                        var notCond = primitiveOp(new Operation.Not(), node(cond, doWhile.cond));
+                        var exitIfDone = new StmtExpr.IfThenElse(node(notCond, doWhile.cond),
+                                node(new StmtExpr.Exit(breakLbl), doWhile), Optional.empty());
+                        var wrappedBody = new StmtExpr.Block(List.of(node(parts.body, doWhile)), Optional.of(continueLbl));
+                        var whileBody = new StmtExpr.Block(List.of(node(wrappedBody, doWhile), node(exitIfDone, doWhile)), Optional.empty());
+                        // Stamped for the reason given in `emitLoop`: synthesized, but
+                        // still a landing site for the loop's implicit obligations.
+                        var whileNode = new StmtExpr.While(node(new StmtExpr.LiteralBool(true), doWhile), parts.invariants, Optional.empty(), node(whileBody, doWhile), false);
+                        yield new StmtExpr.Block(List.of(node(whileNode, doWhile)), Optional.of(breakLbl));
                     } finally {
                         labelStack.pop();
                     }
@@ -1554,8 +2048,16 @@ public class JavaToLaurelCompiler {
                 // `MethodOrLoopContractCompiler.visitLoop`'s wrongContract
                 // check -- cases are method contracts.)
                 List<AstNode<StmtExpr>> invariants = new ArrayList<>();
-                for (var inv : loopContract.loopInvariants()) {
-                    invariants.add(node(convertExpression(inv.get(), renames), inv.get()));
+                boolean savedContractContext = inContractContext;
+                inContractContext = true;
+                try {
+                    for (var inv : loopContract.loopInvariants()) {
+                        invariants.add(node(convertExpression(inv.get(), renames), inv.get()));
+                    }
+                } finally {
+                    // Restored before the loop BODY is converted: the body is not a
+                    // contract position, so an allocation there is fine.
+                    inContractContext = savedContractContext;
                 }
                 var implStatements = MethodOrLoopContractCompiler.getImplementationStatements(loopBlock);
                 List<AstNode<StmtExpr>> stmts = new ArrayList<>();
@@ -1569,11 +2071,39 @@ public class JavaToLaurelCompiler {
             }
         }
 
+        /**
+         * Whether {@code sym} is a non-static field whose value is not a
+         * compile-time constant, i.e. heap state reached through a receiver. A
+         * constant folds to a literal upstream; a static field is not heap state.
+         */
+        private static boolean isHeapInstanceField(Symbol sym) {
+            return sym instanceof Symbol.VarSymbol varSym
+                    && varSym.getKind() == javax.lang.model.element.ElementKind.FIELD
+                    && (varSym.flags() & Flags.STATIC) == 0
+                    && varSym.getConstValue() == null;
+        }
+
         private Variable convertVariable(JCTree.JCExpression expr, Map<String, String> renames) {
             return switch (expr) {
+                case JCTree.JCIdent ident when isHeapInstanceField(ident.sym) -> {
+                    // Bare `x = ...` in an instance body is an implicit
+                    // `this.x = ...`: heap state, not a local, so it must go through
+                    // the receiver or Strata reports 'x' is not defined.
+                    ensureFieldOnComposite((Symbol.VarSymbol) ident.sym);
+                    yield new Variable.Field(
+                            node(new StmtExpr.Var(new Variable.Local(ident(LAUREL_SELF_BINDING)))),
+                            ident(ident.name.toString()));
+                }
                 case JCTree.JCIdent ident -> {
                     String name = ident.name.toString();
                     yield new Variable.Local(ident(renames.getOrDefault(name, name)));
+                }
+                case JCTree.JCFieldAccess fa when isHeapInstanceField(fa.sym) -> {
+                    // `this.x = ...` / `obj.x = ...`: declare the field on its owning
+                    // composite so heap parameterization resolves the write.
+                    ensureFieldOnComposite((Symbol.VarSymbol) fa.sym);
+                    yield new Variable.Field(node(convertExpression(fa.selected, renames)),
+                            ident(fa.name.toString()));
                 }
                 case JCTree.JCFieldAccess fa ->
                     new Variable.Field(node(convertExpression(fa.selected, renames)), ident(fa.name.toString()));
@@ -1582,9 +2112,42 @@ public class JavaToLaurelCompiler {
             };
         }
 
+
+
+        /**
+         * The receiver for an instance call: the converted receiver expression, or
+         * the enclosing {@code self?} binder for an implicit-this {@code m(...)}.
+         *
+         * <p>{@code super.m(...)} is refused: resolution walks the receiver's
+         * declared type upward, so an {@code obj#method} call cannot express "the
+         * parent's {@code m}, skipping the override".
+         */
+        /** The receiver expression for an instance call. Whether the receiver SHAPE is
+            supported is decided by {@link RefusalGates#receiverRefusal}, enforced at the
+            call site before this runs; this method only emits. */
+        private StmtExpr receiverSelf(JCTree.JCExpression methodSelect, Map<String, String> renames) {
+            if (methodSelect instanceof JCTree.JCFieldAccess fieldAccess) {
+                return convertExpression(fieldAccess.selected, renames);
+            }
+            // Implicit-this call `m(...)`: the receiver is the enclosing instance.
+            return new StmtExpr.Var(new Variable.Local(ident(LAUREL_SELF_BINDING)));
+        }
+
+
+
         private StmtExpr convertExpression(JCTree.JCExpression expr, Map<String, String> renames) {
             return switch (expr) {
                 case JCTree.JCLiteral literal -> convertLiteral(literal);
+                case JCTree.JCIdent ident when ident.name == ident.name.table.names._this ->
+                    // `this` in an instance body is the explicit receiver parameter.
+                    new StmtExpr.Var(new Variable.Local(ident(LAUREL_SELF_BINDING)));
+                case JCTree.JCIdent ident when isHeapInstanceField(ident.sym) -> {
+                    // Implicit `this.x` (see the matching arm in convertVariable).
+                    ensureFieldOnComposite((Symbol.VarSymbol) ident.sym);
+                    yield new StmtExpr.Var(new Variable.Field(
+                            node(new StmtExpr.Var(new Variable.Local(ident(LAUREL_SELF_BINDING)))),
+                            ident(ident.name.toString())));
+                }
                 case JCTree.JCIdent ident -> {
                     String name = ident.name.toString();
                     yield var_(renames.getOrDefault(name, name));
@@ -1606,12 +2169,63 @@ public class JavaToLaurelCompiler {
                         yield convertJVerifyCall(invocation, jverifyMethod, renames);
                     }
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-                    String calleeName = qualifiedMethodName(methodSym);
+                    if (optedOutMethods.contains(methodSym)) {
+                        // The callee emits no procedure, but its mangled name is not
+                        // unique to it: an overload sibling that IS emitted mangles to
+                        // the same Laurel name, so this call would bind the sibling's
+                        // contract -- wrong contract, possibly wrong arity. Refuse the
+                        // caller instead.
+                        //
+                        // Caught HERE rather than left to the post-loop scan, though
+                        // both consult the same `skippedMethodSymbols()` set: opt-out
+                        // is known from the annotation snapshot before translation, so
+                        // refusing now aborts this caller before any procedure exists
+                        // to retract, and the existing catch site reports it. The scan
+                        // detects the call too, but only after the caller is translated,
+                        // so it has to drop the procedure afterwards. Removing
+                        // this check makes CallToOptedOutOverload fail (verified).
+                        throw new JavaViolationException(
+                                "call to '" + methodSym.name
+                                        + "', which could not be translated");
+                    }
+                    boolean calleeStatic = (methodSym.flags() & Flags.STATIC) != 0;
+                    if (calleeStatic) {
+                        // A static mangles to `Class?name`, so only its own class's
+                        // overloads can collide. Instance calls take the ancestry
+                        // gate below, which subsumes this one: the supertype closure
+                        // includes the receiver's own type.
+                        RefusalGates.enforce(gates.overloadRefusal(methodSym));
+                    }
+                    StmtExpr instanceReceiver = null;
+                    if (!calleeStatic) {
+                        // Receiver-shape refusals are reported BEFORE the general
+                        // dispatch refusal, so `super.m()` and `new T().m()` name their own
+                        // cause rather than the less specific "polymorphic dispatch". That
+                        // ordering used to be implicit in `receiverSelf` throwing first.
+                        RefusalGates.enforce(
+                                RefusalGates.receiverRefusal(invocation.getMethodSelect()));
+                        StmtExpr selfArg = receiverSelf(invocation.getMethodSelect(), renames);
+                        RefusalGates.enforce(RefusalGates.dispatchRefusal(methodSym, invocation.getMethodSelect()));
+                        // The emitted `obj#method` is re-resolved BY NAME in Strata;
+                        // refuseIfOverloaded alone cannot make that unambiguous.
+                        RefusalGates.enforce(gates.ancestryOverloadRefusal(
+                                methodSym, invocation.getMethodSelect(),
+                                currentEnclosingClass));
+                        instanceReceiver = selfArg;
+                    }
                     List<AstNode<StmtExpr>> args = new ArrayList<>();
                     for (var arg : invocation.args) {
                         args.add(node(convertExpression(arg, renames), arg));
                     }
-                    yield new StmtExpr.StaticCall(ident(calleeName), args);
+                    if (instanceReceiver == null) {
+                        yield new StmtExpr.StaticCall(ident(qualifiedMethodName(methodSym)), args);
+                    }
+                    // `obj#method(args)`: LiftInstanceProcedures rewrites this to the
+                    // lifted `<Composite>$<method>`, prepending the receiver (see
+                    // translateMethod's `self?` parameter).
+                    yield new StmtExpr.InstanceCall(
+                            node(instanceReceiver, invocation.getMethodSelect()),
+                            ident(methodSym.name.toString()), args);
                 }
                 case JCTree.LetExpr letExpr -> {
                     List<AstNode<StmtExpr>> stmts = new ArrayList<>();
@@ -1634,11 +2248,16 @@ public class JavaToLaurelCompiler {
                     yield new StmtExpr.Var(new Variable.Field(
                             node(obj, fa.selected), ident(fa.name.toString())));
                 }
+                case JCTree.JCNewClass newClass when inContractContext ->
+                    // `new` -- and a lambda, which lowers to `new <anon>()` -- produces
+                    // a heap-allocating block. Strata lifts such blocks out of bodies
+                    // but not out of contract expressions, where they reach Core
+                    // unlowered ("block expression should have been lowered"). Refuse
+                    // for a graceful skip until Strata lifts inside contracts.
+                    refuseAllocationInContract();
                 case JCTree.JCNewClass newClass -> {
-                    String name = newClass.type.tsym
-                            .getQualifiedName().toString()
-                            .replace('$', '.');
-                    referencedCompositeTypes.add(name);
+                    String name = compositeSortName(newClass.type.tsym);
+                    referencedCompositeTypes.putIfAbsent(name, newClass.type.tsym);
                     for (var arg : newClass.args) {
                         convertExpression(arg, renames);
                     }
@@ -1848,6 +2467,11 @@ public class JavaToLaurelCompiler {
             return switch (tag) {
                 case BOOLEAN -> new StmtExpr.LiteralBool(((Number) v).intValue() != 0);
                 case CHAR, INT, SHORT, BYTE, LONG -> longLiteral(((Number) v).longValue());
+                // A String literal is a constant whose tag is CLASS. Reachable now
+                // that instance calls are translated: the receiver of
+                // `"abc".length()` is such a constant, and previously aborted the
+                // enclosing method with "Unsupported constant type tag: CLASS".
+                case CLASS -> new StmtExpr.LiteralString(String.valueOf(v));
                 default -> throw new JavaViolationException("Unsupported constant type tag: " + tag);
             };
         }
@@ -1938,6 +2562,7 @@ public class JavaToLaurelCompiler {
                     StmtExpr qBody = convertLambdaBody(lambda, renames);
                     for (int i = lambda.params.size() - 1; i >= 0; i--) {
                         var p = lambda.params.get(i);
+                        refuseReservedName(p.name);
                         var param = new Parameter(ident(p.name.toString()),
                                 translateTypeWithRange(p.type, p.mods, typeRangeOrNone(p.vartype)));
                         var mode = name.equals("forall")

@@ -111,21 +111,13 @@ public class MoveStaticMethodsToStaticType {
                 if (member instanceof JCTree.JCMethodDecl methodDecl) {
                     if (methodDecl.sym.isStatic()) {
                         staticMembers = staticMembers.append(methodDecl);
-                        var methodSymbol = methodDecl.sym;
-
-                        staticSymbols.add(methodSymbol);
-                        methodSymbol.owner = staticClassSymbol;
-                        staticClassSymbol.members().enter(methodSymbol);
+                        moveSymbol(methodDecl.sym, tree.sym);
                         continue;
                     }
                 } else if (member instanceof JCTree.JCVariableDecl varDecl) {
                     if (JVerifyUtils.isStatic(varDecl.mods)) {
                         staticMembers = staticMembers.append(varDecl);
-                        var varSymbol = varDecl.sym;
-
-                        staticSymbols.add(varSymbol);
-                        varSymbol.owner = staticClassSymbol;
-                        staticClassSymbol.members().enter(varSymbol);
+                        moveSymbol(varDecl.sym, tree.sym);
                         continue;
                     }
                 }
@@ -135,6 +127,19 @@ public class MoveStaticMethodsToStaticType {
             super.visitClassDef(tree);
         }
 
+        /**
+         * Move {@code sym} from {@code from}'s scope into the static sibling
+         * class. It must LEAVE {@code from}'s scope, or the symbol table lies:
+         * a stale entry makes same-name scans over {@code from.members()}
+         * miscount — e.g. refuseIfOverloaded counted a moved static against a
+         * same-named instance method and silently dropped it from verification.
+         */
+        private void moveSymbol(Symbol sym, Symbol.ClassSymbol from) {
+            staticSymbols.add(sym);
+            from.members().remove(sym);
+            sym.owner = staticClassSymbol;
+            staticClassSymbol.members().enter(sym);
+        }
     }
 
     class ReferenceUpdater extends TreeTranslator {

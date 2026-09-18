@@ -57,9 +57,16 @@ public interface Driver {
         }
         
         var verificationResults = results.verdictOrNull();
+        // With no verdict there are no per-assertion counts, so ERROR diagnostics are
+        // the count. Counting all diagnostics let warnings inflate "Found N errors":
+        // an un-verified instance method warns, so four warnings plus one error
+        // reported five. Warnings are advisory and don't affect the exit code, so they
+        // must not count as errors either.
         int errorCount = verificationResults != null
                 ? verificationResults.verificationFailedAssertions()
-                : results.diagnostics().size();
+                : (int) results.diagnostics().stream()
+                        .filter(d -> d.getKind() == javax.tools.Diagnostic.Kind.ERROR)
+                        .count();
         // Soundness backstop: a non-zero exit code must never be reported
         // as "0 errors". Any failure path that reaches here without a
         // counted diagnostic (e.g. Strata failing to start) is surfaced as

@@ -313,7 +313,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         VerificationResults vr = results.verdictOrNull();
         Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
         Integer expectedMethodsInvalidCount = annotation.methodsInvalid() >= 0 ? annotation.methodsInvalid() : null;
-        Integer expectedErrorCount = annotation.methodsInvalid() >= 0 ? annotation.errorCount() : null;
+        Integer expectedErrorCount = annotation.errorCount() >= 0 ? annotation.errorCount() : null;
         Integer expectedJavaSkippedCount = annotation.methodsSkipped() >= 0 ? annotation.methodsSkipped() : null;
         // NoVerdict + a count expectation: throw NoVerdictExpectation (see its javadoc --
         // an AssertionError subtype, so a normal test fails loud but an xfail swallows it).

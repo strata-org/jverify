@@ -35,7 +35,7 @@ import static org.strata.jverify.JVerify.*;
  *     postcondition, return, and nested inside binary/conditional
  *     expressions.
  */
-@JVerifyTest(exitCode = 4, errorCount = 24, methodsVerified=42)
+@JVerifyTest(exitCode = 4, errorCount = 26, methodsVerified=42)
 class PrimitiveCasts {
 
     // ============================================================

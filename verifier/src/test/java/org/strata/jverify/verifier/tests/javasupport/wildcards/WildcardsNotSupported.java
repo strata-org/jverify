@@ -7,15 +7,17 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.modifies;
 import static org.strata.jverify.JVerify.reads;
 
-@JVerifyTest(exitCode = 0, methodsVerified = 8, errorCount = 0)
+@JVerifyTest(exitCode = 0, methodsVerified = 4, errorCount = 0)
 public class WildcardsNotSupported {
     
     void animalSetterUser(Container<Animal> animals, Turtle dog) {
+//       ^ warning: instance method 'animalSetterUser' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         modifies(animals);
         animalSetter(animals, dog);
     }
     
     void animalSetter(Container<? super Animal> animals, Turtle d) {
+//       ^ warning: instance method 'animalSetter' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         modifies(animals);
         animals.sett(d);
     }
@@ -29,11 +31,13 @@ public class WildcardsNotSupported {
 
         @Pure
         public T get() {
+//               ^ warning: instance method 'get' was not verified: Unsupported type: T
             reads(this);
             return value;
         }
 
         public void sett(T value) {
+//                  ^ warning: instance method 'sett' was not verified: Unsupported type: T
             modifies(this);
             this.value = value;
         }

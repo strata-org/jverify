@@ -21,7 +21,10 @@ import org.strata.jverify.testengine.JVerifyTest;
         errorCount = 0
 )
 class TryWithResources {
-    static class Res implements AutoCloseable {
+    // `final` so the desugared `r.close()` is provably monomorphic: `close()` comes from
+    // `AutoCloseable`, and an overridable interface call is refused before the throws
+    // check this fixture exists for can run. Nothing here subclasses `Res`.
+    static final class Res implements AutoCloseable {
         public void close() {}
     }
 

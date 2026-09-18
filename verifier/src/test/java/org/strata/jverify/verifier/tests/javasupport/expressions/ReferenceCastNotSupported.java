@@ -16,7 +16,9 @@ import org.strata.jverify.testengine.JVerifyTest;
  * once at the helper's synthetic (1:1-1:1) range and once at the cast site
  * -- instead of the clean pre-CR "Unsupported expression" error.
  */
-@JVerifyTest(exitCode = 2, errorCount = 1)
+// No count expectation: exit 2 is a usage error with no verification verdict, so
+// per-method counts do not exist to be asserted. The caret pins the diagnostic.
+@JVerifyTest(exitCode = 2)
 class ReferenceCastNotSupported {
 
     interface Shape {}
