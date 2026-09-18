@@ -13,7 +13,7 @@ public sealed interface Body extends ToIon permits Body.Transparent, Body.Opaque
         }
     }
 
-    public record Opaque(java.util.List<Condition> postconditions, java.util.Optional<AstNode<StmtExpr>> implementation, java.util.List<AstNode<StmtExpr>> modifies) implements Body {
+    public record Opaque(java.util.List<Condition> postconditions, java.util.Optional<AstNode<StmtExpr>> implementation, java.util.List<ModifiesGroup> modifies) implements Body {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
