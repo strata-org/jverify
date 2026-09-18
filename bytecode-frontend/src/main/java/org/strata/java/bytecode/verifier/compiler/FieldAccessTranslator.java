@@ -119,7 +119,7 @@ final class FieldAccessTranslator {
                 if (superWrite) {
                     throw new JavaViolationException("Unsupported expression: SuperExpr");
                 }
-                b.addStmt(new StmtExpr.Assign(List.of(target), v), BodyTranslator.Narrow.STRIP_SEMI);
+                b.addStmt(new StmtExpr.Assign(List.of(target), v));
             }
             default -> { }
         }

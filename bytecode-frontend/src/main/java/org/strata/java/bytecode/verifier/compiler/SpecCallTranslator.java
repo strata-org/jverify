@@ -57,14 +57,13 @@ final class SpecCallTranslator {
                 if (argc != 1) {
                     throw new JavaViolationException("check should have a single argument");
                 }
-                b.addStmt(new StmtExpr.Assert(b.coerce(args.get(0), "Z"), Optional.empty()),
-                        BodyTranslator.Narrow.STRIP_SEMI);
+                b.addStmt(new StmtExpr.Assert(b.coerce(args.get(0), "Z"), Optional.empty()));
             }
             case "assume" -> {
                 if (argc != 1) {
                     throw new JavaViolationException("assume should have a single argument");
                 }
-                b.addStmt(new StmtExpr.Assume(b.coerce(args.get(0), "Z")), BodyTranslator.Narrow.STRIP_SEMI);
+                b.addStmt(new StmtExpr.Assume(b.coerce(args.get(0), "Z")));
             }
             case "implies" -> {
                 if (argc != 2) {
@@ -106,7 +105,7 @@ final class SpecCallTranslator {
                     // Header spec statement: marker consumed by contract extraction.
                     AstNode<StmtExpr> arg = argc >= 1 ? args.get(0) : null;
                     AstNode<StmtExpr> raw = b.e(new StmtExpr.LiteralString("$spec$" + name));
-                    FileRange range = b.stmtRange(b.pos, BodyTranslator.Narrow.STRIP_SEMI,
+                    FileRange range = b.stmtRange(b.pos,
                             arg != null && b.lambdas.containsKey(arg));
                     AstNode<StmtExpr> placed = ctx.placeStatement(raw, range);
                     b.stmts.add(placed);

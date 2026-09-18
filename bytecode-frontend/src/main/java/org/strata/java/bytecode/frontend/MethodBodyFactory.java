@@ -75,6 +75,57 @@ public final class MethodBodyFactory {
     }
 
     /**
+     * The CRT ranges flagged STATEMENT or BLOCK. The outermost BLOCK range
+     * opens at the method's declaration line (its {@code {}), which is where
+     * the source frontend anchors method-level diagnostics -- the min start
+     * over these is the method-name line, unlike the statement-only min (the
+     * first body statement). Empty without {@code -Xjcov}.
+     */
+    public static List<CrtRange> crtEnvelopeRanges(CodeAttribute code) {
+        List<CrtRange> out = new ArrayList<>();
+        code.findAttribute(Attributes.characterRangeTable()).ifPresent(crt -> {
+            for (CharacterRangeInfo e : crt.characterRangeTable())
+                if ((e.flags() & 0x0003) != 0)                      // CRT_STATEMENT | CRT_BLOCK
+                    out.add(new CrtRange(e.startPc(), e.endPc(), toSpan(e)));
+        });
+        return out;
+    }
+
+    /**
+     * The best bytecode approximation of the class declaration line: the
+     * minimum first line-number entry across ALL methods (constructors
+     * included), or 0 when the class carries no line info.
+     *
+     * <p>For a compiler-SYNTHESIZED default constructor, javac attributes the
+     * synthesized {@code super(...)} preamble (pc 0) to the class declaration
+     * line, so that minimum IS the class's own line. For an EXPLICIT
+     * constructor, pc 0 points at the constructor's signature line instead --
+     * the class keyword's line does not survive into the classfile at all --
+     * so the minimum over every method is the earliest member, an upper bound
+     * that is never later than any single constructor's line. Exactness for
+     * explicit-constructor classes is unrecoverable from bytecode.
+     */
+    public static int classDeclLine(ClassModel cm) {
+        int best = 0;
+        for (MethodModel m : cm.methods()) {
+            CodeAttribute code = (CodeAttribute) m.findAttribute(Attributes.code()).orElse(null);
+            if (code == null) {
+                continue;
+            }
+            LineNumbers lines = LineNumbers.of(code);
+            if (lines == null) {
+                continue;
+            }
+            int line = lines.lineAt(0);
+            if (line <= 0) {
+                continue;
+            }
+            best = best == 0 ? line : Math.min(best, line);
+        }
+        return best;
+    }
+
+    /**
      * End pc of the CRT {@code block} range covering a catch clause whose handler begins at {@code handlerPc},
      * or -1 when there is no CRT.
      *

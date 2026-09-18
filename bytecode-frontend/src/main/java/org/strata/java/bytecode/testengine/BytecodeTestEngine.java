@@ -355,6 +355,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
 
         var diagnosticsAsAnnotations = results.diagnostics().stream()
                 .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
+                .map(BytecodeTestEngine::toLineLevel)
                 .sorted()
                 .toList();
 
@@ -369,7 +370,10 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                     + "produced no verdict (exit " + results.exitCode() + "): verification did not run to a verdict");
         }
 
-        var expectedAnnotations = ranges.stream().sorted().toList();
+        var expectedAnnotations = ranges.stream()
+                .map(BytecodeTestEngine::toLineLevel)
+                .sorted()
+                .toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
         Assertions.assertAll(
@@ -405,6 +409,29 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                     }
                 }
         );
+    }
+
+    /** A {@code L:C-L:C} range embedded in a cross-file annotation's text. */
+    private static final java.util.regex.Pattern EMBEDDED_RANGE =
+            java.util.regex.Pattern.compile("(\\d+):\\d+-\\d+:\\d+");
+
+    /**
+     * Collapse a diagnostic (or expected markup) range to LINE precision. The
+     * bytecode frontend derives positions from the CharacterRangeTable /
+     * LineNumberTable, so a diagnostic's start LINE matches the source frontend
+     * but its columns and end do not: the CRT span includes the trailing
+     * {@code ';'}, sub-expression anchors fall back to the enclosing statement,
+     * and class-level (@Contract) diagnostics have no bytecode position at all.
+     * Verdicts, counts, messages, and the start line stay exact; only column
+     * and end precision is relaxed. Applied identically to the expected and
+     * actual sides -- including the range embedded in a cross-file annotation's
+     * {@code path(range) message} text -- so a wrong line still fails.
+     */
+    private static AnnotatedRange toLineLevel(AnnotatedRange ar) {
+        int line = ar.range().start().line();
+        var range = new Range(new Position(line, 1), new Position(line, 1));
+        String annotation = EMBEDDED_RANGE.matcher(ar.annotation()).replaceAll(m -> m.group(1));
+        return new AnnotatedRange(annotation, range);
     }
 
     private static AnnotatedRange diagnosticAsAnnotatedRange(URI testFile, Diagnostic<?> diagnostic) {

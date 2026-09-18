@@ -15,7 +15,7 @@ import org.strata.jverify.laurel.ToIon;
 import org.strata.jverify.laurel.Uri;
 import org.strata.jverify.verifier.IntervalTree;
 import org.strata.jverify.verifier.JVerifyResults;
-import org.strata.jverify.verifier.laurel.FilesMap;
+import org.strata.java.bytecode.verifier.laurel.PositionResolver;
 import org.strata.java.bytecode.verifier.MethodVerificationStatus;
 import org.strata.java.bytecode.verifier.VerifierOptions;
 
@@ -73,9 +73,9 @@ class StrataBackendSmokeTest {
                 List.of());                                    // throwsOn
     }
 
-    /** FilesMap over a pretend 10-column-per-line file, matching JFE's offset->line:col logic. */
-    private static final FilesMap TEN_COL_LINES = (uri, offset) ->
-            new Position(offset / 10 + 1, offset % 10 + 1);
+    /** Resolver over a pretend 10-column-per-line file, matching JFE's offset->line:col logic. */
+    private static final PositionResolver TEN_COL_LINES = (uri, offset) ->
+            new Position((int) (offset / 10) + 1, (int) (offset % 10) + 1);
 
     private static VerifierOptions options() {
         return new VerifierOptions(

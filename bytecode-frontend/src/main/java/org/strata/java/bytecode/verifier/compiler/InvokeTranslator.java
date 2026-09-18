@@ -193,8 +193,8 @@ final class InvokeTranslator {
         // converts arguments before the receiver refuses), then refuse.
         if (recv.val() instanceof StmtExpr.LiteralString s && b.descOf.get(recv) != null
                 && b.descOf.get(recv).equals("Ljava/lang/String;")) {
-            ctx.src.defaultRange = b.stmtRange(b.pos, BodyTranslator.Narrow.STRIP_SEMI, false);
-            ctx.reporter.reportWarning(ctx.src.uri, ctx.src.pointRangeAt("\"" + s.value() + "\""),
+            ctx.src.defaultRange = b.stmtRange(b.pos, false);
+            ctx.reporter.reportWarning(ctx.src.uri, ctx.src.positionRange(ctx.src.defaultRange),
                     "missing contract for method '" + bareName + "' in class 'java.lang.String'");
             for (var a : args) {
                 b.checkPlaceable(a);
@@ -246,7 +246,7 @@ final class InvokeTranslator {
     private void finishCall(AstNode<StmtExpr> call, java.lang.constant.MethodTypeDesc d) {
         String ret = d.returnType().descriptorString();
         if (ret.equals("V")) {
-            b.addStmt(call.val(), BodyTranslator.Narrow.STRIP_SEMI);
+            b.addStmt(call.val());
         } else {
             b.stack.push(call);
             b.noteDesc(call, ret);

@@ -29,26 +29,24 @@ final class ContractValidator {
     }
 
     void validate() {
+        // Deterministic order without source text: by file URI, then by the
+        // contract class's fully-qualified name. (JFE used source order; the
+        // frontend has no source, and only which of two duplicate contracts is
+        // flagged depends on order -- the diagnostic count is the same.)
         decls.contractDecls.sort(java.util.Comparator
                 .comparing((Declarations.ContractDecl e) -> String.valueOf(e.uri()))
-                .thenComparingInt(e -> {
-                    String text = src.sourceTexts.get(e.uri());
-                    if (text == null) {
-                        return Integer.MAX_VALUE;
-                    }
-                    var m = java.util.regex.Pattern
-                            .compile("\\b(?:class|interface|record)\\s+"
-                                    + java.util.regex.Pattern.quote(e.decl().name()) + "\\b")
-                            .matcher(text);
-                    return m.find() ? m.start() : Integer.MAX_VALUE;
-                }));
+                .thenComparing(Declarations.ContractDecl::fqn));
         var seenTargets = new HashMap<String, String>();
         for (var entry : decls.contractDecls) {
             Declarations.TypeNode decl = entry.decl();
             URI uri = entry.uri();
             src.uri = uri;
-            src.source = uri != null && src.lineIndexes.containsKey(uri) ? src.sourceOf(uri) : null;
-            src.index = uri != null ? src.lineIndexes.get(uri) : null;
+            // Class-level @Contract diagnostics anchor at the contract class's
+            // declaration line, approximated by the earliest member line
+            // (MethodBodyFactory.classDeclLine); the class keyword's own line
+            // does not survive into the classfile.
+            Range classAnchor = src.linePoint(
+                    org.strata.java.bytecode.frontend.MethodBodyFactory.classDeclLine(decl.cm()));
 
             String targetFqn = Declarations.explicitContractTarget(decl.cm());
             if (targetFqn == null) {
@@ -58,7 +56,7 @@ final class ContractValidator {
                 }
             }
             if (targetFqn == null) {
-                reporter.reportError(uri, src.classKeywordPointOf(decl.name()),
+                reporter.reportError(uri, classAnchor,
                         "could not find a target for @Contract class '" + decl.name() + "'");
                 continue;
             }
@@ -66,20 +64,20 @@ final class ContractValidator {
 
             String previous = seenTargets.putIfAbsent(targetFqn, entry.fqn());
             if (previous != null) {
-                reporter.reportError(uri, src.annotationPointOf(decl.name(), "Contract"),
+                reporter.reportError(uri, classAnchor,
                         "class '" + targetSimple + "' must not be referenced by more than one @Contract annotation");
             }
 
             var targetDecl = decls.programTypes.get(targetFqn);
             if (targetDecl != null && Declarations.isConcreteClass(targetDecl.cm())) {
-                reporter.reportError(uri, src.annotationPointOf(decl.name(), "Contract"),
+                reporter.reportError(uri, classAnchor,
                         "class '" + targetSimple + "' must not have an externally defined contract"
                                 + " because all its contracts can be defined internally");
             }
 
             for (var annotationName : Declarations.annotationNamesOf(decl.cm())) {
                 if (!annotationName.equals("Contract")) {
-                    reporter.reportError(uri, src.annotationPointOf(decl.name(), annotationName),
+                    reporter.reportError(uri, classAnchor,
                             "annotation '" + annotationName + "' on @Contract class '"
                                     + decl.name() + "' is not allowed, because it must be placed on the contractee");
                 }
@@ -89,7 +87,7 @@ final class ContractValidator {
                 var contractParams = Declarations.typeParamNamesOf(decl.cm());
                 var targetParams = Declarations.typeParamNamesOf(targetDecl.cm());
                 if (!contractParams.equals(targetParams)) {
-                    reporter.reportError(uri, src.classKeywordPointOf(decl.name()),
+                    reporter.reportError(uri, classAnchor,
                             "Contract class '" + decl.name() + "' has different type parameters than the contractee '"
                                     + targetSimple + "'. The parameters must have the same names");
                 }
@@ -98,8 +96,6 @@ final class ContractValidator {
             validateContractMethods(decl, targetFqn, uri);
         }
         src.uri = null;
-        src.source = null;
-        src.index = null;
     }
 
     /** name+arity signatures of the contractee's methods (with supers), or null when unknowable. */
@@ -150,9 +146,7 @@ final class ContractValidator {
         for (var method : methods) {
             String name = method.methodName().stringValue();
             String key = name + "/" + method.methodTypeSymbol().parameterCount();
-            int ordinal = Declarations.ordinalOf(methods, method);
-            Range namePoint = src.contractMethodNamePointOf(name,
-                    src.namePointRangeOf(name, ordinal, src.methodCrtRange(method)));
+            Range namePoint = src.pointOf(src.methodCrtRange(method));
             if (!signatures.contains(key)) {
                 reporter.reportError(uri, namePoint,
                         "method '" + name + "' is part of a @Contract class,"

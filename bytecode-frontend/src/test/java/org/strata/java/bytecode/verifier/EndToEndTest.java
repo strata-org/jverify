@@ -71,8 +71,12 @@ class EndToEndTest {
         assertTrue(diagnostic.getMessage(null).contains("assertion does not hold"),
                 () -> diagnostic.getMessage(null));
         var withRange = assertInstanceOf(DiagnosticWithRange.class, diagnostic);
-        // `check(false)` on line 8, cols 9..21 (semicolon excluded).
-        assertEquals(new Range(new Position(8, 9), new Position(8, 21)), withRange.getRange());
+        // `check(false)` on line 8: exact bytecode-native CRT statement span,
+        // 8:9-8:22. START (8:9) matches JFE; END is 8:22 -- one past the
+        // trailing ';' (col 21), which the statement-level span includes,
+        // where JFE stops at 8:21. Pinned exactly so the column-level oracle
+        // (which the corpus relaxes) is still exercised somewhere.
+        assertEquals(new Range(new Position(8, 9), new Position(8, 22)), withRange.getRange());
         assertEquals(1, ran.verificationResults().verificationFailedMethods());
         // 1 verified: the implicit constructor (JFE counts it the same way).
         assertEquals(1, ran.verificationResults().verificationPassedMethods());
@@ -168,6 +172,36 @@ class EndToEndTest {
         // half + implicit constructor verify; bad fails.
         assertEquals(2, ran.verificationResults().verificationPassedMethods());
         assertEquals(1, ran.verificationResults().verificationFailedMethods());
+    }
+
+    @Test
+    void largeLineOffsetRoundTripsThroughStrata(@TempDir Path tmp) throws Exception {
+        // A diagnostic deep in a multi-thousand-line file: proves the synthetic
+        // (line, column) offset survives the full Raw -> Ion -> Strata -> decode
+        // round trip intact, not just the parse boundary. Bytecode line numbers
+        // are physical, so blank padding places the failing check at a known
+        // large line.
+        int checkLine = 3000;
+        var sb = new StringBuilder();
+        sb.append("import static org.strata.jverify.JVerify.check;\n");   // 1
+        sb.append("\n");                                                  // 2
+        sb.append("class Deep {\n");                                      // 3
+        sb.append("    static void m() {\n");                             // 4
+        for (int i = 5; i < checkLine; i++) {
+            sb.append("\n");                                              // 5 .. checkLine-1
+        }
+        sb.append("        check(false);\n");                             // checkLine (col 9)
+        sb.append("    }\n");
+        sb.append("}\n");
+        var results = verify(tmp, "Deep.java", sb.toString());
+
+        var ran = assertInstanceOf(JVerifyResults.Ran.class, results, () -> "got: " + results);
+        assertEquals(1, ran.diagnostics().size(), () -> "diagnostics: " + ran.diagnostics());
+        var withRange = assertInstanceOf(DiagnosticWithRange.class, ran.diagnostics().getFirst());
+        // Exact position at a large line: the offset (checkLine << 10 | 9)
+        // decodes back to the same line:column after the whole pipeline.
+        assertEquals(new Position(checkLine, 9), withRange.getRange().start(),
+                () -> "reported range: " + withRange.getRange());
     }
 
     @Test

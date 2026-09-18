@@ -8,7 +8,6 @@ import org.strata.jverify.common.Range;
 import org.strata.jverify.laurel.Program;
 import org.strata.jverify.verifier.IntervalTree;
 import org.strata.jverify.verifier.JVerifyResults;
-import org.strata.jverify.verifier.laurel.FilesMap;
 import org.strata.java.bytecode.verifier.MethodVerificationStatus;
 import org.strata.jverify.verifier.VerificationResults;
 import org.strata.java.bytecode.verifier.VerifierOptions;
@@ -31,7 +30,7 @@ import java.util.regex.Pattern;
  * Serializes a Laurel {@link Program} to binary Ion, runs the Strata CLI on
  * it, and parses the resulting diagnostics. Port of StrataJavaFrontEnd's
  * {@code LaurelDriver} with the javac {@code Context} plumbing removed: the
- * caller supplies the Laurel program, the offset-to-position {@link FilesMap},
+ * caller supplies the Laurel program, the offset-to-position {@link PositionResolver},
  * and the per-URI method status trees (which JFE obtained from its
  * VerifyAnnotationCompiler) explicitly.
  */
@@ -53,7 +52,7 @@ public class StrataBackend {
      *        contains a diagnostic are marked Failed.
      */
     public JVerifyResults verifyProgram(Program program,
-                                        FilesMap filesMap,
+                                        PositionResolver positions,
                                         Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {
         var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
             var ion = IonSystemBuilder.standard().build();
@@ -82,10 +81,10 @@ public class StrataBackend {
             return new JVerifyResults.NoVerdict(new ArrayList<>(), 0);
         }
 
-        return runVerifier(filesMap, methodStatuses, serializedProgram);
+        return runVerifier(positions, methodStatuses, serializedProgram);
     }
 
-    public JVerifyResults runVerifier(FilesMap filesMap,
+    public JVerifyResults runVerifier(PositionResolver positions,
                                       Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses,
                                       IonValue serializedProgram) {
         // Rely on `strata` being on PATH. Under Brazil this is achieved by
@@ -119,7 +118,7 @@ public class StrataBackend {
                      var writer = IonBinaryWriterBuilder.standard().build(strataStdin)) {
                     serializedProgram.writeTo(writer);
                 }
-                return parseStrataOutput(filesMap, methodStatuses, verifierOptions, process.getProcess());
+                return parseStrataOutput(positions, methodStatuses, verifierOptions, process.getProcess());
             } catch (InterruptedException | IOException e) {
                 verifierOptions.outWriter().println(
                         "Failed to use Strata (expected `strata` on PATH via the StrataCLI build-tool)."
@@ -149,7 +148,7 @@ public class StrataBackend {
         }
     }
 
-    private JVerifyResults parseStrataOutput(FilesMap filesMap,
+    private JVerifyResults parseStrataOutput(PositionResolver positions,
                                              Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses,
                                              VerifierOptions options,
                                              Process process) throws IOException, InterruptedException {
@@ -184,7 +183,7 @@ public class StrataBackend {
                     // malformed diagnostic carries no real location, so it
                     // must not be attributed to any method.
                     var fallbackUri = Paths.get("strata-unattributed").toUri();
-                    var diagnostic = parseDiagnosticLine(line, filesMap, fallbackUri);
+                    var diagnostic = parseDiagnosticLine(line, positions, fallbackUri);
                     if (diagnostic == null) {
                         continue;
                     }
@@ -286,7 +285,7 @@ public class StrataBackend {
      *
      * @return the diagnostic, or {@code null} for a blank line.
      */
-    static StrataDiagnostic parseDiagnosticLine(String line, FilesMap filesMap, URI malformedFallbackUri) {
+    static StrataDiagnostic parseDiagnosticLine(String line, PositionResolver positions, URI malformedFallbackUri) {
         Matcher matcher = DIAGNOSTIC_PATTERN.matcher(line);
         if (!matcher.matches()) {
             if (line.isBlank()) {
@@ -297,8 +296,6 @@ public class StrataBackend {
                     "malformed diagnostic from Strata: " + line.strip());
         }
         String filePath = matcher.group(1);
-        int startOffset = Integer.parseInt(matcher.group(2));
-        int endOffset = Integer.parseInt(matcher.group(3));
         String message = matcher.group(4);
 
         if (filePath.contains("<unknown>")) {
@@ -311,16 +308,23 @@ public class StrataBackend {
         }
 
         try {
+            // Offsets are the frontend's synthetic (line, column) packings,
+            // which exceed Integer.MAX_VALUE from source line 2148 on: parse
+            // as long, INSIDE the try, so a genuinely malformed number
+            // degrades like any other unresolvable location.
+            long startOffset = Long.parseLong(matcher.group(2));
+            long endOffset = Long.parseLong(matcher.group(3));
+
             // Strata emits `file://` URIs; parse them as URIs rather than as
-            // filesystem paths, which would miss the filesMap and lose the
+            // filesystem paths, which would miss the resolver and lose the
             // source location.
             var uri = filePath.startsWith("file:")
                     ? URI.create(filePath)
                     : toDiagnosticUri(filePath);
 
             var range = new Range(
-                    filesMap.computePositionFromFileOffset(uri, startOffset),
-                    filesMap.computePositionFromFileOffset(uri, endOffset)
+                    positions.positionOf(uri, startOffset),
+                    positions.positionOf(uri, endOffset)
             );
             return new StrataDiagnostic(uri, range, message);
         } catch (RuntimeException e) {

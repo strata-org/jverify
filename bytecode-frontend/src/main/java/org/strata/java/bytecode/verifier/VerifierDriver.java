@@ -20,9 +20,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -74,10 +72,13 @@ public class VerifierDriver {
                 return new JVerifyResults.NoVerdict(diagnostics, 2 /* picocli USAGE */);
             }
 
-            // 2. Read the classfiles + compile to Laurel.
-            Map<URI, String> sources = new LinkedHashMap<>();
+            // 2. Read the classfiles + compile to Laurel. The frontend gets
+            //    the input file URIs (paths only, NO source text): a class is
+            //    matched to its URI by the SourceFile attribute name, and all
+            //    positions come from the bytecode.
+            List<URI> sourceUris = new ArrayList<>();
             for (var file : readFiles) {
-                sources.put(file.toUri(), file.getCharContent(false).toString());
+                sourceUris.add(file.toUri());
             }
             var classes = options.time("Reading classfiles", () -> {
                 try {
@@ -91,7 +92,7 @@ public class VerifierDriver {
                 analysis = options.time("Compiling bytecode to Laurel",
                         () -> new BytecodeToLaurelCompiler(reporter, options.verifyByDefault(),
                                 List.copyOf(options.classPathEntries()))
-                                .analyze(sources, classes));
+                                .analyze(sourceUris, classes));
             } catch (org.strata.java.bytecode.verifier.compiler.RefusedInputException e) {
                 // The input cannot be verified at all (no debug information);
                 // the reason is already on the reporter.
@@ -105,7 +106,7 @@ public class VerifierDriver {
 
             // 3. Serialize + run Strata.
             var results = new StrataBackend(options)
-                    .verifyProgram(analysis.program(), analysis.filesMap(), analysis.methodStatuses());
+                    .verifyProgram(analysis.program(), analysis.positions(), analysis.methodStatuses());
             var allDiagnostics = new ArrayList<Diagnostic<?>>(diagnostics);
             allDiagnostics.addAll(results.diagnostics());
             return switch (results) {

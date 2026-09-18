@@ -8,9 +8,29 @@ translates **JVM classfiles** directly:
 ```
 .java --javac -g -Xjcov--> .class --java.lang.classfile--> CFG + dominators
     --direct translator (BodyTranslator + ControlFlowStructurer)--> Laurel
-        (+ CharacterRangeTable spans as source ranges)
+        (+ CharacterRangeTable line:col / LineNumberTable line as positions)
     --Ion--> strata laurelAnalyzeBinary --> diagnostics
 ```
+
+**The frontend never reads `.java` source text.** javac produces the
+classfiles (the driver's compile step, exactly as any build would); from that
+point on, every source position comes from bytecode debug attributes only --
+`CharacterRangeTable` (line:column) and `LineNumberTable` (line) -- and the
+filename from the `SourceFile` attribute. Positions have no byte offsets to
+travel through Strata's offset-shaped protocol, so a (line, column) is packed
+into a synthetic offset by `PositionCodec` on the way out and unpacked on the
+way back; Strata only echoes it opaquely. Consequently ranges are
+bytecode-native: the START line:column of a statement matches JFE, but the END
+includes the trailing `;` (spans are statement-level), and sub-statement
+anchors (a specific token, an argument, a lambda body) collapse to the
+enclosing statement.
+
+This round trip depends on Strata treating the offset as an **opaque token** --
+storing, sorting, and echoing it, but never doing arithmetic on it. The
+synthetic offset is `line << 10 | col` (the CharacterRangeTable's own packing),
+not a real byte index, so any consumer that subtracted two offsets to compute a
+length would corrupt positions silently. Nothing enforces this beyond the
+corpus, so don't "optimize" a consumer to interpret an offset as a byte index.
 
 There is no intermediate Java AST: instructions translate to Laurel
 expressions on a simulated operand stack (`BodyTranslator`, with
@@ -27,10 +47,11 @@ Three input tiers are supported, detected from classfile attribute evidence
 and exit codes are identical across tiers (`TieredInputEquivalenceTest` pins
 this); only position precision degrades:
 
-- **FULL** (`-g -Xjcov`): CharacterRangeTable statement spans -- exact
-  sub-statement diagnostic ranges. What the driver's own javac step uses.
+- **FULL** (`-g -Xjcov`): CharacterRangeTable statement spans -- line:column
+  diagnostic ranges (statement-level; start matches JFE). What the driver's own
+  javac step uses.
 - **DEBUG** (`-g`): no statement spans -- diagnostics carry source-LINE
-  precision (LineNumberTable fallback).
+  precision (LineNumberTable fallback), column 1.
 - **BARE** (default javac): additionally no local-variable names -- line
   precision plus synthetic local names (`v3`) in emitted Laurel. Known
   limitation: a local's declared type is reconstructed from its store
@@ -58,7 +79,7 @@ The dependency arrow points only from `bytecode-*` to JFE modules; no JFE module
 source file, or test references the bytecode frontend. Concretely:
 
 - **Laurel AST + Ion serialization + driver support** (`org.strata.jverify.laurel.*`,
-  `JVerifyResults`, `SourceFile`, `IntervalTree`, `FilesMap`, `DiagnosticWithRange`,
+  `JVerifyResults`, `SourceFile`, `IntervalTree`, `DiagnosticWithRange`,
   ...) are **reused from `:verifier`**, not copied -- so the Laurel schema can
   never drift out of sync.
 - **`@JVerifyTest`, `TestMarkup`, `Blocker`, `JVerifyTestRecord`** are reused
@@ -99,6 +120,16 @@ worker and spuriously activate the engine under, e.g., `:examples:test`.
   live in
   [`bytecode-xfails.txt`](src/main/resources/org/strata/java/bytecode/testengine/bytecode-xfails.txt),
   never as edits to JFE's fixtures. Wired into `check`.
+
+The corpus oracle compares diagnostic positions at LINE level (start line),
+since bytecode ranges are statement-level and column/end precision diverges
+from JFE by design; verdicts, counts, exit codes, and diagnostic messages are
+still matched exactly. A few fixtures remain xfail'd for positions JFE derives
+from a construct that carries no line information in the classfile and so
+cannot be reproduced at all: a diagnostic anchored at an annotation
+(`@Contract`/`@Impure` -- annotations have no source position in bytecode) or
+at a bodyless interface method's declaration (no `Code` -> no `LineNumberTable`).
+These are position-only, never a verdict or count gap.
 
 The xfail manifest is the single source of truth for the remaining divergences
 versus JFE (each entry documents why). Build with `brazil-build` (it puts

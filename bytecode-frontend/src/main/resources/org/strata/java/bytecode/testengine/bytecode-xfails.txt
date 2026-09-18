@@ -55,8 +55,26 @@ XFAIL  org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethods
 XFAIL  org.strata.jverify.verifier.tests.verification.MethodContractsVerification                 FRONTEND_DIAGNOSTIC  method-ref/lambda refusal warnings not reproduced
 XFAIL  org.strata.jverify.verifier.tests.javasupport.ReservedResultName                           FRONTEND_DIAGNOSTIC  JFE's '$result is reserved' refusal is a source-lexical gate with no bytecode equivalent; laurelSafeName escapes the leading $ to @, so the three binders translate cleanly and all 5 methods verify instead of 2 verified / 3 skipped
 
-# Caret convention: JFE anchors the loop-entry obligation at the `for` keyword
-# (a 3-char synthesized range; javac records no end position for a JCForLoop).
-# bf attributes it to the desugared update expression's node instead, so the
-# caret differs while the verdict and diagnostic counts match.
-XFAIL  org.strata.jverify.verifier.tests.javasupport.statements.BareForLoop                       FRONTEND_OTHER       bare-for loop-node caret: JFE anchors at the `for` keyword (synthesized, javac has no JCForLoop end position); bf's obligation attributes to the update expression's node
+# ============================================================================
+# Positions with no bytecode source: the verdict, counts, and diagnostic
+# MESSAGES match JFE exactly, but the diagnostic's source position is one JFE
+# derives from a construct that carries no line information in the classfile,
+# so it cannot be reproduced (the corpus oracle compares positions at line
+# level; these still diverge). Position-only -- never a verdict/count gap.
+# ============================================================================
+
+# JFE anchors a "class must not have / must not be referenced by more than one
+# @Contract" (and "annotation not allowed on @Contract class") diagnostic at
+# the @Contract/@Impure ANNOTATION line. Annotations are stored as
+# RuntimeInvisibleAnnotations with no source position, so bf anchors at the
+# class declaration line (the earliest member line; see
+# MethodBodyFactory.classDeclLine) instead -- a few lines below the
+# annotation. Messages and counts match.
+XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.InterfaceContractErrors    FRONTEND_DIAGNOSTIC  @Contract annotation-line anchor has no bytecode position (annotations carry no line info); bf anchors at the class declaration line
+XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.InternalClassContractErrors FRONTEND_DIAGNOSTIC  @Contract annotation-line anchor has no bytecode position (annotations carry no line info); bf anchors at the class declaration line
+
+# JFE anchors an "instance method 'X' was not verified" warning at a BODYLESS
+# interface method's declaration. A method with no Code attribute has no
+# LineNumberTable, so no line survives into the classfile and bf reports it
+# without a position. Messages and counts match.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.localClasses.PolymorphicAnonymousClasses      FRONTEND_DIAGNOSTIC  bodyless interface-method declaration has no bytecode position (no Code -> no LineNumberTable)
