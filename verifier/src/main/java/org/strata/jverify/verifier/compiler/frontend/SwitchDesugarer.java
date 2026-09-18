@@ -166,7 +166,7 @@ public class SwitchDesugarer extends TreeTranslator {
     }
 
     private Symbol.VarSymbol freshSelectorSymbol(Type type) {
-        var name = names.fromString("$switchSelector" + (nextSelectorIndex++));
+        var name = names.fromString("java?switchSelector" + (nextSelectorIndex++));
         return new Symbol.VarSymbol(0, name, type, symtab.noSymbol);
     }
 

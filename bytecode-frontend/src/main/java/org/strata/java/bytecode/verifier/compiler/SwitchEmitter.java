@@ -61,7 +61,7 @@ final class SwitchEmitter {
     }
 
     /** Sentinel break label for a switch arm's trailing `break` (stripped by normalizeArm). */
-    private static final String ARM_BREAK = "$armbreak";
+    private static final String ARM_BREAK = "java?armbreak";
 
     /** One recovered arm: its label literals, default flag, and already-converted body statements. */
     private record Arm(List<AstNode<StmtExpr>> labels, boolean isDefault, List<AstNode<StmtExpr>> stmts) {
@@ -239,7 +239,7 @@ final class SwitchEmitter {
         String selName = null;
         AstNode<StmtExpr> selValue = null;
         if (hoist) {
-            selName = "$sel" + (ctx.switchSelCounter++);
+            selName = "java?sel" + (ctx.switchSelCounter++);
             selValue = selector;
         }
         Arm defaultArm = null;

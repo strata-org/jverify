@@ -196,11 +196,11 @@ final class LaurelTrees {
                 String flipped = flippedProc(proc, unordered.contains(e.val()));
                 if (flipped != null) {
                     return new AstNode<>(new StmtExpr.StaticCall(
-                            LaurelFactory.ident(flipped), call.arguments()), e.source());
+                            LaurelFactory.reservedIdent(flipped), call.arguments()), e.source());
                 }
             }
         }
-        return new AstNode<>(new StmtExpr.StaticCall(LaurelFactory.ident("$not"), List.of(e)), e.source());
+        return new AstNode<>(new StmtExpr.StaticCall(LaurelFactory.reservedIdent("$not"), List.of(e)), e.source());
     }
 
     // --- Boolean shape test ---

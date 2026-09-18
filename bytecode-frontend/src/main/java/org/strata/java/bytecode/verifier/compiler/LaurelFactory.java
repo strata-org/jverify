@@ -43,8 +43,15 @@ final class LaurelFactory {
      */
     static final String LAUREL_SELF_BINDING = "self?";
 
-    /** Synthesized name binding the thrown value in a `throws (e: T)` clause (JFE's THROWN_BINDING). */
-    static final String THROWN_BINDING = "$thrown";
+    /**
+     * Synthesized name binding the thrown value in a `throws (e: T)` clause (JFE's
+     * THROWN_BINDING). Uses '?' for the same reason {@link #LAUREL_SELF_BINDING} does:
+     * '?' is outside Java's identifier grammar but inside Strata's, so no user name can
+     * spell this one. A `java$`-style prefix would not have that property -- `$` is legal
+     * in a Java identifier (JLS 3.8) and only a *leading* `$` is escaped, so a user
+     * writing `int java$thrown` could collide with the generated binder.
+     */
+    static final String THROWN_BINDING = "java?thrown";
 
     private final SourceMap src;
 
@@ -68,8 +75,69 @@ final class LaurelFactory {
         return List.of(new ModifiesGroup(targets, Optional.empty(), Optional.empty()));
     }
 
-    static Identifier ident(String name) {
+    /**
+     * Java allows {@code $} in identifiers (JLS 3.8); Laurel reserves a *leading*
+     * {@code $} for compiler-generated names and rejects any source declaration that
+     * starts with one. So a leading {@code $} that came from Java is escaped to
+     * {@code @}: Java identifiers cannot contain {@code @} (JLS 3.8), which makes the
+     * mapping injective -- the same property {@code MANGLE_SEPARATOR} and
+     * {@code LAUREL_SELF_BINDING} rely on for {@code '?'}.
+     *
+     * <p>Only the first character is rewritten. A {@code $} further along a name is
+     * legal in Laurel source, so {@code a$b} and javac's {@code val$x} capture fields
+     * pass through as they are.
+     */
+    private static String laurelSafeName(String name) {
+        return name.startsWith("$") ? "@" + name.substring(1) : name;
+    }
+
+    /**
+     * A Laurel identifier for a name Strata itself dictates -- a prelude operator
+     * procedure ({@code $add}, {@code $eq}, …) or the sole-output binding
+     * {@code $result}. Never escaped, because JVerify chose it rather than reading it
+     * out of the user's Java.
+     *
+     * <p>Distinguishing by provenance rather than spelling is the point: a user may
+     * legally declare {@code int $eq;} or {@code int $result;}, and those must still be
+     * escaped by {@link #ident} even though they collide with a dictated spelling.
+     */
+    static Identifier reservedIdent(String name) {
         return new Identifier(name, Optional.empty(), SourceMap.UNKNOWN_RANGE);
+    }
+
+    /** {@link #var_} for a Strata-dictated name; see {@link #reservedIdent}. */
+    static StmtExpr reservedVar_(String name) {
+        return new StmtExpr.Var(new Variable.Local(reservedIdent(name)));
+    }
+
+    static Identifier ident(String name) {
+        return new Identifier(laurelSafeName(name), Optional.empty(), SourceMap.UNKNOWN_RANGE);
+    }
+
+    /**
+     * The Laurel identifier text for a local that the postcondition-lambda rewrite may
+     * have renamed. A rename *target* ({@code $result}) is JVerify's own choice, so it
+     * passes through unescaped; an unrenamed name came from the user's Java and is
+     * escaped by {@link #laurelSafeName}. Telling the two apart by provenance is what
+     * keeps a user local spelled {@code $result} distinct from the generated one.
+     *
+     * <p>Returns the text rather than an {@link Identifier} because one caller compares
+     * it against an already-built identifier; building and escaping twice would not
+     * round-trip.
+     */
+    static String laurelLocalName(java.util.Map<String, String> renames, String name) {
+        String renamed = renames.get(name);
+        return renamed != null ? renamed : laurelSafeName(name);
+    }
+
+    /** {@link #ident} for a possibly-renamed local; see {@link #laurelLocalName}. */
+    static Identifier identForLocal(java.util.Map<String, String> renames, String name) {
+        return reservedIdent(laurelLocalName(renames, name));
+    }
+
+    /** {@link #var_} for a possibly-renamed local; see {@link #laurelLocalName}. */
+    static StmtExpr varForLocal(java.util.Map<String, String> renames, String name) {
+        return new StmtExpr.Var(new Variable.Local(identForLocal(renames, name)));
     }
 
     AstNode<StmtExpr> node(StmtExpr expr) {
@@ -121,7 +189,7 @@ final class LaurelFactory {
 
     @SafeVarargs
     static StmtExpr primitiveOp(Operation op, AstNode<StmtExpr>... args) {
-        return new StmtExpr.StaticCall(ident(operationProcName(op)), List.of(args));
+        return new StmtExpr.StaticCall(reservedIdent(operationProcName(op)), List.of(args));
     }
 
     static AstNode<StmtExpr> noRange(StmtExpr e) {
@@ -220,14 +288,14 @@ final class LaurelFactory {
                         castLabel, new ConditionMode.Both()));
             }
         }
-        var resultEqX = primitiveOp(new Operation.Eq(), noRange(var_(LAUREL_RESULT_BINDING)), noRange(x));
+        var resultEqX = primitiveOp(new Operation.Eq(), noRange(reservedVar_(LAUREL_RESULT_BINDING)), noRange(x));
         var postconditions = List.of(
                 new Condition(noRange(resultEqX), Optional.empty(), new ConditionMode.Both()));
         var proc = new Procedure(
                 ident(helperName),
                 /*typeArgs=*/List.of(),
                 List.of(new org.strata.jverify.laurel.Parameter(ident("x"), node(sourceType))),
-                List.of(new org.strata.jverify.laurel.Parameter(ident(LAUREL_RESULT_BINDING), node(targetType))),
+                List.of(new org.strata.jverify.laurel.Parameter(reservedIdent(LAUREL_RESULT_BINDING), node(targetType))),
                 preconditions,
                 Optional.empty(),
                 new Body.Opaque(postconditions, Optional.empty(), unguardedModifies(List.of())),

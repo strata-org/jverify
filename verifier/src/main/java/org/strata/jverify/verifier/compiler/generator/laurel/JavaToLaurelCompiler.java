@@ -40,7 +40,7 @@ public class JavaToLaurelCompiler {
     /// Synthesized name binding the thrown value in a procedure's `throws (e: T)`
     /// clause. Referenced by `throwsOn` case postconditions once the exceptional
     /// contract DSL lands; until then it is declared and unused.
-    private static final String THROWN_BINDING = "$thrown";
+    private static final String THROWN_BINDING = "java?thrown";
 
     /**
      * Wrap modifies {@code targets} into the degenerate group form every frontend
@@ -171,7 +171,7 @@ public class JavaToLaurelCompiler {
     /// (helperName -> Procedure) for every cast helper referenced anywhere
     /// in the program. Lives at the whole-program scope (not per file)
     /// because all files share one Laurel program scope: emitting the
-    /// same `$cast_to_<T>_from_<S>` helper in two files makes Strata
+    /// same `java?cast_to_<T>_from_<S>` helper in two files makes Strata
     /// reject the duplicate. A LinkedHashMap keeps insertion order for
     /// deterministic output.
     private final java.util.LinkedHashMap<String, Procedure> castHelpers =
@@ -271,8 +271,55 @@ public class JavaToLaurelCompiler {
     private static final FileRange UNKNOWN_RANGE =
             new FileRange(new Uri("<unknown>"), new SourceRange(new Raw(0), new Raw(0)));
 
-    private static Identifier ident(String name) {
+
+    /**
+     * Java allows {@code $} in identifiers (JLS 3.8); Laurel reserves a *leading*
+     * {@code $} for compiler-generated names and rejects any source declaration that
+     * starts with one. So a leading {@code $} that came from Java is escaped to
+     * {@code @}: Java identifiers cannot contain {@code @} (JLS 3.8), which makes the
+     * mapping injective -- the same property {@code MANGLE_SEPARATOR} and
+     * {@code LAUREL_SELF_BINDING} rely on for {@code '?'}.
+     *
+     * <p>Only the first character is rewritten. A {@code $} further along a name is
+     * legal in Laurel source, so {@code a$b} and javac's {@code val$x} capture fields
+     * pass through as they are.
+     *
+     * <p>Nothing is exempt by spelling. Every name Strata dictates -- the prelude
+     * operators and {@code $result} -- reaches Laurel through {@link #reservedIdent}
+     * instead, so provenance decides, never the characters. Keying on the value would
+     * mean a Java member genuinely named {@code $eq} or {@code $result} skipped escaping
+     * and collided with the generated one.
+     *
+     * <p>Applied in {@code ident(...)}, the single place Laurel identifiers are built, so
+     * a declaration and every reference to it are escaped alike -- escaping only one side
+     * would turn a valid program into an unresolved name.
+     */
+    private static String laurelSafeName(String name) {
+        return name.startsWith("$") ? "@" + name.substring(1) : name;
+    }
+
+
+    /**
+     * A Laurel identifier for a name Strata itself dictates -- a prelude operator
+     * procedure ({@code $add}, {@code $eq}, …) or the sole-output binding
+     * {@code $result}. Never escaped, because JVerify chose it rather than reading it
+     * out of the user's Java.
+     *
+     * <p>Distinguishing by provenance rather than spelling is the point: a user may
+     * legally declare {@code int $eq;} or {@code int $result;}, and those must still be
+     * escaped by {@link #ident} even though they collide with a dictated spelling.
+     */
+    private static Identifier reservedIdent(String name) {
         return new Identifier(name, Optional.empty(), UNKNOWN_RANGE);
+    }
+
+    /** {@link #var_} for a Strata-dictated name; see {@link #reservedIdent}. */
+    private static StmtExpr reservedVar_(String name) {
+        return new StmtExpr.Var(new Variable.Local(reservedIdent(name)));
+    }
+
+    private static Identifier ident(String name) {
+        return new Identifier(laurelSafeName(name), Optional.empty(), UNKNOWN_RANGE);
     }
 
     /**
@@ -283,7 +330,7 @@ public class JavaToLaurelCompiler {
      * the per-method counts.
      */
     private Identifier ident(String name, JCTree tree) {
-        return new Identifier(name, Optional.empty(), toFileRange(tree));
+        return new Identifier(laurelSafeName(name), Optional.empty(), toFileRange(tree));
     }
 
     private FileRange toFileRange(JCTree tree) {
@@ -403,7 +450,23 @@ public class JavaToLaurelCompiler {
     }
 
     private static StmtExpr primitiveOp(Operation op, AstNode<StmtExpr>... args) {
-        return new StmtExpr.StaticCall(ident(operationProcName(op)), List.of(args));
+        return new StmtExpr.StaticCall(reservedIdent(operationProcName(op)), List.of(args));
+    }
+
+    /**
+     * A Laurel identifier for a local name that may have been renamed by the
+     * postcondition-lambda rewrite. A rename target is a Strata-dictated name
+     * ({@code $result}) that JVerify chose, so it takes the {@link #reservedIdent} path;
+     * an unrenamed name came from the user's Java and is escaped by {@link #ident}.
+     */
+    private static Identifier identForPossiblyRenamed(String name, Map<String, String> renames) {
+        String renamed = renames.get(name);
+        return renamed != null ? reservedIdent(renamed) : ident(name);
+    }
+
+    /** {@link #identForPossiblyRenamed} in expression position. */
+    private static StmtExpr varForPossiblyRenamed(String name, Map<String, String> renames) {
+        return new StmtExpr.Var(new Variable.Local(identForPossiblyRenamed(name, renames)));
     }
 
     private static StmtExpr var_(String name) {
@@ -1442,7 +1505,7 @@ public class JavaToLaurelCompiler {
             List<Parameter> outputs = new ArrayList<>();
             if (method.restype != null && method.restype.type != null
                     && method.restype.type.getTag() != TypeTag.VOID) {
-                outputs.add(new Parameter(ident(LAUREL_RESULT_BINDING),
+                outputs.add(new Parameter(reservedIdent(LAUREL_RESULT_BINDING),
                         translateTypeWithRange(method.restype.type, null, typeRangeOrNone(method.restype))));
             }
 
@@ -1450,7 +1513,7 @@ public class JavaToLaurelCompiler {
             // the declared exceptional type. The
             // binding name is synthesized; Java permits `$` in identifiers, but
             // the JLS reserves it for generated code, so a user identifier
-            // spelled `$thrown` is out-of-convention rather than impossible --
+            // spelled `java?thrown` is out-of-convention rather than impossible --
             // and Strata freshens its own carrier names independently. A method
             // with no `throws` clause keeps no exceptional exit, exactly as
             // before.
@@ -2096,7 +2159,7 @@ public class JavaToLaurelCompiler {
                 }
                 case JCTree.JCIdent ident -> {
                     String name = ident.name.toString();
-                    yield new Variable.Local(ident(renames.getOrDefault(name, name)));
+                    yield new Variable.Local(identForPossiblyRenamed(name, renames));
                 }
                 case JCTree.JCFieldAccess fa when isHeapInstanceField(fa.sym) -> {
                     // `this.x = ...` / `obj.x = ...`: declare the field on its owning
@@ -2150,7 +2213,7 @@ public class JavaToLaurelCompiler {
                 }
                 case JCTree.JCIdent ident -> {
                     String name = ident.name.toString();
-                    yield var_(renames.getOrDefault(name, name));
+                    yield varForPossiblyRenamed(name, renames);
                 }
                 case JCTree.JCParens parens ->
                         convertExpression(parens.expr, renames);
@@ -2309,7 +2372,7 @@ public class JavaToLaurelCompiler {
         /// A Java type cast (explicit or implicit) — `(T) x`. Emitted as a
         /// call to a helper procedure:
         ///
-        ///   (T) x    →    $cast_to_T$_from_<S>(x)
+        ///   (T) x    →    java?cast_to_T$_from_<S>(x)
         ///
         /// where `<S>` is the source type. The helper is declared once at
         /// file scope with `requires T$constraint(x)` and
@@ -2350,7 +2413,7 @@ public class JavaToLaurelCompiler {
                         "Cast to " + cast.type + " is not yet supported");
             }
             String sourceName = laurelTypeName(sourceType);
-            String helperName = "$cast_to_" + targetName + "_from_" + sourceName;
+            String helperName = "java?cast_to_" + targetName + "_from_" + sourceName;
             registerCastHelper(helperName, sourceName, sourceType, targetName, targetType);
             // Stamp the operand with its *own* tree, not this cast's: for a
             // chained cast like `(byte) (int) l` the inner cast's diagnostic
@@ -2430,13 +2493,13 @@ public class JavaToLaurelCompiler {
             // from any bounded source is unconditionally sound); preconditions
             // is left empty and only the postcondition pins `$result == x`.
             var resultEqX = primitiveOp(new Operation.Eq(),
-                    node(var_(LAUREL_RESULT_BINDING)), node(x));
+                    node(reservedVar_(LAUREL_RESULT_BINDING)), node(x));
             var postconditions = List.of(
                     new Condition(node(resultEqX), Optional.empty(), new ConditionMode.Both()));
             var proc = new Procedure(
                     ident(helperName), /*typeArgs=*/List.of(),
                     List.of(new Parameter(ident("x"), node(sourceType))),
-                    List.of(new Parameter(ident(LAUREL_RESULT_BINDING), node(targetType))),
+                    List.of(new Parameter(reservedIdent(LAUREL_RESULT_BINDING), node(targetType))),
                     preconditions,
                     /*decreases=*/ Optional.empty(),
                     new Body.Opaque(postconditions, /*implementation=*/ Optional.empty(), unguardedModifies(List.of())),

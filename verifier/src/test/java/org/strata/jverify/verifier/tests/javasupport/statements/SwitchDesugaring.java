@@ -116,7 +116,7 @@ class SwitchDesugaring {
     }
 
     // Non-trivial selectors exercise the selector-hoisting machinery:
-    // the cascade tests $sel against each case constant, so the original
+    // the cascade tests java?sel against each case constant, so the original
     // selector expression should be evaluated once via the synthetic
     // varDecl / LetExpr.
     static void switchStmtNonTrivialSelector(int i) {

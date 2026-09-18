@@ -53,7 +53,7 @@ XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.CascadeDepth3      
 XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ImpureNumericOperatorsVerification  FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
 XFAIL  org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass       FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
 XFAIL  org.strata.jverify.verifier.tests.verification.MethodContractsVerification                 FRONTEND_DIAGNOSTIC  method-ref/lambda refusal warnings not reproduced
-XFAIL  org.strata.jverify.verifier.tests.javasupport.ReservedResultName                           FRONTEND_DIAGNOSTIC  '$result is reserved' is a source-lexical gate; in bytecode it is an ordinary local and surfaces as a Strata error
+XFAIL  org.strata.jverify.verifier.tests.javasupport.ReservedResultName                           FRONTEND_DIAGNOSTIC  JFE's '$result is reserved' refusal is a source-lexical gate with no bytecode equivalent; laurelSafeName escapes the leading $ to @, so the three binders translate cleanly and all 5 methods verify instead of 2 verified / 3 skipped
 
 # Caret convention: JFE anchors the loop-entry obligation at the `for` keyword
 # (a 3-char synthesized range; javac records no end position for a JCForLoop).

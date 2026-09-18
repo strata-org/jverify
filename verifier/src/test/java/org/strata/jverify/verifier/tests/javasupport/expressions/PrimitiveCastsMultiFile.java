@@ -7,12 +7,12 @@ import static org.strata.jverify.JVerify.*;
 /**
  * Regression guard for the cast-helper deduplication.
  *
- * <p>Cast helpers ({@code $cast_to_<T>_from_<S>}) are shared across all
+ * <p>Cast helpers ({@code java?cast_to_<T>_from_<S>}) are shared across all
  * Laurel files in one program scope, so if two files both use
  * e.g. {@code (short) someInt} the same helper must be emitted only once.
  * Before the fix the helper registry lived on the per-compilation-unit
  * {@code StaticMethodCollector} and every file with a cast wrote its own
- * copy, producing a {@code Duplicate definition '$cast_to_int16_from_int32'}
+ * copy, producing a {@code Duplicate definition 'java?cast_to_int16_from_int32'}
  * error at the synthetic (1:1-1:1) range.
  *
  * <p>This class casts int→short; the companion {@link PrimitiveCastsSecondFile}
