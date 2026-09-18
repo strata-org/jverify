@@ -3,7 +3,7 @@ package org.strata.jverify.verifier.tests.javasupport.exceptions;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
- * Phase 2 of exception support (docs/exceptions-design.md, Phasing §2): the
+ * Phase 2 of exception support: the
  * {@code throw} statement lowers to Laurel's exceptional channel. The
  * enclosing method's {@code throws} clause (phase 1) is the anchor: the
  * thrown expression's static type must fit under the declared join, and the

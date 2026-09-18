@@ -6,7 +6,7 @@ import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.postcondition;
 
 /**
- * Phase 3 of exception support (docs/exceptions-design.md, Phasing §3):
+ * Phase 3 of exception support:
  * {@code try}/{@code catch}/{@code finally} lower to Laurel's {@code Try}
  * node. A catch arm's type dispatch becomes the guard {@code e is E}
  * (multi-catch: a disjunction), arms keep source order (both sides are

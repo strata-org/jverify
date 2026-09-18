@@ -3,7 +3,7 @@ package org.strata.jverify.verifier.tests.javasupport.exceptions;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
- * The two `throw` refusals (docs/exceptions-design.md §1, §5): a throw needs
+ * The two `throw` refusals: a throw needs
  * the enclosing method to declare the thrown type, and the thrown type must
  * fit under what is declared. Both are legal Java for unchecked exceptions --
  * javac only polices checked ones -- so the frontend enforces the
