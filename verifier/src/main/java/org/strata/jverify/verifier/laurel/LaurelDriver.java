@@ -92,8 +92,18 @@ public class LaurelDriver implements Driver {
 
                 if (verifierOptions.printSerializedOutputProgram() != null) {
                     try {
-                        Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
-                        Files.writeString(verifierOptions.printSerializedOutputProgram(), files.toPrettyString());
+                        var outPath = verifierOptions.printSerializedOutputProgram();
+                        if (outPath.getParent() != null) {
+                            Files.createDirectories(outPath.getParent());
+                        }
+                        // Emit *binary* Ion so the serialized Laurel program can be
+                        // consumed directly by Strata's binary Ion reader (e.g. the
+                        // `laurelIonToHorn` CHC CLI), matching the binary stream used
+                        // on the in-process verification path below.
+                        try (var out = Files.newOutputStream(outPath);
+                             var writer = IonBinaryWriterBuilder.standard().build(out)) {
+                            files.writeTo(writer);
+                        }
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }

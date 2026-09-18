@@ -73,7 +73,9 @@ public class EmitLaurelWorkflowTest {
         // compilation metadata Strata's result mapping consults; the
         // program Strata verifies comes entirely from the emitted file.
         IonSystem ion = IonSystemBuilder.standard().build();
-        IonValue emittedProgram = ion.singleValue(Files.readString(emittedLaurel));
+        // The emitted file is *binary* Ion (see LaurelDriver --emit-laurel), so read
+        // raw bytes; reading as UTF-8 text would throw MalformedInputException.
+        IonValue emittedProgram = ion.singleValue(Files.readAllBytes(emittedLaurel));
 
         var laurelDriver = (LaurelDriver) emitDriver;
         // The program verifies cleanly, so no diagnostic positions are
