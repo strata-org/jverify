@@ -110,7 +110,15 @@ public class JavaLowerer {
             return new LoweredResult(new ArrayList<>(), Set.of());
         }
 
+        // `parseResolveAndDesugarJava` returns a HashSet, whose iteration
+        // order is identity-hashcode-driven and varies run to run.
+        // Downstream Laurel emission (JavaToLaurelCompiler) walks this list
+        // in order and prepends composite declarations to the first file, so
+        // an unstable order makes the emitted Laurel non-reproducible and
+        // blocks golden-file/snapshot diffing. Sort by source URI to give
+        // every consumer a stable, run-independent order.
         var parsed = new ArrayList<>(loweredJava);
+        parsed.sort(Comparator.comparing(u -> u.sourcefile.toUri().toString()));
         var libraries = parsed.stream().filter(u -> contractSources.contains(u.getSourceFile())).collect(Collectors.toSet());
         return new LoweredResult(parsed, libraries);
     }
