@@ -15,7 +15,7 @@ import static org.strata.jverify.JVerify.*;
  * not named in the clause survive, and (c) fields that WERE named are
  * havoc'd (checks that would need those fields fixed fail).
  */
-@JVerifyTest(methodsVerified = 10, errorCount = 3, exitCode = 4)
+@JVerifyTest(methodsVerified = 13, errorCount = 3, exitCode = 4)
 class FieldAccessModifies {
     static class Point {
         int x;
@@ -126,5 +126,34 @@ class FieldAccessModifies {
         modifiesMatchesBody(p);
         // We can't assert p.x's value (no postcondition), but the call
         // itself must be well-formed.
+    }
+
+    // ---- Case 6: impure call INSIDE a postcondition lambda --------------
+    //
+    // bodyPotentiallyWritesHeap must not descend into
+    // precondition/postcondition/invariant/reads/modifies/decreases
+    // subtrees. Otherwise an impure call in a *spec* position (not a
+    // runtime effect) would trigger the synthesized `modifies *`
+    // fallback and demote otherwise-clean callees to OpaqueSpec.
+
+    /** A non-Pure helper; treating it as heap-writing would poison any
+     *  method that mentions it, even inside a postcondition lambda. */
+    static boolean impureBooleanHelper() { return true; }
+
+    /** Callee's body is empty, but its postcondition lambda calls an
+     *  impure method. Before the fix, this method's callers lost frame
+     *  precision because `bodyPotentiallyWritesHeap` scanned the whole
+     *  method (spec included) and synthesized `modifies *`. */
+    static void cleanBodyImpurePostcondLambda(Point p) {
+        postcondition(() -> impureBooleanHelper() == impureBooleanHelper());
+    }
+
+    /** Caller can now prove p.x survives the call because the callee
+     *  has no synthesized `modifies *`. */
+    static void callerOfCleanBodyImpurePostcondLambda() {
+        Point p = new Point();
+        p.x = 1;
+        cleanBodyImpurePostcondLambda(p);
+        check(p.x == 1);
     }
 }
