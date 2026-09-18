@@ -4,9 +4,10 @@ import org.strata.jverify.CheckPreconditionsAtRuntime;
 import org.strata.jverify.Invariant;
 import org.strata.jverify.PreconditionFailure;
 import org.strata.jverify.Verify;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
 
@@ -21,8 +22,8 @@ public class ValidRangesJackson {
     }
 
     @Verify(false)
-    List<Range> parse(String json) throws JsonProcessingException {
-        ObjectMapper mapper = new ObjectMapper();
+    List<Range> parse(String json) throws JacksonException {
+        ObjectMapper mapper = JsonMapper.builder().build();
         try {
             // Checks that for every range, 'start < end'
             return mapper.readValue(json, new TypeReference<>() {});
