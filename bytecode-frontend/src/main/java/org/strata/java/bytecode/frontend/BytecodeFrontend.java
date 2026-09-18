@@ -30,7 +30,9 @@ import java.util.stream.Stream;
  *
  * <p>The CharacterRangeTable's statement spans (see {@link
  * MethodBodyFactory#crtRanges}) become the source ranges downstream Laurel
- * generation stamps on statements for diagnostics.
+ * generation stamps on statements for diagnostics. The table is optional: if
+ * javac's CRT computation crashes, {@link #compile} retries with plain
+ * {@code -g} and the translation falls back to the LineNumberTable.
  */
 public final class BytecodeFrontend {
 
@@ -51,7 +53,18 @@ public final class BytecodeFrontend {
     public record CompileResult(
             Path classesDir,
             boolean success,
-            List<Diagnostic<? extends JavaFileObject>> diagnostics) {
+            List<Diagnostic<? extends JavaFileObject>> diagnostics,
+            /**
+             * True when {@code -Xjcov} crashed and the classfiles came from the
+             * plain-{@code -g} retry, so positions are line- not
+             * column-precise through no choice of the caller's.
+             */
+            boolean degradedToLineNumbers) {
+
+        CompileResult(Path classesDir, boolean success,
+                      List<Diagnostic<? extends JavaFileObject>> diagnostics) {
+            this(classesDir, success, diagnostics, false);
+        }
     }
 
     /**
@@ -66,31 +79,106 @@ public final class BytecodeFrontend {
                                         List<Path> classPath,
                                         Path outputDir,
                                         Writer diagnosticOutput) throws IOException {
+        Files.createDirectories(outputDir);
+        var full = compileWith(List.of("-g", "-Xjcov", "-proc:none"),
+                sources, classPath, outputDir, diagnosticOutput);
+        if (!full.internalFailure()) {
+            return full.result();
+        }
+        // javac's CRT computation (-Xjcov) has known crashes -- an AssertionError
+        // in CRTable.SourceComputer on an annotated type, e.g. the cast
+        // `(@Nat int) x` (SourceComputer has no visitAnnotatedType case, so it
+        // hits Assert.error). The CharacterRangeTable is a precision
+        // optimisation, not a correctness input: without it the translation
+        // falls back to the LineNumberTable (CompilationFacts.Tier.DEBUG),
+        // which yields the same diagnostics at line rather than column
+        // precision. So retry once with plain `-g`: a crash in an optional
+        // attribute must not cost a verdict.
+        //
+        // The crash aborts genCode part-way, so the output directory can hold
+        // classfiles for some classes and not others; it is emptied before the
+        // retry so no half-written class survives into the read.
+        new PrintWriter(diagnosticOutput, true).println(
+                "internal javac error while compiling with -Xjcov (" + full.reason()
+                        + "); retrying with -g only, so diagnostics carry line precision");
+        deleteContents(outputDir);
+        var degraded = compileWith(List.of("-g", "-proc:none"),
+                sources, classPath, outputDir, diagnosticOutput);
+        var r = degraded.result();
+        return new CompileResult(r.classesDir(), r.success(), r.diagnostics(), true);
+    }
+
+    /**
+     * One javac invocation: its result, plus the {@code Throwable} that escaped
+     * (if any).
+     */
+    private record Attempt(CompileResult result, Throwable crash) {
+
+        /**
+         * True when javac failed for a reason that is not the user's Java code.
+         * Two shapes: the throwable escaped {@code call()}, or -- as
+         * {@code CRTable}'s AssertionError does -- javac caught it itself,
+         * printed "An exception has occurred in the compiler", and returned
+         * false. A genuine Java error always produces at least one ERROR
+         * diagnostic, so a failure with none is an internal one.
+         */
+        boolean internalFailure() {
+            if (crash != null) {
+                return true;
+            }
+            return !result.success() && result.diagnostics().stream()
+                    .noneMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
+        }
+
+        String reason() {
+            return crash != null ? String.valueOf(crash)
+                    : "javac reported failure with no error diagnostic";
+        }
+    }
+
+    /** Empty {@code dir} without removing it. */
+    private static void deleteContents(Path dir) throws IOException {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (Stream<Path> walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder())
+                    .filter(p -> !p.equals(dir))
+                    .forEach(p -> {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    });
+        }
+    }
+
+    private static Attempt compileWith(List<String> options,
+                                       List<? extends JavaFileObject> sources,
+                                       List<Path> classPath,
+                                       Path outputDir,
+                                       Writer diagnosticOutput) throws IOException {
         var compiler = ToolProvider.getSystemJavaCompiler();
         var diagnostics = new DiagnosticCollector<JavaFileObject>();
-        Files.createDirectories(outputDir);
         try (var fileManager = compiler.getStandardFileManager(diagnostics, null, null)) {
             fileManager.setLocationFromPaths(StandardLocation.CLASS_OUTPUT, List.of(outputDir));
             if (!classPath.isEmpty()) {
                 fileManager.setLocationFromPaths(StandardLocation.CLASS_PATH, classPath);
             }
-            var options = List.of("-g", "-Xjcov", "-proc:none");
             var task = compiler.getTask(new PrintWriter(diagnosticOutput), fileManager,
                     diagnostics, options, null, sources);
-            boolean success;
             try {
-                success = task.call();
+                boolean success = task.call();
+                return new Attempt(
+                        new CompileResult(outputDir, success, diagnostics.getDiagnostics()), null);
             } catch (RuntimeException | Error e) {
-                // javac's CRT computation (-Xjcov) has known crashes, e.g. an
-                // AssertionError in CRTable.SourceComputer on annotated-type
-                // casts like `(@Nat int) x`. Surface it as a compile failure
-                // instead of taking down the run; the diagnostics collector
-                // already holds anything reported before the crash.
-                new PrintWriter(diagnosticOutput, true).println(
-                        "internal javac error while compiling with -Xjcov: " + e);
-                return new CompileResult(outputDir, false, diagnostics.getDiagnostics());
+                // The diagnostics collector already holds anything reported
+                // before the crash, so a caller that gives up can still show
+                // real Java errors rather than only the internal failure.
+                return new Attempt(
+                        new CompileResult(outputDir, false, diagnostics.getDiagnostics()), e);
             }
-            return new CompileResult(outputDir, success, diagnostics.getDiagnostics());
         }
     }
 

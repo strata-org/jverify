@@ -10,7 +10,7 @@ import java.util.List;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH, Blocker.STRATA_GENERICS}, exitCode = 4, methodsVerified = 8, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH, Blocker.STRATA_OTHER}, exitCode = 4, methodsVerified = 8, errorCount = 1)
 public class MissingContracts {
     
     void checkFalse() {

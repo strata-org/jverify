@@ -7,7 +7,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import java.util.function.Supplier;
 
 @SuppressWarnings("Convert2MethodRef")
-@JVerifyTest(methodsVerified = 12, errorCount = 0)
+@JVerifyTest(methodsVerified = 13, errorCount = 0)
 public class PolymorphicLambdas {
 
     static class GenContainer<T> {
@@ -41,11 +41,12 @@ public class PolymorphicLambdas {
 //           ^ warning: instance method 'lambdaForGenericMethod' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         zaz((U e) -> 3);
         zaz(this::uToThree);
-//          ^ warning: instance method 'consume' was not verified: call to 'uToThree', which could not be translated
     }
 
+    // uToThree declares T ITSELF, so T becomes a Laurel type variable in the
+    // procedure's typeArgs and the method verifies -- unlike GenContainer.add
+    // above, whose T belongs to the CLASS and still refuses.
     <T> int uToThree(T value) {
-//          ^ warning: instance method 'uToThree' was not verified: Unsupported type: T
         return 3;
     }
 

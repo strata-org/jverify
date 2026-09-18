@@ -10,7 +10,7 @@ import java.util.Set;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OVERLOAD}, exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
 public class CollectionsTest {
 
     void listVerifying() {

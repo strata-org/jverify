@@ -44,6 +44,14 @@ final class TranslationContext {
     String currentClassFqn;
     /** Type-parameter names in scope (method + enclosing class): refuse as JFE's Unsupported type: T. */
     Set<String> typeParams = Set.of();
+    /**
+     * The subset of {@link #typeParams} declared by the METHOD itself, which
+     * become Laurel {@code TVar}s and are declared in the procedure's
+     * {@code typeArgs}. A CLASS type parameter stays refused: composites are
+     * still emitted with no {@code typeArgs}, so a {@code TVar} naming one would
+     * not resolve. Mirrors JFE's {@code currentMethodTypeParams}.
+     */
+    Set<String> methodTypeParams = Set.of();
 
     // --- Per-method state ---
 

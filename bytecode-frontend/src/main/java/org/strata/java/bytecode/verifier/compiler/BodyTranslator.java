@@ -662,7 +662,7 @@ final class BodyTranslator {
             if (!declared.contains(varKey(si.slot()))) {
                 TypeRef t = localTypeRef(si.slot());
                 if (t != null) {
-                    t.toLaurel(ctx.typeParams, ctx.resolver, ctx.composites);
+                    t.toLaurel(ctx.typeParams, ctx.methodTypeParams, ctx.resolver, ctx.composites);
                 }
             }
             throw new JavaViolationException("Unsupported JVerify method: throwsOn");
@@ -688,7 +688,8 @@ final class BodyTranslator {
                     ? new ParameterOpt(LaurelFactory.ident(nm), Optional.empty())
                     : new ParameterOpt(LaurelFactory.ident(nm),
                             Optional.of(LaurelFactory.node(
-                                    t.toLaurel(ctx.typeParams, ctx.resolver, ctx.composites))));
+                                    t.toLaurel(ctx.typeParams, ctx.methodTypeParams,
+                                            ctx.resolver, ctx.composites))));
             var declare = new AstNode<Variable>(new Variable.Declare(param), SourceMap.UNKNOWN_RANGE);
             addStmt(new StmtExpr.Assign(List.of(declare), val));
         } else {
@@ -1192,12 +1193,40 @@ final class BodyTranslator {
             return;
         }
         HighType sourceType = inferCastSourceType(operand);
+        if (sourceType instanceof HighType.TInt && isJavaWidening(cv.opcode())) {
+            // The operand is the UNBOUNDED Laurel `int` (an @Unbounded-annotated
+            // value). javac's widening conversion on it -- typically the i2l it
+            // inserts when the value meets a long, which the source never wrote
+            // -- is value-preserving in Java, so under the unbounded reading it
+            // carries no obligation and cannot truncate: it is the identity.
+            // Emitting a cast helper here instead would demand the unbounded
+            // value fit the bounded target, which is exactly the range
+            // restriction @Unbounded asks to be dropped, and which the source
+            // frontend never asserts because it compares in the unbounded
+            // domain. NARROWING off an unbounded value keeps its obligation.
+            stack.push(operand);
+            noteDesc(operand, ClassfileQueries.convDesc(cv.opcode()));
+            return;
+        }
         String sourceName = LaurelFactory.laurelTypeName(sourceType);
         String helperName = "java?cast_to_" + laurelTarget + "_from_" + sourceName;
         ctx.lf.registerCastHelper(helperName, sourceName, sourceType, laurelTarget, targetType);
         AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
                 LaurelFactory.ident(helperName), List.of(operand)));
         noteDesc(n, ClassfileQueries.convDesc(cv.opcode()));
+    }
+
+    /**
+     * True for the integral widening primitive conversions (JLS 5.1.2): the
+     * result holds every value of the source, so the conversion cannot lose
+     * information. {@code i2l} is the one javac inserts implicitly, when an
+     * {@code int} operand meets a {@code long}.
+     */
+    private static boolean isJavaWidening(java.lang.classfile.Opcode op) {
+        return switch (op) {
+            case I2L, I2F, I2D, L2F, L2D, F2D -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -1209,7 +1238,8 @@ final class BodyTranslator {
         TypeRef declared = staticTypeOf.get(operand);
         if (declared != null) {
             try {
-                return declared.toLaurel(ctx.typeParams, ctx.resolver, ctx.composites);
+                return declared.toLaurel(ctx.typeParams, ctx.methodTypeParams,
+                        ctx.resolver, ctx.composites);
             } catch (JavaViolationException ignored) {
                 // fall through to the defaults
             }

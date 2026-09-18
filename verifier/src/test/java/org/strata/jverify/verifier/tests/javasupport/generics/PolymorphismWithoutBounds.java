@@ -6,7 +6,7 @@ import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, methodsVerified = 10, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_NO_TYPE_CONSTRAINTS, Blocker.FRONTEND_DISPATCH, Blocker.FRONTEND_GENERICS}, methodsVerified = 10, errorCount = 0)
 public class PolymorphismWithoutBounds {
 
     public static <T> void objectIsTop(T value) {

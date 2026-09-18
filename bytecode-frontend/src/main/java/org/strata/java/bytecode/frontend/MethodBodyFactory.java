@@ -502,10 +502,14 @@ public final class MethodBodyFactory {
         boolean isStatic = m.flags().has(AccessFlag.STATIC);
         Set<String> declared = new HashSet<>();
         int slot = isStatic ? 0 : 1;
+        // Formal parameter index -> local slot, for the parameter type
+        // annotations merged into slotAnnos below.
+        int[] paramSlot = new int[mt.parameterCount()];
         for (int i = 0; i < mt.parameterCount(); i++) {
             ClassDesc pt = mt.parameterType(i);
             Locals.Scope ps = locals.at(slot, 0);
             declared.add(ps != null ? Locals.slotVarKey(locals, slot, 0) : ("v" + slot));
+            paramSlot[i] = slot;
             String d = pt.descriptorString();
             slot += (d.equals("J") || d.equals("D")) ? 2 : 1;
         }
@@ -521,6 +525,26 @@ public final class MethodBodyFactory {
                 for (var entry : lv.table()) {
                     slotAnnos.computeIfAbsent(entry.index(), k -> new ArrayList<>()).add(ta.annotation());
                 }
+            }
+        }
+        // A PARAMETER's type annotations (@Nat, @Unbounded) are not in the Code
+        // attribute's LocalVarTarget table -- they sit on the METHOD as
+        // FormalParameterTarget. Merge them in under the parameter's slot so the
+        // body sees the same Laurel type the method SIGNATURE was built from.
+        // Without this a parameter declared `@Unbounded int` reads back as
+        // int32 inside the body, and any conversion off it (javac's implicit
+        // i2l when the value meets a long) generates a cast helper whose
+        // int32-range precondition the unbounded argument cannot satisfy.
+        for (var ta : ClassfileQueries.typeAnnotationsOn(m)) {
+            if (!ta.targetPath().isEmpty()) {
+                continue;
+            }
+            if (ta.targetInfo()
+                    instanceof java.lang.classfile.TypeAnnotation.FormalParameterTarget fp
+                    && fp.formalParameterIndex() >= 0
+                    && fp.formalParameterIndex() < paramSlot.length) {
+                slotAnnos.computeIfAbsent(paramSlot[fp.formalParameterIndex()],
+                        k -> new ArrayList<>()).add(ta.annotation());
             }
         }
         String retDesc = mt.returnType().descriptorString();

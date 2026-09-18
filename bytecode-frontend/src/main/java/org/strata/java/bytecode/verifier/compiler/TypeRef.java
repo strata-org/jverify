@@ -133,6 +133,20 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
      */
     HighType toLaurel(java.util.Set<String> typeParamsInScope,
                       ClassResolver resolver, CompositeModel composites) {
+        return toLaurel(typeParamsInScope, java.util.Set.of(), resolver, composites);
+    }
+
+    /**
+     * As above, but {@code tvarNames} are the type parameters that may become a
+     * Laurel {@link HighType.TVar} instead of refusing -- the METHOD's own
+     * parameters, which the procedure declares in its {@code typeArgs}. A type
+     * parameter in scope but NOT in {@code tvarNames} (i.e. a class type
+     * parameter) still refuses, because composites carry no {@code typeArgs}
+     * yet and the variable would not resolve.
+     */
+    HighType toLaurel(java.util.Set<String> typeParamsInScope,
+                      java.util.Set<String> tvarNames,
+                      ClassResolver resolver, CompositeModel composites) {
         if (kind == Kind.PRIMITIVE) {
             return switch (simpleName) {
                 case "int" -> integerType("int32", "nat31");
@@ -145,9 +159,13 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
             };
         }
         if (kind == Kind.CLASS) {
-            // A type variable (recovered from the Signature attribute)
-            // refuses exactly as JFE's TypeVar arm does.
+            // A type variable, recovered from the Signature attribute. One the
+            // method itself declares becomes a Laurel TVar; a class type
+            // parameter refuses exactly as JFE's TypeVar arm does.
             if (!scoped && typeParamsInScope.contains(simpleName)) {
+                if (tvarNames.contains(simpleName)) {
+                    return new HighType.TVar(LaurelFactory.ident(simpleName));
+                }
                 throw new JavaViolationException("Unsupported type: " + simpleName);
             }
             String sortName = resolver.qualifyTypeName(nameWithScope);

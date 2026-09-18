@@ -9,7 +9,7 @@ import java.util.List;
 
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_GENERICS}, methodsVerified = 9, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.FRONTEND_DISPATCH}, methodsVerified = 9, errorCount = 0)
 public class UnusedUnverifiedContractRequirement {
 
     @Verify(false)

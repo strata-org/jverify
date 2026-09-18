@@ -20,10 +20,19 @@
 
 # --- Force-xfail: JFE verifies these, the bytecode frontend cannot yet ---
 
-# javac's CRT computation (-Xjcov) crashes on annotated-type casts like
-# (@Nat int) x (CRTable.SourceComputer AssertionError), so the -g -Xjcov
-# compile fails before decompilation.
-XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.PrimitiveCasts        FRONTEND_OTHER       -Xjcov CRT crash on annotated-type casts
+# A cast between two Java types that erase to the SAME JVM type leaves no
+# instruction behind, so there is nothing to attribute a cast obligation to.
+# `@Unbounded int` -> `int` is such a pair: javac emits iload/istore only, and
+# the range check surfaces as the assignment's subset-constraint failure
+# ("assertion does not hold") rather than as "cast from int to int32 does not
+# hold". Likewise a long -> short cast is `l2i; i2s`, so bf reports two
+# obligations (int64->int32, int32->int16) whose CONJUNCTION is equivalent to
+# JFE's single int64->int16 one -- same verdict, different label. Every
+# remaining delta on this fixture is a diagnostic SUMMARY, never a verdict or a
+# count; the error lines match. (The -Xjcov CRT crash that used to stop this
+# fixture before it reached a verdict is fixed: BytecodeFrontend.compile retries
+# with plain -g.)
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.PrimitiveCasts        FRONTEND_OTHER       cast summaries erased by the classfile: same-erasure casts emit no instruction, and a long narrowing is two obligations instead of one
 
 
 
@@ -39,6 +48,13 @@ XFAIL  org.strata.jverify.verifier.tests.verification.TranslatorSkip            
 # javac desugars it before bytecode, so this frontend translates and
 # verifies it -- a genuine bytecode advantage, like TranslatorSkip's.
 RUN    org.strata.jverify.verifier.tests.javasupport.expressions.VerifyNumericOperators     compound assignment is desugared away in bytecode
+
+# The fixture's own comment ("Annotations on method parameters are broken ATM,
+# so these are locals") names the source-frontend gap. This frontend reads
+# @Impure/@Nat/@Unbounded off the classfile's type annotations -- including
+# FormalParameterTarget, so parameters are not a special case -- and verifies
+# both methods.
+RUN    org.strata.jverify.verifier.tests.javasupport.generics.PolymorphismResolutionErrors2  annotated-type casts and annotated parameters are read from type annotations, so both methods verify
 
 # ============================================================================
 # Erased source signals: JFE refuses these constructs at the SOURCE level

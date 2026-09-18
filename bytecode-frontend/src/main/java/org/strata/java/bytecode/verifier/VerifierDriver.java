@@ -91,7 +91,8 @@ public class VerifierDriver {
             try {
                 analysis = options.time("Compiling bytecode to Laurel",
                         () -> new BytecodeToLaurelCompiler(reporter, options.verifyByDefault(),
-                                List.copyOf(options.classPathEntries()))
+                                List.copyOf(options.classPathEntries()),
+                                compileResult.degradedToLineNumbers())
                                 .analyze(sourceUris, classes));
             } catch (org.strata.java.bytecode.verifier.compiler.RefusedInputException e) {
                 // The input cannot be verified at all (no debug information);

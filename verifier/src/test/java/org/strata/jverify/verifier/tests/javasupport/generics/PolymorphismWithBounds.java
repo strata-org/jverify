@@ -6,7 +6,7 @@ import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, methodsVerified = 15, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH, Blocker.FRONTEND_GENERICS, Blocker.STRATA_NO_TYPE_CONSTRAINTS}, methodsVerified = 15, errorCount = 0)
 public class PolymorphismWithBounds {
     
     public static void root() {

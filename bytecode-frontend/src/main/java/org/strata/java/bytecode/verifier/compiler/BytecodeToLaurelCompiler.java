@@ -61,6 +61,15 @@ public class BytecodeToLaurelCompiler {
 
     private final Reporter reporter;
     private final boolean verifyByDefault;
+    /**
+     * True when THIS run degraded its own compile (javac's {@code -Xjcov} CRT
+     * computation crashed, so {@code BytecodeFrontend.compile} retried with
+     * plain {@code -g}). The DEBUG-tier warning then has no advice to give --
+     * it would tell the caller to do the thing that just crashed -- so it is
+     * suppressed. A caller who really did hand over {@code -g}-only classfiles
+     * still gets it.
+     */
+    private final boolean tierIsSelfInflicted;
 
     /** Positional service: current file text/index plus span-to-range helpers. */
     private final SourceMap src = new SourceMap();
@@ -97,6 +106,13 @@ public class BytecodeToLaurelCompiler {
 
     public BytecodeToLaurelCompiler(Reporter reporter, boolean verifyByDefault,
                                     List<java.nio.file.Path> classPath) {
+        this(reporter, verifyByDefault, classPath, false);
+    }
+
+    public BytecodeToLaurelCompiler(Reporter reporter, boolean verifyByDefault,
+                                    List<java.nio.file.Path> classPath,
+                                    boolean tierIsSelfInflicted) {
+        this.tierIsSelfInflicted = tierIsSelfInflicted;
         this.reporter = reporter;
         this.verifyByDefault = verifyByDefault;
         this.resolver = new ClassResolver(classPath, verifyByDefault);
@@ -757,7 +773,8 @@ public class BytecodeToLaurelCompiler {
                     ? TypeRef.ofRendered(h.genericType(), false, false)
                     : TypeRef.ofDescriptor(h.desc(), false, false);
             var param = new ParameterOpt(ident(h.name()),
-                    Optional.of(node(t.toLaurel(ctx.typeParams, resolver, composites))));
+                    Optional.of(node(t.toLaurel(ctx.typeParams, ctx.methodTypeParams,
+                            resolver, composites))));
             StmtExpr decl = new StmtExpr.Var(new Variable.Declare(param));
             FileRange range = body.stmtRange(h.seqIdx(), false);
             out.add(ctx.placeStatement(body.e(decl), range));
@@ -876,9 +893,13 @@ public class BytecodeToLaurelCompiler {
         URI anchor = sourceUris.stream().findFirst().orElse(null);
         switch (facts.tier()) {
             case FULL -> { }
-            case DEBUG -> reporter.reportWarning(anchor, Reporter.NO_RANGE,
-                    "input compiled without -Xjcov (no statement spans): diagnostics carry"
-                            + " method precision only");
+            case DEBUG -> {
+                if (!tierIsSelfInflicted) {
+                    reporter.reportWarning(anchor, Reporter.NO_RANGE,
+                            "input compiled without -Xjcov (no statement spans): diagnostics carry"
+                                    + " method precision only");
+                }
+            }
             case BARE -> reporter.reportWarning(anchor, Reporter.NO_RANGE,
                     "input compiled without -g (no local-variable debug info): diagnostics carry"
                             + " method precision only and locals get synthetic names");
@@ -968,7 +989,7 @@ public class BytecodeToLaurelCompiler {
                             }
                         })
                         .orElse(null);
-        var methodTypeParams = new java.util.HashSet<String>();
+        var methodTypeParams = new java.util.LinkedHashSet<String>();
         if (msig != null) {
             msig.typeParameters().forEach(tp -> methodTypeParams.add(tp.identifier()));
         }
@@ -988,6 +1009,7 @@ public class BytecodeToLaurelCompiler {
         var ctx = translationContext();
         ctx.currentClassFqn = classFqn;
         ctx.typeParams = typeParams;
+        ctx.methodTypeParams = methodTypeParams;
         ctx.beginMethod(info);
 
         // Input compiled without -Xjcov: no statement spans exist, so anchor
@@ -1064,7 +1086,7 @@ public class BytecodeToLaurelCompiler {
                 t = TypeRef.ofDescriptor(va ? desc.substring(1) : desc, natP[i], unbP[i]);
             }
             inputs.add(new org.strata.jverify.laurel.Parameter(ident(pname),
-                    node(t.toLaurel(typeParams, resolver, composites))));
+                    node(t.toLaurel(typeParams, methodTypeParams, resolver, composites))));
             slot += (desc.equals("J") || desc.equals("D")) ? 2 : 1;
         }
 
@@ -1085,7 +1107,7 @@ public class BytecodeToLaurelCompiler {
                 rt = TypeRef.ofDescriptor(retDesc, natR, unbR);
             }
             outputs.add(new org.strata.jverify.laurel.Parameter(LaurelFactory.reservedIdent(LAUREL_RESULT_BINDING),
-                    node(rt.toLaurel(typeParams, resolver, composites))));
+                    node(rt.toLaurel(typeParams, methodTypeParams, resolver, composites))));
             if (rt.kind() == TypeRef.Kind.CLASS) {
                 ctx.method.returnSort = qualifyTypeName(rt.nameWithScope());
             }
@@ -1323,7 +1345,9 @@ public class BytecodeToLaurelCompiler {
                     unguardedModifies(modifies));
         }
         var proc = new Procedure(
-                ident(methodName), /*typeArgs=*/List.of(), inputs, outputs, preconditions,
+                ident(methodName),
+                methodTypeParams.stream().map(LaurelFactory::ident).toList(),
+                inputs, outputs, preconditions,
                 Optional.empty(), procBody, Optional.empty(),
                 isInterpretEntry, List.of(),
                 throwsType, throwsBinding, throwsOnBlocks);
@@ -1484,15 +1508,19 @@ public class BytecodeToLaurelCompiler {
                                            boolean verify) {
         String name = m.methodName().stringValue();
         try {
-            var typeParams = new java.util.HashSet<String>();
+            // Method-level parameters are kept separate: they may become TVars,
+            // so this precheck must not refuse them or the method would be
+            // demoted before translateMethod ever runs.
+            var ownTypeParams = new java.util.LinkedHashSet<String>();
             m.findAttribute(java.lang.classfile.Attributes.signature()).ifPresent(sa -> {
                 try {
                     java.lang.classfile.MethodSignature.parseFrom(sa.signature().stringValue())
-                            .typeParameters().forEach(tp -> typeParams.add(tp.identifier()));
+                            .typeParameters().forEach(tp -> ownTypeParams.add(tp.identifier()));
                 } catch (RuntimeException ignore) {
                     // no method type parameters
                 }
             });
+            var typeParams = new java.util.HashSet<String>(ownTypeParams);
             typeParams.addAll(Declarations.typeParamNamesOf(node.cm()));
             refuseIfOverloaded(node.fqn(), name, m.flags().has(java.lang.reflect.AccessFlag.STATIC));
             var mt = m.methodTypeSymbol();
@@ -1521,7 +1549,7 @@ public class BytecodeToLaurelCompiler {
                 if (t == null) {
                     t = TypeRef.ofDescriptor(mt.parameterType(i).descriptorString(), false, false);
                 }
-                t.toLaurel(typeParams, resolver, composites);
+                t.toLaurel(typeParams, ownTypeParams, resolver, composites);
             }
             String retDesc = mt.returnType().descriptorString();
             if (!retDesc.equals("V")) {
@@ -1537,7 +1565,7 @@ public class BytecodeToLaurelCompiler {
                 if (rt == null) {
                     rt = TypeRef.ofDescriptor(retDesc, false, false);
                 }
-                rt.toLaurel(typeParams, resolver, composites);
+                rt.toLaurel(typeParams, ownTypeParams, resolver, composites);
             }
         } catch (JavaViolationException e) {
             var info = new MethodGraph.MethodInfo(node.fqn(), name,

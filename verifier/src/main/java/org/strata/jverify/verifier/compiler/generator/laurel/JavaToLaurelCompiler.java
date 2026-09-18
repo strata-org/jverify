@@ -84,6 +84,29 @@ public class JavaToLaurelCompiler {
     private final com.sun.tools.javac.code.Symtab symtab;
 
     private final Map<String, Symbol.TypeSymbol> referencedCompositeTypes = new LinkedHashMap<>();
+    /**
+     * The method being translated, so a type variable can be matched to its
+     * DECLARER rather than by name. A type parameter the method itself declares
+     * ({@code T} in {@code static <T> void f(T x)}) becomes a Laurel
+     * {@code HighType.TVar} and is listed in the procedure's {@code typeArgs},
+     * so Strata monomorphizes the procedure per call site and infers the type
+     * arguments there.
+     *
+     * <p>Deliberately the METHOD's own parameters only. A CLASS type parameter
+     * is in scope too, but a composite is still emitted with no
+     * {@code typeArgs} (every use of it would have to become
+     * {@code HighType.Applied} first), so translating one to a {@code TVar}
+     * would emit a variable Laurel cannot resolve. Those keep refusing with
+     * "Unsupported type: T".
+     *
+     * <p>Comparing the owner SYMBOL, not the name, is what makes this safe: a
+     * class type parameter is owned by a {@code ClassSymbol} and so never
+     * matches, even when it shadows a method parameter of the same name (as
+     * {@code GenContainer<T>.add} and {@code <T> uToThree} do in
+     * {@code PolymorphicLambdas}), and a value left over from an earlier method
+     * cannot make a class type parameter translate by accident.
+     */
+    private Symbol.MethodSymbol currentMethodSymbol = null;
     /// Reasons already reported per method, so a construct hit repeatedly in one body
     /// warns once rather than per occurrence.
     ///
@@ -784,6 +807,17 @@ public class JavaToLaurelCompiler {
         // match, record-component reads, constructors) need
         // additional translation that is NOT part of this commit;
         // they will surface as separate convertExpression errors.
+        // A type variable declared by the method being translated becomes a
+        // Laurel type variable, declared in the procedure's typeArgs. Strata
+        // monomorphizes the procedure per call site and infers the type
+        // arguments there, so no call-site change is needed. The BOUND is
+        // dropped -- Laurel's TVar is a gradual wildcard -- so a body that
+        // actually uses the bound's members still refuses, exactly as before.
+        if (type instanceof com.sun.tools.javac.code.Type.TypeVar typeVar
+                && currentMethodSymbol != null
+                && typeVar.tsym.owner == currentMethodSymbol) {
+            return new HighType.TVar(ident(typeVar.tsym.name.toString()));
+        }
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
             String sortName = compositeSortName(classType.tsym);
             referencedCompositeTypes.putIfAbsent(sortName, classType.tsym);
@@ -1480,6 +1514,7 @@ public class JavaToLaurelCompiler {
         private void translateMethod(JCTree.JCMethodDecl method, boolean isStatic) {
             RefusalGates.enforce(gates.overloadRefusal(method.sym));
             currentEnclosingClass = enclosingClassOrRefuse(method.sym);
+            currentMethodSymbol = method.sym;
             // An instance procedure lives INSIDE its composite under the bare method
             // name; Strata's LiftInstanceProcedures pass lifts it to a top-level
             // `<Composite>$<method>`. A static keeps the mangled name.
@@ -1683,7 +1718,9 @@ public class JavaToLaurelCompiler {
             }
 
             var proc = new Procedure(
-                    ident(methodName, method), /*typeArgs=*/List.of(), inputs, outputs, preconditions,
+                    ident(methodName, method),
+                    method.typarams.stream().map(tp -> ident(tp.name.toString())).toList(),
+                    inputs, outputs, preconditions,
                     /*decreases=*/Optional.empty(), body, /*invokeOn=*/Optional.empty(),
                     isInterpretEntry, /*axioms=*/List.of(),
                     // Exceptional contract: the declared type and binding come from
