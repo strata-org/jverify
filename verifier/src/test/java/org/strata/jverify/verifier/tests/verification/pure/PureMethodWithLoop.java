@@ -19,12 +19,22 @@ import static org.strata.jverify.JVerify.precondition;
  * to avoid the unrelated "constrained return types on functions" limitation.)
  */
 @JVerifyTest(exitCode = 4, methodsVerified = 5, errorCount = 1,
-             skip = "Sandbox-vs-local behavior difference: on the fleet, "
-                  + "Strata reports the three congruenceHolds() checks "
-                  + "(lines 60-62) as unprovable; locally, uninterpreted-"
-                  + "function congruence proves them. Not a Brazil-wiring "
-                  + "bug; follow up on the underlying Strata behavior "
-                  + "difference.")
+             skip = "The three congruenceHolds() checks (lines 66-68) "
+                  + "report `assertion does not hold`. Upstream JVerify "
+                  + "emitted `@Pure` methods as Laurel `function`, whose "
+                  + "SMT encoding gives congruence (same input -> same "
+                  + "output) for free -- so `withForLoop(3) == "
+                  + "withForLoop(3)` was trivially provable. New Laurel "
+                  + "has only `procedure`, and the TransparencyPass only "
+                  + "auto-generates a `$asFunction` companion for "
+                  + "Transparent bodies; @Pure methods with dropped "
+                  + "loop bodies end up Opaque with no implementation, "
+                  + "so no function twin is created and congruence is "
+                  + "lost. Fixing this requires modeling @Pure "
+                  + "differently in the frontend (e.g. an uninterpreted-"
+                  + "function stub in a Transparent body). Not a "
+                  + "Brazil-wiring issue; not solver-dependent (same "
+                  + "failure under z3 4.8.17 and z3 4.12.6).")
 class PureMethodWithLoop {
 
     @Pure
