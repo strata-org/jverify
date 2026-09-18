@@ -1917,6 +1917,14 @@ public class JavaToLaurelCompiler {
                 // CoreDefinitionsForLaurel, but resolution special-cases it to
                 // require only operand consistency and Core lowers it to
                 // polymorphic equality, so composite and bool operands are fine.
+                //
+                // Limitation: the "structural equality on pure ones" case is not
+                // realized yet. Records are pure but currently lower to opaque
+                // composites (translateType), so `Eq` on them is rewritten to
+                // reference equality -- structurally-equal records compare as
+                // distinct, which is unsound in the negation direction. Pinned by
+                // tests/javasupport/Jequals.java; resolved once records lower to a
+                // value/record ("Frozen") type rather than a composite.
                 case "jequals" -> {
                     if (invocation.args.size() != 2)
                         throw new JavaViolationException("jequals should have two arguments");

@@ -253,6 +253,25 @@ public class JVerify {
      * For pure types, shallow structural equality implies observational equality, because:
      * - JVerify makes using `==` (reference equality) illegal
      * - pure types only have immutable fields
+     * <p>
+     * <b>Current limitation - the pure case is not yet implemented.</b> Nothing gets
+     * structural {@code jequals} today. Every reference type lowers to an opaque Laurel
+     * composite ({@code JavaToLaurelCompiler.translateType}), and {@code Eq} on a
+     * composite is rewritten to reference equality, so records - which are pure -
+     * compare by identity rather than by contents.
+     * <p>
+     * This is unsound in the negation direction, not merely incomplete: the verifier
+     * proves {@code !jequals(p, q)} for two separately constructed records with equal
+     * components, so a branch guarded on {@code jequals} is treated as dead and a false
+     * assertion inside it is never checked. See {@code tests/javasupport/Jequals.java},
+     * which pins the current behaviour so it cannot change unnoticed.
+     * <p>
+     * Records are expected to stop being composites once Laurel gains a value/record
+     * ("Frozen") type. Until then there is no translatable structural equality for
+     * records in verified code: a record's {@code equals()} is an instance method,
+     * which is not yet translated either ({@code Blocker.FRONTEND_INSTANCE_METHODS}), so
+     * it fails loudly rather than offering a working alternative. Do not rely on a
+     * proved {@code !jequals(...)} over pure operands.
      */
     public static <T> boolean jequals(T left, T right) {
         throw new VerificationMethodExecutedException();
