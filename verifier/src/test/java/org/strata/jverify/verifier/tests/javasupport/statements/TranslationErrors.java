@@ -40,6 +40,12 @@ class TranslationErrors {
             postcondition(x == 3);
             x = x - 1;
         }
+        x = 3;
+        while(x > 0) {
+//      ^ error: throwsOn cases are not allowed in a loop
+            throwsOn(x == 3);
+            x = x - 1;
+        }
     }
 
     int switchLabeledStatementGroup(int i) {

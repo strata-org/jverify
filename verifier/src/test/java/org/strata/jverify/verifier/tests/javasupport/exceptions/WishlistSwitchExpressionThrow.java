@@ -16,6 +16,7 @@ import org.strata.jverify.testengine.JVerifyTest;
         methodsVerified = 3) // sign() + 2 implicit constructors
 class WishlistSwitchExpressionThrow {
     static class AppException extends Exception {}
+//         ^ warning: missing contract for method '<init>' in class 'java.lang.Exception'
 
     static int sign(int i) throws AppException {
         return switch (Integer.signum(i)) {

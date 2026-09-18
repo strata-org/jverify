@@ -194,9 +194,12 @@ public class JVerify {
          * Exceptional frame of this case: on the throwing path it covers, only
          * the given object(s) may be modified. Same argument forms as
          * {@link JVerify#modifies},
-         * including {@link JVerify#everything()}. An unstated exceptional frame
-         * means "nothing changes" on that path, mirroring the normal-path
-         * default.
+         * including {@link JVerify#everything()}. A case with no stated frame
+         * leaves its throwing path <em>unframed</em> -- callers cannot assume
+         * anything survives it. (The normal path differs: its unstated frame
+         * defaults to "nothing changes", with a heap-write wildcard fallback.)
+         * State the case's frame when callers need to know what a throw
+         * preserves.
          */
         public ThrowsOnCase modifies(Object object) {
             return this;

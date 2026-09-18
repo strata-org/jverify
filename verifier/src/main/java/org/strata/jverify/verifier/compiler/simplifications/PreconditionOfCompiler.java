@@ -90,7 +90,7 @@ public class PreconditionOfCompiler extends TreeTranslator {
         
         var methodSymbol = (Symbol.MethodSymbol) TreeInfo.symbol(preconditionOwnerCall.getMethodSelect());
         var method = (JCTree.JCMethodDecl) index.getTree(methodSymbol);
-        var contract = contractCompiler.getContract(method.body);
+        var contract = contractCompiler.getContract(method.body, false);
         var precondition = MethodOrLoopContract.combineClauses(context, contract.preconditions());
 
         var fieldAccess = preconditionOwnerCall.getMethodSelect() instanceof JCTree.JCFieldAccess f ? f : null;
