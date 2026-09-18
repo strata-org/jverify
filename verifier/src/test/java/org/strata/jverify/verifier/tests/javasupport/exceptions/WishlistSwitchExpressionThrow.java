@@ -4,7 +4,7 @@ import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
- * Wishlist (docs/exceptions-design.md, deferred from Phasing §2): a throw as
+ * Wishlist (deferred from phase 2): a throw as
  * a switch EXPRESSION rule body. Statement-form switches carry throw rules
  * already (SwitchDesugarer's if-cascade branches take statements), but the
  * expression form desugars to a {@code ?:} chain, which has no statement

@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.throwsOn;
 
 /**
- * The guard restriction, pinned red (docs/exceptions-design.md §3): a
+ * The guard restriction, pinned red: a
  * {@code throwsOn} guard is a pre-state predicate over parameters, but the
  * lowering places it in postconditions, so a heap-reading guard would
  * silently mean "held on exit" -- Strata's resolution rejects the shape with

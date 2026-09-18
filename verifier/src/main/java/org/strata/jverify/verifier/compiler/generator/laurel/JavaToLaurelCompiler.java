@@ -1051,7 +1051,7 @@ public class JavaToLaurelCompiler {
                     }
                 }
 
-                // Exceptional behavior cases (docs/exceptions-design.md §3):
+                // Exceptional behavior cases:
                 // each `throwsOn(...).postcondition(...).modifies(...)` chain becomes a
                 // Laurel `ThrowsOnBlock`. The guard converts as a plain
                 // boolean expression (Strata's resolution rejects heap-reading
@@ -1652,7 +1652,7 @@ public class JavaToLaurelCompiler {
                     // Exception types are composites with their `extends`
                     // chains declared, so a plain type test maps directly onto
                     // Laurel's `is` -- and per-type case-postcondition claims depend on
-                    // it (docs/exceptions-design.md §3). Other reference types
+                    // it. Other reference types
                     // stay unsupported: they are opaque sorts with no declared
                     // hierarchy, so `is` on them would be vacuous.
                     if (!(instanceOf.pattern instanceof JCTree.JCBindingPattern)
