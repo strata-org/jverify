@@ -2,11 +2,12 @@
 // ^ b/Foo.java(16:9-16:21) Error: assertion does not hold
 package org.strata.jverify.verifier.tests.javasupport.packages;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.verifier.tests.javasupport.packages.a.Foo;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 5, errorCount = 3, additionalFiles = {"./a/Foo.java", "./b/Foo.java"})
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS}, exitCode = 4, methodsVerified = 5, errorCount = 3, additionalFiles = {"./a/Foo.java", "./b/Foo.java"})
 public class MultiPackageTest {
     void foo() {
         var f = new Foo();

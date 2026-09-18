@@ -2,6 +2,7 @@ package org.strata.jverify.verifier.tests.verification;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testing.GenericParent;
 
 import java.util.ArrayList;
@@ -9,7 +10,7 @@ import java.util.List;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 8, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH, Blocker.STRATA_GENERICS}, exitCode = 4, methodsVerified = 8, errorCount = 1)
 public class MissingContracts {
     
     void checkFalse() {

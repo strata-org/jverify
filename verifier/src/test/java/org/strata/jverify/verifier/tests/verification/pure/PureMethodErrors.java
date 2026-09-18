@@ -2,8 +2,9 @@ package org.strata.jverify.verifier.tests.verification.pure;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC, Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 2)
 public class PureMethodErrors {
 
     @Pure

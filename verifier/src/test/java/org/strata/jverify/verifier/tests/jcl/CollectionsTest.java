@@ -2,6 +2,7 @@
 package org.strata.jverify.verifier.tests.jcl;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import java.util.List;
 import java.util.Map;
@@ -9,7 +10,7 @@ import java.util.Set;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
 public class CollectionsTest {
 
     void listVerifying() {

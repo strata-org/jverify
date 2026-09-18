@@ -60,7 +60,7 @@ public class EmitLaurelWorkflowTest {
 
         assertEquals(0, emitResult.exitCode(),
                 "the emit-only run should succeed");
-        assertNull(emitResult.verificationResults(),
+        assertTrue(emitResult instanceof JVerifyResults.NoVerdict,
                 "the emit-only run must not invoke the backend / verify");
         assertTrue(Files.exists(emittedLaurel) && Files.size(emittedLaurel) > 0,
                 "the serialized Laurel program should have been written");
@@ -85,9 +85,9 @@ public class EmitLaurelWorkflowTest {
 
         assertEquals(0, verifyResult.exitCode(),
                 "verifying the separately-emitted Laurel Ion should succeed");
-        assertNotNull(verifyResult.verificationResults(),
+        assertTrue(verifyResult instanceof JVerifyResults.Ran,
                 "the separate verification run should produce verification results");
-        assertEquals(0, verifyResult.verificationResults().verificationFailedAssertions(),
+        assertEquals(0, ((JVerifyResults.Ran) verifyResult).verificationResults().verificationFailedAssertions(),
                 "the trivially-true program should have no failed assertions");
     }
 

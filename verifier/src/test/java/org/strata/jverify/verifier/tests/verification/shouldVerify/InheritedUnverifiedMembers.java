@@ -4,12 +4,13 @@ import org.strata.jverify.Contract;
 import org.strata.jverify.Pure;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testing.LibraryClassA;
 import org.strata.jverify.testing.LibraryClassB;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 15, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH}, exitCode = 4, methodsVerified = 15, errorCount = 1)
 public class InheritedUnverifiedMembers {
     static class ThroughBaseClass {
         @Pure

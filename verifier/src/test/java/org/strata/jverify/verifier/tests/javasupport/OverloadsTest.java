@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 13, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.FRONTEND_OVERLOAD}, exitCode = 4, methodsVerified = 13, errorCount = 1)
 class OverloadsTest {
     
     private int f;

@@ -2,6 +2,7 @@ package org.strata.jverify.verifier.tests.verification.pure;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.precondition;
@@ -18,21 +19,8 @@ import static org.strata.jverify.JVerify.precondition;
  * but its interpreted loop result is not provable. (The helpers return boolean
  * to avoid the unrelated "constrained return types on functions" limitation.)
  */
-@JVerifyTest(exitCode = 4, methodsVerified = 5, errorCount = 1,
-             skip = "The three congruenceHolds() checks (lines 66-68) "
-                  + "report `assertion does not hold`. Upstream JVerify "
-                  + "emitted `@Pure` methods as Laurel `function`, whose "
-                  + "SMT encoding gives congruence (same input -> same "
-                  + "output) for free -- so `withForLoop(3) == "
-                  + "withForLoop(3)` was trivially provable. New Laurel "
-                  + "has only `procedure`, and the TransparencyPass only "
-                  + "auto-generates a `$asFunction` companion for "
-                  + "Transparent bodies; @Pure methods with dropped "
-                  + "loop bodies end up Opaque with no implementation, "
-                  + "so no function twin is created and congruence is "
-                  + "lost. Fixing this requires modeling @Pure "
-                  + "differently in the frontend (e.g. an uninterpreted-"
-                  + "function stub in a Transparent body).")
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR},
+             exitCode = 4, methodsVerified = 5, errorCount = 1)
 class PureMethodWithLoop {
 
     @Pure

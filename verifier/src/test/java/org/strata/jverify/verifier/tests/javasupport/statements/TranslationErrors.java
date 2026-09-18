@@ -5,10 +5,11 @@ import org.strata.jverify.ContractException;
 import org.strata.jverify.Nullable;
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC}, exitCode = 2)
 class TranslationErrors {
     
     void quantifierNeedsLambdaArgument() {
