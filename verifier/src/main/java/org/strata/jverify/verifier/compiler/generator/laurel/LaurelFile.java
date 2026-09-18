@@ -1,8 +1,7 @@
 package org.strata.jverify.verifier.compiler.generator.laurel;
 
-import org.strata.jverify.laurel.Command;
+import org.strata.jverify.laurel.Program;
 
 import java.net.URI;
-import java.util.List;
 
-public record LaurelFile(URI uri, List<Command> commands) {}
+public record LaurelFile(URI uri, Program program) {}

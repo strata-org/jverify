@@ -4,7 +4,6 @@ import com.amazon.ion.*;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
 import org.strata.jverify.common.Range;
-import org.strata.jverify.laurel.IonSerializer;
 import org.strata.jverify.verifier.*;
 import org.strata.jverify.verifier.compiler.Reporter;
 import org.strata.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
@@ -67,28 +66,22 @@ public class LaurelDriver implements Driver {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
                 var ion = IonSystemBuilder.standard().build();
-                IonList files = ion.newEmptyList();
 
+                // Combine all file programs into a single Program
+                var allProcedures = new ArrayList<org.strata.jverify.laurel.Procedure>();
+                var allFields = new ArrayList<org.strata.jverify.laurel.Field>();
+                var allTypes = new ArrayList<org.strata.jverify.laurel.TypeDefinition>();
+                var allConstants = new ArrayList<org.strata.jverify.laurel.Constant>();
                 for (LaurelFile file : analysisResult.files()) {
-                    IonStruct strataFile = ion.newEmptyStruct();
-
-                    String filePath = Paths.get("").toUri().relativize(file.uri()).toString();
-                    strataFile.put("filePath", ion.newString(filePath));
-
-                    // Create the program Ion structure
-                    IonList programAsIon = ion.newEmptyList();
-                    IonSexp header = ion.newEmptySexp();
-                    header.add(ion.newSymbol("program"));
-                    header.add(ion.newString("Laurel"));
-                    programAsIon.add(header);
-                    var serializer = new IonSerializer(ion);
-                    for (var command : file.commands()) {
-                        programAsIon.add(serializer.serializeCommand(command));
-                    }
-                    strataFile.put("program", programAsIon);
-
-                    files.add(strataFile);
+                    var prog = file.program();
+                    allProcedures.addAll(prog.staticProcedures());
+                    allFields.addAll(prog.staticFields());
+                    allTypes.addAll(prog.types());
+                    allConstants.addAll(prog.constants());
                 }
+                var combined = new org.strata.jverify.laurel.Program(
+                        allProcedures, allFields, allTypes, allConstants);
+                var programIon = combined.toIon(ion);
 
                 if (verifierOptions.printSerializedOutputProgram() != null) {
                     try {
@@ -102,20 +95,15 @@ public class LaurelDriver implements Driver {
                         // on the in-process verification path below.
                         try (var out = Files.newOutputStream(outPath);
                              var writer = IonBinaryWriterBuilder.standard().build(out)) {
-                            files.writeTo(writer);
+                            programIon.writeTo(writer);
                         }
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }
-                return files;
+                return programIon;
             });
 
-            // --emit-laurel separates compilation (Java -> Laurel IR) from
-            // verification (Laurel IR -> SMT): once the serialized Laurel
-            // program has been written, stop here without invoking the
-            // backend. Verification can then be run separately on the
-            // emitted Ion.
             if (verifierOptions.emitLaurelOnly()) {
                 return new JVerifyResults.NoVerdict(diagnostics, CommandLine.ExitCode.OK);
             }

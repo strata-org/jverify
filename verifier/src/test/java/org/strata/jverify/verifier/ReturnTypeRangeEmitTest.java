@@ -1,9 +1,9 @@
 package org.strata.jverify.verifier;
 
-import com.amazon.ion.IonSexp;
+import com.amazon.ion.IonStruct;
+import com.amazon.ion.IonList;
 import com.amazon.ion.IonSystem;
 import com.amazon.ion.IonValue;
-import com.amazon.ion.IonSymbol;
 import com.amazon.ion.system.IonSystemBuilder;
 import org.junit.jupiter.api.Test;
 import org.strata.jverify.testengine.JVerifyTestEngine;
@@ -13,30 +13,32 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Regression test: the emitted Laurel Ion carries a real source range on a
- * method's return type — both on the outer {@code Laurel.returnType} op and on
- * the inner type op it wraps.
+ * method's return type and parameter types.
  *
- * <p>The inner type op is translated from a resolved javac
+ * <p>The type is translated from a resolved javac
  * {@link com.sun.tools.javac.code.Type}, which has no tree position; the
- * compiler must stamp the declared type tree's range ({@code method.restype})
- * onto it. Without that, the inner op serializes a null range, Strata reads it
- * back as its "no location" sentinel, and an implicit no-overflow failure on
- * the result (e.g. {@code -x} overflowing {@code int32} in {@code abs}) gets
- * reported at a whole-file fallback position instead of at the return type.
+ * compiler must stamp the declared type tree's range ({@code method.restype}
+ * for return types, {@code param.vartype} for parameters) onto the
+ * {@code AstNode<HighType>} wrapping the type. Without that, the type node
+ * serializes a null source, Strata reads it back as its "no location"
+ * sentinel, and an implicit no-overflow failure on the result gets reported
+ * at a whole-file fallback position instead of at the return type.
  *
- * <p>Serialization convention (see {@code IonSerializer.newOp}): each op is an
- * s-expression {@code (opName range …args)} where {@code range} is either a
- * two-int s-expression {@code (start stop)} or null for "no location".
+ * <p>Serialization convention (new struct-based format): each {@code AstNode<T>}
+ * serializes as {@code {val: ..., source: ...}} where {@code source} is either
+ * a struct {@code {file: ..., range: {start: {byteIdx: N}, stop: {byteIdx: N}}}}
+ * or null for "no location".
  */
 public class ReturnTypeRangeEmitTest {
 
     @Test
-    public void returnTypeInnerOpCarriesDeclaredTypeRange() throws Exception {
+    public void returnTypeAndParameterTypesCarryDeclaredTypeRange() throws Exception {
         String source = """
                 import static org.strata.jverify.JVerify.*;
                 class Abs {
@@ -60,101 +62,84 @@ public class ReturnTypeRangeEmitTest {
             assertEquals(0, emitResult.exitCode(), "the emit-only run should succeed");
 
             IonSystem ion = IonSystemBuilder.standard().build();
+            // `--emit-laurel` writes binary Ion, so read the raw bytes.
             IonValue emittedProgram = ion.singleValue(Files.readAllBytes(emittedLaurel));
+            assertTrue(emittedProgram instanceof IonStruct,
+                    "emitted program should be a struct");
 
-            IonSexp returnTypeOp = findOp(emittedProgram, "Laurel.returnType");
-            assertNotNull(returnTypeOp, "the emitted program should contain a Laurel.returnType op");
+            IonStruct program = (IonStruct) emittedProgram;
+            IonList procedures = (IonList) program.get("staticProcedures");
+            assertNotNull(procedures, "program should have staticProcedures");
 
-            int[] outerRange = opRange(returnTypeOp);
-            assertNotNull(outerRange, "the returnType op itself should carry a source range");
+            // Find the `abs` procedure (skip predefined type procedures)
+            IonStruct absProcedure = null;
+            for (IonValue proc : procedures) {
+                IonStruct procStruct = (IonStruct) proc;
+                IonStruct nameStruct = (IonStruct) procStruct.get("name");
+                String procName = ((com.amazon.ion.IonText) nameStruct.get("text")).stringValue();
+                if (procName.contains("abs")) {
+                    absProcedure = procStruct;
+                    break;
+                }
+            }
+            assertNotNull(absProcedure, "should find the 'abs' procedure");
 
-            IonSexp innerTypeOp = firstNestedOp(returnTypeOp);
-            assertNotNull(innerTypeOp, "the returnType op should wrap an inner type op");
-            int[] innerRange = opRange(innerTypeOp);
-            assertNotNull(innerRange,
-                    "the inner type op must carry the declared type tree's range, not a null range");
+            // Check return type (outputs) has a source range
+            IonList outputs = (IonList) absProcedure.get("outputs");
+            assertNotNull(outputs, "abs procedure should have outputs");
+            assertEquals(1, outputs.size(), "abs should have exactly one output");
+            IonStruct outputParam = (IonStruct) outputs.get(0);
+            IonStruct outputType = (IonStruct) outputParam.get("type");
+            assertNotNull(outputType, "output parameter should have a type");
+            IonValue outputSource = outputType.get("source");
+            assertNotNull(outputSource, "output type should have a source field");
+            assertFalse(outputSource.isNullValue(),
+                    "the return type's source must not be null — it should carry "
+                    + "the declared type tree's range");
 
-            // Both ranges denote the `int` return-type token of `static int abs`.
-            int intTokenStart = source.indexOf("static int abs") + "static ".length();
-            assertEquals(intTokenStart, innerRange[0],
-                    "the inner type range should start at the `int` return-type token");
-            assertEquals(intTokenStart + "int".length(), innerRange[1],
-                    "the inner type range should stop after the `int` return-type token");
-            assertEquals(outerRange[0], innerRange[0], "outer and inner ranges should agree");
-            assertEquals(outerRange[1], innerRange[1], "outer and inner ranges should agree");
+            // Verify the range points to the `int` return-type token
+            IonStruct outputSourceStruct = (IonStruct) outputSource;
+            IonStruct outputRange = (IonStruct) outputSourceStruct.get("range");
+            long returnTypeStart = ((com.amazon.ion.IonInt) ((IonStruct) outputRange.get("start"))
+                    .get("byteIdx")).longValue();
+            long returnTypeStop = ((com.amazon.ion.IonInt) ((IonStruct) outputRange.get("stop"))
+                    .get("byteIdx")).longValue();
+            int expectedStart = source.indexOf("static int abs") + "static ".length();
+            int expectedStop = expectedStart + "int".length();
+            assertEquals(expectedStart, returnTypeStart,
+                    "the return type range should start at the `int` token");
+            assertEquals(expectedStop, returnTypeStop,
+                    "the return type range should stop after the `int` token");
 
-            // Parameter types get the same treatment: `int x`'s type op has a range too.
-            IonSexp parameterOp = findOp(emittedProgram, "Laurel.parameter");
-            assertNotNull(parameterOp, "the emitted program should contain a Laurel.parameter op");
-            IonSexp paramTypeOp = firstNestedOp(parameterOp);
-            assertNotNull(paramTypeOp, "the parameter op should wrap an inner type op");
-            assertNotNull(opRange(paramTypeOp),
-                    "the parameter's inner type op must carry the declared type tree's range");
+            // Check parameter type (inputs) has a source range
+            IonList inputs = (IonList) absProcedure.get("inputs");
+            assertNotNull(inputs, "abs procedure should have inputs");
+            assertEquals(1, inputs.size(), "abs should have exactly one input");
+            IonStruct inputParam = (IonStruct) inputs.get(0);
+            IonStruct inputType = (IonStruct) inputParam.get("type");
+            assertNotNull(inputType, "input parameter should have a type");
+            IonValue inputSource = inputType.get("source");
+            assertNotNull(inputSource, "input type should have a source field");
+            assertFalse(inputSource.isNullValue(),
+                    "the parameter type's source must not be null — it should carry "
+                    + "the declared type tree's range");
+
+            // Verify the parameter type range points to the `int` token in `int x`
+            IonStruct inputSourceStruct = (IonStruct) inputSource;
+            IonStruct inputRange = (IonStruct) inputSourceStruct.get("range");
+            long paramTypeStart = ((com.amazon.ion.IonInt) ((IonStruct) inputRange.get("start"))
+                    .get("byteIdx")).longValue();
+            long paramTypeStop = ((com.amazon.ion.IonInt) ((IonStruct) inputRange.get("stop"))
+                    .get("byteIdx")).longValue();
+            // The `int` in `int x` comes after `static int abs(`
+            int expectedParamStart = source.indexOf("(int x)") + 1; // skip the '('
+            int expectedParamStop = expectedParamStart + "int".length();
+            assertEquals(expectedParamStart, paramTypeStart,
+                    "the parameter type range should start at the `int` token in `int x`");
+            assertEquals(expectedParamStop, paramTypeStop,
+                    "the parameter type range should stop after the `int` token in `int x`");
         } finally {
             Files.deleteIfExists(emittedLaurel);
         }
-    }
-
-    /** Depth-first search for the first op s-expression whose head symbol is {@code opName}. */
-    private static IonSexp findOp(IonValue value, String opName) {
-        if (value instanceof IonSexp sexp) {
-            if (!sexp.isEmpty() && sexp.get(0) instanceof IonSymbol sym
-                    && opName.equals(sym.stringValue())) {
-                return sexp;
-            }
-        }
-        if (value instanceof com.amazon.ion.IonContainer container) {
-            for (IonValue child : container) {
-                IonSexp found = findOp(child, opName);
-                if (found != null) {
-                    return found;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The source range of an op s-expression {@code (opName range …)}: a two-element
-     * {@code int[]} for a real {@code (start stop)} range, or {@code null} for the
-     * null "no location" encoding.
-     */
-    private static int[] opRange(IonSexp op) {
-        if (op.size() < 2 || op.get(1).isNullValue()) {
-            return null;
-        }
-        IonSexp range = (IonSexp) op.get(1);
-        return new int[] {
-                ((com.amazon.ion.IonInt) range.get(0)).intValue(),
-                ((com.amazon.ion.IonInt) range.get(1)).intValue()
-        };
-    }
-
-    /** The first op s-expression nested (at any depth) inside {@code op}'s arguments. */
-    private static IonSexp firstNestedOp(IonSexp op) {
-        for (int i = 1; i < op.size(); i++) {
-            IonSexp found = anyOp(op.get(i));
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
-    }
-
-    private static IonSexp anyOp(IonValue value) {
-        if (value instanceof IonSexp sexp && !sexp.isEmpty()
-                && sexp.get(0) instanceof IonSymbol sym
-                && sym.stringValue().startsWith("Laurel.")) {
-            return sexp;
-        }
-        if (value instanceof com.amazon.ion.IonContainer container) {
-            for (IonValue child : container) {
-                IonSexp found = anyOp(child);
-                if (found != null) {
-                    return found;
-                }
-            }
-        }
-        return null;
     }
 }
