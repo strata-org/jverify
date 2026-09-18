@@ -1,5 +1,14 @@
 # Design: Supporting instance-field access in `JavaToLaurelCompiler`
 
+> **Status.** This document was written *before* the CR that ships
+> instance-field-access support. References to what the compiler does
+> "today" (composites emitted with empty field lists, `modifies` clauses
+> silently dropped, etc.) describe the pre-CR state of `mainline`, not
+> the post-merge state. The `### Modifies clauses are still not emitted`
+> and `### `modifies` clauses on opaque procedures` sections below
+> describe work that this CR itself delivered. Kept intact for
+> historical context.
+
 ## Problem
 
 JVerify cannot analyze any Java program that reads or writes an instance
@@ -167,6 +176,14 @@ not go through `convertExpression`. So this design does not touch it.
   surface as a "field not found" resolution error, tracked as a
   follow-up. `ClassesExtendingClassesVerification` implicitly
   documents that we care about this eventually.
+- **Compound assignment on fields** (`c.x += 1`, `c.x *= 2`). javac
+  keeps these as `JCAssignOp`, not `JCAssign`, and the frontend
+  rejects them up front with `Unsupported expression: JCAssignOp`.
+  Support requires adding a `JCAssignOp` case that either lowers to
+  `c.x = c.x + 1` (evaluation-order caveats) or emits a Laurel
+  compound-assign primitive. Pre/post-`++`/`--` on fields *are* in
+  scope for this CR (they're `JCUnary` and route through the
+  existing increment/decrement handling).
 
 ## Proposal
 
@@ -240,8 +257,9 @@ enclosing local scope, not for field selectors.
 
 Two cases live in `convertExpression`:
 
-- `JCAssign` with a `JCFieldAccess` LHS (`c.x = v`, `c.x += v` after
-  compound-assign desugar):
+- `JCAssign` with a `JCFieldAccess` LHS (`c.x = v` — plain assignment
+  only; compound assignments arrive as `JCAssignOp` and are handled
+  separately, see Non-goals):
 
   ```java
   case JCTree.JCAssign asgn when asgn.lhs instanceof JCTree.JCFieldAccess fa
