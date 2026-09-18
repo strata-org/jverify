@@ -200,11 +200,11 @@ public class LaurelDriver implements Driver {
             int verifiedCount = 0;
             int skippedCount = 0;
             int failedCount = 0;
+            int unattributedErrorCount = 0;
 
             String line;
             boolean inDiagnosticsSection = false;
             StringBuilder preDiagnosticOutput = new StringBuilder();
-            Pattern diagnosticPattern = Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
 
             while ((line = strataOutput.readLine()) != null) {
                 if (options.verbose()) {
@@ -219,38 +219,28 @@ public class LaurelDriver implements Driver {
                 }
 
                 if (inDiagnosticsSection) {
-                    Matcher matcher = diagnosticPattern.matcher(line);
-                    if (matcher.matches()) {
-                        String filePath = matcher.group(1);
-                        int startOffset = Integer.parseInt(matcher.group(2));
-                        int endOffset = Integer.parseInt(matcher.group(3));
-                        String message = matcher.group(4);
+                    // A synthetic URI that never appears in methodStatuses: a
+                    // malformed diagnostic carries no real location, so it must
+                    // not be attributed to any method (its position (1,1)
+                    // would otherwise spuriously fail whatever method spans
+                    // line 1 of a real file, and suppress the unattributed-
+                    // errors note below).
+                    var fallbackUri = Paths.get("strata-unattributed").toUri();
+                    var diagnostic = parseDiagnosticLine(line, filesMap, fallbackUri);
+                    if (diagnostic == null) {
+                        continue;
+                    }
+                    diagnostics.add(diagnostic);
+                    failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
 
-                        // Strata emits `file://` URIs (e.g. file:///abs/Path.java);
-                        // parse them as URIs rather than treating the URI string as
-                        // a filesystem path, which would miss the filesMap and lose
-                        // the source location (reported as 1:1).
-                        var uri = filePath.startsWith("file:")
-                                ? URI.create(filePath)
-                                : toDiagnosticUri(filePath);
-
-                        var range = new Range(
-                                filesMap.computePositionFromFileOffset(uri, startOffset),
-                                filesMap.computePositionFromFileOffset(uri, endOffset)
-                        );
-
-                        var diagnostic = new StrataDiagnostic(uri, range, message);
-                        diagnostics.add(diagnostic);
-
-                        failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
-
-                        var uriMethods = methodStatuses.get(uri);
-                        if (uriMethods != null) {
-                            var failedJavaMethod = uriMethods.findAtPoint(diagnostic.range.start().line());
-                            if (failedJavaMethod != null) {
-                                failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
-                            }
-                        }
+                    var uriMethods = methodStatuses.get(diagnostic.getUri());
+                    var failedJavaMethod = uriMethods == null
+                            ? null
+                            : uriMethods.findAtPoint(diagnostic.range.start().line());
+                    if (failedJavaMethod != null) {
+                        failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                    } else {
+                        unattributedErrorCount++;
                     }
                 }
             }
@@ -266,6 +256,20 @@ public class LaurelDriver implements Driver {
                         case Failed -> failedCount++;
                     }
                 }
+            }
+
+            // Honesty in the summary: an error that could not be attributed
+            // to any method (no range, or a range outside every method) leaves
+            // the per-method counts untouched. Say so whenever at least one
+            // such error exists — including mixed runs where other errors were
+            // attributed — rather than reporting method counts that silently
+            // omit some errors. Counted per diagnostic at attribution time
+            // (not failedAssertions - failedMethods, which over-reports when
+            // two errors land in the same method).
+            if (unattributedErrorCount > 0) {
+                options.outWriter().println("Note: " + unattributedErrorCount
+                        + " error(s) could not be attributed to a specific method;"
+                        + " the method counts below do not reflect them.");
             }
 
             int verifierExitCode = process.waitFor();
@@ -298,6 +302,64 @@ public class LaurelDriver implements Driver {
                             failedAssertionsCount.getValue(), skippedCount));
         }
 
+    }
+
+    private static final Pattern DIAGNOSTIC_PATTERN =
+            Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
+
+    /**
+     * Parse one line of Strata's diagnostics section.
+     *
+     * <p>Everything Strata prints after the {@code ==== DIAGNOSTICS ====}
+     * sentinel is a diagnostic, so no non-blank line may be dropped: a line
+     * that does not match the expected {@code path:start-end: message} shape
+     * (for example an empty file path when a source range was lost upstream)
+     * is surfaced as a malformed-diagnostic error at the fallback location
+     * rather than silently swallowed — dropping it would turn a failing
+     * verification into a vacuous "Found 0 errors".
+     *
+     * @return the diagnostic, or {@code null} for a blank line.
+     */
+    static StrataDiagnostic parseDiagnosticLine(String line, FilesMap filesMap, URI malformedFallbackUri) {
+        Matcher matcher = DIAGNOSTIC_PATTERN.matcher(line);
+        if (!matcher.matches()) {
+            if (line.isBlank()) {
+                return null;
+            }
+            var pos = new org.strata.jverify.common.Position(1, 1);
+            return new StrataDiagnostic(malformedFallbackUri, new Range(pos, pos),
+                    "malformed diagnostic from Strata: " + line.strip());
+        }
+        String filePath = matcher.group(1);
+        int startOffset = Integer.parseInt(matcher.group(2));
+        int endOffset = Integer.parseInt(matcher.group(3));
+        String message = matcher.group(4);
+
+        try {
+            // Strata emits `file://` URIs (e.g. file:///abs/Path.java);
+            // parse them as URIs rather than treating the URI string as
+            // a filesystem path, which would miss the filesMap and lose
+            // the source location (reported as 1:1).
+            var uri = filePath.startsWith("file:")
+                    ? URI.create(filePath)
+                    : toDiagnosticUri(filePath);
+
+            var range = new Range(
+                    filesMap.computePositionFromFileOffset(uri, startOffset),
+                    filesMap.computePositionFromFileOffset(uri, endOffset)
+            );
+            return new StrataDiagnostic(uri, range, message);
+        } catch (RuntimeException e) {
+            // A well-shaped line can still fail location resolution: the URI
+            // may parse but match no line map (computePositionFromFileOffset
+            // throws), or not parse at all (URI.create on a file: path with a
+            // space). Degrade to a counted malformed-diagnostic — the same
+            // never-drop guarantee as the regex-mismatch branch — instead of
+            // letting the exception escape runVerifier and crash the run.
+            var pos = new org.strata.jverify.common.Position(1, 1);
+            return new StrataDiagnostic(malformedFallbackUri, new Range(pos, pos),
+                    "malformed diagnostic from Strata (" + e.getMessage() + "): " + line.strip());
+        }
     }
 
     /// Build a URI for a Strata diagnostic's (non-`file:`) source path.
