@@ -1,7 +1,5 @@
 package org.strata.java.bytecode.frontend;
 
-import com.github.javaparser.ast.CompilationUnit;
-
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaFileObject;
@@ -25,27 +23,26 @@ import java.util.stream.Stream;
 
 /**
  * The bytecode-reading half of the frontend: compile Java sources with
- * {@code -g -Xjcov} (so LocalVariableTable, LineNumberTable, and the
- * CharacterRangeTable are present), then reconstruct a structured JavaParser
- * AST per top-level class via the vendored {@link Decompiler}.
+ * {@code -g -Xjcov} (so the LocalVariableTable and CharacterRangeTable the
+ * translation consumes are present), then pool the classfiles per top-level
+ * class for the direct bytecode-to-Laurel translation.
  *
- * <p>Statements in the reconstructed AST carry {@link Decompiler#SPAN}
- * data (line:col ranges from the CharacterRangeTable), which downstream
- * Laurel generation turns into source ranges for diagnostics.
+ * <p>The CharacterRangeTable's statement spans (see {@link
+ * MethodBodyFactory#crtRanges}) become the source ranges downstream Laurel
+ * generation stamps on statements for diagnostics.
  */
 public final class BytecodeFrontend {
 
     private BytecodeFrontend() {
     }
 
-    /** One reconstructed top-level class. */
-    public record DecompiledClass(
+    /** One top-level class's classfiles. */
+    public record ClassSource(
             String internalName,
             ClassModel classModel,
-            CompilationUnit unit,
             /** The SourceFile attribute (e.g. "Foo.java"), or null when absent. */
             String sourceFileName,
-            /** The classfiles of this class's nested classes (folded into {@link #unit}). */
+            /** The classfiles of this class's nested classes. */
             List<ClassModel> nestedModels) {
     }
 
@@ -97,13 +94,11 @@ public final class BytecodeFrontend {
     }
 
     /**
-     * Parse every classfile under {@code classesDir} and reconstruct one
-     * {@link CompilationUnit} per top-level class. Nested classes are folded
-     * into their enclosing class's unit (same pooling scheme as
-     * {@link Decompiler#sweep}).
+     * Parse every classfile under {@code classesDir} and group them per
+     * top-level class (a nested classfile rides with its enclosing class).
      */
-    public static List<DecompiledClass> decompile(Path classesDir) throws IOException {
-        // Parse everything first: building one top-level class needs the
+    public static List<ClassSource> readClasses(Path classesDir) throws IOException {
+        // Parse everything first: classifying one top-level class needs the
         // other classfiles of the same compilation available by internal name.
         Map<String, ClassModel> pool = new LinkedHashMap<>();
         try (Stream<Path> w = Files.walk(classesDir)) {
@@ -119,9 +114,9 @@ public final class BytecodeFrontend {
                     });
         }
 
-        var result = new ArrayList<DecompiledClass>();
+        var result = new ArrayList<ClassSource>();
         for (ClassModel cm : pool.values()) {
-            if (Decompiler.isNestedClass(cm)) {
+            if (ClassfileQueries.isNestedClass(cm)) {
                 continue; // contributes to its enclosing class's unit
             }
             String internalName = cm.thisClass().asInternalName();
@@ -131,11 +126,9 @@ public final class BytecodeFrontend {
             List<ClassModel> nested = pool.values().stream()
                     .filter(n -> n != cm && n.thisClass().asInternalName().startsWith(internalName + "$"))
                     .toList();
-            CompilationUnit unit = Decompiler.build(cm, pool);
-            result.add(new DecompiledClass(
+            result.add(new ClassSource(
                     internalName,
                     cm,
-                    unit,
                     cm.findAttribute(Attributes.sourceFile())
                             .map(a -> a.sourceFile().stringValue())
                             .orElse(null),

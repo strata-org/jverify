@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Full pipeline: source -> javac -g -Xjcov -> decompile -> Laurel -> Strata.
+ * Full pipeline: source -> javac -g -Xjcov -> classfiles -> Laurel -> Strata.
  * The fixtures mirror JFE's AssertFalse / ShouldVerify-class tests, including
  * the expected diagnostic ranges (JFE convention: the whole spec-call
  * expression, semicolon excluded).

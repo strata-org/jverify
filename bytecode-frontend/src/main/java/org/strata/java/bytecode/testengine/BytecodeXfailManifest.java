@@ -17,7 +17,7 @@ import java.util.Map;
  *
  * <p>The verification corpus is owned by StrataJavaFrontEnd (JFE) and shared
  * verbatim; its {@code @JVerifyTest} annotations describe the SOURCE
- * frontend's expected outcomes. This manifest lets StrataJVMFrontEnd override
+ * frontend's expected outcomes. This manifest lets the bytecode frontend override
  * the xfail decision for the BYTECODE frontend without editing any shared
  * fixture, keeping the corpus a single source of truth.
  *
