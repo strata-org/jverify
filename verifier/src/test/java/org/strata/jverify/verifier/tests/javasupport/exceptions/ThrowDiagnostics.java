@@ -14,7 +14,8 @@ import org.strata.jverify.testengine.JVerifyTest;
         continueOnErrors = true,
         exitCode = 0,
         methodsVerified = 4, // fine() + 3 implicit constructors (2 nested + the test class)
-        methodsSkipped = 2,
+        methodsSkipped = 3,
+        methodsInvalid = 0, // also arms the errorCount expectation below
         errorCount = 0
 )
 class ThrowDiagnostics {
@@ -38,6 +39,17 @@ class ThrowDiagnostics {
 //             ^ error: thrown type 'org.strata.jverify.verifier.tests.javasupport.exceptions.ThrowDiagnostics.Boom' is not covered by the declared throws clause ('org.strata.jverify.verifier.tests.javasupport.exceptions.ThrowDiagnostics.AppException')
         if (x < 0) {
             throw new Boom();
+        }
+        return x;
+    }
+
+    /** A thrown STRICT SUPERTYPE of the declared type: values of the wider
+        type do not fit through the narrower declared exit. Only reachable
+        with unchecked exceptions -- javac itself polices checked ones. */
+    static int throwsSupertypeOfDeclared(int x) throws Boom {
+//             ^ error: thrown type 'java.lang.RuntimeException' is not covered by the declared throws clause ('org.strata.jverify.verifier.tests.javasupport.exceptions.ThrowDiagnostics.Boom')
+        if (x < 0) {
+            throw new RuntimeException();
         }
         return x;
     }
