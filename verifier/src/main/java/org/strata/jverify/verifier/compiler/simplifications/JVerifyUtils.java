@@ -1,6 +1,7 @@
 package org.strata.jverify.verifier.compiler.simplifications;
 
 import org.strata.jverify.ContractException;
+import org.strata.jverify.InterpretEntry;
 import org.strata.jverify.JVerify;
 import org.strata.jverify.Pure;
 import org.strata.jverify.Verify;
@@ -145,6 +146,11 @@ public class JVerifyUtils {
         }
         
         return false;
+    }
+
+    /** Whether a method is marked as a concrete-interpretation entry point. */
+    public boolean isInterpretEntry(Symbol.MethodSymbol method) {
+        return method.getAnnotation(InterpretEntry.class) != null;
     }
 
 

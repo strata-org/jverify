@@ -78,4 +78,20 @@ public @interface JVerifyTest {
      * blockers; it is only expected to start passing once every one has cleared.
      */
     Blocker[] blockedBy() default {};
+
+    /**
+     * Run the program in --interpret mode (concretely execute {@link #entry()})
+     * instead of verifying it. See {@code VerifierOptions.interpret}.
+     */
+    boolean interpret() default false;
+    /**
+     * The entry point to execute in {@link #interpret()} mode, in
+     * {@code pkg.Class#method} form. Ignored unless {@code interpret} is true.
+     */
+    String entry() default "";
+    /**
+     * Execution-step budget (fuel) for {@link #interpret()} mode. {@code <= 0}
+     * leaves the interpreter default in place. Ignored unless interpreting.
+     */
+    int fuel() default -1;
 }

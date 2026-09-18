@@ -635,6 +635,15 @@ public class JavaToLaurelCompiler {
                     reporter.reportError(method, "translatorError", e.getMessage());
                     annotationCompiler.markSkipped(currentCompilationUnit, method);
                 }
+            } else if (jverifyUtils.isInterpretEntry(method.sym)) {
+                // @InterpretEntry marks a concrete-interpretation entry point that
+                // the interpreter runs as a Laurel/Core entry procedure. Only static
+                // methods are translated (a non-static method has no runnable entry
+                // procedure and no receiver to execute against), so reject the marker
+                // here with a clear diagnostic instead of silently ignoring it.
+                reporter.reportError(method, "translatorError",
+                        "@InterpretEntry method '" + method.name + "' must be static");
+                annotationCompiler.markSkipped(currentCompilationUnit, method);
             }
             super.visitMethodDef(method);
         }
@@ -770,9 +779,25 @@ public class JavaToLaurelCompiler {
                     ? Optional.empty()
                     : Optional.of(opaqueSpec(ensures, modifies));
 
+            // Carry the producer's @InterpretEntry marker through to Laurel so
+            // the interpreter can find the entry point via metadata. The
+            // interpreter runs the marked method as a Core entry procedure, and
+            // Strata rejects entry procedures that take inputs, so require a
+            // no-argument method and block here with a clear diagnostic rather
+            // than letting the whole compilation unit abort later at
+            // Laurel-to-Core translation.
+            Optional<EntryClause> entry = Optional.empty();
+            if (jverifyUtils.isInterpretEntry(method.sym)) {
+                if (!params.isEmpty()) {
+                    throw new JavaViolationException(
+                            "@InterpretEntry method '" + method.name + "' must take no arguments");
+                }
+                entry = Optional.of(entryClause(toSourceRange(method)));
+            }
+
             Procedure proc = procedure(toSourceRange(method), methodName, params,
-                            retType, /*returnParameters=*/Optional.empty(), requires, 
-                            /*invokeOn=*/Optional.empty(), /*entry=*/Optional.empty(), 
+                            retType, /*returnParameters=*/Optional.empty(), requires,
+                            /*invokeOn=*/Optional.empty(), entry,
                             optSpec, optBody);
             procedures.add(proc);
         }

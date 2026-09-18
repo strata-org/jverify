@@ -31,7 +31,8 @@ class NonZeroExitReportingTest {
                 base.workingDirectory(), base.backendPath(), base.extraClassPathEntries(),
                 base.printSerializedOutputProgram(), base.emitLaurelOnly(), base.showRanges(),
                 base.contractSourcePath(), base.showFilepaths(), base.verifyByDefault(),
-                base.continueOnErrors(), base.positionFilter(), base.verbose(), base.shouldTrackTime());
+                base.continueOnErrors(), base.positionFilter(), base.verbose(), base.shouldTrackTime(),
+                base.interpret(), base.entry(), base.fuel());
         Driver driver = new Driver() {
             @Override public VerifierOptions getVerifierOptions() { return options; }
             @Override public JVerifyResults verifyJavaFiles(List<JavaFileObject> readFiles) { return canned; }

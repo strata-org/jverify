@@ -29,6 +29,7 @@ import java.io.*;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
@@ -47,6 +48,14 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     // build.gradle.kts (`version = "1.0"`), which govern the jar names under
     // build/lib/ that getVerifierOptions() below resolves.
     private static final String PKG_VERSION = "1.0";
+
+    /**
+     * Anchor range for a diagnostic reported against a file other than the one
+     * under test. Such a diagnostic carries its real range inside its annotation
+     * text ({@code path(range) message}), so the range itself is fixed — it only
+     * has to be stable and identical on both the expected and actual side.
+     */
+    private static final Range CROSS_FILE_RANGE = new Range(new Position(1, 1), new Position(1, 2));
 
     @Override
     public String getId() {
@@ -152,8 +161,40 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      */
     public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
-        List<AnnotatedRange> ranges = parsedMarkup.ranges();
+        List<AnnotatedRange> ranges = new ArrayList<>(parsedMarkup.ranges());
+        ranges.addAll(additionalFileRanges(markedSourceFile, annotation));
         verifyFile(markedSourceFile, annotation, ranges);
+    }
+
+    /**
+     * Expected diagnostics declared by markup inside {@code additionalFiles}.
+     *
+     * <p>Carets in an additional file annotate ranges in that file, so they are
+     * rewritten into the {@code path(range) message} form that
+     * {@link #diagnosticAsAnnotatedRange} produces for a diagnostic outside the
+     * file under test. This lets a multi-file test annotate each failure in the
+     * file that causes it, instead of restating them all in the marked file.
+     */
+    private static List<AnnotatedRange> additionalFileRanges(SourceFile markedSourceFile, JVerifyTest annotation)
+            throws IOException {
+        var testFile = markedSourceFile.toUri();
+        var parent = Path.of(testFile).getParent();
+        List<AnnotatedRange> ranges = new ArrayList<>();
+        for (String additionalFile : annotation.additionalFiles()) {
+            var path = parent.resolve(additionalFile).normalize();
+            var uri = path.toUri();
+            var parsed = TestMarkup.getPositionsAndAnnotatedRanges(Files.readString(path));
+            if (parsed.ranges().isEmpty()) {
+                continue;
+            }
+            var relative = testFile.resolve(".").relativize(uri).getPath();
+            for (AnnotatedRange range : parsed.ranges()) {
+                ranges.add(new AnnotatedRange(
+                        relative + "(" + range.range() + ") " + range.annotation(),
+                        CROSS_FILE_RANGE));
+            }
+        }
+        return ranges;
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
@@ -327,6 +368,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             sourceUri = uri;
         } else if (source instanceof SourceFile javaFileObject) {
             sourceUri = javaFileObject.toUri();
+        } else if (diagnostic instanceof DiagnosticWithRange withRange) {
+            // Diagnostics parsed from Strata's output carry no JavaFileObject, so
+            // getSource() is null; their file is on the diagnostic itself. Without
+            // this, every such diagnostic looked like it came from the file under
+            // test and one in an additionalFiles entry could not be annotated there.
+            sourceUri = withRange.getUri();
         }
         var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
         var endPos = diagnostic instanceof DiagnosticWithRange diagnosticWithRange
@@ -336,14 +383,13 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         if (sourceUri == null || sourceUri.equals(testFile.normalize())) {
             return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
         } else {
-            Range zeroRange = new Range(new Position(1, 1), new Position(1, 2));
             String path;
             if (sourceUri.getScheme().equals("string")) {
                 path = sourceUri.getPath();
             } else {
                 path = testFile.resolve(".").relativize(sourceUri).getPath();
             }
-            return new AnnotatedRange(path + "(" + range + ") " + Driver.formatMessage(diagnostic), zeroRange);
+            return new AnnotatedRange(path + "(" + range + ") " + Driver.formatMessage(diagnostic), CROSS_FILE_RANGE);
         }
     }
 
@@ -368,7 +414,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 true,
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
-                positionFilter, true, false
+                positionFilter, true, false,
+                annotation.interpret(),
+                annotation.entry().isEmpty() ? null : annotation.entry(),
+                annotation.fuel() > 0 ? annotation.fuel() : null
         );
     }
 
@@ -405,7 +454,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                                         boolean expectedToFail, Blocker[] blockedBy) {
         return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors,
                 exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1,
-                expectedToFail, blockedBy);
+                expectedToFail, blockedBy, false, "", -1);
     }
 
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, JVerifyResults results) throws IOException {

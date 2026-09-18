@@ -148,9 +148,28 @@ public class LaurelDriver implements Driver {
             baseCommand = List.of("strata");
         }
         var command = new ArrayList<String>(baseCommand);
-        command.add("laurelAnalyzeBinary");
-        command.add("--solver");
-        command.add("z3");
+        if (verifierOptions.interpret()) {
+            // Interpret mode: concretely execute the program instead of
+            // generating verification conditions. The Strata command shares
+            // the same `==== DIAGNOSTICS ====` / `file:start-stop: msg` output
+            // format as `laurelAnalyzeBinary`, so parseStrataOutput below is
+            // reused unchanged.
+            command.add("laurelInterpretBinary");
+            if (verifierOptions.entry() != null) {
+                // Map the user-facing `pkg.Class#method` form to the Laurel
+                // procedure name (`pkg.Class_method`).
+                command.add("--entry");
+                command.add(verifierOptions.entry().replace('#', '_'));
+            }
+            if (verifierOptions.fuel() != null) {
+                command.add("--fuel");
+                command.add(Integer.toString(verifierOptions.fuel()));
+            }
+        } else {
+            command.add("laurelAnalyzeBinary");
+            command.add("--solver");
+            command.add("z3");
+        }
         var processBuilder = new ProcessBuilder(command);
         if (verifierOptions.backendPath() != null) {
             // The `strata` executable lives in the StrataCLI subpackage, so `lake` must be invoked from there.
@@ -453,6 +472,7 @@ public class LaurelDriver implements Driver {
             this.severity = severity;
         }
 
+        @Override
         public URI getUri() {
             return uri;
         }
