@@ -21,19 +21,12 @@ import java.util.Map;
  * the xfail decision for the BYTECODE frontend without editing any shared
  * fixture, keeping the corpus a single source of truth.
  *
- * <p>Three kinds of entry:
+ * <p>Two kinds of entry:
  * <ul>
  *   <li>{@code XFAIL fqcn BLOCKER reason} -- run the test but invert its
  *       outcome (a known bytecode-frontend gap the shared annotation does not
  *       flag), exactly as {@code @JVerifyTest(expectedToFail = true)} would.
  *       A pass trips the XPASS wire, demanding the entry be removed.
- *   <li>{@code XFAIL_ENV fqcn BLOCKER reason} -- like {@code XFAIL}, but the
- *       divergence is Strata-backend behavior that is not stable across build
- *       environments (e.g. the local desktop and the build fleet run different
- *       solver toolchains and disagree on this fixture's verdict). A local
- *       failure is still inverted to a skip, but a pass is ACCEPTED rather than
- *       tripping the XPASS wire -- because on another environment the same
- *       fixture legitimately passes, and neither outcome should redden CI.
  *   <li>{@code RUN fqcn reason} -- run the test normally even though the
  *       shared annotation marks it {@code expectedToFail} (the source gap it
  *       records does not apply to the bytecode pipeline).
@@ -45,13 +38,8 @@ final class BytecodeXfailManifest {
 
     static final String RESOURCE = "/org/strata/java/bytecode/testengine/bytecode-xfails.txt";
 
-    /**
-     * A forced-xfail entry: the blocker, human-readable reason, and whether the
-     * divergence is environment-dependent Strata-backend behavior. When
-     * {@code envTolerant} is true, a run that unexpectedly PASSES is accepted
-     * instead of tripping the XPASS wire (see the class javadoc for why).
-     */
-    record Xfail(Blocker blocker, String reason, boolean envTolerant) {
+    /** A forced-xfail entry: the blocker and human-readable reason. */
+    record Xfail(Blocker blocker, String reason) {
     }
 
     private final Map<String, Xfail> forcedXfail;
@@ -96,11 +84,10 @@ final class BytecodeXfailManifest {
                     }
                     String[] parts = trimmed.split("\\s+");
                     switch (parts[0]) {
-                        case "XFAIL", "XFAIL_ENV" -> {
-                            boolean envTolerant = parts[0].equals("XFAIL_ENV");
+                        case "XFAIL" -> {
                             if (parts.length < 3) {
                                 throw new IllegalStateException(malformed(lineNo, line,
-                                        parts[0] + " needs: " + parts[0] + " <fqcn> <BLOCKER> <reason>"));
+                                        "XFAIL needs: XFAIL <fqcn> <BLOCKER> <reason>"));
                             }
                             String fqcn = parts[1];
                             Blocker blocker;
@@ -115,7 +102,7 @@ final class BytecodeXfailManifest {
                                 throw new IllegalStateException(malformed(lineNo, line,
                                         "duplicate manifest entry for " + fqcn));
                             }
-                            xfail.put(fqcn, new Xfail(blocker, reason, envTolerant));
+                            xfail.put(fqcn, new Xfail(blocker, reason));
                         }
                         case "RUN" -> {
                             if (parts.length < 2) {
