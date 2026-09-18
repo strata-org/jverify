@@ -5,12 +5,13 @@ import org.strata.jverify.ContractException;
 import org.strata.jverify.Pure;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import java.math.BigInteger;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC, Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 2)
 public class LibraryContractGhostFieldErrors {
 
     @Contract(BigInteger.class)

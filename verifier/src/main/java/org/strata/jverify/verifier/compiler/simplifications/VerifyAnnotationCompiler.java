@@ -240,6 +240,50 @@ public class VerifyAnnotationCompiler extends TreeScanner {
     }
 
     /**
+     * Whether the method was recorded {@code Skipped} (e.g. via
+     * {@code @Verify(false)}). Such methods are opted out of verification and their
+     * body is already stripped, so JavaToLaurelCompiler must not emit a procedure
+     * shell for one -- that would hit Strata limits such as constrained return types
+     * on bodiless functions.
+     *
+     * False with no recorded entry (synthetic / no-body methods), matching
+     * {@link #markSkipped}'s no-entry semantics.
+     */
+    public boolean isSkipped(JCTree.JCCompilationUnit compilationUnit, JCTree.JCMethodDecl methodDecl) {
+        var uriStatuses = methodStatusPerUri.get(compilationUnit.getSourceFile().toUri());
+        if (uriStatuses == null) {
+            return false;
+        }
+        return uriStatuses.streamNodes()
+                .map(node -> node.getValue())
+                .filter(status -> status.getMethodTree() == methodDecl)
+                .findFirst()
+                .map(status -> status.getVerificationStatus()
+                        == JavaMethodVerificationStatus.VerificationStatus.Skipped)
+                .orElse(false);
+    }
+
+    /**
+     * Symbols of every method currently recorded {@code Skipped}, across all
+     * compilation units. Snapshot before translation for exactly the annotation-driven
+     * opt-outs ({@code @Verify(false)}, including class/package-level via the annotation
+     * stack); demotions during translation won't be in it.
+     */
+    public java.util.Set<com.sun.tools.javac.code.Symbol> skippedMethodSymbols() {
+        var skipped = new java.util.HashSet<com.sun.tools.javac.code.Symbol>();
+        for (var uriStatuses : methodStatusPerUri.values()) {
+            uriStatuses.streamNodes()
+                    .map(node -> node.getValue())
+                    .filter(status -> status.getVerificationStatus()
+                            == JavaMethodVerificationStatus.VerificationStatus.Skipped)
+                    .map(status -> status.getMethodTree().sym)
+                    .filter(java.util.Objects::nonNull)
+                    .forEach(skipped::add);
+        }
+        return skipped;
+    }
+
+    /**
      * Demote a method's entry from Verified to Skipped. Called by
      * JavaToLaurelCompiler when per-method translation throws
      * JavaViolationException, so the driver doesn't report the method as

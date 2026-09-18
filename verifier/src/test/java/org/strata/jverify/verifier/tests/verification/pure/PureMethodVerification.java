@@ -5,10 +5,11 @@ import org.strata.jverify.ContractException;
 import org.strata.jverify.Pure;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 8, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS, Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 4, methodsVerified = 8, errorCount = 1)
 public class PureMethodVerification {
 
     @Verify(false)

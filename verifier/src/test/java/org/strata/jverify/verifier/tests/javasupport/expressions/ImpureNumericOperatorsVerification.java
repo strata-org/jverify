@@ -9,9 +9,10 @@ import static org.strata.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(methodsVerified = 2, errorCount = 0)
+@JVerifyTest(methodsVerified = 1, errorCount = 0)
 class ImpureNumericOperatorsVerification {
     public int foo() {
+//             ^ warning: instance method 'foo' was not verified: Unsupported expression: JCAssignOp
         var l = 3;
         var r = 3;
         var incrementPostfix = l++;

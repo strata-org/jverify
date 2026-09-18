@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport.nestedClasses;
 
 import org.strata.jverify.Nullable;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 4, errorCount = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS}, exitCode = 4, methodsVerified = 4, errorCount = 2)
 public class NestedInstanceClass {
     int x;
     

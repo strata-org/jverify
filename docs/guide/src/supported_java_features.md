@@ -14,6 +14,12 @@ JVerify intends to support the full Java language, but is actively under develop
 - **Quantifiers:** `forall()`, `exists()`.
 - **Pure static methods** via `@Pure`.
 - **Static method calls.**
+- **Exceptions:** `throws` clauses (unchecked types included; multi-`throws`
+  joins to the closest common ancestor), `throw`, `try`/`catch`/`finally`
+  (multi-catch included), and exceptional behavior cases via
+  `throwsOn(...).postcondition(...).modifies(...)` — see the Exceptions
+  chapter. Not yet: try-with-resources, exceptions carrying constructor
+  data.
 
 ## Not yet supported
 
@@ -29,7 +35,7 @@ Major gaps being actively worked on or planned:
 - `old()` in postconditions
 - Inheritance, interfaces, abstract classes
 - Lambdas (beyond contract lambdas)
-- `break`, `continue`, `switch` statements/expressions, `throw`
+- `break`, `continue`, `switch` statements/expressions
 - Bitwise and shift operators
 - Compound assignment (`+=`), increment/decrement (`++`, `--`)
 - Java standard library support (collections, `BigInteger`, streams, optionals)

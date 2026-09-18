@@ -4,6 +4,7 @@ package org.strata.jverify.verifier.tests.jcl;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import java.math.BigInteger;
 
@@ -15,7 +16,7 @@ import static org.strata.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, useBuiltinContracts = true, methodsVerified = 4, errorCount = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_OTHER}, exitCode = 4, useBuiltinContracts = true, methodsVerified = 4, errorCount = 2)
 class BigIntegers {
     static void testConstructors() {
         BigInteger bi = new BigInteger("3");

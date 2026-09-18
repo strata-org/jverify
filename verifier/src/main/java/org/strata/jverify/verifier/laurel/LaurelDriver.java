@@ -4,7 +4,6 @@ import com.amazon.ion.*;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
 import org.strata.jverify.common.Range;
-import org.strata.jverify.laurel.IonSerializer;
 import org.strata.jverify.verifier.*;
 import org.strata.jverify.verifier.compiler.Reporter;
 import org.strata.jverify.verifier.compiler.generator.laurel.JavaToLaurelCompiler;
@@ -62,67 +61,108 @@ public class LaurelDriver implements Driver {
             }
         }
         if (analysisResult == null || (hasErrors && !verifierOptions.continueOnErrors())) {
-            return new JVerifyResults(diagnostics, CommandLine.ExitCode.USAGE, null);
+            return new JVerifyResults.NoVerdict(diagnostics, CommandLine.ExitCode.USAGE);
         } else {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
                 var ion = IonSystemBuilder.standard().build();
-                IonList files = ion.newEmptyList();
 
+                // Combine all file programs into a single Program
+                var allProcedures = new ArrayList<org.strata.jverify.laurel.Procedure>();
+                var allFields = new ArrayList<org.strata.jverify.laurel.Field>();
+                var allTypes = new ArrayList<org.strata.jverify.laurel.TypeDefinition>();
+                var allConstants = new ArrayList<org.strata.jverify.laurel.Constant>();
                 for (LaurelFile file : analysisResult.files()) {
-                    IonStruct strataFile = ion.newEmptyStruct();
-
-                    String filePath = Paths.get("").toUri().relativize(file.uri()).toString();
-                    strataFile.put("filePath", ion.newString(filePath));
-
-                    // Create the program Ion structure
-                    IonList programAsIon = ion.newEmptyList();
-                    IonSexp header = ion.newEmptySexp();
-                    header.add(ion.newSymbol("program"));
-                    header.add(ion.newString("Laurel"));
-                    programAsIon.add(header);
-                    var serializer = new IonSerializer(ion);
-                    for (var command : file.commands()) {
-                        programAsIon.add(serializer.serializeCommand(command));
-                    }
-                    strataFile.put("program", programAsIon);
-
-                    files.add(strataFile);
+                    var prog = file.program();
+                    allProcedures.addAll(prog.staticProcedures());
+                    allFields.addAll(prog.staticFields());
+                    allTypes.addAll(prog.types());
+                    allConstants.addAll(prog.constants());
                 }
+                var combined = new org.strata.jverify.laurel.Program(
+                        allProcedures, allFields, allTypes, allConstants);
+                var programIon = combined.toIon(ion);
 
                 if (verifierOptions.printSerializedOutputProgram() != null) {
                     try {
-                        Files.createDirectories(verifierOptions.printSerializedOutputProgram().getParent());
-                        Files.writeString(verifierOptions.printSerializedOutputProgram(), files.toPrettyString());
+                        var outPath = verifierOptions.printSerializedOutputProgram();
+                        if (outPath.getParent() != null) {
+                            Files.createDirectories(outPath.getParent());
+                        }
+                        // Emit *binary* Ion so the serialized Laurel program can be
+                        // consumed directly by Strata's binary Ion reader (e.g. the
+                        // `laurelIonToHorn` CHC CLI), matching the binary stream used
+                        // on the in-process verification path below.
+                        try (var out = Files.newOutputStream(outPath);
+                             var writer = IonBinaryWriterBuilder.standard().build(out)) {
+                            programIon.writeTo(writer);
+                        }
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }
-                return files;
+                return programIon;
             });
 
-            // --emit-laurel separates compilation (Java -> Laurel IR) from
-            // verification (Laurel IR -> SMT): once the serialized Laurel
-            // program has been written, stop here without invoking the
-            // backend. Verification can then be run separately on the
-            // emitted Ion.
             if (verifierOptions.emitLaurelOnly()) {
-                return new JVerifyResults(diagnostics, CommandLine.ExitCode.OK, null);
+                return new JVerifyResults.NoVerdict(diagnostics, CommandLine.ExitCode.OK);
             }
 
             var results = runVerifier(analysisResult.filesMap(), serializedProgram);
-            var allDiagnostics = new ArrayList<>(diagnostics);
+            var allDiagnostics = new ArrayList<Diagnostic<?>>(diagnostics);
             allDiagnostics.addAll(results.diagnostics());
-            return new JVerifyResults(allDiagnostics, results.exitCode(), results.verificationResults());
+            // Preserve the variant while prepending the compile-phase diagnostics.
+            return switch (results) {
+                case JVerifyResults.Ran r ->
+                        new JVerifyResults.Ran(allDiagnostics, r.exitCode(), r.verificationResults());
+                case JVerifyResults.DidNotRun d ->
+                        new JVerifyResults.DidNotRun(allDiagnostics, d.exitCode());
+                case JVerifyResults.NoVerdict n ->
+                        new JVerifyResults.NoVerdict(allDiagnostics, n.exitCode());
+            };
         }
     }
 
     public JVerifyResults runVerifier(FilesMap filesMap, IonValue serializedProgram) {
-        var processBuilder = new ProcessBuilder(
-                "lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"
-        );
-        // The `strata` executable lives in the StrataCLI subpackage, so `lake` must be invoked from there.
-        processBuilder.directory(verifierOptions.backendPath().resolve("StrataCLI").toFile());
+        final List<String> baseCommand;
+        if (verifierOptions.backendPath() != null) {
+            // Explicit --strata path: invoke via `lake exe` from the StrataCLI subdir.
+            baseCommand = List.of("lake", "exe", "-q", "strata");
+        } else {
+            // Rely on `strata` being on PATH. Under Brazil this is achieved
+            // by declaring StrataCLI as a build-tool: its `runtime/bin/` is
+            // prepended to PATH by `brazil-build`, and that PATH is inherited
+            // by Gradle and by each Test task's forked JVM.
+            baseCommand = List.of("strata");
+        }
+        var command = new ArrayList<String>(baseCommand);
+        if (verifierOptions.interpret()) {
+            // Interpret mode: concretely execute the program instead of
+            // generating verification conditions. The Strata command shares
+            // the same `==== DIAGNOSTICS ====` / `file:start-stop: msg` output
+            // format as `laurelAnalyzeBinary`, so parseStrataOutput below is
+            // reused unchanged.
+            command.add("laurelInterpretBinary");
+            if (verifierOptions.entry() != null) {
+                // Map the user-facing `pkg.Class#method` form to the Laurel
+                // procedure name (`pkg.Class_method`).
+                command.add("--entry");
+                command.add(verifierOptions.entry().replace('#', '_'));
+            }
+            if (verifierOptions.fuel() != null) {
+                command.add("--fuel");
+                command.add(Integer.toString(verifierOptions.fuel()));
+            }
+        } else {
+            command.add("laurelAnalyzeBinary");
+            command.add("--solver");
+            command.add("z3");
+        }
+        var processBuilder = new ProcessBuilder(command);
+        if (verifierOptions.backendPath() != null) {
+            // The `strata` executable lives in the StrataCLI subpackage, so `lake` must be invoked from there.
+            processBuilder.directory(verifierOptions.backendPath().resolve("StrataCLI").toFile());
+        }
         return verifierOptions.time("Running Strata", () -> {
             try (var process = new AutoClosingProcessWrapper(processBuilder.redirectErrorStream(true).start()))
             {
@@ -133,9 +173,13 @@ public class LaurelDriver implements Driver {
                 }
                 return parseStrataOutput(filesMap, verifierOptions, process.getProcess());
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println("Failed to use Strata at: " + verifierOptions.backendPath() +
+                String location = verifierOptions.backendPath() != null
+                        ? verifierOptions.backendPath().toString()
+                        : "strata on PATH (pass --strata <path> or set JVERIFY_STRATA)";
+                verifierOptions.outWriter().println("Failed to use Strata at: " + location +
                         "\nError message: " + e.getMessage());
-                return new JVerifyResults(new ArrayList<>(), -1, null);
+                // Backend failed to launch: not a verification outcome.
+                return new JVerifyResults.DidNotRun(new ArrayList<>(), -1);
             }
         });
     }
@@ -172,11 +216,11 @@ public class LaurelDriver implements Driver {
             int verifiedCount = 0;
             int skippedCount = 0;
             int failedCount = 0;
+            int unattributedErrorCount = 0;
 
             String line;
             boolean inDiagnosticsSection = false;
             StringBuilder preDiagnosticOutput = new StringBuilder();
-            Pattern diagnosticPattern = Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
 
             while ((line = strataOutput.readLine()) != null) {
                 if (options.verbose()) {
@@ -191,38 +235,28 @@ public class LaurelDriver implements Driver {
                 }
 
                 if (inDiagnosticsSection) {
-                    Matcher matcher = diagnosticPattern.matcher(line);
-                    if (matcher.matches()) {
-                        String filePath = matcher.group(1);
-                        int startOffset = Integer.parseInt(matcher.group(2));
-                        int endOffset = Integer.parseInt(matcher.group(3));
-                        String message = matcher.group(4);
+                    // A synthetic URI that never appears in methodStatuses: a
+                    // malformed diagnostic carries no real location, so it must
+                    // not be attributed to any method (its position (1,1)
+                    // would otherwise spuriously fail whatever method spans
+                    // line 1 of a real file, and suppress the unattributed-
+                    // errors note below).
+                    var fallbackUri = Paths.get("strata-unattributed").toUri();
+                    var diagnostic = parseDiagnosticLine(line, filesMap, fallbackUri);
+                    if (diagnostic == null) {
+                        continue;
+                    }
+                    diagnostics.add(diagnostic);
+                    failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
 
-                        // Strata emits `file://` URIs (e.g. file:///abs/Path.java);
-                        // parse them as URIs rather than treating the URI string as
-                        // a filesystem path, which would miss the filesMap and lose
-                        // the source location (reported as 1:1).
-                        var uri = filePath.startsWith("file:")
-                                ? URI.create(filePath)
-                                : toDiagnosticUri(filePath);
-
-                        var range = new Range(
-                                filesMap.computePositionFromFileOffset(uri, startOffset),
-                                filesMap.computePositionFromFileOffset(uri, endOffset)
-                        );
-
-                        var diagnostic = new StrataDiagnostic(uri, range, message);
-                        diagnostics.add(diagnostic);
-
-                        failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
-
-                        var uriMethods = methodStatuses.get(uri);
-                        if (uriMethods != null) {
-                            var failedJavaMethod = uriMethods.findAtPoint(diagnostic.range.start().line());
-                            if (failedJavaMethod != null) {
-                                failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
-                            }
-                        }
+                    var uriMethods = methodStatuses.get(diagnostic.getUri());
+                    var failedJavaMethod = uriMethods == null
+                            ? null
+                            : uriMethods.findAtPoint(diagnostic.range.start().line());
+                    if (failedJavaMethod != null) {
+                        failedJavaMethod.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Failed);
+                    } else {
+                        unattributedErrorCount++;
                     }
                 }
             }
@@ -240,36 +274,139 @@ public class LaurelDriver implements Driver {
                 }
             }
 
-            int verifierExitCode = process.waitFor();
-            if (verifierExitCode != 0 && diagnostics.isEmpty()) {
-                options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
-                // Soundness: a non-zero Strata exit with no parsed
-                // diagnostics means verification aborted (e.g. an internal
-                // Strata exception such as a failed termination check).
-                // Surface it as an error so the result can never be read as
-                // a vacuous "0 errors / verified" -- the same invariant the
-                // Laurel-to-Core soundness net enforces on the Strata side.
-                var abortUri = methodStatuses.keySet().stream().findFirst()
-                        .orElse(Paths.get("strata").toUri());
-                var abortPos = new org.strata.jverify.common.Position(1, 1);
-                diagnostics.add(new StrataDiagnostic(abortUri,
-                        new Range(abortPos, abortPos),
-                        "verification aborted: Strata exited with code "
-                        + verifierExitCode + " without reporting diagnostics: "
-                        + preDiagnosticOutput.toString().strip()));
-                failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
-                // The run aborted before producing per-method results, so
-                // the optimistic "Verified" defaults are not trustworthy:
-                // do not report any method as verified or skipped.
-                verifiedCount = 0;
-                skippedCount = 0;
+            // Honesty in the summary: an error that could not be attributed
+            // to any method (no range, or a range outside every method) leaves
+            // the per-method counts untouched. Say so whenever at least one
+            // such error exists — including mixed runs where other errors were
+            // attributed — rather than reporting method counts that silently
+            // omit some errors. Counted per diagnostic at attribution time
+            // (not failedAssertions - failedMethods, which over-reports when
+            // two errors land in the same method).
+            if (unattributedErrorCount > 0) {
+                options.outWriter().println("Note: " + unattributedErrorCount
+                        + " error(s) could not be attributed to a specific method;"
+                        + " the method counts below do not reflect them.");
             }
-            var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
-            return new JVerifyResults(diagnostics, exitCode,
-                    new VerificationResults(verifiedCount, failedCount, 
+
+            int verifierExitCode = process.waitFor();
+            if (verifierExitCode != 0) {
+                options.outWriter().println("Strata exited with code " + verifierExitCode + ":\n" + preDiagnosticOutput);
+            }
+            var abortUri = methodStatuses.keySet().stream().findFirst()
+                    .orElse(Paths.get("strata").toUri());
+            return classifyRun(verifierExitCode, diagnostics,
+                    preDiagnosticOutput.toString(), abortUri,
+                    new VerificationResults(verifiedCount, failedCount,
                             failedAssertionsCount.getValue(), skippedCount));
         }
 
+    }
+
+    /**
+     * Classify a finished backend run into its {@link JVerifyResults} variant.
+     *
+     * <p>Any non-zero exit is abnormal death: laurelAnalyzeBinary exits 0 on
+     * every completed verification (pass or fail) -- exit 4 is synthesized here
+     * from parsed diagnostics -- so a non-zero process exit means Strata
+     * crashed (Lean panic / kill / OOM), never a normal "found failures" run.
+     * This is a cross-package invariant of StrataCLI's {@code
+     * laurelAnalyzeBinaryCommand} (in StrataMainLib.lean): that callback prints
+     * the diagnostics block and returns without an {@code IO.Process.exit}, so
+     * "found failures" never becomes a non-zero exit on this path (unlike
+     * laurelInterpretCommand, which does exit with failuresFound). If that
+     * callback is ever changed to exit non-zero on failures, every xfail test
+     * that reaches a verdict would start throwing here -- so it must not.
+     * It is classified {@link JVerifyResults.DidNotRun} regardless of whether
+     * some diagnostics were printed before the crash; otherwise a crash
+     * mid-print returns a partial Ran verdict that an xfail test swallows as an
+     * "expected" AssertionError (a false green). The abort diagnostic is only
+     * synthesized when nothing was parsed (keeps the #447 backstop reporting
+     * for the empty case); a crash after partial output is already surfaced
+     * loud via the DidNotRun return.
+     *
+     * <p>Extracted (and package-visible) so this classification -- the
+     * soundness core of the sealed-results tripwire -- is pinned by unit tests
+     * (LaurelDriverClassifyTest); a refactor that regresses it must fail there.
+     */
+    static JVerifyResults classifyRun(int verifierExitCode,
+                                      java.util.List<Diagnostic<?>> diagnostics,
+                                      String preDiagnosticOutput,
+                                      java.net.URI abortUri,
+                                      VerificationResults verdict) {
+        boolean aborted = verifierExitCode != 0;
+        // Copy: a classifier should not mutate its argument.
+        diagnostics = new java.util.ArrayList<>(diagnostics);
+        if (aborted && diagnostics.isEmpty()) {
+            var abortPos = new org.strata.jverify.common.Position(1, 1);
+            diagnostics.add(new StrataDiagnostic(abortUri,
+                    new Range(abortPos, abortPos),
+                    "verification aborted: Strata exited with code "
+                    + verifierExitCode + " without reporting diagnostics: "
+                    + preDiagnosticOutput.strip()));
+        }
+        var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
+        if (aborted) {
+            return new JVerifyResults.DidNotRun(diagnostics, exitCode);
+        }
+        return new JVerifyResults.Ran(diagnostics, exitCode, verdict);
+    }
+
+    private static final Pattern DIAGNOSTIC_PATTERN =
+            Pattern.compile("^(.+?):(\\d+)-(\\d+): (.+)$");
+
+    /**
+     * Parse one line of Strata's diagnostics section.
+     *
+     * <p>Everything Strata prints after the {@code ==== DIAGNOSTICS ====}
+     * sentinel is a diagnostic, so no non-blank line may be dropped: a line
+     * that does not match the expected {@code path:start-end: message} shape
+     * (for example an empty file path when a source range was lost upstream)
+     * is surfaced as a malformed-diagnostic error at the fallback location
+     * rather than silently swallowed — dropping it would turn a failing
+     * verification into a vacuous "Found 0 errors".
+     *
+     * @return the diagnostic, or {@code null} for a blank line.
+     */
+    static StrataDiagnostic parseDiagnosticLine(String line, FilesMap filesMap, URI malformedFallbackUri) {
+        Matcher matcher = DIAGNOSTIC_PATTERN.matcher(line);
+        if (!matcher.matches()) {
+            if (line.isBlank()) {
+                return null;
+            }
+            var pos = new org.strata.jverify.common.Position(1, 1);
+            return new StrataDiagnostic(malformedFallbackUri, new Range(pos, pos),
+                    "malformed diagnostic from Strata: " + line.strip());
+        }
+        String filePath = matcher.group(1);
+        int startOffset = Integer.parseInt(matcher.group(2));
+        int endOffset = Integer.parseInt(matcher.group(3));
+        String message = matcher.group(4);
+
+        try {
+            // Strata emits `file://` URIs (e.g. file:///abs/Path.java);
+            // parse them as URIs rather than treating the URI string as
+            // a filesystem path, which would miss the filesMap and lose
+            // the source location (reported as 1:1).
+            var uri = filePath.startsWith("file:")
+                    ? URI.create(filePath)
+                    : toDiagnosticUri(filePath);
+
+            var range = new Range(
+                    filesMap.computePositionFromFileOffset(uri, startOffset),
+                    filesMap.computePositionFromFileOffset(uri, endOffset)
+            );
+            return new StrataDiagnostic(uri, range, message);
+        } catch (RuntimeException e) {
+            // A well-shaped line can still fail location resolution: the URI
+            // may parse but match no line map (computePositionFromFileOffset
+            // throws), or not parse at all (URI.create on a file: path with a
+            // space). Degrade to a counted malformed-diagnostic — the same
+            // never-drop guarantee as the regex-mismatch branch — instead of
+            // letting the exception escape runVerifier and crash the run.
+            var pos = new org.strata.jverify.common.Position(1, 1);
+            return new StrataDiagnostic(malformedFallbackUri, new Range(pos, pos),
+                    "malformed diagnostic from Strata (" + e.getMessage() + "): " + line.strip());
+        }
     }
 
     /// Build a URI for a Strata diagnostic's (non-`file:`) source path.
@@ -323,6 +460,7 @@ public class LaurelDriver implements Driver {
             this.severity = severity;
         }
 
+        @Override
         public URI getUri() {
             return uri;
         }

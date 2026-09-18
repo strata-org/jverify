@@ -2,6 +2,7 @@ package org.strata.jverify.verifier.tests.verification.externalcontracts;
 
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -9,7 +10,7 @@ import java.util.stream.Stream;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 6, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 6, errorCount = 1)
 public class LibraryContractGhostFieldVerification {
     static void test(BigInteger v) {
         precondition(DummyBigIntegerContract.convert(v).value == 1);

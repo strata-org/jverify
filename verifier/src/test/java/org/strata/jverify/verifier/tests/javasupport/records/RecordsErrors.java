@@ -4,8 +4,9 @@ import org.strata.jverify.Contract;
 import org.strata.jverify.Impure;
 import org.strata.jverify.Nullable;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC}, exitCode = 2)
 @SuppressWarnings({"RedundantRecordConstructor", "unused"})
 class RecordsErrors {
     record ExplicitConstructors(int i, boolean b) {

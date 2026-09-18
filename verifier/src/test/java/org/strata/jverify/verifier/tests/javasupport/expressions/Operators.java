@@ -1,6 +1,7 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
@@ -14,7 +15,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 19, errorCount = 13)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 19, errorCount = 13)
 class Operators {
     static void Plus() {
         int x = 3;

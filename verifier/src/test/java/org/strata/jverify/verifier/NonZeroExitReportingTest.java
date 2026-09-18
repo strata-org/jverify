@@ -31,7 +31,8 @@ class NonZeroExitReportingTest {
                 base.workingDirectory(), base.backendPath(), base.extraClassPathEntries(),
                 base.printSerializedOutputProgram(), base.emitLaurelOnly(), base.showRanges(),
                 base.contractSourcePath(), base.showFilepaths(), base.verifyByDefault(),
-                base.continueOnErrors(), base.positionFilter(), base.verbose(), base.shouldTrackTime());
+                base.continueOnErrors(), base.positionFilter(), base.verbose(), base.shouldTrackTime(),
+                base.interpret(), base.entry(), base.fuel());
         Driver driver = new Driver() {
             @Override public VerifierOptions getVerifierOptions() { return options; }
             @Override public JVerifyResults verifyJavaFiles(List<JavaFileObject> readFiles) { return canned; }
@@ -45,13 +46,28 @@ class NonZeroExitReportingTest {
 
     @Test
     void nonZeroExitWithNoDiagnosticsReportsAtLeastOneError() throws Exception {
-        assertTrue(reportedErrorCount(new JVerifyResults(List.of(), -1, null)) >= 1,
+        assertTrue(reportedErrorCount(new JVerifyResults.DidNotRun(List.of(), -1)) >= 1,
                 "a non-zero exit with no diagnostics must report at least one error, not a vacuous 0");
     }
 
     @Test
     void zeroExitWithNoErrorsStillReportsZero() throws Exception {
-        assertEquals(0, reportedErrorCount(new JVerifyResults(List.of(), 0,
+        assertEquals(0, reportedErrorCount(new JVerifyResults.Ran(List.of(), 0,
                 new VerificationResults(3, 0, 0, 0))));
+    }
+    @Test
+    void ranAndDidNotRunAreDistinctVariants() {
+        // The infra-failure signal the test engine trips on is the variant type,
+        // not a flag: a legitimate non-zero verification exit (e.g. 4) is Ran,
+        // while a backend that never ran is DidNotRun. Reading a verdict off a
+        // non-Ran result is a compile error, so the false-green class is closed
+        // at the type level.
+        JVerifyResults ranButFailed = new JVerifyResults.Ran(List.of(), 4,
+                new VerificationResults(0, 1, 1, 0));
+        JVerifyResults didNotRun = new JVerifyResults.DidNotRun(List.of(), 1);
+        org.junit.jupiter.api.Assertions.assertFalse(ranButFailed instanceof JVerifyResults.DidNotRun,
+                "a real non-zero verification result must be Ran, not DidNotRun");
+        org.junit.jupiter.api.Assertions.assertTrue(didNotRun instanceof JVerifyResults.DidNotRun,
+                "a backend abort/launch-failure must be DidNotRun");
     }
 }

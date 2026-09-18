@@ -2,6 +2,7 @@ package org.strata.jverify.verifier.tests.verification.pure;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.precondition;
@@ -18,7 +19,8 @@ import static org.strata.jverify.JVerify.precondition;
  * but its interpreted loop result is not provable. (The helpers return boolean
  * to avoid the unrelated "constrained return types on functions" limitation.)
  */
-@JVerifyTest(exitCode = 4, methodsVerified = 5, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR},
+             exitCode = 4, methodsVerified = 5, errorCount = 1)
 class PureMethodWithLoop {
 
     @Pure

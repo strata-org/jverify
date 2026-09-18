@@ -1,9 +1,10 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 0, methodsVerified = 8, errorCount = 0)  // 7 test methods + class structure + other symbols = 9 verified
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_FLOAT}, exitCode = 0, methodsVerified = 8, errorCount = 0)  // 7 test methods + class structure + other symbols = 9 verified
 class Doubles {
 
     static void testLiterals() {

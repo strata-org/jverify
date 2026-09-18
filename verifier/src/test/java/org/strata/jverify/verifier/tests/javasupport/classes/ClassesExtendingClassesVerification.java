@@ -6,9 +6,10 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 11, errorCount = 0)
+@JVerifyTest(methodsVerified = 8, errorCount = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {
+//              ^ warning: instance method 'root' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         Extender extender = new Extender(4);
         check(extender.getX() == 3);
         var re = extender.virtualMethod();

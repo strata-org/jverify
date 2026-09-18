@@ -70,8 +70,35 @@ class AppCommand implements Callable<Integer> {
     @Option(names = "--track-time", description = "")
     private boolean trackTime;
 
+    @Option(names = "--interpret",
+            description = "Concretely interpret the program instead of verifying it. Lowers Java "
+                    + "to Laurel as usual, then executes the entry point(s) in the Strata Core "
+                    + "interpreter with contracts treated as runtime assertions. Entry points are "
+                    + "the methods annotated @InterpretEntry; use --entry to override and --fuel "
+                    + "to bound execution.")
+    private boolean interpret;
+
+    @Option(names = "--entry", paramLabel = "PROC",
+            description = "Override the --interpret entry point by name, e.g. `com.example.Foo#run`, "
+                    + "instead of using methods annotated @InterpretEntry. The method must be "
+                    + "effectively no-argument (it sets up its own inputs).")
+    private String entry;
+
+    @Option(names = "--fuel", paramLabel = "N",
+            description = "Maximum number of execution steps in --interpret mode (default: 10000).")
+    private Integer fuel;
+
     @Override
     public Integer call() throws IOException {
+        // Mirror the Strata-side guard: fuel 0 makes the interpreter report
+        // "out of fuel" before executing anything, which is indistinguishable
+        // from a run that genuinely exhausted its budget. Reject it here so the
+        // error names the offending flag instead of surfacing as a failed run.
+        if (fuel != null && fuel <= 0) {
+            throw new CommandLine.ParameterException(spec.commandLine(),
+                    "Invalid value for option '--fuel': " + fuel + " (must be > 0)");
+        }
+
         var writer = new PrintWriter(spec.commandLine().getOut());
 
         // In the future we'll have to add an argument to specify jar files for dependencies of the input sources,
@@ -96,8 +123,9 @@ class AppCommand implements Callable<Integer> {
         var positionFilter = PositionFilter.getPositionFilter(includeFilterDependencies, filterPositionString);
         var verifierOptions = new VerifierOptions(writer, workingDirectory, strataPath, classpathEntries,
                 emitLaurel, emitLaurel != null, showRanges, contractPathEntries,
-                paths, verifyByDefault, false, 
-                positionFilter, verbose, trackTime);
+                paths, verifyByDefault, false,
+                positionFilter, verbose, trackTime,
+                interpret, entry, fuel);
         
         return verifierOptions.time("Calling Driver.verifyJavaPaths", () -> {
             try {

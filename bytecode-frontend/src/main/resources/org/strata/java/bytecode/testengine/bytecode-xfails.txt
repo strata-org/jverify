@@ -1,0 +1,80 @@
+# Bytecode-frontend xfail manifest.
+#
+# The verification corpus is owned by StrataJavaFrontEnd (JFE) and shared
+# verbatim; its @JVerifyTest annotations encode the SOURCE frontend's
+# expectations. This manifest overrides the xfail decision for the BYTECODE
+# frontend per test class, so the shared corpus stays a single source of
+# truth and the bytecode frontend never edits JFE's fixtures.
+#
+# Format (whitespace-separated), one entry per line:
+#   XFAIL  <fully.qualified.ClassName>  <BLOCKER>  <reason...>
+#     Treat as an expected failure on the bytecode frontend even though the
+#     shared annotation does not mark it expectedToFail. The engine runs it
+#     and inverts the outcome (failure -> skip; unexpected pass -> XPASS).
+#   RUN    <fully.qualified.ClassName>  <reason...>
+#     Run normally on the bytecode frontend even though the shared annotation
+#     marks it expectedToFail (the source-frontend gap does not apply here).
+#
+# Blank lines and lines beginning with '#' are ignored. BLOCKER values are
+# names of org.strata.jverify.testengine.Blocker.
+
+# --- Force-xfail: JFE verifies these, the bytecode frontend cannot yet ---
+
+# javac's CRT computation (-Xjcov) crashes on annotated-type casts like
+# (@Nat int) x (CRTable.SourceComputer AssertionError), so the -g -Xjcov
+# compile fails before decompilation.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.PrimitiveCasts        FRONTEND_OTHER       -Xjcov CRT crash on annotated-type casts
+
+
+
+# javac desugars the multi-init for into plain bytecode, so the decompiler
+# recovers an ordinary while loop and the frontend translates it: the
+# translator-refusal this test triggers is a source-frontend limitation that
+# cannot (and need not) be reproduced from bytecode.
+XFAIL  org.strata.jverify.verifier.tests.verification.TranslatorSkip                     FRONTEND_OTHER       multi-init for is desugared away in bytecode
+
+# --- Force-run: JFE marks these expectedToFail, the bytecode frontend passes ---
+
+# JFE refuses the compound assignment (JCAssignOp) in the instance method;
+# javac desugars it before bytecode, so this frontend translates and
+# verifies it -- a genuine bytecode advantage, like TranslatorSkip's.
+RUN    org.strata.jverify.verifier.tests.javasupport.expressions.VerifyNumericOperators     compound assignment is desugared away in bytecode
+
+# ============================================================================
+# Erased source signals: JFE refuses these constructs at the SOURCE level
+# with a reason javac then compiles away (compound assignments desugar to
+# plain ones, type variables erase where no Signature survives, method refs
+# lower to lambdas, `$result` is a lexical gate). The bytecode frontend
+# either handles the desugared form or refuses with a different (honest)
+# reason, so the pinned reason string cannot be reproduced byte-exactly.
+# ============================================================================
+XFAIL  org.strata.jverify.verifier.tests.javasupport.lambdas.PolymorphicLambdas                   FRONTEND_DISPATCH  type-variable method refusal diagnostic not reproduced
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.CascadeDepth3                        FRONTEND_OTHER       depth3 refusal reason differs: JCAssignOp is desugared away; bf refuses the static-field write instead (cascade errors and counts match)
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ImpureNumericOperatorsVerification  FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
+XFAIL  org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass       FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
+XFAIL  org.strata.jverify.verifier.tests.verification.MethodContractsVerification                 FRONTEND_DIAGNOSTIC  method-ref/lambda refusal warnings not reproduced
+XFAIL  org.strata.jverify.verifier.tests.javasupport.ReservedResultName                           FRONTEND_DIAGNOSTIC  JFE's '$result is reserved' refusal is a source-lexical gate with no bytecode equivalent; laurelSafeName escapes the leading $ to @, so the three binders translate cleanly and all 5 methods verify instead of 2 verified / 3 skipped
+
+# ============================================================================
+# Positions with no bytecode source: the verdict, counts, and diagnostic
+# MESSAGES match JFE exactly, but the diagnostic's source position is one JFE
+# derives from a construct that carries no line information in the classfile,
+# so it cannot be reproduced (the corpus oracle compares positions at line
+# level; these still diverge). Position-only -- never a verdict/count gap.
+# ============================================================================
+
+# JFE anchors a "class must not have / must not be referenced by more than one
+# @Contract" (and "annotation not allowed on @Contract class") diagnostic at
+# the @Contract/@Impure ANNOTATION line. Annotations are stored as
+# RuntimeInvisibleAnnotations with no source position, so bf anchors at the
+# class declaration line (the earliest member line; see
+# MethodBodyFactory.classDeclLine) instead -- a few lines below the
+# annotation. Messages and counts match.
+XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.InterfaceContractErrors    FRONTEND_DIAGNOSTIC  @Contract annotation-line anchor has no bytecode position (annotations carry no line info); bf anchors at the class declaration line
+XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.InternalClassContractErrors FRONTEND_DIAGNOSTIC  @Contract annotation-line anchor has no bytecode position (annotations carry no line info); bf anchors at the class declaration line
+
+# JFE anchors an "instance method 'X' was not verified" warning at a BODYLESS
+# interface method's declaration. A method with no Code attribute has no
+# LineNumberTable, so no line survives into the classfile and bf reports it
+# without a position. Messages and counts match.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.localClasses.PolymorphicAnonymousClasses      FRONTEND_DIAGNOSTIC  bodyless interface-method declaration has no bytecode position (no Code -> no LineNumberTable)

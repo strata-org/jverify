@@ -3,13 +3,14 @@ package org.strata.jverify.verifier.tests.verification.shouldVerify;
 
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import java.math.BigInteger;
 
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4,
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS, Blocker.FRONTEND_FIELDS}, exitCode = 4,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 

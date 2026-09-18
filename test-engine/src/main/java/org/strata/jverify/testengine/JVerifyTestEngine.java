@@ -29,6 +29,7 @@ import java.io.*;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
@@ -42,6 +43,19 @@ import static org.hamcrest.MatcherAssert.assertThat;
 @AutoService(TestEngine.class)
 public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionContext> {
     static final Logger LOGGER = Logger.getLogger(JVerifyTestEngine.class.getName());
+
+    // Must agree with the version set in Config (`StrataJavaFrontEnd-1.0`) and
+    // build.gradle.kts (`version = "1.0"`), which govern the jar names under
+    // build/lib/ that getVerifierOptions() below resolves.
+    private static final String PKG_VERSION = "1.0";
+
+    /**
+     * Anchor range for a diagnostic reported against a file other than the one
+     * under test. Such a diagnostic carries its real range inside its annotation
+     * text ({@code path(range) message}), so the range itself is fixed — it only
+     * has to be stable and identical on both the expected and actual side.
+     */
+    private static final Range CROSS_FILE_RANGE = new Range(new Position(1, 1), new Position(1, 2));
 
     @Override
     public String getId() {
@@ -147,8 +161,40 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
      */
     public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
-        List<AnnotatedRange> ranges = parsedMarkup.ranges();
+        List<AnnotatedRange> ranges = new ArrayList<>(parsedMarkup.ranges());
+        ranges.addAll(additionalFileRanges(markedSourceFile, annotation));
         verifyFile(markedSourceFile, annotation, ranges);
+    }
+
+    /**
+     * Expected diagnostics declared by markup inside {@code additionalFiles}.
+     *
+     * <p>Carets in an additional file annotate ranges in that file, so they are
+     * rewritten into the {@code path(range) message} form that
+     * {@link #diagnosticAsAnnotatedRange} produces for a diagnostic outside the
+     * file under test. This lets a multi-file test annotate each failure in the
+     * file that causes it, instead of restating them all in the marked file.
+     */
+    private static List<AnnotatedRange> additionalFileRanges(SourceFile markedSourceFile, JVerifyTest annotation)
+            throws IOException {
+        var testFile = markedSourceFile.toUri();
+        var parent = Path.of(testFile).getParent();
+        List<AnnotatedRange> ranges = new ArrayList<>();
+        for (String additionalFile : annotation.additionalFiles()) {
+            var path = parent.resolve(additionalFile).normalize();
+            var uri = path.toUri();
+            var parsed = TestMarkup.getPositionsAndAnnotatedRanges(Files.readString(path));
+            if (parsed.ranges().isEmpty()) {
+                continue;
+            }
+            var relative = testFile.resolve(".").relativize(uri).getPath();
+            for (AnnotatedRange range : parsed.ranges()) {
+                ranges.add(new AnnotatedRange(
+                        relative + "(" + range.range() + ") " + range.annotation(),
+                        CROSS_FILE_RANGE));
+            }
+        }
+        return ranges;
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
@@ -157,7 +203,62 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
                                   VerifierOptions options) throws IOException {
+        // skip= and expectedToFail are mutually exclusive: skip is evaluated first, so a
+        // test with both would abort as skipped and never reach the XPASS tripwire. Fail
+        // loud with a non-AssertionError (the xfail branch below swallows AssertionError).
+        if (annotation.expectedToFail() && annotation.skip() != null && !annotation.skip().isEmpty()) {
+            throw new IllegalStateException("@JVerifyTest sets both skip and expectedToFail; "
+                + "these are mutually exclusive -- clear skip so the xfail/XPASS check runs.");
+        }
+        // Legacy hard skip: still supported, but discouraged. Prefer expectedToFail.
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
+
+        if (!annotation.expectedToFail()) {
+            runAndCheck(sourceFile, annotation, ranges, options);
+            return;
+        }
+        // xfail: run it, but invert the outcome.
+        applyXfailInversion(describeBlockers(annotation),
+                () -> runAndCheck(sourceFile, annotation, ranges, options));
+    }
+
+    /** A check that may throw the checked exceptions {@link #runAndCheck} does. */
+    @FunctionalInterface
+    public interface VerificationCheck {
+        void run() throws IOException;
+    }
+
+    /**
+     * Run an expected-to-fail {@code check} and invert its outcome. Split out of
+     * {@link #verifyFile} so the inversion -- the XPASS tripwire that is the point
+     * of the scheme -- is unit-testable with a canned check instead of only through
+     * a full backend run (XpassInversionTest).
+     *
+     * <p>Still throwing an {@link AssertionError} means the blocker(s) have not
+     * cleared: report as skipped so the build stays green. Only AssertionError is an
+     * "expected failure"; a genuine infra error (IOException, or a RuntimeException
+     * from the driver/Strata process) is NOT caught here and propagates, so an xfail
+     * test that stops *running* fails loudly instead of masquerading as still-broken.
+     * Completing with no failure means the blocker(s) cleared -> fail loudly (XPASS).
+     */
+    public static void applyXfailInversion(String why, VerificationCheck check) throws IOException {
+        try {
+            check.run();
+        } catch (AssertionError expected) {
+            Assumptions.assumeTrue(false, "Expected failure (" + why + "): " + expected.getMessage());
+            return;
+        }
+        Assertions.fail("XPASS: this test is marked expectedToFail (" + why + ") but now PASSES. "
+            + "Remove expectedToFail/blockedBy and adopt it as a normal test.");
+    }
+
+    private static String describeBlockers(JVerifyTest annotation) {
+        return annotation.blockedBy().length == 0 ? "unspecified blocker"
+            : java.util.Arrays.toString(annotation.blockedBy());
+    }
+
+    private static void runAndCheck(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
+                                  VerifierOptions options) throws IOException {
 
         var inputs = Arrays.stream(annotation.additionalFiles()).map(f -> {
             try {
@@ -170,6 +271,33 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         }).collect(Collectors.toList());
         inputs.add(sourceFile);
         var results = Driver.getDriver(options).verifyJavaFiles(inputs);
+        checkResults(results, sourceFile, annotation, ranges);
+    }
+
+    /**
+     * A NoVerdict run ({@link JVerifyResults.NoVerdict}) reached a test with
+     * verification-count expectations -- a front-end usage error. An
+     * {@link AssertionError} subtype so an {@code expectedToFail} test swallows it while a
+     * normal test fails loud; see {@link JVerifyResults} for why this differs from the
+     * non-swallowable {@link JVerifyResults.DidNotRun} (backend crash) path.
+     */
+    public static final class NoVerdictExpectation extends AssertionError {
+        NoVerdictExpectation(String message) { super(message); }
+    }
+
+    /**
+     * Assert a verification {@code results} against the test's expectations. Split out
+     * of {@link #runAndCheck} so the loud-failure guards (DidNotRun / NoVerdict-with-count)
+     * are unit-testable with a canned result. Public so cross-module tests can call it.
+     */
+    public static void checkResults(JVerifyResults results, SourceFile sourceFile,
+                                    JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
+        // Infra failure (see JVerifyResults.DidNotRun), not a verification outcome:
+        // fail LOUD with a non-AssertionError so an xfail test can't swallow it.
+        if (results instanceof JVerifyResults.DidNotRun) {
+            throw new IllegalStateException("Strata backend did not run (exit "
+                + results.exitCode() + "): infrastructure failure, not a verification result.");
+        }
 
         var diagnosticsAsAnnotations = results.diagnostics().stream()
                 .map(d -> diagnosticAsAnnotatedRange(sourceFile.toUri(), d))
@@ -182,13 +310,22 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             }
         }
 
+        VerificationResults vr = results.verdictOrNull();
+        Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
+        Integer expectedMethodsInvalidCount = annotation.methodsInvalid() >= 0 ? annotation.methodsInvalid() : null;
+        Integer expectedErrorCount = annotation.errorCount() >= 0 ? annotation.errorCount() : null;
+        Integer expectedJavaSkippedCount = annotation.methodsSkipped() >= 0 ? annotation.methodsSkipped() : null;
+        // NoVerdict + a count expectation: throw NoVerdictExpectation (see its javadoc --
+        // an AssertionError subtype, so a normal test fails loud but an xfail swallows it).
+        if (vr == null && (expectedJavaVerifiedCount != null || expectedMethodsInvalidCount != null
+                || expectedErrorCount != null || expectedJavaSkippedCount != null)) {
+            throw new NoVerdictExpectation("test set verification-count expectations but the run "
+                + "produced no verdict (exit " + results.exitCode() + "): verification did not run to a verdict");
+        }
+
         var expectedAnnotations = ranges.stream().sorted().toList();
         assertThat("diagnostics", diagnosticsAsAnnotations, equalTo(expectedAnnotations));
 
-        Integer expectedJavaVerifiedCount = annotation.methodsVerified() >= 0 ? annotation.methodsVerified() : null;
-        Integer expectedMethodsInvalidCount = annotation.methodsInvalid() >= 0 ? annotation.methodsInvalid() : null;
-        Integer expectedErrorCount = annotation.methodsInvalid() >= 0 ? annotation.errorCount() : null;
-        Integer expectedJavaSkippedCount = annotation.methodsSkipped() >= 0 ? annotation.methodsSkipped() : null;
         Assertions.assertAll(
             () -> assertThat("exit code",
                     results.exitCode(),
@@ -196,28 +333,28 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             () -> {
                 if (expectedJavaVerifiedCount != null) {
                     assertThat("Java verified methods count",
-                            results.verificationResults().verificationPassedMethods(),
+                            vr.verificationPassedMethods(),
                         is(expectedJavaVerifiedCount));
                 }
             },
             () -> {
                 if (expectedMethodsInvalidCount != null) {
                     assertThat("Java failed methods count",
-                            results.verificationResults().verificationFailedMethods(),
+                            vr.verificationFailedMethods(),
                             is(expectedMethodsInvalidCount));
                 }
             },
             () -> {
                 if (expectedErrorCount != null) {
                     assertThat("Failed error count",
-                            results.verificationResults().verificationFailedAssertions(),
+                            vr.verificationFailedAssertions(),
                             is(expectedErrorCount));
                 }
             },
             () -> {
                 if (expectedJavaSkippedCount != null) {
                     assertThat("Java verification skipped method count",
-                            results.verificationResults().verificationSkippedMethods(),
+                            vr.verificationSkippedMethods(),
                             is(expectedJavaSkippedCount));
                 }
             }
@@ -231,6 +368,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
             sourceUri = uri;
         } else if (source instanceof SourceFile javaFileObject) {
             sourceUri = javaFileObject.toUri();
+        } else if (diagnostic instanceof DiagnosticWithRange withRange) {
+            // Diagnostics parsed from Strata's output carry no JavaFileObject, so
+            // getSource() is null; their file is on the diagnostic itself. Without
+            // this, every such diagnostic looked like it came from the file under
+            // test and one in an additionalFiles entry could not be annotated there.
+            sourceUri = withRange.getUri();
         }
         var startPos = new Position(diagnostic.getLineNumber(), diagnostic.getColumnNumber());
         var endPos = diagnostic instanceof DiagnosticWithRange diagnosticWithRange
@@ -240,22 +383,23 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         if (sourceUri == null || sourceUri.equals(testFile.normalize())) {
             return new AnnotatedRange(Driver.formatMessage(diagnostic), range);
         } else {
-            Range zeroRange = new Range(new Position(1, 1), new Position(1, 2));
             String path;
             if (sourceUri.getScheme().equals("string")) {
                 path = sourceUri.getPath();
             } else {
                 path = testFile.resolve(".").relativize(sourceUri).getPath();
             }
-            return new AnnotatedRange(path + "(" + range + ") " + Driver.formatMessage(diagnostic), zeroRange);
+            return new AnnotatedRange(path + "(" + range + ") " + Driver.formatMessage(diagnostic), CROSS_FILE_RANGE);
         }
     }
 
     public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter) {
-        var backendPath = Path.of("../Strata").toAbsolutePath().normalize();
-        var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
-        var verifierJar = Path.of("../verifier/build/libs/verifier-1.0-SNAPSHOT.jar");
-        var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
+        // Resolved via `strata` on the build-tool PATH (StrataCLI in Config); no explicit path needed.
+        Path backendPath = null;
+        var buildLib = Path.of("../build/lib");
+        var libraryJar = buildLib.resolve("library-" + PKG_VERSION + ".jar");
+        var verifierJar = buildLib.resolve("verifier-" + PKG_VERSION + ".jar");
+        var libraryForTestingClassPath = buildLib.resolve("library-for-testing-" + PKG_VERSION + ".jar");
         var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
@@ -270,7 +414,10 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 true,
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
-                positionFilter, true, false
+                positionFilter, true, false,
+                annotation.interpret(),
+                annotation.entry().isEmpty() ? null : annotation.entry(),
+                annotation.fuel() > 0 ? annotation.fuel() : null
         );
     }
 
@@ -295,8 +442,19 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                                         int methodsVerified, int assertionsFailed,
                                                         boolean continueOnErrors,
                                                         boolean useBuiltinContracts) {
+        return makeJVerifyTestAnnotation(verifyByDefault, exitCode, methodsVerified, assertionsFailed,
+                continueOnErrors, useBuiltinContracts, false, new Blocker[0]);
+    }
+
+    /** As above, but lets a test set the xfail fields (expectedToFail / blockedBy). */
+    public static JVerifyTest makeJVerifyTestAnnotation(boolean verifyByDefault, int exitCode,
+                                                        int methodsVerified, int assertionsFailed,
+                                                        boolean continueOnErrors,
+                                                        boolean useBuiltinContracts,
+                                                        boolean expectedToFail, Blocker[] blockedBy) {
         return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors,
-                exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1);
+                exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1,
+                expectedToFail, blockedBy, false, "", -1);
     }
 
     public static void updateTestAnnotation(SourceFile sourceFile, JVerifyTest annotation, JVerifyResults results) throws IOException {
@@ -307,10 +465,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                     .findFirst();
             if (maybeAnnotationIndex.isPresent()) {
                 int annotationIndex = maybeAnnotationIndex.getAsInt();
+                var verdict = results.verdictOrNull();
+                var uvr = verdict != null ? verdict : new VerificationResults(0, 0, 0, 0);
                 var newLine = allLines[annotationIndex].
                         replaceFirst("exitCode = \\d", "exitCode = " + results.exitCode()).
-                        replaceFirst("javaVerified = \\d+", "javaVerified = " + results.verificationResults().verificationPassedMethods()).
-                        replaceFirst("javaErrors = \\d+", "javaErrors = " + results.verificationResults().verificationFailedMethods());
+                        replaceFirst("javaVerified = \\d+", "javaVerified = " + uvr.verificationPassedMethods()).
+                        replaceFirst("javaErrors = \\d+", "javaErrors = " + uvr.verificationFailedMethods());
                 allLines[annotationIndex] = newLine;
             }
 

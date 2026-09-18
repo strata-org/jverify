@@ -6,11 +6,19 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
-@JVerifyTest(methodsVerified = 13, errorCount = 0)
+// Three methods are skipped -- P2, P and ignoreCallResult (each caret-pinned below).
+// Every one calls an instance method on implicit `this`, and since neither the callee
+// nor this class is final, a subclass could override it: a possibly-polymorphic call,
+// which the translator refuses. @Pure is irrelevant here -- ignoreCallResult is not
+// @Pure and its callee methodWithResult is a plain instance method -- and so is being
+// called: @Pure P3 calls nothing and verifies. Making a callee (or the class) final,
+// or static, would translate these three, at the cost of the coverage.
+@JVerifyTest(methodsVerified = 10, methodsSkipped = 3, errorCount = 0)
 class VerifyStatements {
     void forLoop() {
         int i = 0;
         for(i = 0; i < 5; i = i + 1) {
+            invariant(i >= 0 && i <= 5);
         }
         check(i == 5);
     }
@@ -18,9 +26,9 @@ class VerifyStatements {
     void nestedForLoop() {
         int x = 0;
         for (int i = 0; i < 5; i = i + 1) {
-            invariant(x == i * 5);
+            invariant(x == i * 5 && i >= 0 && i <= 5);
             for (int j = 0; j < 5; j = j + 1) {
-                invariant(x == j + i * 5);
+                invariant(x == j + i * 5 && j >= 0 && j <= 5);
                 x = x + 1;
             }
         }
@@ -32,9 +40,11 @@ class VerifyStatements {
         outerLoop:
         for (int i = 0; i < 5; i = i + 1) {
             invariant(i <= 2 ? x == i * 5 : x == 12 + (i - 3) * 5);
+            invariant(i >= 0 && i <= 5);
             
             for (int j = 0; j < 5; j = j + 1) {
                 invariant(i <= 2 ? x == j + i * 5 : x == j + 12 + (i - 3) * 5);
+                invariant(j >= 0 && j <= 5);
                 invariant(i == 2 ? j <= 2 : true);
                 if (i == 2 && j == 2) {
                     check(x == 12);
@@ -49,7 +59,7 @@ class VerifyStatements {
         int x = 0;
         do {
             decreases(5 - x);
-            invariant(x <= 5);
+            invariant(x >= 0 && x <= 4);
             x = x + 1;
         } while(x < 5);
         check(x == 5);
@@ -74,11 +84,13 @@ class VerifyStatements {
 
     @Pure
     boolean P2(int x, int y) {
+//          ^ warning: instance method 'P2' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         return P3(x,y,0);
     }
 
     @Pure
     boolean P(int x) {
+//          ^ warning: instance method 'P' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         return P2(x,10);
     }
     
@@ -90,6 +102,7 @@ class VerifyStatements {
         return 3;
     }
     void ignoreCallResult() {
+//       ^ warning: instance method 'ignoreCallResult' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         methodWithResult();
     }
 }

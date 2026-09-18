@@ -1,6 +1,7 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 
@@ -9,7 +10,7 @@ import static org.strata.jverify.JVerify.check;
  * byte, short, int, long, float, double, char
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 1, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS}, exitCode = 4, methodsVerified = 1, errorCount = 1)
 class VerifyNumericOperators {
     public void foo() {
         var l = 3L;

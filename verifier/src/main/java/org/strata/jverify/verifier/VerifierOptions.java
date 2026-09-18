@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 
 public record VerifierOptions(PrintWriter outWriter,
                               Path workingDirectory,
-                              Path backendPath,
+                              @Nullable Path backendPath,
                               Collection<Path> extraClassPathEntries,
                               @Nullable Path printSerializedOutputProgram,
                               boolean emitLaurelOnly,
@@ -22,7 +22,10 @@ public record VerifierOptions(PrintWriter outWriter,
                               boolean continueOnErrors,
                               @Nullable PositionFilter positionFilter,
                               boolean verbose,
-                              boolean shouldTrackTime) {
+                              boolean shouldTrackTime,
+                              boolean interpret,
+                              @Nullable String entry,
+                              @Nullable Integer fuel) {
     public <T> T time(String name, Supplier<T> supply) {
         if (!shouldTrackTime) {
             return supply.get();

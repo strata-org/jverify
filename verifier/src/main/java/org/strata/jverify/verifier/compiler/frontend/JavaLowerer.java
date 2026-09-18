@@ -110,7 +110,15 @@ public class JavaLowerer {
             return new LoweredResult(new ArrayList<>(), Set.of());
         }
 
+        // `parseResolveAndDesugarJava` returns a HashSet, whose iteration
+        // order is identity-hashcode-driven and varies run to run.
+        // Downstream Laurel emission (JavaToLaurelCompiler) walks this list
+        // in order and prepends composite declarations to the first file, so
+        // an unstable order makes the emitted Laurel non-reproducible and
+        // blocks golden-file/snapshot diffing. Sort by source URI to give
+        // every consumer a stable, run-independent order.
         var parsed = new ArrayList<>(loweredJava);
+        parsed.sort(Comparator.comparing(u -> u.sourcefile.toUri().toString()));
         var libraries = parsed.stream().filter(u -> contractSources.contains(u.getSourceFile())).collect(Collectors.toSet());
         return new LoweredResult(parsed, libraries);
     }
@@ -230,6 +238,7 @@ public class JavaLowerer {
                     
                     List<UnitsCompiler> phases = new ArrayList<>();
                     phases.add(JavaLowerer.this::insertFloatingPointCasts);
+                    phases.add(JavaLowerer.this::insertImplicitCasts);
                     phases.add(JavaLowerer.this::unlambda);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
@@ -303,6 +312,14 @@ public class JavaLowerer {
 
     private List<JCTree.JCCompilationUnit> insertFloatingPointCasts(List<JCTree.JCCompilationUnit> units) {
         var inserter = new FloatingPointCastInserter(context);
+        for (var unit : units) {
+            inserter.translate(unit);
+        }
+        return units;
+    }
+
+    private List<JCTree.JCCompilationUnit> insertImplicitCasts(List<JCTree.JCCompilationUnit> units) {
+        var inserter = new org.strata.jverify.verifier.compiler.simplifications.ImplicitCastInserter(context);
         for (var unit : units) {
             inserter.translate(unit);
         }

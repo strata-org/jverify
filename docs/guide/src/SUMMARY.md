@@ -14,6 +14,7 @@
 <!-- - [Uncaught Exceptions](uncaught_exceptions.md) -->
 - [Loop Invariants](loop_invariants.md)
 - [Pre- and post-conditions](pre_and_postconditions.md)
+- [Exceptions](exceptions.md)
 <!-- - [Code Types](code_types.md) -->
 - [Quantifiers](quantifiers.md)
 <!-- - [Code Purposes](code_purposes.md) -->

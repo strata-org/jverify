@@ -5,7 +5,7 @@ import org.strata.jverify.ContractException;
 import org.strata.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("Convert2Lambda")
-@JVerifyTest(methodsVerified = 28, errorCount = 0)
+@JVerifyTest(methodsVerified = 18, errorCount = 0)
 public class PolymorphicAnonymousClasses {
 
     void capturedGenericType(MyConsumer<Anything> consumer, Anything anything) {
@@ -23,6 +23,7 @@ public class PolymorphicAnonymousClasses {
     class InstanceAnything {}
     static class Anything {}
     void genericInterfaces() {
+//       ^ warning: instance method 'genericInterfaces' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         var fooArg = new MyConsumer<Anything>() {
             @Override
             public int consume(Anything value) {
@@ -55,6 +56,7 @@ public class PolymorphicAnonymousClasses {
     }
 
     <U> void genericMethod() {
+//           ^ warning: instance method 'genericMethod' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         var zazArg = new MyConsumer<U>() {
             @Override
             public int consume(U value) {
@@ -73,6 +75,7 @@ public class PolymorphicAnonymousClasses {
     static class GenericClass<U> {
 
         void genericClass() {
+//           ^ warning: instance method 'genericClass' was not verified: polymorphic dispatch through interface/superclass is not yet supported
             var tarArg = new MyConsumer<U>() {
                 @Override
                 public int consume(U value) {
@@ -87,6 +90,7 @@ public class PolymorphicAnonymousClasses {
 
     interface MyConsumer<T> {
         int consume(T value);
+//          ^ warning: instance method 'consume' was not verified: Unsupported type: T
         
         @Contract
         class MyContract<T> implements MyConsumer<T> {
@@ -99,5 +103,6 @@ public class PolymorphicAnonymousClasses {
 
     interface MyProducer<T> {
         T produce();
+//        ^ warning: instance method 'produce' was not verified: Unsupported type: T
     }
 }

@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport.records;
 
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 22, errorCount = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.FRONTEND_NULLABLE}, exitCode = 4, methodsVerified = 22, errorCount = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();

@@ -2,8 +2,9 @@ package org.strata.jverify.verifier.tests.javasupport;
 
 import org.strata.jverify.Nat;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 1, errorCount = 3)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 1, errorCount = 3)
 class PrimitiveTypes {
     public void foo(int s) {
         short x = 10;
