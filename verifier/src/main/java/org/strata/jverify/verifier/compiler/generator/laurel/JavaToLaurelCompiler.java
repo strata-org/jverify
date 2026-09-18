@@ -67,10 +67,12 @@ public class JavaToLaurelCompiler {
     
     /// Fields to declare on each composite. Populated on-demand when a
     /// `JCFieldAccess` (read) or `JCAssign` with a `JCFieldAccess` LHS
-    /// (write) is translated: the owning class symbol contributes all
-    /// its instance-field declarations at once. Strata's
-    /// `resolveQualifiedFieldName` requires each field to be declared
-    /// on its owning composite for heap parameterization to fire.
+    /// (write) is translated: only the specific field being accessed is
+    /// added, not every field declared on the owning class -- see
+    /// `ensureFieldOnComposite` for why walking every declared field
+    /// breaks library-contract classes. Strata's
+    /// `resolveQualifiedFieldName` requires each accessed field to be
+    /// declared on its owning composite for heap parameterization to fire.
     /// Insertion order is preserved (both across composites and across
     /// fields within a composite) for deterministic output.
     private final Map<String, LinkedHashMap<String, Field>> compositeFields = new LinkedHashMap<>();
