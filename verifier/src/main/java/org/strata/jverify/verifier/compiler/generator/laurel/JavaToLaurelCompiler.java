@@ -433,16 +433,20 @@ public class JavaToLaurelCompiler {
         }
 
         /**
-         * Check if a method body writes to any instance field. A field
-         * write is heap-mutating and requires a matching {@code modifies}
-         * clause on an opaque procedure or Strata's frame check rejects it.
-         * When the user did not supply {@code modifies(...)}, we
-         * conservatively emit {@code modifies *} for such bodies so
-         * verification succeeds; a follow-up will narrow to per-field
-         * clauses once we track write targets precisely enough to
-         * distinguish local-heap vs caller-visible writes.
+         * Check if a method body has any effect that Strata's frame check
+         * classifies as a heap write: an instance-field assignment, or a
+         * call to a non-JVerify method (which conservatively may itself
+         * write the heap -- we do not run our own transitive effect
+         * analysis and cannot inspect callee bodies here).
+         *
+         * <p>When the user did not supply {@code modifies(...)}, such
+         * bodies get a synthesized {@code modifies *} so Strata accepts
+         * both the direct write and any transitively propagated heap
+         * effect from the callee. Sound but coarse: callers must assume
+         * every field may change. A follow-up will narrow to per-field
+         * clauses once we track write targets precisely enough.
          */
-        private boolean bodyWritesField(JCTree.JCBlock body) {
+        private boolean bodyPotentiallyWritesHeap(JCTree.JCBlock body) {
             boolean[] found = {false};
             body.accept(new TreeScanner() {
                 @Override public void visitAssign(JCTree.JCAssign tree) {
@@ -452,6 +456,15 @@ public class JavaToLaurelCompiler {
                         found[0] = true;
                     }
                     super.visitAssign(tree);
+                }
+                @Override public void visitApply(JCTree.JCMethodInvocation tree) {
+                    // Calls to the JVerify library (check/assume/precondition/
+                    // modifies/etc.) do not themselves write the heap; anything
+                    // else conservatively might.
+                    if (JVerifyUtils.getJVerifyMethod(tree) == null) {
+                        found[0] = true;
+                    }
+                    super.visitApply(tree);
                 }
             });
             return found[0];
@@ -611,12 +624,14 @@ public class JavaToLaurelCompiler {
                 }
 
                 // Fallback: if the user did not supply a `modifies(...)`
-                // clause but the body writes to an instance field, emit a
-                // wildcard so Strata's frame check accepts the heap effect.
-                // Sound but coarse -- callers must assume any field may
-                // change. Users who need precision should write an explicit
-                // `modifies(...)`.
-                if (modifies.isEmpty() && bodyWritesField(method.body)) {
+                // clause but the body potentially writes the heap (an
+                // instance-field write, or a call to a non-JVerify method
+                // that conservatively may write fields transitively), emit
+                // a wildcard so Strata's frame check accepts the heap
+                // effect. Sound but coarse -- callers must assume any
+                // field may change. Users who need precision should write
+                // an explicit `modifies(...)`.
+                if (modifies.isEmpty() && bodyPotentiallyWritesHeap(method.body)) {
                     modifies.add(modifiesWildcard(toSourceRange(method.body)));
                 }
             }
