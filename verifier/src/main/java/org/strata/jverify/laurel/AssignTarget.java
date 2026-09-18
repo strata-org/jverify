@@ -3,7 +3,7 @@ package org.strata.jverify.laurel;
 public sealed interface AssignTarget extends Node permits AssignTarget.AssignTargetDecl, AssignTarget.AssignTargetVar, AssignTarget.AssignTargetField {
     public record AssignTargetDecl(
         SourceRange sourceRange,
-        java.lang.String name, LaurelType targetType
+        java.lang.String name, java.util.Optional<TypeAnnotation> targetType
     ) implements AssignTarget {
         @Override
         public java.lang.String operationName() { return "Laurel.assignTargetDecl"; }
@@ -12,7 +12,7 @@ public sealed interface AssignTarget extends Node permits AssignTarget.AssignTar
         public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
             var sexp = $s.newOp("Laurel.assignTargetDecl", sourceRange());
             sexp.add($s.serializeIdent(name()));
-            sexp.add($s.serialize(targetType()));
+            sexp.add($s.serializeOption(targetType(), $s::serialize));
             return sexp;
         }
     }

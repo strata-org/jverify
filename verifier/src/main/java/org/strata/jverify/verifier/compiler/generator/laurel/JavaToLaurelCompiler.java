@@ -775,9 +775,12 @@ public class JavaToLaurelCompiler {
             // transparent only when they have no ensures / modifies clauses (the schema
             // can't carry either without an OpaqueSpec wrapper).
             boolean canStayTransparent = isPure && ensures.isEmpty() && modifies.isEmpty();
+            // No `throwsOn` behavior cases: JVerify does not yet lower Java `throws`
+            // into Laurel's exceptional channel, so every procedure it emits declares
+            // no exceptional exit and its contract describes the normal one only.
             Optional<OpaqueSpec> optSpec = canStayTransparent
                     ? Optional.empty()
-                    : Optional.of(opaqueSpec(ensures, modifies));
+                    : Optional.of(opaqueSpec(ensures, modifies, List.of()));
 
             // Carry the producer's @InterpretEntry marker through to Laurel so
             // the interpreter can find the entry point via metadata. The
@@ -796,7 +799,8 @@ public class JavaToLaurelCompiler {
             }
 
             Procedure proc = procedure(toSourceRange(method), methodName, params,
-                            retType, /*returnParameters=*/Optional.empty(), requires,
+                            retType, /*returnParameters=*/Optional.empty(),
+                            /*throws_=*/Optional.empty(), requires,
                             /*invokeOn=*/Optional.empty(), entry,
                             optSpec, optBody);
             procedures.add(proc);
@@ -1307,10 +1311,13 @@ public class JavaToLaurelCompiler {
                     List.of(parameter(sr, "x", sourceType)),
                     Optional.of(returnType(sr, targetType)),
                     /*returnParameters=*/ Optional.empty(),
+                    /*throws_=*/ Optional.empty(),
                     requiresList,
                     /*invokeOn=*/ Optional.empty(),
                     /*entry=*/ Optional.empty(),
-                    Optional.of(opaqueSpec(sr, ensures, List.of())),
+                    // Cast helpers are total: they never take the exceptional
+                    // exit, so there are no `throwsOn` behavior cases.
+                    Optional.of(opaqueSpec(sr, ensures, List.of(), List.of())),
                     /*body=*/ Optional.empty());
             castHelpers.put(helperName, proc);
         }
