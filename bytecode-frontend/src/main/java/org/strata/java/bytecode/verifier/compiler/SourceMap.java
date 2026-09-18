@@ -149,6 +149,63 @@ final class SourceMap {
                 (java.lang.classfile.attribute.CodeAttribute) code));
     }
 
+    /**
+     * A method-precision anchor for input compiled without {@code -Xjcov}:
+     * the FileRange of the method-name occurrence (by declaration ordinal)
+     * in the source text, or UNKNOWN_RANGE when the source or name is
+     * unavailable (e.g. {@code <init>}, which has no lexical occurrence).
+     */
+    FileRange methodAnchorRangeOf(String methodName, int ordinal) {
+        if (source == null || index == null) {
+            return UNKNOWN_RANGE;
+        }
+        var matcher = java.util.regex.Pattern
+                .compile("\\b" + java.util.regex.Pattern.quote(methodName) + "\\s*\\(")
+                .matcher(source);
+        for (int i = 0; matcher.find(); i++) {
+            if (i == ordinal) {
+                return rangeOf(matcher.start(), matcher.start() + methodName.length());
+            }
+        }
+        return UNKNOWN_RANGE;
+    }
+
+    /**
+     * The non-whitespace extent of a 1-indexed source line, or UNKNOWN_RANGE
+     * when the source is unavailable or the line is blank. The line-precision
+     * stamp for input without statement spans.
+     */
+    FileRange trimmedLineRange(int line) {
+        if (source == null || index == null || line < 1) {
+            return UNKNOWN_RANGE;
+        }
+        int start = index.offset(line, 1);
+        int end = source.indexOf('\n', start);
+        if (end < 0) {
+            end = source.length();
+        }
+        while (start < end && Character.isWhitespace(source.charAt(start))) {
+            start++;
+        }
+        while (end > start && Character.isWhitespace(source.charAt(end - 1))) {
+            end--;
+        }
+        return start >= end ? UNKNOWN_RANGE : rangeOf(start, end);
+    }
+
+    /** The whole-line envelope of an inclusive 1-indexed line span. */
+    FileRange lineSpanRange(int beginLine, int endLine) {
+        if (source == null || index == null || beginLine < 1 || endLine < beginLine) {
+            return UNKNOWN_RANGE;
+        }
+        int start = index.offset(beginLine, 1);
+        int end = source.indexOf('\n', index.offset(endLine, 1));
+        if (end < 0) {
+            end = source.length();
+        }
+        return rangeOf(start, end);
+    }
+
     FileRange methodRangeOf(java.util.List<CrtRange> crt) {
         if (index == null || crt == null) {
             return UNKNOWN_RANGE;

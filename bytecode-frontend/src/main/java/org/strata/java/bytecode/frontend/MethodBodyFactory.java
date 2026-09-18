@@ -482,7 +482,7 @@ public final class MethodBodyFactory {
             hoisted = hoistedDeclInfos(cfg, dom, locals, slotName, slotDesc, declared, crt, seqToBci);
         }
         return new MethodBody(cfg, dom, locals, seq, slotName, slotDesc, declared,
-                crt, seqToBci, slotAnnos, retDesc, isCtor, hoisted);
+                crt, LineNumbers.of(code), seqToBci, slotAnnos, retDesc, isCtor, isStatic, hoisted);
     }
 
     /**
@@ -494,6 +494,11 @@ public final class MethodBodyFactory {
     static List<MethodBody.HoistedDecl> hoistedDeclInfos(ControlFlowGraph cfg, DominanceFinder dom, Locals locals,
                                               Map<Integer, String> slotName, Map<Integer, String> slotDesc,
                                               Set<String> preDeclared, List<CrtRange> crt, int[] seqToBci) {
+        // A debug-info-less input (no LVT) has no slot types at all; a local
+        // whose first store does not dominate its uses must still hoist, as
+        // an UNTYPED declaration, or the branch-scoped `var` leaves later
+        // uses unresolved.
+        boolean noDebugNames = (locals == null || locals.bySlot.isEmpty()) && slotName.isEmpty();
         Map<String, Integer> firstStoreBlk = new HashMap<>();
         Map<String, Integer> firstStorePos = new HashMap<>();
         Map<String, Integer> keySlot = new HashMap<>();
@@ -538,7 +543,19 @@ public final class MethodBodyFactory {
             String genericType = sc != null ? sc.genericType() : null;
             String desc = sc != null ? sc.desc() : slotDesc.get(slot);
             if (genericType == null && desc == null) {
-                continue;   // no known type -> leave to the first store's `var`
+                if (!noDebugNames) {
+                    continue;   // no known type -> leave to the first store's `var`
+                }
+                // Debug-info-less input: fall back to the store opcode's type
+                // kind (reference types collapse to Object; int covers the
+                // whole int family, which is also the bytecode's own view) --
+                // except a boolean, which the surrounding call/return
+                // signatures can recover.
+                desc = storeKindDesc(cfg.seq.get(dpos));
+                if (desc == null) {
+                    continue;
+                }
+                slotDesc.put(slot, desc);   // the coercion oracle needs it too
             }
             int db = firstStoreBlk.get(key);
             boolean dominatesAll = refBlocks.get(key).stream().allMatch(rb -> dom.dominates(db, rb));
@@ -552,4 +569,19 @@ public final class MethodBodyFactory {
     }
 
     static String name(Map<Integer,String> names, int slot) { return names.getOrDefault(slot, "v" + slot); }
+
+    /** The field descriptor a store opcode implies, or null when unclassifiable. */
+    private static String storeKindDesc(CodeElement e) {
+        if (!(e instanceof StoreInstruction si)) {
+            return null;
+        }
+        return switch (si.typeKind()) {
+            case INT -> "I";
+            case LONG -> "J";
+            case FLOAT -> "F";
+            case DOUBLE -> "D";
+            case REFERENCE -> "Ljava/lang/Object;";
+            default -> null;
+        };
+    }
 }

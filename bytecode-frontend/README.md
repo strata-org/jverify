@@ -22,8 +22,23 @@ Declarations, contracts, and annotations are read straight off the classfiles
 (`Declarations`, validated by `ContractValidator`), orchestrated by
 `BytecodeToLaurelCompiler`.
 
-Input classfiles must be compiled with `-g -Xjcov` so local-variable names
-and statement-level source ranges (CharacterRangeTable) survive.
+Three input tiers are supported, detected from classfile attribute evidence
+(`CompilationFacts`) and announced up front when degraded. Verdicts, counts,
+and exit codes are identical across tiers (`TieredInputEquivalenceTest` pins
+this); only position precision degrades:
+
+- **FULL** (`-g -Xjcov`): CharacterRangeTable statement spans -- exact
+  sub-statement diagnostic ranges. What the driver's own javac step uses.
+- **DEBUG** (`-g`): no statement spans -- diagnostics carry source-LINE
+  precision (LineNumberTable fallback).
+- **BARE** (default javac): additionally no local-variable names -- line
+  precision plus synthetic local names (`v3`) in emitted Laurel. Known
+  limitation: a local's declared type is reconstructed from its store
+  opcode, which cannot distinguish the int family -- a branch-assigned
+  `boolean` local types as `int32` and produces spurious Strata type
+  errors (extra failures, never a false pass). DEBUG is unaffected.
+- Input with no debug information at all (`-g:none`, obfuscated/stripped
+  jars) is refused up front.
 
 ## Modules
 

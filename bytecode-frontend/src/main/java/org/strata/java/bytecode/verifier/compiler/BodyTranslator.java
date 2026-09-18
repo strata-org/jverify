@@ -75,8 +75,10 @@ final class BodyTranslator {
     int pos = -1;                            // current seq-index, for scoped local resolution
     ClassModel cm;                           // enclosing class, for resolving lambda impl methods
     List<CrtRange> crt = List.of();
+    org.strata.java.bytecode.frontend.LineNumbers lines;   // position fallback when crt is empty
     int[] seqToBci;
     boolean inCtor;
+    boolean isInstance;                      // instance method: slot 0 is `this` (javac never stores to it)
     boolean dropSuper;
     String retDesc;
     final Map<Integer, String> slotAlias = new HashMap<>();  // slot -> minted name for an unnamed local
@@ -195,6 +197,26 @@ final class BodyTranslator {
         return MethodBodyFactory.spanOf(crt, seqToBci, seqIdx);
     }
 
+    /**
+     * Position fallback for input compiled without {@code -Xjcov}: the
+     * trimmed source line of the instruction's LineNumberTable entry, else
+     * the method's default range. Never taken when a CRT exists ({@code
+     * crt.isEmpty()} gate), so FULL-tier stamping is untouched.
+     */
+    private FileRange lineFallbackRange(int seqIdx) {
+        if (crt.isEmpty() && lines != null && ctx.src.index != null
+                && seqToBci != null && seqIdx >= 0 && seqIdx < seqToBci.length) {
+            int line = lines.lineAt(seqToBci[seqIdx]);
+            if (line > 0) {
+                FileRange r = ctx.src.trimmedLineRange(line);
+                if (r != SourceMap.UNKNOWN_RANGE) {
+                    return r;
+                }
+            }
+        }
+        return ctx.src.defaultRange;
+    }
+
     /** How a statement's raw CRT span narrows to its stamped source range. */
     enum Narrow {
         /** Raw CRT span (non-ExpressionStmt statements: return, throw, ...). */
@@ -214,7 +236,7 @@ final class BodyTranslator {
     FileRange stmtRange(int seqIdx, Narrow narrow, boolean containsLambda) {
         Span span = spanAt(seqIdx);
         if (span.isNone() || ctx.src.index == null) {
-            return ctx.src.defaultRange;
+            return lineFallbackRange(seqIdx);
         }
         int start = ctx.src.index.offset(span.beginLine(), span.beginCol());
         int end = ctx.src.index.offset(span.endLine(), span.endCol());
@@ -434,6 +456,12 @@ final class BodyTranslator {
     // --- Locals: slot naming and typing ---
 
     String localName(int slot) {
+        if (slot == 0 && isInstance) {
+            // Structural: in an instance method slot 0 is always `this`
+            // (javac never stores to it), so the receiver is recognized even
+            // without an LVT naming it.
+            return "this";
+        }
         if (locals != null) {
             Locals.Scope s = locals.at(slot, pos);
             if (s != null) {

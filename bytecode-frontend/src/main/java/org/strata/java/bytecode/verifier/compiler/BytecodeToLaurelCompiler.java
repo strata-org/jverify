@@ -120,6 +120,7 @@ public class BytecodeToLaurelCompiler {
             src.lineIndexes.put(entry.getKey(), new LineIndex(entry.getValue()));
             src.sourceTexts.put(entry.getKey(), entry.getValue());
         }
+        reportInputTier(sources, classes);
         for (var cls : classes) {
             String fqn = JavaNames.dottedFqn(cls.internalName());
             resolver.knownClasses.put(fqn, fqn);
@@ -633,9 +634,11 @@ public class BytecodeToLaurelCompiler {
         b.locals = shape.locals();
         b.cm = cm;
         b.crt = shape.crt();
+        b.lines = shape.lines();
         b.seqToBci = shape.seqToBci();
         b.slotTypeAnnos = shape.slotAnnos();
         b.retDesc = shape.retDesc();
+        b.isInstance = !shape.isStatic();
         return b;
     }
 
@@ -850,6 +853,39 @@ public class BytecodeToLaurelCompiler {
         return false;
     }
 
+    /**
+     * Report the detected input tier ONCE per run, so degraded feedback is
+     * never a surprise: FULL is silent, DEBUG/BARE warn about the precision
+     * loss, and an input with no debug information at all refuses (its
+     * feedback would carry no source positions).
+     */
+    private void reportInputTier(Map<URI, String> sources, List<ClassSource> classes) {
+        if (classes.isEmpty()) {
+            return;   // nothing to classify (and nothing will be verified)
+        }
+        var facts = org.strata.java.bytecode.frontend.CompilationFacts.NONE_OBSERVED;
+        for (var cls : classes) {
+            facts = facts.or(org.strata.java.bytecode.frontend.CompilationFacts.of(cls.classModel()));
+            for (var nested : cls.nestedModels()) {
+                facts = facts.or(org.strata.java.bytecode.frontend.CompilationFacts.of(nested));
+            }
+        }
+        URI anchor = sources.keySet().stream().findFirst().orElse(null);
+        switch (facts.tier()) {
+            case FULL -> { }
+            case DEBUG -> reporter.reportWarning(anchor, Reporter.NO_RANGE,
+                    "input compiled without -Xjcov (no statement spans): diagnostics carry"
+                            + " method precision only");
+            case BARE -> reporter.reportWarning(anchor, Reporter.NO_RANGE,
+                    "input compiled without -g (no local-variable debug info): diagnostics carry"
+                            + " method precision only and locals get synthetic names");
+            case NONE -> reporter.reportError(anchor, Reporter.NO_RANGE,
+                    "input carries no debug information (compiled with -g:none or stripped):"
+                            + " verification feedback would have no source positions; recompile"
+                            + " with -g -Xjcov (best), -g, or default javac flags");
+        }
+    }
+
     private void recordStatus(FileRange range, MethodVerificationStatus status) {
         if (src.uri == null) {
             return;
@@ -946,6 +982,15 @@ public class BytecodeToLaurelCompiler {
         ctx.currentClassFqn = classFqn;
         ctx.typeParams = typeParams;
         ctx.beginMethod(info);
+
+        // Input compiled without -Xjcov: no statement spans exist, so anchor
+        // every emitted range at the method name instead. Diagnostics then
+        // carry method precision and per-method accounting still attributes.
+        FileRange methodAnchor = UNKNOWN_RANGE;
+        if (shape.crt().isEmpty()) {
+            methodAnchor = src.methodAnchorRangeOf(bareName, info.ordinal);
+            src.defaultRange = methodAnchor;
+        }
 
         // --- Inputs (JFE's signature-refusal order: params, return, throws) ---
         var inputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
@@ -1279,6 +1324,14 @@ public class BytecodeToLaurelCompiler {
             composites.instanceProcsBySort.computeIfAbsent(classFqn, k -> new ArrayList<>()).add(proc);
         }
         var range = src.methodRangeOf(shape.crt());
+        if (range == UNKNOWN_RANGE && shape.lines() != null) {
+            // No CRT: the LineNumberTable's line envelope stands in, so
+            // line-stamped diagnostics still attribute to this method.
+            range = src.lineSpanRange(shape.lines().minLine(), shape.lines().maxLine());
+        }
+        if (range == UNKNOWN_RANGE) {
+            range = methodAnchor;   // no LNT either: the lexical name anchor
+        }
         var status = new MethodVerificationStatus(bareName,
                 range == UNKNOWN_RANGE ? Reporter.NO_RANGE : positionRange(range),
                 verify ? MethodVerificationStatus.VerificationStatus.Verified
@@ -1520,11 +1573,48 @@ public class BytecodeToLaurelCompiler {
                                         java.lang.classfile.attribute.CharacterRangeTableAttribute crt
                                         && !crt.characterRangeTable().isEmpty()))
                         .orElse(false);
+                // Without -Xjcov no ctor has CRT entries, so fall back to the
+                // bytecode shape: parameters or code beyond the minimal
+                // `aload_0; invokespecial <init>; return` mean source wrote
+                // it (or field initializers exist -- which the CRT counts the
+                // same way). An EMPTY explicit ctor is indistinguishable from
+                // an implicit one here and counts Verified.
+                boolean explicitCtor = org.strata.java.bytecode.frontend.CompilationFacts.of(cm).hasCrt()
+                        ? crtExplicitCtor
+                        : structuralExplicitCtor(m);
                 tree.insert(0, 0, new MethodVerificationStatus(name, Reporter.NO_RANGE,
-                        crtExplicitCtor || classOptedOut
+                        explicitCtor || classOptedOut
                                 ? MethodVerificationStatus.VerificationStatus.Skipped
                                 : MethodVerificationStatus.VerificationStatus.Verified));
             }
         }
+    }
+
+    /**
+     * CRT-free explicit-constructor detection: declared parameters, or any
+     * instruction beyond the implicit ctor's exact
+     * {@code aload_0; invokespecial <init>; return} shape.
+     */
+    private static boolean structuralExplicitCtor(java.lang.classfile.MethodModel m) {
+        if (m.methodTypeSymbol().parameterCount() > 0) {
+            return true;
+        }
+        var code = m.code().orElse(null);
+        if (code == null) {
+            return false;
+        }
+        var instrs = new ArrayList<java.lang.classfile.Instruction>();
+        for (var el : code) {
+            if (el instanceof java.lang.classfile.Instruction in) {
+                instrs.add(in);
+            }
+        }
+        return !(instrs.size() == 3
+                && instrs.get(0) instanceof java.lang.classfile.instruction.LoadInstruction ld
+                && ld.slot() == 0
+                && instrs.get(1) instanceof java.lang.classfile.instruction.InvokeInstruction inv
+                && inv.opcode() == java.lang.classfile.Opcode.INVOKESPECIAL
+                && inv.name().stringValue().equals("<init>")
+                && instrs.get(2) instanceof java.lang.classfile.instruction.ReturnInstruction);
     }
 }
