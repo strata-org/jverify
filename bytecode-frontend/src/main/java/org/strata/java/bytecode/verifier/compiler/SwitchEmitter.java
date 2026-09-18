@@ -254,6 +254,12 @@ final class SwitchEmitter {
         AstNode<StmtExpr> cascade = defaultArm != null ? armBody(defaultArm) : null;
         for (int i = cases.size() - 1; i >= 0; i--) {
             Arm arm = cases.get(i);
+            if (arm.labels().isEmpty()) {
+                // No selector value reaches this arm; an IfThenElse with a
+                // null condition would be an invalid tree. Bail to the
+                // linear form rather than emit it.
+                throw new StructException("switch arm with no labels");
+            }
             AstNode<StmtExpr> cond = null;
             for (AstNode<StmtExpr> label : arm.labels()) {
                 AstNode<StmtExpr> sel = hoist ? body.e(LaurelFactory.var_(selName)) : freshCopy(selector);

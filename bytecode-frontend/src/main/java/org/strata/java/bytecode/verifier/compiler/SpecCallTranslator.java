@@ -139,6 +139,9 @@ final class SpecCallTranslator {
         var binderNames = new ArrayList<String>();
         var binderTypes = new ArrayList<HighType>();
         var ish = implShape(impl);
+        if (ish == null) {
+            throw new JavaViolationException("Unsupported lambda body");
+        }
         var iloc = ish.locals();
         int slot = iStatic ? 0 : 1;
         for (int i = 0; i < imt.parameterCount(); i++) {
@@ -164,7 +167,7 @@ final class SpecCallTranslator {
         return qBody;
     }
 
-    /** The spec lambda's real binders, or null when its impl method is unknown. */
+    /** The spec lambda's real binders, or null when its impl method or body is unknown. */
     List<BodyTranslator.LambdaBinder> lambdaBinders(BodyTranslator.LambdaHandle lambda) {
         var impl = findImplMethod(lambda);
         if (impl == null) {
@@ -173,6 +176,9 @@ final class SpecCallTranslator {
         var imt = impl.methodTypeSymbol();
         boolean iStatic = impl.flags().has(java.lang.reflect.AccessFlag.STATIC);
         var ish = implShape(impl);
+        if (ish == null) {
+            return null;
+        }
         var iloc = ish.locals();
         var out = new ArrayList<BodyTranslator.LambdaBinder>();
         int slot = iStatic ? 0 : 1;

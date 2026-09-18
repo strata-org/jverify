@@ -430,7 +430,9 @@ final class ClassResolver {
         // uses javacTypes.closure() here, e.g. Object.toString() colliding
         // with a user toString(x).
         if (fqn != null) {
-            for (Class<?> c = tryLoadClass(fqn); c != null; c = c.getSuperclass()) {
+            // The fqn is dotted-flattened, so a nested library type needs the
+            // progressive .->$ rewrite of loadClassReflectively to load.
+            for (Class<?> c = loadClassReflectively(fqn); c != null; c = c.getSuperclass()) {
                 for (var m : c.getDeclaredMethods()) {
                     int mod = m.getModifiers();
                     if (!m.getName().equals(name) || m.isSynthetic() || m.isBridge()

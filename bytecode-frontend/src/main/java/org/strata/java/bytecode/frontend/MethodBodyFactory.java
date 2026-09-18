@@ -58,7 +58,7 @@ public final class MethodBodyFactory {
         for (CrtRange r : crt) {
             if (!r.covers(bci)) continue;
             if (best == null || r.pcWidth() < best.pcWidth()
-                    || (r.pcWidth() == best.pcWidth() && r.srcWidth() < best.srcWidth())) best = r;
+                    || (r.pcWidth() == best.pcWidth() && r.narrowerSrcThan(best))) best = r;
         }
         return best == null ? Span.NONE : best.span();
     }
@@ -322,11 +322,22 @@ public final class MethodBodyFactory {
             if (b.succ.isEmpty()) { rpreds.get(b.id).add(X); exits.add(b.id); }   // reverse edge X -> exit
             else for (int s : b.succ) rpreds.get(b.id).add(s);                    // reverse pred of b is its succ
         }
-        rpreds.get(X).addAll(exits);                                             // X's reverse-preds are the exits
-        BitSet[] pdom = domSets(n + 1, X, rpreds);
-        int[] ipdomFull = idomFrom(pdom, X);
+        BitSet[] pdom;
         int[] ipdom = new int[n];
-        for (int b = 0; b < n; b++) ipdom[b] = (ipdomFull[b] == X) ? -1 : ipdomFull[b];
+        if (exits.isEmpty()) {
+            // No block reaches an exit (a method that only spins): the
+            // reverse dataflow from the unreachable virtual exit would
+            // produce arbitrary sets. No block lies on a path to the exit,
+            // so no block post-dominates another.
+            pdom = new BitSet[n + 1];
+            for (int b = 0; b <= n; b++) { pdom[b] = new BitSet(); pdom[b].set(b); }
+            java.util.Arrays.fill(ipdom, -1);
+        } else {
+            rpreds.get(X).addAll(exits);                                         // X's reverse-preds are the exits
+            pdom = domSets(n + 1, X, rpreds);
+            int[] ipdomFull = idomFrom(pdom, X);
+            for (int b = 0; b < n; b++) ipdom[b] = (ipdomFull[b] == X) ? -1 : ipdomFull[b];
+        }
 
         DominanceFinder d = new DominanceFinder(n, dom, idom, pdom, ipdom);
         // natural loops from back-edges (edge b -> h with h dominating b)

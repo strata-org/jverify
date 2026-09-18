@@ -8,6 +8,7 @@ import javax.tools.ToolProvider;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.ClassModel;
@@ -109,7 +110,7 @@ public final class BytecodeFrontend {
                             ClassModel cm = ClassFile.of().parse(p);
                             pool.put(cm.thisClass().asInternalName(), cm);
                         } catch (IOException e) {
-                            throw new RuntimeException("Failed to parse classfile " + p, e);
+                            throw new UncheckedIOException("Failed to parse classfile " + p, e);
                         }
                     });
         }
@@ -122,9 +123,12 @@ public final class BytecodeFrontend {
             String internalName = cm.thisClass().asInternalName();
             // Nested classfiles of this top-level class (Outer$Inner...):
             // needed by the Laurel generator to register their methods for
-            // verified/skipped counting parity with JFE.
+            // verified/skipped counting parity with JFE. The isNestedClass
+            // gate keeps a top-level class with '$' in its NAME from also
+            // riding along as a nested member.
             List<ClassModel> nested = pool.values().stream()
-                    .filter(n -> n != cm && n.thisClass().asInternalName().startsWith(internalName + "$"))
+                    .filter(n -> n != cm && ClassfileQueries.isNestedClass(n)
+                            && n.thisClass().asInternalName().startsWith(internalName + "$"))
                     .toList();
             result.add(new ClassSource(
                     internalName,

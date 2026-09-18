@@ -1290,6 +1290,15 @@ final class BodyTranslator {
             }
             case DUP2, DUP2_X1, DUP2_X2 -> {
                 AstNode<StmtExpr> top = stack.peek();
+                // A category-2 value (long/double) is ONE node here, so the
+                // single-node duplication is exact. Two category-1 values
+                // would need two nodes duplicated; refuse rather than
+                // silently corrupt the simulated stack.
+                String d = descOf.get(top);
+                if (!"J".equals(d) && !"D".equals(d)) {
+                    throw new JavaViolationException(
+                            "Unsupported stack shape: " + sk.opcode() + " over a non-long/double value");
+                }
                 int depth = sk.opcode() == java.lang.classfile.Opcode.DUP2 ? 0
                         : (sk.opcode() == java.lang.classfile.Opcode.DUP2_X1 ? 1 : 2);
                 insertDup(top, depth);
