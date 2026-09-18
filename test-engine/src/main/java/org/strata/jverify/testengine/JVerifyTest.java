@@ -41,6 +41,13 @@ public @interface JVerifyTest {
      */
     boolean verifyByDefault() default true;
     boolean useBuiltinContracts() default false;
+    /**
+     * Whether to run verification even when the Java-to-Laurel compilation
+     * reported errors. When false (default), any compilation error aborts
+     * before verification starts; when true, verification proceeds anyway.
+     * Note this gates only compilation errors, not per-method verification
+     * failures, which are always reported independently.
+     */
     boolean continueOnErrors() default false;
     int exitCode() default 0;
     String[] additionalFiles() default {};

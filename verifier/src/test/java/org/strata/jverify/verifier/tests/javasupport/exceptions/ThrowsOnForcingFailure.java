@@ -14,7 +14,6 @@ import static org.strata.jverify.JVerify.throwsOn;
  * failure (which is why it does not live in ThrowsOnProofFailures).
  */
 @JVerifyTest(
-        continueOnErrors = true,
         exitCode = 4, // verification errors present
         methodsVerified = 3, // fine() + 2 implicit constructors
         methodsInvalid = 1, // guardTooBroad(); also arms the errorCount expectation
