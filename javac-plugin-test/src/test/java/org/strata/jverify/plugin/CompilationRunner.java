@@ -1,7 +1,6 @@
 package org.strata.jverify.plugin;
 
 import com.google.testing.compile.Compilation;
-import org.jetbrains.annotations.NotNull;
 
 import javax.tools.JavaFileObject;
 import java.io.File;
@@ -58,7 +57,6 @@ public class CompilationRunner {
         }
     }
 
-    @NotNull
     private static Process getProcess(Iterable<File> classPath, String qualifiedClassName, String[] args, String javaBin, Path tempDir) throws IOException {
         List<String> command = new ArrayList<>();
         command.add(javaBin);

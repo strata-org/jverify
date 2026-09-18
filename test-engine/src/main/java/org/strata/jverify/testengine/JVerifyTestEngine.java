@@ -252,10 +252,12 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter) {
-        var backendPath = Path.of("../Strata").toAbsolutePath().normalize();
-        var libraryJar = Path.of("../library/build/libs/library-1.0-SNAPSHOT.jar");
-        var verifierJar = Path.of("../verifier/build/libs/verifier-1.0-SNAPSHOT.jar");
-        var libraryForTestingClassPath = Path.of("../library-for-testing/build/libs/library-for-testing-1.0-SNAPSHOT.jar");
+        // Resolved via brazil-runtime-exec; no explicit path needed.
+        Path backendPath = null;
+        var buildLib = Path.of("../build/lib");
+        var libraryJar = buildLib.resolve("library-1.0.jar");
+        var verifierJar = buildLib.resolve("verifier-1.0.jar");
+        var libraryForTestingClassPath = buildLib.resolve("library-for-testing-1.0.jar");
         var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
