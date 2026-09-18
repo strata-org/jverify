@@ -17,7 +17,18 @@ public record MethodOrLoopContract(
         List<Property<JCTree.JCExpression>> loopInvariants,
         List<JCTree.JCExpression> decreases,
         List<Property<JCTree.JCExpression>> reads,
-        List<Property<JCTree.JCExpression>> modifies) {
+        List<Property<JCTree.JCExpression>> modifies,
+        List<ThrowsOnCase> throwsOnCases) {
+
+    /**
+     * One exceptional behavior case: a {@code throwsOn(guard)} call chain with
+     * its {@code .postcondition(...)}/{@code .modifies(...)} clause links. See
+     * docs/exceptions-design.md §3.
+     */
+    public record ThrowsOnCase(
+            Property<JCTree.JCExpression> guard,
+            List<Property<JCTree.JCExpression>> postconditions,
+            List<Property<JCTree.JCExpression>> modifies) {}
     
     public static JCTree.JCExpression combineClauses(Context context, 
                                                      List<Property<JCTree.JCExpression>> clauses) {

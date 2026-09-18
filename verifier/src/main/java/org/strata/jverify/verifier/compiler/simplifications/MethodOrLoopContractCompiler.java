@@ -11,6 +11,7 @@ import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 
 /*
@@ -141,6 +142,10 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         var contract = getContract(loopBody.get());
         checkEmptyExpressions(loop, contract.preconditions(), "preconditions", "loop");
         checkEmptyExpressions(loop, contract.postconditions(), "postconditions", "loop");
+        checkEmptyExpressions(loop,
+                contract.throwsOnCases().stream()
+                        .map(MethodOrLoopContract.ThrowsOnCase::guard).toList(),
+                "throwsOn cases", "loop");
     }
 
     List<JCTree.JCStatement> getStatements(JCTree.JCStatement statement) {
@@ -250,7 +255,8 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
                 // not a header method, so stop here
                 return false;
             }
-            case Common.PRECONDITION, "postcondition", "invariant", "decreases", "reads", "modifies" -> {
+            case Common.PRECONDITION, "postcondition", "invariant", "decreases", "reads", "modifies",
+                 "throwsOn" -> {
                 return true;
             }
             default -> {
@@ -293,6 +299,35 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         return !stmts.isEmpty() && stmts.get(0) instanceof JCTree.JCBlock;
     }
 
+    /**
+     * The base {@code throwsOn(...)} call when {@code invocation} is a chained
+     * exceptional-behavior case
+     * ({@code throwsOn(C).postcondition(...).modifies(...)}), or {@code null}
+     * when it is not. Clause links are appended to {@code links} in source
+     * order when it is. Grouping is structural: a case is one statement, its
+     * clauses chain off the {@code ThrowsOnCase} handle {@code throwsOn}
+     * returns, and a clause without its case does not compile.
+     */
+    private static JCTree.JCMethodInvocation throwsOnChainBase(
+            JCTree.JCMethodInvocation invocation,
+            java.util.List<JCTree.JCMethodInvocation> links) {
+        var stack = new ArrayDeque<JCTree.JCMethodInvocation>();
+        var cur = invocation;
+        while (cur.meth instanceof JCTree.JCFieldAccess fa
+                && fa.selected instanceof JCTree.JCMethodInvocation inner) {
+            stack.push(cur);
+            cur = inner;
+        }
+        var base = JVerifyUtils.getJVerifyMethod(cur);
+        if (base == null || !base.getQualifiedName().contentEquals("throwsOn")) {
+            return null;
+        }
+        while (!stack.isEmpty()) {
+            links.add(stack.pop());
+        }
+        return cur;
+    }
+
     public MethodOrLoopContract getContract(JCTree.JCStatement outerBlock) {
         var contractBlock = getContractBlock(outerBlock);
         ArrayList<Property<JCTree.JCExpression>> precondition = new ArrayList<>();
@@ -301,10 +336,46 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
         ArrayList<Property<JCTree.JCExpression>> loopInvariant = new ArrayList<>();
         ArrayList<Property<JCTree.JCExpression>> reads = new ArrayList<>();
         ArrayList<Property<JCTree.JCExpression>> modifies = new ArrayList<>();
+        ArrayList<MethodOrLoopContract.ThrowsOnCase> throwsOnCases = new ArrayList<>();
 
         for (var contractStatement : contractBlock.getStatements()) {
             if (!((JCTree.JCStatement) contractStatement instanceof JCTree.JCExpressionStatement expressionStatement
                     && expressionStatement.getExpression() instanceof JCTree.JCMethodInvocation invocation)) {
+                continue;
+            }
+            // An exceptional behavior case is a call chain rooted at
+            // `throwsOn`; recognize it before the flat-clause dispatch below,
+            // whose method-name switch would otherwise mistake the chain's
+            // outermost `.postcondition(...)`/`.modifies(...)` link for the
+            // normal-exit clause of the same name.
+            ArrayList<JCTree.JCMethodInvocation> caseLinks = new ArrayList<>();
+            var caseBase = throwsOnChainBase(invocation, caseLinks);
+            if (caseBase != null) {
+                if (caseBase.args.size() != 1) {
+                    throw new JavaViolationException("A throwsOn call must have exactly one argument");
+                }
+                var throwsOnCase = new MethodOrLoopContract.ThrowsOnCase(
+                        Property.fromElement(caseBase.getArguments(), 0),
+                        new ArrayList<>(), new ArrayList<>());
+                for (var link : caseLinks) {
+                    var linkName = ((JCTree.JCFieldAccess) link.meth).name.toString();
+                    if (link.args.size() != 1) {
+                        throw new JavaViolationException(
+                                "A throwsOn case's " + linkName + " clause must have exactly one argument");
+                    }
+                    switch (linkName) {
+                        case "postcondition" ->
+                            throwsOnCase.postconditions().add(Property.fromElement(link.getArguments(), 0));
+                        case "modifies" ->
+                            throwsOnCase.modifies().add(Property.fromElement(link.getArguments(), 0));
+                        default ->
+                            // Unreachable while ThrowsOnCase declares only the
+                            // two clause methods; kept as a guard for drift.
+                            throw new JavaViolationException(
+                                    "Unsupported throwsOn case clause: " + linkName);
+                    }
+                }
+                throwsOnCases.add(throwsOnCase);
                 continue;
             }
             var jverifyMethod = JVerifyUtils.getJVerifyMethod(invocation);
@@ -363,7 +434,7 @@ public class MethodOrLoopContractCompiler extends TreeTranslator {
             }
         }
         return new MethodOrLoopContract(precondition, postcondition,
-                loopInvariant, decreases, reads, modifies);
+                loopInvariant, decreases, reads, modifies, throwsOnCases);
     }
 
     public void checkEmptyExpressions(JCTree tree,
