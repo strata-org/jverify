@@ -16,7 +16,7 @@ import org.strata.jverify.testengine.JVerifyTest;
  * another needs no handler because Strata synthesizes the propagation at the
  * call site.
  */
-@JVerifyTest(methodsVerified = 8) // 4 static methods + 4 implicit constructors
+@JVerifyTest(methodsVerified = 8) // 4 static methods + 4 implicit constructors (3 nested + the test class)
 class ThrowsSignatures {
     static class AppException extends Exception {}
 //         ^ warning: missing contract for method '<init>' in class 'java.lang.Exception'
