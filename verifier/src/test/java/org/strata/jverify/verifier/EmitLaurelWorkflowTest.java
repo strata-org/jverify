@@ -91,7 +91,7 @@ public class EmitLaurelWorkflowTest {
                 "the trivially-true program should have no failed assertions");
     }
 
-    private static VerifierOptions withEmit(VerifierOptions base, Path emit, boolean emitLaurelOnly) {
+    static VerifierOptions withEmit(VerifierOptions base, Path emit, boolean emitLaurelOnly) {
         return new VerifierOptions(
                 base.outWriter(),
                 base.workingDirectory(),
