@@ -98,6 +98,14 @@ public class JavaToLaurelCompiler {
     /// exceptional exit and checks the thrown type fits under it.
     private Symbol.ClassSymbol currentThrowsJoin;
 
+    /// The catch types of the `try` bodies enclosing the statement currently
+    /// being converted, innermost last (one entry per `try`, all arms
+    /// flattened). A `throw` whose type an enclosing arm catches needs no
+    /// declared `throws` -- mirroring javac's own checked-exception rule.
+    /// Scoped to the `try` BODY only: a throw inside a catch arm or finally
+    /// block answers to the next try out, exactly as in Java.
+    private final Deque<List<Symbol.ClassSymbol>> enclosingCatchTypes = new ArrayDeque<>();
+
     public JavaToLaurelCompiler(Context context) {
         lowerer = context.get(JavaLowerer.class);
         contractCompiler = MethodOrLoopContractCompiler.instance(context);
@@ -571,6 +579,25 @@ public class JavaToLaurelCompiler {
     }
 
     /**
+     * Declare {@code cls} and its superclass chain up to and including
+     * {@code java.lang.Throwable} (or the top of the chain if {@code Throwable}
+     * is not an ancestor). Used by catch translation, where type dispatch needs
+     * cross-hierarchy relations that the declared-join-scoped registration
+     * cannot provide.
+     */
+    private void registerHierarchyUpToThrowable(Symbol.ClassSymbol cls) {
+        Symbol.ClassSymbol stop = cls;
+        for (Symbol.ClassSymbol c = cls; c != null; c = superclassOf(c)) {
+            stop = c;
+            if (c.getQualifiedName().contentEquals("java.lang.Throwable")) {
+                break;
+            }
+        }
+        registerHierarchyUpTo(cls, stop);
+        referencedCompositeTypes.add(compositeSortName(stop));
+    }
+
+    /**
      * Declare {@code cls} and every class on its superclass chain up to (but
      * not including) {@code stopAt} as composites, each with its {@code extends}
      * link recorded in {@link #compositeExtends}. {@code stopAt} itself is
@@ -903,6 +930,7 @@ public class JavaToLaurelCompiler {
             Optional<AstNode<HighType>> throwsType = Optional.empty();
             Optional<Identifier> throwsBinding = Optional.empty();
             currentThrowsJoin = null;
+            enclosingCatchTypes.clear();
             if (method.thrown != null && !method.thrown.isEmpty()) {
                 throwsType = Optional.of(translateThrowsClause(method.thrown));
                 throwsBinding = Optional.of(ident(THROWN_BINDING));
@@ -1202,41 +1230,142 @@ public class JavaToLaurelCompiler {
                         }
                     }
                 }
-                case JCTree.JCThrow throwStmt -> {
-                    // A `throw` needs the method's declared exceptional exit to
-                    // land on (docs/exceptions-design.md §1): the declaration is
-                    // where the thrown type, the caller's view, and the coming
-                    // `throwsOn` contract DSL all hang. Java lets an unchecked
-                    // throw go undeclared; JVerify does not.
-                    if (currentThrowsJoin == null) {
+                case JCTree.JCTry tryStmt -> {
+                    // Defensive: javac's LOWER phase (already in the pipeline)
+                    // desugars try-with-resources into try/finally before we
+                    // run, so resources should never survive to here. If a
+                    // javac change ever stops that, refuse rather than drop
+                    // the close() semantics silently.
+                    if (tryStmt.resources != null && !tryStmt.resources.isEmpty()) {
                         throw new JavaViolationException(
-                                "throw requires the enclosing method to declare the thrown type"
-                                        + " in its throws clause");
+                                "try-with-resources is not supported; use try/finally");
                     }
+                    // The arms' catch types license `throw`s inside the try
+                    // BODY only (a throw in an arm or finalizer answers to the
+                    // next try out, as in Java), so scope the push to the body.
+                    List<Symbol.ClassSymbol> armTypes = new ArrayList<>();
+                    for (var catcher : tryStmt.catchers) {
+                        armTypes.addAll(caughtClassesOf(catcher));
+                    }
+                    StmtExpr tryBody;
+                    enclosingCatchTypes.push(armTypes);
+                    try {
+                        tryBody = convertStatementOrEmpty(tryStmt.body, renames);
+                    } finally {
+                        enclosingCatchTypes.pop();
+                    }
+                    List<CatchClause> catches = new ArrayList<>();
+                    for (var catcher : tryStmt.catchers) {
+                        catches.add(convertCatcher(catcher, renames));
+                    }
+                    Optional<AstNode<StmtExpr>> finallyArm = tryStmt.finalizer != null
+                            ? Optional.of(node(convertStatementOrEmpty(tryStmt.finalizer, renames),
+                                    tryStmt.finalizer))
+                            : Optional.empty();
+                    yield new StmtExpr.Try(node(tryBody, tryStmt.body), catches, finallyArm);
+                }
+                case JCTree.JCThrow throwStmt -> {
                     if (!(throwStmt.expr.type instanceof com.sun.tools.javac.code.Type.ClassType ct)
                             || !(ct.tsym instanceof Symbol.ClassSymbol thrownCls)) {
                         throw new JavaViolationException(
                                 "Unsupported thrown expression type: " + throwStmt.expr.type);
                     }
-                    // javac enforces declaration for checked exceptions only; an
-                    // unchecked throw outside the declared hierarchy is legal
-                    // Java, but under JVerify's declared-throws discipline it
-                    // would escape the exceptional contract -- reject it here
-                    // rather than as a Strata-side type error.
-                    if (!isSubclassOf(thrownCls, currentThrowsJoin)) {
+                    // A `throw` needs somewhere to land: an enclosing catch arm
+                    // that covers its type, or the method's declared exceptional
+                    // exit (docs/exceptions-design.md §1) -- the declaration is
+                    // where the thrown type, the caller's view, and the coming
+                    // `throwsOn` contract DSL all hang. Java lets an unchecked
+                    // throw go undeclared and uncaught; JVerify does not.
+                    boolean caughtLocally = enclosingCatchTypes.stream().anyMatch(arms ->
+                            arms.stream().anyMatch(c -> isSubclassOf(thrownCls, c)));
+                    if (caughtLocally) {
+                        // Link the whole chain: the catch guard's `is` test needs
+                        // the thrown class related to the caught class.
+                        registerHierarchyUpToThrowable(thrownCls);
+                    } else if (currentThrowsJoin == null) {
+                        throw new JavaViolationException(
+                                "throw requires the enclosing method to declare the thrown type"
+                                        + " in its throws clause");
+                    } else if (!isSubclassOf(thrownCls, currentThrowsJoin)) {
+                        // javac enforces declaration for checked exceptions only;
+                        // an unchecked throw outside the declared hierarchy is
+                        // legal Java, but under JVerify's declared-throws
+                        // discipline it would escape the exceptional contract --
+                        // reject it here rather than as a Strata-side type error.
                         throw new JavaViolationException(
                                 "thrown type '" + thrownCls.getQualifiedName()
                                         + "' is not covered by the declared throws clause ('"
                                         + currentThrowsJoin.getQualifiedName() + "')");
+                    } else {
+                        // Link the thrown class up to the declared join so the
+                        // Laurel `throw` value type-checks against `throws (e: T)`.
+                        registerHierarchyUpTo(thrownCls, currentThrowsJoin);
                     }
-                    // Link the thrown class up to the declared join so the Laurel
-                    // `throw` value type-checks against the `throws (e: T)` type.
-                    registerHierarchyUpTo(thrownCls, currentThrowsJoin);
                     yield new StmtExpr.Throw(node(convertExpression(throwStmt.expr, renames), throwStmt.expr));
                 }
                 case JCTree.JCSkip ignored -> null;
                 default -> throw new JavaViolationException("Unsupported statement: " + statement.getClass().getSimpleName());
             };
+        }
+
+        /**
+         * A Java {@code catch (E e)} arm as a Laurel {@link CatchClause}: the
+         * binding keeps its Java name, type dispatch becomes the guard
+         * {@code e is E} (a multi-catch {@code catch (A | B e)} becomes the
+         * disjunction of type tests, matching Java's own semantics of typing
+         * the binding at the alternatives' LCA), and arms stay in source order
+         * because Laurel tries clauses first-match-wins exactly as Java does.
+         *
+         * <p>The clause's {@code bindingType} is left {@code Unknown}: Strata's
+         * resolution computes it as the LCA of the exception types thrown in
+         * the {@code try} body, the same as for the Laurel textual frontend.
+         *
+         * <p>Each caught class is declared as a composite with its superclass
+         * chain up to {@code java.lang.Throwable}. The throw side (phase 2)
+         * links chains only up to the enclosing method's declared join, which
+         * cannot relate classes across hierarchies; catch dispatch depends on
+         * those relations (`e is E` on an unlinked sort would be vacuously
+         * false, silently turning a live arm into dead code), so the catch
+         * side links all the way up. The JCL ancestors this drags in
+         * (`Exception`, `Throwable`, ...) are empty, uninterpreted sorts.
+         */
+        /** The classes a catch arm's parameter covers (several for a multi-catch). */
+        private List<Symbol.ClassSymbol> caughtClassesOf(JCTree.JCCatch catcher) {
+            var param = catcher.param;
+            List<Symbol.ClassSymbol> caught = new ArrayList<>();
+            var alternatives = param.vartype instanceof JCTree.JCTypeUnion union
+                    ? union.alternatives
+                    : com.sun.tools.javac.util.List.of(param.vartype);
+            for (var alt : alternatives) {
+                if (!(alt.type instanceof com.sun.tools.javac.code.Type.ClassType ct)
+                        || !(ct.tsym instanceof Symbol.ClassSymbol cls)) {
+                    throw new JavaViolationException("Unsupported catch type: " + alt.type);
+                }
+                caught.add(cls);
+            }
+            return caught;
+        }
+
+        private CatchClause convertCatcher(JCTree.JCCatch catcher, Map<String, String> renames) {
+            var param = catcher.param;
+            String binding = param.name.toString();
+            List<Symbol.ClassSymbol> caught = caughtClassesOf(catcher);
+            StmtExpr predicate = null;
+            for (var cls : caught) {
+                registerHierarchyUpToThrowable(cls);
+                String sort = compositeSortName(cls);
+                StmtExpr test = new StmtExpr.IsType(
+                        node(var_(binding), param),
+                        node(new HighType.UserDefined(ident(sort)), typeRangeOrNone(param.vartype)));
+                predicate = predicate == null
+                        ? test
+                        : primitiveOp(new Operation.Or(), node(predicate, param), node(test, param));
+            }
+            StmtExpr body = convertStatementOrEmpty(catcher.body, renames);
+            return new CatchClause(ident(binding),
+                    Optional.of(node(predicate, param)),
+                    node(body, catcher.body),
+                    node(new HighType.Unknown()));
         }
 
         private StmtExpr convertBlock(JCTree.JCBlock blk, Map<String, String> renames) {
