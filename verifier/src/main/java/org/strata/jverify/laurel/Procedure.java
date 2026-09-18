@@ -1,9 +1,12 @@
 package org.strata.jverify.laurel;
 
-public record Procedure(Identifier name, java.util.List<Parameter> inputs, java.util.List<Parameter> outputs, java.util.List<Condition> preconditions, java.util.Optional<AstNode<StmtExpr>> decreases, Body body, java.util.Optional<AstNode<StmtExpr>> invokeOn, boolean isInterpretEntry, java.util.List<AstNode<StmtExpr>> axioms, java.util.Optional<AstNode<HighType>> throwsType, java.util.Optional<Identifier> throwsBinding, java.util.List<ThrowsOnBlock> throwsOn) implements ToIon {
+public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, java.util.List<Parameter> inputs, java.util.List<Parameter> outputs, java.util.List<Condition> preconditions, java.util.Optional<AstNode<StmtExpr>> decreases, Body body, java.util.Optional<AstNode<StmtExpr>> invokeOn, boolean isInterpretEntry, java.util.List<AstNode<StmtExpr>> axioms, java.util.Optional<AstNode<HighType>> throwsType, java.util.Optional<Identifier> throwsBinding, java.util.List<ThrowsOnBlock> throwsOn) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         s.put("name", name().toIon(ion));
+        var _l_typeArgs = ion.newEmptyList();
+        for (var e : typeArgs()) _l_typeArgs.add(e.toIon(ion));
+        s.put("typeArgs", _l_typeArgs);
         var _l_inputs = ion.newEmptyList();
         for (var e : inputs()) _l_inputs.add(e.toIon(ion));
         s.put("inputs", _l_inputs);
