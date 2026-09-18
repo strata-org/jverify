@@ -91,7 +91,6 @@ public class JavaToLaurelCompiler {
 
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
         boolean first = true;
-        Set<String> emittedCompositeTypes = new HashSet<>();
         for (var compilationUnit : loweredResult.parsed()) {
             if (lowerer.isContractSource(compilationUnit)) {
                 continue;
@@ -105,21 +104,8 @@ public class JavaToLaurelCompiler {
                 commands.addAll(getPredefinedTypes());
                 first = false;
             }
-            // Declare each opaque composite sort referenced so far that has
-            // not been declared yet, before the procedures that use it, so
-            // Strata's resolver can find the sort. Include any instance
-            // fields recorded for this composite -- required for Strata's
-            // heap parameterization pass to resolve `c.x` reads/writes.
-            for (var typeName : referencedCompositeTypes) {
-                if (emittedCompositeTypes.add(typeName)) {
-                    List<Field> fields = compositeFields.containsKey(typeName)
-                            ? new ArrayList<>(compositeFields.get(typeName).values())
-                            : List.of();
-                    commands.add(compositeCommand(
-                            composite(typeName, Optional.empty(), fields, List.of())));
-                }
-            }
-            // Emit cast helper procedures (see convertTypeCast) before the
+            
+	    // Emit cast helper procedures (see convertTypeCast) before the
             // procedures that call them, so Strata's resolver can find them.
             // Skip helpers already emitted in an earlier file -- all Laurel
             // files share one program scope, so a repeated helper would be
@@ -129,11 +115,30 @@ public class JavaToLaurelCompiler {
                     commands.add(procedureCommand(entry.getValue()));
                 }
             }
+	    
             for (var proc : visitor.procedures) {
                 commands.add(procedureCommand(proc));
             }
             result.add(new LaurelFile(compilationUnit.sourcefile.toUri(), commands));
             lineMaps.put(compilationUnit.sourcefile.toUri(), compilationUnit.getLineMap());
+        }
+
+        // Emit composite declarations after ALL compilation units have been
+        // visited, so that field accesses discovered in later units are
+        // included in the composite's field list. Composites are prepended
+        // to the first file's command list (after the predefined types) so
+        // Strata's resolver can find them before any procedure that
+        // references them.
+        if (!result.isEmpty()) {
+            List<Command> compositeCommands = new ArrayList<>();
+            for (var typeName : referencedCompositeTypes) {
+                List<Field> fields = compositeFields.containsKey(typeName)
+                        ? new ArrayList<>(compositeFields.get(typeName).values())
+                        : List.of();
+                compositeCommands.add(compositeCommand(
+                        composite(typeName, Optional.empty(), fields, List.of())));
+            }
+            result.getFirst().commands().addAll(getPredefinedTypes().size(), compositeCommands);
         }
 
         FilesMap filesMap = (uri, offset) -> {
