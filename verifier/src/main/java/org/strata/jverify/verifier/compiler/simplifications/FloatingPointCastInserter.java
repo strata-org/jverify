@@ -2,105 +2,35 @@ package org.strata.jverify.verifier.compiler.simplifications;
 
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.TypeTag;
-import com.sun.tools.javac.code.Type.MethodType;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
-import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.ListBuffer;
 
 /**
- * Inserts explicit type casts for implicit widening conversions from integral types
- * to floating point types (int/long/short/byte -> double/float).
- * This simplifies downstream translation by making all conversions explicit.
+ * Inserts explicit type casts for implicit widening conversions from
+ * integral types to floating-point types
+ * ({@code int}/{@code long}/{@code short}/{@code byte} → {@code float}/{@code double}).
+ * This makes every integer-to-float boundary explicit for downstream
+ * translation.
+ *
+ * <p>The shared JLS §5.6 dispatch lives on {@link CastInserter}; this
+ * pass only adds the {@link JCTree.JCBinary} case (mixed integer/float
+ * operands need the integer side widened before the operation).
  */
-public class FloatingPointCastInserter extends TreeTranslator {
-    private final TreeMaker make;
-    private Type currentMethodReturnType;
-
+public class FloatingPointCastInserter extends CastInserter {
     public FloatingPointCastInserter(Context context) {
-        this.make = TreeMaker.instance(context);
+        super(context);
     }
 
     @Override
-    public void visitVarDef(JCTree.JCVariableDecl tree) {
-        super.visitVarDef(tree);
-        if (tree.init != null) {
-            tree.init = insertCastIfNeeded(tree.init, tree.vartype.type);
+    protected boolean shouldCast(Type source, Type target) {
+        if (!target.isPrimitive() || !source.isPrimitive()) {
+            return false;
         }
-        result = tree;
-    }
-
-    @Override
-    public void visitApply(JCTree.JCMethodInvocation tree) {
-        super.visitApply(tree);
-        if (tree.meth.type instanceof MethodType mt) {
-            List<Type> params = mt.getParameterTypes();
-            ListBuffer<JCTree.JCExpression> newArgs = new ListBuffer<>();
-
-            for (int i = 0; i < tree.args.size(); i++) {
-                JCTree.JCExpression arg = tree.args.get(i);
-                Type paramType = i < params.size() ? params.get(i) : arg.type;
-                newArgs.append(insertCastIfNeeded(arg, paramType));
-            }
-            tree.args = newArgs.toList();
-        }
-        result = tree;
-    }
-
-    @Override
-    public void visitAssign(JCTree.JCAssign tree) {
-        super.visitAssign(tree);
-        tree.rhs = insertCastIfNeeded(tree.rhs, tree.lhs.type);
-        result = tree;
-    }
-
-    @Override
-    public void visitAssignop(JCTree.JCAssignOp tree) {
-        super.visitAssignop(tree);
-        tree.rhs = insertCastIfNeeded(tree.rhs, tree.lhs.type);
-        result = tree;
-    }
-
-    @Override
-    public void visitReturn(JCTree.JCReturn tree) {
-        super.visitReturn(tree);
-        if (tree.expr != null && currentMethodReturnType != null) {
-            tree.expr = insertCastIfNeeded(tree.expr, currentMethodReturnType);
-        }
-        result = tree;
-    }
-
-    @Override
-    public void visitMethodDef(JCTree.JCMethodDecl tree) {
-        Type savedReturnType = currentMethodReturnType;
-        currentMethodReturnType = tree.restype != null ? tree.restype.type : null;
-        super.visitMethodDef(tree);
-        currentMethodReturnType = savedReturnType;
-    }
-
-    @Override
-    public void visitConditional(JCTree.JCConditional tree) {
-        super.visitConditional(tree);
-        if (tree.type != null) {
-            tree.truepart = insertCastIfNeeded(tree.truepart, tree.type);
-            tree.falsepart = insertCastIfNeeded(tree.falsepart, tree.type);
-        }
-        result = tree;
-    }
-
-    @Override
-    public void visitNewArray(JCTree.JCNewArray tree) {
-        super.visitNewArray(tree);
-        if (tree.elemtype != null && tree.elems != null) {
-            ListBuffer<JCTree.JCExpression> newElems = new ListBuffer<>();
-            for (JCTree.JCExpression elem : tree.elems) {
-                newElems.append(insertCastIfNeeded(elem, tree.elemtype.type));
-            }
-            tree.elems = newElems.toList();
-        }
-        result = tree;
+        TypeTag sourceTag = source.getTag();
+        TypeTag targetTag = target.getTag();
+        // int/long/short/byte → double/float
+        return (targetTag == TypeTag.DOUBLE || targetTag == TypeTag.FLOAT)
+                && isIntegralTag(sourceTag);
     }
 
     @Override
@@ -109,10 +39,8 @@ public class FloatingPointCastInserter extends TreeTranslator {
         if (tree.lhs.type != null && tree.rhs.type != null) {
             TypeTag lhsTag = tree.lhs.type.getTag();
             TypeTag rhsTag = tree.rhs.type.getTag();
-
             boolean lhsIsFloat = lhsTag == TypeTag.DOUBLE || lhsTag == TypeTag.FLOAT;
             boolean rhsIsFloat = rhsTag == TypeTag.DOUBLE || rhsTag == TypeTag.FLOAT;
-
             if (lhsIsFloat && isIntegralTag(rhsTag)) {
                 tree.rhs = insertCastIfNeeded(tree.rhs, tree.lhs.type);
             } else if (rhsIsFloat && isIntegralTag(lhsTag)) {
@@ -122,35 +50,10 @@ public class FloatingPointCastInserter extends TreeTranslator {
         result = tree;
     }
 
-    private boolean isIntegralTag(TypeTag tag) {
+    private static boolean isIntegralTag(TypeTag tag) {
         return switch (tag) {
             case INT, LONG, SHORT, BYTE -> true;
             default -> false;
         };
-    }
-
-    private JCTree.JCExpression insertCastIfNeeded(JCTree.JCExpression expr, Type targetType) {
-        if (targetType == null || expr.type == null) {
-            return expr;
-        }
-
-        if (needsFloatingPointPromotion(expr.type, targetType)) {
-            JCTree.JCTypeCast cast = make.at(expr.pos).TypeCast(make.Type(targetType), expr);
-            cast.type = targetType;
-            return cast;
-        }
-        return expr;
-    }
-
-    private boolean needsFloatingPointPromotion(Type source, Type target) {
-        if (!target.isPrimitive() || !source.isPrimitive()) {
-            return false;
-        }
-
-        TypeTag sourceTag = source.getTag();
-        TypeTag targetTag = target.getTag();
-
-        // Handle int/long/short/byte -> double/float conversions
-        return (targetTag == TypeTag.DOUBLE || targetTag == TypeTag.FLOAT) && isIntegralTag(sourceTag);
     }
 }
