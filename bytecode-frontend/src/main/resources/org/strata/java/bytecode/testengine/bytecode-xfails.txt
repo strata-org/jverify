@@ -93,3 +93,11 @@ XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.Internal
 # LineNumberTable, so no line survives into the classfile and bf reports it
 # without a position. Messages and counts match.
 XFAIL  org.strata.jverify.verifier.tests.javasupport.localClasses.PolymorphicAnonymousClasses      FRONTEND_DIAGNOSTIC  bodyless interface-method declaration has no bytecode position (no Code -> no LineNumberTable)
+
+# Strata anchors an override-refinement (Liskov) failure at the OVERRIDE's method
+# NAME, falling back to the inherited clause when that name has no position. A
+# method-name identifier is built by LaurelFactory.ident, which stamps
+# UNKNOWN_RANGE, so bf takes the fallback and reports on the ancestor's `ensures`
+# line. Messages and counts match; stamping the method range on that identifier
+# would remove the divergence.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness                 FRONTEND_DIAGNOSTIC  override's method name has no bytecode position (LaurelFactory.ident stamps UNKNOWN_RANGE); bf falls back to the inherited clause's line

@@ -24,15 +24,17 @@ import static org.strata.jverify.JVerify.*;
  * {@code SubP.compute} refines {@code BaseP.compute}. {@code SubP}'s empty
  * declared postcondition guarantees nothing, so the parent's {@code r >= 0}
  * cannot be re-established over the override's result — a genuine Liskov
- * violation, reported as "override postcondition no weaker than '...BaseP.compute'
- * (Liskov) could not be proved" anchored at the parent's {@code r >= 0}. (This
- * replaces the earlier behaviour where {@code SubP.compute} verified vacuously
- * against its empty contract.)
+ * violation, reported as "override postcondition no weaker than '$result >= 0' from
+ * '...BaseP.compute' could not be proved" and anchored at {@code SubP.compute} —
+ * the violation is the override's defect, so that is where it is reported. (This replaces
+ * the earlier behaviour where {@code SubP.compute} verified vacuously against its empty
+ * contract.)
  * </ul>
  *
- * <p>The three implicit constructors and {@code SubP.compute} still verify
- * (4 methods); {@code BaseP.compute} now fails its refinement obligation (the
- * single expected error); the unsound call site is skipped (1).
+ * <p>So {@code SubP.compute} is the method that fails, and {@code BaseP.compute} one of the
+ * four that verify alongside the three implicit constructors; the unsound call site is the
+ * skip. The bytecode frontend reports the same message on the inherited clause instead, and
+ * carries an XFAIL in {@code bytecode-xfails.txt} saying why.
  *
  * <p>Re-enable verification of the {@code root} call when runtime dispatch lands
  * (Strata#1174) — at which point the front-end's blanket refusal can be relaxed,
@@ -42,10 +44,10 @@ import static org.strata.jverify.JVerify.*;
 class PolyDispatchSoundness {
     static class BaseP {
         @Pure int compute() { postcondition((int r) -> r >= 0); return 0; }
-//                                                     ^^^^^^ Error: override postcondition no weaker than 'org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness.BaseP.compute' (Liskov) could not be proved
     }
     static class SubP extends BaseP {
         @Pure @Override int compute() { return -1; }
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: override postcondition no weaker than '$result >= 0' from 'org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness.BaseP.compute' could not be proved
     }
     static void root() {
 //              ^ error: polymorphic dispatch through interface/superclass is not yet supported
