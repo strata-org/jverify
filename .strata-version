@@ -1,0 +1,7 @@
+# Pinned strata-org/Strata-CLI commit that CI builds the `strata` CLI from.
+# Bump this to move to a newer Strata; CI verifies the checked-in Laurel
+# bindings still match what this revision generates.
+#
+# Built by strata-org/Strata/.github/actions/install-strata, called from
+# .github/workflows/pr-build.yml.
+2d0111c0825ae877062597aae6f4854afb9e5173
