@@ -56,7 +56,7 @@ jobs:
       # lands inside this repo's working tree, which would dirty the
       # git-diff check below.
       - name: Install strata on PATH
-        uses: strata-org/Strata/.github/actions/install-strata@main
+        uses: strata-org/Strata/.github/actions/install-strata@add-install-strata-action
         with:
           ref: ${{ steps.strata-pin.outputs.ref }}
           checkout-path: strata-cli
