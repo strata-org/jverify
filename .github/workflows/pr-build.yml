@@ -5,26 +5,23 @@ on:
   pull_request:
   merge_group:
 
-    
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-  
-  
+
+
 jobs:
-  checks:
-    strategy:
-      matrix:
-        os: [ ubuntu-24.04, windows-2022 ]
-      fail-fast: false
-        
-    runs-on: ${{ matrix.os }}
+  # Verification needs the `strata` CLI, which is built from source by
+  # install-strata and is Linux-only (see the `compile` job for Windows).
+  verify:
+    name: Verify (Linux)
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v6
         with:
           path: jverify-collection
-          submodules: recursive
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
@@ -37,42 +34,39 @@ jobs:
           distribution: 'corretto'
           java-version: '25'
           cache: gradle
-      - name: Build Strata
-        uses: leanprover/lean-action@v1
+
+      - name: Read the pinned Strata-CLI revision
+        id: strata-pin
+        shell: bash
+        run: |
+          set -eu
+          ref=$(grep -v '^#' jverify-collection/.strata-version | tr -d '[:space:]')
+          if [ -z "$ref" ]; then
+            echo ".strata-version contains no revision." >&2
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Install z3 on PATH
+        uses: strata-org/Strata/.github/actions/install-z3@main
+
+      # Provides both `strata` (the verifier back-end this project shells out
+      # to) and `laurelJavaGen` (used by `make generate-laurel-ast` below).
+      # Checked out as a sibling of jverify-collection so the build tree never
+      # lands inside this repo's working tree, which would dirty the
+      # git-diff check below.
+      - name: Install strata on PATH
+        uses: strata-org/Strata/.github/actions/install-strata@main
         with:
-          lake-package-directory:
-            ./jverify-collection/Strata
-          build: "true"
-          test: "false"
-          lint: "false"
+          ref: ${{ steps.strata-pin.outputs.ref }}
+          checkout-path: strata-cli
+
       - name: Verify Laurel AST is up to date
         working-directory: ./jverify-collection
         run: |
           make generate-laurel-ast
           git diff --exit-code --ignore-cr-at-eol verifier/src/main/java/org/strata/jverify/laurel/
-      - name: Add Lake to path (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Add-Content $env:GITHUB_PATH "$HOME/.elan/bin"
-      - name: Install z3 on PATH
-        shell: bash
-        run: |
-          ARCH=$(uname -m)
-          if [ "$OS" = "Windows_NT" ] || [ "$OS" = "MINGW"* ]; then
-            ARCHIVE_NAME="z3-4.15.2-x64-win"
-            curl -L -o z3.zip https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-win.zip
-            unzip z3.zip
-          elif [ "$ARCH" = "x86_64" ]; then
-            ARCH_NAME="x86_64"
-            wget https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-x64-glibc-2.39.zip
-            ARCHIVE_NAME="z3-4.15.2-x64-glibc-2.39"
-            unzip "${ARCHIVE_NAME}.zip"
-          else
-            echo "Unsupported architecture: $ARCH"
-            exit 1
-          fi
-          chmod +x "${ARCHIVE_NAME}/bin/z3"
-          echo "$GITHUB_WORKSPACE/${ARCHIVE_NAME}/bin/" >> $GITHUB_PATH
+
       - name: Install verifier CLI locally
         working-directory: ./jverify-collection
         run: |
@@ -85,3 +79,36 @@ jobs:
         working-directory: ./jverify-collection
         run: |
           ./gradlew test --info
+
+  # Windows coverage is compile-only: no Strata action supports Windows, and
+  # Strata-CLI's own CI is ubuntu-only, so a Lean build there is unproven.
+  # Tracked as a follow-up; see .strata-version.
+  compile:
+    name: Compile only (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ windows-2022 ]
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: jverify-collection
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'corretto'
+          java-version: '17'
+          cache: gradle
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'corretto'
+          java-version: '25'
+          cache: gradle
+      - name: Compile
+        working-directory: ./jverify-collection
+        run: |
+          ./gradlew assemble
