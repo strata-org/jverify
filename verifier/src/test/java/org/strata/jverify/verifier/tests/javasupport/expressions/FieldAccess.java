@@ -22,11 +22,16 @@ class FieldAccess {
         check(p.x == 42);
     }
 
+    // `could not be proved` rather than `does not hold`, even though the value is
+    // concrete. A Java `int` field maps to a constrained range type, and Strata's
+    // constrained-type elimination attaches a quantified range axiom to every read of
+    // one, which is enough to move this query from refuted to unknown. The assertion
+    // still fails; only the wording is weaker.
     static void writeFieldKO() {
         Point p = new Point();
         p.x = 42;
         check(p.x == 41);
-//      ^^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void writeTwoFields() {
@@ -58,7 +63,7 @@ class FieldAccess {
         p.y = 4;
         int z = p.x + p.y;
         check(z == 8);
-//      ^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void writesToArg(Point p) {

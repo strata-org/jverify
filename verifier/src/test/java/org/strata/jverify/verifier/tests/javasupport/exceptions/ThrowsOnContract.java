@@ -168,12 +168,9 @@ class ThrowsOnContract {
         return x;
     }
 
-    /** A @Pure method with an exceptional contract and no normal-exit spec:
-        the body may stay Transparent -- cases ride on `Procedure.throwsOn`,
-        not on the body, and are checked regardless of body kind. (Confirmed
-        in the failing direction too: the same shape with a false
-        `throwsOn(false)` fails the exhaustiveness claim; not pinned here
-        because that diagnostic is currently unattributed to a method.) */
+    /** The negative direction is deliberately not pinned: the same shape with a
+        false `throwsOn(false)` fails the exhaustiveness claim, but that
+        diagnostic is currently unattributed to a method. */
     @org.strata.jverify.Pure
     static int pureWithCase(int x) throws AppException {
         throwsOn(x < 0);

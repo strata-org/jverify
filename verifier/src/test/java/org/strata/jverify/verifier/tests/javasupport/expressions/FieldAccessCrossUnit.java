@@ -31,7 +31,7 @@ public class FieldAccessCrossUnit {
         CrossUnitPoint p = new CrossUnitPoint();
         p.x = 42;
         check(p.x == 41);
-//      ^^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     // A method that references the cross-unit type in its signature but

@@ -45,7 +45,7 @@ class FieldAccessModifies {
         p.y = 5;
         writesXModifiesObj(p);
         check(p.y == 5);
-//      ^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     // ---- Case 2: no modifies clause on a body that writes fields --------
@@ -72,7 +72,7 @@ class FieldAccessModifies {
         p.y = 7;
         writesXNoModifies(p);
         check(p.y == 7);
-//      ^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     // ---- Case 3: two objects, modifies names only one -------------------
@@ -109,7 +109,7 @@ class FieldAccessModifies {
         // q aliases p, and modifies(p) may have changed anything at that
         // address -- including q.y.
         check(q.y == 11);
-//      ^^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     // ---- Case 5: modifies matches the write; body verifies ------------
@@ -188,6 +188,6 @@ class FieldAccessModifies {
         p.y = 5;
         writesEverything(p);
         check(p.y == 5);
-//      ^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 }

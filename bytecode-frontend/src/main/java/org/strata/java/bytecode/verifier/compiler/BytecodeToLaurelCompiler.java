@@ -1632,7 +1632,14 @@ public class BytecodeToLaurelCompiler {
                         "@Pure function with a loop and a postcondition is not yet supported");
             }
             procBody = new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of()));
-        } else if (isPure && postconditions.isEmpty() && modifies.isEmpty()) {
+        } else if (isPure && postconditions.isEmpty() && modifies.isEmpty()
+                && throwsType.isEmpty()) {
+            // A declared `throws` forces Opaque: Strata rejects a transparent procedure
+            // whose body throws, because a transparent body becomes a function and
+            // throwing is not expressible as an expression. Gating on the declaration
+            // rather than on whether the body actually throws is deliberately
+            // conservative -- it costs transparency only for a `@Pure` method that
+            // declares `throws` without ever throwing.
             procBody = new Body.Transparent(noRange(methodBody));
         } else {
             procBody = new Body.Opaque(postconditions, Optional.of(noRange(methodBody)),

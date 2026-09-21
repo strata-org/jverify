@@ -35,7 +35,7 @@ import static org.strata.jverify.JVerify.*;
  *     postcondition, return, and nested inside binary/conditional
  *     expressions.
  */
-@JVerifyTest(exitCode = 4, errorCount = 29, methodsVerified=41)
+@JVerifyTest(exitCode = 4, errorCount = 27, methodsVerified=42)
 class PrimitiveCasts {
 
     // ============================================================
@@ -304,14 +304,14 @@ class PrimitiveCasts {
     static void narrowInMethodArgument(int x) {
         int r = identity((short) x);
 //                       ^^^^^^^^^ Error: cast from int32 to int16 does not hold
-        check(r == x);
-//      ^^^^^^^^^^^^^ Error: assertion does not hold
+        check(r == x);  // proves: the narrowing cast is reported above and then assumed
+                        // to have held, and `identity` is @Pure with no postcondition so
+                        // its body is visible here — same reason as widenInMethodArgument
     }
 
     static void widenInMethodArgument(short s) {
-        int r = identity(s);  // implicit widening; identity has no postcondition
-        check(r == s);        // ...so this cascades to a failure
-//      ^^^^^^^^^^^^^ Error: assertion does not hold
+        int r = identity(s);  // implicit widening; identity is @Pure with no
+        check(r == s);        // postcondition, so its body is visible here
     }
 
     static void narrowInIfCondition(int x) {

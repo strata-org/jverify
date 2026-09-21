@@ -2168,8 +2168,16 @@ public class JavaToLaurelCompiler {
             // exceptional contract DSL (phase 4) supplies them at the
             // `new Procedure(...)` call below. The declared exceptional exit
             // itself (`throwsType`/`throwsBinding`) is translated above.
+            //
+            // A declared `throws` also forces Opaque: Strata rejects a transparent
+            // procedure whose body throws, because a transparent body becomes a
+            // function and throwing is not expressible as an expression. Gating on
+            // the declaration rather than on whether the body actually throws is
+            // deliberately conservative -- it costs transparency only for a `@Pure`
+            // method that declares `throws` without ever throwing.
             boolean canStayTransparent =
-                    isPure && postconditions.isEmpty() && modifies.isEmpty();
+                    isPure && postconditions.isEmpty() && modifies.isEmpty()
+                            && throwsType.isEmpty();
             if (methodBody == null) {
                 if (postconditions.isEmpty() && modifies.isEmpty()) {
                     // Opaque with no implementation = uninterpreted function
