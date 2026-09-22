@@ -20,6 +20,10 @@ import java.util.function.Supplier;
  *        jar so spec calls/annotations resolve), and consulted when reading
  *        referenced classfiles.
  * @param contractSourcePath contract sources (mirrors JFE; used by later milestones).
+ * @param jvmVerifyClassfiles run the JVM bytecode-verification gate on the
+ *        classfiles before translation, refusing any that fail
+ *        {@code ClassFile.verify}. Off by default: the driver's only
+ *        classfiles are its own javac output, which always verifies.
  */
 public record VerifierOptions(PrintWriter outWriter,
                               Path workingDirectory,
@@ -35,7 +39,8 @@ public record VerifierOptions(PrintWriter outWriter,
                               boolean shouldTrackTime,
                               boolean interpret,
                               @Nullable String entry,
-                              @Nullable Integer fuel) {
+                              @Nullable Integer fuel,
+                              boolean jvmVerifyClassfiles) {
     public <T> T time(String name, Supplier<T> supply) {
         if (!shouldTrackTime) {
             return supply.get();

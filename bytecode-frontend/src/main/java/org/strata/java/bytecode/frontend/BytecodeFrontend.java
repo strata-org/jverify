@@ -195,10 +195,30 @@ public final class BytecodeFrontend {
                     .sorted(Comparator.comparing(Path::toString))
                     .forEach(p -> {
                         try {
-                            ClassModel cm = ClassFile.of().parse(p);
+                            byte[] bytes = Files.readAllBytes(p);
+                            ClassModel cm;
+                            try {
+                                cm = ClassFile.of().parse(bytes);
+                                // parse() is lazy: damage in the method or
+                                // attribute region surfaces only when that
+                                // region is touched (a ConstantPoolException,
+                                // an IllegalArgumentException). Force full
+                                // materialization now, inside this guard, so a
+                                // bad tail is reported as an unparseable-input
+                                // refusal here -- not as a raw crash later in
+                                // readClasses or downstream translation.
+                                materialize(cm);
+                            } catch (IllegalArgumentException e) {
+                                // Structurally unreadable (truncated, corrupted,
+                                // not a classfile). ConstantPoolException, thrown
+                                // for CP damage, is an IllegalArgumentException.
+                                throw new UnparseableClassfileException(
+                                        "classfile " + p.getFileName() + " is not parseable: "
+                                                + messageOf(e), e);
+                            }
                             pool.put(cm.thisClass().asInternalName(), cm);
                         } catch (IOException e) {
-                            throw new UncheckedIOException("Failed to parse classfile " + p, e);
+                            throw new UncheckedIOException("Failed to read classfile " + p, e);
                         }
                     });
         }
@@ -227,5 +247,50 @@ public final class BytecodeFrontend {
                     nested));
         }
         return result;
+    }
+
+    /**
+     * Force a full parse of a lazily-parsed {@link ClassModel}, so any
+     * deferred structural failure (a corrupt constant-pool reference, broken
+     * descriptor, damaged code or attribute) throws here -- inside the
+     * read-time guard -- rather than on later lazy access downstream. Two
+     * layers, both needed (an identity {@code transformClass} bulk-copies
+     * lazy regions verbatim and materializes almost nothing):
+     * re-emit every method body instruction by instruction, then walk every
+     * structure the translation later reads (names, type descriptors, field/
+     * method/code/class attributes). Byte-flip fuzzing over a sample class
+     * showed this combination catches every mutant that would otherwise crash
+     * on those downstream reads, and that every escape is an
+     * {@code IllegalArgumentException} (or its {@code ConstantPoolException}
+     * subtype), which is what the caller catches.
+     */
+    private static void materialize(ClassModel cm) {
+        ClassFile.of().transformClass(cm, java.lang.classfile.ClassTransform
+                .transformingMethodBodies(java.lang.classfile.CodeTransform.ACCEPT_ALL));
+        cm.thisClass().asInternalName();
+        cm.superclass();
+        for (var field : cm.fields()) {
+            field.fieldName().stringValue();
+            field.fieldTypeSymbol();
+            field.attributes().forEach(java.lang.classfile.Attribute::attributeName);
+        }
+        for (var method : cm.methods()) {
+            method.methodName().stringValue();
+            method.methodTypeSymbol();
+            method.attributes().forEach(java.lang.classfile.Attribute::attributeName);
+            method.code().ifPresent(code -> {
+                for (var element : code.elementList()) {
+                    element.toString();   // forces operand/entry resolution
+                }
+                ((java.lang.classfile.attribute.CodeAttribute) code).attributes()
+                        .forEach(java.lang.classfile.Attribute::attributeName);
+            });
+        }
+        cm.attributes().forEach(java.lang.classfile.Attribute::attributeName);
+    }
+
+    /** A throwable's message, or its type when the message is null (never a user-facing "null"). */
+    private static String messageOf(Throwable t) {
+        return t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
     }
 }

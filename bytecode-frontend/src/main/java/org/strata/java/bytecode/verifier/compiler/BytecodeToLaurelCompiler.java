@@ -27,7 +27,14 @@ import org.strata.jverify.verifier.IntervalTree;
 import org.strata.java.bytecode.verifier.MethodVerificationStatus;
 import org.strata.java.bytecode.verifier.laurel.PositionResolver;
 
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.ClassHierarchyResolver;
+import java.lang.classfile.ClassModel;
+import java.lang.constant.ClassDesc;
+import java.lang.reflect.AccessFlag;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,6 +78,9 @@ public class BytecodeToLaurelCompiler {
      */
     private final boolean tierIsSelfInflicted;
 
+    /** Whether {@link #analyze} runs the JVM bytecode-verification gate first. */
+    private final boolean jvmVerifyInput;
+
     /** Positional service: current file text/index plus span-to-range helpers. */
     private final SourceMap src = new SourceMap();
     /** Laurel node builders and the cast-helper procedure registry. */
@@ -84,6 +94,8 @@ public class BytecodeToLaurelCompiler {
     private final Declarations decls = new Declarations();
     /** The type universe: name resolution, hierarchy walks, classfile policy gates. */
     private final ClassResolver resolver;
+    /** javac classpath entries; consulted by the JVM bytecode-verification gate's hierarchy resolver. */
+    private final List<java.nio.file.Path> classPath;
 
     private final Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses = new HashMap<>();
 
@@ -112,9 +124,25 @@ public class BytecodeToLaurelCompiler {
     public BytecodeToLaurelCompiler(Reporter reporter, boolean verifyByDefault,
                                     List<java.nio.file.Path> classPath,
                                     boolean tierIsSelfInflicted) {
+        this(reporter, verifyByDefault, classPath, tierIsSelfInflicted, true);
+    }
+
+    /**
+     * @param jvmVerifyInput run the JVM bytecode-verification gate (see
+     *        {@link #reportUnverifiableClassfiles}) before translation. The
+     *        shorter constructors enable it, since this class cannot know
+     *        where its classfiles came from; a caller that produced them with
+     *        javac itself may skip it, as javac output always verifies.
+     */
+    public BytecodeToLaurelCompiler(Reporter reporter, boolean verifyByDefault,
+                                    List<java.nio.file.Path> classPath,
+                                    boolean tierIsSelfInflicted,
+                                    boolean jvmVerifyInput) {
         this.tierIsSelfInflicted = tierIsSelfInflicted;
+        this.jvmVerifyInput = jvmVerifyInput;
         this.reporter = reporter;
         this.verifyByDefault = verifyByDefault;
+        this.classPath = List.copyOf(classPath);
         this.resolver = new ClassResolver(classPath, verifyByDefault);
         this.composites = new CompositeModel(resolver);
         this.graph = new MethodGraph(reporter);
@@ -134,6 +162,13 @@ public class BytecodeToLaurelCompiler {
      * @param classes the pooled top-level classes
      */
     public AnalysisResult analyze(Collection<URI> sourceUris, List<ClassSource> classes) {
+        if (jvmVerifyInput && reportUnverifiableClassfiles(sourceUris, classes)) {
+            // Self-enforcing, like the tier refusal below: bytecode that
+            // fails JVM verification never executes on a JVM, and the
+            // operand-stack simulation downstream assumes verifiable input.
+            throw new RefusedInputException(
+                    "input failed JVM bytecode verification; see the reported errors");
+        }
         if (reportInputTier(sourceUris, classes)) {
             // Self-enforcing: a caller that never checks the reporter must
             // not translate (and then "verify") an input we refused.
@@ -870,6 +905,265 @@ public class BytecodeToLaurelCompiler {
             }
         }
         return false;
+    }
+
+    /**
+     * JVM bytecode-verification gate: when enabled ({@code jvmVerifyInput}),
+     * every input classfile (top-level and nested) must pass
+     * {@link ClassFile#verify} before translation. It is meant for classfiles
+     * this frontend did not compile itself (a non-javac jar or classfile,
+     * which may not verify); javac output always verifies, so a caller that
+     * ran javac itself may skip it. Bytecode that fails JVM verification never executes
+     * on a JVM, so a Strata verdict about it would be meaningless -- and the
+     * operand-stack simulation downstream assumes verifiable input (balanced
+     * stack, consistent types at merge points).
+     *
+     * <p>Reports one error per genuine {@code VerifyError}, with the
+     * verifier's own message text, and returns true when the input must be
+     * refused. Bytecode whose type hierarchy this frontend cannot fully
+     * resolve is NOT refused: an unresolvable supertype means our classpath
+     * is incomplete, not that the bytecode is defective, and we cannot
+     * soundly verify what we cannot resolve. The decision is driven by our
+     * own resolver (did a lookup come up empty or throw?), never by the
+     * verifier's message wording, and is scoped per METHOD: a class whose
+     * whole-class verification saw an unresolvable type is re-judged one
+     * method at a time, so a missing dependency in one method (or class)
+     * never suppresses a genuine defect in another. The downstream
+     * {@link ClassResolver} remains the authority on missing dependencies
+     * actually used.
+     */
+    private boolean reportUnverifiableClassfiles(Collection<URI> sourceUris, List<ClassSource> classes) {
+        if (classes.isEmpty()) {
+            return false;   // nothing to verify (and nothing will be translated)
+        }
+        URI firstUri = sourceUris.stream().findFirst().orElse(null);
+        boolean refused = false;
+        URLClassLoader loader = classPathLoader();
+        try {
+            ClassHierarchyResolver base = hierarchyResolver(classes, loader);
+            for (var cls : classes) {
+                URI clsUri = sourceUriFor(cls, sourceUris);
+                URI anchor = clsUri != null ? clsUri : firstUri;
+                for (ClassModel cm : allModels(cls)) {
+                    String className = JavaNames.dottedFqn(cm.thisClass().asInternalName());
+                    // Pre-Java-6 bytecode (major < 50) uses the old inference
+                    // verifier, which java.lang.classfile does not implement:
+                    // verify() would return a confusing "Inference verification
+                    // is not supported" as if the bytecode were defective.
+                    // Refuse explicitly on the version instead (a structured
+                    // classfile field, not a message string), and skip verify.
+                    if (cm.majorVersion() < ClassFile.JAVA_6_VERSION) {
+                        reporter.reportError(anchor, Reporter.NO_RANGE,
+                                "class " + className + " has an unsupported class file version ("
+                                        + cm.majorVersion() + "): pre-Java-6 bytecode cannot be"
+                                        + " verified (recompile with a modern javac)");
+                        refused = true;
+                        continue;
+                    }
+                    // Fast path: verify the whole class at once. If nothing
+                    // was unresolvable, its findings are trustworthy.
+                    Judgment whole = judge(cf -> cm, base);
+                    if (!whole.incompleteHierarchy()) {
+                        for (String message : whole.errors()) {
+                            reporter.reportError(anchor, Reporter.NO_RANGE,
+                                    "input failed JVM bytecode verification: " + message);
+                            refused = true;
+                        }
+                        continue;
+                    }
+                    // Some lookup in THIS class came up empty (or threw --
+                    // an unlinkable classpath jar). Never silent: the user
+                    // must see that this class was not (fully) verified.
+                    reporter.reportWarning(anchor, Reporter.NO_RANGE,
+                            "class " + className + " was not fully JVM-verified: its class"
+                                    + " hierarchy could not be resolved (types missing from the"
+                                    + " classpath)");
+                    // verify(cm) checks all methods in one call, so the
+                    // combined error list cannot be trusted -- the
+                    // unresolvable method's noise and a sibling method's
+                    // genuine defect are indistinguishable. Judge each method
+                    // independently (a singleton copy of the class with the
+                    // other methods dropped): a method whose own hierarchy is
+                    // incomplete is tolerated, a method with a genuine defect
+                    // still refuses. Deduped because class-level (non-method)
+                    // findings repeat in every singleton.
+                    var uniqueErrors = new java.util.LinkedHashSet<String>();
+                    for (var method : cm.methods()) {
+                        Judgment single = judge(cf -> onlyMethod(cf, cm, method), base);
+                        if (!single.incompleteHierarchy()) {
+                            uniqueErrors.addAll(single.errors());
+                        }
+                    }
+                    for (String message : uniqueErrors) {
+                        reporter.reportError(anchor, Reporter.NO_RANGE,
+                                "input failed JVM bytecode verification: " + message);
+                        refused = true;
+                    }
+                }
+            }
+        } finally {
+            // Resource cleanup only; a close() failure must not affect the
+            // verdict (mirrors the surrounding refusal-not-crash contract).
+            try {
+                loader.close();
+            } catch (java.io.IOException ignored) {
+                // best-effort close
+            }
+        }
+        return refused;
+    }
+
+    /** One verification pass's outcome: the findings, and whether they can be trusted. */
+    private record Judgment(boolean incompleteHierarchy, List<String> errors) {
+    }
+
+    /**
+     * Verify {@code view.apply(cm)} with a resolver that trips an
+     * incomplete-hierarchy flag when any lookup returns null or throws (an
+     * unlinkable classpath jar). The flag scopes exactly to this pass, so a
+     * caller can judge a whole class or a single method independently. A
+     * throw from the view transform or from {@code verify} itself counts as
+     * incomplete when the flag tripped (the singleton re-emission regenerates
+     * stack maps, which needs the same hierarchy answers); otherwise it is a
+     * genuine finding (e.g. a malformed this_class name, which ClassDesc
+     * rejects) -- refused, never a crash.
+     */
+    private static Judgment judge(java.util.function.Function<ClassFile, ClassModel> view,
+                                  ClassHierarchyResolver base) {
+        boolean[] incomplete = {false};
+        ClassHierarchyResolver resolver = desc -> {
+            try {
+                var info = base.getClassInfo(desc);
+                if (info == null) {
+                    incomplete[0] = true;
+                }
+                return info;
+            } catch (RuntimeException | LinkageError e) {
+                incomplete[0] = true;
+                return null;
+            }
+        };
+        var cf = ClassFile.of(ClassFile.ClassHierarchyResolverOption.of(resolver));
+        List<String> errors = new ArrayList<>();
+        try {
+            for (VerifyError err : cf.verify(view.apply(cf))) {
+                errors.add(sanitize(err.getMessage()));
+            }
+        } catch (RuntimeException | LinkageError e) {
+            if (!incomplete[0]) {
+                errors.add(e.getMessage() != null
+                        ? sanitize(e.getMessage()) : e.getClass().getSimpleName());
+            }
+        }
+        return new Judgment(incomplete[0], errors);
+    }
+
+    /**
+     * The JDK verifier wraps internal exceptions into {@code VerifyError}s
+     * whose message leads with the exception's class name (e.g.
+     * "java.lang.classfile.constantpool.ConstantPoolException: Bad CP
+     * index..."). Strip that leaked implementation detail; the description
+     * after it is the user-relevant part.
+     */
+    private static String sanitize(String message) {
+        if (message == null) {
+            return "(no detail)";
+        }
+        return message.replaceFirst(
+                "^(?:[A-Za-z_$][A-Za-z0-9_$]*\\.)+[A-Za-z_$][A-Za-z0-9_$]*(?:Exception|Error): ", "");
+    }
+
+    /**
+     * A copy of {@code cm} with every method except {@code keep} dropped,
+     * re-emitted through {@code cf} so the singleton's stack-map regeneration
+     * consults the same (recording) hierarchy resolver as the verification.
+     */
+    private static ClassModel onlyMethod(ClassFile cf, ClassModel cm,
+                                         java.lang.classfile.MethodModel keep) {
+        byte[] singleton = cf.transformClass(cm,
+                java.lang.classfile.ClassTransform.dropping(
+                        ce -> ce instanceof java.lang.classfile.MethodModel mm && mm != keep));
+        return ClassFile.of().parse(singleton);
+    }
+
+    /** A class and its nested classfiles, for whole-unit checks. */
+    private static List<ClassModel> allModels(ClassSource cls) {
+        var models = new ArrayList<ClassModel>(1 + cls.nestedModels().size());
+        models.add(cls.classModel());
+        models.addAll(cls.nestedModels());
+        return models;
+    }
+
+    /**
+     * Class-hierarchy knowledge for the JVM verifier's assignability checks:
+     * program classes answer from their pooled classfiles (they are not
+     * loadable -- they live in a temp dir); everything else (JCL, the spec
+     * library, javac-classpath jars) resolves by class loading without
+     * initialization. A type that neither layer resolves comes back null (or,
+     * for an unlinkable classpath jar, throws) -- the per-class caller treats
+     * that as an incomplete hierarchy and does not refuse the class (see
+     * {@link #reportUnverifiableClassfiles}).
+     */
+    private static ClassHierarchyResolver hierarchyResolver(List<ClassSource> classes,
+                                                            ClassLoader loader) {
+        Map<ClassDesc, ClassDesc> superclasses = new HashMap<>();
+        var interfaces = new ArrayList<ClassDesc>();
+        for (var cls : classes) {
+            for (ClassModel cm : allModels(cls)) {
+                // A malformed this_class/superclass name is skipped here so
+                // ClassDesc's own validation cannot crash the gate before
+                // verify() runs. A sibling that references the skipped class
+                // then sees an unresolved lookup and is tolerated per class --
+                // the verifier still flags the malformed class on its own turn.
+                ClassDesc desc = classDescOrNull(cm.thisClass().asInternalName());
+                if (desc == null) {
+                    continue;
+                }
+                if (cm.flags().has(AccessFlag.INTERFACE)) {
+                    interfaces.add(desc);
+                } else {
+                    cm.superclass()
+                            .map(sup -> classDescOrNull(sup.asInternalName()))
+                            .ifPresent(sup -> superclasses.put(desc, sup));
+                }
+            }
+        }
+        return ClassHierarchyResolver.of(interfaces, superclasses)
+                .orElse(ClassHierarchyResolver.ofClassLoading(loader))
+                .cached();
+    }
+
+    /** {@link ClassDesc#ofInternalName} or null if the name is malformed (rejected by ClassDesc). */
+    private static ClassDesc classDescOrNull(String internalName) {
+        try {
+            return ClassDesc.ofInternalName(internalName);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The javac classpath as a loader for hierarchy resolution, parented on
+     * the loader {@link ClassResolver} itself resolves through, so the gate's
+     * type universe matches the rest of the compiler's (a mismatch could
+     * refuse input the compiler resolves fine under embedded/nested-loader
+     * use).
+     */
+    private URLClassLoader classPathLoader() {
+        var urls = new ArrayList<URL>(classPath.size());
+        for (var p : classPath) {
+            try {
+                // toUri() yields a directory URI with the trailing slash
+                // URLClassLoader needs to treat it as a directory, not a jar.
+                urls.add(p.toUri().toURL());
+            } catch (java.net.MalformedURLException e) {
+                // A file: URI from a Path effectively never malforms; a
+                // dropped entry only makes a type unresolvable, which is
+                // tolerated (filtered), never a false refusal.
+            }
+        }
+        return new URLClassLoader(urls.toArray(URL[]::new),
+                BytecodeToLaurelCompiler.class.getClassLoader());
     }
 
     /**

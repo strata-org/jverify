@@ -39,7 +39,7 @@ class EndToEndTest {
                 Path.of(System.getProperty("user.dir")),
                 List.of(libraryClasses()),
                 null, false, true, List.of(), false,
-                true, false, false, false, false, null, null);
+                true, false, false, false, false, null, null, false);
     }
 
     private JVerifyResults verify(Path dir, String fileName, String source) throws Exception {

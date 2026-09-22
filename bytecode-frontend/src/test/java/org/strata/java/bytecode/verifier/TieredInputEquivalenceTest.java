@@ -124,7 +124,7 @@ class TieredInputEquivalenceTest {
                 Path.of(System.getProperty("user.dir")),
                 List.of(libraryClasses()),
                 null, false, true, List.of(), false,
-                true, false, false, false, false, null, null);
+                true, false, false, false, false, null, null, false);
     }
 
     /** Compile SOURCE with the given javac flags, then translate; runs Strata unless the frontend refused. */

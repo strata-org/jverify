@@ -72,52 +72,84 @@ public class VerifierDriver {
                 return new JVerifyResults.NoVerdict(diagnostics, 2 /* picocli USAGE */);
             }
 
-            // 2. Read the classfiles + compile to Laurel. The frontend gets
-            //    the input file URIs (paths only, NO source text): a class is
-            //    matched to its URI by the SourceFile attribute name, and all
-            //    positions come from the bytecode.
+            // 2. The rest of the pipeline (read the classfiles, translate to
+            //    Laurel, run Strata) lives in analyzeClassesDir. The frontend
+            //    gets the input file URIs (paths only, NO source text): a
+            //    class is matched to its URI by the SourceFile attribute
+            //    name, and all positions come from the bytecode.
             List<URI> sourceUris = new ArrayList<>();
             for (var file : readFiles) {
                 sourceUris.add(file.toUri());
             }
-            var classes = options.time("Reading classfiles", () -> {
+            return analyzeClassesDir(classesDir, sourceUris, reporter,
+                    compileResult.degradedToLineNumbers());
+        } finally {
+            deleteRecursively(classesDir);
+        }
+    }
+
+    /**
+     * The post-compile pipeline: read the classfiles under {@code classesDir},
+     * translate to Laurel, and run Strata. Package-private as the testable
+     * seam for the two input-refusal paths -- structurally unparseable input,
+     * and the JVM bytecode-verification gate (when
+     * {@link VerifierOptions#jvmVerifyClassfiles} is set) -- both unreachable
+     * through the public API, whose only classfile source is this driver's
+     * own always-verifiable javac output.
+     *
+     * @param tierIsSelfInflicted true when this run's own javac step degraded
+     *        to plain {@code -g} (see {@link BytecodeFrontend.CompileResult#degradedToLineNumbers})
+     */
+    JVerifyResults analyzeClassesDir(Path classesDir, List<URI> sourceUris, Reporter reporter,
+                                     boolean tierIsSelfInflicted) throws IOException {
+        List<BytecodeFrontend.ClassSource> classes;
+        try {
+            classes = options.time("Reading classfiles", () -> {
                 try {
                     return BytecodeFrontend.readClasses(classesDir);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             });
-            org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler.AnalysisResult analysis;
-            try {
-                analysis = options.time("Compiling bytecode to Laurel",
-                        () -> new BytecodeToLaurelCompiler(reporter, options.verifyByDefault(),
-                                List.copyOf(options.classPathEntries()),
-                                compileResult.degradedToLineNumbers())
-                                .analyze(sourceUris, classes));
-            } catch (org.strata.java.bytecode.verifier.compiler.RefusedInputException e) {
-                // The input cannot be verified at all (no debug information);
-                // the reason is already on the reporter.
-                return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
-            }
-
-            var diagnostics = new ArrayList<>(reporter.diagnostics());
-            if (reporter.hasErrors() && !options.continueOnErrors()) {
-                return new JVerifyResults.NoVerdict(diagnostics, 2);
-            }
-
-            // 3. Serialize + run Strata.
-            var results = new StrataBackend(options)
-                    .verifyProgram(analysis.program(), analysis.positions(), analysis.methodStatuses());
-            var allDiagnostics = new ArrayList<Diagnostic<?>>(diagnostics);
-            allDiagnostics.addAll(results.diagnostics());
-            return switch (results) {
-                case JVerifyResults.Ran r -> new JVerifyResults.Ran(allDiagnostics, r.exitCode(), r.verificationResults());
-                case JVerifyResults.DidNotRun d -> new JVerifyResults.DidNotRun(allDiagnostics, d.exitCode());
-                case JVerifyResults.NoVerdict n -> new JVerifyResults.NoVerdict(allDiagnostics, n.exitCode());
-            };
-        } finally {
-            deleteRecursively(classesDir);
+        } catch (org.strata.java.bytecode.frontend.UnparseableClassfileException e) {
+            // Structurally unreadable input (truncated/corrupt bytes): a
+            // read-level refusal, distinct from the content-level
+            // verification gate. The exception message already names the file
+            // and the parser's reason, so report it verbatim.
+            URI anchor = sourceUris.isEmpty() ? null : sourceUris.getFirst();
+            reporter.reportError(anchor, Reporter.NO_RANGE, e.getMessage());
+            return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
         }
+        org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler.AnalysisResult analysis;
+        try {
+            analysis = options.time("Compiling bytecode to Laurel",
+                    () -> new BytecodeToLaurelCompiler(reporter, options.verifyByDefault(),
+                            List.copyOf(options.classPathEntries()), tierIsSelfInflicted,
+                            options.jvmVerifyClassfiles())
+                            .analyze(sourceUris, classes));
+        } catch (org.strata.java.bytecode.verifier.compiler.RefusedInputException e) {
+            // The input was refused before translation -- either it carries
+            // no debug information (input-tier gate) or it failed JVM
+            // bytecode verification. Either way the reason is already on the
+            // reporter.
+            return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
+        }
+
+        var diagnostics = new ArrayList<>(reporter.diagnostics());
+        if (reporter.hasErrors() && !options.continueOnErrors()) {
+            return new JVerifyResults.NoVerdict(diagnostics, 2);
+        }
+
+        // Serialize + run Strata.
+        var results = new StrataBackend(options)
+                .verifyProgram(analysis.program(), analysis.positions(), analysis.methodStatuses());
+        var allDiagnostics = new ArrayList<Diagnostic<?>>(diagnostics);
+        allDiagnostics.addAll(results.diagnostics());
+        return switch (results) {
+            case JVerifyResults.Ran r -> new JVerifyResults.Ran(allDiagnostics, r.exitCode(), r.verificationResults());
+            case JVerifyResults.DidNotRun d -> new JVerifyResults.DidNotRun(allDiagnostics, d.exitCode());
+            case JVerifyResults.NoVerdict n -> new JVerifyResults.NoVerdict(allDiagnostics, n.exitCode());
+        };
     }
 
     public int verifyJavaFilesExit(List<JavaFileObject> readFiles) throws IOException {

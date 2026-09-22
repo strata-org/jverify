@@ -494,7 +494,8 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                 false,
                 annotation.interpret(),
                 annotation.entry().isEmpty() ? null : annotation.entry(),
-                annotation.fuel() > 0 ? annotation.fuel() : null
+                annotation.fuel() > 0 ? annotation.fuel() : null,
+                false   // test cases are compiled by the driver's own javac: always verifiable
         );
     }
 

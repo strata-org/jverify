@@ -93,7 +93,8 @@ class StrataBackendSmokeTest {
                 false,
                 false,
                 null,
-                null);
+                null,
+                false);
     }
 
     private static Map<URI, IntervalTree<Integer, MethodVerificationStatus>> statuses(String methodName) {
