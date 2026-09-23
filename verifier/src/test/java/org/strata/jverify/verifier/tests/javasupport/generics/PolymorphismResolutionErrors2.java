@@ -2,9 +2,8 @@ package org.strata.jverify.verifier.tests.javasupport.generics;
 
 import org.strata.jverify.Impure;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, methodsVerified = 2, errorCount = 0)
+@JVerifyTest(methodsVerified = 2, errorCount = 0)
 public class PolymorphismResolutionErrors2 {
     
     public static void valueObjectHasNoEquality() {

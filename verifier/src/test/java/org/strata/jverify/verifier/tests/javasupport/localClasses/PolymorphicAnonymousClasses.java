@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport.localClasses;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("Convert2Lambda")
-@JVerifyTest(methodsVerified = 18, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERIC_OVERRIDE}, methodsVerified = 21, errorCount = 0)
 public class PolymorphicAnonymousClasses {
 
     void capturedGenericType(MyConsumer<Anything> consumer, Anything anything) {
@@ -23,7 +24,6 @@ public class PolymorphicAnonymousClasses {
     class InstanceAnything {}
     static class Anything {}
     void genericInterfaces() {
-//       ^ warning: instance method 'genericInterfaces' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         var fooArg = new MyConsumer<Anything>() {
             @Override
             public int consume(Anything value) {
@@ -56,7 +56,6 @@ public class PolymorphicAnonymousClasses {
     }
 
     <U> void genericMethod() {
-//           ^ warning: instance method 'genericMethod' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         var zazArg = new MyConsumer<U>() {
             @Override
             public int consume(U value) {
@@ -75,7 +74,6 @@ public class PolymorphicAnonymousClasses {
     static class GenericClass<U> {
 
         void genericClass() {
-//           ^ warning: instance method 'genericClass' was not verified: polymorphic dispatch through interface/superclass is not yet supported
             var tarArg = new MyConsumer<U>() {
                 @Override
                 public int consume(U value) {

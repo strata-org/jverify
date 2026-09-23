@@ -2,9 +2,8 @@ package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 2)
+@JVerifyTest(exitCode = 2)
 public class ImpureExpressionsResolution {
     @Pure
     int nestedImpureExpressionInPureContext() {

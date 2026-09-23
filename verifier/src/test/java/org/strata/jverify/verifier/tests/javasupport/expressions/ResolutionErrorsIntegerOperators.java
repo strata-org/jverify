@@ -1,7 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 /**
  * Integer operators are those that apply to the types:
@@ -11,7 +10,7 @@ import org.strata.jverify.testengine.Blocker;
  * there currently is no corresponding 'verify integer operators' file
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC}, exitCode = 2)
+@JVerifyTest(exitCode = 2)
 class ResolutionErrorsIntegerOperators {
     public void foo() {
         var l = 3;

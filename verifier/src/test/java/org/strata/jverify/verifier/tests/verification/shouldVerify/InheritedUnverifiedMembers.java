@@ -10,7 +10,7 @@ import org.strata.jverify.testing.LibraryClassB;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH}, exitCode = 4, methodsVerified = 15, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 15, errorCount = 1)
 public class InheritedUnverifiedMembers {
     static class ThroughBaseClass {
         @Pure

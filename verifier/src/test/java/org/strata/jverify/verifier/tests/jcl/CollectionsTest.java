@@ -10,7 +10,14 @@ import java.util.Set;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OVERLOAD}, exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
+// NOTE: the failure here is NOT overload-related. Even with bare (unmangled)
+// names, Strata reports the builtin List/Set/Map contract methods
+// (`java.util.List$size`, `$contains`, `equals`, ...) as "not defined": the
+// builtin GENERIC collection contracts do not resolve, while the non-generic
+// PrimitiveAndBoxedTypes builtin contract does. The methods are never emitted for
+// the generic composite, so this is a front-end emission gap (a facet of generic
+// composite support), not overloads; the FRONTEND_OVERLOAD label predated it.
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
 public class CollectionsTest {
 
     void listVerifying() {

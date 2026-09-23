@@ -2,12 +2,13 @@ package org.strata.jverify.verifier.tests.javasupport.lambdas;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import java.util.function.Supplier;
 
 @SuppressWarnings("Convert2MethodRef")
-@JVerifyTest(methodsVerified = 13, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERIC_OVERRIDE}, methodsVerified = 18, errorCount = 0)
 public class PolymorphicLambdas {
 
     static class GenContainer<T> {
@@ -16,7 +17,7 @@ public class PolymorphicLambdas {
     }
 
     void genTypeInsideLambda(Anything anything) {
-//       ^ warning: instance method 'genTypeInsideLambda' was not verified: polymorphic dispatch through interface/superclass is not yet supported
+//       ^ warning: instance method 'genTypeInsideLambda' was not verified: call to 'add', which could not be translated
         var result = new GenContainer<Anything>();
         result.add(anything);
         foo(_ -> {
@@ -30,7 +31,6 @@ public class PolymorphicLambdas {
     @SuppressWarnings("InnerClassMayBeStatic")
     class InstanceThing {}
     void lambdaForGenericInterfaces() {
-//       ^ warning: instance method 'lambdaForGenericInterfaces' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         foo(i -> 3);
         fot(i -> 3);
         bar(() -> new Anything());
@@ -38,7 +38,6 @@ public class PolymorphicLambdas {
     }
 
     <U> void lambdaForGenericMethod() {
-//           ^ warning: instance method 'lambdaForGenericMethod' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         zaz((U e) -> 3);
         zaz(this::uToThree);
     }
@@ -59,7 +58,6 @@ public class PolymorphicLambdas {
 
     static class GenericClass<U> {
         void lambdaForGenericClass() {
-//           ^ warning: instance method 'lambdaForGenericClass' was not verified: polymorphic dispatch through interface/superclass is not yet supported
             tar((U e) -> 3);
         }
 
@@ -84,14 +82,12 @@ public class PolymorphicLambdas {
     <T> void useTakesHasGeneric(Supplier<GenericClass<T>> supplier) {}
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void rawGenericClassInLambda() {
-//              ^ warning: instance method 'rawGenericClassInLambda' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         useTakesHasGeneric(() -> new GenericClass<>());
         useTakesHasGeneric(() -> new GenericClass());
         useTakesHasGeneric(GenericClass::new);
     }
 
     public <T> void genericLambda() {
-//                  ^ warning: instance method 'genericLambda' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         useTakesHasGeneric(() -> new GenericClass<T>());
     }
 

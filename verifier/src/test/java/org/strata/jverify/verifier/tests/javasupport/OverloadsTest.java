@@ -6,7 +6,10 @@ import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.FRONTEND_OVERLOAD}, exitCode = 4, methodsVerified = 13, errorCount = 1)
+// Overloads translate now (constructors, h/h(int), overloads(..) all resolve);
+// the remaining failures are FRONTEND_FIELDS -- every field-read assertion fails
+// because composite field access is not emitted yet.
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS}, exitCode = 4, methodsVerified = 13, errorCount = 1)
 class OverloadsTest {
     
     private int f;

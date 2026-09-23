@@ -15,18 +15,63 @@ public enum Blocker {
     FRONTEND_DIAGNOSTIC,
     /** @Pure structural/purity validator not yet re-implemented. */
     FRONTEND_PURE_VALIDATOR,
-    /** Composite field emission (self#/obj# access). */
+    /**
+     * Constructor translation, and with it any field value a caller observes.
+     *
+     * <p>Composite fields themselves ARE emitted, and a direct field read works:
+     * {@code void f(C c) { precondition(c.x == 5); check(c.x == 5); }} verifies.
+     * What is missing is the constructor:
+     *
+     * <ul>
+     * <li>{@code visitMethodDef} DEFERS {@code isConstructor(sym)}, so a user
+     * constructor emits no Laurel at all (its contract is never checked, and
+     * {@code markSkipped} demotes it).
+     * <li>the {@code JCNewClass} arm converts the arguments only to run refusal
+     * checks and then yields a bare {@code StmtExpr.New(name, typeArgs)} -- the
+     * ARGUMENTS ARE DISCARDED and no constructor call is emitted.
+     * </ul>
+     *
+     * <p>So {@code new C(5)} produces a freshly allocated object whose fields are
+     * completely unconstrained, and every assertion a caller makes about a field
+     * after construction fails ("assertion does not hold") even though the
+     * constructor's own postcondition is provable.
+     *
+     * <p>Fixing it needs (a) constructors emitted as instance procedures under a
+     * mangled name (not {@code <init>}), with the synthesized {@code super()}
+     * chain handled, and (b) statement HOISTING at a {@code new} site --
+     * {@code New} carries no arguments, so an allocation in expression position
+     * must become {@code var t := New(C); t.<ctor>(args); ... t}. The Laurel
+     * converter has no pending-statement mechanism today, which is the bulk of
+     * the work.
+     *
+     * <p>Field INITIALIZERS ({@code private int g = 22;}) are a separate,
+     * Strata-side gap; see {@link #STRATA_FIELD_INITIALIZERS}. */
     FRONTEND_FIELDS,
-    /** Instance (non-static) methods are not translated at all (JavaToLaurelCompiler only
-     *  handles STATIC methods), so their contracts/obligations are never emitted or verified. */
-    FRONTEND_INSTANCE_METHODS,
-    /** Polymorphic dispatch refusal (incl. over-refusal of monomorphic calls). */
+    /**
+     * Polymorphic dispatch refusal (incl. over-refusal of monomorphic calls).
+     *
+     * <p>The SOURCE front end no longer has this gate: Laurel dispatches an
+     * overridden composite method on the receiver's runtime tag and
+     * {@code CheckOverrideRefinement} discharges the Liskov obligation that makes
+     * reasoning against the declared type's contract sound, so
+     * {@code RefusalGates.dispatchRefusal} was deleted. The value remains because
+     * the BYTECODE front end still refuses in
+     * {@code ClassResolver.enforceDispatchGate}; see the temporary block in
+     * {@code bytecode-xfails.txt}, which goes away when the gate is removed there
+     * too.
+     */
     FRONTEND_DISPATCH,
-    /** J-side @Nullable / Option synthesis. */
-    FRONTEND_NULLABLE,
     /** Front-end catch-all: operator / cast / numeric plumbing, impure-equality,
      *  abstract-contracts. Heterogeneous by design; split candidate (follow-up). */
     FRONTEND_OTHER,
+    /**
+     * Overload name mangling. The SOURCE front end now disambiguates overloaded
+     * methods by appending their erased parameter types, so this no longer blocks
+     * any source fixture. It remains only as a BYTECODE-frontend gap: the bytecode
+     * front end still refuses overloaded names, so {@code bytecode-xfails.txt}
+     * force-xfails the relevant fixtures under it. Delete when overloads are
+     * ported to the bytecode front end. */
+    FRONTEND_OVERLOAD,
     /** Anonymous / local class synthesis. */
     FRONTEND_ANON,
     /** Exception-support gaps deliberately deferred -- throw bodies in
@@ -34,8 +79,6 @@ public enum Blocker {
      *  provably-unproducible types (see the Wishlist* fixtures under
      *  tests/javasupport/exceptions). */
     FRONTEND_EXCEPTIONS,
-    /** Overload name mangling. */
-    FRONTEND_OVERLOAD,
     /**
      * A CLASS type parameter is not translated. A method's own type parameters
      * ARE: they become Laurel {@code TVar}s listed in the procedure's
@@ -45,8 +88,14 @@ public enum Blocker {
      * plus {@code StmtExpr.New.typeArgs}. Symptom: {@code Unsupported type: T}
      * on a member of a generic class.
      *
-     * <p>Distinct from {@link #STRATA_GENERICS}, which is for programs the
-     * front end DOES translate and Strata then cannot handle.
+     * <p>For a generic program the front end DOES translate, the Strata-side gaps
+     * are named specifically: {@link #STRATA_NO_TYPE_CONSTRAINTS} (no bound slot on
+     * a type parameter), {@link #STRATA_GENERIC_OVERRIDE} (an override may not fix
+     * the base's type parameter to a concrete type) and {@link #STRATA_WILDCARDS}.
+     * There is deliberately no catch-all "Strata generics" bucket -- Strata has
+     * generics, and a generic {@code @Pure} procedure IS transparent (measured), so
+     * a failure that merely involves a type parameter is almost always something
+     * else, usually {@link #STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY}.
      */
     FRONTEND_GENERICS,
     /**
@@ -73,20 +122,107 @@ public enum Blocker {
      * not a Strata bug -- what is missing is the constraint feature.
      */
     STRATA_NO_TYPE_CONSTRAINTS,
-    /**
-     * Strata: generics / type application, other than the missing type-parameter
-     * constraints of {@link #STRATA_NO_TYPE_CONSTRAINTS}. Use this only when the
-     * front end translated the generics and Strata is what fails -- e.g. a
-     * {@code @Pure} generic procedure that does not behave transparently, so a
-     * caller cannot see its body.
-     */
-    STRATA_GENERICS,
     /** Strata: native arrays. */
     STRATA_ARRAYS,
     /** Strata: IEEE-754 float/double theory. */
     STRATA_FLOAT,
     /** Strata: fresh(). */
     STRATA_FRESH,
+    /**
+     * Strata: dynamic dispatch does not support an override of a generic method
+     * that fixes the base's type parameter to a concrete type. Strata requires an
+     * overriding composite to repeat the base's parameters verbatim
+     * ({@code SBox<T> extends Box<T>}); Java's model is the opposite -- a class or
+     * lambda implements a CONCRETE instantiation ({@code implements MyConsumer<Anything>}),
+     * fixing the parameter. So once the front end faithfully emits the
+     * instantiation, any implementer of a generic interface at a concrete type
+     * hits this. Error: "an override of a generic method whose type parameters
+     * differ from the base ... must repeat the base's type parameters verbatim".
+     */
+    STRATA_GENERIC_OVERRIDE,
+    /**
+     * Strata: {@code MonomorphizeComposites} leaves a dangling reference to a generic
+     * composite, and the failure surfaces as an INTERNAL ERROR rather than a clean
+     * diagnostic.
+     *
+     * <p>Triggered by a RAW generic instantiation -- {@code new HasGeneric()} with no
+     * type argument, where {@code HasGeneric<T>} is generic. The pass rewrites the
+     * composite to its monomorphised name, after which the raw reference no longer
+     * resolves:
+     *
+     * <pre>
+     * Internal error: resolution after 'MonomorphizeComposites' introduced this
+     * diagnostic: Resolution failed: '...HasGeneric' is not defined
+     * </pre>
+     *
+     * <p>It also emits a second, SOURCE-LESS {@code strata-unattributed} malformed
+     * diagnostic for the same cause, so the run reports two errors for one line.
+     *
+     * <p>Narrow: measured on the same fixture, an explicit instantiation
+     * ({@code new GenericContainer<DummySuper>(..)}), the diamond form
+     * ({@code new GenericContainer<>(..)}) and a generic method
+     * ({@code <T> T genericIdentity(T)}) all verify. Only the raw form breaks.
+     *
+     * <p>A front-end-side workaround exists -- a raw type erases {@code T} to
+     * {@code Object}, so the front end could emit {@code new HasGeneric<Object>()}
+     * instead of the empty {@code typeArgs} it emits today -- but an unresolvable name
+     * after a pass should be a clean error either way, so this is owned by Strata.
+     */
+    STRATA_MONOMORPHIZE_BUG,
+    /**
+     * Strata: Java wildcard types ({@code ? extends T} / {@code ? super T}) have
+     * no representation. The front end faithfully emits generic instantiations,
+     * but a wildcard type argument surfaces as {@code Unsupported type: ?}; giving
+     * it meaning needs variance support in the target language, not front-end
+     * work.
+     */
+    STRATA_WILDCARDS,
+    /**
+     * Strata: no null literal and no Option type. A Java {@code @Nullable T}
+     * needs a nullable representation (a {@code Null}/{@code NonNull(value)}
+     * datatype) and flow-sensitive non-null tracking, which the target language
+     * does not yet provide -- the front end cannot emit what does not exist, so
+     * a {@code null} literal surfaces as {@code Unsupported constant type tag:
+     * BOT}. Owned by Strata, not the front end.
+     */
+    STRATA_NULLABLE,
+    /**
+     * Strata: a {@code @Pure} procedure whose OUTPUT TYPE IS CONSTRAINED is not
+     * transparent to its callers, so a caller cannot see the body and learns
+     * nothing about the result.
+     *
+     * <p>Measured directly (three {@code @Pure} methods, each returning a literal,
+     * each called from a {@code check}):
+     * <ul>
+     * <li>{@code boolean isTrue() { return true; }} -- caller VERIFIES
+     * <li>{@code @Unbounded int seven() { return 7; }} -- caller VERIFIES
+     * <li>{@code int sevenBounded() { return 7; }} -- caller FAILS
+     * </ul>
+     *
+     * <p>The only difference is the output type: a plain Java {@code int} is
+     * translated to {@code int32}, which is a {@code Constrained} Laurel type
+     * (base {@code TInt} plus a range predicate), whereas {@code boolean} and
+     * {@code @Unbounded int} are unconstrained. The front end does emit
+     * {@code Body.Transparent} in all three cases ({@code canStayTransparent} is
+     * {@code isPure && postconditions.isEmpty() && modifies.isEmpty()}), and
+     * {@code int32} is the FAITHFUL type for a Java {@code int} -- so the front end
+     * is doing the right thing and the defect is in the target language.
+     *
+     * <p>Treated as a Strata BUG rather than a missing feature: transparency is
+     * supposed to hold for a pure body, and it does for an unconstrained output; the
+     * constrained-output case losing it is the inconsistency.
+     *
+     * <p>This is the dominant cause behind the remaining {@code @Pure} fixtures: any
+     * caller that needs a primitive-returning pure method's body is blocked by it.
+     */
+    STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY,
+    /**
+     * Strata: field initializers ({@code private int g = 22;}) are not supported,
+     * so the value an initializer establishes is not available to reason with.
+     * Distinct from {@link #FRONTEND_FIELDS}, which is the front end not
+     * translating constructors at all.
+     */
+    STRATA_FIELD_INITIALIZERS,
     /** Strata: decreases -> Core measure wiring. */
     STRATA_DECREASES,
     /** Strata catch-all: regressions, trait-redecl, loop-elim, HOF/streams, etc.

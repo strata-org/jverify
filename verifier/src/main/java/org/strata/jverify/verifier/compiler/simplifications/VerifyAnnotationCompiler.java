@@ -219,6 +219,79 @@ public class VerifyAnnotationCompiler extends TreeScanner {
         return mode;
     }
 
+    /**
+     * Whether {@code symbol} is opted out of verification by {@code @Verify}, derived
+     * from its owner chain with the SAME stacked semantics {@link #addShouldVerify}
+     * applies while walking the tree.
+     *
+     * <p>For passes that run BEFORE this one and so cannot consult
+     * {@link #shouldVerifies}: they see annotations but not the stack, and re-deriving
+     * the rules by hand gets them wrong. Two rules matter and neither is obvious.
+     * The chain is read OUTERMOST first, and {@code AlwaysYes}/{@code AlwaysNo}
+     * ({@code overrideChildren = true}) are STICKY -- an inner {@code @Verify(true)}
+     * under an outer {@code @Verify(value = false, overrideChildren = true)} does NOT
+     * re-opt in, which {@code ShouldVerify2} pins.
+     *
+     * <p>Starts from {@code DefaultYes}: this answers "did the user opt out", so the
+     * {@code verifyByDefault} option, which is about what to verify absent any
+     * annotation, is deliberately not consulted.
+     */
+    public static boolean isOptedOutOfVerification(
+            com.sun.tools.javac.code.Symbol symbol,
+            com.sun.tools.javac.code.Symbol.@Nullable ClassSymbol verifyClass) {
+        if (verifyClass == null) {
+            return false;
+        }
+        var chain = new ArrayList<com.sun.tools.javac.code.Symbol>();
+        for (var s = symbol; s != null; s = s.owner) {
+            chain.add(s);
+            if (s instanceof com.sun.tools.javac.code.Symbol.PackageSymbol) {
+                break;
+            }
+        }
+        Collections.reverse(chain);
+        var mode = ShouldVerifyMode.DefaultYes;
+        for (var s : chain) {
+            if (mode == ShouldVerifyMode.AlwaysYes || mode == ShouldVerifyMode.AlwaysNo) {
+                continue;
+            }
+            var explicit = readVerify(s, verifyClass);
+            if (explicit != null) {
+                mode = explicit;
+            }
+        }
+        return mode == ShouldVerifyMode.AlwaysNo || mode == ShouldVerifyMode.DefaultNo;
+    }
+
+    /** This symbol's own {@code @Verify} as a mode, or null when it carries none. */
+    private static @Nullable ShouldVerifyMode readVerify(
+            com.sun.tools.javac.code.Symbol symbol,
+            com.sun.tools.javac.code.Symbol.ClassSymbol verifyClass) {
+        for (var annotation : symbol.getAnnotationMirrors()) {
+            if (annotation.type == null || annotation.type.tsym != verifyClass) {
+                continue;
+            }
+            boolean should = true;
+            boolean overrideChildren = false;
+            for (var entry : annotation.values) {
+                if (!(entry.snd instanceof com.sun.tools.javac.code.Attribute.Constant constant)) {
+                    continue;
+                }
+                boolean isFalse = Integer.valueOf(0).equals(constant.value)
+                        || Boolean.FALSE.equals(constant.value);
+                if (entry.fst.name.contentEquals("value")) {
+                    should = !isFalse;
+                } else if (entry.fst.name.contentEquals("overrideChildren")) {
+                    overrideChildren = !isFalse;
+                }
+            }
+            return should
+                    ? (overrideChildren ? ShouldVerifyMode.AlwaysYes : ShouldVerifyMode.DefaultYes)
+                    : (overrideChildren ? ShouldVerifyMode.AlwaysNo : ShouldVerifyMode.DefaultNo);
+        }
+        return null;
+    }
+
     private ShouldVerifyMode getVerifyMode(boolean should, boolean pushDown) {
         if (should) {
             if (pushDown) {

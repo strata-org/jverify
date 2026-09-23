@@ -52,6 +52,60 @@ public class JavaToLaurelCompiler {
     private static List<ModifiesGroup> unguardedModifies(List<AstNode<StmtExpr>> targets) {
         return List.of(new ModifiesGroup(targets, Optional.empty(), Optional.empty()));
     }
+
+    /**
+     * The same procedure with its body reduced to an opaque DECLARATION: no
+     * implementation, no postconditions, empty frame. Preconditions are kept (a
+     * caller still has to establish them, which is the stronger obligation), as are
+     * the signature and any declared exceptional exit.
+     *
+     * <p>Every clause this drops weakens what a caller may assume, so dropping is
+     * sound. The EMPTY FRAME it installs does not: it is a positive promise that the
+     * call changes nothing. So this is only applicable to a procedure whose frame is
+     * already empty -- which is what {@link #keepsOpaqueDeclaration} decides, and it
+     * is NOT implied by purity: a heap-writing {@code @Pure} method legitimately
+     * carries the synthesized wildcard frame (see the {@code bodyPotentiallyWritesHeap}
+     * fallback in {@code translateMethod}).
+     *
+     * <p>{@code throwsOn} is passed through unchanged rather than emptied, which is
+     * only honest because {@link #keepsOpaqueDeclaration} also requires it to be
+     * empty: those blocks hold the user's exceptional POSTconditions, and passing
+     * them through a declaration nothing verified would have callers assume unchecked
+     * guarantees.
+     */
+    private static Procedure declarationOnly(Procedure p) {
+        return new Procedure(p.name(), p.typeArgs(), p.inputs(), p.outputs(),
+                p.preconditions(), p.decreases(),
+                new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of())),
+                p.invokeOn(), p.isInterpretEntry(), p.axioms(),
+                p.throwsType(), p.throwsBinding(), p.throwsOn());
+    }
+
+    /**
+     * Whether a skipped procedure may be reduced by {@link #declarationOnly} rather
+     * than dropped: exactly when the two clauses that method cannot honestly
+     * reproduce are already absent.
+     *
+     * <ul>
+     * <li>The FRAME must already be empty. Replacing a real frame with an empty one
+     * lets a caller assume the heap is unchanged across a call that writes it.
+     * <li>There must be no {@code throwsOn} block, because {@link #declarationOnly}
+     * passes those through and they carry exceptional postconditions -- guarantees
+     * nothing checked.
+     * </ul>
+     *
+     * <p>A body with no frame FIELD ({@code Transparent}, {@code Abstract},
+     * {@code External}) counts as frameless: only {@code Body.Opaque} can carry one.
+     */
+    private static boolean keepsOpaqueDeclaration(Procedure p) {
+        return frameIsEmpty(p.body()) && p.throwsOn().isEmpty();
+    }
+
+    /** True when {@code body} frames nothing. See {@link #keepsOpaqueDeclaration}. */
+    private static boolean frameIsEmpty(Body body) {
+        return !(body instanceof Body.Opaque opaque)
+                || opaque.modifies().stream().allMatch(group -> group.targets().isEmpty());
+    }
     /// javac's synthetic source path for trees injected by a simplification
     /// pass; Strata reports diagnostics for them against this URI, which has
     /// no entry in our line map.
@@ -84,6 +138,16 @@ public class JavaToLaurelCompiler {
     private final com.sun.tools.javac.code.Symtab symtab;
 
     private final Map<String, Symbol.TypeSymbol> referencedCompositeTypes = new LinkedHashMap<>();
+    /**
+     * The source files THIS compilation owns. A class declared in one of them is a
+     * program type whose composite we emit and whose values the program allocates;
+     * anything else is a library type, which may be modelled as a Laurel value
+     * (String, the boxed primitives) rather than a composite. Used to decide whether
+     * a runtime type test is meaningful -- javac sets {@code sourcefile} on JDK
+     * symbols too when platform sources are available, so that flag alone does not
+     * distinguish them.
+     */
+    private final Set<javax.tools.JavaFileObject> ownSourceFiles = new java.util.HashSet<>();
     /**
      * The method being translated, so a type variable can be matched to its
      * DECLARER rather than by name. A type parameter the method itself declares
@@ -148,7 +212,13 @@ public class JavaToLaurelCompiler {
                             && !refusedSymbols.contains(current.sym)
                             && TreeInfo.symbol(tree.getMethodSelect())
                                     instanceof Symbol.MethodSymbol callee
-                            && refusedSymbols.contains(callee)) {
+                            && refusedSymbols.contains(callee)
+                            // A skipped PURE callee still gets an opaque declaration
+                            // emitted (see `declarationOnly`), so the call resolves and
+                            // the caller stays verifiable -- it just learns nothing
+                            // about the result. Only a non-pure callee, which we cannot
+                            // give an honest frame, still demotes its callers.
+                            && !keepsDeclarationWhenSkipped(callee)) {
                         // Severity mirrors the callee's: a static caller errors, an
                         // instance caller warns. Erroring unconditionally made a
                         // fixture whose refusals are all on instance methods exit
@@ -160,7 +230,15 @@ public class JavaToLaurelCompiler {
                         // responsible, and the callee's own diagnostic is on another
                         // line (often another file).
                         reporter.compilationUnit = unit;
+                        // Name the callee's OWN reason when we recorded one. Without it
+                        // the caller is told only that some call "could not be
+                        // translated", and the reason sits on another line -- often in
+                        // another file -- so the user has to go hunting for it.
                         String because = "call to '" + callee.name + "', which could not be translated";
+                        var calleeReasons = reportedInstanceRefusals.get(callee);
+                        if (calleeReasons != null && calleeReasons.size() == 1) {
+                            because += ": " + calleeReasons.iterator().next();
+                        }
                         // Demotion runs for every detected call -- the soundness half.
                         // Only the DIAGNOSTIC is deduped: the caller is reported at
                         // its own declaration, so two refused callees in one body
@@ -185,10 +263,97 @@ public class JavaToLaurelCompiler {
         return annotationCompiler.skippedMethodSymbols().size() > refusedBefore;
     }
 
+    /**
+     * Whether a skipped {@code callee} will still have a resolvable Laurel procedure,
+     * so a caller of it need not be demoted. Exactly the condition the drop pass in
+     * {@code analyzeJavaCode} decides by, read off the procedure already collected for
+     * the symbol -- the two must agree, or a caller keeps a call to a procedure that
+     * gets dropped and the program dies with `Resolution failed`.
+     *
+     * <p>A callee with no collected procedure ({@code proc == null}) is one whose own
+     * translation threw before it was registered. Nothing is emitted for it either
+     * way, so it cannot keep a declaration.
+     */
+    private boolean keepsDeclarationWhenSkipped(Symbol.MethodSymbol callee) {
+        var proc = procedureBySymbol.get(callee);
+        return jverifyUtils.isPure(callee) && proc != null && keepsOpaqueDeclaration(proc);
+    }
+
     private boolean firstReportOf(Symbol.MethodSymbol sym, String reason) {
         return reportedInstanceRefusals
                 .computeIfAbsent(sym, k -> new HashSet<>())
                 .add(reason);
+    }
+
+    /**
+     * True when a hard ERROR has already been reported at a position inside
+     * {@code method} -- typically by {@code UnsupportedConstructValidator}, which
+     * names the offending construct itself.
+     *
+     * <p>Used to suppress the {@code instanceMethodNotVerified} warning in that
+     * case. The warning exists so a demoted method is not SILENT about why it was
+     * not checked; when an error already points inside the same method the warning
+     * is strictly less precise duplication (method-level, versus the construct's
+     * own position), and the run exits non-zero regardless -- so dropping it cannot
+     * hide an unchecked method behind a green run, which is the coupling the
+     * demotion comment below protects. {@code markSkipped} stays unconditional, so
+     * the method can still never be counted Verified.
+     */
+    private boolean hasReportedErrorInside(JCTree.JCMethodDecl method) {
+        if (currentCompilationUnit == null) {
+            return false;
+        }
+        int start = method.getStartPosition();
+        int end = method.getEndPosition(currentCompilationUnit.endPositions);
+        if (start < 0 || end < 0) {
+            return false;
+        }
+        var source = currentCompilationUnit.getSourceFile();
+        for (var diagnostic : reporter.diagnostics.getDiagnostics()) {
+            if (diagnostic.getKind() != javax.tools.Diagnostic.Kind.ERROR
+                    || diagnostic.getSource() != source) {
+                continue;
+            }
+            long position = diagnostic.getPosition();
+            if (position < start || position > end) {
+                continue;
+            }
+            // Containment alone is not enough: a nested or local class body also sits
+            // inside this method's span, so an unrelated error in one of ITS methods
+            // would suppress this method's warning and leave the demotion unexplained.
+            // Require the error to belong to this method's own body, i.e. that the
+            // innermost method declaration around it is this one.
+            if (innermostMethodAt(position) == method) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// The innermost {@code JCMethodDecl} whose span contains {@code position}, or
+    /// null. A nested class's method has a strictly smaller span than the outer
+    /// method containing it, so the smallest match is the owner of the position.
+    private JCTree.JCMethodDecl innermostMethodAt(long position) {
+        var endPositions = currentCompilationUnit.endPositions;
+        var best = new JCTree.JCMethodDecl[1];
+        var bestWidth = new long[] {Long.MAX_VALUE};
+        currentCompilationUnit.accept(new TreeScanner() {
+            @Override
+            public void visitMethodDef(JCTree.JCMethodDecl candidate) {
+                int candidateStart = candidate.getStartPosition();
+                int candidateEnd = candidate.getEndPosition(endPositions);
+                if (candidateStart >= 0 && candidateEnd >= 0
+                        && position >= candidateStart && position <= candidateEnd) {
+                    long width = (long) candidateEnd - candidateStart;
+                    if (width < bestWidth[0]) {
+                        bestWidth[0] = width;
+                        best[0] = candidate;
+                    }
+                }
+                super.visitMethodDef(candidate);
+            }
+        });
+        return best[0];
     }
 
     /// (helperName -> Procedure) for every cast helper referenced anywhere
@@ -517,6 +682,11 @@ public class JavaToLaurelCompiler {
 
         Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps = new HashMap<>();
         optedOutMethods.addAll(annotationCompiler.skippedMethodSymbols());
+        for (var unit : loweredResult.parsed()) {
+            if (unit.sourcefile != null) {
+                ownSourceFiles.add(unit.sourcefile);
+            }
+        }
         boolean first = true;
         for (var compilationUnit : loweredResult.parsed()) {
             if (lowerer.isContractSource(compilationUnit)) {
@@ -607,17 +777,54 @@ public class JavaToLaurelCompiler {
         //
         // `Program` is an immutable record, so each file is rebuilt rather than
         // mutated, as in the composite post-pass below.
+        // A skipped PURE method keeps a DECLARATION instead of being dropped: same
+        // signature and preconditions, but an opaque body with no implementation and
+        // no postconditions. That is sound -- a pure method has an empty frame, and
+        // exposing no postcondition means a caller learns nothing about the result --
+        // and it keeps the callee's name resolvable, so callers no longer cascade into
+        // a refusal just because one callee could not be translated
+        // (see PureUnverifiedMethod, whose `@Verify(false) @Pure` callee is meant to be
+        // callable-but-invisible).
+        //
+        // Only pure methods qualify: there is no `modifies *` in the Laurel bindings,
+        // so a non-pure callee cannot be given a frame that is honest about what it
+        // might write, and dropping it (plus demoting its callers) stays the sound
+        // treatment.
+        //
+        // Purity alone is not enough, though -- `keepsOpaqueDeclaration` is the
+        // condition, and it is the same one `demoteCallersOfRefusedMethods` exempts a
+        // callee by, so a procedure dropped here has already had its callers demoted.
         var droppedProcedures = new HashSet<Procedure>();
+        var opaqueReplacements = new HashMap<Procedure, Procedure>();
         for (var entry : procedureBySymbol.entrySet()) {
             var decl = entry.getKey();
             for (var unit : loweredResult.parsed()) {
                 var tree = TreeInfo.declarationFor(decl, unit);
                 if (tree instanceof JCTree.JCMethodDecl md
                         && annotationCompiler.isSkipped(unit, md)) {
-                    droppedProcedures.add(entry.getValue());
+                    if (jverifyUtils.isPure(decl) && keepsOpaqueDeclaration(entry.getValue())) {
+                        opaqueReplacements.put(entry.getValue(), declarationOnly(entry.getValue()));
+                    } else {
+                        droppedProcedures.add(entry.getValue());
+                    }
                     break;
                 }
             }
+        }
+        if (!opaqueReplacements.isEmpty()) {
+            for (int i = 0; i < result.size(); i++) {
+                var file = result.get(i);
+                var prog = file.program();
+                boolean touched = prog.staticProcedures().stream().anyMatch(opaqueReplacements::containsKey);
+                if (touched) {
+                    var mapped = prog.staticProcedures().stream()
+                            .map(p -> opaqueReplacements.getOrDefault(p, p)).toList();
+                    result.set(i, new LaurelFile(file.uri(), new Program(
+                            mapped, prog.staticFields(), prog.types(), prog.constants())));
+                }
+            }
+            instanceProcsBySort.replaceAll((sort, procs) ->
+                    procs.stream().map(p -> opaqueReplacements.getOrDefault(p, p)).toList());
         }
         if (!droppedProcedures.isEmpty()) {
             for (int i = 0; i < result.size(); i++) {
@@ -797,6 +1004,20 @@ public class JavaToLaurelCompiler {
      * no declaration is available.
      */
     private HighType translateType(com.sun.tools.javac.code.Type type, JCTree.JCModifiers modifiers) {
+        // A wildcard type argument is approximated by the type a READ through it
+        // yields, since Laurel has no variance. `? extends X` reads as `X` (its
+        // upper bound); `? super X` reads only as `java.lang.Object` (the actual
+        // could be `Container<Object>`), so it maps to Object -- NOT to `X`, which
+        // would be unsound; and an unbounded `?` is Object too. A FOR-NOW
+        // approximation of full variance (STRATA_WILDCARDS): sound, but coarser
+        // than a variance-aware check.
+        if (type instanceof com.sun.tools.javac.code.Type.WildcardType wildcard) {
+            com.sun.tools.javac.code.Type bound =
+                    (wildcard.isExtendsBound() && wildcard.type != null)
+                            ? wildcard.type
+                            : symtab.objectType;
+            return translateType(bound, modifiers);
+        }
         // Class / interface types (including sealed hierarchies and
         // records): encode as an opaque Laurel composite type named
         // after the source-side type. Strata treats unbound composite
@@ -813,14 +1034,34 @@ public class JavaToLaurelCompiler {
         // arguments there, so no call-site change is needed. The BOUND is
         // dropped -- Laurel's TVar is a gradual wildcard -- so a body that
         // actually uses the bound's members still refuses, exactly as before.
+        // A type variable becomes a Laurel TVar. A METHOD's own parameter is
+        // declared in the procedure's typeArgs; a CLASS's parameter is declared
+        // in the owning composite's typeArgs (emitComposite). The BOUND is dropped
+        // (Laurel TVar is unconstrained), so a body that uses the bound's members
+        // still fails (STRATA_NO_TYPE_CONSTRAINTS).
         if (type instanceof com.sun.tools.javac.code.Type.TypeVar typeVar
-                && currentMethodSymbol != null
-                && typeVar.tsym.owner == currentMethodSymbol) {
+                && (typeVar.tsym.owner instanceof Symbol.MethodSymbol
+                        || typeVar.tsym.owner instanceof Symbol.ClassSymbol)) {
             return new HighType.TVar(ident(typeVar.tsym.name.toString()));
         }
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
             String sortName = compositeSortName(classType.tsym);
             referencedCompositeTypes.putIfAbsent(sortName, classType.tsym);
+            // A generic INSTANTIATION of a MODELED composite
+            // (`GenericContainer<DummySuper>`) is an `Applied` of the base sort to
+            // its translated type arguments; Strata monomorphizes it. A raw use, a
+            // non-generic type, or a library generic without a @Contract stays a
+            // bare erased sort -- no definition is emitted for it, so an Applied
+            // over it would not resolve.
+            var typeArgs = classType.getTypeArguments();
+            if (typeArgs != null && !typeArgs.isEmpty() && isModeledComposite(classType.tsym)) {
+                List<AstNode<HighType>> applied = new ArrayList<>();
+                for (var arg : typeArgs) {
+                    applied.add(node(translateType(arg)));
+                }
+                return new HighType.Applied(
+                        node(new HighType.UserDefined(ident(sortName))), applied);
+            }
             return new HighType.UserDefined(ident(sortName));
         }
         boolean isNat = JVerifyUtils.isAnnotated(type, org.strata.jverify.Nat.class)
@@ -946,11 +1187,11 @@ public class JavaToLaurelCompiler {
         if (tsym instanceof Symbol.ClassSymbol cls && tsym.type != null) {
             com.sun.tools.javac.code.Type sup = cls.getSuperclass();
             if (sup != null && sup.tsym != null && sup.getTag() != TypeTag.NONE) {
-                addParent(sup.tsym, name, parents, emitted, out);
+                addParent(sup, name, parents, emitted, out);
             }
             for (var iface : cls.getInterfaces()) {
                 if (iface.tsym != null) {
-                    addParent(iface.tsym, name, parents, emitted, out);
+                    addParent(iface, name, parents, emitted, out);
                 }
             }
         }
@@ -960,26 +1201,59 @@ public class JavaToLaurelCompiler {
             // a direct supertype of a superinterface-less interface) and synthetic
             // lambda classes (supertype field never set). Without this edge such a
             // value cannot flow to an Object-typed position.
-            addParent(symtab.objectType.tsym, name, parents, emitted, out);
+            addParent(symtab.objectType.tsym.type, name, parents, emitted, out);
         }
         List<Field> fields = compositeFields.containsKey(name)
                 ? new ArrayList<>(compositeFields.get(name).values())
                 : List.of();
+        // A modeled generic class declares its type parameters so a `TVar` naming
+        // one resolves against the composite; its instantiations monomorphize per
+        // `Applied` use site.
+        List<Identifier> typeArgs = new ArrayList<>();
+        if (tsym.type != null && isModeledComposite(tsym)) {
+            for (var tv : tsym.type.getTypeArguments()) {
+                if (tv.tsym != null) {
+                    typeArgs.add(ident(tv.tsym.name.toString()));
+                }
+            }
+        }
         out.add(new TypeDefinition.Composite(new CompositeType(ident(name),
-                /*typeArgs=*/List.of(), parents, fields,
+                typeArgs, parents, fields,
                 instanceProcsBySort.getOrDefault(name, List.of()))));
     }
 
     /** Emit {@code parentSym}'s sort (and its ancestors) and name it as a parent of
      *  the sort being declared, unless it is that sort itself. */
-    private void addParent(Symbol.TypeSymbol parentSym, String childName,
+    private void addParent(com.sun.tools.javac.code.Type parentType, String childName,
             List<AstNode<HighType>> parents, Set<String> emitted, List<TypeDefinition> out) {
+        Symbol.TypeSymbol parentSym = parentType.tsym;
         String parent = compositeSortName(parentSym);
         if (parent.isEmpty() || parent.equals(childName)) {
             return;
         }
+        // Emit the base composite (by symbol, ancestors-first), but make the EDGE
+        // carry the parameterized supertype: a class or lambda implementing a
+        // generic MODELED interface must extend the instantiation
+        // (`Applied(MyConsumer, [Anything])`) to match an `Applied`-typed use site.
+        // translateType erases a library or non-generic supertype to a bare sort.
         emitComposite(parentSym, parent, emitted, out);
-        parents.add(node(new HighType.UserDefined(ident(parent))));
+        parents.add(node(translateType(parentType)));
+    }
+
+    /**
+     * True for a composite whose DEFINITION this compilation emits -- so its type
+     * parameters are declared and Strata can monomorphize it: a type this
+     * compilation has source for, or a library type given a {@code @Contract}
+     * (ExternalContractCompiler moves the annotation onto the contractee, which is
+     * then emitted as a real composite). A plain library generic with neither
+     * ({@code Supplier}, {@code HashMap}) stays erased to a bare sort.
+     */
+    private boolean isModeledComposite(Symbol.TypeSymbol tsym) {
+        if (!(tsym instanceof Symbol.ClassSymbol cls)) {
+            return false;
+        }
+        return (cls.sourcefile != null && ownSourceFiles.contains(cls.sourcefile))
+                || JVerifyUtils.isAnnotated(cls.type, org.strata.jverify.Contract.class);
     }
 
     private static String compositeSortName(Symbol.TypeSymbol tsym) {
@@ -1096,6 +1370,30 @@ public class JavaToLaurelCompiler {
      * cross-hierarchy relations that the declared-join-scoped registration
      * cannot provide.
      */
+    /**
+     * True for a cast that NARROWS to a composite this compilation declares -- the
+     * case Laurel's {@code as} exists for. Excludes: a parameterised target (the
+     * {@code as} type slot is a bare identifier), a library type (may be modelled as
+     * a Laurel value rather than a composite), and a widening or same-type cast,
+     * which needs no runtime check and is the identity.
+     */
+    private boolean isOwnDowncast(JCTree.JCTypeCast cast,
+                                  com.sun.tools.javac.code.Type.ClassType target,
+                                  Symbol.ClassSymbol cls) {
+        if (!target.getTypeArguments().isEmpty()
+                || cls.sourcefile == null
+                || !ownSourceFiles.contains(cls.sourcefile)
+                || cast.expr.type == null
+                || cast.expr.type.isPrimitive()) {
+            return false;
+        }
+        var from = javacTypes.erasure(cast.expr.type);
+        var to = javacTypes.erasure(target);
+        // A widening (or identity) cast is handled without a check; only the
+        // strictly narrowing direction needs `as`.
+        return !javacTypes.isSubtype(from, to);
+    }
+
     private void registerHierarchyUpToThrowable(Symbol.ClassSymbol cls) {
         Symbol.ClassSymbol stop = cls;
         for (Symbol.ClassSymbol c = cls; c != null; c = superclassOf(c)) {
@@ -1224,13 +1522,196 @@ public class JavaToLaurelCompiler {
                 && jverifyMethod.getQualifiedName().toString().equals(name);
     }
 
-    private static String qualifiedMethodName(Symbol.MethodSymbol sym) {
+    private String qualifiedMethodName(Symbol.MethodSymbol sym) {
         // Package-qualified IMMEDIATE-enclosing class name ('$' -> '.'), then
-        // MANGLE_SEPARATOR, then the method. The immediate (not outermost) class
-        // keeps nested-class methods distinct: `Outer.Inner.foo` mangles to
-        // `Outer.Inner?foo` instead of colliding with `Outer?foo`.
+        // MANGLE_SEPARATOR, then the method, then its overload signature. The
+        // immediate (not outermost) class keeps nested-class methods distinct:
+        // `Outer.Inner.foo` mangles to `Outer.Inner?foo` instead of colliding with
+        // `Outer?foo`.
         return enclosingClassOrRefuse(sym).getQualifiedName().toString().replace('$', '.')
-                + MANGLE_SEPARATOR + sym.name;
+                + MANGLE_SEPARATOR + sym.name + overloadSuffix(sym);
+    }
+
+    /**
+     * The suffix that distinguishes an overloaded method from its same-named
+     * siblings, appended to the emitted Laurel procedure name so a by-name call
+     * ({@code Class?m} for a static, {@code obj#m} for an instance) still selects
+     * the right one. Empty for a no-arg method; otherwise MANGLE_SEPARATOR then
+     * each parameter's ERASED type.
+     *
+     * <p>Erased on purpose: an override has the same erased signature as the base
+     * (JLS override rules), so it mangles to the SAME name -- dispatch families
+     * and contract binding still line up. Only overLOADs (different signatures)
+     * get different names. A no-arg method keeps its bare name, so the common case
+     * and every previously-emitted single-arity name are unchanged. Computed from
+     * the symbol alone, so a declaration and every call site agree.
+     */
+    /** True unless the string contains an unpaired UTF-16 surrogate (no UTF-8 encoding). */
+    private static boolean isEncodableUtf16(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                if (i + 1 >= s.length() || !Character.isLowSurrogate(s.charAt(i + 1))) {
+                    return false;
+                }
+                i++;
+            } else if (Character.isLowSurrogate(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String overloadSuffix(Symbol.MethodSymbol sym) {
+        // Only overloaded names get a suffix (matching the original scheme): a
+        // name that denotes a single signature keeps its bare emitted name, so the
+        // common case and every previously-emitted name are unchanged. "Overloaded"
+        // is measured over the TYPE CLOSURE OF THE ROOT DECLARATION of `sym`'s
+        // override chain (see {@link #overloadScope}), not over `sym`'s own
+        // declaring class, so an override and its base always agree on the name.
+        // An overload split across an inheritance chain (base m(int), sub m(String))
+        // is still caught, because the sub-declared sibling is its OWN root and its
+        // closure sees both signatures.
+        if (!isOverloaded(sym)) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (com.sun.tools.javac.code.Type pt : javacTypes.erasure(sym.type).getParameterTypes()) {
+            sb.append(MANGLE_SEPARATOR).append(pt.toString());
+        }
+        return sb.toString();
+    }
+
+    /** The erased parameter-type list of {@code sym}, the key an override shares with its base. */
+    private String erasedSignature(Symbol.MethodSymbol sym) {
+        return javacTypes.erasure(sym.type).getParameterTypes().toString();
+    }
+
+    /**
+     * The class whose type closure decides {@code sym}'s overload suffix: the
+     * ROOT DECLARATION of {@code sym}'s override chain -- the topmost class in
+     * {@code sym}'s ancestry that declares a method {@code sym} overrides -- or
+     * {@code sym}'s own declaring class when {@code sym} overrides nothing.
+     *
+     * <p>Why not the declaring class: "overloaded" measured over the DECLARING
+     * class's closure is not stable along an override chain, so a base and its
+     * override could emit DIFFERENT names. With {@code Base.m(int)} and
+     * {@code Sub extends Base} declaring both {@code m(int)} (an override) and
+     * {@code m(String)} (a new overload), closure(Base) sees one signature so
+     * {@code Base.m(int)} stayed bare while closure(Sub) sees two so
+     * {@code Sub.m(int)} became {@code m?int}. Distinct names mean Strata never
+     * pairs them, so {@code CheckOverrideRefinement} never generates the Liskov
+     * obligation that makes reasoning against the static type sound -- the program
+     * verified while its override broke the base's postcondition. Keying on the
+     * root makes base and override share a scope, hence a name, by construction;
+     * the subclass-added overload is its own root and still gets a distinct name.
+     *
+     * <p>{@code static} and {@code private} methods never override, so they are
+     * their own root. A member of a supertype only counts as overridden when it is
+     * itself inheritable (not static, private or synthetic) and has {@code sym}'s
+     * erased signature -- the same key the suffix is built from.
+     *
+     * <p>PLANNED REMOVAL. This renaming is a stopgap and is meant to be deleted, not
+     * extended: the intended fix is overload support for composite INSTANCE methods in
+     * Laurel, after which a Java overload maps straight onto a Laurel overload and
+     * nothing here needs a suffix. Laurel already resolves overloaded STATIC procedures
+     * by signature -- measured: two procedures both emitted as {@code C?static?dup},
+     * with contradictory postconditions ({@code r == 1} and {@code r == 2}), each
+     * verified at its own call site. Only composite instance methods still reject a
+     * repeated name, with {@code Duplicate definition 'C.Sub$m' is already defined in
+     * this scope}, which is the sole reason any of this exists.
+     *
+     * <p>KNOWN GAP, deliberately left for that work. A name with two INDEPENDENT roots
+     * cannot be handled by any symbol-local scheme, this one included: with
+     * {@code I1.m(int)} and {@code I2.m(String)} as separate interface defaults and
+     * {@code Sub implements I1, I2} overriding both, each override's root is its own
+     * interface and each closure sees one signature, so both emit bare {@code m} and
+     * Strata reports a duplicate definition. The name has to be computable from the
+     * symbol alone and only supertype information is reachable, so two incomparable
+     * roots cannot both be agreed with. This is not a soundness regression -- with the
+     * older declaring-class scoping the same shape was mis-named and its Liskov
+     * obligation was never generated either, so it failed too, just more quietly. Fixing
+     * it by naming (a whole-program family-to-name table) is deliberately NOT done,
+     * because the Laurel change removes the need for names entirely.
+     */
+    private Symbol.ClassSymbol overloadScope(Symbol.MethodSymbol sym) {
+        Symbol.ClassSymbol owner = enclosingClassOrRefuse(sym);
+        if ((sym.flags() & (Flags.STATIC | Flags.PRIVATE)) != 0) {
+            return owner;
+        }
+        String signature = erasedSignature(sym);
+        Symbol.ClassSymbol scope = owner;
+        for (com.sun.tools.javac.code.Type supertype : javacTypes.closure(owner.type)) {
+            if (!(supertype.tsym instanceof Symbol.ClassSymbol cls) || cls == scope) {
+                continue;
+            }
+            boolean declaresOverridden = false;
+            for (Symbol member : cls.members().getSymbolsByName(sym.name)) {
+                if (member instanceof Symbol.MethodSymbol m
+                        && (m.flags() & (Flags.SYNTHETIC | Flags.STATIC | Flags.PRIVATE)) == 0
+                        && erasedSignature(m).equals(signature)) {
+                    declaresOverridden = true;
+                    break;
+                }
+            }
+            // Keep the HIGHEST declarer: only move up when the candidate is a
+            // supertype of the one held, so the result does not depend on the
+            // order `closure` happens to return.
+            if (declaresOverridden
+                    && javacTypes.isSubtype(javacTypes.erasure(scope.type), javacTypes.erasure(cls.type))) {
+                scope = cls;
+            }
+        }
+        return scope;
+    }
+
+    /**
+     * Whether {@code sym}'s name denotes more than one distinct ERASED signature
+     * in the closure of its {@linkplain #overloadScope override-chain root} -- i.e.
+     * it is overLOADed (as opposed to a lone method or a pure overRIDE, which share
+     * one signature). Synthetic members are excluded, mirroring the old overload
+     * gates.
+     */
+    private boolean isOverloaded(Symbol.MethodSymbol sym) {
+        Set<String> signatures = new java.util.HashSet<>();
+        try {
+            Symbol.ClassSymbol scope = overloadScope(sym);
+            // Only mangle methods rooted in the program under verification. A
+            // library / JDK method (java.util.List.of, ...) is modeled by a builtin
+            // @Contract that declares one canonical entry per name, so a call must
+            // emit the bare name to resolve against it -- mangling it by the JDK's
+            // real overload set (List.of has ~12) would name a procedure the contract
+            // never defined. Gating on the ROOT rather than the declaring class also
+            // keeps a user override of a library method (`equals(Object)`) on the
+            // library's canonical name, which is the name its contract defines.
+            // Decl and call alike are gated the same way, so the emitted names agree.
+            if (scope.sourcefile == null || !ownSourceFiles.contains(scope.sourcefile)) {
+                return false;
+            }
+            for (com.sun.tools.javac.code.Type supertype : javacTypes.closure(scope.type)) {
+                if (!(supertype.tsym instanceof Symbol.ClassSymbol cls)) {
+                    continue;
+                }
+                // Opted-out methods COUNT. They used to be excluded, which was only
+                // sound while a skipped method was dropped outright: a skipped PURE
+                // method now keeps an opaque declaration (see `declarationOnly`), so it
+                // is emitted under this same name. Excluding it made
+                // `@Pure int dup(int)` and `@Verify(false) @Pure int dup(boolean)` each
+                // see one signature, so both emitted a bare `dup` -- a duplicate
+                // procedure, and an ambiguous call.
+                for (Symbol member : cls.members().getSymbolsByName(sym.name)) {
+                    if (member instanceof Symbol.MethodSymbol m
+                            && (m.flags() & Flags.SYNTHETIC) == 0) {
+                        signatures.add(erasedSignature(m));
+                    }
+                }
+            }
+        } catch (Symbol.CompletionFailure e) {
+            // A supertype that will not load: treat as overloaded so the name is
+            // disambiguated defensively rather than risking a silent collision.
+            return true;
+        }
+        return signatures.size() > 1;
     }
 
     private class StaticMethodCollector extends TreeScanner {
@@ -1490,7 +1971,11 @@ public class JavaToLaurelCompiler {
                         // aggregate "Skipped methods: N", which maps back to neither.
                         // Warn instead, deduplicated by (method, reason) so a
                         // construct hit repeatedly reports once.
-                        if (firstReportOf(method.sym, e.getMessage())) {
+                        // ... unless a hard error already names a construct inside
+                        // this method, in which case the warning only repeats it
+                        // less precisely (see hasReportedErrorInside).
+                        if (firstReportOf(method.sym, e.getMessage())
+                                && !hasReportedErrorInside(method)) {
                             reporter.reportDiagnostic(method,
                                     JCDiagnostic.DiagnosticType.WARNING,
                                     "instanceMethodNotVerified",
@@ -1512,7 +1997,10 @@ public class JavaToLaurelCompiler {
         }
 
         private void translateMethod(JCTree.JCMethodDecl method, boolean isStatic) {
-            RefusalGates.enforce(gates.overloadRefusal(method.sym));
+            // No overload refusal: an overloaded method's emitted name carries its
+            // erased parameter signature (see overloadSuffix), so same-named
+            // siblings get distinct Laurel names and by-name resolution is
+            // unambiguous.
             currentEnclosingClass = enclosingClassOrRefuse(method.sym);
             currentMethodSymbol = method.sym;
             // An instance procedure lives INSIDE its composite under the bare method
@@ -1520,7 +2008,7 @@ public class JavaToLaurelCompiler {
             // `<Composite>$<method>`. A static keeps the mangled name.
             String methodName = isStatic
                     ? qualifiedMethodName(method.sym)
-                    : method.sym.name.toString();
+                    : method.sym.name.toString() + overloadSuffix(method.sym);
 
             List<Parameter> inputs = new ArrayList<>();
             if (!isStatic) {
@@ -2259,6 +2747,7 @@ public class JavaToLaurelCompiler {
                 case JCTree.JCAssign asgn ->
                         new StmtExpr.Assign(List.of(nodeVar(convertVariable(asgn.lhs, renames))),
                                 node(convertExpression(asgn.rhs, renames)));
+                case JCTree.JCAssignOp asgnOp -> convertAssignOp(asgnOp, renames);
                 case JCTree.JCConditional cond ->
                         new StmtExpr.IfThenElse(node(convertExpression(cond.cond, renames), cond.cond),
                                 node(convertExpression(cond.truepart, renames), cond.truepart),
@@ -2269,7 +2758,14 @@ public class JavaToLaurelCompiler {
                         yield convertJVerifyCall(invocation, jverifyMethod, renames);
                     }
                     var methodSym = (Symbol.MethodSymbol) TreeInfo.symbol(invocation.getMethodSelect());
-                    if (optedOutMethods.contains(methodSym)) {
+                    // A PURE opted-out callee is exempt: it now keeps an opaque
+                    // DECLARATION (see `declarationOnly`) so the name resolves, and
+                    // overload siblings no longer share a Laurel name because an
+                    // overloaded name carries its erased parameter types (see
+                    // `overloadSuffix`). The caller stays verifiable and simply learns
+                    // nothing about the result -- which is the documented intent of
+                    // `@Verify(false) @Pure` (see PureUnverifiedMethod).
+                    if (optedOutMethods.contains(methodSym) && !jverifyUtils.isPure(methodSym)) {
                         // The callee emits no procedure, but its mangled name is not
                         // unique to it: an overload sibling that IS emitted mangles to
                         // the same Laurel name, so this call would bind the sibling's
@@ -2290,11 +2786,8 @@ public class JavaToLaurelCompiler {
                     }
                     boolean calleeStatic = (methodSym.flags() & Flags.STATIC) != 0;
                     if (calleeStatic) {
-                        // A static mangles to `Class?name`, so only its own class's
-                        // overloads can collide. Instance calls take the ancestry
-                        // gate below, which subsumes this one: the supertype closure
-                        // includes the receiver's own type.
-                        RefusalGates.enforce(gates.overloadRefusal(methodSym));
+                        // A static mangles to `Class?name?sig`, so overloaded
+                        // statics get distinct names; no refusal needed.
                     }
                     StmtExpr instanceReceiver = null;
                     if (!calleeStatic) {
@@ -2305,12 +2798,17 @@ public class JavaToLaurelCompiler {
                         RefusalGates.enforce(
                                 RefusalGates.receiverRefusal(invocation.getMethodSelect()));
                         StmtExpr selfArg = receiverSelf(invocation.getMethodSelect(), renames);
-                        RefusalGates.enforce(RefusalGates.dispatchRefusal(methodSym, invocation.getMethodSelect()));
-                        // The emitted `obj#method` is re-resolved BY NAME in Strata;
-                        // refuseIfOverloaded alone cannot make that unambiguous.
-                        RefusalGates.enforce(gates.ancestryOverloadRefusal(
-                                methodSym, invocation.getMethodSelect(),
-                                currentEnclosingClass));
+                        // No dispatch refusal: Laurel dispatches an overridden
+                        // composite method on the receiver's runtime tag
+                        // (LiftInstanceProcedures) and CheckOverrideRefinement
+                        // discharges the Liskov obligation that makes reasoning
+                        // against the declared type's contract sound. See
+                        // PolyDispatchSoundness, which pins both halves.
+                        // No overload refusal either: `obj#method` re-resolves BY
+                        // NAME in Strata, and the emitted name carries the erased
+                        // signature (overloadSuffix), so an overload set spanning
+                        // the ancestry no longer makes the choice ambiguous -- an
+                        // override keeps the base's name, an overload gets its own.
                         instanceReceiver = selfArg;
                     }
                     List<AstNode<StmtExpr>> args = new ArrayList<>();
@@ -2325,7 +2823,7 @@ public class JavaToLaurelCompiler {
                     // translateMethod's `self?` parameter).
                     yield new StmtExpr.InstanceCall(
                             node(instanceReceiver, invocation.getMethodSelect()),
-                            ident(methodSym.name.toString()), args);
+                            ident(methodSym.name.toString() + overloadSuffix(methodSym)), args);
                 }
                 case JCTree.LetExpr letExpr -> {
                     List<AstNode<StmtExpr>> stmts = new ArrayList<>();
@@ -2361,39 +2859,81 @@ public class JavaToLaurelCompiler {
                     for (var arg : newClass.args) {
                         convertExpression(arg, renames);
                     }
-                    yield new StmtExpr.New(ident(name), /*typeArgs=*/List.of());
+                    // `new GenericContainer<DummySuper>(..)` carries its type
+                    // arguments so the instantiation monomorphizes; a raw or
+                    // library `new` leaves them empty.
+                    List<AstNode<HighType>> newTypeArgs = new ArrayList<>();
+                    if (newClass.type instanceof com.sun.tools.javac.code.Type.ClassType nct
+                            && isModeledComposite(nct.tsym)) {
+                        for (var arg : nct.getTypeArguments()) {
+                            newTypeArgs.add(node(translateType(arg)));
+                        }
+                    }
+                    yield new StmtExpr.New(ident(name), newTypeArgs);
                 }
                 case JCTree.JCInstanceOf instanceOf -> {
-                    // Exception types are composites with their `extends`
-                    // chains declared, so a plain type test maps directly onto
-                    // Laurel's `is` -- and per-type case-postcondition claims depend on
-                    // it. Other reference types
-                    // stay unsupported: they are opaque sorts with no declared
-                    // hierarchy, so `is` on them would be vacuous.
+                    // A plain type test maps onto Laurel's `is`. This used to be
+                    // restricted to exception types, on the grounds that other
+                    // reference types were "opaque sorts with no declared hierarchy,
+                    // so `is` on them would be vacuous". That is no longer true:
+                    // emitComposite declares every sort's FULL supertype closure
+                    // (from getSuperclass() + getInterfaces()), and Laurel keeps a
+                    // runtime type tag per composite, so `is` decides properly for
+                    // any program composite. Registering the sort is enough to get
+                    // its hierarchy emitted.
                     if (!(instanceOf.pattern instanceof JCTree.JCBindingPattern)
                             && instanceOf.pattern.type instanceof com.sun.tools.javac.code.Type.ClassType ct
-                            && ct.tsym instanceof Symbol.ClassSymbol cls
-                            && isThrowableSubtype(cls)) {
-                        registerHierarchyUpToThrowable(cls);
+                            && ct.tsym instanceof Symbol.ClassSymbol cls) {
+                        // The `is` type slot is a bare identifier -- a generic
+                        // instantiation there is a parse error on the Laurel side --
+                        // so a parameterised target still refuses.
+                        if (!ct.getTypeArguments().isEmpty()) {
+                            throw new JavaViolationException(
+                                    "instanceof a generic type is not yet supported");
+                        }
+                        // Only a type THIS compilation declares. A library type is
+                        // loaded from a classfile (sourcefile == null) and several --
+                        // String, the boxed primitives -- are modelled as Laurel
+                        // values rather than composites, so registering one as a
+                        // composite sort here would collide with that encoding.
+                        if (cls.sourcefile == null
+                                || !ownSourceFiles.contains(cls.sourcefile)) {
+                            throw new JavaViolationException(
+                                    "instanceof on opaque reference types is not yet supported");
+                        }
+                        if (isThrowableSubtype(cls)) {
+                            registerHierarchyUpToThrowable(cls);
+                        }
+                        String sortName = compositeSortName(cls);
+                        referencedCompositeTypes.putIfAbsent(sortName, cls);
                         yield new StmtExpr.IsType(
                                 node(convertExpression(instanceOf.expr, renames), instanceOf.expr),
-                                node(new HighType.UserDefined(ident(compositeSortName(cls))),
+                                node(new HighType.UserDefined(ident(sortName)),
                                         typeRangeOrNone(instanceOf.pattern)));
                     }
                     throw new JavaViolationException(
                         "instanceof on opaque reference types is not yet supported");
                 }
                 case JCTree.JCTypeCast cast -> {
-                    // A cast to an exception type is Laurel's `as` (its
-                    // embedded type-test assertion is discharged by the
-                    // `instanceof` antecedent in the per-type claim idiom).
+                    // A reference DOWNCAST is Laurel's `as`, whose embedded
+                    // type-test assertion Strata discharges -- from an
+                    // `instanceof` antecedent in the per-type claim idiom, or as a
+                    // genuine obligation where there is none. Exception types took
+                    // this path already; it generalises to any composite this
+                    // compilation declares, now that every sort carries its
+                    // supertype closure and a runtime tag. An UPCAST is not here:
+                    // it needs no check, so convertTypeCast returns the operand.
                     if (cast.type instanceof com.sun.tools.javac.code.Type.ClassType ct
                             && ct.tsym instanceof Symbol.ClassSymbol cls
-                            && isThrowableSubtype(cls)) {
-                        registerHierarchyUpToThrowable(cls);
+                            && (isThrowableSubtype(cls) || isOwnDowncast(cast, ct, cls))) {
+                        if (isThrowableSubtype(cls)) {
+                            registerHierarchyUpToThrowable(cls);
+                        }
+                        String sortName = compositeSortName(cls);
+                        referencedCompositeTypes.putIfAbsent(sortName, cls);
                         yield new StmtExpr.AsType(
                                 node(convertExpression(cast.expr, renames), cast.expr),
-                                node(new HighType.UserDefined(ident(compositeSortName(cls))),
+                                node(new HighType.UserDefined(ident(sortName)),
                                         typeRangeOrNone(cast.clazz)));
                     }
                     yield convertTypeCast(cast, renames);
@@ -2446,6 +2986,19 @@ public class JavaToLaurelCompiler {
             // path instead so users see a single clean diagnostic.
             String targetName = laurelIntegerTypeName(targetType);
             if (targetName == null) {
+                // A reference UPCAST is the identity in Laurel: every composite
+                // declares its full supertype closure as `extends` edges, so a
+                // subtype value already flows wherever the supertype is
+                // expected and no conversion is needed. `(Object) someFoo` is
+                // the common case. A DOWNCAST is a runtime question and still
+                // refuses -- it would need Laurel's `as` / downcast$C helper.
+                if (cast.expr.type != null && cast.type != null
+                        && !cast.expr.type.isPrimitive() && !cast.type.isPrimitive()
+                        && javacTypes.isSubtype(
+                                javacTypes.erasure(cast.expr.type),
+                                javacTypes.erasure(cast.type))) {
+                    return operand;
+                }
                 throw new JavaViolationException(
                         "Cast to " + cast.type + " is not yet supported");
             }
@@ -2571,7 +3124,18 @@ public class JavaToLaurelCompiler {
                 // that instance calls are translated: the receiver of
                 // `"abc".length()` is such a constant, and previously aborted the
                 // enclosing method with "Unsupported constant type tag: CLASS".
-                case CLASS -> new StmtExpr.LiteralString(String.valueOf(v));
+                case CLASS -> {
+                    String s = String.valueOf(v);
+                    // A Java string can hold unpaired surrogates ('\uD800' with no
+                    // low surrogate); those have no UTF-8 encoding, so serializing
+                    // the Laurel literal to Ion would throw. Refuse cleanly instead
+                    // of crashing the run (see Strings.stringLiteralMispairedSurrogates).
+                    if (!isEncodableUtf16(s)) {
+                        throw new JavaViolationException(
+                                "string literal with unpaired surrogates is not supported");
+                    }
+                    yield new StmtExpr.LiteralString(s);
+                }
                 default -> throw new JavaViolationException("Unsupported constant type tag: " + tag);
             };
         }
@@ -2598,11 +3162,48 @@ public class JavaToLaurelCompiler {
             return primitiveOp(op, lhs, rhs);
         }
 
+        /**
+         * A compound assignment {@code lhs op= rhs}, desugared to
+         * {@code lhs = lhs op rhs}.
+         *
+         * <p>Restricted to a LOCAL-variable or parameter LHS. A field LHS -- an
+         * explicit {@code obj.f} (JCFieldAccess) or a bare unqualified field
+         * ({@code counter += 1}, still a JCIdent) -- reads its receiver / heap
+         * state twice under this desugaring, so it stays refused as before; a
+         * static-field write in particular is not supported at all yet
+         * (CascadeDepth3 depends on that refusal).
+         */
+        private StmtExpr convertAssignOp(JCTree.JCAssignOp assignOp, Map<String, String> renames) {
+            if (!(assignOp.lhs instanceof JCTree.JCIdent ident)
+                    || !(TreeInfo.symbol(ident) instanceof Symbol.VarSymbol varSym)
+                    || !(varSym.owner instanceof Symbol.MethodSymbol)) {
+                throw new JavaViolationException("Unsupported expression: JCAssignOp");
+            }
+            Operation op = switch (assignOp.getTag()) {
+                case PLUS_ASG -> new Operation.Add();
+                case MINUS_ASG -> new Operation.Sub();
+                case MUL_ASG -> new Operation.Mul();
+                case DIV_ASG -> new Operation.DivT();
+                case MOD_ASG -> new Operation.ModT();
+                default -> throw new JavaViolationException("Unsupported expression: JCAssignOp");
+            };
+            AstNode<StmtExpr> current = node(convertExpression(assignOp.lhs, renames), assignOp.lhs);
+            AstNode<StmtExpr> rhs = node(convertExpression(assignOp.rhs, renames), assignOp.rhs);
+            AstNode<StmtExpr> combined = node(primitiveOp(op, current, rhs), assignOp);
+            return new StmtExpr.Assign(
+                    List.of(nodeVar(convertVariable(assignOp.lhs, renames))), combined);
+        }
+
         private StmtExpr convertUnary(JCTree.JCUnary unary, Map<String, String> renames) {
             AstNode<StmtExpr> inner = node(convertExpression(unary.arg, renames), unary.arg);
             return switch (unary.getTag()) {
                 case NOT -> primitiveOp(new Operation.Not(), inner);
                 case NEG -> primitiveOp(new Operation.Neg(), inner);
+                // Unary plus is the identity. Any numeric promotion it implies
+                // (e.g. +byte -> int) was already applied by javac at
+                // attribution, so `inner` carries the promoted value and the
+                // operator itself adds nothing.
+                case POS -> inner.val();
                 case PREINC -> new StmtExpr.IncrDecr(new IncrDecrMode.Pre(), new IncrDecrOp.Incr(), nodeVar(convertVariable(unary.arg, renames)));
                 case PREDEC -> new StmtExpr.IncrDecr(new IncrDecrMode.Pre(), new IncrDecrOp.Decr(), nodeVar(convertVariable(unary.arg, renames)));
                 case POSTINC -> new StmtExpr.IncrDecr(new IncrDecrMode.Post(), new IncrDecrOp.Incr(), nodeVar(convertVariable(unary.arg, renames)));

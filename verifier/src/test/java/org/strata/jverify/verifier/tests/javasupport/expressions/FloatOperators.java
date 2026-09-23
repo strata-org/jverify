@@ -1,9 +1,8 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC}, exitCode = 2)  // Compilation errors due to unsupported modulo operator
+@JVerifyTest(exitCode = 2)  // Compilation errors due to unsupported modulo operator
 @SuppressWarnings("ConstantValue")
 class FloatOperators {
     public void foo() {

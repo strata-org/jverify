@@ -10,7 +10,7 @@ import java.math.BigInteger;
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS, Blocker.FRONTEND_FIELDS}, exitCode = 4,
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS}, exitCode = 4,
         additionalFiles = {
         "./a/WontVerify.java", 
         "./a/package-info.java", 

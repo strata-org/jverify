@@ -40,7 +40,7 @@ class CascadeDepth3 {
     }
 
     static void depth1() {
-//              ^ error: call to 'depth2', which could not be translated
+//              ^ error: call to 'depth2', which could not be translated: call to 'depth3', which could not be translated
         depth2();
     }
 }

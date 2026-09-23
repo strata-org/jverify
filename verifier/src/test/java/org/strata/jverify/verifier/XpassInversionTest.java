@@ -29,12 +29,12 @@ class XpassInversionTest {
     void stillFailing_isReportedAsSkipped() {
         // A blocker that hasn't cleared surfaces as an AssertionError from the check.
         var aborted = assertThrows(TestAbortedException.class,
-                () -> JVerifyTestEngine.applyXfailInversion("[STRATA_GENERICS]",
+                () -> JVerifyTestEngine.applyXfailInversion("[STRATA_ARRAYS]",
                         () -> { throw new AssertionError("count mismatch"); }));
         // Skipped-with-reason, not failed: the build stays green and names the blocker.
         assertTrue(aborted.getMessage().contains("Expected failure"),
                 "skip reason should mark it an expected failure, was: " + aborted.getMessage());
-        assertTrue(aborted.getMessage().contains("STRATA_GENERICS"),
+        assertTrue(aborted.getMessage().contains("STRATA_ARRAYS"),
                 "skip reason should name the blocker, was: " + aborted.getMessage());
     }
 
@@ -42,7 +42,7 @@ class XpassInversionTest {
     void nowPassing_failsLoudlyAsXpass() {
         // The blocker cleared: the check completes without throwing -> XPASS.
         var failed = assertThrows(AssertionError.class,
-                () -> JVerifyTestEngine.applyXfailInversion("[STRATA_GENERICS]",
+                () -> JVerifyTestEngine.applyXfailInversion("[STRATA_ARRAYS]",
                         () -> { /* passes */ }));
         assertTrue(failed.getMessage().contains("XPASS"),
                 "a now-passing xfail must fail loudly as XPASS, was: " + failed.getMessage());
@@ -52,7 +52,7 @@ class XpassInversionTest {
     void infraFailure_propagates_notSwallowed() {
         // A non-AssertionError (infra failure) must NOT be swallowed as expected-failure.
         var thrown = assertThrows(IllegalStateException.class,
-                () -> JVerifyTestEngine.applyXfailInversion("[STRATA_GENERICS]",
+                () -> JVerifyTestEngine.applyXfailInversion("[STRATA_ARRAYS]",
                         () -> { throw new IllegalStateException("backend did not run"); }));
         assertTrue(thrown.getMessage().contains("backend did not run"));
     }

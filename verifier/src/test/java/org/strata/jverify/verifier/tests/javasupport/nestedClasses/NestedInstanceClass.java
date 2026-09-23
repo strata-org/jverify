@@ -6,7 +6,11 @@ import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_INSTANCE_METHODS}, exitCode = 4, methodsVerified = 4, errorCount = 2)
+// Real front-end bug (was mislabelled FRONTEND_INSTANCE_METHODS, which no longer
+// exists -- instance methods are translated): a nested instance class's reference to
+// the OUTER instance's field emits a bare name, giving
+// `Resolution failed: 'x' is not defined` plus a source-less malformed diagnostic.
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 4, errorCount = 2)
 public class NestedInstanceClass {
     int x;
     

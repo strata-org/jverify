@@ -1,11 +1,12 @@
 package org.strata.jverify.verifier.tests.javasupport.nestedClasses;
 
 import org.strata.jverify.Pure;
+import org.strata.jverify.Impure;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 3, errorCount = 0)
+@JVerifyTest(methodsVerified = 4, errorCount = 0)
 public class NestedPolymorphism {
 
     static class DummySuper { }
@@ -23,7 +24,11 @@ public class NestedPolymorphism {
             check(nestedGenericContainer.getValue() == dummy); 
         }
 
-        public static class NestedGenericContainer<U> {
+        // `U extends @Impure Object` is load bearing: the postcondition below wants
+        // REFERENCE identity, and an unconstrained U may be instantiated at a record or
+        // String, which translate to Laurel VALUES -- so `==` would silently compare
+        // values, not references. The bound pins U to a heap object.
+        public static class NestedGenericContainer<U extends @Impure Object> {
             private U value;
 
             public NestedGenericContainer(U value) {
@@ -33,7 +38,6 @@ public class NestedPolymorphism {
 
             @Pure
             public U getValue() {
-//                   ^ warning: instance method 'getValue' was not verified: Unsupported type: U
                 reads(this);
                 return value;
             }

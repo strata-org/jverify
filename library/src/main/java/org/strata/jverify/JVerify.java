@@ -268,9 +268,9 @@ public class JVerify {
      * <p>
      * Records are expected to stop being composites once Laurel gains a value/record
      * ("Frozen") type. Until then there is no translatable structural equality for
-     * records in verified code: a record's {@code equals()} is an instance method,
-     * which is not yet translated either ({@code Blocker.FRONTEND_INSTANCE_METHODS}), so
-     * it fails loudly rather than offering a working alternative. Do not rely on a
+     * records in verified code: a record's {@code equals()} has no translatable
+     * structural meaning, so it fails loudly rather than offering a working
+     * alternative. Do not rely on a
      * proved {@code !jequals(...)} over pure operands.
      */
     public static <T> boolean jequals(T left, T right) {

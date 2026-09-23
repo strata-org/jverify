@@ -7,14 +7,12 @@ import java.util.function.IntPredicate;
 
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(methodsVerified = 19, errorCount = 0)
+@JVerifyTest(methodsVerified = 21, errorCount = 0)
 public class AvoidNameCollisionsTest {
 
     void set(int set, int r_set) {}
-//       ^ warning: instance method 'set' was not verified: overloaded method 'set' (enclosing class declares 2 methods with this name); overloading is not supported
     void function(int function) {}
     void set(int set) {}
-//       ^ warning: instance method 'set' was not verified: overloaded method 'set' (enclosing class declares 2 methods with this name); overloading is not supported
 
     class _test {}
 

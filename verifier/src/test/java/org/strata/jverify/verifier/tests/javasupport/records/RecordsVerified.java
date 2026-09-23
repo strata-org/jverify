@@ -6,7 +6,7 @@ import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.FRONTEND_NULLABLE}, exitCode = 4, methodsVerified = 22, errorCount = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.STRATA_NULLABLE}, exitCode = 4, methodsVerified = 22, errorCount = 4)
 class RecordsVerified {
     static void unitRecord() {
         var _ = new UnitRecord();

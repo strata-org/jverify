@@ -240,6 +240,7 @@ public class JavaLowerer {
                     phases.add(JavaLowerer.this::insertFloatingPointCasts);
                     phases.add(JavaLowerer.this::insertImplicitCasts);
                     phases.add(JavaLowerer.this::unlambda);
+                    phases.add(JavaLowerer.this::validatePureMethods);
                     phases.add(MethodOrLoopContractCompiler.instance(context)::transform);
                     phases.add(new ExternalContractCompiler(context)::transform);
                     if (options.positionFilter() != null && options.positionFilter().fileEnding() != null) {
@@ -249,6 +250,7 @@ public class JavaLowerer {
                     phases.add(new MissingContractCompiler(context)::transform);
                     phases.add(new IsAbstractCompiler(context)::transform);
                     phases.add(new PreconditionOfCompiler(context)::transform);
+                    phases.add(JavaLowerer.this::validateSupportedConstructs);
                     phases.add(new SwitchDesugarer(context)::transform);
                     phases.add(us -> unsuspend(lower(suspend(us))));
                     phases.add(new ArrayCompiler(context)::transform);
@@ -314,6 +316,40 @@ public class JavaLowerer {
         var inserter = new FloatingPointCastInserter(context);
         for (var unit : units) {
             inserter.translate(unit);
+        }
+        return units;
+    }
+
+    /**
+     * Enforce the {@code @Pure} body shape. Runs BEFORE
+     * {@code MethodOrLoopContractCompiler}, which lifts a method's contract calls into
+     * a nested block: these are source-shape rules whose diagnostics point at what the
+     * user wrote, and against the lifted shape the header reads as an empty pure block.
+     */
+    private List<JCTree.JCCompilationUnit> validatePureMethods(List<JCTree.JCCompilationUnit> units) {
+        var pureValidator = new org.strata.jverify.verifier.compiler.simplifications
+                .PureMethodValidator(context);
+        for (var unit : units) {
+            if (!isContractSource(unit)) {
+                pureValidator.validate(unit);
+            }
+        }
+        return units;
+    }
+
+    /**
+     * Reject unsupported constructs before javac's {@code Lower} desugars them away.
+     * Contract sources are skipped for the same reason the generator skips them: they
+     * describe types JVerify does not translate, so their bodies are not user code to
+     * hold to these rules.
+     */
+    private List<JCTree.JCCompilationUnit> validateSupportedConstructs(List<JCTree.JCCompilationUnit> units) {
+        var validator = new org.strata.jverify.verifier.compiler.simplifications
+                .UnsupportedConstructValidator(context);
+        for (var unit : units) {
+            if (!isContractSource(unit)) {
+                validator.validate(unit);
+            }
         }
         return units;
     }

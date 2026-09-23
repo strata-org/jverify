@@ -2,14 +2,44 @@ package org.strata.jverify.verifier.tests.javasupport.classes;
 
 import org.strata.jverify.EmptyContract;
 import org.strata.jverify.Pure;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 8, errorCount = 0)
+/**
+ * {@code root} used to be refused wholesale ("polymorphic dispatch … not yet
+ * supported"), so its assertions were never attempted. It is translated now, and the
+ * two assertions this fixture exists for -- {@code virtualMethod} through both the
+ * derived and the base static type -- pass. What still fails is
+ * {@code check(extender.getX() == 3)}.
+ *
+ * <p>The cause is that CONSTRUCTORS are not translated. Everything the caller would
+ * need to know about {@code extender.x} comes from {@code new Extender(4)}, whose
+ * postcondition is {@code this.x == 3}; but a user constructor emits no Laurel at all,
+ * and the {@code new} site discards its arguments and yields a bare allocation, so the
+ * object's fields are completely unconstrained. No contract on {@code getX} can bridge
+ * that -- which is exactly why adding {@code postcondition((int r) -> r == this.x)} to
+ * {@code Base.getX} and {@code postcondition((int r) -> r == 3)} to
+ * {@code Extender.computeX} each verified on their own yet left the call site
+ * unprovable. Those additions were reverted for that reason.
+ *
+ * <p>This was previously xfailed STRATA_OTHER on the theory that it shared one
+ * Strata-side frame bug with {@code NestedContractsTest} -- a dispatchable procedure's
+ * frame not reaching the caller through the generated tag dispatcher. That theory is
+ * now disproved: the Strata fix landed and {@code NestedContractsTest} verifies, while
+ * this fixture does not. The two differ in where the fact has to come from -- there, an
+ * external contract on an interface-typed parameter; here, a constructor.
+ *
+ * <p>{@code getX} additionally returns a plain {@code int} and carries no
+ * postcondition, so {@link Blocker#STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY} would hide
+ * its body from the caller even once constructors work.
+ */
+@JVerifyTest(expectedToFail = true,
+             blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY},
+             methodsVerified = 8, errorCount = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {
-//              ^ warning: instance method 'root' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         Extender extender = new Extender(4);
         check(extender.getX() == 3);
         var re = extender.virtualMethod();

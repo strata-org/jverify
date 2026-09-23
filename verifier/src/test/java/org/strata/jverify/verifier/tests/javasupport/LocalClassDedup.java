@@ -20,8 +20,8 @@ import static org.strata.jverify.JVerify.*;
 class LocalClassDedup {
     static void first() {
         final class Shared {
-            /** Refused: instanceof on an opaque reference type. */
-            final boolean f(Object o) { return o instanceof Shared; }
+            /** Refused: instanceof on a LIBRARY reference type (no source, so opaque). */
+            final boolean f(Object o) { return o instanceof String; }
 //                        ^ warning: instance method 'f' was not verified: instanceof on opaque reference types is not yet supported
         }
     }
@@ -29,7 +29,7 @@ class LocalClassDedup {
     static void second() {
         final class Shared {
             /** Same name, same signature, different declaration. */
-            final boolean f(Object o) { return o instanceof Shared; }
+            final boolean f(Object o) { return o instanceof String; }
 //                        ^ warning: instance method 'f' was not verified: instanceof on opaque reference types is not yet supported
         }
     }

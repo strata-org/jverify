@@ -160,8 +160,22 @@ public class LambdaToAnonymousClassCompiler extends TreeTranslator {
         
         var classSymbol = new Symbol.ClassSymbol(flags, name, currentContainer);
 
-        // Flatname should be globally unique. Qualified class name plus line and column achieves that.
-        classSymbol.flatname = currentContainer.owner.flatName().append(name);
+        // Both names must be globally unique, because the lambda's Laurel SORT is
+        // derived from them: compositeSortName uses getQualifiedName() (i.e.
+        // fullname) and only falls back to flatName when that is empty. javac's
+        // formFullName returns the BARE name when the owner is a method -- which
+        // it is for every lambda in a method body -- so fullname defaulted to
+        // `lambda.<line>_<col>` with no qualification at all. Two classes in one
+        // package with a lambda at the same line:column then shared one sort, and
+        // the second one's functional-interface `extends` edge was attributed to
+        // the first ("expected 'B.I', got 'lambda.8_14'"); see
+        // SameLineAndColumnLambdaA/B, which exist for exactly this.
+        //
+        // Qualify by the enclosing CLASS (enclClass, so a method owner is skipped)
+        // with javac's `$` separator, which compositeSortName turns back into '.'.
+        Name qualified = currentContainer.enclClass().flatName().append('$', name);
+        classSymbol.flatname = qualified;
+        classSymbol.fullname = qualified;
         Type enclosingType = hasEnclosingType ? currentContainer.enclClass().type : Type.noType;
         Type.ClassType classType = new Type.ClassType(enclosingType, List.nil(), classSymbol);
         classType.interfaces_field = List.of(lambda.type);

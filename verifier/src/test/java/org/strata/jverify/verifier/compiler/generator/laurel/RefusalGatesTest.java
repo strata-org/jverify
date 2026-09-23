@@ -22,13 +22,12 @@ import org.junit.jupiter.api.Test;
  * covered. Enumerating shapes through the full pipeline costs a Java fixture and a
  * multi-minute suite run each; here it costs a few javac symbols.
  *
- * <p>Covered here: {@code dispatchRefusal}, whose whole predicate is flag-based
- * ({@code FINAL}/{@code PRIVATE} on the callee, {@code FINAL} on the declaring class), and
- * {@code receiverRefusal}, which matches on tree shape. Neither needs a type hierarchy. The
- * two overload gates do — they walk populated member scopes — and are left to the
- * fixtures for now.
+ * <p>Covered here: {@code receiverRefusal}, which matches on tree shape and needs no type
+ * hierarchy. The two overload gates do — they walk populated member scopes — and are left
+ * to the fixtures for now. ({@code dispatchRefusal} used to be covered here too; it was
+ * deleted when Laurel gained runtime dispatch, so there is no longer a gate to test.)
  *
- * <p>Passing {@code null} for a methodSelect is safe rather than lucky: both gates reach it
+ * <p>Passing {@code null} for a methodSelect is safe rather than lucky: the gate reaches it
  * only through an {@code instanceof JCFieldAccess} test, which is false for null.
  */
 class RefusalGatesTest {
@@ -53,40 +52,6 @@ class RefusalGatesTest {
 
     private Symbol.MethodSymbol method(String name, long flags, Symbol.ClassSymbol owner) {
         return new Symbol.MethodSymbol(flags, names.fromString(name), Type.noType, owner);
-    }
-
-    @Test
-    void finalMethodIsMonomorphicSoNotRefused() {
-        var owner = cls("Open", 0);
-        var m = method("m", Flags.FINAL, owner);
-        assertEquals(Optional.empty(), RefusalGates.dispatchRefusal(m, null),
-                "a final method cannot be overridden, so dispatch is monomorphic");
-    }
-
-    @Test
-    void privateMethodIsMonomorphicSoNotRefused() {
-        var owner = cls("Open2", 0);
-        var m = method("m", Flags.PRIVATE, owner);
-        assertEquals(Optional.empty(), RefusalGates.dispatchRefusal(m, null),
-                "a private method is not virtual");
-    }
-
-    @Test
-    void methodOnFinalClassIsMonomorphicSoNotRefused() {
-        var owner = cls("Sealed", Flags.FINAL);
-        var m = method("m", 0, owner);
-        assertEquals(Optional.empty(), RefusalGates.dispatchRefusal(m, null),
-                "a final declaring class admits no override");
-    }
-
-    @Test
-    void overridableMethodOnOpenClassIsRefused() {
-        var owner = cls("Open3", 0);
-        var m = method("m", 0, owner);
-        var refusal = RefusalGates.dispatchRefusal(m, null);
-        assertTrue(refusal.isPresent(), "an overridable method on a non-final class must refuse");
-        assertEquals("polymorphic dispatch through interface/superclass is not yet supported",
-                refusal.get(), "the reason is the user-facing message, so it is pinned here");
     }
 
     // ---- receiverRefusal: the gate untangled out of `receiverSelf` ----

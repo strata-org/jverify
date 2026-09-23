@@ -7,7 +7,7 @@ import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH}, exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_WILDCARDS}, exitCode = 22)
 public class WildcardsResolution {
     
     boolean isNull(Container<?> elements) {

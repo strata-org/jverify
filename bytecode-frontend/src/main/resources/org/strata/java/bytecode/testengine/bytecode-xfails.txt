@@ -40,21 +40,103 @@ XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.PrimitiveCasts 
 # recovers an ordinary while loop and the frontend translates it: the
 # translator-refusal this test triggers is a source-frontend limitation that
 # cannot (and need not) be reproduced from bytecode.
+# The cascade diagnostic now names the callee's OWN refusal reason on the source
+# frontend ("call to 'same', which could not be translated: instanceof on opaque
+# reference types is not yet supported"). This frontend has its own cascade
+# implementation and still emits the bare form. Delete when the reason is threaded
+# through here too.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.RefusalDedup                            FRONTEND_DIAGNOSTIC  cascade diagnostic does not name the callee's reason here
+
 XFAIL  org.strata.jverify.verifier.tests.verification.TranslatorSkip                     FRONTEND_OTHER       multi-init for is desugared away in bytecode
+
+# The source frontend translates a generic CLASS's type parameters (emits the
+# composite's typeArgs + Applied instantiations); the bytecode frontend does not
+# yet, so it still refuses a member typed by a class type parameter
+# ("Unsupported type: U"). Delete when class generics are ported here.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.nestedClasses.NestedPolymorphism           FRONTEND_GENERICS    class type-parameter translation is source-only so far
+
+# The source frontend translates reference instanceof / downcast on program
+# composites (Laurel `is` / `as` over the runtime tag); the bytecode frontend
+# still refuses the cast ("Cast to ... is not yet supported"). Delete when the
+# same is ported here.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ReferenceCastObligation        FRONTEND_OTHER       reference downcast (Laurel `as`) is source-only so far
+
+# The Strata fix for frame-through-dispatch landed, so the source frontend verifies
+# this and it is no longer xfailed there. The bytecode frontend does not reach a
+# verdict on it (exit 2), so it needs the override until that is understood.
+XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.NestedContractsTest     FRONTEND_OTHER       bytecode frontend produces no verdict (exit 2) where the source frontend now verifies all three setter/getter pairs
+
+# ============================================================================
+# TEMPORARY: the SOURCE frontend no longer refuses polymorphic dispatch (Laurel
+# dispatches on the receiver's runtime tag and CheckOverrideRefinement discharges
+# the Liskov obligation), so the shared fixtures stopped expecting the
+# "polymorphic dispatch through interface/superclass is not yet supported"
+# warning. This frontend still has that refusal in
+# ClassResolver.enforceDispatchGate, so it emits a warning the fixtures no longer
+# pin. Every entry below is exactly that divergence and should be DELETED, not
+# re-explained, when the gate is removed here too -- at which point these all
+# pass, as they now do on the source frontend.
+# ============================================================================
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness              FRONTEND_DISPATCH  two divergences: the dispatch gate is still present here, so the call site is refused rather than translated; and the Liskov anchor falls back to the inherited clause because a method-name identifier from LaurelFactory.ident carries UNKNOWN_RANGE
+XFAIL  org.strata.jverify.verifier.tests.javasupport.generics.InferredGenericsForConstructor    FRONTEND_DISPATCH  dispatch gate still present here; 'test' is refused rather than verified
+XFAIL  org.strata.jverify.verifier.tests.javasupport.lambdas.namecollision.SameLineAndColumnLambdaA  FRONTEND_DISPATCH  dispatch gate still present here; both 'foo' methods are refused rather than verified
+XFAIL  org.strata.jverify.verifier.tests.javasupport.statements.VerifyStatements                FRONTEND_DISPATCH  dispatch gate still present here; P/P2/ignoreCallResult are refused rather than verified
+XFAIL  org.strata.jverify.verifier.tests.javasupport.wildcards.WildcardsNotSupported            FRONTEND_DISPATCH  dispatch gate still present here, so the refusal reason differs from the wildcard-approximation type error the fixture now pins
+XFAIL  org.strata.jverify.verifier.tests.verification.pure.PureLambda                           FRONTEND_DISPATCH  dispatch gate still present here; 'lambdaBecomesPureWhenSamIs' is refused rather than verified
+
+# ============================================================================
+# The source frontend restored the front-end diagnostics that were lost with the
+# Dafny back-end, as UnsupportedConstructValidator -- a javac TreeScanner run
+# from JavaLowerer's phase list, before javac's Lower desugars the constructs
+# away. This frontend shares the corpus but NOT the javac pipeline, so it emits
+# none of those errors and the fixtures (no longer xfailed) fail here.
+#
+# Reaching parity means re-implementing the checks over classfiles, which is not
+# a port: an initializer block, a `&` on booleans, a record's explicit accessor
+# and a misplaced contract call are all either desugared away or indistinguishable
+# from ordinary bytecode by the time this frontend sees them. Some may be
+# genuinely unreachable; each needs its own judgement.
+# ============================================================================
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.NestedErrorKeepsOuterWarning        FRONTEND_DIAGNOSTIC  bitwise-operator check is source-only, so bf warns 'Unsupported binary op: BINARY_AND' on the local class's method instead of erroring, and the outer method's switch-expression warning never arises
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.TypeVariableEqualityRestricted  FRONTEND_DIAGNOSTIC  restricted-'==' check is source-only, so the type-variable rejections are not emitted here
+XFAIL  org.strata.jverify.verifier.tests.javasupport.statements.SwitchStatementInExpressionArm  FRONTEND_DIAGNOSTIC  switch expressions are desugared before bf sees them, so it reports the throws warning instead of the untranslated-switch one
+XFAIL  org.strata.jverify.verifier.tests.verification.abstractContracts.AbstractContractsErrors  FRONTEND_DIAGNOSTIC  isAbstract()-outside-a-precondition check is source-only so far
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.ConstructorsErrors                  FRONTEND_DIAGNOSTIC  misplaced-contract-call check is source-only so far
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.DoubleOperators                 FRONTEND_DIAGNOSTIC  modulo-on-floating-point check is source-only so far
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.FloatOperators                  FRONTEND_DIAGNOSTIC  modulo-on-floating-point check is source-only so far
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.InstanceAndStaticInitializerBlock    FRONTEND_DIAGNOSTIC  initializer blocks are desugared into constructors before bytecode, so the check has no source-level construct to see
+XFAIL  org.strata.jverify.verifier.tests.javasupport.generics.PolymorphismResolutionErrors3       FRONTEND_DIAGNOSTIC  restricted-'=='  check is source-only so far
+XFAIL  org.strata.jverify.verifier.tests.jcl.PrimitiveAndBoxedTypesError                          FRONTEND_DIAGNOSTIC  restricted-'==' check is source-only so far
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ResolutionErrorsBooleanOperators FRONTEND_DIAGNOSTIC  bitwise-operator check is source-only so far
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ResolutionErrorsIntegerOperators FRONTEND_DIAGNOSTIC  bitwise-operator check is source-only so far
+
+# Same shape, for the @Pure body SHAPE rules (PureMethodValidator). These are the
+# hardest of the set to reach from bytecode: "a pure block must end in a return or
+# if-else" and "only variable declarations before the last statement" are
+# statements about SOURCE structure, and javac has already flattened that
+# structure into a control-flow graph by the time this frontend sees it.
+XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ImpureExpressionsResolution      FRONTEND_PURE_VALIDATOR  pure-block shape rules are source-only: the block structure they describe is gone from bytecode
+XFAIL  org.strata.jverify.verifier.tests.verification.pure.PureMethodErrors                       FRONTEND_PURE_VALIDATOR  pure-block shape rules are source-only: the block structure they describe is gone from bytecode
+XFAIL  org.strata.jverify.verifier.tests.verification.pure.PureWithVerifyOverrideChildrenFalse     FRONTEND_PURE_VALIDATOR  pure-block shape rules are source-only: the block structure they describe is gone from bytecode
+
+# The @Pure-with-a-user-`modifies` rule is a different case from the shape rules:
+# the `JVerify.modifies(...)` call DOES survive into the classfile, so nothing about
+# bytecode prevents the check -- the whole PureMethodValidator pass simply has no
+# bytecode-frontend counterpart yet. Delete this entry when that pass is ported;
+# unlike the shape rules above, this one needs no source structure.
+XFAIL  org.strata.jverify.verifier.tests.verification.pure.PureMethodWithModifies                  FRONTEND_PURE_VALIDATOR  PureMethodValidator is not ported, so the @Pure-with-modifies error is never emitted (the clause itself does survive into bytecode)
 
 # --- Force-run: JFE marks these expectedToFail, the bytecode frontend passes ---
 
 # JFE refuses the compound assignment (JCAssignOp) in the instance method;
 # javac desugars it before bytecode, so this frontend translates and
 # verifies it -- a genuine bytecode advantage, like TranslatorSkip's.
-RUN    org.strata.jverify.verifier.tests.javasupport.expressions.VerifyNumericOperators     compound assignment is desugared away in bytecode
 
 # The fixture's own comment ("Annotations on method parameters are broken ATM,
 # so these are locals") names the source-frontend gap. This frontend reads
 # @Impure/@Nat/@Unbounded off the classfile's type annotations -- including
 # FormalParameterTarget, so parameters are not a special case -- and verifies
 # both methods.
-RUN    org.strata.jverify.verifier.tests.javasupport.generics.PolymorphismResolutionErrors2  annotated-type casts and annotated parameters are read from type annotations, so both methods verify
 
 # ============================================================================
 # Erased source signals: JFE refuses these constructs at the SOURCE level
@@ -66,7 +148,6 @@ RUN    org.strata.jverify.verifier.tests.javasupport.generics.PolymorphismResolu
 # ============================================================================
 XFAIL  org.strata.jverify.verifier.tests.javasupport.lambdas.PolymorphicLambdas                   FRONTEND_DISPATCH  type-variable method refusal diagnostic not reproduced
 XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.CascadeDepth3                        FRONTEND_OTHER       depth3 refusal reason differs: JCAssignOp is desugared away; bf refuses the static-field write instead (cascade errors and counts match)
-XFAIL  org.strata.jverify.verifier.tests.javasupport.expressions.ImpureNumericOperatorsVerification  FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
 XFAIL  org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass       FRONTEND_DIAGNOSTIC  JCAssignOp refusal warning not reproducible: the compound assignment is desugared away (bf translates it)
 XFAIL  org.strata.jverify.verifier.tests.verification.MethodContractsVerification                 FRONTEND_DIAGNOSTIC  method-ref/lambda refusal warnings not reproduced
 
@@ -100,4 +181,34 @@ XFAIL  org.strata.jverify.verifier.tests.javasupport.localClasses.PolymorphicAno
 # UNKNOWN_RANGE, so bf takes the fallback and reports on the ancestor's `ensures`
 # line. Messages and counts match; stamping the method range on that identifier
 # would remove the divergence.
-XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness                 FRONTEND_DIAGNOSTIC  override's method name has no bytecode position (LaurelFactory.ident stamps UNKNOWN_RANGE); bf falls back to the inherited clause's line
+
+# ============================================================================
+# TEMPORARY: the SOURCE frontend now disambiguates overloaded methods by
+# appending their erased parameter types, so the shared fixtures stopped
+# expecting the overload-refusal diagnostic (some now verify, some now hit the
+# real assertion the refusal used to mask). The BYTECODE frontend still refuses
+# overloaded names ("overloaded method 'X' ... overloading is not supported"),
+# so it force-xfails here. Delete each entry when overload mangling is ported to
+# the bytecode frontend.
+# ============================================================================
+XFAIL  org.strata.jverify.verifier.tests.javasupport.OptedOutOverloadSibling                  FRONTEND_OVERLOAD    bytecode frontend still refuses overloaded statics, so the opted-out sibling never reaches a name at all
+XFAIL  org.strata.jverify.verifier.tests.javasupport.StaticOverloadRefusal                        FRONTEND_OVERLOAD    bytecode frontend still refuses overloaded statics; source now mangles them and verifies
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.CrossClassOverloadRefusal            FRONTEND_OVERLOAD    bytecode frontend still refuses the cross-ancestry overload; source now mangles it and the masked assertion correctly fails
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.InheritedNameOverload                FRONTEND_OVERLOAD    bytecode frontend still refuses the inherited-name overload; source now mangles it and verifies
+XFAIL  org.strata.jverify.verifier.tests.javasupport.AvoidNameCollisionsTest                      FRONTEND_OVERLOAD    bytecode frontend still refuses the overloaded 'set'; source now mangles it and verifies
+XFAIL  org.strata.jverify.verifier.tests.javasupport.classes.OverrideWithSubclassOverload         FRONTEND_OVERLOAD    bytecode frontend refuses both 'm' declarations as overloaded and then the polymorphic call site, so neither the Liskov nor the call-site diagnostic this fixture pins can arise; needs overload mangling AND the dispatch gate gone here
+
+# The source frontend emits an opaque DECLARATION for a skipped PURE method, so a
+# call to a `@Verify(false) @Pure` callee resolves and the caller stays verifiable
+# (it just learns nothing about the result). The bytecode frontend still drops the
+# callee and cascade-demotes the caller. Delete when the declaration-only treatment
+# is ported here.
+XFAIL  org.strata.jverify.verifier.tests.verification.pure.PureUnverifiedMethod                   FRONTEND_OTHER       bytecode frontend still cascade-refuses callers of a skipped pure callee instead of emitting an opaque declaration
+
+# The same fixture-by-fixture verdict, one word short of the same message. JFE
+# appends a refused callee's OWN reason to the caller's diagnostic when it recorded
+# exactly one ("call to 'accumulate', which could not be translated: call to
+# 'helper', which could not be translated"); bf records the reason differently and
+# reports the caller's line without the tail. All three errors, their positions and
+# the counts match -- a diagnostic SUMMARY delta only, never a verdict.
+XFAIL  org.strata.jverify.verifier.tests.verification.pure.PureSkippedWithFrameIsDropped          FRONTEND_DIAGNOSTIC  second-level cascade reason not chained into the caller's message (all three errors, positions and counts match)

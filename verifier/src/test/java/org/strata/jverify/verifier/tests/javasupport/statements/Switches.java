@@ -7,7 +7,7 @@ import org.strata.jverify.testengine.Blocker;
 import static org.strata.jverify.JVerify.check;
 
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_NULLABLE, Blocker.STRATA_ARRAYS}, exitCode = 4, methodsVerified = 7, errorCount = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_NULLABLE, Blocker.STRATA_ARRAYS}, exitCode = 4, methodsVerified = 7, errorCount = 4)
 class Switches {
     static void switchExprInt(int i) {
         var num = switch (i) {

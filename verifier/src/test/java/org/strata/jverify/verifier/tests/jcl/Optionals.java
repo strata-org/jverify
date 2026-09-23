@@ -8,7 +8,7 @@ import java.util.Optional;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_NULLABLE, Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 1, errorCount = 2, useBuiltinContracts = true)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_NULLABLE, Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 1, errorCount = 2, useBuiltinContracts = true)
 public class Optionals {
 
     void testEmpty() {

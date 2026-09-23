@@ -24,12 +24,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Regression test: every composite sort declares its Java supertype closure as
  * {@code extends} edges, ancestors first, so Strata's transitive subtype check accepts a
  * value wherever Java subtyping does. A lambda / method reference is one case: its
- * synthetic sort ({@code lambda.<line>_<col>}) extends its functional-interface sort,
+ * synthetic sort ({@code <EnclosingClass>.lambda.<line>_<col>}) extends its
+ * functional-interface sort,
  * declared before the child.
  *
  * <p>Without the edge the two sorts are unrelated on the lattice, and the
  * body-vs-declared-output check rejects {@code return HashMap::new} against a declared
- * {@code Supplier} return ("expected 'java.util.function.Supplier', got 'lambda.N_M'").
+ * {@code Supplier} return ("expected 'java.util.function.Supplier', got 'Refs.lambda.N_M'").
  * LambdaToAnonymousClassCompiler already records the interface on the synthetic class's
  * ClassType {@code interfaces} list; the edge exposes that to the lattice, which walks
  * {@code extends} transitively.
@@ -51,7 +52,7 @@ public class LambdaSortExtendsEmitTest {
 
         // The lambda sort's declaration carries an extends edge naming the
         // functional interface.
-        IonSexp lambdaComposite = findCompositeDeclaring(emittedProgram, "lambda.");
+        IonSexp lambdaComposite = findCompositeDeclaring(emittedProgram, "Refs.lambda.");
         assertNotNull(lambdaComposite,
                 "the emitted program should declare the synthetic lambda.* composite sort");
         IonValue extendsOp = extendingOf(lambdaComposite);
@@ -63,7 +64,7 @@ public class LambdaSortExtendsEmitTest {
         // The parent is declared, before the child, so the resolver sees it
         // when it processes the edge.
         int parentIdx = indexOfCompositeDeclaring(emittedProgram, "java.util.function.Supplier");
-        int childIdx = indexOfCompositeDeclaring(emittedProgram, "lambda.");
+        int childIdx = indexOfCompositeDeclaring(emittedProgram, "Refs.lambda.");
         assertTrue(parentIdx >= 0, "the Supplier composite sort should be declared");
         assertTrue(parentIdx < childIdx,
                 "the parent sort must be declared before the extending child sort");
@@ -111,7 +112,7 @@ public class LambdaSortExtendsEmitTest {
         // Each synthetic lambda sort extends exactly its OWN interface.
         int supplierLambdas = 0, booleanSupplierLambdas = 0;
         for (IonSexp composite : composites) {
-            if (!compositeName(composite).startsWith("lambda.")) {
+            if (!compositeName(composite).contains(".lambda.")) {
                 continue;
             }
             IonValue edge = extendingOf(composite);
@@ -131,7 +132,7 @@ public class LambdaSortExtendsEmitTest {
         // A user-written class carries edges to its OWN supertype closure, from
         // its symbol. Refs2, a plain class, extends only java.lang.Object, neither
         // functional interface: distinct sorts never share a parent list.
-        IonSexp refs2 = findCompositeDeclaring(emittedProgram, "Refs2");
+        IonSexp refs2 = findCompositeNamed(emittedProgram, "Refs2");
         assertNotNull(refs2, "the Refs2 composite sort should be declared");
         assertEquals("Refs2", compositeName(refs2));
         IonValue refs2Edge = extendingOf(refs2);
@@ -219,6 +220,19 @@ public class LambdaSortExtendsEmitTest {
      * Position of the first {@code Composite} op declaring a name with
      * this prefix, in document order of all composite ops; -1 if absent.
      */
+    /** Exact-name lookup. Needed where a prefix would also match a nested sort:
+        "Refs2" is a prefix of the lambda sort "Refs2.lambda.<line>_<col>". */
+    private static IonSexp findCompositeNamed(IonValue value, String exactName) {
+        List<IonSexp> composites = new ArrayList<>();
+        collectComposites(value, composites);
+        for (IonSexp composite : composites) {
+            if (exactName.equals(compositeName(composite))) {
+                return composite;
+            }
+        }
+        return null;
+    }
+
     private static int indexOfCompositeDeclaring(IonValue program, String namePrefix) {
         List<IonSexp> composites = new ArrayList<>();
         collectComposites(program, composites);

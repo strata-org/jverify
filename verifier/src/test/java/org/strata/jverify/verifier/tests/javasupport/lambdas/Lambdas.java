@@ -7,7 +7,7 @@ import org.strata.jverify.testengine.Blocker;
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ANON, Blocker.FRONTEND_DISPATCH}, exitCode = 4, methodsVerified = 21, errorCount = 3)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ANON}, exitCode = 4, methodsVerified = 21, errorCount = 3)
 public class Lambdas {
     private static final SomethingDoer containsMethodReference = Lambdas::staticDoSomething;
     private static final SomethingDoer containsLambda = (int x, int y) -> staticDoSomething(x, y);

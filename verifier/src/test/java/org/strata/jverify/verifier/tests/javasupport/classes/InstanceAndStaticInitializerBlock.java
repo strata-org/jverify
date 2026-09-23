@@ -1,9 +1,8 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC}, exitCode = 2)
+@JVerifyTest(exitCode = 2)
 public class InstanceAndStaticInitializerBlock {
     int x;
     static int y;

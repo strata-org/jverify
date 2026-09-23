@@ -5,7 +5,7 @@ import org.strata.jverify.Nullable;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_NULLABLE}, exitCode = 4, methodsVerified = 3, errorCount = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_NULLABLE}, exitCode = 4, methodsVerified = 3, errorCount = 2)
 public class NullableInterfacesVerification {
     interface PureInterface {
         default void foo() {}

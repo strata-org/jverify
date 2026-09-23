@@ -8,17 +8,28 @@ import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.precondition;
 
 /**
- * STRATA_GENERICS is now the accurate blocker, for a different reason than it
- * used to be. The front end translates this (T2 is a method type parameter, so
- * it becomes a Laurel TVar in the procedure's typeArgs) and it REACHES Strata:
- * the run no longer refuses with "Unsupported type: T2" but produces real
- * verification errors. What is left is that {@code someStatic} is
- * {@code @Pure} yet its generic procedure does not behave transparently, so
- * {@code check(x == 3)} on line 27 -- which needs the body's {@code return 3}
- * to be visible -- cannot be proved. The expected diagnostics above describe
- * the transparent outcome.
+ * Generics is NOT what blocks this, despite the fixture's location. The front end
+ * translates it (T2 is a method type parameter, so it becomes a Laurel TVar in the
+ * procedure's typeArgs) and it reaches Strata, producing real verification errors
+ * rather than "Unsupported type: T2".
+ *
+ * <p>What remains is that {@code someStatic} is {@code @Pure} yet its body is not
+ * visible to {@code user}, so {@code check(x == 3)} cannot be proved. That is the
+ * CONSTRAINED-OUTPUT transparency gap, not a generics gap -- {@code someStatic}
+ * returns a plain {@code int}, i.e. Laurel {@code int32}. Measured with four
+ * {@code @Pure} statics each returning a literal:
+ *
+ * <ul>
+ * <li>{@code <T> boolean genBool(T)} -- generic, unconstrained -- caller VERIFIES
+ * <li>{@code <T> @Unbounded int genUnbounded(T)} -- generic, unconstrained -- VERIFIES
+ * <li>{@code <T> int genBounded(T)} -- generic, constrained -- caller FAILS
+ * <li>{@code int nonGenBounded()} -- NOT generic, constrained -- caller FAILS
+ * </ul>
+ *
+ * A generic pure method is transparent; the non-generic control fails identically.
+ * So the type parameter is irrelevant and the constrained return type is the cause.
  */
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERICS}, exitCode = 4, methodsVerified = 4, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY}, exitCode = 4, methodsVerified = 4, errorCount = 1)
 public class PolymorphicStaticsVerification {
     record R() {}
     static class Generic<T> {

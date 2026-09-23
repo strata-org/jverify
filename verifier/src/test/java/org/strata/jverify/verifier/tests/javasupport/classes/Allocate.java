@@ -7,7 +7,7 @@ import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
 
 // Class that test the support of class allocation and accesses
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, methodsVerified = 5, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_FRESH}, methodsVerified = 5, errorCount = 0)
 class Allocate {
     public static IntPair allocateInReturn(int a, int b) {
         postcondition((IntPair p) -> fresh(p) &&  p.getA() == a);

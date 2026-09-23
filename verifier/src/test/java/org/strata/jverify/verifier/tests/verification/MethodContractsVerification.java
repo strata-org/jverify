@@ -10,7 +10,7 @@ import java.util.function.IntPredicate;
 import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(methodsVerified = 8, errorCount = 0)
+@JVerifyTest(methodsVerified = 9, errorCount = 0)
 public class MethodContractsVerification {
 
     private int y;
@@ -84,14 +84,13 @@ public class MethodContractsVerification {
     }
 
     public boolean lambdaInPostcondition(int x) {
-//                 ^ warning: instance method 'lambdaInPostcondition' was not verified: polymorphic dispatch through interface/superclass is not yet supported
+//                 ^ warning: instance method 'lambdaInPostcondition' was not verified: object allocation (including lambdas) inside a contract is not yet supported
         postcondition((boolean r) -> r == useIntPredicate(i -> i == 2, x));
         return x == 2;
     }
 
     @Pure
     boolean useIntPredicate(IntPredicate predicate, int i) {
-//          ^ warning: instance method 'useIntPredicate' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         return predicate.test(i);
     }
 

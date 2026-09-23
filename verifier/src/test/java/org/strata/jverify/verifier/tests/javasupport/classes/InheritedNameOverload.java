@@ -7,29 +7,20 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 /**
- * The cost of the ancestry overload check: overloading the name of an INHERITED
- * method refuses the call, even when the declaration comes from a library type
- * the user never wrote.
+ * Overloading the name of an INHERITED method is disambiguated like any other
+ * overload, even when one declaration comes from a library type the user never
+ * wrote.
  *
  * <p>{@code Object} declares {@code toString()}; {@code Holder} adds
- * {@code toString(int)}. Two erased signatures across the receiver's supertype
- * closure, so {@code refuseIfOverloadedAcrossAncestry} refuses. Not a false
- * positive: the emitted {@code h#toString} names only the method, so by-name
- * resolution cannot tell them apart and could bind the wrong contract.
+ * {@code toString(int)}. Two erased signatures across {@code Holder}'s closure,
+ * so {@code Holder.toString(int)} is emitted as {@code toString$int} while the
+ * inherited {@code Object.toString()} keeps the bare name. {@code h.toString(1)}
+ * binds {@code Holder.toString(int)}, emits {@code toString$int}, and verifies.
  *
- * <p>Blast radius grows with builtin-contract coverage: any user method
- * overloading an inherited {@code java.lang} / {@code java.util} name is
- * refused, and those are overload-dense. A merely-inherited name is NOT refused
- * -- a uniquely-named method on {@code Object}-only ancestry verifies normally,
- * since the check filters by name before counting signatures.
- *
- * <p>By-signature resolution in Strata removes this cost; this test should then
- * flip to expecting a clean verify.
- *
- * <p>Verified 3 = {@code toString(int)} + implicit constructors for
- * {@code InheritedNameOverload} and {@code Holder}. Skipped 1 = {@code root}.
+ * <p>Verified 4 = {@code toString(int)} + {@code root} + implicit constructors
+ * for {@code InheritedNameOverload} and {@code Holder}.
  */
-@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsVerified = 3, methodsSkipped = 1, errorCount = 0)
+@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsVerified = 4, errorCount = 0)
 public class InheritedNameOverload {
 
     static final class Holder {
@@ -37,7 +28,6 @@ public class InheritedNameOverload {
     }
 
     static void root(Holder h) {
-//              ^ error: overloaded method 'toString' (2 signatures visible on 'org.strata.jverify.verifier.tests.javasupport.classes.InheritedNameOverload.Holder' and its supertypes); overloading is not supported
         check(h.toString(1) == 5);
     }
 }

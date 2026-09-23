@@ -1,11 +1,26 @@
 package org.strata.jverify.verifier.tests.verification.externalcontracts;
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DISPATCH}, methodsVerified = 2, errorCount = 0)
+/**
+ * A setter followed by a getter on the same receiver, three times over, where the
+ * receiver is an interface-typed PARAMETER: its runtime tag is unknown, so the
+ * caller reasons only from the external contract through the generated tag
+ * dispatcher. Each getter's contract relates its result to the field the setter
+ * wrote ({@code i == value}, and deliberately {@code i == value+1} for
+ * {@code InterfaceTwo.Nested}, which is why that check expects 43).
+ *
+ * <p>This was blocked by the dispatch refusal, and then xfailed STRATA_OTHER
+ * because the setter's effect did not reach the getter's declared postcondition
+ * across the dispatched call -- suspected {@code LiftInstanceProcedures}
+ * {@code dispatcherPosts} / frame handling. That has since been fixed on the Strata
+ * side, so all three checks now verify and the fixture is a normal test again. It is
+ * worth keeping exactly as-is: it pins modular reasoning through the dispatcher for
+ * an unknown receiver tag.
+ */
+@JVerifyTest(methodsVerified = 2, errorCount = 0)
 class NestedContractsTest {
     public static void foo(InterfaceOne.Nested f, InterfaceTwo.Nested f2, InterfaceTwo.Nested.ReNested f3) {
         f.setY(42);

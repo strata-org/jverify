@@ -152,47 +152,15 @@ final class RefusalGates {
         return Optional.empty();
     }
 
-    /**
-     * Refuse a call unless provably monomorphic. An {@code obj#method} call
-     * resolves against the receiver's DECLARED type (Strata does no dynamic
-     * dispatch), so a call reaching an override at runtime verifies against the
-     * wrong contract -- JVerify assumes no behavioural subtyping. Safe only when
-     * no override can exist: the callee is {@code final} or {@code private}, its
-     * declaring class is {@code final}, or the receiver's static type is a
-     * {@code final} class (which admits an inherited method invoked on a final
-     * subclass, a case the first two miss).
-     *
-     * <p>Must NOT be keyed on whether the callee itself overrides something:
-     * the unsound case is a non-overriding method that IS overridden by a
-     * subtype, reached through a supertype-typed reference.
-     */
-    static Optional<String> dispatchRefusal(Symbol.MethodSymbol methodSym,
-            JCTree.JCExpression methodSelect) {
-        long flags = methodSym.flags();
-        boolean cannotDispatch = (flags & (Flags.FINAL | Flags.PRIVATE)) != 0
-                || (JavaToLaurelCompiler.enclosingClassOrRefuse(methodSym).flags() & Flags.FINAL) != 0
-                || receiverStaticTypeIsFinal(methodSelect);
-        if (!cannotDispatch) {
-            return Optional.of(
-                    "polymorphic dispatch through interface/superclass is not yet supported");
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * True when the call has an explicit receiver whose static type is a
-     * {@code final} class: no subtype can exist, so the runtime type is exactly
-     * that class and the statically-resolved method provably runs. Explicit
-     * receivers only -- an implicit-{@code this} call's monomorphism hinges on
-     * the enclosing class being final, already covered by the callee/owner
-     * checks when it holds.
-     */
-    private static boolean receiverStaticTypeIsFinal(JCTree.JCExpression methodSelect) {
-        return methodSelect instanceof JCTree.JCFieldAccess fieldAccess
-                && fieldAccess.selected.type != null
-                && fieldAccess.selected.type.tsym instanceof Symbol.ClassSymbol cls
-                && (cls.flags() & Flags.FINAL) != 0;
-    }
+    // There is deliberately no dispatchRefusal here any more. It refused any call
+    // that was not provably monomorphic, on the grounds that an `obj#method` call
+    // resolved against the receiver's DECLARED type -- so a call reaching an
+    // override at runtime would verify against the wrong contract. Laurel now
+    // dispatches an overridden composite method on the receiver's runtime tag
+    // (LiftInstanceProcedures), and CheckOverrideRefinement discharges the
+    // Liskov obligation that makes reasoning against the declared type's
+    // contract sound, so the premise no longer holds. PolyDispatchSoundness pins
+    // both halves of the replacement.
 
     /** Turn a reported refusal into the exception that demotes the method. The gates
         report rather than throw so they stay pure and unit-testable; this is the single

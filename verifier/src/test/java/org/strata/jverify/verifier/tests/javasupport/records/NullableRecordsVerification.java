@@ -6,7 +6,7 @@ import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_NULLABLE}, exitCode = 4, methodsVerified = 4, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_NULLABLE}, exitCode = 4, methodsVerified = 4, errorCount = 1)
 public class NullableRecordsVerification {
     record R(int x) {
         void foo() {}

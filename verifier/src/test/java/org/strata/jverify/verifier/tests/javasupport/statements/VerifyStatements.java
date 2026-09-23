@@ -13,7 +13,7 @@ import static org.strata.jverify.JVerify.*;
 // @Pure and its callee methodWithResult is a plain instance method -- and so is being
 // called: @Pure P3 calls nothing and verifies. Making a callee (or the class) final,
 // or static, would translate these three, at the cost of the coverage.
-@JVerifyTest(methodsVerified = 10, methodsSkipped = 3, errorCount = 0)
+@JVerifyTest(methodsVerified = 13, errorCount = 0)
 class VerifyStatements {
     void forLoop() {
         int i = 0;
@@ -84,13 +84,11 @@ class VerifyStatements {
 
     @Pure
     boolean P2(int x, int y) {
-//          ^ warning: instance method 'P2' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         return P3(x,y,0);
     }
 
     @Pure
     boolean P(int x) {
-//          ^ warning: instance method 'P' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         return P2(x,10);
     }
     
@@ -102,7 +100,6 @@ class VerifyStatements {
         return 3;
     }
     void ignoreCallResult() {
-//       ^ warning: instance method 'ignoreCallResult' was not verified: polymorphic dispatch through interface/superclass is not yet supported
         methodWithResult();
     }
 }

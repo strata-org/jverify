@@ -23,19 +23,19 @@ class RefusalDedup {
     interface Shape {}
 
     static class HolderA {
-        /** Refused: instanceof on an opaque reference type. */
-        final boolean same(Shape s) { return s instanceof HolderA; }
+        /** Refused: instanceof on a LIBRARY reference type (no source, so opaque). */
+        final boolean same(Object s) { return s instanceof String; }
 //                    ^ warning: instance method 'same' was not verified: instanceof on opaque reference types is not yet supported
     }
 
     static class HolderB {
         /** Same signature, different owner: must warn separately. */
-        final boolean same(Shape s) { return s instanceof HolderB; }
+        final boolean same(Object s) { return s instanceof String; }
 //                    ^ warning: instance method 'same' was not verified: instanceof on opaque reference types is not yet supported
     }
 
     static boolean callThem(HolderA a, HolderB b, Shape s) {
-//                 ^ error: call to 'same', which could not be translated
+//                 ^ error: call to 'same', which could not be translated: instanceof on opaque reference types is not yet supported
         return a.same(s) || b.same(s);
     }
 }
