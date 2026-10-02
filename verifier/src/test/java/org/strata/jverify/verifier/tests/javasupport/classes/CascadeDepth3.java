@@ -30,7 +30,7 @@ class CascadeDepth3 {
     static int counter;
 
     static void depth3() {
-//              ^ error: Unsupported expression: JCAssignOp
+//              ^ error: static field access is not yet supported
         counter += 1;
     }
 

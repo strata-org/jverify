@@ -88,7 +88,6 @@ public class PolymorphicAnonymousClasses {
 
     interface MyConsumer<T> {
         int consume(T value);
-//          ^ warning: instance method 'consume' was not verified: Unsupported type: T
         
         @Contract
         class MyContract<T> implements MyConsumer<T> {
@@ -101,6 +100,5 @@ public class PolymorphicAnonymousClasses {
 
     interface MyProducer<T> {
         T produce();
-//        ^ warning: instance method 'produce' was not verified: Unsupported type: T
     }
 }

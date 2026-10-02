@@ -195,10 +195,10 @@ class TieredInputEquivalenceTest {
         // on indented statements, so their start column is past column 1.
         assertTrue(diagnosticColumns(ran).stream().allMatch(c -> c > 1),
                 () -> "FULL should carry column precision, got columns " + diagnosticColumns(ran));
-        // clamp, countTo, Helper.doubled, and Helper's implicit (synthesized) ctor.
-        assertEquals(4, ran.verificationResults().verificationPassedMethods());
+        // clamp, countTo, Helper.doubled, Helper's implicit (synthesized) ctor, and the explicit ctor.
+        assertEquals(5, ran.verificationResults().verificationPassedMethods());
         assertEquals(2, ran.verificationResults().verificationFailedMethods());   // doubleIt, bump
-        assertEquals(1, ran.verificationResults().verificationSkippedMethods());  // explicit ctor
+        assertEquals(0, ran.verificationResults().verificationSkippedMethods());
     }
 
     @Test

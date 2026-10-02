@@ -24,12 +24,11 @@ class SwitchStatementInExpressionArm {
     static int sink;
 
     int test(int i) {
-//      ^ warning: instance method 'test' was not verified: Unsupported expression: JCSwitchExpression
+//      ^ warning: instance method 'test' was not verified: throw requires the enclosing method to declare the thrown type in its throws clause
         return switch (i) {
             case 0 -> {
                 switch (i) {
                     case 0 -> throw new RuntimeException();
-//                                  ^ warning: missing contract for method '<init>' in class 'java.lang.RuntimeException'
                     default -> {
                         sink++;
                     }

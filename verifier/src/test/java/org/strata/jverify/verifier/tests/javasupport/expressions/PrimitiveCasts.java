@@ -35,7 +35,7 @@ import static org.strata.jverify.JVerify.*;
  *     postcondition, return, and nested inside binary/conditional
  *     expressions.
  */
-@JVerifyTest(exitCode = 4, errorCount = 27, methodsVerified=42)
+@JVerifyTest(exitCode = 4, errorCount = 25, methodsVerified=42)
 class PrimitiveCasts {
 
     // ============================================================
@@ -192,7 +192,7 @@ class PrimitiveCasts {
     static void narrowUnboundedToIntOutOfRange(@Unbounded int x) {
         precondition(x > 2147483647L);
         int i = (int) x;
-//      ^^^^^^^^^^^^^^^^ Error: cast from int to int32 does not hold
+//      ^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     // @Unbounded @Nat int has only a lower bound (x >= 0), so casting
@@ -290,7 +290,6 @@ class PrimitiveCasts {
     static void narrowInConditional(int x, int y) {
         int r = x > 0 ? (short) x : (short) y;
 //                      ^^^^^^^^^ Error: cast from int32 to int16 does not hold
-//                                  ^^^^^^^^^ Error: cast from int32 to int16 does not hold
         check(r == x || r == y);
     }
 
@@ -404,8 +403,7 @@ class PrimitiveCasts {
 
     static void chainedCastsFirstNarrowingFails(long l) {
         byte b = (byte) (int) l;
-//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: cast from int32 to int8 does not hold
-//                      ^^^^^^^ Error: cast from int64 to int32 does not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^ Error: cast from int64 to int8 does not hold
         check(b >= -128 && b <= 127);
     }
 

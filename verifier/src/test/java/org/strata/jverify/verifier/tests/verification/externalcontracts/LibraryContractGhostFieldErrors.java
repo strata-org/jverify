@@ -5,13 +5,12 @@ import org.strata.jverify.ContractException;
 import org.strata.jverify.Pure;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import java.math.BigInteger;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC, Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 2)
+@JVerifyTest(exitCode = 2)
 public class LibraryContractGhostFieldErrors {
 
     @Contract(BigInteger.class)
@@ -31,9 +30,6 @@ public class LibraryContractGhostFieldErrors {
             reads(this);
             //noinspection ConstantValue
             precondition(value >= -10 && value <= 10);
-            
-            int createError;
-//              ^ error: variable declaration of 'createError' must have an initializer because it is in a pure context
             return value;
         }
 

@@ -47,6 +47,8 @@ final class SpecCallTranslator {
     }
 
     /** JVerify static spec/assertion calls (JFE's convertJVerifyCall arms + header markers). */
+    static final String ABSTRACT_MARKER = "$isAbstract";
+
     void jverifyInvoke(java.lang.classfile.instruction.InvokeInstruction inv,
                                String name, int argc,
                                java.lang.constant.MethodTypeDesc d) {
@@ -64,6 +66,14 @@ final class SpecCallTranslator {
                     throw new JavaViolationException("assume should have a single argument");
                 }
                 b.addStmt(new StmtExpr.Assume(b.coerce(args.get(0), "Z")));
+            }
+            case "isAbstract", "isAbstractBoolean" -> b.push(new StmtExpr.LiteralString(ABSTRACT_MARKER));
+            case "cast" -> {
+                if (argc != 1) {
+                    throw new JavaViolationException("cast should have a single argument");
+                }
+                b.stack.push(args.get(0));
+                b.staticTypeOf.put(args.get(0), TypeRef.ofDescriptor(d.returnType().descriptorString()));
             }
             case "implies" -> {
                 if (argc != 2) {
@@ -98,6 +108,41 @@ final class SpecCallTranslator {
                     throw new JavaViolationException(name + " requires a single lambda argument");
                 }
                 AstNode<StmtExpr> r = b.push(translateQuantifier(name, lambda));
+                b.bools.add(r);
+            }
+            case "preconditionOf" -> {
+                // JFE's PreconditionOfCompiler: the callee's preconditions, with its
+                // parameters replaced by the call's arguments. The callee may not be
+                // translated yet, so a placeholder stands in and is inlined after the
+                // whole compilation (BytecodeToLaurelCompiler.inlinePreconditionOf).
+                AstNode<StmtExpr> arg = argc == 1 ? args.get(0) : null;
+                if (arg != null) {
+                    arg = b.boxedValue.getOrDefault(arg, arg);
+                }
+                BodyTranslator.CalleeRef ref = arg != null ? b.calleeModels.get(arg.val()) : null;
+                if (ref == null) {
+                    if (!ctx.method.info.quiet) {
+                        ctx.reporter.reportError(ctx.src.uri,
+                                ctx.src.positionRange(b.stmtRange(b.pos, false)),
+                                "preconditionOf argument must be a method call");
+                    }
+                    ctx.method.info.constructErrorReported = true;
+                    AstNode<StmtExpr> t = b.push(new StmtExpr.LiteralBool(true));
+                    b.bools.add(t);
+                    break;
+                }
+                AstNode<StmtExpr> receiver = null;
+                List<AstNode<StmtExpr>> callArgs;
+                if (arg.val() instanceof StmtExpr.InstanceCall ic) {
+                    receiver = ic.target();
+                    callArgs = ic.arguments();
+                } else {
+                    callArgs = ((StmtExpr.StaticCall) arg.val()).arguments();
+                }
+                String id = "$preconditionOf$" + ctx.pendingPreconditionOf.size();
+                ctx.pendingPreconditionOf.put(id, new TranslationContext.PendingPreconditionOf(
+                        ref.declaringFqn(), ref.method(), receiver, callArgs));
+                AstNode<StmtExpr> r = b.push(new StmtExpr.StaticCall(LaurelFactory.reservedIdent(id), List.of(), List.of()));
                 b.bools.add(r);
             }
             case "throwsOn" -> {
@@ -203,6 +248,62 @@ final class SpecCallTranslator {
         return qBody;
     }
 
+    /**
+     * A supplier-style clause given as a reference to a {@code @Pure} static method of
+     * this program ({@code precondition(Foo::truth)}) is a call to that method with no
+     * arguments, as JFE translates it. Null for anything else -- an instance or
+     * library method, an impure one, one taking arguments -- which keeps JFE's
+     * refusal.
+     */
+    private AstNode<StmtExpr> methodReferenceCall(BodyTranslator.LambdaHandle lambda,
+                                                  Map<String, String> extraRenames) {
+        if (lambda.captureCount() != 0 || lambda.implOwner() == null) {
+            return null;
+        }
+        String fqn = JavaNames.dottedFqn(lambda.implOwner());
+        var cm = ctx.resolver.programClassModels.get(fqn);
+        if (cm == null) {
+            return null;
+        }
+        java.lang.classfile.MethodModel target = null;
+        for (var mm : cm.methods()) {
+            if (mm.methodName().stringValue().equals(lambda.implName())
+                    && mm.methodTypeSymbol().descriptorString().equals(lambda.implDesc())) {
+                target = mm;
+            }
+        }
+        if (target == null || !Declarations.hasAnnotation(target, "Pure")) {
+            return null;
+        }
+        int arity = target.methodTypeSymbol().parameterCount();
+        boolean resultBinder = extraRenames.containsValue(BytecodeToLaurelCompiler.LAUREL_RESULT_BINDING);
+        String name = lambda.implName() + ctx.resolver.overloadSuffix(fqn, target);
+        AstNode<StmtExpr> call;
+        if (lambda.implStatic()) {
+            List<AstNode<StmtExpr>> args;
+            if (arity == 0 && !resultBinder) {
+                args = List.of();
+            } else if (arity == 1 && resultBinder) {
+                args = List.of(b.e(LaurelFactory.reservedVar_(BytecodeToLaurelCompiler.LAUREL_RESULT_BINDING)));
+            } else {
+                return null;
+            }
+            call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(fqn + "_" + name), args, List.of()));
+        } else {
+            if (arity != 0 || !resultBinder) {
+                return null;
+            }
+            call = b.e(new StmtExpr.InstanceCall(
+                    b.e(LaurelFactory.reservedVar_(BytecodeToLaurelCompiler.LAUREL_RESULT_BINDING)),
+                    LaurelFactory.ident(name), List.of()));
+        }
+        if (ctx.method.info != null) {
+            ctx.method.info.callees.add(fqn + "#" + name);
+        }
+        b.calleeKeys.put(call.val(), Declarations.purityKey(fqn, target));
+        return call;
+    }
+
     /** The spec lambda's real binders, or null when its impl method or body is unknown. */
     List<BodyTranslator.LambdaBinder> lambdaBinders(BodyTranslator.LambdaHandle lambda) {
         var impl = findImplMethod(lambda);
@@ -217,10 +318,13 @@ final class SpecCallTranslator {
         }
         var iloc = ish.locals();
         var out = new ArrayList<BodyTranslator.LambdaBinder>();
-        // Contract code: an instance impl receives its captured `this` as the
-        // receiver, not as a parameter, so it does not shift the binders.
-        int capturedParams = lambda.captureCount() - (ctx.contractMode && !iStatic ? 1 : 0);
         int slot = iStatic ? 0 : 1;
+        // An instance impl's captured `this` is its RECEIVER, not one of its declared
+        // parameters, so it must not be counted against them. Counting it skipped the
+        // lambda's real first binder: `(int i) -> i == value` reads a field, so its impl
+        // is an instance method capturing `this`, and `i` was never renamed to $result
+        // (`Resolution failed: 'i' is not defined`, NestedContractsTest).
+        int capturedParams = lambda.captureCount() - (iStatic ? 0 : 1);
         for (int i = 0; i < imt.parameterCount(); i++) {
             String dd = imt.parameterType(i).descriptorString();
             if (i >= capturedParams) {
@@ -289,8 +393,12 @@ final class SpecCallTranslator {
      */
     AstNode<StmtExpr> translateLambdaBody(BodyTranslator.LambdaHandle lambda, Map<String, String> extraRenames) {
         if (lambda.isMethodRef()) {
-            // A method reference in a spec position refuses with JFE's
-            // JCLambda message (only literal lambdas are supported).
+            AstNode<StmtExpr> call = methodReferenceCall(lambda, extraRenames);
+            if (call != null) {
+                return call;
+            }
+            // Any other method reference in a spec position refuses with JFE's
+            // JCLambda message.
             throw new JavaViolationException("Unsupported expression: JCLambda");
         }
         var impl = findImplMethod(lambda);

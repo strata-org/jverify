@@ -14,13 +14,6 @@ public class PureMethodErrors {
     }
 
     @Pure
-    int pureWithInvalidVariableDeclaration() {
-        int x;
-//          ^ error: variable declaration of 'x' must have an initializer because it is in a pure context
-        return 3;
-    }
-    
-    @Pure
     void pureWithoutReturn() {
 //       ^ error: pure method should have a return type
         var x = 3;

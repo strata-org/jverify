@@ -13,9 +13,10 @@ import static org.strata.jverify.JVerify.throwsOn;
  */
 @JVerifyTest(
         exitCode = 4, // verification errors present
-        methodsVerified = 5, // fine(), readCell(), + 3 implicit constructors
+        methodsVerified = 0,
         methodsInvalid = 1, // heapGuard(); also arms the errorCount expectation
-        errorCount = 1
+        errorCount = 1,
+        methodsSkipped = 5 // fine(), readCell(), + 3 implicit constructors: Strata halts before verifying them
 )
 class ThrowsOnProofFailures {
     static class AppException extends Exception {}
@@ -41,7 +42,7 @@ class ThrowsOnProofFailures {
         return x;
     }
 
-    /** Siblings stay verifiable. */
+    /** A sibling: Strata halts on the rejected guard, so it is skipped. */
     static int fine(int x) {
         return x;
     }

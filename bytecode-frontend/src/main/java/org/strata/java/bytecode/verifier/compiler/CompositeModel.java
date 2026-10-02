@@ -45,6 +45,12 @@ final class CompositeModel {
     record FieldInfo(TypeRef type, boolean isFinal, boolean nullable) {
     }
 
+    /**
+     * Supertypes of a synthetic lambda sort (see BodyTranslator.materializeLambda),
+     * which has no classfile or loaded Class to read them from.
+     */
+    final Map<String, List<String>> lambdaSupertypes = new HashMap<>();
+
     /** Declared field types per program class: fqn -> field name -> info. */
     final Map<String, Map<String, FieldInfo>> declaredFields = new HashMap<>();
 
@@ -115,9 +121,12 @@ final class CompositeModel {
             return;
         }
         List<AstNode<HighType>> extending = new ArrayList<>();
+        var generic = genericSupertypes(sortName);
         for (String parent : directSupertypeSorts(sortName)) {
             emitCompositeClosure(parent, emitted, out);
-            extending.add(LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(parent))));
+            HighType applied = generic.get(parent);
+            extending.add(LaurelFactory.node(applied != null ? applied
+                    : new HighType.UserDefined(LaurelFactory.ident(parent))));
         }
         if (extending.isEmpty() && !OBJECT_SORT.equals(sortName)) {
             emitCompositeClosure(OBJECT_SORT, emitted, out);
@@ -126,10 +135,24 @@ final class CompositeModel {
         List<org.strata.jverify.laurel.Field> fields = compositeFields.containsKey(sortName)
                 ? new ArrayList<>(compositeFields.get(sortName).values())
                 : List.of();
+        for (var f : lambdaSupertypes.containsKey(sortName) ? List.<org.strata.jverify.laurel.Field>of() : fields) {
+            if (f.type().val() instanceof HighType.UserDefined u
+                    && referencedCompositeTypes.contains(u.name().text())) {
+                emitCompositeClosure(u.name().text(), emitted, out);
+            }
+        }
+        // A generic class declares its type parameters here, so a TVar naming one
+        // resolves against the composite and its instantiations monomorphize per
+        // Applied use site (see TypeRef.toLaurel). Only a class this compilation
+        // declares: a library generic is emitted as a bare erased sort.
+        List<String> typeParamNames = resolver.classTypeParams(sortName);
+        if (typeParamNames.isEmpty()) {
+            typeParamNames = compositeTypeParams.getOrDefault(sortName, List.of());
+        }
+        List<org.strata.jverify.laurel.Identifier> typeArgs =
+                typeParamNames.stream().map(LaurelFactory::ident).toList();
         out.add(new TypeDefinition.Composite(new org.strata.jverify.laurel.CompositeType(
-                LaurelFactory.ident(sortName),
-                compositeTypeParams.getOrDefault(sortName, List.of()).stream().map(LaurelFactory::ident).toList(),
-                extending, fields,
+                LaurelFactory.ident(sortName), typeArgs, extending, fields,
                 instanceProcsBySort.getOrDefault(sortName, List.of()))));
     }
 
@@ -142,6 +165,9 @@ final class CompositeModel {
      * {@code Object} sort.
      */
     List<String> directSupertypeSorts(String sortName) {
+        if (lambdaSupertypes.containsKey(sortName)) {
+            return lambdaSupertypes.get(sortName);
+        }
         var out = new ArrayList<String>();
         // An interface has no superclass edge: bytecode records Object as its
         // super_class, but JLS 4.10.2 makes Object a DIRECT supertype only of a
@@ -155,6 +181,44 @@ final class CompositeModel {
             String s = sortNameForFqn(iface);
             if (!out.contains(s)) {
                 out.add(s);
+            }
+        }
+        return out;
+    }
+
+    private java.util.Map<String, HighType> genericSupertypes(String sortName) {
+        var out = new java.util.HashMap<String, HighType>();
+        var cm = resolver.programClassModels.get(sortName);
+        if (cm == null) {
+            return out;
+        }
+        var sig = cm.findAttribute(java.lang.classfile.Attributes.signature()).map(sa -> {
+            try {
+                return java.lang.classfile.ClassSignature.parseFrom(sa.signature().stringValue());
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }).orElse(null);
+        if (sig == null) {
+            return out;
+        }
+        var typeParams = new java.util.HashSet<>(resolver.classTypeParams(sortName));
+        var supers = new ArrayList<java.lang.classfile.Signature.ClassTypeSig>();
+        supers.add(sig.superclassSignature());
+        supers.addAll(sig.superinterfaceSignatures());
+        for (var st : supers) {
+            if (st.typeArgs().isEmpty()) {
+                continue;
+            }
+            String parentSort = sortNameForFqn(JavaNames.dottedFqn(st.className()));
+            if (!resolver.programClassModels.containsKey(parentSort)) {
+                continue;
+            }
+            try {
+                var t = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries.renderSig(st), false, false);
+                out.put(parentSort, t.toLaurel(typeParams, resolver, this));
+            } catch (RuntimeException ignore) {
+                continue;
             }
         }
         return out;

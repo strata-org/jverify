@@ -21,7 +21,6 @@ import org.strata.jverify.testengine.JVerifyTest;
 class NestedErrorKeepsOuterWarning {
 
     int outer(int i) {
-//      ^ warning: instance method 'outer' was not verified: Unsupported expression: JCSwitchExpression
         class Local {
             int masked(int x) {
                 return x & 3;

@@ -4,13 +4,12 @@ import org.strata.jverify.Contract;
 import org.strata.jverify.Pure;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testing.LibraryClassA;
 import org.strata.jverify.testing.LibraryClassB;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 15, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 15, errorCount = 1)
 public class InheritedUnverifiedMembers {
     static class ThroughBaseClass {
         @Pure
@@ -73,7 +72,7 @@ public class InheritedUnverifiedMembers {
     void testBodylessEquals(LibraryClassAContract first, LibraryClassAContract second) {
         // equals method was not given a body, so we can not prove much
         check(first.equals(second));
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     @Contract(value = LibraryClassB.class, pure = true)

@@ -1,6 +1,5 @@
 package org.strata.jverify.verifier.tests.javasupport.exceptions;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.implies;
@@ -15,14 +14,13 @@ import static org.strata.jverify.JVerify.throwsOn;
  * field writes after {@code new} -- which this test deliberately does NOT
  * use, so it starts passing exactly when the constructor path works.
  */
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_EXCEPTIONS},
-        methodsVerified = 3) // value(), IndexError(int), and the test class's implicit constructor
+@JVerifyTest(methodsVerified = 3) // value(), IndexError(int), and the test class's implicit constructor
 class WishlistConstructorData {
     static class IndexError extends Exception {
-//         ^ warning: missing contract for method '<init>' in class 'java.lang.Exception'
         final int badIndex;
 
         IndexError(int badIndex) {
+//      ^ warning: missing contract for method '<init>' in class 'java.lang.Exception'
             this.badIndex = badIndex;
         }
     }

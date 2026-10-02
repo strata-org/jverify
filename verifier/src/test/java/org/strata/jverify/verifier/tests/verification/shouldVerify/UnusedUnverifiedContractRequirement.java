@@ -3,13 +3,12 @@ package org.strata.jverify.verifier.tests.verification.shouldVerify;
 import org.strata.jverify.ContractException;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 import java.beans.IntrospectionException;
 import java.util.List;
 
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, methodsVerified = 9, errorCount = 0)
+@JVerifyTest(methodsVerified = 9, errorCount = 0)
 public class UnusedUnverifiedContractRequirement {
 
     @Verify(false)

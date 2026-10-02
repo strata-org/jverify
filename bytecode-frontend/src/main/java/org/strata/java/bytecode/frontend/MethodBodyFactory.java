@@ -63,6 +63,23 @@ public final class MethodBodyFactory {
         return best == null ? Span.NONE : best.span();
     }
 
+    /** One raw CharacterRangeTable entry: its pc window, its CRT flags and its source span. */
+    public record CrtEntry(int startPc, int endPc, int flags, Span span) {
+        public static final int STATEMENT = 0x0001;
+        public static final int BLOCK = 0x0002;
+        public boolean is(int flag) { return (flags & flag) != 0; }
+    }
+
+    /** Every CharacterRangeTable entry of a method, flags kept (empty without -Xjcov). */
+    public static List<CrtEntry> crtEntries(CodeAttribute code) {
+        List<CrtEntry> out = new ArrayList<>();
+        code.findAttribute(Attributes.characterRangeTable()).ifPresent(crt -> {
+            for (CharacterRangeInfo e : crt.characterRangeTable())
+                out.add(new CrtEntry(e.startPc(), e.endPc(), e.flags(), toSpan(e)));
+        });
+        return out;
+    }
+
     /** The statement-flagged CRT ranges of a method (empty when the class was compiled without -Xjcov). */
     public static List<CrtRange> crtRanges(CodeAttribute code) {
         List<CrtRange> out = new ArrayList<>();

@@ -153,6 +153,101 @@ final class LaurelTrees {
         };
     }
 
+    // --- Post-order rewrite: rebuild children, then let `f` replace the node ---
+
+    /**
+     * Rebuild {@code node}'s subtree bottom-up, applying {@code f} to every node after
+     * its children have been rebuilt; {@code f} returns its argument to keep a node.
+     * Ranges are kept as they are. The variant coverage is {@link #rerangeVal}'s.
+     */
+    static AstNode<StmtExpr> map(AstNode<StmtExpr> node,
+                                 java.util.function.UnaryOperator<AstNode<StmtExpr>> f) {
+        return f.apply(new AstNode<>(mapVal(node.val(), f), node.source()));
+    }
+
+    private static Optional<AstNode<StmtExpr>> map(Optional<AstNode<StmtExpr>> node,
+                                                   java.util.function.UnaryOperator<AstNode<StmtExpr>> f) {
+        return node.map(n -> map(n, f));
+    }
+
+    private static List<AstNode<StmtExpr>> mapAll(List<AstNode<StmtExpr>> nodes,
+                                                  java.util.function.UnaryOperator<AstNode<StmtExpr>> f) {
+        var out = new ArrayList<AstNode<StmtExpr>>(nodes.size());
+        for (var n : nodes) {
+            out.add(map(n, f));
+        }
+        return out;
+    }
+
+    private static AstNode<Variable> mapVar(AstNode<Variable> v,
+                                            java.util.function.UnaryOperator<AstNode<StmtExpr>> f) {
+        return v.val() instanceof Variable.Field fld
+                ? new AstNode<>(new Variable.Field(map(fld.target(), f), fld.fieldName()), v.source())
+                : v;
+    }
+
+    private static StmtExpr mapVal(StmtExpr e, java.util.function.UnaryOperator<AstNode<StmtExpr>> f) {
+        return switch (e) {
+            case StmtExpr.IfThenElse n -> new StmtExpr.IfThenElse(map(n.cond(), f),
+                    map(n.thenBranch(), f), map(n.elseBranch(), f));
+            case StmtExpr.Block n -> new StmtExpr.Block(mapAll(n.statements(), f), n.label());
+            case StmtExpr.While n -> new StmtExpr.While(map(n.cond(), f), mapAll(n.invariants(), f),
+                    map(n.decreases(), f), map(n.body(), f), n.postTest());
+            case StmtExpr.Return n -> new StmtExpr.Return(map(n.value(), f));
+            case StmtExpr.Var n -> n.var_() instanceof Variable.Field fld
+                    ? new StmtExpr.Var(new Variable.Field(map(fld.target(), f), fld.fieldName()))
+                    : n;
+            case StmtExpr.Assign n -> new StmtExpr.Assign(
+                    n.targets().stream().map(t -> mapVar(t, f)).toList(), map(n.value(), f));
+            case StmtExpr.IncrDecr n -> new StmtExpr.IncrDecr(n.mode(), n.op(), mapVar(n.target(), f));
+            case StmtExpr.CompoundAssign n -> new StmtExpr.CompoundAssign(n.op(),
+                    mapVar(n.target(), f), map(n.rhs(), f));
+            case StmtExpr.PureFieldUpdate n -> new StmtExpr.PureFieldUpdate(map(n.target(), f),
+                    n.fieldName(), map(n.newValue(), f));
+            case StmtExpr.StaticCall n -> new StmtExpr.StaticCall(n.callee(), mapAll(n.arguments(), f), n.typeArgs());
+            case StmtExpr.ReferenceEquals n -> new StmtExpr.ReferenceEquals(map(n.lhs(), f), map(n.rhs(), f));
+            case StmtExpr.AsType n -> new StmtExpr.AsType(map(n.target(), f), n.targetType());
+            case StmtExpr.IsType n -> new StmtExpr.IsType(map(n.target(), f), n.type());
+            case StmtExpr.InstanceCall n -> new StmtExpr.InstanceCall(map(n.target(), f),
+                    n.callee(), mapAll(n.arguments(), f));
+            case StmtExpr.Quantifier n -> new StmtExpr.Quantifier(n.mode(), n.param(),
+                    map(n.trigger(), f), map(n.body(), f));
+            case StmtExpr.Assigned n -> new StmtExpr.Assigned(map(n.name(), f));
+            case StmtExpr.Old n -> new StmtExpr.Old(map(n.value(), f), n.label());
+            case StmtExpr.Fresh n -> new StmtExpr.Fresh(map(n.value(), f));
+            case StmtExpr.Assert n -> new StmtExpr.Assert(map(n.condition(), f), n.summary());
+            case StmtExpr.Assume n -> new StmtExpr.Assume(map(n.condition(), f));
+            case StmtExpr.Throw n -> new StmtExpr.Throw(map(n.value(), f));
+            case StmtExpr.Try n -> {
+                var catches = new ArrayList<CatchClause>(n.catches().size());
+                for (var c : n.catches()) {
+                    catches.add(new CatchClause(c.binding(), map(c.predicate(), f),
+                            map(c.body(), f), c.bindingType()));
+                }
+                yield new StmtExpr.Try(map(n.body(), f), catches, map(n.finally_(), f));
+            }
+            case StmtExpr.ProveBy n -> new StmtExpr.ProveBy(map(n.value(), f), map(n.proof(), f));
+            case StmtExpr.ContractOf n -> new StmtExpr.ContractOf(n.type(), map(n.function(), f));
+            case StmtExpr.Exit n -> n;
+            case StmtExpr.LiteralInt n -> n;
+            case StmtExpr.LiteralBool n -> n;
+            case StmtExpr.LiteralString n -> n;
+            case StmtExpr.LiteralDecimal n -> n;
+            case StmtExpr.LiteralBv n -> n;
+            case StmtExpr.New n -> n;
+            case StmtExpr.This n -> n;
+            case StmtExpr.Abstract n -> n;
+            case StmtExpr.All n -> n;
+            case StmtExpr.Hole n -> n;
+            case StmtExpr.OldGuarantee n -> new StmtExpr.OldGuarantee(map(n.value(), f));
+            case StmtExpr.OldRelies n -> new StmtExpr.OldRelies(map(n.value(), f));
+            case StmtExpr.Yield n -> n;
+            case StmtExpr.Resume n -> new StmtExpr.Resume(map(n.target(), f), map(n.value(), f));
+            case StmtExpr.HasNext n -> new StmtExpr.HasNext(map(n.target(), f));
+            case StmtExpr.Snapshot n -> n;
+        };
+    }
+
     // --- Structural equality modulo ranges ---
 
     private static final Set<AstNode<StmtExpr>> NO_STOP = Set.of();

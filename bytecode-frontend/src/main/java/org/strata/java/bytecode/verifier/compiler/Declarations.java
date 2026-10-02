@@ -32,12 +32,37 @@ final class Declarations {
     final Map<String, TypeNode> programTypes = new LinkedHashMap<>();
     /** fqns of @Contract-annotated classes: consumed as contract definitions, not user code. */
     final Set<String> contractClasses = new HashSet<>();
+    /**
+     * SOURCE contracts to relocate, contractee fqn -> its @Contract class: JFE's
+     * ExternalContractCompiler.handleSourceContract. Each bodyless method of the
+     * contractee is translated from the same-signature method of the contract class,
+     * and the contract class's fields become the contractee's. Only well-formed
+     * contracts are entered (see ContractValidator), mirroring JFE skipping a
+     * contract class whose declaration it already rejected.
+     */
+    final Map<String, TypeNode> sourceContracts = new HashMap<>();
+    /**
+     * LIBRARY contracts, contractee fqn -> its @Contract class: JFE's
+     * handleLibraryContract, which makes the contract class stand for the library
+     * type, so a call on a receiver of that type binds to the contract's method.
+     */
+    final Map<String, ContractDecl> libraryContracts = new LinkedHashMap<>();
     /** @Contract declarations in compilation order. */
     final List<ContractDecl> contractDecls = new ArrayList<>();
-    /** fqn_method -> is annotated @Pure (for the heap-write fallback). */
+    /**
+     * {@link #purityKey} -> is annotated @Pure (for the heap-write fallback). Keyed
+     * per OVERLOAD: keyed by name alone, same-named siblings overwrote each other and
+     * an impure overload could read as pure, so its caller lost the heap frame it
+     * needs (OverloadPurityKey).
+     */
     private final Map<String, Boolean> pureMethods = new HashMap<>();
 
-    /** True iff the method behind {@code fqn_method} is annotated @Pure. */
+    /** The per-overload key of {@code m} declared in {@code fqn}: its name plus its erased descriptor. */
+    static String purityKey(String fqn, java.lang.classfile.MethodModel m) {
+        return fqn + "_" + m.methodName().stringValue() + m.methodTypeSymbol().descriptorString();
+    }
+
+    /** True iff the method behind {@link #purityKey} is annotated @Pure. */
     boolean isPure(String key) {
         return pureMethods.getOrDefault(key, false);
     }
@@ -50,8 +75,7 @@ final class Declarations {
             contractDecls.add(new ContractDecl(node.fqn(), node, uri));
         }
         for (var m : declaredMethodsOf(node.cm())) {
-            pureMethods.put(node.fqn() + "_" + m.methodName().stringValue(),
-                    hasAnnotation(m, "Pure"));
+            pureMethods.put(purityKey(node.fqn(), m), hasAnnotation(m, "Pure"));
         }
         for (var child : node.nested()) {
             collect(child, uri);
@@ -98,7 +122,9 @@ final class Declarations {
             // Local classes hoisted from different methods may share a name
             // (disambiguated by occurrence, as javac's flat names are).
             int occurrence = counts.merge(childName, 1, Integer::sum);
-            String childFqn = fqn + "." + childName + (occurrence > 1 ? "$" + occurrence : "");
+            String childFqn = ic.innerName().isEmpty() || ic.outerClass().isEmpty()
+                    ? JavaNames.dottedFqn(inner)
+                    : fqn + "." + childName + (occurrence > 1 ? "$" + occurrence : "");
             nested.add(typeNode(childFqn, childName, nestedCm, anon, pool));
         }
         return new TypeNode(fqn, name, cm, anonymous, nested);

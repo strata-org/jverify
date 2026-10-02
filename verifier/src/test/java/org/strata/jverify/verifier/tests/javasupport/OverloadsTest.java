@@ -2,14 +2,10 @@ package org.strata.jverify.verifier.tests.javasupport;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-// Overloads translate now (constructors, h/h(int), overloads(..) all resolve);
-// the remaining failures are FRONTEND_FIELDS -- every field-read assertion fails
-// because composite field access is not emitted yet.
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_FIELDS}, exitCode = 4, methodsVerified = 13, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 13, errorCount = 3)
 class OverloadsTest {
     
     private int f;
@@ -95,9 +91,11 @@ class OverloadsTest {
             // Errors
             OverloadsTest c = new OverloadsTest(10, 15, 20);
             check(c.f()==11);
-//          ^^^^^^^^^^^^^^^^ Error: assertion does not hold
+//          ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
             check(c.g()==16);
+//          ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
             check(c.h()==21);
+//          ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
         }
         {
             OverloadsTest c = new OverloadsTest(10, 15, 20);

@@ -10,13 +10,12 @@ import java.util.function.IntPredicate;
 import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(methodsVerified = 9, errorCount = 0)
+@JVerifyTest(methodsVerified = 10, errorCount = 0)
 public class MethodContractsVerification {
 
     private int y;
 
     public int methodReferencePostCondition() {
-//             ^ warning: instance method 'methodReferencePostCondition' was not verified: Unsupported expression: JCLambda
         postcondition((IntPredicate)MethodContractsVerification::isEven);
 
         // Include lambda based post-condition because it introduces a return value name

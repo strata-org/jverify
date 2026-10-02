@@ -31,8 +31,8 @@ public class InterfaceContractErrors {
 
     @Contract
     @Impure
-//  ^ error: annotation 'Impure' on @Contract class 'IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
     static class IllegalAnnotationContract implements IllegalAnnotationInterface {
+//         ^ error: annotation 'Impure' on @Contract class 'IllegalAnnotationContract' is not allowed, because it must be placed on the contractee
     }
 
     interface HasGenericArgument<Bar> {}

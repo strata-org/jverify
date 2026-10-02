@@ -2,20 +2,19 @@ package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 22)
+@JVerifyTest(exitCode = 2)
 public class ImpureExpressionsVerification {
     @Pure
     int nestedImpureExpressionInPureContext() {
         if (impureM(1) == 1) {
-//          ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
+//          ^^^^^^^ error: expression is not allowed to invoke a method (impureM)
             return impureM(impureM(2));
-//                 ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
-//                         ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
+//                 ^^^^^^^ error: expression is not allowed to invoke a method (impureM)
+//                         ^^^^^^^ error: expression is not allowed to invoke a method (impureM)
         }
         return impureM(3);
-//             ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
+//             ^^^^^^^ error: expression is not allowed to invoke a method (impureM)
     }
     
     int nestedImpureExpression() {

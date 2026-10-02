@@ -9,7 +9,7 @@ import java.util.stream.IntStream;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, methodsVerified = 2, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_LAMBDA_VALUES}, methodsVerified = 2, errorCount = 0)
 public class AllMatchContract {
 
     @SuppressWarnings("ConstantValue")

@@ -96,7 +96,7 @@ public class ExternalContractCompiler {
                 }
 
                 if (!symbolsWithContracts.add(contracteeSymbol)) {
-                    reporter.reportError(contractAnnotation, "duplicateContract", contracteeSymbol.name);
+                    reporter.reportError(classDecl, "duplicateContract", contracteeSymbol.name);
                     return;
                 }
 
@@ -121,7 +121,7 @@ public class ExternalContractCompiler {
                     handleLibraryContract(classDecl, contracteeSymbol);
                 } else {
                     if (JVerifyUtils.typeHasSource(index, contracteeSymbol) && !JVerifyUtils.isInterfaceOrAbstract(contracteeSymbol)) {
-                        reporter.reportError(contractAnnotation, "concreteTypeWithExternalContract", contracteeSymbol.name);
+                        reporter.reportError(classDecl, "concreteTypeWithExternalContract", contracteeSymbol.name);
                         classesToRemove.add(classDecl);
                         return;
                     }
@@ -140,7 +140,7 @@ public class ExternalContractCompiler {
                                           Symbol.ClassSymbol contracteeSymbol) {
             var modifiableAnnotation = classAnnotationsByName.get(Impure.class.getName());
             if (modifiableAnnotation != null) {
-                reporter.reportError(modifiableAnnotation, "annotationOnSourceContractClass",
+                reporter.reportError(classDecl, "annotationOnSourceContractClass",
                         Impure.class.getSimpleName(), classDecl.name.toString());
             }
 

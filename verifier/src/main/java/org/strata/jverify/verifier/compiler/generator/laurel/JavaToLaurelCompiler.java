@@ -157,13 +157,6 @@ public class JavaToLaurelCompiler {
      * so Strata monomorphizes the procedure per call site and infers the type
      * arguments there.
      *
-     * <p>Deliberately the METHOD's own parameters only. A CLASS type parameter
-     * is in scope too, but a composite is still emitted with no
-     * {@code typeArgs} (every use of it would have to become
-     * {@code HighType.Applied} first), so translating one to a {@code TVar}
-     * would emit a variable Laurel cannot resolve. Those keep refusing with
-     * "Unsupported type: T".
-     *
      * <p>Comparing the owner SYMBOL, not the name, is what makes this safe: a
      * class type parameter is owned by a {@code ClassSymbol} and so never
      * matches, even when it shadows a method parameter of the same name (as
@@ -391,6 +384,8 @@ public class JavaToLaurelCompiler {
     /// name a method in another, so taking it up front keeps refusals independent
     /// of translation order.
     private final Set<Symbol> optedOutMethods = new HashSet<>();
+
+    private final Set<Symbol.MethodSymbol> calledStaticMethods = new HashSet<>();
 
     private final com.sun.tools.javac.code.Types javacTypes;
 
@@ -727,6 +722,7 @@ public class JavaToLaurelCompiler {
             result.add(new LaurelFile(compilationUnit.sourcefile.toUri(), program));
             lineMaps.put(compilationUnit.sourcefile.toUri(), compilationUnit.getLineMap());
         }
+        emitCalledContractStatics(loweredResult, result, lineMaps);
 
         // A method that CALLS one refused during translation cannot be emitted
         // either: its call names an undeclared Laurel procedure, surfacing as
@@ -1716,6 +1712,64 @@ public class JavaToLaurelCompiler {
             return true;
         }
         return signatures.size() > 1;
+    }
+
+    private void emitCalledContractStatics(LoweredResult loweredResult, List<LaurelFile> result,
+                                           Map<URI, com.sun.tools.javac.util.Position.LineMap> lineMaps) {
+        var emitted = new HashSet<Symbol.MethodSymbol>();
+        var procsByUnit = new LinkedHashMap<JCTree.JCCompilationUnit, List<Procedure>>();
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (var unit : loweredResult.parsed()) {
+                if (!lowerer.isContractSource(unit)) {
+                    continue;
+                }
+                currentCompilationUnit = unit;
+                reporter.compilationUnit = unit;
+                var collector = new CalledContractStaticCollector(emitted);
+                unit.accept(collector);
+                if (collector.visited) {
+                    changed = true;
+                    var procs = procsByUnit.computeIfAbsent(unit, k -> new ArrayList<>());
+                    for (var entry : castHelpers.entrySet()) {
+                        if (emittedCastHelpers.add(entry.getKey())) {
+                            procs.add(entry.getValue());
+                        }
+                    }
+                    procs.addAll(collector.procedures);
+                }
+            }
+        }
+        for (var entry : procsByUnit.entrySet()) {
+            var unit = entry.getKey();
+            result.add(new LaurelFile(unit.sourcefile.toUri(),
+                    new Program(entry.getValue(), List.of(), List.of(), List.of())));
+            lineMaps.put(unit.sourcefile.toUri(), unit.getLineMap());
+        }
+    }
+
+    private class CalledContractStaticCollector extends StaticMethodCollector {
+        private final Set<Symbol.MethodSymbol> emitted;
+        boolean visited = false;
+
+        CalledContractStaticCollector(Set<Symbol.MethodSymbol> emitted) {
+            this.emitted = emitted;
+        }
+
+        @Override
+        public void visitMethodDef(JCTree.JCMethodDecl method) {
+            if ((method.mods.flags & Flags.STATIC) != 0
+                    && calledStaticMethods.contains(method.sym)
+                    && emitted.add(method.sym)) {
+                visited = true;
+                try {
+                    ((StaticMethodCollector) this).translateMethod(method, true);
+                } catch (JavaViolationException e) {
+                    return;
+                }
+            }
+        }
     }
 
     private class StaticMethodCollector extends TreeScanner {
@@ -2829,6 +2883,7 @@ public class JavaToLaurelCompiler {
                         args.add(node(convertExpression(arg, renames), arg));
                     }
                     if (instanceReceiver == null) {
+                        calledStaticMethods.add(methodSym);
                         yield new StmtExpr.StaticCall(ident(qualifiedMethodName(methodSym)), args, List.of());
                     }
                     // `obj#method(args)`: LiftInstanceProcedures rewrites this to the

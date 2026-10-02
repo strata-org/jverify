@@ -28,6 +28,12 @@ final class MethodGraph {
     static final class MethodInfo {
         final String classFqn;
         final String name;
+        /**
+         * The name this method is EMITTED under: {@link #name} plus its overload
+         * suffix. Separate from {@code name}, which is what diagnostics quote --
+         * the user never wrote the suffix.
+         */
+        final String laurelName;
         final boolean isStatic;
         final URI uri;
         final Range namePoint;
@@ -47,6 +53,22 @@ final class MethodGraph {
         boolean refused;        // translation threw, or demoted by the fixpoint
         /** Why a library member was refused, chained into its callers' diagnostics; null if unknown. */
         String refusalReason;
+        /**
+         * Refused but QUIET (opted out), and its callers must still be demoted: a
+         * skipped {@code @Pure} method whose frame is not empty cannot be reduced to
+         * a callable declaration (see BytecodeToLaurelCompiler's frame gate), so a
+         * call to it has nothing honest to bind to. Quiet refusals are otherwise
+         * excluded from the cascade, because a call to an ordinary opted-out method
+         * is refused at the call site instead.
+         */
+        boolean cascadeEvenIfQuiet;
+        /**
+         * A hard ERROR was already reported at a construct inside this method, so
+         * the method-level refusal diagnostic must not also fire -- it would repeat
+         * the same defect less precisely. Mirrors JFE's hasReportedErrorInside. The
+         * method is still demoted, so it cannot count Verified.
+         */
+        boolean constructErrorReported;
         final java.util.Set<String> callees = new java.util.LinkedHashSet<>();
         /**
          * Quiet infos only: callee identifiers of the InstanceCall/StaticCall
@@ -57,13 +79,19 @@ final class MethodGraph {
 
         MethodInfo(String classFqn, String name, boolean isStatic, URI uri, Range namePoint,
                    int ordinal, boolean quiet) {
-            this(classFqn, name, isStatic, uri, namePoint, ordinal, quiet, false);
+            this(classFqn, name, name, isStatic, uri, namePoint, ordinal, quiet, false);
         }
 
-        MethodInfo(String classFqn, String name, boolean isStatic, URI uri, Range namePoint,
-                   int ordinal, boolean quiet, boolean library) {
+        MethodInfo(String classFqn, String name, String laurelName, boolean isStatic, URI uri,
+                   Range namePoint, int ordinal, boolean quiet) {
+            this(classFqn, name, laurelName, isStatic, uri, namePoint, ordinal, quiet, false);
+        }
+
+        MethodInfo(String classFqn, String name, String laurelName, boolean isStatic, URI uri,
+                   Range namePoint, int ordinal, boolean quiet, boolean library) {
             this.classFqn = classFqn;
             this.name = name;
+            this.laurelName = laurelName;
             this.isStatic = isStatic;
             this.uri = uri;
             this.namePoint = namePoint;
@@ -77,13 +105,28 @@ final class MethodGraph {
             return classFqn + "#" + name + "@" + ordinal;
         }
 
-        /** By-name identity: what a call edge can actually reference. */
+        /**
+         * By-name identity: what a call edge can actually reference. Keyed on
+         * the EMITTED name, so an overload's refusal no longer poisons calls to
+         * its same-named sibling -- the two are distinct Laurel procedures.
+         */
         String nameKey() {
-            return classFqn + "#" + name;
+            return classFqn + "#" + laurelName;
         }
     }
 
     final Map<String, MethodInfo> methodInfos = new LinkedHashMap<>();
+    /**
+     * The reasons a later caller's cascade message may quote: methodKey -> reasons.
+     * Mirrors exactly what JFE writes to {@code reportedInstanceRefusals}: an
+     * INSTANCE method's own refusal, and ANY method's cascade demotion -- but not a
+     * static method's own refusal, which JFE reports without recording. So
+     * {@code call to 'accumulate', which could not be translated: call to 'helper',
+     * which could not be translated} chains through a demoted static, while a caller
+     * of a directly-refused static gets the bare form (PureSkippedWithFrameIsDropped,
+     * CascadeDepth3, TransitiveSkip).
+     */
+    private final Map<String, java.util.Set<String>> recordedReasons = new HashMap<>();
     /** Diagnostic dedup (JFE's reportedInstanceRefusals): methodKey -> reasons reported. */
     private final Map<String, java.util.Set<String>> reportedRefusals = new HashMap<>();
 
@@ -124,13 +167,36 @@ final class MethodGraph {
             // chained into the callers' diagnostics.
             var refusedLibrary = new HashMap<String, MethodInfo>();
             for (var info : methodInfos.values()) {
-                if (info.refused && !info.quiet) {
+                if (info.refused && (!info.quiet || info.cascadeEvenIfQuiet)) {
                     refusedNames.add(info.nameKey());
                     if (info.library) {
                         refusedLibrary.put(info.nameKey(), info);
                     }
                 }
             }
+            // The callee's OWN reason, when exactly one was recorded for that
+            // name. Without it the caller is told only that some call "could not
+            // be translated" and the reason sits on another line, often in another
+            // file, so the user has to go hunting for it. Ambiguous when two
+            // declarations share a name with different reasons, so those stay bare.
+            var reasonByName = new HashMap<String, String>();
+            var ambiguousNames = new java.util.HashSet<String>();
+            for (var info : methodInfos.values()) {
+                if (!info.refused) {
+                    continue;
+                }
+                var reasons = recordedReasons.get(info.key());
+                if (reasons == null || reasons.size() != 1) {
+                    ambiguousNames.add(info.nameKey());
+                    continue;
+                }
+                String only = reasons.iterator().next();
+                String prev = reasonByName.put(info.nameKey(), only);
+                if (prev != null && !prev.equals(only)) {
+                    ambiguousNames.add(info.nameKey());
+                }
+            }
+            reasonByName.keySet().removeAll(ambiguousNames);
             for (var info : methodInfos.values()) {
                 if (info.refused) {
                     continue;
@@ -144,20 +210,21 @@ final class MethodGraph {
                         info.status.setVerificationStatus(
                                 MethodVerificationStatus.VerificationStatus.Skipped);
                     }
-                    String calleeName = calleeKey.substring(calleeKey.indexOf('#') + 1);
-                    int mangle = calleeName.indexOf('?');
-                    if (mangle >= 0) {
-                        calleeName = calleeName.substring(0, mangle);
-                    }
-                    String reason = "call to '" + calleeName + "', which could not be translated";
+                    String because = "call to '"
+                            + ClassResolver.demangle(
+                                    calleeKey.substring(calleeKey.indexOf('#') + 1))
+                            + "', which could not be translated";
                     var libraryCallee = refusedLibrary.get(calleeKey);
-                    if (libraryCallee != null && libraryCallee.refusalReason != null) {
-                        reason += ": " + libraryCallee.refusalReason;
+                    String calleeReason = libraryCallee != null && libraryCallee.refusalReason != null
+                            ? libraryCallee.refusalReason
+                            : reasonByName.get(calleeKey);
+                    if (calleeReason != null) {
+                        because += ": " + calleeReason;
                     }
                     if (info.library) {
-                        info.refusalReason = reason;
+                        info.refusalReason = because;
                     }
-                    reportRefusal(info, reason);
+                    reportRefusal(info, because, true);
                     changed = true;
                     break;
                 }
@@ -195,7 +262,7 @@ final class MethodGraph {
                 continue;
             }
             for (var lib : libraryByKey.values()) {
-                String emitted = lib.isStatic ? lib.classFqn + "_" + lib.name : lib.name;
+                String emitted = lib.isStatic ? lib.classFqn + "_" + lib.laurelName : lib.laurelName;
                 if (info.specCalleeNames.contains(emitted)) {
                     work.add(lib.nameKey());
                 }
@@ -249,11 +316,27 @@ final class MethodGraph {
      * diagnostic is deduped per (method, reason); the demotion never is.
      */
     void reportRefusal(MethodInfo info, String reason) {
+        reportRefusal(info, reason, false);
+    }
+
+    /**
+     * As above. {@code cascade} marks a demotion by the fixpoint rather than the
+     * method's own translation failure, which matters only for which reasons are
+     * RECORDED for a later caller's message (see {@link #recordedReasons}).
+     */
+    void reportRefusal(MethodInfo info, String reason, boolean cascade) {
         if (info.quiet) {
             return; // opted-out methods demote silently (JFE never translates them loudly)
         }
         if (info.library) {
             return; // library members are never diagnosed; their callers carry the reason
+        }
+        if (cascade || !info.isStatic) {
+            recordedReasons.computeIfAbsent(info.key(), k -> new java.util.LinkedHashSet<>())
+                    .add(reason);
+        }
+        if (info.constructErrorReported) {
+            return; // the construct that caused this was already reported, precisely
         }
         if (!reportedRefusals.computeIfAbsent(info.key(), k -> new java.util.LinkedHashSet<>())
                 .add(reason)) {

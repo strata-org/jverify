@@ -254,23 +254,50 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
                                   VerifierOptions options) throws IOException {
+        // The fixture's annotation states what a correct frontend produces; this
+        // frontend's own known gaps are recorded per class in source-xfails.txt
+        // (SourceXfailManifest), mirroring the bytecode frontend's manifest: a forced
+        // XFAIL inverts the outcome, a RUN entry runs an annotation-level xfail.
+        String fqcn = fqcnOf(sourceFile);
+        var manifest = SourceXfailManifest.get();
+        var forcedXfail = fqcn == null ? null : manifest.forcedXfail(fqcn);
+        boolean forcedRun = fqcn != null && manifest.isForcedRun(fqcn);
+        boolean expectedToFail = forcedXfail != null || (annotation.expectedToFail() && !forcedRun);
+
         // skip= and expectedToFail are mutually exclusive: skip is evaluated first, so a
         // test with both would abort as skipped and never reach the XPASS tripwire. Fail
         // loud with a non-AssertionError (the xfail branch below swallows AssertionError).
-        if (annotation.expectedToFail() && annotation.skip() != null && !annotation.skip().isEmpty()) {
+        if (expectedToFail && annotation.skip() != null && !annotation.skip().isEmpty()) {
             throw new IllegalStateException("@JVerifyTest sets both skip and expectedToFail; "
                 + "these are mutually exclusive -- clear skip so the xfail/XPASS check runs.");
         }
         // Legacy hard skip: still supported, but discouraged. Prefer expectedToFail.
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
-        if (!annotation.expectedToFail()) {
+        if (!expectedToFail) {
             runAndCheck(sourceFile, annotation, ranges, options);
             return;
         }
         // xfail: run it, but invert the outcome.
-        applyXfailInversion(describeBlockers(annotation),
-                () -> runAndCheck(sourceFile, annotation, ranges, options));
+        String why = forcedXfail != null
+                ? "source-xfails.txt " + forcedXfail.blocker() + ": " + forcedXfail.reason()
+                : describeBlockers(annotation);
+        applyXfailInversion(why, () -> runAndCheck(sourceFile, annotation, ranges, options));
+    }
+
+    /**
+     * The fully-qualified class name a test source declares: its {@code package} plus
+     * the file's name. Null when the source names no package, which no corpus fixture
+     * does.
+     */
+    private static String fqcnOf(SourceFile sourceFile) {
+        String name = Path.of(sourceFile.toUri()).getFileName().toString();
+        if (!name.endsWith(".java")) {
+            return null;
+        }
+        String content = sourceFile.getCharContent(false).toString();
+        var m = java.util.regex.Pattern.compile("(?m)^\\s*package\\s+([\\w.]+)\\s*;").matcher(content);
+        return m.find() ? m.group(1) + "." + name.substring(0, name.length() - ".java".length()) : null;
     }
 
     /** A check that may throw the checked exceptions {@link #runAndCheck} does. */

@@ -673,7 +673,7 @@ class ArrayTranslationTest {
                 "error: Unsupported expression: FieldAccessExpr",
                 "error: Unsupported expression: FieldAccessExpr",
                 "error: instanceof on opaque reference types is not yet supported",
-                "error: Call to unknown class 'System' is not supported"),
+                "warning: missing contract for method 'arraycopy' in class 'java.lang.System'"),
                 t.messages());
         // A returned lambda allocates its functional interface's sort.
         procedure(t.program(), "Legacy_ctor");

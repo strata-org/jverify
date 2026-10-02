@@ -42,6 +42,18 @@ final class TranslationContext {
     LibraryContracts contracts = LibraryContracts.none();
     /** Translating a library contract member rather than a program method. */
     boolean contractMode;
+    /**
+     * A {@code preconditionOf(call)} awaiting its callee's translation: the
+     * placeholder's name -> the callee and the call's receiver/arguments. Resolved
+     * once every method is translated (BytecodeToLaurelCompiler.inlinePreconditionOf),
+     * because the callee may come later in the compilation.
+     */
+    record PendingPreconditionOf(String calleeFqn, java.lang.classfile.MethodModel callee,
+                                 AstNode<StmtExpr> receiver, List<AstNode<StmtExpr>> args) {
+    }
+    final Map<String, PendingPreconditionOf> pendingPreconditionOf = new java.util.LinkedHashMap<>();
+    final Set<String> constructorCalls = new java.util.HashSet<>();
+    final Map<String, org.strata.jverify.laurel.Procedure> missingContractProcs = new java.util.LinkedHashMap<>();
 
     // --- Per-class state ---
 
@@ -85,6 +97,30 @@ final class TranslationContext {
         final Deque<List<String>> enclosingCatchTypes = new ArrayDeque<>();
         /** The current method's class-typed return sort, or null. */
         String returnSort;
+        /**
+         * This method carries an {@code @Impure} type annotation somewhere, which
+         * exempts its reference comparisons from the restricted-{@code ==} check.
+         *
+         * <p>Method-scoped on purpose, and weaker than JFE's per-operand rule: an
+         * annotated cast between types with the SAME erasure
+         * ({@code (@Impure Object) b} where {@code b} is already {@code Object})
+         * emits no instruction at all, so there is no node to attach the
+         * annotation to and no way to tell which operand it qualified. Erring
+         * towards silence keeps the check from falsely accusing code JFE accepts
+         * (PolymorphismResolutionErrors2); the cost is a missed error in a method
+         * that mixes an impure comparison with a value-typed one.
+         */
+        boolean mentionsImpure;
+        boolean pureBody;
+        boolean shapeErrorReported;
+        /**
+         * Translating a relocated source-contract method as its contractee's (see
+         * Declarations.sourceContracts). Its body is the contract header followed by
+         * {@code throw new ContractException()}, which JFE discards as "contract only"
+         * (isContractThrow); no implementation is emitted for it, so that throw is
+         * dropped rather than coverage-checked.
+         */
+        boolean relocatedContract;
 
         /** Java-label bookkeeping for the loop-label scheme. */
         final Deque<LabelEntry> labelStack = new ArrayDeque<>();

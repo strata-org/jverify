@@ -1,6 +1,5 @@
 package org.strata.jverify.verifier.tests.javasupport.exceptions;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -12,14 +11,14 @@ import org.strata.jverify.testengine.JVerifyTest;
  * needs a statement-form desugaring for expression switches with throwing
  * rules.
  */
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_EXCEPTIONS},
-        methodsVerified = 3) // sign() + 2 implicit constructors
+@JVerifyTest(methodsVerified = 3) // sign() + 2 implicit constructors
 class WishlistSwitchExpressionThrow {
     static class AppException extends Exception {}
 //         ^ warning: missing contract for method '<init>' in class 'java.lang.Exception'
 
     static int sign(int i) throws AppException {
         return switch (Integer.signum(i)) {
+//                     ^ warning: missing contract for method 'signum' in class 'java.lang.Integer'
             case 1 -> 1;
             case -1 -> -1;
             case 0 -> throw new AppException();

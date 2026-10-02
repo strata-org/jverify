@@ -62,7 +62,9 @@ final class ContractValidator {
             }
             String targetSimple = JavaNames.simpleName(targetFqn);
 
+            boolean relocatable = true;
             String previous = seenTargets.putIfAbsent(targetFqn, entry.fqn());
+            relocatable &= previous == null;
             if (previous != null) {
                 reporter.reportError(uri, classAnchor,
                         "class '" + targetSimple + "' must not be referenced by more than one @Contract annotation");
@@ -70,6 +72,7 @@ final class ContractValidator {
 
             var targetDecl = decls.programTypes.get(targetFqn);
             if (targetDecl != null && Declarations.isConcreteClass(targetDecl.cm())) {
+                relocatable = false;
                 reporter.reportError(uri, classAnchor,
                         "class '" + targetSimple + "' must not have an externally defined contract"
                                 + " because all its contracts can be defined internally");
@@ -87,6 +90,7 @@ final class ContractValidator {
                 var contractParams = Declarations.typeParamNamesOf(decl.cm());
                 var targetParams = Declarations.typeParamNamesOf(targetDecl.cm());
                 if (!contractParams.equals(targetParams)) {
+                    relocatable = false;
                     reporter.reportError(uri, classAnchor,
                             "Contract class '" + decl.name() + "' has different type parameters than the contractee '"
                                     + targetSimple + "'. The parameters must have the same names");
@@ -94,6 +98,16 @@ final class ContractValidator {
             }
 
             validateContractMethods(decl, targetFqn, uri);
+            // A contract for a type this compilation declares is a SOURCE contract,
+            // relocated onto the contractee. A library contractee is handled by the
+            // builtin-contract path instead.
+            if (relocatable && targetDecl != null) {
+                decls.sourceContracts.put(targetFqn, decl);
+                resolver.contracteeOf.put(entry.fqn(), targetFqn);
+            } else if (relocatable) {
+                decls.libraryContracts.put(targetFqn, entry);
+                resolver.libraryContracts.put(targetFqn, entry);
+            }
         }
         src.uri = null;
     }
@@ -102,7 +116,7 @@ final class ContractValidator {
     private Set<String> contracteeMethodSignatures(String targetFqn) {
         var out = new HashSet<String>();
         String current = targetFqn;
-        while (current != null && !current.equals("java.lang.Object")) {
+        while (current != null && (current.equals(targetFqn) || !current.equals("java.lang.Object"))) {
             var srcDecl = decls.programTypes.get(current);
             if (srcDecl != null) {
                 for (var m : Declarations.declaredMethodsOf(srcDecl.cm())) {

@@ -3,14 +3,13 @@ package org.strata.jverify.verifier.tests.javasupport.localClasses;
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
 @SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef", "ConstantValue", "NewObjectEquality"})
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ANON, Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 27, errorCount = 4)
+@JVerifyTest(exitCode = 4, methodsVerified = 27, errorCount = 4)
 public class LocalAndAnonymousClasses {
 
     void noCaptures() {
@@ -60,10 +59,10 @@ public class LocalAndAnonymousClasses {
         SomethingDoerWithSpec arg6 = new SomethingDoerWithSpec() {
             @Override
             public int doSomething(int x, int y) {
+//          ^ Error: postcondition could not be proved
                 precondition(x >= y);
                 postcondition((int r) -> r == x - y);
                 return x - y;
-//                     ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
             }
         };
         doSomethingWithSpecTwice(arg6);
@@ -99,9 +98,9 @@ public class LocalAndAnonymousClasses {
                 SomethingDoer inner = new SomethingDoer() {
                     @Override
                     public int doSomething(int x2, int y2) {
+//          ^ Error: postcondition could not be proved
                         var level3 = 3;
                         return level1 + level2 + level3 + x + x2 + y2;
-//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: value does not satisfy the subset constraints of 'int32'
                     }
                 };
 
@@ -127,13 +126,13 @@ public class LocalAndAnonymousClasses {
     }
 
     public int add(int x, int y) {
+//  ^ Error: postcondition could not be proved
         return x + y;
-//             ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
     }
 
     public static int staticAdd(int x, int y) {
+//  ^ Error: postcondition could not be proved
         return x + y;
-//             ^^^^^ Error: value does not satisfy the subset constraints of 'int32'
     }
 
     interface SomethingDoer {

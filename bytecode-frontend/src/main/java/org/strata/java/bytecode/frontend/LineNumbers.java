@@ -53,6 +53,25 @@ public final class LineNumbers {
         return at;
     }
 
+    public boolean hasLine(int line) {
+        for (int l : lines) {
+            if (l == line) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True iff a LineNumberTable entry begins exactly at {@code bci}, i.e. a new source line starts there. */
+    public boolean startsAt(int bci) {
+        for (int pc : startPcs) {
+            if (pc == bci) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public int minLine() {
         return minLine;
     }

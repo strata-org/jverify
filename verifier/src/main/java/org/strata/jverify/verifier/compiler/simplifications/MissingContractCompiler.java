@@ -153,12 +153,17 @@ public class MissingContractCompiler {
             super.visitClassDef(tree);
         }
 
+        JCTree.JCMethodDecl enclosingMethod;
+
         @Override
         public void visitMethodDef(JCTree.JCMethodDecl tree) {
             if (tree.body != null) {
                 foundSymbols.add(tree.sym);
             }
+            var saved = enclosingMethod;
+            enclosingMethod = tree;
             super.visitMethodDef(tree);
+            enclosingMethod = saved;
         }
 
         @Override
@@ -253,7 +258,9 @@ public class MissingContractCompiler {
 
         @Override
         public void visitIdent(JCTree.JCIdent tree) {
-            visitReference(tree.sym, tree);
+            boolean superCall = tree.sym != null && tree.sym.isConstructor()
+                    && tree.name.contentEquals("super") && enclosingMethod != null;
+            visitReference(tree.sym, superCall ? enclosingMethod : tree);
             super.visitIdent(tree);
         }
 

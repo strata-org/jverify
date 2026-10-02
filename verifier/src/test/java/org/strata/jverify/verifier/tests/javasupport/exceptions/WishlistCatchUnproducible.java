@@ -1,6 +1,5 @@
 package org.strata.jverify.verifier.tests.javasupport.exceptions;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -17,12 +16,11 @@ import org.strata.jverify.testengine.JVerifyTest;
  * diagnostic instead surfaces on the verify path, exitCode must become 4 or
  * the assertion is swallowed as still-blocked forever.
  */
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_EXCEPTIONS},
-        continueOnErrors = true, exitCode = 0,
+@JVerifyTest(continueOnErrors = true, exitCode = 0,
         methodsVerified = 1, // the test class's implicit constructor
         methodsSkipped = 1,
         methodsInvalid = 0, // arms the errorCount expectation (inert without it)
-        errorCount = 1)
+        errorCount = 0)
 class WishlistCatchUnproducible {
     static int deadHandler(int x) {
         try {

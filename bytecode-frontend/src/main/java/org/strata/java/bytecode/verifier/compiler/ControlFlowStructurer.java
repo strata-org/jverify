@@ -105,6 +105,71 @@ final class ControlFlowStructurer {
         this.loops = new LoopEmitter(this);
         this.switches = new SwitchEmitter(this);
         this.tries = new TryEmitter(this);
+        markPatternBindTests();
+    }
+
+    /**
+     * Record every {@code INSTANCEOF} that tests a pattern-bind shape, so
+     * {@link BodyTranslator#typeCheck} refuses it as JFE refuses an
+     * {@code instanceof} carrying a {@code JCBindingPattern}: Laurel's {@code is}
+     * has nowhere to put the binding. {@link #foldChainPatternBind} then skips the
+     * LOAD/CHECKCAST/STORE that would have introduced it, so without this the
+     * binding is simply absent and the arm fails with
+     * {@code Resolution failed: 'c' is not defined} (FlowTyping).
+     *
+     * <p>Done as a prescan rather than inside {@code foldChainPatternBind} because
+     * the test instruction is translated before that fold runs, and the same shape
+     * is reached from the value-diamond path too.
+     *
+     * <p>The instructions alone do NOT identify a pattern: a hand-written
+     * {@code if (x instanceof C) { C c = (C) x; ... }} compiles to the identical
+     * LOAD/CHECKCAST/STORE, and must translate. What differs is where the source
+     * statements start. The manual cast is its own statement, so a CRT statement
+     * range and a LineNumberTable entry both begin at its LOAD; a pattern's binding
+     * lives inside the {@code if} condition, so neither does. Measured with
+     * javac 25 -g -Xjcov. With neither table there is no evidence either way, and
+     * the binding is treated as a pattern -- refusing is the side that cannot
+     * mistranslate.
+     */
+    private void markPatternBindTests() {
+        for (BasicBlock c : cfg.blocks) {
+            if (!c.isConditional() || c.last.opcode() != Opcode.IFEQ) {
+                continue;
+            }
+            int n = c.instrs.size();
+            if (n < 2 || !(insAt(c, n - 2) instanceof TypeCheckInstruction ti)
+                    || ti.opcode() != Opcode.INSTANCEOF) {
+                continue;
+            }
+            int fb = c.fall;
+            if (fb < 0 || fb >= cfg.blocks.size()) {
+                continue;
+            }
+            BasicBlock b = cfg.blocks.get(fb);
+            if (b.instrs.size() < 4
+                    || !(insAt(b, 0) instanceof LoadInstruction)
+                    || !(insAt(b, 1) instanceof TypeCheckInstruction cc)
+                    || cc.opcode() != Opcode.CHECKCAST
+                    || !(insAt(b, 2) instanceof StoreInstruction)) {
+                continue;
+            }
+            if (startsOwnStatement(b.instrs.get(0))) {
+                continue;
+            }
+            body.patternBindTests.add(ti);
+        }
+    }
+
+    /** A source statement begins at the instruction at {@code seqIdx} (see markPatternBindTests). */
+    private boolean startsOwnStatement(int seqIdx) {
+        if (body.seqToBci == null || seqIdx < 0 || seqIdx >= body.seqToBci.length) {
+            return false;
+        }
+        int pc = body.seqToBci[seqIdx];
+        if (body.crt != null && !body.crt.isEmpty()) {
+            return body.crt.stream().anyMatch(r -> r.startPc() == pc);
+        }
+        return body.lines != null && body.lines.startsAt(pc);
     }
 
     /** The structured method body as a Laurel block statement list. */
@@ -580,13 +645,25 @@ final class ControlFlowStructurer {
         // A pattern-bind instanceof (foldChainPatternBind) cannot carry a
         // binding in Laurel; the IsType/deferred marker refuses at placement
         // exactly as the driver refused an instanceof with a pattern.
-        int mark = body.stmts.size();
-        AstNode<StmtExpr> thenVal = evalArm(c.fall, merge);
-        AstNode<StmtExpr> elseVal = evalArm(c.branch, merge);
-        if (body.stmts.size() != mark) {
-            throw new StructException("value arm produced statements");
-        }
+        AstNode<StmtExpr> thenVal = armValue(c.fall, merge);
+        AstNode<StmtExpr> elseVal = armValue(c.branch, merge);
         body.stack.push(buildTernary(cond, thenVal, elseVal));
+    }
+
+    AstNode<StmtExpr> armValue(int entry, int merge) {
+        int mark = body.stmts.size();
+        AstNode<StmtExpr> v = evalArm(entry, merge);
+        if (body.stmts.size() == mark) {
+            return v;
+        }
+        var stmts = new ArrayList<>(body.stmts.subList(mark, body.stmts.size()));
+        body.stmts.subList(mark, body.stmts.size()).clear();
+        stmts.add(v);
+        AstNode<StmtExpr> block = body.e(new StmtExpr.Block(stmts, Optional.empty()));
+        if (isBoolish(v)) {
+            body.bools.add(block);
+        }
+        return block;
     }
 
     AstNode<StmtExpr> buildTernary(AstNode<StmtExpr> cond, AstNode<StmtExpr> thenVal, AstNode<StmtExpr> elseVal) {
@@ -692,8 +769,8 @@ final class ControlFlowStructurer {
         List<CodeElement> ins = elems(c);
         body.translateSpan(ins, elemIdxs(c), 0, ins.size() - 1);
         AstNode<StmtExpr> cond = body.materializeComparison(c.last.opcode());
-        AstNode<StmtExpr> thenVal = evalArm(c.fall, merge);
-        AstNode<StmtExpr> elseVal = evalArm(c.branch, merge);
+        AstNode<StmtExpr> thenVal = armValue(c.fall, merge);
+        AstNode<StmtExpr> elseVal = armValue(c.branch, merge);
         return buildTernary(cond, thenVal, elseVal);
     }
 

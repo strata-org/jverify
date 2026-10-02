@@ -12,6 +12,7 @@ import org.strata.java.bytecode.verifier.MethodVerificationStatus;
 import org.strata.jverify.verifier.VerificationResults;
 import org.strata.java.bytecode.verifier.VerifierOptions;
 import org.strata.jverify.verifier.Wrapper;
+import org.strata.jverify.verifier.laurel.StrataOutput;
 
 import javax.tools.Diagnostic;
 import java.io.IOException;
@@ -49,7 +50,9 @@ public class StrataBackend {
      *
      * @param methodStatuses per-file interval trees of method positions,
      *        keyed by starting line; mutated in place: methods whose range
-     *        contains a diagnostic are marked Failed.
+     *        contains a diagnostic are marked Failed, and when Strata stops
+     *        before generating verification conditions the remaining
+     *        Verified methods are marked Skipped.
      */
     public JVerifyResults verifyProgram(Program program,
                                         PositionResolver positions,
@@ -193,7 +196,7 @@ public class StrataBackend {
                     var uriMethods = methodStatuses.get(diagnostic.getUri());
                     var failedJavaMethod = uriMethods == null
                             ? null
-                            : uriMethods.findAtPoint(diagnostic.getRange().start().line());
+                            : uriMethods.findInnermostAtPoint(diagnostic.getRange().start().line());
                     if (failedJavaMethod != null) {
                         failedJavaMethod.setVerificationStatus(MethodVerificationStatus.VerificationStatus.Failed);
                     } else {
@@ -202,9 +205,18 @@ public class StrataBackend {
                 }
             }
 
+            boolean haltedBeforeVerification = !options.interpret()
+                    && !StrataOutput.reachedVerificationConditions(preDiagnosticOutput.toString());
+            int haltedUnverifiedCount = 0;
             for (IntervalTree<Integer, MethodVerificationStatus> uriStatuses : methodStatuses.values()) {
                 for (var methodStatus : uriStatuses.streamNodes().toList()) {
-                    switch (methodStatus.getValue().getVerificationStatus()) {
+                    var status = methodStatus.getValue();
+                    if (haltedBeforeVerification
+                            && status.getVerificationStatus() == MethodVerificationStatus.VerificationStatus.Verified) {
+                        status.setVerificationStatus(MethodVerificationStatus.VerificationStatus.Skipped);
+                        haltedUnverifiedCount++;
+                    }
+                    switch (status.getVerificationStatus()) {
                         case Verified -> verifiedCount++;
                         case Skipped -> skippedCount++;
                         case Failed -> failedCount++;
@@ -218,6 +230,12 @@ public class StrataBackend {
                 options.outWriter().println("Note: " + unattributedErrorCount
                         + " error(s) could not be attributed to a specific method;"
                         + " the method counts below do not reflect them.");
+            }
+
+            if (haltedUnverifiedCount > 0) {
+                options.outWriter().println("Note: Strata stopped before generating verification conditions;"
+                        + " " + haltedUnverifiedCount + " method(s) without a diagnostic were not verified"
+                        + " and are counted as skipped.");
             }
 
             int verifierExitCode = process.waitFor();

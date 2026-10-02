@@ -5,11 +5,10 @@ import org.strata.jverify.ContractException;
 import org.strata.jverify.Pure;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 4, methodsVerified = 8, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 8, errorCount = 1)
 public class PureMethodVerification {
 
     @Verify(false)
@@ -23,7 +22,7 @@ public class PureMethodVerification {
         assume(x > 3);
         check(x > 2);
         check(x > 4);
-//      ^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
         return x;
     }
     

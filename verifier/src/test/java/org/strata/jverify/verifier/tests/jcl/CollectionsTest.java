@@ -17,7 +17,7 @@ import static org.strata.jverify.JVerify.check;
 // PrimitiveAndBoxedTypes builtin contract does. The methods are never emitted for
 // the generic composite, so this is a front-end emission gap (a facet of generic
 // composite support), not overloads; the FRONTEND_OVERLOAD label predated it.
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_SEQUENCE_EQUALITY}, exitCode = 4, methodsVerified = 4, errorCount = 4, useBuiltinContracts = true)
 public class CollectionsTest {
 
     void listVerifying() {

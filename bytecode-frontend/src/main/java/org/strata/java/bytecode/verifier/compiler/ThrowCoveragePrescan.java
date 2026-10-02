@@ -18,6 +18,9 @@ final class ThrowCoveragePrescan {
     }
 
     static void check(MethodBody shape, TranslationContext ctx) {
+        if (ctx.method.info.quiet) {
+            return;
+        }
         var seq = shape.seq();
         var cfg = shape.cfg();
         for (int i = 0; i < seq.size(); i++) {
@@ -115,6 +118,72 @@ final class ThrowCoveragePrescan {
                                 + ctx.method.throwsJoin + "')");
             }
         }
+    }
+
+    /**
+     * A typed handler whose protected range contains no throw and no call cannot be
+     * entered: nothing in it can produce an exception. Reported at the handler's
+     * line, and the method demoted.
+     */
+    static void checkDeadHandlers(MethodBody shape, TranslationContext ctx) {
+        var cfg = shape.cfg();
+        if (cfg == null || shape.lines() == null) {
+            return;
+        }
+        for (var e : cfg.excs) {
+            if (e.type() == null) {
+                continue;
+            }
+            if (rangeCanThrow(shape, e.startBlk(), e.endBlkId())) {
+                continue;
+            }
+            var handler = cfg.blocks.get(e.handlerBlk());
+            if (handler.instrs.isEmpty()) {
+                continue;
+            }
+            int line = shape.lines().lineAt(shape.seqToBci()[handler.instrs.get(0)]);
+            String caught = TypeRef.ofClassDesc(e.type()).fqnFromContext();
+            if (!ctx.method.info.quiet) {
+                ctx.reporter.reportError(ctx.src.uri, ctx.src.positionRange(ctx.src.lineRange(line)),
+                        "no reachable throw can produce '" + caught + "'; this handler is dead code");
+            }
+            ctx.method.info.constructErrorReported = true;
+        }
+    }
+
+    private static boolean rangeCanThrow(MethodBody shape, int startBlk, int endBlk) {
+        var cfg = shape.cfg();
+        for (int b = startBlk; b < endBlk; b++) {
+            for (int idx : cfg.blocks.get(b).instrs) {
+                if (!(shape.seq().get(idx) instanceof java.lang.classfile.Instruction in)) {
+                    continue;
+                }
+                if (mayThrow(in)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean mayThrow(java.lang.classfile.Instruction in) {
+        if (in instanceof java.lang.classfile.instruction.InvokeInstruction
+                || in instanceof java.lang.classfile.instruction.InvokeDynamicInstruction
+                || in instanceof java.lang.classfile.instruction.FieldInstruction
+                || in instanceof java.lang.classfile.instruction.ArrayLoadInstruction
+                || in instanceof java.lang.classfile.instruction.ArrayStoreInstruction
+                || in instanceof java.lang.classfile.instruction.NewObjectInstruction
+                || in instanceof java.lang.classfile.instruction.NewPrimitiveArrayInstruction
+                || in instanceof java.lang.classfile.instruction.NewReferenceArrayInstruction
+                || in instanceof java.lang.classfile.instruction.NewMultiArrayInstruction
+                || in instanceof java.lang.classfile.instruction.TypeCheckInstruction
+                || in instanceof java.lang.classfile.instruction.MonitorInstruction) {
+            return true;
+        }
+        return switch (in.opcode()) {
+            case ATHROW, IDIV, IREM, LDIV, LREM, ARRAYLENGTH -> true;
+            default -> false;
+        };
     }
 
     /** True if a $assertionsDisabled read precedes {@code before} in the code sequence. */

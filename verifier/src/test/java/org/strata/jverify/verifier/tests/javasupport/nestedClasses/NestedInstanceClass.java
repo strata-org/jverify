@@ -2,7 +2,6 @@ package org.strata.jverify.verifier.tests.javasupport.nestedClasses;
 
 import org.strata.jverify.Nullable;
 import org.strata.jverify.testengine.JVerifyTest;
-import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 
@@ -10,7 +9,7 @@ import static org.strata.jverify.JVerify.check;
 // exists -- instance methods are translated): a nested instance class's reference to
 // the OUTER instance's field emits a bare name, giving
 // `Resolution failed: 'x' is not defined` plus a source-less malformed diagnostic.
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 4, errorCount = 2)
+@JVerifyTest(exitCode = 4, methodsVerified = 4, errorCount = 2)
 public class NestedInstanceClass {
     int x;
     
@@ -18,12 +17,12 @@ public class NestedInstanceClass {
     public class InstanceNestee {
         void checkFalse() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion does not hold
+//          ^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         void checkX() {
             check(x == 3);
-//          ^^^^^^^^^^^^^ Error: assertion does not hold
+//          ^^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         @SuppressWarnings("ConstantValue")

@@ -73,12 +73,6 @@ final class FieldAccessTranslator {
             case GETFIELD -> {
                 AstNode<StmtExpr> recv = b.stack.isEmpty()
                         ? b.e(new StmtExpr.LiteralString("?")) : b.stack.pop();
-                if (fn.equals("this$0")) {
-                    // Outer.this: the conversion lowered any ThisExpr to self?.
-                    AstNode<StmtExpr> n = b.push(LaurelFactory.var_(LaurelFactory.LAUREL_SELF_BINDING));
-                    b.noteDesc(n, fdesc);
-                    return;
-                }
                 boolean superRead = isSuperFieldRead(fi, recv);
                 TypeRef declared = declareAccessedField(recv, fn);
                 if (superRead) {
@@ -185,6 +179,8 @@ final class FieldAccessTranslator {
             throw new JavaViolationException("Unsupported field access: "
                     + renderReceiver(recv) + "." + fieldName);
         }
+        // A relocated contract's field lives on its contractee (ClassResolver.contracteeOf).
+        ownerFqn = ctx.resolver.contracteeOf.getOrDefault(ownerFqn, ownerFqn);
         var info = ctx.composites.declaredFields.get(ownerFqn).get(fieldName);
         if (info.nullable() && info.type().kind() == TypeRef.Kind.ARRAY && ctx.composites.arrays.enabled()) {
             // Null is not modelled: refuse every method that accesses the field.

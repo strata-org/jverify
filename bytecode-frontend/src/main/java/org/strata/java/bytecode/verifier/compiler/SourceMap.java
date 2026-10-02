@@ -44,13 +44,23 @@ final class SourceMap {
         if (cls.sourceFileName() == null) {
             return null;
         }
+        String internal = cls.internalName();
+        int slash = internal.lastIndexOf('/');
+        String qualified = (slash < 0 ? "" : internal.substring(0, slash + 1)) + cls.sourceFileName();
+        URI byName = null;
         for (URI uri : sourceUris) {
             String path = uri.getPath();
-            if (path != null && path.endsWith("/" + cls.sourceFileName())) {
+            if (path == null) {
+                continue;
+            }
+            if (path.endsWith("/" + qualified)) {
                 return uri;
             }
+            if (byName == null && path.endsWith("/" + cls.sourceFileName())) {
+                byName = uri;
+            }
         }
-        return null;
+        return byName;
     }
 
     // --- Ranges from bytecode line:col, via the synthetic-offset codec ---
@@ -112,8 +122,31 @@ final class SourceMap {
         if (code == null) {
             return UNKNOWN_RANGE;
         }
-        return methodRangeOf(org.strata.java.bytecode.frontend.MethodBodyFactory.crtEnvelopeRanges(
-                (java.lang.classfile.attribute.CodeAttribute) code));
+        var attr = (java.lang.classfile.attribute.CodeAttribute) code;
+        var ranges = org.strata.java.bytecode.frontend.MethodBodyFactory.crtEnvelopeRanges(attr);
+        // javac starts a lambda-bearing statement's CRT span at the CLASS header
+        // (`13:01-88:76` for a postcondition on line 88), which dragged the method's
+        // envelope -- and every method-level diagnostic -- onto the class line. The
+        // method's own body block is right, so anything beginning before it is dropped.
+        org.strata.java.bytecode.frontend.Span body = null;
+        for (var e : org.strata.java.bytecode.frontend.MethodBodyFactory.crtEntries(attr)) {
+            if (e.is(org.strata.java.bytecode.frontend.MethodBodyFactory.CrtEntry.BLOCK)
+                    && !e.is(org.strata.java.bytecode.frontend.MethodBodyFactory.CrtEntry.STATEMENT)
+                    && (body == null || before(e.span(), body))) {
+                body = e.span();
+            }
+        }
+        if (body != null) {
+            var start = body;
+            ranges = ranges.stream().filter(r -> !before(r.span(), start)).toList();
+        }
+        return methodRangeOf(ranges);
+    }
+
+    /** {@code a} begins strictly before {@code b}. */
+    private static boolean before(org.strata.java.bytecode.frontend.Span a,
+                                  org.strata.java.bytecode.frontend.Span b) {
+        return a.beginLine() != b.beginLine() ? a.beginLine() < b.beginLine() : a.beginCol() < b.beginCol();
     }
 
     /**

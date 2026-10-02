@@ -30,13 +30,9 @@ import static org.strata.jverify.JVerify.*;
  * now disproved: the Strata fix landed and {@code NestedContractsTest} verifies, while
  * this fixture does not. The two differ in where the fact has to come from -- there, an
  * external contract on an interface-typed parameter; here, a constructor.
- *
- * <p>{@code getX} additionally returns a plain {@code int} and carries no
- * postcondition, so {@link Blocker#STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY} would hide
- * its body from the caller even once constructors work.
  */
 @JVerifyTest(expectedToFail = true,
-             blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY},
+             blockedBy = {Blocker.FRONTEND_FIELDS, Blocker.STRATA_ABSTRACT_PURE_FUNCTIONS},
              methodsVerified = 8, errorCount = 0)
 public class ClassesExtendingClassesVerification {
     public void root() {

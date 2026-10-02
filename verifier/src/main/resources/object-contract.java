@@ -157,3 +157,11 @@ class JArray<TArrayElement> {
         throw new ContractException();
     }
 }
+
+@Contract(java.util.Objects.class)
+class ObjectsContract {
+    @Pure
+    public static <T> T requireNonNull(T obj) {
+        return obj;
+    }
+}

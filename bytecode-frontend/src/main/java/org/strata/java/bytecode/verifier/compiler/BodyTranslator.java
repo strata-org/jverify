@@ -84,6 +84,7 @@ final class BodyTranslator {
     final Map<Integer, String> slotAlias = new HashMap<>();  // slot -> minted name for an unnamed local
     final Map<Integer, String> slotType = new HashMap<>();   // slot -> descriptor it currently holds
     int synthCounter;
+    Set<Integer> loadedSlots = Set.of();
     int pendingIncSlot = -1;                 // deferred mid-expression iinc (prefix ++x)
     int pendingIncDelta;
     Map<Integer, List<java.lang.classfile.Annotation>> slotTypeAnnos = Map.of();
@@ -130,7 +131,46 @@ final class BodyTranslator {
     final Map<AstNode<StmtExpr>, LambdaHandle> lambdas = new IdentityHashMap<>();
 
     /** An invokedynamic-produced closure: the synthetic impl (lambda) or referenced method. */
-    record LambdaHandle(String implName, String implDesc, int captureCount, boolean isMethodRef) {
+    record LambdaHandle(String implName, String implDesc, int captureCount, boolean isMethodRef,
+                        String samFqn, String implOwner, boolean implStatic) {
+    }
+
+    /**
+     * A lambda used as a VALUE -- passed to a method, or stored -- as JFE's
+     * LambdaToAnonymousClassCompiler lowers it: an allocation of a fresh composite
+     * that extends the functional interface and declares no procedures. JFE emits
+     * exactly that ({@code new Enclosing.lambda.<line>_<col>}), so the body is not
+     * translated and a call through the interface reasons from the interface's own
+     * contract. The sort is named after the synthetic impl method, qualified by the
+     * class that declares it, so two classes whose lambdas sit at the same place
+     * cannot share a sort (SameLineAndColumnLambdaA/B).
+     *
+     * <p>Left as the handle -- and refused where it is placed, with JFE's message --
+     * for a method reference, and for a functional interface that is a generic
+     * class of this program, whose instantiation this sort could not name.
+     */
+    AstNode<StmtExpr> materializeLambda(AstNode<StmtExpr> handleNode) {
+        LambdaHandle h = lambdas.get(handleNode);
+        if (h == null || h.isMethodRef() || h.samFqn() == null || ctx.currentClassFqn == null
+                || !ctx.resolver.classTypeParams(h.samFqn()).isEmpty()) {
+            return handleNode;
+        }
+        String sort = ctx.currentClassFqn + "." + h.implName();
+        // The interface's sort is named the way every other use of that type names
+        // it -- a program interface by its fqn, a library one by its SHORT name
+        // (`IntPredicate`), see TypeRef.toLaurel -- or the lambda's `extends` edge
+        // would name a different sort from the parameter it is passed to.
+        TypeRef samType = TypeRef.ofDescriptor("L" + h.samFqn().replace('.', '/') + ";");
+        String samSort = ctx.resolver.programClassModels.containsKey(h.samFqn())
+                ? CompositeModel.sortNameForFqn(h.samFqn())
+                : ctx.resolver.qualifyTypeName(samType.nameWithScope(), samType.fqnFromContext());
+        ctx.composites.lambdaSupertypes.put(sort, List.of(samSort));
+        ctx.composites.referencedCompositeTypes.add(sort);
+        ctx.composites.referencedCompositeTypes.add(samSort);
+        AstNode<StmtExpr> nw = e(new StmtExpr.New(LaurelFactory.ident(sort), List.of()));
+        callNodes.add(nw);
+        staticTypeOf.put(nw, samType);
+        return nw;
     }
 
     /**
@@ -338,6 +378,12 @@ final class BodyTranslator {
         if (span.beginLine() != span.endLine() && containsLambda) {
             beginLine = span.endLine();
             beginCol = 1;
+        } else if (lines != null && seqToBci != null && seqIdx >= 0 && seqIdx < seqToBci.length) {
+            int lnt = lines.lineAt(seqToBci[seqIdx]);
+            if (lnt > beginLine && lnt <= span.endLine() && !lines.hasLine(span.beginLine())) {
+                beginLine = lnt;
+                beginCol = 1;
+            }
         }
         return ctx.src.rangeOf(beginLine, beginCol, span.endLine(), span.endCol());
     }
@@ -526,6 +572,10 @@ final class BodyTranslator {
         String key = calleeKeys.get(oldN.val());
         if (key != null) {
             calleeKeys.put(newN.val(), key);
+        }
+        CalleeRef ref = calleeModels.get(oldN.val());
+        if (ref != null) {
+            calleeModels.put(newN.val(), ref);
         }
         var oc = childrenOf(oldN.val());
         var nc = childrenOf(newN.val());
@@ -786,6 +836,10 @@ final class BodyTranslator {
             }
             throw new JavaViolationException("Unsupported JVerify method: throwsOn");
         }
+        if (desc == null && !loadedSlots.contains(si.slot())
+                && (locals == null || locals.at(si.slot(), pos) == null)) {
+            freshName(si.slot());
+        }
         // javac reuses a slot with no LVT entry for values of DIFFERENT types:
         // a change of type starts a new minted name.
         if (desc == null) {
@@ -929,11 +983,66 @@ final class BodyTranslator {
         push(LaurelFactory.primitiveOp(op, a, b));
     }
 
-    /** A bitwise/shift operator: defer with JFE's refusal message. */
-    void binRefused(String opName) {
+    /**
+     * A bitwise/shift operator. Reported as a hard error AT THE OPERATOR, like
+     * JFE's UnsupportedConstructValidator, rather than deferred into a
+     * whole-method refusal: the bit-level opcodes survive into bytecode intact,
+     * so there is nothing source-only about this check. Translation continues
+     * (with a placeholder) so EVERY occurrence is reported, and
+     * {@code constructErrorReported} turns the method into a demotion at the end.
+     *
+     * @param symbol  the Java operator as the diagnostic prints it ({@code &}, {@code <<})
+     * @param isLong  the operand type is {@code long} rather than {@code int}
+     */
+    void binRefused(String symbol, boolean isLong) {
         AstNode<StmtExpr> b = stack.pop(), a = stack.pop();
-        AstNode<StmtExpr> n = push(LaurelFactory.primitiveOp(new Operation.Add(), a, b));
-        defer(n, "Unsupported binary op: " + opName);
+        // `~x` compiles to `x ^ -1`, so an IXOR against the literal -1 is
+        // reported as the unary form the user wrote. An explicit `x ^ -1` is
+        // indistinguishable in bytecode and gets the same message; both are
+        // unsupported, so only the naming differs.
+        String type = isLong ? "long" : (isBool(a) || isBool(b)) ? "boolean" : "int";
+        String rendered = symbol.equals("^") && isMinusOneLit(b.val())
+                ? "~(" + type + ")"
+                : symbol + "(" + type + "," + type + ")";
+        push(LaurelFactory.primitiveOp(new Operation.Add(), a, b));
+        reportConstructError("operator " + rendered + " is not supported");
+    }
+
+    /**
+     * The constant {@code -1}, in either form it reaches here: a negative literal
+     * is emitted as {@code $neg(1)} (LaurelFactory.longLiteral), not as a negative
+     * {@code LiteralInt}.
+     */
+    private static boolean isMinusOneLit(StmtExpr e) {
+        if (e instanceof StmtExpr.LiteralInt i) {
+            return i.value() == -1;
+        }
+        return e instanceof StmtExpr.StaticCall c
+                && "$neg".equals(c.callee().text())
+                && c.arguments().size() == 1
+                && c.arguments().get(0).val() instanceof StmtExpr.LiteralInt one
+                && one.value() == 1;
+    }
+
+    /**
+     * Report a hard error at the construct currently being translated and mark
+     * the method so its refusal warning is suppressed (see
+     * {@code MethodInfo.constructErrorReported}). Translation continues, so a
+     * body with several offending constructs reports each one.
+     */
+    void reportConstructError(String message) {
+        if (ctx.contractMode) {
+            throw new JavaViolationException(message);
+        }
+        // An opted-out method still DEMOTES -- the construct is untranslatable
+        // either way -- but reports nothing, which is what @Verify(false) asks for
+        // (ClassLevelOptOutSuppressesConstructs). JFE's validator honours the same
+        // opt-out, walking the owner chain for a class-level one.
+        if (!ctx.method.info.quiet) {
+            ctx.reporter.reportError(ctx.src.uri,
+                    ctx.src.positionRange(stmtRange(pos, false)), message);
+        }
+        ctx.method.info.constructErrorReported = true;
     }
 
     void neg() {
@@ -967,8 +1076,13 @@ final class BodyTranslator {
     /** The materialized boolean is the NEGATION of the branch condition. */
     AstNode<StmtExpr> materializeComparison(java.lang.classfile.Opcode op) {
         return switch (op) {
-            case IF_ICMPEQ, IF_ACMPEQ -> cmp(new Operation.Neq());
-            case IF_ICMPNE, IF_ACMPNE -> cmp(new Operation.Eq());
+            case IF_ICMPEQ -> cmp(new Operation.Neq());
+            case IF_ICMPNE -> cmp(new Operation.Eq());
+            // The materialized boolean is the NEGATION of the branch condition, so
+            // the operator the user WROTE is the opposite of the opcode: Java
+            // `a == b` compiles to `if_acmpne <else>`.
+            case IF_ACMPEQ -> cmpRef(new Operation.Neq(), "!=");
+            case IF_ACMPNE -> cmpRef(new Operation.Eq(), "==");
             case IF_ICMPLT -> cmp(new Operation.Geq());
             case IF_ICMPGE -> cmp(new Operation.Lt());
             case IF_ICMPGT -> cmp(new Operation.Leq());
@@ -987,6 +1101,62 @@ final class BodyTranslator {
                 yield n;
             }
         };
+    }
+
+    /**
+     * Reference {@code ==} / {@code !=}. Sound only when at least one operand is a
+     * HEAP object. A type translated to a Laurel VALUE -- a boxed primitive,
+     * {@code String}, a record, or a bare {@code Object}, which says nothing about
+     * its runtime class -- has no reference identity to compare, so Laurel equality
+     * would answer a different question than Java does. JFE reports this from
+     * UnsupportedConstructValidator; the opcode and both operand descriptors survive
+     * into bytecode, so the rule carries over. A comparison against {@code null} is
+     * IFNULL/IFNONNULL -- a different opcode that never reaches this arm, matching
+     * JFE's exemption for a null operand.
+     */
+    private AstNode<StmtExpr> cmpRef(Operation op, String symbol) {
+        var it = stack.iterator();
+        AstNode<StmtExpr> top = it.hasNext() ? it.next() : null;
+        AstNode<StmtExpr> under = it.hasNext() ? it.next() : null;
+        if (!ctx.method.mentionsImpure && top != null && under != null
+                && translatesToValue(top) && translatesToValue(under)) {
+            reportConstructError("'" + symbol
+                    + "' is only allowed when at least one operand's type is impure");
+        }
+        return cmp(op);
+    }
+
+    /**
+     * The operand's static type is translated to a Laurel VALUE rather than a heap
+     * composite. Unknown or non-class descriptors answer false: the check only
+     * accuses when both sides are positively value-typed.
+     */
+    private boolean translatesToValue(AstNode<StmtExpr> n) {
+        // A generic call's result carries the ERASED descriptor (Object) until a
+        // checkcast recovers its type, so its descriptor says nothing about the
+        // value. Unknown, and the rule only accuses on positive evidence
+        // (ErasedResultEquality). The cost: `id("a") == id("b")`, with no cast in
+        // between, escapes a rejection the source frontend makes.
+        if (erasedResults.contains(n.val())) {
+            return false;
+        }
+        String desc = descOf.get(n);
+        if (desc == null || !desc.startsWith("L")) {
+            return false;
+        }
+        String fqn = JavaNames.dottedFqn(desc.substring(1, desc.length() - 1));
+        switch (fqn) {
+            case "java.lang.Object", "java.lang.String", "java.lang.Integer",
+                 "java.lang.Long", "java.lang.Short", "java.lang.Byte",
+                 "java.lang.Character", "java.lang.Boolean", "java.lang.Float",
+                 "java.lang.Double" -> {
+                return true;
+            }
+            default -> { }
+        }
+        var cm = ctx.resolver.programClassModels.get(fqn);
+        return cm != null
+                && cm.findAttribute(java.lang.classfile.Attributes.record()).isPresent();
     }
 
     private AstNode<StmtExpr> cmp(Operation op) {
@@ -1070,6 +1240,37 @@ final class BodyTranslator {
      * walks the emitted Laurel tree and answers call purity through this.
      */
     final Map<StmtExpr, String> calleeKeys = new IdentityHashMap<>();
+    /** A user call's resolved callee: its declaring class and classfile method. */
+    record CalleeRef(String declaringFqn, java.lang.classfile.MethodModel method) {
+    }
+    /** User call nodes -> their callee, for {@code preconditionOf} (see SpecCallTranslator). */
+    final Map<StmtExpr, CalleeRef> calleeModels = new IdentityHashMap<>();
+    /**
+     * Boxing markers -> the primitive value they box. javac wraps an int-returning
+     * call in {@code Integer.valueOf} before passing it to {@code preconditionOf(Object)};
+     * there the box is the identity, so the marker is unwrapped. Anywhere else the
+     * marker refuses exactly as the unknown box class did before.
+     */
+    final Map<AstNode<StmtExpr>, AstNode<StmtExpr>> boxedValue = new IdentityHashMap<>();
+    /**
+     * {@code INSTANCEOF} instructions that test a pattern-bind shape, filled by
+     * {@link ControlFlowStructurer#markPatternBindTests}. Laurel's {@code is} has
+     * nowhere to put the binding, so these refuse exactly as JFE refuses an
+     * {@code instanceof} carrying a {@code JCBindingPattern}.
+     */
+    final java.util.Set<java.lang.classfile.instruction.TypeCheckInstruction> patternBindTests =
+            java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Call results whose DECLARED type is a type variable, so the
+     * {@code CHECKCAST} javac puts after them is an erasure artefact rather than
+     * a cast the user wrote. JFE never sees these: it walks the typed source tree,
+     * where {@code identity(x)} already has the instantiated type and the cast is
+     * a no-op by {@code isOwnDowncast}'s subtype test. From bytecode only the
+     * erased {@code Object -> C} remains, which is a genuine downcast on its face,
+     * so the provenance has to be carried here instead.
+     */
+    final java.util.Set<StmtExpr> erasedResults =
+            java.util.Collections.newSetFromMap(new IdentityHashMap<>());
 
     /**
      * Spec-call statements (precondition/postcondition/.../throwsOn chains)
@@ -1179,6 +1380,14 @@ final class BodyTranslator {
 
     /** MAIN opcode switch (Body.translate fused with the conversion layer). */
     void translate(Instruction in) {
+        if (!rangeCastAnnotations.isEmpty() && seqToBci != null && pos >= 0 && pos < seqToBci.length
+                && !(in instanceof java.lang.classfile.instruction.ConvertInstruction)
+                && !(in instanceof java.lang.classfile.instruction.TypeCheckInstruction)) {
+            var annos = rangeCastAnnotations.get(seqToBci[pos]);
+            if (annos != null) {
+                applyRangeCast(annos);
+            }
+        }
         if (pendingIncSlot >= 0
                 && !(in instanceof LoadInstruction li && li.slot() == pendingIncSlot)) {
             drainPendingInc();
@@ -1249,7 +1458,12 @@ final class BodyTranslator {
                         addStmt(new StmtExpr.Return(Optional.of(e(new StmtExpr.New(
                                 LaurelFactory.ident(ctx.method.returnSort), List.of())))));
                     } else {
-                        addStmt(new StmtExpr.Return(Optional.of(coerce(v, retDesc))));
+                        // coerceTo, not coerce: the boolean/int erasure runs BOTH
+                        // ways here. `return b ? 1 : 0;` in an int-returning method
+                        // compiles to the same iconst_1/iconst_0 diamond as a
+                        // boolean expression, so the structurer folds it to a bool
+                        // and the return needs it back as an int32.
+                        addStmt(new StmtExpr.Return(Optional.of(coerceTo(v, retDesc))));
                     }
                 }
                 // A bare `return` in the middle of a method becomes the Laurel
@@ -1267,6 +1481,8 @@ final class BodyTranslator {
                             stmtRange(pos, false));
                     stmts.add(placed);
                     contractThrows.add(placed);
+                } else if (in.opcode() == java.lang.classfile.Opcode.ATHROW && ctx.method.relocatedContract) {
+                    stack.pop();
                 } else if (in.opcode() == java.lang.classfile.Opcode.ATHROW) {
                     AstNode<StmtExpr> v = stack.pop();
                     AstNode<StmtExpr> before = e(new StmtExpr.Throw(v));
@@ -1299,12 +1515,18 @@ final class BodyTranslator {
             case IMUL, LMUL, FMUL, DMUL -> bin(new Operation.Mul());
             case IDIV, LDIV, FDIV, DDIV -> bin(new Operation.DivT());
             case IREM, LREM, FREM, DREM -> bin(new Operation.ModT());
-            case IAND, LAND -> binRefused("BINARY_AND");
-            case IOR, LOR -> binRefused("BINARY_OR");
-            case IXOR, LXOR -> binRefused("XOR");
-            case ISHL, LSHL -> binRefused("LEFT_SHIFT");
-            case ISHR, LSHR -> binRefused("SIGNED_RIGHT_SHIFT");
-            case IUSHR, LUSHR -> binRefused("UNSIGNED_RIGHT_SHIFT");
+            case IAND -> binRefused("&", false);
+            case LAND -> binRefused("&", true);
+            case IOR -> binRefused("|", false);
+            case LOR -> binRefused("|", true);
+            case IXOR -> binRefused("^", false);
+            case LXOR -> binRefused("^", true);
+            case ISHL -> binRefused("<<", false);
+            case LSHL -> binRefused("<<", true);
+            case ISHR -> binRefused(">>", false);
+            case LSHR -> binRefused(">>", true);
+            case IUSHR -> binRefused(">>>", false);
+            case LUSHR -> binRefused(">>>", true);
             case INEG, LNEG, FNEG, DNEG -> neg();
             case LCMP -> push3Way("Long", null);
             case FCMPL -> push3Way("Float", Boolean.FALSE);
@@ -1350,8 +1572,23 @@ final class BodyTranslator {
                     "Cast to " + targetName + " is not yet supported");
             return;
         }
+        // `(short) l` compiles to `l2i; i2s`. Two range checks (int64 -> int32, then
+        // int32 -> int16) hold exactly when one does (int64 -> int16), which is the
+        // single obligation JFE states and the message it gives -- so the pair is fused.
+        if (isIntNarrowing(cv.opcode()) && operand.val() instanceof StmtExpr.StaticCall prev
+                && prev.callee().text().equals("java?cast_to_int32_from_int64")
+                && prev.arguments().size() == 1) {
+            operand = prev.arguments().get(0);
+        }
         HighType sourceType = inferCastSourceType(operand);
-        if (sourceType instanceof HighType.TInt && isJavaWidening(cv.opcode())) {
+        // Every integral WIDENING is the identity, not only one off an unbounded value:
+        // it is value-preserving (JLS 5.1.2), so it carries no obligation, and JFE
+        // states none. Emitting a cast helper here gave each occurrence its own fresh
+        // result, so `u * i == i * u` with `i` widened twice compared two unrelated
+        // values inside a nonlinear product -- a solver timeout where JFE proves it
+        // (PrimitiveCasts.unboundedTimesInt).
+        if (isJavaWidening(cv.opcode())
+                && (sourceType instanceof HighType.TInt || cv.opcode() == java.lang.classfile.Opcode.I2L)) {
             // The operand is the UNBOUNDED Laurel `int` (an @Unbounded-annotated
             // value). javac's widening conversion on it -- typically the i2l it
             // inserts when the value meets a long, which the source never wrote
@@ -1372,6 +1609,58 @@ final class BodyTranslator {
         AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
                 LaurelFactory.ident(helperName), List.of(operand), List.of()));
         noteDesc(n, ClassfileQueries.convDesc(cv.opcode()));
+    }
+
+    /** The int-to-narrower conversions javac emits after an {@code l2i} for {@code (short) l}. */
+    private static boolean isIntNarrowing(java.lang.classfile.Opcode op) {
+        return op == java.lang.classfile.Opcode.I2S || op == java.lang.classfile.Opcode.I2B
+                || op == java.lang.classfile.Opcode.I2C;
+    }
+
+    /**
+     * A cast that changes only the integer RANGE ({@code (@Unbounded @Nat int) x}
+     * where {@code x} is an {@code @Unbounded int}) emits no instruction: both sides
+     * are JVM {@code int}. Its type annotations survive, though, as CAST entries whose
+     * offset names the instruction that consumes the cast value (javac 25). So before
+     * that instruction the stack top gets the cast JFE states, with JFE's message
+     * ("cast from int to nat does not hold"). An unannotated `(int) x` leaves nothing
+     * at all and is indistinguishable from `int i = x;`, so it stays the store's
+     * subset check -- measured: JFE itself words those two differently.
+     */
+    final Map<Integer, java.util.Set<String>> rangeCastAnnotations = new HashMap<>();
+
+    private void applyRangeCast(java.util.Set<String> annos) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        boolean nat = annos.contains("Nat");
+        boolean unbounded = annos.contains("Unbounded");
+        if (!nat && !unbounded) {
+            return;
+        }
+        AstNode<StmtExpr> operand = stack.peek();
+        String d = descOf.get(operand);
+        if (d != null && !d.equals("I") && !d.equals("J") && !d.equals("S") && !d.equals("B")) {
+            return;
+        }
+        String prim = "J".equals(d) ? "long" : "int";
+        HighType targetType = TypeRef.ofRendered(prim, nat, unbounded)
+                .toLaurel(ctx.typeParams, ctx.resolver, ctx.composites);
+        String laurelTarget = targetType instanceof HighType.TInt ? "int"
+                : LaurelFactory.laurelIntegerTypeName(targetType);
+        HighType sourceType = inferCastSourceType(operand);
+        String sourceName = LaurelFactory.laurelTypeName(sourceType);
+        if (laurelTarget == null || laurelTarget.equals(sourceName)) {
+            return;
+        }
+        stack.pop();
+        String helperName = "java?cast_to_" + laurelTarget + "_from_" + sourceName;
+        ctx.lf.registerCastHelper(helperName, sourceName, sourceType, laurelTarget, targetType);
+        AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(LaurelFactory.ident(helperName), List.of(operand), List.of()));
+        if (d != null) {
+            noteDesc(n, d);
+        }
+        staticTypeOf.put(n, TypeRef.ofRendered(prim, nat, unbounded));
     }
 
     /**
@@ -1426,8 +1715,41 @@ final class BodyTranslator {
         AstNode<StmtExpr> v = stack.pop();
         String fqn = resolveFqn(t);
         if (tc.opcode() == java.lang.classfile.Opcode.CHECKCAST) {
-            if (fqn != null && ctx.resolver.isThrowableSubtype(fqn)) {
-                ctx.composites.registerHierarchyUpToThrowable(fqn);
+            // An erasure cast carries no obligation: the value came from a call
+            // whose declared type is a type variable, so javac is restoring the
+            // instantiation the source already had. Treated as the identity, which
+            // is what JFE does for the same program (see erasedResults).
+            if (fqn != null && ctx.resolver.libraryContracts.values().stream()
+                    .anyMatch(c -> c.fqn().equals(fqn))) {
+                stack.push(v);
+                staticTypeOf.put(v, t);
+                return;
+            }
+            if (erasedResults.contains(v.val())) {
+                stack.push(v);
+                staticTypeOf.put(v, t);
+                // The cast has recovered the real type, so the value is no longer
+                // "erased": record its descriptor too, or a later check reading
+                // descOf would still see Object.
+                noteDesc(v, tc.type().asSymbol().descriptorString());
+                erasedResults.remove(v.val());
+                return;
+            }
+            // A reference DOWNCAST is Laurel's `as`, whose embedded type test
+            // becomes a real obligation. Exception types took this path already;
+            // it generalises to any composite THIS compilation declares, now that
+            // every sort carries its supertype closure and a runtime tag. An
+            // UPCAST never reaches here: javac emits no instruction for it, so it
+            // is already the identity. A library target stays refused -- several
+            // (String, the boxed primitives) are modelled as Laurel values rather
+            // than composites, so `as` on one would collide with that encoding.
+            if (fqn != null && (ctx.resolver.isThrowableSubtype(fqn)
+                    || ctx.resolver.programClassModels.containsKey(fqn))) {
+                if (ctx.resolver.isThrowableSubtype(fqn)) {
+                    ctx.composites.registerHierarchyUpToThrowable(fqn);
+                } else {
+                    ctx.composites.referencedCompositeTypes.add(fqn);
+                }
                 AstNode<StmtExpr> n = push(new StmtExpr.AsType(v,
                         LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(fqn)))));
                 staticTypeOf.put(n, t);
@@ -1449,17 +1771,57 @@ final class BodyTranslator {
             defer(n, "Cast to " + ctx.resolver.qualifyTypeName(t.nameWithScope())
                     + " is not yet supported");
         } else {
-            if (fqn == null || !ctx.resolver.isThrowableSubtype(fqn)) {
+            // A plain type test maps onto Laurel's `is`. This used to be restricted
+            // to exception types, on the grounds that other reference types were
+            // opaque sorts with no declared hierarchy, so `is` on them would be
+            // vacuous. CompositeModel.emitComposite now declares every sort's FULL
+            // supertype closure and Laurel keeps a runtime tag per composite, so
+            // `is` decides properly for any composite this compilation declares.
+            if (fqn == null || patternBindTests.contains(tc)
+                    || !(ctx.resolver.isThrowableSubtype(fqn)
+                            || ctx.resolver.programClassModels.containsKey(fqn))) {
                 AstNode<StmtExpr> n = push(new StmtExpr.LiteralString("$instanceof"));
                 bools.add(n);
                 defer(n, "instanceof on opaque reference types is not yet supported");
                 return;
             }
-            ctx.composites.registerHierarchyUpToThrowable(fqn);
+            TypeRef vt = staticTypeOf.get(v);
+            String vfqn = vt == null ? null : resolveFqn(vt);
+            if (vfqn != null && !vfqn.equals("java.lang.Object") && !ctx.resolver.isInterface(vfqn)
+                    && !ctx.resolver.isInterface(fqn) && ctx.resolver.superclassOf(vfqn) != null
+                    && !ctx.resolver.isSubclassOf(vfqn, fqn) && !ctx.resolver.isSubclassOf(fqn, vfqn)) {
+                AstNode<StmtExpr> n = push(new StmtExpr.LiteralBool(false));
+                bools.add(n);
+                return;
+            }
+            String enclosing = enclosingInstanceFqn(v);
+            if (enclosing != null && ctx.resolver.isSubclassOf(enclosing, fqn)) {
+                AstNode<StmtExpr> n = push(new StmtExpr.LiteralBool(true));
+                bools.add(n);
+                return;
+            }
+            if (ctx.resolver.isThrowableSubtype(fqn)) {
+                ctx.composites.registerHierarchyUpToThrowable(fqn);
+            } else {
+                ctx.composites.referencedCompositeTypes.add(fqn);
+            }
             AstNode<StmtExpr> n = push(new StmtExpr.IsType(v,
                     LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(fqn)))));
             bools.add(n);
         }
+    }
+
+    private String enclosingInstanceFqn(AstNode<StmtExpr> v) {
+        if (isInstance && cm != null && v.val() instanceof StmtExpr.Var(Variable.Local l)
+                && l.name().text().equals(LaurelFactory.LAUREL_SELF_BINDING)) {
+            return JavaNames.dottedFqn(cm.thisClass().asInternalName());
+        }
+        if (v.val() instanceof StmtExpr.Var(Variable.Field f) && f.fieldName().text().startsWith("this$")
+                && enclosingInstanceFqn(f.target()) != null) {
+            TypeRef t = staticTypeOf.get(v);
+            return t == null ? null : resolveFqn(t);
+        }
+        return null;
     }
 
     /** Resolve a class TypeRef to an fqn, matching JFE's resolution (see parity notes). */
@@ -1467,7 +1829,7 @@ final class BodyTranslator {
         if (t.kind() != TypeRef.Kind.CLASS) {
             return null;
         }
-        String qualified = ctx.resolver.qualifyTypeName(t.nameWithScope());
+        String qualified = ctx.resolver.qualifyTypeName(t.nameWithScope(), t.fqnFromContext());
         if (qualified.indexOf('.') >= 0 && ctx.resolver.knownClasses.containsKey(qualified)) {
             return qualified;
         }
@@ -1619,7 +1981,7 @@ final class BodyTranslator {
         if (t == null || t.kind() != TypeRef.Kind.CLASS) {
             return null;
         }
-        return ctx.resolver.qualifyTypeName(t.nameWithScope());
+        return ctx.resolver.qualifyTypeName(t.nameWithScope(), t.fqnFromContext());
     }
 
     /** The thrown expression's static type fqn (old thrownStaticTypeFqn), or null. */
@@ -1653,6 +2015,9 @@ final class BodyTranslator {
      * exit (JFE's declared-throws discipline).
      */
     void checkThrowCoverage(String thrownFqn, AstNode<StmtExpr> thrown) {
+        if (ctx.method.info.quiet) {
+            return;
+        }
         if (thrownFqn == null || !ctx.resolver.isThrowableSubtype(thrownFqn)) {
             throw new JavaViolationException(
                     "Unsupported thrown expression type: " + displayOf(thrown));

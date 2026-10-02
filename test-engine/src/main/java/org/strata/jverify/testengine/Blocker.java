@@ -61,6 +61,15 @@ public enum Blocker {
      * too.
      */
     FRONTEND_DISPATCH,
+    /**
+     * A SOURCE-level construct the source front end refuses but javac desugars before
+     * the bytecode front end sees it: a compound assignment to a field or static
+     * (`JCAssignOp`), a multi-init / multi-step `for`, a switch EXPRESSION. The bytecode
+     * front end translates the desugared form, so the fixture pins ITS output and the
+     * source front end records the gap in {@code source-xfails.txt}. Delete an entry
+     * when the source front end translates the construct.
+     */
+    FRONTEND_SOURCE_CONSTRUCT,
     /** Front-end catch-all: operator / cast / numeric plumbing, impure-equality,
      *  abstract-contracts. Heterogeneous by design; split candidate (follow-up). */
     FRONTEND_OTHER,
@@ -95,7 +104,7 @@ public enum Blocker {
      * There is deliberately no catch-all "Strata generics" bucket -- Strata has
      * generics, and a generic {@code @Pure} procedure IS transparent (measured), so
      * a failure that merely involves a type parameter is almost always something
-     * else, usually {@link #STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY}.
+     * else.
      */
     FRONTEND_GENERICS,
     /**
@@ -187,36 +196,6 @@ public enum Blocker {
      */
     STRATA_NULLABLE,
     /**
-     * Strata: a {@code @Pure} procedure whose OUTPUT TYPE IS CONSTRAINED is not
-     * transparent to its callers, so a caller cannot see the body and learns
-     * nothing about the result.
-     *
-     * <p>Measured directly (three {@code @Pure} methods, each returning a literal,
-     * each called from a {@code check}):
-     * <ul>
-     * <li>{@code boolean isTrue() { return true; }} -- caller VERIFIES
-     * <li>{@code @Unbounded int seven() { return 7; }} -- caller VERIFIES
-     * <li>{@code int sevenBounded() { return 7; }} -- caller FAILS
-     * </ul>
-     *
-     * <p>The only difference is the output type: a plain Java {@code int} is
-     * translated to {@code int32}, which is a {@code Constrained} Laurel type
-     * (base {@code TInt} plus a range predicate), whereas {@code boolean} and
-     * {@code @Unbounded int} are unconstrained. The front end does emit
-     * {@code Body.Transparent} in all three cases ({@code canStayTransparent} is
-     * {@code isPure && postconditions.isEmpty() && modifies.isEmpty()}), and
-     * {@code int32} is the FAITHFUL type for a Java {@code int} -- so the front end
-     * is doing the right thing and the defect is in the target language.
-     *
-     * <p>Treated as a Strata BUG rather than a missing feature: transparency is
-     * supposed to hold for a pure body, and it does for an unconstrained output; the
-     * constrained-output case losing it is the inconsistency.
-     *
-     * <p>This is the dominant cause behind the remaining {@code @Pure} fixtures: any
-     * caller that needs a primitive-returning pure method's body is blocked by it.
-     */
-    STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY,
-    /**
      * Strata: field initializers ({@code private int g = 22;}) are not supported,
      * so the value an initializer establishes is not available to reason with.
      * Distinct from {@link #FRONTEND_FIELDS}, which is the front end not
@@ -225,6 +204,10 @@ public enum Blocker {
     STRATA_FIELD_INITIALIZERS,
     /** Strata: decreases -> Core measure wiring. */
     STRATA_DECREASES,
+    STRATA_LAMBDA_VALUES,
+    STRATA_SEQUENCE_EQUALITY,
+    STRATA_ABSTRACT_PURE_FUNCTIONS,
+    STRATA_LIFTED_CALL_TYPE_INFERENCE,
     /** Strata catch-all: regressions, trait-redecl, loop-elim, HOF/streams, etc.
      *  Heterogeneous by design; split candidate (follow-up). */
     STRATA_OTHER

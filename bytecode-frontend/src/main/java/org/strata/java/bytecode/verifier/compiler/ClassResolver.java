@@ -63,6 +63,15 @@ final class ClassResolver {
     }
 
     /** Fully qualify a source-form type name against this compilation's classes (JFE prints fqns). */
+    String qualifyTypeName(String name, String descriptorFqn) {
+        String qualified = qualifyTypeName(name);
+        if (descriptorFqn != null && !descriptorFqn.equals(qualified)
+                && programClassModels.containsKey(descriptorFqn) && programClassModels.containsKey(qualified)) {
+            return descriptorFqn;
+        }
+        return qualified;
+    }
+
     String qualifyTypeName(String name) {
         String alias = contractAliases.get(name);
         if (alias != null) {
@@ -282,6 +291,35 @@ final class ClassResolver {
      * its program-class ancestry, ancestor-nearest-first from the receiver.
      */
     Callee findCallee(String receiverFqn, String name) {
+        return findCallee(receiverFqn, name, null);
+    }
+
+    /**
+     * As {@link #findCallee(String, String)}, but preferring the declaration
+     * whose erased descriptor is exactly {@code desc} -- the descriptor javac
+     * put on the invoke instruction, i.e. the overload it bound. Falls back to
+     * the nearest same-named declaration when no descriptor matches (a
+     * covariant-return override is reached through its bridge's descriptor).
+     */
+    Callee findCallee(String receiverFqn, String name, java.lang.constant.MethodTypeDesc desc) {
+        if (desc != null) {
+            for (String fqn = receiverFqn; fqn != null; fqn = programSuper.get(fqn)) {
+                var cm = programClassModels.get(fqn);
+                if (cm == null) {
+                    break;
+                }
+                for (var m : cm.methods()) {
+                    if (m.methodName().stringValue().equals(name)
+                            && m.methodTypeSymbol().parameterList()
+                                    .equals(desc.parameterList())
+                            && (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
+                                    | java.lang.classfile.ClassFile.ACC_BRIDGE
+                                    | java.lang.classfile.ClassFile.ACC_STATIC)) == 0) {
+                        return new Callee(fqn, m);
+                    }
+                }
+            }
+        }
         for (String fqn = receiverFqn; fqn != null; fqn = programSuper.get(fqn)) {
             var cm = programClassModels.get(fqn);
             if (cm == null) {
@@ -296,7 +334,39 @@ final class ClassResolver {
                 }
             }
         }
-        return null;
+        return findInterfaceCallee(receiverFqn, name, desc);
+    }
+
+    private Callee findInterfaceCallee(String receiverFqn, String name, java.lang.constant.MethodTypeDesc desc) {
+        var queue = new java.util.ArrayDeque<String>();
+        var seen = new java.util.HashSet<String>();
+        for (String fqn = receiverFqn; fqn != null && programClassModels.containsKey(fqn); fqn = programSuper.get(fqn)) {
+            queue.addAll(directInterfacesOf(fqn));
+        }
+        Callee byName = null;
+        while (!queue.isEmpty()) {
+            String iface = queue.poll();
+            var cm = programClassModels.get(iface);
+            if (cm == null || !seen.add(iface)) {
+                continue;
+            }
+            for (var m : cm.methods()) {
+                if (!m.methodName().stringValue().equals(name)
+                        || (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
+                                | java.lang.classfile.ClassFile.ACC_BRIDGE
+                                | java.lang.classfile.ClassFile.ACC_STATIC)) != 0) {
+                    continue;
+                }
+                if (desc == null || m.methodTypeSymbol().parameterList().equals(desc.parameterList())) {
+                    return new Callee(iface, m);
+                }
+                if (byName == null) {
+                    byName = new Callee(iface, m);
+                }
+            }
+            queue.addAll(directInterfacesOf(iface));
+        }
+        return byName;
     }
 
     /** The {@code @Verify} annotation on an element's RuntimeInvisibleAnnotations, or null. */
@@ -348,61 +418,388 @@ final class ClassResolver {
     }
 
     /**
-     * JFE's declaration-site overloadRefusal: refuse any method whose class
-     * declares more than one non-synthetic, non-bridge method of the same
-     * name (checked against the classfile's method table, which is exactly
-     * what by-name Laurel resolution would see). Statics and instance
-     * methods live in different Laurel namespaces (Class?name vs the
-     * composite), so only same-staticness siblings collide; opted-out
-     * methods emit no procedure, so they cannot collide either.
+     * Relocated source @Contract class fqn -> its contractee fqn. A contract method's
+     * bytecode names its OWN class -- `this` is typed by it and its field reads say
+     * `getfield ContractClass.value` -- while the translation is of the contractee's
+     * method, whose composite now carries those fields. Mirrors JFE's
+     * ReferenceUpdater, which rewrites every reference to the contract class.
      */
-    void refuseIfOverloaded(String classFqn, String name, boolean isStatic) {
-        var cm = programClassModels.get(classFqn);
+    final Map<String, String> contracteeOf = new java.util.HashMap<>();
+    /** Library type fqn -> its @Contract declaration (see Declarations.libraryContracts). */
+    final Map<String, Declarations.ContractDecl> libraryContracts = new java.util.HashMap<>();
+
+    /**
+     * The library contract for {@code name}, given either as the library type's fqn or
+     * as its sort -- the short name a receiver's static type resolves to (see
+     * BodyTranslator.staticTypeFqnOf), which is how a call site sees it.
+     */
+    Declarations.ContractDecl libraryContractOf(String name) {
+        var direct = libraryContracts.get(name);
+        if (direct != null) {
+            return direct;
+        }
+        for (var e : libraryContracts.entrySet()) {
+            if (libraryContractSort(e.getKey()).equals(name)) {
+                return e.getValue();
+            }
+        }
+        return null;
+    }
+
+    /** The library type a library contract declaration stands for. */
+    String contracteeFqnOfLibraryContract(Declarations.ContractDecl contract) {
+        for (var e : libraryContracts.entrySet()) {
+            if (e.getValue() == contract) {
+                return e.getKey();
+            }
+        }
+        return null;
+    }
+
+    /** The sort a library contractee is emitted as: the short name every use of the type gets. */
+    String libraryContractSort(String fqn) {
+        return qualifyTypeName(TypeRef.ofDescriptor("L" + fqn.replace('.', '/') + ";").nameWithScope());
+    }
+
+    /** The type-parameter names a PROGRAM class declares, in order; empty otherwise. */
+    List<String> classTypeParams(String fqn) {
+        var cm = programClassModels.get(fqn);
         if (cm == null) {
+            var contract = libraryContractOf(fqn);
+            return contract == null ? List.of() : Declarations.typeParamNamesOf(contract.decl().cm());
+        }
+        return Declarations.typeParamNamesOf(cm);
+    }
+
+    /**
+     * The type arguments of a {@code new} site, reconstructed the way javac's
+     * diamond inference does: unify the CONSTRUCTOR's generic signature against the
+     * actual argument types.
+     *
+     * <p>The {@code new} instruction itself is erased -- it names the raw class and
+     * the constructor descriptor is erased too -- but the constructor's
+     * {@code Signature} attribute survives ({@code (TT;)V}), and so do the argument
+     * types the translator already tracks. That is enough to solve for each class
+     * type parameter, including through a nested instantiation
+     * ({@code Box<List<String>>}).
+     *
+     * <p>Returns one entry per declared type parameter, in declaration order, with
+     * {@code null} where the arguments do not determine it (a no-argument
+     * constructor, or a parameter the constructor never mentions). The caller
+     * decides what to do with an unresolved slot.
+     */
+    List<String> inferNewTypeArgs(String fqn, java.lang.constant.MethodTypeDesc ctorDesc,
+                                  List<String> argRenderedTypes) {
+        var params = classTypeParams(fqn);
+        if (params.isEmpty()) {
+            return List.of();
+        }
+        var solved = new java.util.HashMap<String, String>();
+        var ctorSig = constructorSignature(fqn, ctorDesc);
+        if (ctorSig != null) {
+            int n = Math.min(ctorSig.arguments().size(), argRenderedTypes.size());
+            for (int i = 0; i < n; i++) {
+                unify(ctorSig.arguments().get(i), argRenderedTypes.get(i), params, solved);
+            }
+        }
+        var out = new java.util.ArrayList<String>();
+        for (String p : params) {
+            out.add(solved.get(p));
+        }
+        return out;
+    }
+
+    /** The generic signature of {@code fqn}'s constructor with this erased descriptor, or null. */
+    private java.lang.classfile.MethodSignature constructorSignature(
+            String fqn, java.lang.constant.MethodTypeDesc ctorDesc) {
+        var cm = programClassModels.get(fqn);
+        if (cm == null || ctorDesc == null) {
+            return null;
+        }
+        for (var m : cm.methods()) {
+            if (!m.methodName().stringValue().equals("<init>")
+                    || !m.methodTypeSymbol().equals(ctorDesc)) {
+                continue;
+            }
+            return m.findAttribute(java.lang.classfile.Attributes.signature())
+                    .map(sa -> {
+                        try {
+                            return java.lang.classfile.MethodSignature
+                                    .parseFrom(sa.signature().stringValue());
+                        } catch (RuntimeException ignore) {
+                            return null;
+                        }
+                    })
+                    .orElse(null);
+        }
+        return null;
+    }
+
+    /**
+     * Match one constructor parameter's generic signature against the actual
+     * argument's rendered type, binding any type parameter it names. A bare type
+     * variable binds to the whole argument type; a parameterised type recurses
+     * pairwise into its arguments, so {@code Box<T>} against {@code Box<String>}
+     * binds {@code T} to {@code String}. The first binding wins, matching javac's
+     * left-to-right resolution.
+     */
+    private static void unify(java.lang.classfile.Signature param, String actual,
+                              List<String> typeParams, java.util.Map<String, String> solved) {
+        if (actual == null) {
             return;
         }
-        long count = cm.methods().stream()
-                .filter(m -> m.methodName().stringValue().equals(name))
-                .filter(m -> (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
-                        | java.lang.classfile.ClassFile.ACC_BRIDGE)) == 0)
-                .filter(m -> ((m.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_STATIC) != 0)
-                        == isStatic)
-                .filter(m -> !isOptedOut(cm, m))
-                .count();
-        if (count > 1) {
-            throw new JavaViolationException("overloaded method '" + name
-                    + "' (enclosing class declares " + count + " methods with this name); "
-                    + "overloading is not supported");
+        if (param instanceof java.lang.classfile.Signature.TypeVarSig tv) {
+            if (typeParams.contains(tv.identifier())) {
+                solved.putIfAbsent(tv.identifier(), TypeRef.readType(actual));
+            }
+            return;
+        }
+        if (param instanceof java.lang.classfile.Signature.ClassTypeSig cts
+                && !cts.typeArgs().isEmpty()) {
+            var actualArgs = TypeRef.typeArguments(actual);
+            if (actualArgs.size() != cts.typeArgs().size()) {
+                return;
+            }
+            for (int i = 0; i < actualArgs.size(); i++) {
+                if (cts.typeArgs().get(i) instanceof java.lang.classfile.Signature.TypeArg.Bounded b) {
+                    unify(b.boundType(), actualArgs.get(i), typeParams, solved);
+                }
+            }
         }
     }
 
     /**
-     * JFE's dispatchRefusal: an instance call is translatable only when
-     * provably monomorphic -- the callee is final or private, or its
-     * declaring class is final, or the receiver's static type is a final
-     * class. Deliberately not keyed on whether the callee overrides
-     * something: the unsound case is a non-overriding method overridden by a
-     * subtype later.
+     * Separator before each erased parameter type in an overloaded method's
+     * emitted name. {@code '?'} cannot appear in a Java identifier (JLS 3.8),
+     * so the mangling is injective; JFE uses the same character.
      */
-    void enforceDispatchGate(String receiverFqn, Callee callee, String name) {
-        int mflags = callee.method().flags().flagsMask();
-        if ((mflags & (java.lang.classfile.ClassFile.ACC_FINAL
-                | java.lang.classfile.ClassFile.ACC_PRIVATE)) != 0) {
-            return;
+    static final String MANGLE_SEPARATOR = "?";
+
+    /**
+     * JFE's overloadSuffix: the suffix that distinguishes an overloaded method
+     * from its same-named siblings, appended to the emitted Laurel procedure
+     * name so a by-name call ({@code Class_m} for a static, {@code obj#m} for
+     * an instance) still selects the right one. Empty unless the name is
+     * actually overloaded; otherwise {@link #MANGLE_SEPARATOR} then each
+     * parameter's ERASED type.
+     *
+     * <p>Erased on purpose: an override has the same erased descriptor as the
+     * base (JLS override rules), so it mangles to the SAME name and dispatch
+     * families still line up. Only overLOADs get different names. Measured over
+     * the override chain's ROOT (see {@link #overloadScope}), so a base, every
+     * override of it, and every call site agree.
+     */
+    String overloadSuffix(String declaringFqn, java.lang.classfile.MethodModel m) {
+        if (!isOverloaded(declaringFqn, m)) {
+            return "";
         }
-        var declaring = programClassModels.get(callee.declaringFqn());
-        if (declaring != null
-                && (declaring.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_FINAL) != 0) {
-            return;
+        var sb = new StringBuilder();
+        for (var pt : m.methodTypeSymbol().parameterList()) {
+            sb.append(MANGLE_SEPARATOR).append(erasedTypeName(pt));
         }
-        var receiver = programClassModels.get(receiverFqn);
-        if (receiver != null
-                && (receiver.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_FINAL) != 0) {
-            return;
-        }
-        throw new JavaViolationException(
-                "polymorphic dispatch through interface/superclass is not yet supported");
+        return sb.toString();
     }
+
+    /** JFE's rendering of an erased parameter type: a dotted fqn, {@code int}, {@code X[]}. */
+    static String erasedTypeName(java.lang.constant.ClassDesc cd) {
+        if (cd.isPrimitive()) {
+            return cd.displayName();
+        }
+        if (cd.isArray()) {
+            return erasedTypeName(cd.componentType()) + "[]";
+        }
+        String desc = cd.descriptorString();
+        return JavaNames.dottedFqn(desc.substring(1, desc.length() - 1));
+    }
+
+    /** One same-named member of a type in a closure walk: erased params and whether it can be overridden. */
+    private record Member(String params, boolean inheritable) {
+    }
+
+    /**
+     * The methods named {@code name} that {@code fqn} DECLARES (not inherits),
+     * synthetic and bridge methods excluded. Program types read their classfile,
+     * everything else reflection, matching the rest of this class.
+     */
+    private List<Member> declaredMembers(String fqn, String name) {
+        var out = new java.util.ArrayList<Member>();
+        var cm = programClassModels.get(fqn);
+        if (cm != null) {
+            for (var m : cm.methods()) {
+                int f = m.flags().flagsMask();
+                if (!m.methodName().stringValue().equals(name)
+                        || (f & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
+                                | java.lang.classfile.ClassFile.ACC_BRIDGE)) != 0) {
+                    continue;
+                }
+                out.add(new Member(paramDescriptors(m), (f & (java.lang.classfile.ClassFile.ACC_STATIC
+                        | java.lang.classfile.ClassFile.ACC_PRIVATE)) == 0));
+            }
+            return out;
+        }
+        Class<?> c = loadClassReflectively(fqn);
+        if (c != null) {
+            for (var m : c.getDeclaredMethods()) {
+                if (!m.getName().equals(name) || m.isSynthetic() || m.isBridge()) {
+                    continue;
+                }
+                int mod = m.getModifiers();
+                out.add(new Member(paramDescriptors(m), !java.lang.reflect.Modifier.isStatic(mod)
+                        && !java.lang.reflect.Modifier.isPrivate(mod)));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * {@code fqn} and every supertype, superclasses AND interfaces, each once.
+     * This is the closure javac's {@code Types.closure} gives the source frontend;
+     * walking the superclass chain alone misses a same-named method declared on an
+     * implemented interface.
+     */
+    private java.util.LinkedHashSet<String> typeClosure(String fqn) {
+        var out = new java.util.LinkedHashSet<String>();
+        var work = new java.util.ArrayDeque<String>();
+        work.add(fqn);
+        while (!work.isEmpty()) {
+            String t = work.poll();
+            if (!out.add(t)) {
+                continue;
+            }
+            String sup = superclassOf(t);
+            if (sup != null) {
+                work.add(sup);
+            }
+            work.addAll(directInterfacesOf(t));
+        }
+        return out;
+    }
+
+    /**
+     * The type whose closure decides {@code m}'s overload suffix: the ROOT
+     * declaration of {@code m}'s override chain -- the topmost supertype declaring
+     * an inheritable method with {@code m}'s erased parameters, or with those of a
+     * javac bridge in the declaring class that forwards to {@code m} (an override
+     * whose erasure differs from the overridden method's, as in {@code Sub extends
+     * Base<Integer>} overriding {@code Base<T>.m(T)}) -- or the declaring class
+     * itself when {@code m} overrides nothing. A port of JFE's overloadScope.
+     *
+     * <p>Not the declaring class, because "overloaded" measured there is not stable
+     * along an override chain. With {@code Base.m(int)} and {@code Sub extends Base}
+     * declaring both {@code m(int)} (an override) and {@code m(String)} (a new
+     * overload), closure(Base) sees one signature so {@code Base.m(int)} stayed bare
+     * while closure(Sub) sees two so {@code Sub.m(int)} became {@code m?int}.
+     * Distinct names mean Strata never pairs them, so CheckOverrideRefinement never
+     * generates the Liskov obligation, and the call site resolves to the base's
+     * contract while the override runs: a false {@code check} PROVED
+     * (OverrideWithSubclassOverload). Keying on the root makes base and override
+     * share a scope, hence a name; the subclass-added overload is its own root and
+     * still gets a distinct one.
+     *
+     * <p>Shares JFE's known gap: a name with two INDEPENDENT roots (two interfaces
+     * each declaring a different {@code m}, both overridden by one class) cannot be
+     * agreed with by any symbol-local scheme.
+     */
+    private String overloadScope(String declaringFqn, java.lang.classfile.MethodModel m) {
+        int f = m.flags().flagsMask();
+        if ((f & (java.lang.classfile.ClassFile.ACC_STATIC
+                | java.lang.classfile.ClassFile.ACC_PRIVATE)) != 0) {
+            return declaringFqn;
+        }
+        String name = m.methodName().stringValue();
+        var paramLists = new java.util.HashSet<String>();
+        paramLists.add(paramDescriptors(m));
+        paramLists.addAll(forwardingBridgeParams(declaringFqn, m));
+        String scope = declaringFqn;
+        for (String t : typeClosure(declaringFqn)) {
+            if (t.equals(scope)) {
+                continue;
+            }
+            boolean declaresOverridden = declaredMembers(t, name).stream()
+                    .anyMatch(x -> x.inheritable() && paramLists.contains(x.params()));
+            // Keep the HIGHEST declarer: move up only when the candidate is a
+            // supertype of the one held, so the result does not depend on walk order.
+            if (declaresOverridden && typeClosure(scope).contains(t)) {
+                scope = t;
+            }
+        }
+        return scope;
+    }
+
+    private List<String> forwardingBridgeParams(String declaringFqn, java.lang.classfile.MethodModel m) {
+        var out = new java.util.ArrayList<String>();
+        var cm = programClassModels.get(declaringFqn);
+        if (cm == null) {
+            return out;
+        }
+        String name = m.methodName().stringValue();
+        String desc = m.methodType().stringValue();
+        String owner = cm.thisClass().asInternalName();
+        for (var b : cm.methods()) {
+            if ((b.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_BRIDGE) == 0
+                    || !b.methodName().stringValue().equals(name) || b == m) {
+                continue;
+            }
+            boolean forwards = b.code().stream()
+                    .flatMap(c -> c.elementStream())
+                    .anyMatch(e -> e instanceof java.lang.classfile.instruction.InvokeInstruction inv
+                            && inv.owner().asInternalName().equals(owner)
+                            && inv.name().stringValue().equals(name)
+                            && inv.type().stringValue().equals(desc));
+            if (forwards) {
+                out.add(paramDescriptors(b));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Whether {@code m}'s name denotes more than one distinct ERASED signature in
+     * the closure of its {@linkplain #overloadScope override-chain root} -- i.e. it
+     * is overLOADed, as opposed to a lone method or a pure overRIDE, which share one
+     * signature.
+     *
+     * <p>Only methods ROOTED in the program under verification are mangled: a library
+     * method is modeled by a builtin {@code @Contract} declaring one canonical entry
+     * per name, so a call must emit the bare name to resolve against it. Gating on the
+     * root rather than the declaring class also keeps a user override of a library
+     * method ({@code equals(Object)}) on the library's canonical name. The signature
+     * COUNT still spans library supertypes, so a user {@code toString(int)} alongside
+     * {@code Object.toString()} is caught.
+     *
+     * <p>Opted-out methods COUNT: a skipped {@code @Pure} method keeps an opaque
+     * declaration, so it is emitted under this same name and would collide.
+     */
+    boolean isOverloaded(String declaringFqn, java.lang.classfile.MethodModel m) {
+        String scope = overloadScope(declaringFqn, m);
+        if (!programClassModels.containsKey(scope)) {
+            return false;
+        }
+        String name = m.methodName().stringValue();
+        var signatures = new java.util.LinkedHashSet<String>();
+        for (String t : typeClosure(scope)) {
+            for (Member x : declaredMembers(t, name)) {
+                signatures.add(x.params());
+            }
+        }
+        return signatures.size() > 1;
+    }
+
+    /** The bare Java name behind an emitted (possibly mangled) Laurel method name. */
+    static String demangle(String laurelName) {
+        int sep = laurelName.indexOf(MANGLE_SEPARATOR);
+        return sep < 0 ? laurelName : laurelName.substring(0, sep);
+    }
+
+    // There is deliberately no enforceDispatchGate here any more, mirroring the
+    // source frontend's RefusalGates. It refused any instance call that was not
+    // provably monomorphic, on the grounds that an `obj#method` call resolved
+    // against the receiver's DECLARED type -- so a call reaching an override at
+    // runtime would verify against the wrong contract. Laurel now dispatches an
+    // overridden composite method on the receiver's runtime tag
+    // (LiftInstanceProcedures), and CheckOverrideRefinement discharges the Liskov
+    // obligation that makes reasoning against the declared type's contract sound,
+    // so the premise no longer holds. PolyDispatchSoundness pins both halves.
 
     /** Canonical erased-parameter signature of a classfile method (JVM descriptors). */
     private static String paramDescriptors(java.lang.classfile.MethodModel m) {
@@ -418,78 +815,11 @@ final class ClassResolver {
                 .toList().toString();
     }
 
-    /**
-     * JFE's ancestryOverloadRefusal: by-name resolution must be unambiguous
-     * over the receiver's supertype closure. Counts distinct erased
-     * parameter signatures of {@code name}, skipping synthetic/bridge members
-     * and private members of strict supertypes (JLS 8.2: not members of the
-     * receiver's type). More than one signature refuses; same-signature
-     * overRIDES are fine.
-     */
-    void enforceAncestryOverloadGate(String receiverFqn, String name) {
-        var signatures = new java.util.LinkedHashSet<String>();
-        boolean beyondReceiver = false;
-        boolean anyBeyond = false;
-        // Program-class portion: the classfile models of this compilation.
-        String fqn = receiverFqn;
-        while (fqn != null && programClassModels.containsKey(fqn)) {
-            var cm = programClassModels.get(fqn);
-            for (var m : cm.methods()) {
-                if (!m.methodName().stringValue().equals(name)
-                        || (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
-                                | java.lang.classfile.ClassFile.ACC_BRIDGE
-                                | java.lang.classfile.ClassFile.ACC_STATIC)) != 0) {
-                    continue;
-                }
-                if (beyondReceiver
-                        && (m.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_PRIVATE) != 0) {
-                    continue;
-                }
-                if (isOptedOut(cm, m)) {
-                    continue; // emits no procedure, so it cannot collide
-                }
-                if (signatures.add(paramDescriptors(m)) && beyondReceiver) {
-                    anyBeyond = true;
-                }
-            }
-            beyondReceiver = true;
-            fqn = cm.superclass()
-                    .map(sup -> JavaNames.dottedFqn(sup.asInternalName()))
-                    .orElse(null);
-        }
-        // JCL/library ancestry via REFLECTION. Reading these classfiles as
-        // classpath resources is not portable (the JRT does not serve them
-        // as resources on every runtime -- it works on the dev desktop but
-        // not the build fleet); the loaded Class is always available. JFE
-        // uses javacTypes.closure() here, e.g. Object.toString() colliding
-        // with a user toString(x).
-        if (fqn != null) {
-            // The fqn is dotted-flattened, so a nested library type needs the
-            // progressive .->$ rewrite of loadClassReflectively to load.
-            for (Class<?> c = loadClassReflectively(fqn); c != null; c = c.getSuperclass()) {
-                for (var m : c.getDeclaredMethods()) {
-                    int mod = m.getModifiers();
-                    if (!m.getName().equals(name) || m.isSynthetic() || m.isBridge()
-                            || java.lang.reflect.Modifier.isStatic(mod)) {
-                        continue;
-                    }
-                    if (beyondReceiver && java.lang.reflect.Modifier.isPrivate(mod)) {
-                        continue;
-                    }
-                    if (signatures.add(paramDescriptors(m)) && beyondReceiver) {
-                        anyBeyond = true;
-                    }
-                }
-                beyondReceiver = true;
-            }
-        }
-        if (signatures.size() > 1) {
-            String where = anyBeyond
-                    ? "'" + receiverFqn + "' and its supertypes"
-                    : "'" + receiverFqn + "'";
-            throw new JavaViolationException("overloaded method '" + name + "' ("
-                    + signatures.size() + " signatures visible on " + where
-                    + "); overloading is not supported");
-        }
-    }
+    // There is deliberately no enforceAncestryOverloadGate here any more. It
+    // refused a call whose name resolved to more than one erased signature over
+    // the receiver's supertype closure, because by-name Laurel resolution could
+    // not tell them apart. An overloaded name now carries its erased parameter
+    // types (see overloadSuffix), so the names are distinct and the premise is
+    // gone. The signature counting that gate did survives inside isOverloaded.
+
 }

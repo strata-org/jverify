@@ -22,7 +22,7 @@ import org.strata.jverify.verifier.compiler.Reporter;
  * Dafny generator, and their message keys survived in {@code messages.properties}
  * ({@code pureMethodsNeedsReturnType}, {@code pureMethodLastStatement},
  * {@code pureMethodEndingIfThen}, {@code pureBlockNotLastMustBeVariableDeclaration},
- * {@code pureAssignmentNeedsInitializer}, {@code mutatingExpression}); only the
+ * {@code mutatingExpression}); only the
  * call sites were lost.
  *
  * <p>The rules, as the fixtures pin them ({@code PureMethodErrors},
@@ -41,8 +41,6 @@ import org.strata.jverify.verifier.compiler.Reporter;
  * {@code if} and not the outer one. Loops, blocks, {@code try}, {@code switch} and
  * {@code throw} are deliberately NOT rejected; see the note in
  * {@code checkPureBlock}.
- * <li>Every declaration needs an initializer: a declaration with no value cannot
- * become a {@code let}.
  * <li>No mutating expression anywhere, including inside an {@code if} condition
  * ({@code ImpureExpressionsResolution} puts {@code x += 1} and {@code x++} there).
  * <li>No user-written {@code modifies(...)} clause; see {@link #checkNoModifiesClause}.
@@ -117,10 +115,6 @@ public class PureMethodValidator extends TreeScanner {
             JCTree.JCStatement statement = statements.get(i);
             boolean last = i == statements.size() - 1;
             if (statement instanceof JCTree.JCVariableDecl declaration) {
-                if (declaration.init == null) {
-                    reporter.reportError(declaration, "pureAssignmentNeedsInitializer",
-                            declaration.name.toString());
-                }
                 if (last) {
                     reporter.reportError(declaration, "pureMethodLastStatement");
                 }

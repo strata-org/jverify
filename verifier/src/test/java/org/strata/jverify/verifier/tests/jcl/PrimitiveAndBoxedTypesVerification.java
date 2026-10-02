@@ -6,7 +6,7 @@ import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 3, errorCount = 1, useBuiltinContracts = true)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_NULLABLE}, exitCode = 4, methodsVerified = 3, errorCount = 1, useBuiltinContracts = true)
 class PrimitiveAndBoxedTypesVerification {
     @Pure
     static boolean boxedIsZero(Integer i) {

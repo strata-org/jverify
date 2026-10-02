@@ -3,6 +3,7 @@ package org.strata.java.bytecode.verifier.compiler;
 import org.strata.jverify.laurel.HighType;
 
 import java.lang.constant.ClassDesc;
+import java.util.List;
 
 /**
  * A Java type reference for the bytecode translator: the facts about a Java
@@ -163,21 +164,45 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
             };
         }
         if (kind == Kind.CLASS) {
-            // A type variable, recovered from the Signature attribute. One the
-            // method itself declares becomes a Laurel TVar; a class type
-            // parameter refuses exactly as JFE's TypeVar arm does.
+            // A type variable, recovered from the Signature attribute, becomes a
+            // Laurel TVar. Both kinds qualify: a METHOD's own parameters are
+            // declared in the procedure's typeArgs, and a CLASS's are declared on
+            // the composite by CompositeModel.emitCompositeClosure, so either
+            // resolves. {@code tvarNames} is kept for callers that need to know
+            // which set a name came from.
             if (!scoped && typeParamsInScope.contains(simpleName)) {
-                if (tvarNames.contains(simpleName)) {
-                    return new HighType.TVar(LaurelFactory.ident(simpleName));
-                }
-                throw new JavaViolationException("Unsupported type: " + simpleName);
+                return new HighType.TVar(LaurelFactory.ident(simpleName));
             }
             HighType jarray = contractJArray(typeParamsInScope, tvarNames, resolver, composites);
             if (jarray != null) {
                 return jarray;
             }
-            String sortName = resolver.qualifyTypeName(nameWithScope);
+            String sortName = resolver.qualifyTypeName(nameWithScope, fqnFromContext());
+            String libraryFqn = fqnFromContext();
+            if (!resolver.knownClasses.containsKey(nameWithScope) && libraryFqn != null
+                    && !resolver.programClassModels.containsKey(libraryFqn)
+                    && resolver.isThrowableSubtype(libraryFqn)) {
+                sortName = libraryFqn;
+                composites.registerHierarchyUpToThrowable(libraryFqn);
+            }
+            sortName = resolver.contracteeOf.getOrDefault(sortName, sortName);
             composites.referencedCompositeTypes.add(sortName);
+            // A generic instantiation of a composite this compilation declares is
+            // an Applied use site, which Strata monomorphizes. A library generic
+            // stays a bare erased sort: no definition is emitted for it, so an
+            // Applied over it would not resolve.
+            var args = typeArguments(display);
+            if (!args.isEmpty() && (resolver.programClassModels.containsKey(sortName)
+                    || resolver.classTypeParams(sortName).size() == args.size())) {
+                var applied = new java.util.ArrayList<org.strata.jverify.laurel.AstNode<HighType>>();
+                for (String arg : args) {
+                    applied.add(LaurelFactory.node(ofRendered(readType(arg), false, false)
+                            .toLaurel(typeParamsInScope, tvarNames, resolver, composites)));
+                }
+                return new HighType.Applied(
+                        LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(sortName))),
+                        applied);
+            }
             return new HighType.UserDefined(LaurelFactory.ident(sortName));
         }
         if (kind == Kind.ARRAY && composites.arrays.enabled()) {
@@ -210,5 +235,51 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
         }
         HighType element = ofRendered(arg, false, false).toLaurel(typeParamsInScope, tvarNames, resolver, composites);
         return composites.arrays.jarrayOf(LaurelFactory.node(element));
+    }
+
+    /**
+     * A wildcard approximated by its READ type, as JFE does: {@code ? extends X}
+     * reads as an X, and {@code ? super X} / a bare {@code ?} read only as an
+     * {@code Object}. Sound for reads, which is all a type position is used for
+     * here.
+     */
+    static String readType(String arg) {
+        String a = arg.strip();
+        if (a.startsWith("? extends ")) {
+            return a.substring("? extends ".length()).strip();
+        }
+        if (a.equals("?") || a.startsWith("? super ")) {
+            return "Object";
+        }
+        return a;
+    }
+
+    /**
+     * The top-level type arguments of a rendered signature: the contents of the
+     * OUTERMOST {@code <...>}, split on commas not nested in a further
+     * {@code <...>} ({@code Map<K, List<V>>} yields {@code K} and {@code List<V>}).
+     * Empty for an erased or non-generic rendering.
+     */
+    static List<String> typeArguments(String rendered) {
+        int lt = rendered.indexOf('<');
+        if (lt < 0 || !rendered.endsWith(">")) {
+            return List.of();
+        }
+        var out = new java.util.ArrayList<String>();
+        int depth = 0;
+        int start = lt + 1;
+        for (int i = start; i < rendered.length() - 1; i++) {
+            char c = rendered.charAt(i);
+            if (c == '<') {
+                depth++;
+            } else if (c == '>') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                out.add(rendered.substring(start, i));
+                start = i + 1;
+            }
+        }
+        out.add(rendered.substring(start, rendered.length() - 1));
+        return out;
     }
 }

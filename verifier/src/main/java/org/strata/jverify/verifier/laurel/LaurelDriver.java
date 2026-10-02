@@ -269,10 +269,18 @@ public class LaurelDriver implements Driver {
                 }
             }
 
+            boolean haltedBeforeVerification = !options.interpret()
+                    && !StrataOutput.reachedVerificationConditions(preDiagnosticOutput.toString());
+            int haltedUnverifiedCount = 0;
             for (IntervalTree<Integer, JavaMethodVerificationStatus> uriStatuses : methodStatuses.values()) {
                 var statuses = uriStatuses.streamNodes().toList();
                 for (var methodStatus : statuses) {
                     var method = methodStatus.getValue();
+                    if (haltedBeforeVerification
+                            && method.getVerificationStatus() == JavaMethodVerificationStatus.VerificationStatus.Verified) {
+                        method.setVerificationStatus(JavaMethodVerificationStatus.VerificationStatus.Skipped);
+                        haltedUnverifiedCount++;
+                    }
                     var status = method.getVerificationStatus();
                     switch (status) {
                         case Verified -> verifiedCount++;
@@ -294,6 +302,12 @@ public class LaurelDriver implements Driver {
                 options.outWriter().println("Note: " + unattributedErrorCount
                         + " error(s) could not be attributed to a specific method;"
                         + " the method counts below do not reflect them.");
+            }
+
+            if (haltedUnverifiedCount > 0) {
+                options.outWriter().println("Note: Strata stopped before generating verification conditions;"
+                        + " " + haltedUnverifiedCount + " method(s) without a diagnostic were not verified"
+                        + " and are counted as skipped.");
             }
 
             int verifierExitCode = process.waitFor();
@@ -395,7 +409,7 @@ public class LaurelDriver implements Driver {
             // parse them as URIs rather than treating the URI string as
             // a filesystem path, which would miss the filesMap and lose
             // the source location (reported as 1:1).
-            var uri = filePath.startsWith("file:")
+            var uri = filePath.startsWith("file:") || filePath.startsWith("string:")
                     ? URI.create(filePath)
                     : toDiagnosticUri(filePath);
 

@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 14, errorCount = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_ABSTRACT_PURE_FUNCTIONS}, exitCode = 4, methodsVerified = 14, errorCount = 2)
 public class AbstractContractsVerification {
     int midConsumer(Mid mid, int x) {
         precondition(preconditionOf(mid.foo(x)));

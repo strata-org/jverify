@@ -135,11 +135,7 @@ public final class ClassfileQueries {
             String s = segs[i];
             if (s.isEmpty()) continue;
             if (Character.isDigit(s.charAt(0))) {
-                int d = 0;
-                while (d < s.length() && Character.isDigit(s.charAt(d))) d++;
-                String nm = s.substring(d);
-                b.setLength(0);
-                b.append(nm.isEmpty() ? "Anon" + s.substring(0, d) : nm);
+                b.append('.').append(s);
             } else {
                 b.append('.').append(s);
             }

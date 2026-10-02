@@ -52,6 +52,20 @@ public class IntervalTree<Key extends Comparable<Key>, Value> {
         return search(root, point);
     }
 
+    public Value findInnermostAtPoint(Key point) {
+        IntervalTreeNode best = null;
+        for (var n : streamNodes().toList()) {
+            if (point.compareTo(n.start) < 0 || point.compareTo(n.end) > 0) {
+                continue;
+            }
+            if (best == null || n.start.compareTo(best.start) > 0
+                    || (n.start.compareTo(best.start) == 0 && n.end.compareTo(best.end) < 0)) {
+                best = n;
+            }
+        }
+        return best == null ? null : best.value;
+    }
+
     private Value search(IntervalTreeNode node, Key point) {
         if (node == null) return null;
 
