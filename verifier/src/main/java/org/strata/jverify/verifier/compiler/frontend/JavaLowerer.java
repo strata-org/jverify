@@ -254,6 +254,12 @@ public class JavaLowerer {
                     phases.add(new SwitchDesugarer(context)::transform);
                     phases.add(us -> unsuspend(lower(suspend(us))));
                     phases.add(new ArrayCompiler(context)::transform);
+                    if (options.interpret() && options.entry() != null) {
+                        phases.add(us -> {
+                            JVerifyUtils.instance(context).resolveEntry(options.entry());
+                            return us;
+                        });
+                    }
                     phases.add(new MoveStaticMethodsToStaticType(context)::translate);
 
                     for (int i = 0; i < phases.size(); i++) {

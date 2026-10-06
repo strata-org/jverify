@@ -81,7 +81,7 @@ public class EmitLaurelWorkflowTest {
         // The program verifies cleanly, so no diagnostic positions are
         // produced and a trivial files map suffices.
         FilesMap trivialFilesMap = (uri, offset) -> new Position(1, 1);
-        var verifyResult = laurelDriver.runVerifier(trivialFilesMap, emittedProgram);
+        var verifyResult = laurelDriver.runVerifier(trivialFilesMap, emittedProgram, null);
 
         assertEquals(0, verifyResult.exitCode(),
                 "verifying the separately-emitted Laurel Ion should succeed");

@@ -436,7 +436,8 @@ public class JavaToLaurelCompiler {
         annotationCompiler = VerifyAnnotationCompiler.instance(context);
     }
 
-    public record AnalysisResult(List<LaurelFile> files, FilesMap filesMap) {}
+    /** {@code entryProcedure}: the procedure the {@code --entry} method was emitted as, or null. */
+    public record AnalysisResult(List<LaurelFile> files, FilesMap filesMap, String entryProcedure) {}
 
     // --- Helper methods for constructing AST nodes ---
 
@@ -903,7 +904,9 @@ public class JavaToLaurelCompiler {
             return new Position((int)line, (int)column + 1);
         };
 
-        return new AnalysisResult(result, filesMap);
+        var entry = jverifyUtils.entry() == null ? null : procedureBySymbol.get(jverifyUtils.entry());
+        return new AnalysisResult(result, filesMap,
+                entry == null || droppedProcedures.contains(entry) ? null : entry.name().text());
     }
 
     /// Bounds for each built-in constrained integer type. Single source of

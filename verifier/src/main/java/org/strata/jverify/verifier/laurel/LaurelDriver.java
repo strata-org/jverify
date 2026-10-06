@@ -62,6 +62,11 @@ public class LaurelDriver implements Driver {
         }
         if (analysisResult == null || (hasErrors && !verifierOptions.continueOnErrors())) {
             return new JVerifyResults.NoVerdict(diagnostics, CommandLine.ExitCode.USAGE);
+        } else if (verifierOptions.interpret() && verifierOptions.entry() != null
+                && analysisResult.entryProcedure() == null) {
+            verifierOptions.outWriter().println("--entry " + verifierOptions.entry()
+                    + " does not name a static no-argument method");
+            return new JVerifyResults.NoVerdict(diagnostics, CommandLine.ExitCode.USAGE);
         } else {
             var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
 
@@ -108,7 +113,8 @@ public class LaurelDriver implements Driver {
                 return new JVerifyResults.NoVerdict(diagnostics, CommandLine.ExitCode.OK);
             }
 
-            var results = runVerifier(analysisResult.filesMap(), serializedProgram);
+            var results = runVerifier(analysisResult.filesMap(), serializedProgram,
+                    analysisResult.entryProcedure());
             var allDiagnostics = new ArrayList<Diagnostic<?>>(diagnostics);
             allDiagnostics.addAll(results.diagnostics());
             // Preserve the variant while prepending the compile-phase diagnostics.
@@ -123,7 +129,7 @@ public class LaurelDriver implements Driver {
         }
     }
 
-    public JVerifyResults runVerifier(FilesMap filesMap, IonValue serializedProgram) {
+    public JVerifyResults runVerifier(FilesMap filesMap, IonValue serializedProgram, String entryProcedure) {
         final List<String> baseCommand;
         if (verifierOptions.backendPath() != null) {
             // Explicit --strata path: invoke via `lake exe` from the StrataCLI subdir.
@@ -143,11 +149,9 @@ public class LaurelDriver implements Driver {
             // format as `laurelAnalyzeBinary`, so parseStrataOutput below is
             // reused unchanged.
             command.add("laurelInterpretBinary");
-            if (verifierOptions.entry() != null) {
-                // Map the user-facing `pkg.Class#method` form to the Laurel
-                // procedure name (`pkg.Class_method`).
+            if (entryProcedure != null) {
                 command.add("--entry");
-                command.add(verifierOptions.entry().replace('#', '_'));
+                command.add(entryProcedure);
             }
             if (verifierOptions.fuel() != null) {
                 command.add("--fuel");

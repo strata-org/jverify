@@ -148,6 +148,32 @@ public class JVerifyUtils {
         return false;
     }
 
+    /** The method {@code --entry} names. */
+    private Symbol.MethodSymbol entry;
+
+    /**
+     * Resolve {@code --entry pkg.Class#method}, the class by its canonical name, to
+     * its static no-argument {@code method}. Must run while statics are still
+     * members of their class, i.e. before MoveStaticMethodsToStaticType.
+     */
+    public void resolveEntry(String qualifiedMethod) {
+        int hash = qualifiedMethod.lastIndexOf('#');
+        var cls = hash < 0 ? null : elements.getTypeElement(qualifiedMethod.substring(0, hash));
+        if (cls == null) {
+            return;
+        }
+        for (var member : cls.members().getSymbolsByName(names.fromString(qualifiedMethod.substring(hash + 1)))) {
+            if (member instanceof Symbol.MethodSymbol method && method.isStatic() && method.params().isEmpty()) {
+                entry = method;
+                return;
+            }
+        }
+    }
+
+    public Symbol.MethodSymbol entry() {
+        return entry;
+    }
+
     /** Whether a method is marked as a concrete-interpretation entry point. */
     public boolean isInterpretEntry(Symbol.MethodSymbol method) {
         return method.getAnnotation(InterpretEntry.class) != null;
