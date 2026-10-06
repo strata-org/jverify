@@ -1,0 +1,22 @@
+// Copyright Strata Contributors
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+package org.strata.jverify.langref.jls10.s10_4;
+
+import static org.strata.jverify.JVerify.*;
+
+// JLS 10.4 -- Array Access: an array access expression a[i] reads/writes a
+// component; the array reference is evaluated before the index expression,
+// indices are int values, and access is range-checked at run time.
+class ArrayAccess_4 {
+    static void run() {
+
+        int[] a = new int[5];
+        // Write to components via array access expressions.
+        a[0] = 10;
+        a[1] = 20;
+        int i = 2;
+        a[i] = 30;            // index given by a variable of type int
+        a[i + 1] = a[0] + a[1];
+        check(a[3] == 30);
+    }
+}

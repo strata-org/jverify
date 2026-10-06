@@ -1,0 +1,26 @@
+package org.strata.jverify.langref.jls14.s14_11;
+
+import static org.strata.jverify.JVerify.*;
+
+// JLS 14.11.3 -- switch with colon labels (fallthrough): 'case L:' falls through to the
+// statements of subsequent labels until a break (or end of block) is reached.
+class SwitchColonFallthrough_2 {
+    static void run() {
+
+        // entering at case 2 only falls through 2 and 3.
+        int sum2 = 0;
+        int start2 = 2;
+        switch (start2) {
+            case 1:
+                sum2 += 1;
+            case 2:
+                sum2 += 2;
+            case 3:
+                sum2 += 3;
+                break;
+            default:
+                sum2 += 100;
+        }
+        check(sum2 == 5);
+    }
+}

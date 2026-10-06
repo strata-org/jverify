@@ -3056,7 +3056,7 @@ public class JavaToLaurelCompiler {
         ///
         ///   procedure <helperName>(x: <sourceType>): <targetName>
         ///     requires <inline bounds for targetName>  summary "cast from <S> to <T>"
-        ///     opaque(ensures $result == x)
+        ///     opaque(ensures $result == x) { return x }
         ///
         /// The `requires` bounds are inlined (rather than calling
         /// `<targetName>$constraint(x)`) because that constraint helper is
@@ -3070,8 +3070,8 @@ public class JavaToLaurelCompiler {
         /// does not hold" rather than the generic "precondition does not
         /// hold".
         ///
-        /// `Body.Opaque` marks the procedure as having a specification but no
-        /// visible body — the postcondition is what callers see.
+        /// `Body.Opaque` keeps the postcondition as what callers see; the
+        /// `return x` implementation is what an interpreter runs.
         private void registerCastHelper(String helperName, String sourceName,
                                         HighType sourceType, String targetName,
                                         HighType targetType) {
@@ -3106,7 +3106,10 @@ public class JavaToLaurelCompiler {
                     preconditions,
                     new CoroutineContracts.Regular(),
                     /*decreases=*/ Optional.empty(),
-                    new Body.Opaque(postconditions, /*implementation=*/ Optional.empty(), unguardedModifies(List.of())),
+                    new Body.Opaque(postconditions,
+                            Optional.of(node(new StmtExpr.Block(
+                                    List.of(node(new StmtExpr.Return(Optional.of(node(x))))), Optional.empty()))),
+                            unguardedModifies(List.of())),
                     /*invokeOn=*/ Optional.empty(),
                     /*isInterpretEntry=*/ false,
                     /*axioms=*/ List.of(),

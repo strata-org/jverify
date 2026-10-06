@@ -25,7 +25,30 @@ public record VerifierOptions(PrintWriter outWriter,
                               boolean shouldTrackTime,
                               boolean interpret,
                               @Nullable String entry,
-                              @Nullable Integer fuel) {
+                              @Nullable Integer fuel,
+                              @Nullable String interpreter) {
+    public VerifierOptions(PrintWriter outWriter,
+                           Path workingDirectory,
+                           @Nullable Path backendPath,
+                           Collection<Path> extraClassPathEntries,
+                           @Nullable Path printSerializedOutputProgram,
+                           boolean emitLaurelOnly,
+                           boolean showRanges,
+                           Collection<Path> contractSourcePath,
+                           boolean showFilepaths,
+                           boolean verifyByDefault,
+                           boolean continueOnErrors,
+                           @Nullable PositionFilter positionFilter,
+                           boolean verbose,
+                           boolean shouldTrackTime,
+                           boolean interpret,
+                           @Nullable String entry,
+                           @Nullable Integer fuel) {
+        this(outWriter, workingDirectory, backendPath, extraClassPathEntries, printSerializedOutputProgram,
+                emitLaurelOnly, showRanges, contractSourcePath, showFilepaths, verifyByDefault,
+                continueOnErrors, positionFilter, verbose, shouldTrackTime, interpret, entry, fuel, null);
+    }
+
     public <T> T time(String name, Supplier<T> supply) {
         if (!shouldTrackTime) {
             return supply.get();

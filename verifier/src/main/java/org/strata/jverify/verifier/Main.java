@@ -23,6 +23,10 @@ public class Main {
         int exitCode = new CommandLine(new AppCommand()).execute(args);
         System.exit(exitCode);
     }
+
+    public static CommandLine commandLine() {
+        return new CommandLine(new AppCommand());
+    }
 }
 
 @Command(name = "verify", description = "Verify Java code that calls the JVerify library")
@@ -85,8 +89,15 @@ class AppCommand implements Callable<Integer> {
     private String entry;
 
     @Option(names = "--fuel", paramLabel = "N",
-            description = "Maximum number of execution steps in --interpret mode (default: 10000).")
+            description = "Maximum number of execution steps in --interpret mode (default: 10000 per call "
+                    + "with --interpreter core; 100000 per entry point with --interpreter laurel).")
     private Integer fuel;
+
+    @Option(names = "--interpreter", paramLabel = "core|laurel",
+            description = "Interpreter used by --interpret: `core` (default) lowers Laurel to Core and "
+                    + "runs the Strata Core interpreter; `laurel` runs the Laurel interpreter directly, "
+                    + "without lowering to Core. Its --fuel bounds each entry point, not each call.")
+    private String interpreter;
 
     @Override
     public Integer call() throws IOException {
@@ -97,6 +108,15 @@ class AppCommand implements Callable<Integer> {
         if (fuel != null && fuel <= 0) {
             throw new CommandLine.ParameterException(spec.commandLine(),
                     "Invalid value for option '--fuel': " + fuel + " (must be > 0)");
+        }
+
+        if (interpreter != null && !interpreter.equals("core") && !interpreter.equals("laurel")) {
+            throw new CommandLine.ParameterException(spec.commandLine(),
+                    "Invalid value for option '--interpreter': " + interpreter + " (expected core or laurel)");
+        }
+        if (interpreter != null && !interpret) {
+            throw new CommandLine.ParameterException(spec.commandLine(),
+                    "Option '--interpreter' requires '--interpret'");
         }
 
         var writer = new PrintWriter(spec.commandLine().getOut());
@@ -125,7 +145,7 @@ class AppCommand implements Callable<Integer> {
                 emitLaurel, emitLaurel != null, showRanges, contractPathEntries,
                 paths, verifyByDefault, false,
                 positionFilter, verbose, trackTime,
-                interpret, entry, fuel);
+                interpret, entry, fuel, interpreter);
         
         return verifierOptions.time("Calling Driver.verifyJavaPaths", () -> {
             try {

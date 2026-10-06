@@ -157,6 +157,10 @@ public class LaurelDriver implements Driver {
                 command.add("--fuel");
                 command.add(Integer.toString(verifierOptions.fuel()));
             }
+            if (verifierOptions.interpreter() != null) {
+                command.add("--interpreter");
+                command.add(verifierOptions.interpreter());
+            }
         } else {
             command.add("laurelAnalyzeBinary");
             command.add("--solver");
