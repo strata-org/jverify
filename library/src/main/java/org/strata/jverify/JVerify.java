@@ -506,6 +506,33 @@ public class JVerify {
         <R> Set<R> map(Function<T, R> mapping);
     }
 
+    /**
+     * A map from {@code int} to {@code int}: the primitive specialization of {@link Map},
+     * as {@link IntSequence} is of {@link Sequence}. Java generics admit only reference
+     * types, so {@code Map<Integer, Integer>} yields boxed values that {@code ==} cannot
+     * compare and whose {@code intValue()} is opaque; keeping keys and values primitive
+     * lets ordinary integer operators apply.
+     *
+     * <p>This map is TOTAL: every key has a value, so there is no {@code contains}. A key
+     * outside the range you care about holds an unconstrained value -- constrain the range
+     * your contract uses.
+     *
+     * <p>Verification-only, like the rest of this class: it has no implementation.
+     */
+    public interface IntMap {
+        /**
+         * Returns the value mapped to the given {@code key}. This map is TOTAL: every key has a
+         * value, so there is no {@code contains} and no absence to guard against.
+         *
+         * <p>Both the key and the result are {@link Unbounded}, matching the Laurel total map this
+         * lowers to, whose values are the unconstrained integer. A plain {@code int} binding would
+         * carry an {@code int32} range it cannot discharge, so bind results to
+         * {@code @Unbounded int} and state any range you rely on -- for code units, say
+         * {@code 0 <= m.get(i) && m.get(i) <= 65535} -- as a contract.
+         */
+        @Unbounded int get(@Unbounded int key);
+    }
+
     public interface Map<K, V> {
         /**
          * Returns {@code true} if this map contains the specified key.
@@ -513,8 +540,9 @@ public class JVerify {
         boolean contains(K element);
 
         /**
-         * Returns the value mapped to the given {@code key},
-         * which must exist in the map.
+         * Returns the value mapped to the given {@code key}. This read is TOTAL: a key that is
+         * not in the map yields an unconstrained value rather than an error, so guard with
+         * {@link #contains} wherever absence matters.
          */
         V get(K key);
 

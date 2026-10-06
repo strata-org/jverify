@@ -483,6 +483,29 @@ public class JavaToLaurelCompiler {
         return name.startsWith("$") ? "@" + name.substring(1) : name;
     }
 
+    private static final String JVERIFY_MAP = "org.strata.jverify.JVerify.Map";
+    private static final String JVERIFY_INT_MAP = "org.strata.jverify.JVerify.IntMap";
+
+    /**
+     * The Laurel type for a {@code JVerify.Map} type ARGUMENT.
+     *
+     * <p>A boxed primitive is refused. Unboxing it would yield a constrained integer, which Strata
+     * does not accept as a generic datatype type argument ("constrained (subset) type 'int32' is
+     * not yet supported"), and leaving it boxed strands the {@code Integer.valueOf} and
+     * {@code intValue()} calls javac inserts around every use. Refusing here keeps the diagnostic
+     * on the user's type argument and names the type that does work; {@code IntMap} covers the
+     * int-to-int case that motivated the boxed spelling.
+     */
+    private HighType translateTypeArgument(com.sun.tools.javac.code.Type arg) {
+        var unboxed = javacTypes.unboxedType(arg);
+        if (unboxed != null && unboxed.isPrimitive()) {
+            throw new JavaViolationException(
+                    "JVerify.Map does not support the boxed primitive type argument " + arg
+                            + "; use JVerify.IntMap for an int-to-int map");
+        }
+        return translateType(arg);
+    }
+
 
     /**
      * A Laurel identifier for a name Strata itself dictates -- a prelude operator
@@ -1045,6 +1068,28 @@ public class JavaToLaurelCompiler {
             return new HighType.TVar(ident(typeVar.tsym.name.toString()));
         }
         if (type instanceof com.sun.tools.javac.code.Type.ClassType classType) {
+            // `IntMap`'s key and value are the UNCONSTRAINED Laurel `int`, not `int32`: a
+            // constrained output demotes the prelude's transparent `select`/`mapGet` body to
+            // opaque (STRATA_CONSTRAINED_OUTPUT_TRANSPARENCY), losing exactly the
+            // read-is-a-function property this type exists to provide. Sound because the type
+            // is verification-only and never holds a runtime value.
+            if (JVERIFY_INT_MAP.equals(classType.tsym.getQualifiedName().toString())) {
+                return new HighType.TMap(node(new HighType.TInt()), node(new HighType.TInt()));
+            }
+            // `JVerify.Map<K, V>` is Laurel's PARTIAL map (`Map<K, V>` aliases
+            // `TotalMap K ($MapEntry<V>)`), not an opaque composite: an uninterpreted sort has
+            // no `mapGet` to resolve against. `HighType.TMap` is the TOTAL map, so the partial
+            // one has to be named through its alias.
+            if (JVERIFY_MAP.equals(classType.tsym.getQualifiedName().toString())) {
+                var mapArgs = classType.getTypeArguments();
+                if (mapArgs == null || mapArgs.size() != 2) {
+                    throw new JavaViolationException(
+                            "JVerify.Map needs both type arguments: " + type);
+                }
+                return new HighType.Applied(node(new HighType.UserDefined(ident("Map"))),
+                        List.of(node(translateTypeArgument(mapArgs.get(0))),
+                                node(translateTypeArgument(mapArgs.get(1)))));
+            }
             String sortName = compositeSortName(classType.tsym);
             referencedCompositeTypes.putIfAbsent(sortName, classType.tsym);
             // A generic INSTANTIATION of a MODELED composite
@@ -3313,10 +3358,81 @@ public class JavaToLaurelCompiler {
             };
         }
 
+        /**
+         * A call on a {@code JVerify.Map} or {@code JVerify.IntMap} value, lowered to the
+         * Laurel map prelude. {@code IntMap} is the TOTAL map, so {@code get} is
+         * {@code select}; the generic {@code Map} is the partial one over {@code $MapEntry},
+         * so {@code get}/{@code contains} are {@code mapGet}/{@code mapContains}, which carry
+         * bodies over {@code select}. All are transparent, so two reads of one key agree --
+         * which a call to an opaque procedure would not give. The type arguments follow from
+         * the map argument, so the call states none. {@code size()} has no Laurel counterpart
+         * and stays refused.
+         */
+        private StmtExpr convertMapCall(JCTree.JCMethodInvocation invocation, String name,
+                                        boolean isTotal, Map<String, String> renames) {
+            if (!(invocation.getMethodSelect() instanceof JCTree.JCFieldAccess access)) {
+                throw new JavaViolationException("JVerify map " + name + " needs a receiver");
+            }
+            var callee = isTotal
+                    ? switch (name) {
+                        case "get" -> "select";
+                        default -> throw new JavaViolationException(
+                                "Unsupported JVerify.IntMap method: " + name);
+                    }
+                    : switch (name) {
+                        case "get" -> "mapGet";
+                        case "contains" -> "mapContains";
+                        default -> throw new JavaViolationException(
+                                "Unsupported JVerify.Map method: " + name);
+                    };
+            if (invocation.args.size() != 1) {
+                throw new JavaViolationException(
+                        "JVerify map " + name + " takes a single argument");
+            }
+            // No typeArgs: `select`/`mapGet`/`mapContains` are generic in the prelude and
+            // Laurel infers K and V from the map argument.
+            return new StmtExpr.StaticCall(ident(callee, invocation),
+                    List.of(node(convertExpression(access.selected, renames), access.selected),
+                            node(convertExpression(invocation.args.getFirst(), renames),
+                                    invocation.args.getFirst())),
+                    List.of());
+        }
+
+        /**
+         * The method OWNER is the DECLARING type, so a call through a user subtype
+         * ({@code interface StrMap extends JVerify.Map<String, String>}) resolves to the very
+         * same {@code JVerify.Map} symbol -- while its receiver is not a map at all: a subtype
+         * is not {@code JVERIFY_MAP}/{@code JVERIFY_INT_MAP}, so {@code translateType} lowers it
+         * to a composite and the map prelude call fails to resolve against it. Refuse on the
+         * receiver's static type instead, which keeps the diagnostic on the call site.
+         */
+        private void requireMapReceiver(JCTree.JCMethodInvocation invocation, String name) {
+            if (!(invocation.getMethodSelect() instanceof JCTree.JCFieldAccess access)) {
+                return;
+            }
+            var receiverType = access.selected.type;
+            var receiverName = receiverType == null || receiverType.tsym == null
+                    ? null
+                    : receiverType.tsym.getQualifiedName().toString();
+            if (!JVERIFY_MAP.equals(receiverName) && !JVERIFY_INT_MAP.equals(receiverName)) {
+                throw new JavaViolationException("JVerify map " + name
+                        + " needs a JVerify.Map or JVerify.IntMap receiver, found: "
+                        + (receiverName == null ? receiverType : receiverName));
+            }
+        }
+
         private StmtExpr convertJVerifyCall(JCTree.JCMethodInvocation invocation,
                                             Symbol.MethodSymbol jverifyMethod,
                                             Map<String, String> renames) {
             var name = jverifyMethod.getQualifiedName().toString();
+            if (jverifyMethod.owner instanceof Symbol.ClassSymbol owner) {
+                var ownerName = owner.getQualifiedName().toString();
+                if (JVERIFY_MAP.equals(ownerName) || JVERIFY_INT_MAP.equals(ownerName)) {
+                    requireMapReceiver(invocation, name);
+                    return convertMapCall(invocation, name,
+                            JVERIFY_INT_MAP.equals(ownerName), renames);
+                }
+            }
             return switch (name) {
                 case "check" -> {
                     if (invocation.args.size() != 1)

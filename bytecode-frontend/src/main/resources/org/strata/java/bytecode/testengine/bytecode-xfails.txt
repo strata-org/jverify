@@ -72,3 +72,24 @@ RUN    org.strata.jverify.verifier.tests.javasupport.arrays.ArrayRefusals       
 # contract win.
 # ============================================================================
 XFAIL  org.strata.jverify.verifier.tests.javasupport.RequireNonNullUserContract  FRONTEND_OTHER  under mainline's library-contract loading the program's own @Contract(Objects.class) silently takes precedence over the injected ObjectsContract; the source frontend reports the duplicate
+
+# The JVerify.Map / JVerify.IntMap lowering is source-frontend only, so an IntMap- or
+# Map-typed parameter fails to translate and the run produces no verdict (exit 2). Delete
+# these entries once the lowering is ported there. That port needs four things:
+#
+#  1. Call dispatch. InvokeTranslator.isJVerifyOwner accepts only the owners
+#     `org/strata/jverify/JVerify` and `.../Verify`, and its call site is guarded by
+#     `isStatic`. `IntMap.get` is an INSTANCE call on a NESTED owner, so it fails both
+#     halves; `TypeRef.toLaurel` also has to know what IntMap and Map become in Laurel
+#     (a total map, and the partial `Map` alias over `$MapEntry`).
+#  2. @Unbounded is @Retention(SOURCE), so it is absent from the compiled
+#     JVerify$IntMap.class the bytecode frontend reads. `get`'s result must be made
+#     unbounded by hand, or the int32 narrowing that jcl/IntMapReads pins comes back.
+#  3. Map's type arguments are erased to Object in bytecode. The boxed-primitive refusal
+#     has to read the generic signature attribute instead of the descriptor, and the cast
+#     javac inserts after `get` has to be handled.
+XFAIL  org.strata.jverify.verifier.tests.jcl.IntMapReads                                         FRONTEND_OTHER       bytecode frontend does not translate JVerify.IntMap, so the IntMap parameter fails to translate and no verdict is produced
+XFAIL  org.strata.jverify.verifier.tests.jcl.MapsVerification                                    FRONTEND_OTHER       bytecode frontend does not translate JVerify.Map, so the Map-typed parameters fail to translate and no verdict is produced
+XFAIL  org.strata.jverify.verifier.tests.jcl.MapsError                                           FRONTEND_OTHER       bytecode frontend does not translate JVerify.Map, so it refuses these methods for the wrong reason and none of the four expected JVerify.Map diagnostics is emitted
+
+
