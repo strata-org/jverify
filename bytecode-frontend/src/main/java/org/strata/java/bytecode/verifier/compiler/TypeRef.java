@@ -128,7 +128,9 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
      * integer sorts / TBool / char; a type variable in scope refuses as
      * JFE's "Unsupported type: T"; any class reference becomes an opaque
      * composite sort — program classes qualified to their fqn, library
-     * classes keeping the shortened simple name; everything else (arrays,
+     * classes keeping the shortened simple name; a one-dimensional primitive
+     * array becomes {@code JArray<E>} while the array model is enabled
+     * ({@link ArrayModel#laurelType}); everything else (other arrays,
      * float/double, void) refuses with its display rendering.
      */
     HighType toLaurel(java.util.Set<String> typeParamsInScope,
@@ -139,10 +141,12 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
     /**
      * As above, but {@code tvarNames} are the type parameters that may become a
      * Laurel {@link HighType.TVar} instead of refusing -- the METHOD's own
-     * parameters, which the procedure declares in its {@code typeArgs}. A type
-     * parameter in scope but NOT in {@code tvarNames} (i.e. a class type
-     * parameter) still refuses, because composites carry no {@code typeArgs}
-     * yet and the variable would not resolve.
+     * parameters, which the procedure declares in its {@code typeArgs}, and in
+     * a JArray member the class's parameter, which the {@code JArray}
+     * composite declares. A type parameter in scope but NOT in
+     * {@code tvarNames} (any other class type parameter) still refuses,
+     * because its composite carries no {@code typeArgs} and the variable would
+     * not resolve.
      */
     HighType toLaurel(java.util.Set<String> typeParamsInScope,
                       java.util.Set<String> tvarNames,
@@ -168,10 +172,43 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
                 }
                 throw new JavaViolationException("Unsupported type: " + simpleName);
             }
+            HighType jarray = contractJArray(typeParamsInScope, tvarNames, resolver, composites);
+            if (jarray != null) {
+                return jarray;
+            }
             String sortName = resolver.qualifyTypeName(nameWithScope);
             composites.referencedCompositeTypes.add(sortName);
             return new HighType.UserDefined(LaurelFactory.ident(sortName));
         }
+        if (kind == Kind.ARRAY && composites.arrays.enabled()) {
+            // A one-dimensional primitive array is the generic JArray<E>;
+            // every other array type refuses with the model's reason.
+            return composites.arrays.laurelType(this);
+        }
         throw new JavaViolationException("Unsupported type: " + display);
+    }
+
+    /**
+     * Contract code's generic {@code JArray<X>} (the built-in JArray class,
+     * aliased to the {@code JArray} composite while library members
+     * translate) as {@code Applied(JArray, [X])}, with {@code X} translated in
+     * the same scope; null for any other reference. A raw or wildcard
+     * {@code JArray} refuses.
+     */
+    private HighType contractJArray(java.util.Set<String> typeParamsInScope, java.util.Set<String> tvarNames,
+                                    ClassResolver resolver, CompositeModel composites) {
+        if (scoped || !ArrayModel.SORT.equals(nameWithScope)
+                || !ArrayModel.SORT.equals(resolver.contractAliases.get(ArrayModel.SORT))
+                || (fqnFromContext != null && !fqnFromContext.equals(JavaNames.dottedFqn(ArrayModel.JARRAY_INTERNAL)))
+                || !composites.arrays.enabled()) {
+            return null;
+        }
+        int lt = display.indexOf('<');
+        String arg = lt >= 0 && display.endsWith(">") ? display.substring(lt + 1, display.length() - 1).strip() : "";
+        if (arg.isEmpty() || arg.startsWith("?") || arg.indexOf(',') >= 0) {
+            throw new JavaViolationException("Unsupported type: " + display);
+        }
+        HighType element = ofRendered(arg, false, false).toLaurel(typeParamsInScope, tvarNames, resolver, composites);
+        return composites.arrays.jarrayOf(LaurelFactory.node(element));
     }
 }

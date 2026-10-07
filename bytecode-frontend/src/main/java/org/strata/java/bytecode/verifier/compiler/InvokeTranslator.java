@@ -58,6 +58,9 @@ final class InvokeTranslator {
         String ownerInternal = inv.owner().asInternalName();
         String name = inv.name().stringValue();
 
+        if (b.arrays.enabled()) {
+            refuseArrayLibraryCall(ownerInternal, name);
+        }
         if (isStatic && isJVerifyOwner(ownerInternal)) {
             b.specCalls.jverifyInvoke(inv, name, n, d);
             return;
@@ -65,6 +68,7 @@ final class InvokeTranslator {
 
         List<AstNode<StmtExpr>> args = b.popArgs(n);
         for (int i = 0; i < n; i++) {
+            b.arrays.refuseAsObject(args.get(i), d.parameterType(i).descriptorString());
             args.set(i, b.coerceArg(args.get(i), d.parameterType(i).descriptorString()));
         }
 
@@ -122,7 +126,25 @@ final class InvokeTranslator {
             // Receiver-shape refusal before argument handling.
             throw new JavaViolationException("super call is not yet supported");
         }
+        b.arrays.refuseAsObject(recv, null);
         instanceInvoke(recv, ownerInternal, name, args, d);
+    }
+
+    /**
+     * The array operations outside the model, refused before any lookup:
+     * {@code System.arraycopy}, every {@code java.util.Arrays} method, and a
+     * method of an array class ({@code clone()}; any other is an Object use).
+     */
+    private static void refuseArrayLibraryCall(String ownerInternal, String name) {
+        if (ownerInternal.equals("java/lang/System") && name.equals("arraycopy")) {
+            throw new JavaViolationException(ArrayModel.ARRAYCOPY);
+        }
+        if (ownerInternal.equals("java/util/Arrays")) {
+            throw new JavaViolationException(ArrayModel.ARRAYS_UTIL);
+        }
+        if (ownerInternal.startsWith("[")) {
+            throw new JavaViolationException(name.equals("clone") ? ArrayModel.CLONE : ArrayModel.AS_OBJECT);
+        }
     }
 
     private boolean isJVerifyOwner(String ownerInternal) {
@@ -146,7 +168,7 @@ final class InvokeTranslator {
             if (cm != null && !typeVarArgumentTrips(cm, args, d)) {
                 refuseStringValuedArguments(bareName, args, d);
                 String procName = cm.sortOrFqn() + "_" + cm.laurelName();
-                AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(procName), args));
+                AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(procName), args, List.of()));
                 recordContractCall(cm, call, procName);
                 finishCall(call, d, cm.returnsTypeVar());
                 return;
@@ -181,7 +203,7 @@ final class InvokeTranslator {
             ctx.method.info.callees.add(fqn + "#" + bareName);
         }
         AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(
-                LaurelFactory.ident(fqn + "_" + bareName), args));
+                LaurelFactory.ident(fqn + "_" + bareName), args, List.of()));
         b.callNodes.add(call);
         b.calleeKeys.put(call.val(), fqn + "_" + bareName);
         finishCall(call, d, resultIsTypeVar);
@@ -203,6 +225,7 @@ final class InvokeTranslator {
                     throw new JavaViolationException("A throwsOn case's " + bareName
                             + " clause must have exactly one argument");
                 }
+                b.refuseAllocTempMention(args.get(0));
                 spec.links().add(new BodyTranslator.SpecLink(bareName, args.get(0), b.lambdas.get(args.get(0))));
                 b.stack.push(recv);    // the chain returns the handle
                 return;
@@ -405,7 +428,7 @@ final class InvokeTranslator {
         } else {
             b.stack.push(call);
             b.noteDesc(call, ret);
-            if (ret.startsWith("L")) {
+            if (ret.startsWith("L") || (ret.startsWith("[") && ctx.composites.arrays.enabled())) {
                 b.staticTypeOf.put(call, TypeRef.ofDescriptor(ret));
             }
             if (resultIsTypeVar) {
@@ -431,6 +454,9 @@ final class InvokeTranslator {
                 return;
             }
             if (bo.equals("java/lang/invoke/StringConcatFactory")) {
+                for (var capture : captures) {
+                    b.arrays.refuseAsObject(capture, null);
+                }
                 String iname = indy.name().stringValue();
                 if (iname.equals("makeConcatWithConstants") && !bsm.arguments().isEmpty()
                         && bsm.arguments().get(0)
@@ -443,6 +469,8 @@ final class InvokeTranslator {
                     return;
                 }
             }
+        } catch (JavaViolationException e) {
+            throw e;
         } catch (RuntimeException ignore) {
             // fall through to the unsupported marker
         }

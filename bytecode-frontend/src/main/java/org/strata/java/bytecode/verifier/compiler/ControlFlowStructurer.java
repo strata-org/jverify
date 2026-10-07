@@ -65,6 +65,7 @@ final class ControlFlowStructurer {
         final int header, exit, latch, continueTarget;
         String breakLabel;      // Laurel label, minted on demand
         String continueLabel;
+        boolean continueUsed;   // a jump in the body became an exit to continueLabel
 
         Ctx(boolean loop, int header, int exit, int latch, int continueTarget) {
             this.loop = loop;
@@ -249,6 +250,7 @@ final class ControlFlowStructurer {
                 continue;
             }
             if (next == c.continueTarget && from != c.latch) {
+                c.continueUsed = true;
                 return exit(continueLabelOf(c));
             }
             if (!innermostLoop && next == c.exit) {
@@ -610,10 +612,50 @@ final class ControlFlowStructurer {
         if (boolish) {
             body.bools.add(r);
         }
+        if (body.arrays.enabled()) {
+            typeArrayTernary(r, thenVal, elseVal);
+        }
         return r;
     }
 
+    /**
+     * An array-valued conditional expression: both arms must have the same
+     * array descriptor, which the result then carries (so its element kind
+     * is known); arms of different types make it an Object use. An arm that
+     * already carries its own refusal is left to it.
+     */
+    private void typeArrayTernary(AstNode<StmtExpr> r, AstNode<StmtExpr> thenVal, AstNode<StmtExpr> elseVal) {
+        String td = body.descOf.get(thenVal);
+        String ed = body.descOf.get(elseVal);
+        boolean thenArray = td != null && td.startsWith("[");
+        boolean elseArray = ed != null && ed.startsWith("[");
+        if (!thenArray && !elseArray) {
+            return;
+        }
+        if (body.deferredRefusal.containsKey(thenVal) || body.deferredRefusal.containsKey(elseVal)) {
+            return;
+        }
+        if (!java.util.Objects.equals(td, ed)) {
+            throw new JavaViolationException(ArrayModel.AS_OBJECT);
+        }
+        body.noteDesc(r, td);
+        TypeRef t = body.staticTypeOf.get(thenVal);
+        if (t != null) {
+            body.staticTypeOf.put(r, t);
+        }
+    }
+
     AstNode<StmtExpr> evalArm(int entry, int merge) {
+        // A value arm runs only on its side of the condition.
+        body.enterConditional();
+        try {
+            return evalArm0(entry, merge);
+        } finally {
+            body.exitConditional();
+        }
+    }
+
+    private AstNode<StmtExpr> evalArm0(int entry, int merge) {
         int cur = entry;
         while (cur != merge) {
             visited[cur] = true;

@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Exit, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.CompoundAssign, StmtExpr.PureFieldUpdate, StmtExpr.StaticCall, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.InstanceCall, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Throw, StmtExpr.Try, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole {
+public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Exit, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.CompoundAssign, StmtExpr.PureFieldUpdate, StmtExpr.StaticCall, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.InstanceCall, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.OldGuarantee, StmtExpr.OldRelies, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Throw, StmtExpr.Try, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole, StmtExpr.Yield, StmtExpr.Resume, StmtExpr.HasNext, StmtExpr.Snapshot {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record IfThenElse(AstNode<StmtExpr> cond, AstNode<StmtExpr> thenBranch, java.util.Optional<AstNode<StmtExpr>> elseBranch) implements StmtExpr {
@@ -175,19 +175,6 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
     }
 
     public record StaticCall(Identifier callee, java.util.List<AstNode<StmtExpr>> arguments, java.util.List<AstNode<HighType>> typeArgs) implements StmtExpr {
-        /**
-         * A call with no type arguments. `typeArgs` carries a generic call's INFERRED
-         * instantiation, which only Laurel's resolution pass produces -- a front end has
-         * nothing to put there, so every construction site here uses this form. The field
-         * must still be emitted: `StaticCall` encodes as a positional Ion sexp, and the
-         * deserializer reads one element per constructor field (`mkIndexRead`, which has no
-         * default branch even for a field declared `:= default`), so omitting it fails with
-         * "Missing argument at index 3".
-         */
-        public StaticCall(Identifier callee, java.util.List<AstNode<StmtExpr>> arguments) {
-            this(callee, arguments, java.util.List.of());
-        }
-
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -296,11 +283,32 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Old(AstNode<StmtExpr> value) implements StmtExpr {
+    public record Old(AstNode<StmtExpr> value, java.util.Optional<Identifier> label) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("Old"));
+        sexp.add(value().toIon(ion));
+        sexp.add((label().isPresent() ? label().get().toIon(ion) : ion.newNull()));
+        return sexp;
+        }
+    }
+
+    public record OldGuarantee(AstNode<StmtExpr> value) implements StmtExpr {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("OldGuarantee"));
+        sexp.add(value().toIon(ion));
+        return sexp;
+        }
+    }
+
+    public record OldRelies(AstNode<StmtExpr> value) implements StmtExpr {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("OldRelies"));
         sexp.add(value().toIon(ion));
         return sexp;
         }
@@ -410,6 +418,47 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         sexp.add(ion.newSymbol("Hole"));
         sexp.add(ion.newBool(deterministic()));
         sexp.add((type().isPresent() ? type().get().toIon(ion) : ion.newNull()));
+        return sexp;
+        }
+    }
+
+    public record Yield() implements StmtExpr {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("Yield"));
+
+        return sexp;
+        }
+    }
+
+    public record Resume(AstNode<StmtExpr> target, java.util.Optional<AstNode<StmtExpr>> value) implements StmtExpr {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("Resume"));
+        sexp.add(target().toIon(ion));
+        sexp.add((value().isPresent() ? value().get().toIon(ion) : ion.newNull()));
+        return sexp;
+        }
+    }
+
+    public record HasNext(AstNode<StmtExpr> target) implements StmtExpr {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("HasNext"));
+        sexp.add(target().toIon(ion));
+        return sexp;
+        }
+    }
+
+    public record Snapshot(Identifier label) implements StmtExpr {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("Snapshot"));
+        sexp.add(label().toIon(ion));
         return sexp;
         }
     }

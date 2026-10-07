@@ -123,7 +123,7 @@ final class LaurelTrees {
             case StmtExpr.Quantifier n -> new StmtExpr.Quantifier(n.mode(), n.param(),
                     rerange(n.trigger(), range, stop), rerange(n.body(), range, stop));
             case StmtExpr.Assigned n -> new StmtExpr.Assigned(rerange(n.name(), range, stop));
-            case StmtExpr.Old n -> new StmtExpr.Old(rerange(n.value(), range, stop));
+            case StmtExpr.Old n -> new StmtExpr.Old(rerange(n.value(), range, stop), n.label());
             case StmtExpr.Fresh n -> new StmtExpr.Fresh(rerange(n.value(), range, stop));
             case StmtExpr.Assert n -> new StmtExpr.Assert(rerange(n.condition(), range, stop), n.summary());
             case StmtExpr.Assume n -> new StmtExpr.Assume(rerange(n.condition(), range, stop));
@@ -143,6 +143,13 @@ final class LaurelTrees {
             case StmtExpr.Abstract n -> n;
             case StmtExpr.All n -> n;
             case StmtExpr.Hole n -> n;
+            case StmtExpr.OldGuarantee n -> new StmtExpr.OldGuarantee(rerange(n.value(), range, stop));
+            case StmtExpr.OldRelies n -> new StmtExpr.OldRelies(rerange(n.value(), range, stop));
+            case StmtExpr.Yield n -> n;
+            case StmtExpr.Resume n -> new StmtExpr.Resume(rerange(n.target(), range, stop),
+                    rerange(n.value(), range, stop));
+            case StmtExpr.HasNext n -> new StmtExpr.HasNext(rerange(n.target(), range, stop));
+            case StmtExpr.Snapshot n -> n;
         };
     }
 
@@ -196,11 +203,11 @@ final class LaurelTrees {
                 String flipped = flippedProc(proc, unordered.contains(e.val()));
                 if (flipped != null) {
                     return new AstNode<>(new StmtExpr.StaticCall(
-                            LaurelFactory.reservedIdent(flipped), call.arguments()), e.source());
+                            LaurelFactory.reservedIdent(flipped), call.arguments(), List.of()), e.source());
                 }
             }
         }
-        return new AstNode<>(new StmtExpr.StaticCall(LaurelFactory.reservedIdent("$not"), List.of(e)), e.source());
+        return new AstNode<>(new StmtExpr.StaticCall(LaurelFactory.reservedIdent("$not"), List.of(e), List.of()), e.source());
     }
 
     // --- Boolean shape test ---

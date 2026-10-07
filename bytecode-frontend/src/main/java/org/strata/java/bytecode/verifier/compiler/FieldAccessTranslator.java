@@ -47,6 +47,10 @@ final class FieldAccessTranslator {
         TypeRef ownerRef = TypeRef.ofClassInternal(fi.owner().asInternalName(), false, false);
         String fn = fi.name().stringValue();
         String fdesc = fi.typeSymbol().descriptorString();
+        if (fdesc.startsWith("[") && (fi.opcode() == java.lang.classfile.Opcode.GETFIELD
+                || fi.opcode() == java.lang.classfile.Opcode.PUTFIELD) && ctx.composites.arrays.enabled()) {
+            ctx.composites.arrays.refuseInCodeWithoutDebugInfo();
+        }
         switch (fi.opcode()) {
             case GETSTATIC -> {
                 // Old shape: FieldAccessExpr(NameExpr(owner), fn). Conversion:
@@ -88,7 +92,8 @@ final class FieldAccessTranslator {
                 AstNode<StmtExpr> n = b.push(new StmtExpr.Var(
                         new Variable.Field(recv, LaurelFactory.ident(fn))));
                 b.noteDesc(n, fdesc);
-                if (fdesc.startsWith("L")) {
+                if (fdesc.startsWith("L")
+                        || (fdesc.startsWith("[") && ctx.composites.arrays.enabled())) {
                     b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));
                 } else if (ctx.contractMode) {
                     // Contract code types a primitive field read by its
@@ -100,6 +105,7 @@ final class FieldAccessTranslator {
             }
             case PUTSTATIC -> {
                 AstNode<StmtExpr> v = b.coerce(b.stack.pop(), fdesc);
+                b.arrays.refuseAsObject(v, fdesc);
                 // Old: AssignExpr(FieldAccessExpr(owner, fn)) -> convertVariable
                 // -> refuseStaticFieldAccess.
                 if (ctx.resolver.knownClasses.containsKey(ownerRef.nameWithScope())) {
@@ -110,6 +116,7 @@ final class FieldAccessTranslator {
             }
             case PUTFIELD -> {
                 AstNode<StmtExpr> v = b.coerce(b.stack.pop(), fdesc);
+                b.arrays.refuseAsObject(v, fdesc);
                 AstNode<StmtExpr> recv = b.stack.isEmpty()
                         ? b.e(new StmtExpr.LiteralString("?")) : b.stack.pop();
                 if (fn.equals("this$0")) {
@@ -179,6 +186,10 @@ final class FieldAccessTranslator {
                     + renderReceiver(recv) + "." + fieldName);
         }
         var info = ctx.composites.declaredFields.get(ownerFqn).get(fieldName);
+        if (info.nullable() && info.type().kind() == TypeRef.Kind.ARRAY && ctx.composites.arrays.enabled()) {
+            // Null is not modelled: refuse every method that accesses the field.
+            throw new JavaViolationException(ArrayModel.NULLABLE);
+        }
         ctx.composites.referencedCompositeTypes.add(ownerFqn);
         var fields = ctx.composites.compositeFields
                 .computeIfAbsent(ownerFqn, k -> new java.util.LinkedHashMap<>());

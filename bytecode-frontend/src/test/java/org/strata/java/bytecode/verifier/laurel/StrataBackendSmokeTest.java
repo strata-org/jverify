@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.strata.jverify.common.Position;
 import org.strata.jverify.laurel.AstNode;
 import org.strata.jverify.laurel.Body;
+import org.strata.jverify.laurel.CoroutineContracts;
 import org.strata.jverify.laurel.FileRange;
 import org.strata.jverify.laurel.Identifier;
 import org.strata.jverify.laurel.Procedure;
@@ -61,6 +62,7 @@ class StrataBackendSmokeTest {
                 List.of(),                                     // inputs
                 List.of(),                                     // outputs
                 List.of(),                                     // preconditions
+                new CoroutineContracts.Regular(),              // contracts
                 Optional.empty(),                              // decreases
                 new Body.Opaque(List.of(), Optional.of(node(block, 0, 0)),
                         List.of(new org.strata.jverify.laurel.ModifiesGroup(
@@ -70,7 +72,9 @@ class StrataBackendSmokeTest {
                 List.of(),                                     // axioms
                 Optional.empty(),                              // throwsType
                 Optional.empty(),                              // throwsBinding
-                List.of());                                    // throwsOn
+                List.of(),                                     // throwsOn
+                List.of(),                                     // readsGlobals
+                List.of());                                    // writesGlobals
     }
 
     /** Resolver over a pretend 10-column-per-line file, matching JFE's offset->line:col logic. */

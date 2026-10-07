@@ -50,11 +50,13 @@ final class TranslationContext {
     /** Type-parameter names in scope (method + enclosing class): refuse as JFE's Unsupported type: T. */
     Set<String> typeParams = Set.of();
     /**
-     * The subset of {@link #typeParams} declared by the METHOD itself, which
-     * become Laurel {@code TVar}s and are declared in the procedure's
-     * {@code typeArgs}. A CLASS type parameter stays refused: composites are
-     * still emitted with no {@code typeArgs}, so a {@code TVar} naming one would
-     * not resolve. Mirrors JFE's {@code currentMethodTypeParams}.
+     * The subset of {@link #typeParams} that become Laurel {@code TVar}s: the
+     * METHOD's own type parameters, which the procedure declares in its
+     * {@code typeArgs}, plus, in a JArray member, the JArray class's type
+     * parameter, which the {@code JArray} composite declares. Any other CLASS
+     * type parameter stays refused: its composite is emitted with no
+     * {@code typeArgs}, so a {@code TVar} naming it would not resolve. Mirrors
+     * JFE's {@code currentMethodTypeParams}.
      */
     Set<String> methodTypeParams = Set.of();
 
@@ -69,6 +71,14 @@ final class TranslationContext {
         Map<String, String> renames = Map.of();
         /** Converting a contract argument (precondition/postcondition/invariant/modifies). */
         boolean inContract;
+        /**
+         * Translating an instance member of the built-in JArray class: its
+         * receiver is {@code JArray<TArrayElement>}, its {@code modifies(this)}
+         * is {@code self?#contentsVersion}, and {@code old(e)} translates.
+         */
+        boolean arrayModelMember;
+        /** Translating a {@code @Pure} program method: array allocations and writes refuse. */
+        boolean pure;
         /** Declared exceptional join class (fqn) from the throws clause, or null. */
         String throwsJoin;
         /** Catch types (fqns) of enclosing try BODIES, innermost first. */

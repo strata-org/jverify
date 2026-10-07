@@ -6,8 +6,9 @@ import java.util.List;
 
 /**
  * One library method a call can bind to: a member of a loaded contract
- * class, a static method of a contract helper class, or a method of a
- * {@code JVerify} specification interface. Produced by the
+ * class, a static method of a contract helper class, an instance method of
+ * the built-in {@code JArray} class, or a method of a {@code JVerify}
+ * specification interface. Produced by the
  * {@link LibraryContracts} lookups; never built for a program method.
  *
  * @param kind            where the member comes from
@@ -18,7 +19,7 @@ import java.util.List;
  *                        the method in {@code classInternal}'s classfile
  * @param sortOrFqn       instance members: the Laurel sort that owns the
  *                        procedure ({@code String}, {@code Map.Entry},
- *                        {@code JVerify.CharJSequence}); statics: the dotted
+ *                        {@code JVerify.CharJSequence}, {@code JArray}); statics: the dotted
  *                        fqn the procedure name is prefixed with
  * @param laurelName      the procedure's name part: {@code methodName}, or
  *                        {@code methodName} plus one {@code '?' + erased type}
@@ -46,7 +47,16 @@ record ContractMember(Kind kind, String classInternal, String methodName,
                       boolean hasCode, boolean verify, boolean returnsTypeVar,
                       List<Boolean> paramIsTypeVar, URI uri, boolean contractPure) {
 
-    enum Kind { CONTRACT, HELPER, SPEC_INTERFACE }
+    enum Kind {
+        /** A member of a {@code @Contract} class. */
+        CONTRACT,
+        /** A static method of a non-{@code @Contract} helper class. */
+        HELPER,
+        /** A method of a {@code JVerify} specification interface. */
+        SPEC_INTERFACE,
+        /** An instance member of the built-in {@code JArray} class, owned by the composite sort {@code JArray}. */
+        ARRAY_MODEL
+    }
 
     ContractMember {
         paramIsTypeVar = List.copyOf(paramIsTypeVar);

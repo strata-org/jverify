@@ -5,6 +5,7 @@ import org.strata.jverify.laurel.Body;
 import org.strata.jverify.laurel.Condition;
 import org.strata.jverify.laurel.ConditionMode;
 import org.strata.jverify.laurel.ConstrainedType;
+import org.strata.jverify.laurel.CoroutineContracts;
 import org.strata.jverify.laurel.FileRange;
 import org.strata.jverify.laurel.HighType;
 import org.strata.jverify.laurel.Identifier;
@@ -218,9 +219,19 @@ final class LaurelFactory {
         };
     }
 
+    /** Every name {@link #operationProcName} returns. */
+    private static final java.util.Set<String> OPERATION_PROC_NAMES = java.util.Set.of(
+            "$eq", "$neq", "$and", "$or", "$not", "$implies", "$andThen", "$orElse", "$neg", "$add", "$sub",
+            "$mul", "$div", "$mod", "$divT", "$modT", "$lt", "$le", "$gt", "$ge", "$strConcat");
+
+    /** True iff {@code callee} is a prelude operator procedure ({@link #operationProcName}). */
+    static boolean isOperationProcName(String callee) {
+        return OPERATION_PROC_NAMES.contains(callee);
+    }
+
     @SafeVarargs
     static StmtExpr primitiveOp(Operation op, AstNode<StmtExpr>... args) {
-        return new StmtExpr.StaticCall(reservedIdent(operationProcName(op)), List.of(args));
+        return new StmtExpr.StaticCall(reservedIdent(operationProcName(op)), List.of(args), List.of());
     }
 
     static AstNode<StmtExpr> noRange(StmtExpr e) {
@@ -328,10 +339,132 @@ final class LaurelFactory {
                 List.of(new org.strata.jverify.laurel.Parameter(ident("x"), node(sourceType))),
                 List.of(new org.strata.jverify.laurel.Parameter(reservedIdent(LAUREL_RESULT_BINDING), node(targetType))),
                 preconditions,
+                new CoroutineContracts.Regular(),
                 Optional.empty(),
                 new Body.Opaque(postconditions, Optional.empty(), unguardedModifies(List.of())),
                 Optional.empty(), false, List.of(),
-                Optional.empty(), Optional.empty(), List.of());
+                Optional.empty(), Optional.empty(), List.of(),
+                /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
         castHelpers.put(helperName, proc);
+    }
+
+    // --- Array element helpers and wrappers ---
+
+    /**
+     * Register, once, kind {@code k}'s element helpers (none for boolean):
+     * {@code java?array_store_<suffix>(x: int): int}, which requires
+     * {@code x} in the kind's range (summary {@code "<kind>[] element range"})
+     * and returns it, and {@code java?array_load_<suffix>(x: int): <range
+     * type>}, which returns {@code x} as the constrained type, so a load is
+     * assumed in range. Both are opaque.
+     *
+     * <p>Temporary: the element range belongs to Strata, which cannot carry
+     * it yet. Strata rejects constrained types such as {@code int8} as type
+     * arguments (B1, {@code checkTypeArgNotConstrained} in
+     * {@code Resolution.lean}), and an {@code int32} argument for a
+     * {@code T} parameter fails after monomorphization (B2), so arrays carry
+     * {@code int}. Once both are fixed, arrays are
+     * {@code JArray<int8|int16|int32|int64|char>}, Strata checks {@code set}
+     * and assumes {@code get} as for a constrained field, and these helpers
+     * and {@link #registerPureArrayLoadHelper} go.
+     */
+    void registerArrayElementHelpers(ArrayModel.ElementKind k) {
+        if (k.helperSuffix() == null) {
+            return;
+        }
+        var x = var_("x");
+        var resultEqX = new Condition(noRange(primitiveOp(new Operation.Eq(),
+                noRange(reservedVar_(LAUREL_RESULT_BINDING)), noRange(x))), Optional.empty(), new ConditionMode.Both());
+        String store = ArrayModel.STORE_HELPER_PREFIX + k.helperSuffix();
+        if (!castHelpers.containsKey(store)) {
+            var label = Optional.of(k.javaName() + "[] element range");
+            var preconditions = List.of(
+                    new Condition(noRange(primitiveOp(new Operation.Geq(), noRange(x), noRange(longLiteral(k.lo())))),
+                            label, new ConditionMode.Both()),
+                    new Condition(noRange(primitiveOp(new Operation.Leq(), noRange(x), noRange(longLiteral(k.hi())))),
+                            label, new ConditionMode.Both()));
+            castHelpers.put(store, helperProcedure(store, List.of(), List.of(param("x", new HighType.TInt())),
+                    new HighType.TInt(), preconditions,
+                    new Body.Opaque(List.of(resultEqX), Optional.empty(), unguardedModifies(List.of()))));
+        }
+        String load = ArrayModel.LOAD_HELPER_PREFIX + k.helperSuffix();
+        if (!castHelpers.containsKey(load)) {
+            castHelpers.put(load, helperProcedure(load, List.of(), List.of(param("x", new HighType.TInt())),
+                    new HighType.UserDefined(ident(k.rangeType())), List.of(),
+                    new Body.Opaque(List.of(resultEqX), Optional.empty(), unguardedModifies(List.of()))));
+        }
+    }
+
+    /**
+     * Register, once, kind {@code k}'s load helper for a transparent
+     * {@code @Pure} body, which Strata turns into a function that cannot call
+     * the opaque {@code java?array_load_<suffix>}: the transparent {@code
+     * java?array_pure_load_<suffix>(x: int): <range type>} = {@code if lo <= x
+     * && x <= hi then x else 0}. Every stored element is range-checked, so it
+     * returns {@code x}, and its result is in range by definition. Temporary,
+     * like {@link #registerArrayElementHelpers}: it goes once Strata accepts
+     * constrained type arguments (B1, B2).
+     *
+     * @return the helper's name
+     */
+    String registerPureArrayLoadHelper(ArrayModel.ElementKind k) {
+        String name = ArrayModel.PURE_LOAD_HELPER_PREFIX + k.helperSuffix();
+        if (!castHelpers.containsKey(name)) {
+            var x = noRange(var_("x"));
+            var inRange = noRange(primitiveOp(new Operation.And(),
+                    noRange(primitiveOp(new Operation.Leq(), noRange(longLiteral(k.lo())), x)),
+                    noRange(primitiveOp(new Operation.Leq(), x, noRange(longLiteral(k.hi()))))));
+            castHelpers.put(name, helperProcedure(name, List.of(), List.of(param("x", new HighType.TInt())),
+                    new HighType.UserDefined(ident(k.rangeType())), List.of(),
+                    new Body.Transparent(noRange(new StmtExpr.IfThenElse(inRange, x,
+                            Optional.of(noRange(new StmtExpr.LiteralInt(0))))))));
+        }
+        return name;
+    }
+
+    /**
+     * Register, once, the generic transparent wrappers for array reads on a
+     * receiver that is not a local variable (Strata rejects an instance call
+     * on a field read or call result): {@code java?array_length<E>(a:
+     * JArray<E>): int} = {@code a#length()} and {@code java?array_get<E>(a:
+     * JArray<E>, index: nat31): E} = {@code a#get(index)}, which requires
+     * {@code index < a#length()} with no summary, so a failure reads as the
+     * contract's own precondition. The caller registers the JArray
+     * composite.
+     */
+    void registerArrayWrappers() {
+        var e = new HighType.TVar(ident("E"));
+        var jarrayE = new HighType.Applied(node(new HighType.UserDefined(ident(ArrayModel.SORT))), List.of(node(e)));
+        var a = noRange(var_("a"));
+        if (!castHelpers.containsKey(ArrayModel.LENGTH_WRAPPER)) {
+            castHelpers.put(ArrayModel.LENGTH_WRAPPER, helperProcedure(ArrayModel.LENGTH_WRAPPER,
+                    List.of(ident("E")), List.of(param("a", jarrayE)), new HighType.TInt(), List.of(),
+                    new Body.Transparent(noRange(new StmtExpr.InstanceCall(a, ident("length"), List.of())))));
+        }
+        if (!castHelpers.containsKey(ArrayModel.GET_WRAPPER)) {
+            var index = noRange(var_("index"));
+            var inBounds = new Condition(noRange(primitiveOp(new Operation.Lt(), index,
+                    noRange(new StmtExpr.InstanceCall(a, ident("length"), List.of())))),
+                    Optional.empty(), new ConditionMode.Both());
+            castHelpers.put(ArrayModel.GET_WRAPPER, helperProcedure(ArrayModel.GET_WRAPPER,
+                    List.of(ident("E")),
+                    List.of(param("a", jarrayE), param("index", new HighType.UserDefined(ident("nat31")))),
+                    e, List.of(inBounds),
+                    new Body.Transparent(noRange(new StmtExpr.InstanceCall(a, ident("get"), List.of(index))))));
+        }
+    }
+
+    private static org.strata.jverify.laurel.Parameter param(String name, HighType type) {
+        return new org.strata.jverify.laurel.Parameter(ident(name), node(type));
+    }
+
+    private static Procedure helperProcedure(String name, List<Identifier> typeArgs,
+                                             List<org.strata.jverify.laurel.Parameter> inputs, HighType result,
+                                             List<Condition> preconditions, Body body) {
+        return new Procedure(ident(name), typeArgs, inputs,
+                List.of(new org.strata.jverify.laurel.Parameter(reservedIdent(LAUREL_RESULT_BINDING), node(result))),
+                preconditions, new CoroutineContracts.Regular(), Optional.empty(), body, Optional.empty(), false, List.of(),
+                Optional.empty(), Optional.empty(), List.of(),
+                /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
     }
 }

@@ -80,6 +80,9 @@ public final class LibraryContracts {
      */
     static final boolean REFUSE_LITERAL_REFERENCE_ARGS = true;
 
+    /** The built-in array model class of {@code object-contract.java} (a helper class). */
+    static final String JARRAY_INTERNAL = "org/strata/jverify/builtin/JArray";
+
     private static final String OBJECT_CONTRACT_RESOURCE = "/object-contract.java";
     private static final String SPEC_INTERFACE_PREFIX = "org/strata/jverify/JVerify$";
 
@@ -250,6 +253,11 @@ public final class LibraryContracts {
     }
 
     // --- Binding and loading ---
+
+    /** True for {@link #none()}: no contracts are ever loaded or applied. */
+    boolean disabled() {
+        return disabled;
+    }
 
     /** True iff there are {@code contractSourcePath} sources (loaded eagerly). */
     boolean hasUserSources() {
@@ -578,6 +586,10 @@ public final class LibraryContracts {
             aliasOwners.put(printed, internal);
             descriptorMap.put("L" + internal + ";", "L" + contracteeInternal + ";");
         }
+        // Contract code's JArray<X> names the array composite, never a program class.
+        if (models.containsKey(JARRAY_INTERNAL)) {
+            aliases.putIfAbsent(ArrayModel.SORT, ArrayModel.SORT);
+        }
         var index = new Index(Map.copyOf(byContractee), Map.copyOf(byInternal),
                 Set.copyOf(helpers), Map.copyOf(aliases), Map.copyOf(descriptorMap));
         return new LoadedBytes(Map.copyOf(classBytes), Map.copyOf(classUris), index, List.copyOf(errors));
@@ -752,9 +764,10 @@ public final class LibraryContracts {
 
     /**
      * The member a call from contract code binds to, or null: a member of the
-     * owning contract class, a static of a helper class (an instance call on
-     * a helper misses), a {@code JVerify} spec-interface method, otherwise
-     * the program lookups on the owner.
+     * owning contract class, a static of a helper class, an instance member
+     * of the built-in {@code JArray} class (an {@link ContractMember.Kind#ARRAY_MODEL}
+     * member; an instance call on any other helper misses), a {@code JVerify}
+     * spec-interface method, otherwise the program lookups on the owner.
      */
     ContractMember lookupContractCode(String ownerInternal, String name, MethodTypeDesc desc,
                                       boolean isStatic) {
@@ -772,11 +785,14 @@ public final class LibraryContracts {
             return contractMember(cc, name, isStatic, callParams);
         }
         if (index.helperClasses().contains(ownerInternal)) {
-            if (!isStatic) {
-                return null;
-            }
             ClassModel cm = classBytes(ownerInternal);
             String fqn = JavaNames.dottedFqn(ownerInternal);
+            if (!isStatic) {
+                return ownerInternal.equals(JARRAY_INTERNAL)
+                        ? findMember(ContractMember.Kind.ARRAY_MODEL, cm, name, false, callParams,
+                                ArrayModel.SORT, fqn, loadedBytes.classUris().get(ownerInternal), false)
+                        : null;
+            }
             return findMember(ContractMember.Kind.HELPER, cm, name, true, callParams,
                     fqn, fqn, loadedBytes.classUris().get(ownerInternal), false);
         }
@@ -791,6 +807,32 @@ public final class LibraryContracts {
                     sortOrFqn, fqn, null, false);
         }
         return isStatic ? lookupStatic(ownerInternal, name, desc) : lookupInstance(ownerInternal, name, desc);
+    }
+
+    /**
+     * The instance member {@code name} of the built-in {@code JArray} class,
+     * for array operations in programs, or null when the contracts are
+     * disabled or not loaded, or JArray declares no single instance method of
+     * that name. Its purity is recorded as for any other lookup.
+     */
+    ContractMember arrayMember(String name) {
+        if (disabled) {
+            return null;
+        }
+        ensureLoaded();
+        ClassModel cm = classBytes(JARRAY_INTERNAL);
+        if (cm == null) {
+            return null;
+        }
+        var matches = Declarations.declaredMethodsOf(cm).stream()
+                .filter(mm -> !isStatic(mm) && mm.methodName().stringValue().equals(name))
+                .toList();
+        if (matches.size() != 1) {
+            return null;
+        }
+        return findMember(ContractMember.Kind.ARRAY_MODEL, cm, name, false,
+                mappedParams(matches.getFirst().methodTypeSymbol()), ArrayModel.SORT,
+                JavaNames.dottedFqn(JARRAY_INTERNAL), loadedBytes.classUris().get(JARRAY_INTERNAL), false);
     }
 
     private ContractMember contractMember(ContractClass cc, String name, boolean isStatic,

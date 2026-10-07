@@ -154,6 +154,14 @@ RUN    org.strata.jverify.verifier.tests.verification.externalcontracts.UserCont
 RUN    org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractSoundness  source frontend does not emit static user contract members ('java.lang.Math?static?min' is not defined)
 RUN    org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractNameCollision  source frontend does not report the contract simple-name collision
 
+# This frontend translates one-dimensional primitive arrays through the
+# built-in JArray class (allocation through Laurel's heap, element range facts
+# at loads and stores) and refuses every other array construct per method.
+RUN    org.strata.jverify.verifier.tests.javasupport.arrays.IntArraysVerification   bytecode frontend translates primitive arrays through the JArray contract
+RUN    org.strata.jverify.verifier.tests.javasupport.arrays.PrimitiveArrays         bytecode frontend translates primitive arrays through the JArray contract
+RUN    org.strata.jverify.verifier.tests.javasupport.arrays.ArrayBoundsFailures     bytecode frontend translates primitive arrays through the JArray contract
+RUN    org.strata.jverify.verifier.tests.javasupport.arrays.ArrayRefusals           bytecode frontend translates primitive arrays and refuses the other array constructs with its own reasons
+
 # ============================================================================
 # Erased source signals: JFE refuses these constructs at the SOURCE level
 # with a reason javac then compiles away (compound assignments desugar to

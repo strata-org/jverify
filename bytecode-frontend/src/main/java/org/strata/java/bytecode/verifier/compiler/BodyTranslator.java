@@ -140,10 +140,30 @@ final class BodyTranslator {
      */
     final Map<AstNode<StmtExpr>, LambdaHandle> castWrappedLambdas = new IdentityHashMap<>();
 
+    // --- Array bookkeeping (used only while the array model is enabled) ---
+    /** Names of the locals minted for array allocations ({@link #mintTemp}). */
+    final Set<String> allocTemps = new java.util.HashSet<>();
+    /** Loads of a local with no LVT scope at the load (selects UNTYPED_LOCAL over UNKNOWN_ELEMENT). */
+    final Set<AstNode<StmtExpr>> untypedLoads = Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Nesting depth of contexts whose statements would not run exactly once,
+     * in order, per Java evaluation (conditional arms, a pre-tested loop
+     * header, a latch-tested loop condition, a boolean region past its first
+     * test): array allocations and writes refuse inside them.
+     */
+    private int conditionalDepth;
+    /**
+     * Nesting depth of pre-tested loop conditions being translated: Strata
+     * evaluates the calls in a {@code While} condition once, before the loop,
+     * so array element reads refuse inside them.
+     */
+    private int loopConditionDepth;
+
     // --- The per-concern translators sharing this body's stack and side tables ---
     final InvokeTranslator invokes;
     final SpecCallTranslator specCalls;
     final FieldAccessTranslator fieldAccess;
+    final ArrayAccessTranslator arrays;
 
     BodyTranslator(TranslationContext ctx, Map<Integer, String> slotName, Map<Integer, String> slotDesc,
                Set<String> declared) {
@@ -154,6 +174,75 @@ final class BodyTranslator {
         this.invokes = new InvokeTranslator(this);
         this.specCalls = new SpecCallTranslator(this);
         this.fieldAccess = new FieldAccessTranslator(this);
+        this.arrays = new ArrayAccessTranslator(this);
+    }
+
+    /** Enter a conditional or repeated context; pair with {@link #exitConditional} in a {@code finally}. */
+    void enterConditional() {
+        conditionalDepth++;
+    }
+
+    void exitConditional() {
+        conditionalDepth--;
+    }
+
+    boolean inConditional() {
+        return conditionalDepth > 0;
+    }
+
+    /** Enter a pre-tested loop condition; pair with {@link #exitLoopCondition} in a {@code finally}. */
+    void enterLoopCondition() {
+        loopConditionDepth++;
+    }
+
+    void exitLoopCondition() {
+        loopConditionDepth--;
+    }
+
+    boolean inLoopCondition() {
+        return loopConditionDepth > 0;
+    }
+
+    /** A fresh local name from the minted-name counter ({@code t$<n>}), tied to no slot. */
+    String mintTemp() {
+        return "t$" + (++synthCounter);
+    }
+
+    /**
+     * True iff evaluating {@code n} has no effect and reads no heap: a
+     * local, a literal, a pending {@code new} marker, or a primitive
+     * operator over such operands. Array statements may be emitted while only
+     * such values are pending on the stack, because no statement can change
+     * them.
+     */
+    boolean isSimple(AstNode<StmtExpr> n) {
+        return switch (n.val()) {
+            case StmtExpr.Var v -> v.var_() instanceof Variable.Local;
+            case StmtExpr.LiteralInt i -> true;
+            case StmtExpr.LiteralBool lb -> true;
+            case StmtExpr.LiteralString s -> pendingNew.containsKey(n);
+            case StmtExpr.StaticCall c -> LaurelFactory.isOperationProcName(c.callee().text())
+                    && c.arguments().stream().allMatch(this::isSimple);
+            default -> false;
+        };
+    }
+
+    /**
+     * Refuse a specification argument that mentions an array allocation's
+     * local: the allocation ran as body statements before the specification
+     * was recognized.
+     */
+    void refuseAllocTempMention(AstNode<StmtExpr> n) {
+        if (allocTemps.isEmpty() || n == null) {
+            return;
+        }
+        if (n.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local l
+                && allocTemps.contains(l.name().text())) {
+            throw new JavaViolationException(ArrayModel.SPEC_WRITE);
+        }
+        for (AstNode<StmtExpr> child : childrenOf(n.val())) {
+            refuseAllocTempMention(child);
+        }
     }
 
     // --- Delegates for the translators' externally-used entry points ---
@@ -311,6 +400,9 @@ final class BodyTranslator {
             throw new JavaViolationException(refusal);
         }
         if (lambdas.containsKey(n)) {
+            if (arrays.isArrayConstructorRef(lambdas.get(n))) {
+                throw new JavaViolationException(ArrayModel.CTOR_REF);
+            }
             // JFE's convertExpression default-arm message on a lambda/method reference.
             throw new JavaViolationException("Unsupported expression: JCLambda");
         }
@@ -651,6 +743,9 @@ final class BodyTranslator {
         AstNode<StmtExpr> n = localVar(name);
         stack.push(n);
         noteDesc(n, localDesc(li.slot()));
+        if (locals != null && locals.at(li.slot(), pos) == null && !name.equals("this")) {
+            untypedLoads.add(n);
+        }
         TypeRef t = localTypeRef(li.slot());
         if (t != null && !name.equals("this")) {
             staticTypeOf.put(n, t);
@@ -673,6 +768,10 @@ final class BodyTranslator {
     void store(StoreInstruction si) {
         String desc = localDesc(si.slot());
         AstNode<StmtExpr> val = coerceTo(stack.pop(), desc);
+        if (desc != null) {
+            // A local with no recorded type keeps the value's own (untyped declaration).
+            arrays.refuseAsObject(val, desc);
+        }
         // Capturing the ThrowsOnCase handle in a local: the declaration ends
         // the contract block: the declaration's TYPE registers its composite
         // sort (a side effect the emitted program keeps), then the throwsOn
@@ -853,7 +952,7 @@ final class BodyTranslator {
         @SuppressWarnings("unchecked")
         AstNode<StmtExpr>[] pair = new AstNode[]{a, b};
         AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
-                LaurelFactory.ident("java?cmp3$" + boxType), List.of(a, b)));
+                LaurelFactory.ident("java?cmp3$" + boxType), List.of(a, b), List.of()));
         cmp3.put(n, pair);
         if (nanHigh != null) {
             cmp3NanHigh.put(n, nanHigh);
@@ -1093,6 +1192,17 @@ final class BodyTranslator {
             case java.lang.classfile.instruction.ConvertInstruction cv -> convert(cv);
             case java.lang.classfile.instruction.TypeCheckInstruction tc -> typeCheck(tc);
             case java.lang.classfile.instruction.FieldInstruction fi -> fieldAccess.field(fi);
+            // The array model's arms; anything they do not handle keeps the arms below.
+            case java.lang.classfile.instruction.ArrayLoadInstruction al when arrays.handlesLoad(al) ->
+                    arrays.load(al);
+            case java.lang.classfile.instruction.ArrayStoreInstruction as when arrays.handlesStore(as) ->
+                    arrays.store(as);
+            case java.lang.classfile.instruction.NewPrimitiveArrayInstruction na when arrays.handlesNewArray() ->
+                    arrays.newPrimitiveArray(na);
+            case java.lang.classfile.instruction.NewReferenceArrayInstruction na when arrays.enabled() ->
+                    arrays.newReferenceArray(na);
+            case java.lang.classfile.instruction.NewMultiArrayInstruction na when arrays.enabled() ->
+                    arrays.newMultiArray();
             case java.lang.classfile.instruction.ArrayLoadInstruction al -> {
                 stack.pop();
                 AstNode<StmtExpr> arr = stack.pop();
@@ -1128,6 +1238,10 @@ final class BodyTranslator {
             case java.lang.classfile.instruction.ReturnInstruction ri -> {
                 if (ri.opcode() != java.lang.classfile.Opcode.RETURN) {
                     AstNode<StmtExpr> v = stack.pop();
+                    if (arrays.isArrayConstructorRef(lambdas.get(v))) {
+                        throw new JavaViolationException(ArrayModel.CTOR_REF);
+                    }
+                    arrays.refuseAsObject(v, retDesc);
                     // A returned lambda/method reference: allocate the
                     // return sort directly.
                     if (lambdas.containsKey(v) && ctx.method.returnSort != null) {
@@ -1198,6 +1312,10 @@ final class BodyTranslator {
             case DCMPL -> push3Way("Double", Boolean.FALSE);
             case DCMPG -> push3Way("Double", Boolean.TRUE);
             case ARRAYLENGTH -> {
+                if (arrays.handlesLength()) {
+                    arrays.length();
+                    return;
+                }
                 stack.pop();
                 // FieldAccessExpr "length": the conversion's field machinery
                 // never resolves it -> "Unsupported field access: x.length".
@@ -1252,7 +1370,7 @@ final class BodyTranslator {
         String helperName = "java?cast_to_" + laurelTarget + "_from_" + sourceName;
         ctx.lf.registerCastHelper(helperName, sourceName, sourceType, laurelTarget, targetType);
         AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
-                LaurelFactory.ident(helperName), List.of(operand)));
+                LaurelFactory.ident(helperName), List.of(operand), List.of()));
         noteDesc(n, ClassfileQueries.convDesc(cv.opcode()));
     }
 
@@ -1301,6 +1419,9 @@ final class BodyTranslator {
 
     /** CHECKCAST / INSTANCEOF fused with convertTypeCast / InstanceOfExpr conversion. */
     void typeCheck(java.lang.classfile.instruction.TypeCheckInstruction tc) {
+        if (arrays.enabled() && tc.type().asSymbol().isArray()) {
+            throw new JavaViolationException(ArrayModel.CAST);
+        }
         TypeRef t = TypeRef.ofClassDesc(tc.type().asSymbol());
         AstNode<StmtExpr> v = stack.pop();
         String fqn = resolveFqn(t);
@@ -1360,6 +1481,7 @@ final class BodyTranslator {
                 AstNode<StmtExpr> top = stack.peek();
                 int depth = sk.opcode() == java.lang.classfile.Opcode.DUP ? 0
                         : (sk.opcode() == java.lang.classfile.Opcode.DUP_X1 ? 1 : 2);
+                arrays.refuseValueUse(depth);
                 insertDup(top, depth);
             }
             case DUP2, DUP2_X1, DUP2_X2 -> {
@@ -1375,6 +1497,7 @@ final class BodyTranslator {
                 }
                 int depth = sk.opcode() == java.lang.classfile.Opcode.DUP2 ? 0
                         : (sk.opcode() == java.lang.classfile.Opcode.DUP2_X1 ? 1 : 2);
+                arrays.refuseValueUse(depth);
                 insertDup(top, depth);
             }
             case SWAP -> {
@@ -1478,7 +1601,7 @@ final class BodyTranslator {
         String sourceName = LaurelFactory.laurelTypeName(sourceType);
         String helperName = "java?cast_to_" + narrow + "_from_" + sourceName;
         ctx.lf.registerCastHelper(helperName, sourceName, sourceType, narrow, targetType);
-        return e(new StmtExpr.StaticCall(LaurelFactory.ident(helperName), List.of(v)));
+        return e(new StmtExpr.StaticCall(LaurelFactory.ident(helperName), List.of(v), List.of()));
     }
 
     boolean isNullMarker(AstNode<StmtExpr> v) {
@@ -1591,9 +1714,67 @@ final class BodyTranslator {
         } else {
             return 0;
         }
+        // javac's array for a varargs call with no variable arguments is not
+        // in the source: it keeps the deferred refusal it had before the
+        // array model, so array-free programs translate as without contracts.
+        if (na instanceof java.lang.classfile.instruction.NewReferenceArrayInstruction ra
+                && arrays.enabled() && isEmptyVarargsArray(seq, k, ra)) {
+            pushArrayCreationMarker();
+            return 1;
+        }
+        // Under the array model a primitive initializer translates as the
+        // allocation plus one store per element; one nested in a reference
+        // array's initializer still folds into that initializer's refusal.
+        if (na instanceof java.lang.classfile.instruction.NewPrimitiveArrayInstruction
+                && referenceInitDepth == 0 && arrays.enabled()) {
+            return 0;
+        }
         if (k + 1 >= seq.size() || !isDup(seq.get(k + 1)) || stack.isEmpty()) {
             return 0;
         }
+        boolean referenceInit = na instanceof java.lang.classfile.instruction.NewReferenceArrayInstruction;
+        if (referenceInit) {
+            referenceInitDepth++;
+        }
+        try {
+            return foldArrayInit(seq, idxs, k);
+        } finally {
+            if (referenceInit) {
+                referenceInitDepth--;
+            }
+        }
+    }
+
+    /** Nesting depth of reference-array initializers being folded by {@link #tryArrayInit}. */
+    private int referenceInitDepth;
+
+    /**
+     * javac's empty varargs array: an {@code anewarray} of the literal count
+     * 0 whose next instruction is a call taking it as its last parameter.
+     */
+    private boolean isEmptyVarargsArray(List<CodeElement> seq, int k,
+                                        java.lang.classfile.instruction.NewReferenceArrayInstruction ra) {
+        if (stack.isEmpty() || !(stack.peek().val() instanceof StmtExpr.LiteralInt n) || n.value() != 0) {
+            return false;
+        }
+        int j = k + 1;
+        while (j < seq.size() && seq.get(j) instanceof java.lang.classfile.instruction.LabelTarget) {
+            j++;
+        }
+        if (j >= seq.size() || !(seq.get(j) instanceof java.lang.classfile.instruction.InvokeInstruction inv)) {
+            return false;
+        }
+        var params = inv.typeSymbol().parameterList();
+        return !params.isEmpty() && params.getLast().equals(ra.componentType().asSymbol().arrayType());
+    }
+
+    /** The array creation the model does not translate: a marker refusing where it is placed. */
+    private void pushArrayCreationMarker() {
+        stack.pop();
+        defer(push(new StmtExpr.LiteralString("$newArray")), "Unsupported expression: ArrayCreationExpr");
+    }
+
+    private int foldArrayInit(List<CodeElement> seq, List<Integer> idxs, int k) {
         var elems = new ArrayList<AstNode<StmtExpr>>();
         int p = k + 1;
         while (p + 1 < seq.size() && isDup(seq.get(p))
@@ -1663,6 +1844,12 @@ final class BodyTranslator {
         if (isDup2(in) && k + 1 < seq.size()
                 && seq.get(k + 1) instanceof java.lang.classfile.instruction.ArrayLoadInstruction
                 && stack.size() >= 2) {
+            if (arrays.enabled()) {
+                // a[i] op= rhs / a[i]++: duplicate the side-effect-free array
+                // and index so the load and the store translate normally.
+                arrays.duplicateIndexedPair();
+                return 1;
+            }
             // a[i] op= rhs: arrays refuse as assignment targets.
             throw new JavaViolationException("Unsupported variable expression: ArrayAccessExpr");
         }
@@ -1780,13 +1967,25 @@ final class BodyTranslator {
             return 0;
         }
         var guards = new ArrayList<AstNode<StmtExpr>>();
-        for (int j = k; j < p; j++) {
-            CodeElement el = seq.get(j);
-            if (el instanceof java.lang.classfile.instruction.BranchInstruction b
-                    && ClassfileQueries.isConditionalBranch(b.opcode())) {
-                guards.add(materializeComparison(b.opcode()));
-            } else {
-                translate((Instruction) el);
+        // Everything after the first test runs only when the earlier tests pass.
+        boolean conditional = false;
+        try {
+            for (int j = k; j < p; j++) {
+                CodeElement el = seq.get(j);
+                if (el instanceof java.lang.classfile.instruction.BranchInstruction b
+                        && ClassfileQueries.isConditionalBranch(b.opcode())) {
+                    guards.add(materializeComparison(b.opcode()));
+                    if (!conditional) {
+                        conditional = true;
+                        enterConditional();
+                    }
+                } else {
+                    translate((Instruction) el);
+                }
+            }
+        } finally {
+            if (conditional) {
+                exitConditional();
             }
         }
         if (guards.isEmpty()) {

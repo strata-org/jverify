@@ -75,10 +75,11 @@ public class JavaToLaurelCompiler {
      */
     private static Procedure declarationOnly(Procedure p) {
         return new Procedure(p.name(), p.typeArgs(), p.inputs(), p.outputs(),
-                p.preconditions(), p.decreases(),
+                p.preconditions(), p.contracts(), p.decreases(),
                 new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of())),
                 p.invokeOn(), p.isInterpretEntry(), p.axioms(),
-                p.throwsType(), p.throwsBinding(), p.throwsOn());
+                p.throwsType(), p.throwsBinding(), p.throwsOn(),
+                p.readsGlobals(), p.writesGlobals());
     }
 
     /**
@@ -639,7 +640,7 @@ public class JavaToLaurelCompiler {
     }
 
     private static StmtExpr primitiveOp(Operation op, AstNode<StmtExpr>... args) {
-        return new StmtExpr.StaticCall(reservedIdent(operationProcName(op)), List.of(args));
+        return new StmtExpr.StaticCall(reservedIdent(operationProcName(op)), List.of(args), List.of());
     }
 
     /**
@@ -2219,13 +2220,14 @@ public class JavaToLaurelCompiler {
             var proc = new Procedure(
                     ident(methodName, method),
                     method.typarams.stream().map(tp -> ident(tp.name.toString())).toList(),
-                    inputs, outputs, preconditions,
+                    inputs, outputs, preconditions, new CoroutineContracts.Regular(),
                     /*decreases=*/Optional.empty(), body, /*invokeOn=*/Optional.empty(),
                     isInterpretEntry, /*axioms=*/List.of(),
                     // Exceptional contract: the declared type and binding come from
                     // the Java `throws` clause, the behaviour cases from the
                     // `throwsOn(...).postcondition(...).modifies(...)` contract chains.
-                    throwsType, throwsBinding, throwsOnBlocks);
+                    throwsType, throwsBinding, throwsOnBlocks,
+                    /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
             procedureBySymbol.put(method.sym, proc);
             if (isStatic) {
                 procedures.add(proc);
@@ -2827,7 +2829,7 @@ public class JavaToLaurelCompiler {
                         args.add(node(convertExpression(arg, renames), arg));
                     }
                     if (instanceReceiver == null) {
-                        yield new StmtExpr.StaticCall(ident(qualifiedMethodName(methodSym)), args);
+                        yield new StmtExpr.StaticCall(ident(qualifiedMethodName(methodSym)), args, List.of());
                     }
                     // `obj#method(args)`: LiftInstanceProcedures rewrites this to the
                     // lifted `<Composite>$<method>`, prepending the receiver (see
@@ -3020,7 +3022,7 @@ public class JavaToLaurelCompiler {
             // chained cast like `(byte) (int) l` the inner cast's diagnostic
             // must point at `(int) l`, not at the whole `(byte) (int) l`.
             return new StmtExpr.StaticCall(ident(helperName),
-                    List.of(node(operand, cast.expr)));
+                    List.of(node(operand, cast.expr)), List.of());
         }
 
         /// Returns the mangling name for {@code targetType} if it is one of
@@ -3102,6 +3104,7 @@ public class JavaToLaurelCompiler {
                     List.of(new Parameter(ident("x"), node(sourceType))),
                     List.of(new Parameter(reservedIdent(LAUREL_RESULT_BINDING), node(targetType))),
                     preconditions,
+                    new CoroutineContracts.Regular(),
                     /*decreases=*/ Optional.empty(),
                     new Body.Opaque(postconditions, /*implementation=*/ Optional.empty(), unguardedModifies(List.of())),
                     /*invokeOn=*/ Optional.empty(),
@@ -3110,7 +3113,8 @@ public class JavaToLaurelCompiler {
                     // Cast helpers are total: they never take the exceptional exit,
                     // so no declared throws type and no `throwsOn` behaviour cases.
                     /*throwsType=*/ Optional.empty(), /*throwsBinding=*/ Optional.empty(),
-                    /*throwsOn=*/ List.of());
+                    /*throwsOn=*/ List.of(),
+                    /*readsGlobals=*/ List.of(), /*writesGlobals=*/ List.of());
             castHelpers.put(helperName, proc);
         }
 

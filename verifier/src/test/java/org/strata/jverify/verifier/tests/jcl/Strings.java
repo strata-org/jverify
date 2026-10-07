@@ -1,7 +1,7 @@
-// ^ /object-contract.java(37:19-37:61) Related location: this proposition could not be proved
-// ^ /object-contract.java(71:16-71:33) Related location: this proposition could not be proved
-// ^ /object-contract.java(91:16-91:37) Related location: this proposition could not be proved
-// ^ /object-contract.java(91:16-91:37) Related location: this proposition could not be proved
+// ^ /object-contract.java(38:19-38:61) Related location: this proposition could not be proved
+// ^ /object-contract.java(72:16-72:33) Related location: this proposition could not be proved
+// ^ /object-contract.java(92:16-92:37) Related location: this proposition could not be proved
+// ^ /object-contract.java(92:16-92:37) Related location: this proposition could not be proved
 package org.strata.jverify.verifier.tests.jcl;
 
 import org.strata.jverify.testengine.JVerifyTest;

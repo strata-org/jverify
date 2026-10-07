@@ -33,9 +33,16 @@ final class CompositeModel {
     final Map<String, String> compositeExtends = new LinkedHashMap<>();
     /** Instance procedures per composite sort (JFE's instanceProcsBySort). */
     final Map<String, List<Procedure>> instanceProcsBySort = new LinkedHashMap<>();
+    /** Type-parameter names per generic composite sort; a sort without an entry has none. */
+    final Map<String, List<String>> compositeTypeParams = new LinkedHashMap<>();
+    /** The array model of this run. */
+    final ArrayModel arrays;
 
-    /** One declared field: descriptor/signature-sourced type + finality. */
-    record FieldInfo(TypeRef type, boolean isFinal) {
+    /**
+     * One declared field: descriptor/signature-sourced type + finality, and
+     * whether it carries a {@code Nullable} annotation.
+     */
+    record FieldInfo(TypeRef type, boolean isFinal, boolean nullable) {
     }
 
     /** Declared field types per program class: fqn -> field name -> info. */
@@ -43,8 +50,9 @@ final class CompositeModel {
 
     private final ClassResolver resolver;
 
-    CompositeModel(ClassResolver resolver) {
+    CompositeModel(ClassResolver resolver, LibraryContracts contracts) {
         this.resolver = resolver;
+        this.arrays = new ArrayModel(contracts, resolver, this);
     }
 
     /**
@@ -119,7 +127,9 @@ final class CompositeModel {
                 ? new ArrayList<>(compositeFields.get(sortName).values())
                 : List.of();
         out.add(new TypeDefinition.Composite(new org.strata.jverify.laurel.CompositeType(
-                LaurelFactory.ident(sortName), /*typeArgs=*/List.of(), extending, fields,
+                LaurelFactory.ident(sortName),
+                compositeTypeParams.getOrDefault(sortName, List.of()).stream().map(LaurelFactory::ident).toList(),
+                extending, fields,
                 instanceProcsBySort.getOrDefault(sortName, List.of()))));
     }
 

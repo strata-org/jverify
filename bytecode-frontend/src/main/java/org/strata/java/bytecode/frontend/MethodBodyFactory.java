@@ -556,8 +556,10 @@ public final class MethodBodyFactory {
             dom = analyze(cfg);
             hoisted = hoistedDeclInfos(cfg, dom, locals, slotName, slotDesc, declared, crt, seqToBci);
         }
+        boolean localsWithoutDebugInfo = lvs.isEmpty() && code.maxLocals() > (isStatic ? 0 : 1);
         return new MethodBody(cfg, dom, locals, seq, slotName, slotDesc, declared,
-                crt, LineNumbers.of(code), seqToBci, slotAnnos, retDesc, isCtor, isStatic, hoisted);
+                crt, LineNumbers.of(code), seqToBci, slotAnnos, retDesc, isCtor, isStatic, hoisted,
+                localsWithoutDebugInfo);
     }
 
     /**

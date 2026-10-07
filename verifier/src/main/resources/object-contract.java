@@ -3,6 +3,7 @@ package org.strata.jverify.builtin;
 import org.strata.jverify.Contract;
 import static org.strata.jverify.JVerify.*;
 import org.strata.jverify.Nat;
+import org.strata.jverify.Unbounded;
 import org.strata.jverify.JVerify;
 import org.strata.jverify.Verify;
 import org.strata.jverify.Pure;
@@ -105,6 +106,13 @@ class StringContract {
 
 @Verify(false)
 class JArray<TArrayElement> {
+    /**
+     * Ghost state: the version of this array's contents. A write replaces it
+     * ({@code set} modifies {@code this}), and {@code get} reads it, so an element
+     * read depends on this array's state and on nothing else.
+     */
+    @Unbounded int contentsVersion;
+
     public static <TCreateArrayElement> JArray<TCreateArrayElement> create(int size) {
         precondition(size >= 0);
         //noinspection ConstantValue
@@ -112,22 +120,40 @@ class JArray<TArrayElement> {
         throw new ContractException();
     }
 
+    /**
+     * An array's length never changes, so it is a function of the array alone.
+     * The clamp makes it a valid Java length (0..Integer.MAX_VALUE) by definition.
+     */
+    @Verify
     @Pure
-    public @Nat int length() {
-        throw new ContractException();
+    public @Unbounded int length() {
+        //noinspection ConstantValue
+        return lengthOf(this) < 0 ? 0 : (lengthOf(this) > 2147483647 ? 0 : lengthOf(this));
     }
 
+    @Verify
     @Pure
     public TArrayElement get(@Nat int index) {
         reads(this);
-        throw new ContractException();
+        precondition(index < length());
+        return elementAt(this, contentsVersion, index);
     }
 
     public void set(@Nat int index, TArrayElement value) {
         modifies(this);
-        precondition(index <= length());
+        precondition(0 <= index && index < length());
         //noinspection ConstantValue
         postcondition(get(index) == value && forall(
-                (int i) -> implies(i != index && i >= 0, old(get(i)) == get(i))));
+                (int i) -> implies(i != index && 0 <= i && i < length(), old(get(i)) == get(i))));
+    }
+
+    @Pure
+    private static <E> @Unbounded int lengthOf(JArray<E> array) {
+        throw new ContractException();
+    }
+
+    @Pure
+    private static <E> E elementAt(JArray<E> array, @Unbounded int contentsVersion, @Nat int index) {
+        throw new ContractException();
     }
 }

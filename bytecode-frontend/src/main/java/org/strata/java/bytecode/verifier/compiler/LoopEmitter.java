@@ -87,7 +87,22 @@ final class LoopEmitter {
             s.ensureLabels(c);
             s.ctxStack.push(c);
             List<AstNode<StmtExpr>> bodyStmts = s.region(header, ControlFlowStructurer.plus(ControlFlowStructurer.plus(stop, latch), exit));
-            AstNode<StmtExpr> cond = s.conditionOf(lb, bodyStmts);
+            // The latch block's statements join the body inside the continue
+            // block. Without a `continue` they run once per iteration, as in
+            // Java; a `continue` jumps to the test but skips them, so they are
+            // then not once per evaluation.
+            AstNode<StmtExpr> cond;
+            boolean skippedByContinue = c.continueUsed;
+            if (skippedByContinue) {
+                body.enterConditional();
+            }
+            try {
+                cond = s.conditionOf(lb, bodyStmts);
+            } finally {
+                if (skippedByContinue) {
+                    body.exitConditional();
+                }
+            }
             body.checkPlaceable(cond);
             if (backOnBranch) {
                 cond = LaurelTrees.negate(cond, ctx.method.unordered);
@@ -121,7 +136,18 @@ final class LoopEmitter {
 
         // pre-tested while / for.
         if (h.isConditional() && bodyBlocks.contains(h.fall) != bodyBlocks.contains(h.branch)) {
-            AstNode<StmtExpr> cond = s.conditionOf(h, out);
+            // The header's statements are emitted once, before the loop,
+            // while Java evaluates the header on every iteration. Strata also
+            // evaluates the calls in the While condition once, before the loop.
+            AstNode<StmtExpr> cond;
+            body.enterConditional();
+            body.enterLoopCondition();
+            try {
+                cond = s.conditionOf(h, out);
+            } finally {
+                body.exitLoopCondition();
+                body.exitConditional();
+            }
             body.checkPlaceable(cond);
             int bodyEntry, exit;
             if (bodyBlocks.contains(h.fall)) {
@@ -196,7 +222,7 @@ final class LoopEmitter {
                         arg = spec.args().get(0);
                         body.checkContractArg(arg);
                     }
-                    arg = body.coerce(arg, "Z");
+                    arg = body.coerce(ArrayAccessTranslator.stripLoadFacts(arg), "Z");
                     AstNode<StmtExpr> inv = LaurelTrees.rerange(arg, argRange, ctx.method.statementNodes);
                     // Pinned: the loop's own placement must not restamp the
                     // invariant's argument-range subtree.

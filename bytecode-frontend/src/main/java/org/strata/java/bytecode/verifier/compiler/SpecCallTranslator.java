@@ -69,6 +69,14 @@ final class SpecCallTranslator {
                 if (argc != 2) {
                     throw new JavaViolationException("implies should have two arguments");
                 }
+                if (ctx.composites.arrays.enabled() && b.arrays.mentionsArrayCall(args.get(1))) {
+                    // An array read's bounds precondition holds only under the
+                    // antecedent: Laurel's implication guards it, `!a | b` does not.
+                    AstNode<StmtExpr> r = b.push(LaurelFactory.primitiveOp(new Operation.Implies(),
+                            b.coerce(args.get(0), "Z"), b.coerce(args.get(1), "Z")));
+                    b.bools.add(r);
+                    return;
+                }
                 var notA = LaurelFactory.primitiveOp(new Operation.Not(), b.coerce(args.get(0), "Z"));
                 AstNode<StmtExpr> r = b.push(LaurelFactory.primitiveOp(new Operation.Or(),
                         b.e(notA), b.coerce(args.get(1), "Z")));
@@ -78,6 +86,8 @@ final class SpecCallTranslator {
                 if (argc != 2) {
                     throw new JavaViolationException("jequals should have two arguments");
                 }
+                b.arrays.refuseAsObject(args.get(0), null);
+                b.arrays.refuseAsObject(args.get(1), null);
                 AstNode<StmtExpr> r = b.push(LaurelFactory.primitiveOp(new Operation.Eq(),
                         args.get(0), args.get(1)));
                 b.bools.add(r);
@@ -96,6 +106,7 @@ final class SpecCallTranslator {
                 if (argc != 1) {
                     throw new JavaViolationException("A throwsOn call must have exactly one argument");
                 }
+                b.refuseAllocTempMention(args.get(0));
                 AstNode<StmtExpr> handle = b.push(new StmtExpr.LiteralString("$throwsOn"));
                 b.specStmts.put(handle, new BodyTranslator.SpecStmt("throwsOn", List.of(args.get(0)),
                         b.lambdas.get(args.get(0)), new ArrayList<>(), b.pos));
@@ -104,6 +115,7 @@ final class SpecCallTranslator {
                 if (b.HEADER_SPEC_NAMES.contains(name) && isVoid) {
                     // Header spec statement: marker consumed by contract extraction.
                     AstNode<StmtExpr> arg = argc >= 1 ? args.get(0) : null;
+                    args.forEach(b::refuseAllocTempMention);
                     AstNode<StmtExpr> raw = b.e(new StmtExpr.LiteralString("$spec$" + name));
                     FileRange range = b.stmtRange(b.pos,
                             arg != null && b.lambdas.containsKey(arg));
@@ -115,6 +127,22 @@ final class SpecCallTranslator {
                     // modifies(everything()): the wildcard frame.
                     AstNode<StmtExpr> r = b.push(new StmtExpr.All());
                     b.specStmts.put(r, new BodyTranslator.SpecStmt("everything", List.of(), null, List.of(), b.pos));
+                } else if (name.equals("old") && argc == 1 && ctx.method.arrayModelMember) {
+                    // JArray's set postcondition: the pre-state value of its argument.
+                    // No label: the procedure's pre-state, which is what old(e) means.
+                    AstNode<StmtExpr> arg = args.get(0);
+                    AstNode<StmtExpr> r = b.push(new StmtExpr.Old(arg, Optional.empty()));
+                    b.noteDesc(r, b.descOf.get(arg));
+                    if (b.bools.contains(arg)) {
+                        b.bools.add(r);
+                    }
+                    if (b.typeVarValues.contains(arg)) {
+                        b.typeVarValues.add(r);
+                    }
+                    TypeRef t = b.staticTypeOf.get(arg);
+                    if (t != null) {
+                        b.staticTypeOf.put(r, t);
+                    }
                 } else if (name.equals("old") || name.equals("result")) {
                     // JFE spec vocabulary without a translation: same
                     // refusal as JFE's unsupported spec methods.
@@ -152,13 +180,18 @@ final class SpecCallTranslator {
                 String pn = ps != null ? ps.name() : ish.slotName().getOrDefault(slot, "p" + i);
                 LaurelFactory.refuseReservedName(pn);
                 binderNames.add(pn);
-                binderTypes.add(TypeRef.ofDescriptor(imt.parameterType(i).descriptorString())
+                String binderDesc = imt.parameterType(i).descriptorString();
+                if (binderDesc.startsWith("[") && ctx.composites.arrays.enabled()) {
+                    // A fact over every array value would constrain arrays not yet allocated.
+                    throw new JavaViolationException(ArrayModel.QUANTIFIER);
+                }
+                binderTypes.add(TypeRef.ofDescriptor(binderDesc)
                         .toLaurel(ctx.typeParams, ctx.resolver, ctx.composites));
             }
             String dd = imt.parameterType(i).descriptorString();
             slot += (dd.equals("J") || dd.equals("D")) ? 2 : 1;
         }
-        StmtExpr qBody = translateLambdaBody(lambda, Map.of()).val();
+        StmtExpr qBody = ArrayAccessTranslator.stripLoadFacts(translateLambdaBody(lambda, Map.of())).val();
         for (int i = binderNames.size() - 1; i >= 0; i--) {
             var param = new org.strata.jverify.laurel.Parameter(
                     LaurelFactory.ident(binderNames.get(i)), LaurelFactory.node(binderTypes.get(i)));

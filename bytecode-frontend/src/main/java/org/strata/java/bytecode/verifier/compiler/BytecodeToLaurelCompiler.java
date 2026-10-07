@@ -6,6 +6,7 @@ import org.strata.jverify.laurel.Body;
 import org.strata.jverify.laurel.Condition;
 import org.strata.jverify.laurel.ConditionMode;
 import org.strata.jverify.laurel.ConstrainedType;
+import org.strata.jverify.laurel.CoroutineContracts;
 import org.strata.jverify.laurel.FileRange;
 import org.strata.jverify.laurel.HighType;
 import org.strata.jverify.laurel.Identifier;
@@ -161,7 +162,7 @@ public class BytecodeToLaurelCompiler {
         this.verifyByDefault = verifyByDefault;
         this.classPath = List.copyOf(classPath);
         this.resolver = new ClassResolver(classPath, verifyByDefault);
-        this.composites = new CompositeModel(resolver);
+        this.composites = new CompositeModel(resolver, contracts);
         this.graph = new MethodGraph(reporter);
         shouldVerifies.push(verifyByDefault ? ShouldVerifyMode.DefaultYes : ShouldVerifyMode.DefaultNo);
     }
@@ -223,6 +224,8 @@ public class BytecodeToLaurelCompiler {
                 }
             }
         }
+        // The program class set is final: decide array-model availability once.
+        composites.arrays.computeEnabled();
 
         // Pre-pass: collect the type trees, @Contract markers, @Pure markers,
         // and declared fields of every class in the compilation, so field
@@ -286,10 +289,16 @@ public class BytecodeToLaurelCompiler {
         // each parent's, so a parent must be declared before its children.
         List<TypeDefinition> types = new ArrayList<>(getPredefinedTypes());
         var emittedComposites = new java.util.HashSet<String>();
+        if (composites.referencedCompositeTypes.contains(ArrayModel.SORT)) {
+            // Before any composite whose fields or procedures name an array:
+            // resolution reads a field (contentsVersion in a frame) only on
+            // a composite declared earlier.
+            emitCompositeClosure(ArrayModel.SORT, emittedComposites, types);
+        }
         for (var typeName : new ArrayList<>(composites.referencedCompositeTypes)) {
             emitCompositeClosure(typeName, emittedComposites, types);
         }
-        List<Procedure> allProcedures = new ArrayList<>(lf.castHelpers.values());
+        List<Procedure> allProcedures = new ArrayList<>(emittedHelpers());
         allProcedures.addAll(procedures);
         var program = new Program(allProcedures, List.of(), types, List.of());
 
@@ -297,6 +306,72 @@ public class BytecodeToLaurelCompiler {
         knownUris.addAll(contracts.loadedUris());
         return new AnalysisResult(program,
                 positionResolver(java.util.Set.copyOf(knownUris)), methodStatuses);
+    }
+
+    /**
+     * The registered helper procedures, in first-use order, without an array
+     * wrapper that no emitted procedure calls: a wrapper calls a JArray
+     * member, which is emitted only while a surviving procedure reaches it.
+     */
+    private List<Procedure> emittedHelpers() {
+        if (!lf.castHelpers.containsKey(ArrayModel.GET_WRAPPER)
+                && !lf.castHelpers.containsKey(ArrayModel.LENGTH_WRAPPER)) {
+            return new ArrayList<>(lf.castHelpers.values());
+        }
+        var called = new java.util.HashSet<String>();
+        for (var p : procedures) {
+            collectProcedureCallees(p, called);
+        }
+        for (var procs : composites.instanceProcsBySort.values()) {
+            for (var p : procs) {
+                collectProcedureCallees(p, called);
+            }
+        }
+        var out = new ArrayList<Procedure>();
+        for (var e : lf.castHelpers.entrySet()) {
+            if (ArrayModel.wrappedMember(e.getKey()) == null || called.contains(e.getKey())) {
+                out.add(e.getValue());
+            }
+        }
+        return out;
+    }
+
+    /** The callee names of every call in {@code p}'s conditions, body, frames and throwsOn blocks. */
+    private static void collectProcedureCallees(Procedure p, java.util.Set<String> out) {
+        for (var c : p.preconditions()) {
+            collectCalleeNames(c.condition(), out);
+        }
+        switch (p.body()) {
+            case Body.Transparent t -> collectCalleeNames(t.body(), out);
+            case Body.Opaque o -> {
+                for (var c : o.postconditions()) {
+                    collectCalleeNames(c.condition(), out);
+                }
+                o.implementation().ifPresent(impl -> collectCalleeNames(impl, out));
+                for (var g : o.modifies()) {
+                    for (var t : g.targets()) {
+                        collectCalleeNames(t, out);
+                    }
+                    g.guard().ifPresent(guard -> collectCalleeNames(guard, out));
+                }
+            }
+            case Body.Abstract a -> {
+                for (var c : a.postconditions()) {
+                    collectCalleeNames(c.condition(), out);
+                }
+            }
+            default -> {
+            }
+        }
+        for (var block : p.throwsOn()) {
+            collectCalleeNames(block.guard(), out);
+            for (var c : block.postconditions()) {
+                collectCalleeNames(c.condition(), out);
+            }
+            for (var t : block.modifies()) {
+                collectCalleeNames(t, out);
+            }
+        }
     }
 
     /**
@@ -379,6 +454,10 @@ public class BytecodeToLaurelCompiler {
         graph.methodInfos.put(info.key(), info);
         libraryMembers.put(info.key(), m);
         try {
+            if (m.kind() == ContractMember.Kind.ARRAY_MODEL
+                    && ArrayModel.shapeProblem(contracts.classBytes(m.classInternal())) != null) {
+                throw new JavaViolationException(ArrayModel.UNAVAILABLE);
+            }
             if (m.kind() == ContractMember.Kind.SPEC_INTERFACE || !m.hasCode()) {
                 emitDeclarationOnly(m, info);
             } else {
@@ -481,10 +560,11 @@ public class BytecodeToLaurelCompiler {
         var proc = new Procedure(
                 ident(name),
                 methodTypeParams.stream().map(LaurelFactory::ident).toList(),
-                signature.inputs(), signature.outputs(), List.of(),
+                signature.inputs(), signature.outputs(), List.of(), new CoroutineContracts.Regular(),
                 Optional.empty(), new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of())),
                 Optional.empty(), false, List.of(),
-                Optional.empty(), Optional.empty(), List.of());
+                Optional.empty(), Optional.empty(), List.of(),
+                /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
         if (m.isStatic()) {
             procedures.add(proc);
         } else {
@@ -542,10 +622,20 @@ public class BytecodeToLaurelCompiler {
     /**
      * The first time a member of a contract class is translated, register
      * that class's instance fields on its contractee sort, immutable when the
-     * contract says {@code pure = true}. Helper and spec-interface classes
-     * contribute no fields.
+     * contract says {@code pure = true}. The first JArray member registers
+     * the JArray class's instance field on the {@code JArray} composite,
+     * with the composite's type parameter. Other helper classes and
+     * spec-interface classes contribute no fields.
      */
     private void registerContractFieldsOnce(ContractMember m) {
+        if (m.kind() == ContractMember.Kind.ARRAY_MODEL && registeredContractClasses.add(m.classInternal())) {
+            var cm = contracts.classBytes(m.classInternal());
+            if (cm != null) {
+                collectDeclaredFields(ArrayModel.SORT, cm, /*skipStatic*/ true, /*allFinal*/ false);
+                composites.arrays.registerComposite();
+            }
+            return;
+        }
         if (m.kind() != ContractMember.Kind.CONTRACT || !registeredContractClasses.add(m.classInternal())) {
             return;
         }
@@ -667,7 +757,10 @@ public class BytecodeToLaurelCompiler {
             }
             boolean isNat = false;
             boolean isUnbounded = false;
+            boolean nullable = hasNullableDeclarationAnnotation(fm);
             for (var ta : org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(fm)) {
+                nullable |= ta.targetInfo().targetType() == java.lang.classfile.TypeAnnotation.TargetType.FIELD
+                        && ArrayModel.isNullableAnnotation(ta.annotation().className().stringValue());
                 if (!ta.targetPath().isEmpty()
                         || ta.targetInfo().targetType()
                                 != java.lang.classfile.TypeAnnotation.TargetType.FIELD) {
@@ -693,8 +786,18 @@ public class BytecodeToLaurelCompiler {
                 t = TypeRef.ofDescriptor(fm.fieldTypeSymbol().descriptorString(), isNat, isUnbounded);
             }
             fields.put(fm.fieldName().stringValue(), new CompositeModel.FieldInfo(
-                    t, allFinal || (flags & java.lang.classfile.ClassFile.ACC_FINAL) != 0));
+                    t, allFinal || (flags & java.lang.classfile.ClassFile.ACC_FINAL) != 0, nullable));
         }
+    }
+
+    /** True iff {@code el} carries a {@code Nullable} declaration annotation (visible or invisible). */
+    private static boolean hasNullableDeclarationAnnotation(java.lang.classfile.AttributedElement el) {
+        var annos = new ArrayList<java.lang.classfile.Annotation>();
+        el.findAttribute(java.lang.classfile.Attributes.runtimeVisibleAnnotations())
+                .ifPresent(a -> annos.addAll(a.annotations()));
+        el.findAttribute(java.lang.classfile.Attributes.runtimeInvisibleAnnotations())
+                .ifPresent(a -> annos.addAll(a.annotations()));
+        return annos.stream().anyMatch(a -> ArrayModel.isNullableAnnotation(a.className().stringValue()));
     }
 
     // --- External @Contract validation (JFE's ExternalContractCompiler checks) ---
@@ -1235,6 +1338,14 @@ public class BytecodeToLaurelCompiler {
                     return true;
                 }
             }
+            case StmtExpr.While w -> {
+                // A loop whose body allocates havocs the whole heap, which an
+                // empty frame cannot cover; an array allocation has no
+                // constructor call to count as the write.
+                if (allocatesArray(n)) {
+                    return true;
+                }
+            }
             default -> {
             }
         }
@@ -1244,6 +1355,20 @@ public class BytecodeToLaurelCompiler {
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
             if (heapNode(c, body)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code n}'s subtree allocates a JArray. */
+    private static boolean allocatesArray(AstNode<StmtExpr> n) {
+        if (n.val() instanceof StmtExpr.New nw && nw.ref().text().equals(ArrayModel.SORT)
+                && !nw.typeArgs().isEmpty()) {
+            return true;
+        }
+        for (var c : BodyTranslator.childrenOf(n.val())) {
+            if (allocatesArray(c)) {
                 return true;
             }
         }
@@ -1608,23 +1733,84 @@ public class BytecodeToLaurelCompiler {
                             + (ctx.method.throwsJoin != null ? " ('" + ctx.method.throwsJoin + "')" : "")
                             + "; narrow with instanceof and a cast inside the property");
         }
-        var converted = body.coerce(
-                body.translateLambdaBody(handle, Map.of(binders.get(0).name(), THROWN_BINDING)), "Z");
+        var converted = body.coerce(ArrayAccessTranslator.stripLoadFacts(
+                body.translateLambdaBody(handle, Map.of(binders.get(0).name(), THROWN_BINDING))), "Z");
         return new Condition(LaurelTrees.rerange(converted, range, ctx.method.statementNodes),
                 Optional.empty(), new ConditionMode.Both());
     }
 
-    /** Add the callee identifier of every InstanceCall/StaticCall in {@code n}'s subtree to {@code out}. */
+    /**
+     * A program {@code modifies} target: an array-typed argument ({@code
+     * original}'s descriptor) may change only its contents,
+     * {@code x#contentsVersion}; any other target is {@code placed} as is.
+     */
+    private AstNode<StmtExpr> modifiesTarget(AstNode<StmtExpr> original, AstNode<StmtExpr> placed,
+                                             BodyTranslator body) {
+        if (ArrayModel.kindOfDescriptor(body.descOf.get(original)) != null && composites.arrays.enabled()) {
+            return ArrayModel.frameTarget(placed);
+        }
+        return placed;
+    }
+
+    /**
+     * Add the callee identifier of every InstanceCall/StaticCall in {@code
+     * n}'s subtree to {@code out}; an array wrapper also adds the JArray
+     * member it calls.
+     */
     private static void collectCalleeNames(AstNode<StmtExpr> n, java.util.Set<String> out) {
         switch (n.val()) {
             case StmtExpr.InstanceCall c -> out.add(c.callee().text());
-            case StmtExpr.StaticCall c -> out.add(c.callee().text());
+            case StmtExpr.StaticCall c -> {
+                out.add(c.callee().text());
+                String member = ArrayModel.wrappedMember(c.callee().text());
+                if (member != null) {
+                    out.add(member);
+                }
+            }
             default -> {
             }
         }
         for (var child : BodyTranslator.childrenOf(n.val())) {
             collectCalleeNames(child, out);
         }
+    }
+
+    /**
+     * True iff formal parameter {@code index} of {@code m} carries a
+     * {@code Nullable} annotation: a type annotation at any type path, or a
+     * declaration annotation.
+     */
+    private static boolean nullableParameter(java.lang.classfile.MethodModel m, int index) {
+        for (var ta : org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(m)) {
+            if (ta.targetInfo() instanceof java.lang.classfile.TypeAnnotation.FormalParameterTarget fp
+                    && fp.formalParameterIndex() == index
+                    && ArrayModel.isNullableAnnotation(ta.annotation().className().stringValue())) {
+                return true;
+            }
+        }
+        var perParameter = new ArrayList<List<List<java.lang.classfile.Annotation>>>();
+        m.findAttribute(java.lang.classfile.Attributes.runtimeVisibleParameterAnnotations())
+                .ifPresent(a -> perParameter.add(a.parameterAnnotations()));
+        m.findAttribute(java.lang.classfile.Attributes.runtimeInvisibleParameterAnnotations())
+                .ifPresent(a -> perParameter.add(a.parameterAnnotations()));
+        for (var params : perParameter) {
+            if (index < params.size() && params.get(index).stream()
+                    .anyMatch(a -> ArrayModel.isNullableAnnotation(a.className().stringValue()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True iff {@code m}'s return type carries a {@code Nullable} type annotation (any type path) or declaration annotation. */
+    private static boolean nullableReturn(java.lang.classfile.MethodModel m) {
+        for (var ta : org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(m)) {
+            if (ta.targetInfo().targetType() == java.lang.classfile.TypeAnnotation.TargetType.METHOD_RETURN
+                    && ArrayModel.isNullableAnnotation(ta.annotation().className().stringValue())) {
+                return true;
+            }
+        }
+        return hasNullableDeclarationAnnotation(m);
     }
 
     /** A procedure signature: Laurel inputs, outputs, and the class-typed return sort (or null). */
@@ -1669,8 +1855,11 @@ public class BytecodeToLaurelCompiler {
         var inputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
         if (!isStatic) {
             composites.referencedCompositeTypes.add(selfSort);
-            inputs.add(new org.strata.jverify.laurel.Parameter(
-                    ident(LAUREL_SELF_BINDING), node(new HighType.UserDefined(ident(selfSort)))));
+            // A JArray member's receiver is the generic JArray<TArrayElement>.
+            HighType selfType = ctx.method.arrayModelMember
+                    ? composites.arrays.selfType()
+                    : new HighType.UserDefined(ident(selfSort));
+            inputs.add(new org.strata.jverify.laurel.Parameter(ident(LAUREL_SELF_BINDING), node(selfType)));
         }
         int paramCount = mt.parameterCount();
         boolean[] natP = new boolean[paramCount];
@@ -1701,6 +1890,7 @@ public class BytecodeToLaurelCompiler {
         }
         boolean sigArgs = msig != null && msig.arguments().size() == paramCount;
         boolean varargs = m.flags().has(java.lang.reflect.AccessFlag.VARARGS);
+        boolean arraysEnabled = composites.arrays.enabled();
         int slot = isStatic ? 0 : 1;
         for (int i = 0; i < paramCount; i++) {
             String desc = mt.parameterType(i).descriptorString();
@@ -1709,8 +1899,10 @@ public class BytecodeToLaurelCompiler {
                     : shape != null ? shape.slotName().getOrDefault(slot, "v" + slot) : "v" + slot;
             LaurelFactory.refuseReservedName(pname);
             // ACC_VARARGS: the declaration reads `T...`, so the COMPONENT
-            // type is what translates (JFE sees the source `T`).
-            boolean va = varargs && i == paramCount - 1 && desc.startsWith("[");
+            // type is what translates (JFE sees the source `T`). A primitive
+            // varargs parameter is an array the array model types exactly.
+            boolean va = varargs && i == paramCount - 1 && desc.startsWith("[")
+                    && !(arraysEnabled && ArrayModel.kindOfDescriptor(desc) != null);
             TypeRef t = null;
             if (sigArgs) {
                 try {
@@ -1726,6 +1918,9 @@ public class BytecodeToLaurelCompiler {
             }
             if (t == null) {
                 t = TypeRef.ofDescriptor(va ? desc.substring(1) : desc, natP[i], unbP[i]);
+            }
+            if (arraysEnabled && t.kind() == TypeRef.Kind.ARRAY && nullableParameter(m, i)) {
+                throw new JavaViolationException(ArrayModel.NULLABLE);
             }
             inputs.add(new org.strata.jverify.laurel.Parameter(ident(pname),
                     node(t.toLaurel(typeParams, methodTypeParams, resolver, composites))));
@@ -1748,6 +1943,9 @@ public class BytecodeToLaurelCompiler {
             }
             if (rt == null) {
                 rt = TypeRef.ofDescriptor(retDesc, natR, unbR);
+            }
+            if (arraysEnabled && rt.kind() == TypeRef.Kind.ARRAY && nullableReturn(m)) {
+                throw new JavaViolationException(ArrayModel.NULLABLE);
             }
             outputs.add(new org.strata.jverify.laurel.Parameter(LaurelFactory.reservedIdent(LAUREL_RESULT_BINDING),
                     node(rt.toLaurel(typeParams, methodTypeParams, resolver, composites))));
@@ -1777,6 +1975,21 @@ public class BytecodeToLaurelCompiler {
                                        MethodGraph.MethodInfo info,
                                        boolean verify, boolean isInterpretEntry,
                                        ContractMember member) {
+        // The array model's debug-info scope is this method's (set once its
+        // body is known) and ends with it.
+        boolean outerScope = composites.arrays.inCodeWithoutDebugInfo;
+        try {
+            translateMethodInScope(classFqn, cm, m, info, verify, isInterpretEntry, member);
+        } finally {
+            composites.arrays.inCodeWithoutDebugInfo = outerScope;
+        }
+    }
+
+    private void translateMethodInScope(String classFqn, java.lang.classfile.ClassModel cm,
+                                        java.lang.classfile.MethodModel m,
+                                        MethodGraph.MethodInfo info,
+                                        boolean verify, boolean isInterpretEntry,
+                                        ContractMember member) {
         boolean isStatic = m.flags().has(java.lang.reflect.AccessFlag.STATIC);
         String bareName = m.methodName().stringValue();
         String procName = member != null ? member.laurelName() : bareName;
@@ -1807,11 +2020,21 @@ public class BytecodeToLaurelCompiler {
         if (shape == null) {
             throw new JavaViolationException("method has no code");
         }
+        composites.arrays.inCodeWithoutDebugInfo = shape.hasLocalsWithoutDebugInfo();
+        // A JArray member also types its class's type parameter as a TVar:
+        // the JArray composite declares it, so the procedure does not.
+        boolean arrayModelMember = member != null && member.kind() == ContractMember.Kind.ARRAY_MODEL;
+        var tvarNames = new java.util.LinkedHashSet<String>(methodTypeParams);
+        if (arrayModelMember) {
+            tvarNames.addAll(Declarations.typeParamNamesOf(cm));
+        }
         var ctx = translationContext();
         ctx.currentClassFqn = classFqn;
         ctx.typeParams = typeParams;
-        ctx.methodTypeParams = methodTypeParams;
+        ctx.methodTypeParams = tvarNames;
         ctx.beginMethod(info);
+        ctx.method.arrayModelMember = arrayModelMember;
+        ctx.method.pure = member == null && hasAnnotation(m, "Pure");
 
         // Input compiled without -Xjcov: no statement spans exist, so anchor
         // every emitted range at the method's LineNumberTable line envelope.
@@ -1826,7 +2049,7 @@ public class BytecodeToLaurelCompiler {
         }
 
         // --- Inputs and outputs ---
-        var signature = buildSignature(classFqn, cm, m, shape, isStatic, typeParams, methodTypeParams);
+        var signature = buildSignature(classFqn, cm, m, shape, isStatic, typeParams, tvarNames);
         var inputs = signature.inputs();
         var outputs = signature.outputs();
 
@@ -1957,7 +2180,7 @@ public class BytecodeToLaurelCompiler {
                 converted = spec.args().get(0);
                 body.checkContractArg(converted);
             }
-            converted = body.coerce(converted, "Z");
+            converted = body.coerce(ArrayAccessTranslator.stripLoadFacts(converted), "Z");
             preconditions.add(new Condition(
                     LaurelTrees.rerange(converted, condRange, ctx.method.statementNodes),
                     Optional.empty(), new ConditionMode.Both()));
@@ -1984,7 +2207,7 @@ public class BytecodeToLaurelCompiler {
                 converted = spec.args().get(0);
                 body.checkContractArg(converted);
             }
-            converted = body.coerce(converted, "Z");
+            converted = body.coerce(ArrayAccessTranslator.stripLoadFacts(converted), "Z");
             postconditions.add(new Condition(
                     LaurelTrees.rerange(converted, condRange, ctx.method.statementNodes),
                     Optional.empty(), new ConditionMode.Both()));
@@ -2003,9 +2226,19 @@ public class BytecodeToLaurelCompiler {
             var argSpec = body.specStmts.get(arg);
             if (argSpec != null && argSpec.name().equals("everything")) {
                 explicitModifies.add(node(new StmtExpr.All(), argRange));
+            } else if (arrayModelMember) {
+                // A JArray member may change only its own contents.
+                if (!(arg.val() instanceof StmtExpr.Var selfVar
+                        && selfVar.var_() instanceof Variable.Local selfLocal
+                        && selfLocal.name().text().equals(LAUREL_SELF_BINDING))) {
+                    throw new JavaViolationException(ArrayModel.UNAVAILABLE);
+                }
+                explicitModifies.add(ArrayModel.frameTarget(
+                        LaurelTrees.rerange(arg, argRange, ctx.method.statementNodes)));
             } else {
                 body.checkContractArg(arg);
-                explicitModifies.add(LaurelTrees.rerange(arg, argRange, ctx.method.statementNodes));
+                explicitModifies.add(modifiesTarget(arg,
+                        LaurelTrees.rerange(arg, argRange, ctx.method.statementNodes), body));
             }
         }
 
@@ -2037,8 +2270,8 @@ public class BytecodeToLaurelCompiler {
                             caseModifies.add(node(new StmtExpr.All(), stmtRange));
                         } else {
                             body.checkPlaceable(arg);
-                            caseModifies.add(LaurelTrees.rerange(arg, stmtRange,
-                                    ctx.method.statementNodes));
+                            caseModifies.add(modifiesTarget(arg, LaurelTrees.rerange(arg, stmtRange,
+                                    ctx.method.statementNodes), body));
                         }
                     }
                     default -> throw new IllegalStateException(link.name());
@@ -2101,7 +2334,9 @@ public class BytecodeToLaurelCompiler {
             // rather than on whether the body actually throws is deliberately
             // conservative -- it costs transparency only for a `@Pure` method that
             // declares `throws` without ever throwing.
-            procBody = new Body.Transparent(noRange(methodBody));
+            // The body becomes a function, where Strata cannot link the opaque
+            // array load helper: element reads use the transparent one.
+            procBody = new Body.Transparent(ArrayAccessTranslator.pureBodyLoads(noRange(methodBody), lf));
         } else {
             procBody = new Body.Opaque(postconditions, Optional.of(noRange(methodBody)),
                     unguardedModifies(modifies));
@@ -2128,10 +2363,11 @@ public class BytecodeToLaurelCompiler {
         var proc = new Procedure(
                 ident(methodName),
                 methodTypeParams.stream().map(LaurelFactory::ident).toList(),
-                inputs, outputs, preconditions,
+                inputs, outputs, preconditions, new CoroutineContracts.Regular(),
                 Optional.empty(), procBody, Optional.empty(),
                 isInterpretEntry, List.of(),
-                throwsType, throwsBinding, throwsOnBlocks);
+                throwsType, throwsBinding, throwsOnBlocks,
+                /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
         if (isStatic) {
             procedures.add(proc);
         } else {

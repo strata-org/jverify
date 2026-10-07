@@ -9,15 +9,21 @@ import java.util.Set;
  * The per-method ingredients the bytecode->Laurel translator needs: the CFG + dominators, the
  * scoped local table, the instruction sequence, a parameter-and-hoist-seeded {@code declared} set,
  * CRT spans + the seq-index->pc bridge, per-slot type annotations, the return descriptor, the
- * ctor/static flags, and the hoisted local declarations. {@code cfg}/{@code dom} are null for a
- * single-block (straight-line) method, and the whole body is null when the method has no Code.
+ * ctor/static flags, the hoisted local declarations, and whether the code has locals with no debug
+ * information. {@code cfg}/{@code dom} are null for a single-block (straight-line) method, and the
+ * whole body is null when the method has no Code.
+ *
+ * @param hasLocalsWithoutDebugInfo the code has no LocalVariableTable and {@code maxLocals > (static ?
+ *        0 : 1)}: it was compiled without {@code -g}, and some parameter or local has no recorded
+ *        name or type
  */
 public record MethodBody(
         ControlFlowGraph cfg, DominanceFinder dom, Locals locals, List<CodeElement> seq,
         Map<Integer, String> slotName, Map<Integer, String> slotDesc, Set<String> declared,
         List<CrtRange> crt, LineNumbers lines, int[] seqToBci,
         Map<Integer, List<java.lang.classfile.Annotation>> slotAnnos,
-        String retDesc, boolean isCtor, boolean isStatic, List<HoistedDecl> hoisted) {
+        String retDesc, boolean isCtor, boolean isStatic, List<HoistedDecl> hoisted,
+        boolean hasLocalsWithoutDebugInfo) {
 
     /**
      * One local declaration hoisted to the method top. For a debug-info-less input (no LVT),

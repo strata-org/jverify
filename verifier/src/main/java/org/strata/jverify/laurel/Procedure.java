@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, java.util.List<Parameter> inputs, java.util.List<Parameter> outputs, java.util.List<Condition> preconditions, java.util.Optional<AstNode<StmtExpr>> decreases, Body body, java.util.Optional<AstNode<StmtExpr>> invokeOn, boolean isInterpretEntry, java.util.List<AstNode<StmtExpr>> axioms, java.util.Optional<AstNode<HighType>> throwsType, java.util.Optional<Identifier> throwsBinding, java.util.List<ThrowsOnBlock> throwsOn) implements ToIon {
+public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, java.util.List<Parameter> inputs, java.util.List<Parameter> outputs, java.util.List<Condition> preconditions, CoroutineContracts contracts, java.util.Optional<AstNode<StmtExpr>> decreases, Body body, java.util.Optional<AstNode<StmtExpr>> invokeOn, boolean isInterpretEntry, java.util.List<AstNode<StmtExpr>> axioms, java.util.Optional<AstNode<HighType>> throwsType, java.util.Optional<Identifier> throwsBinding, java.util.List<ThrowsOnBlock> throwsOn, java.util.List<Identifier> readsGlobals, java.util.List<Identifier> writesGlobals) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         s.put("name", name().toIon(ion));
@@ -16,6 +16,7 @@ public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, ja
         var _l_preconditions = ion.newEmptyList();
         for (var e : preconditions()) _l_preconditions.add(e.toIon(ion));
         s.put("preconditions", _l_preconditions);
+        s.put("contracts", contracts().toIon(ion));
         s.put("decreases", (decreases().isPresent() ? decreases().get().toIon(ion) : ion.newNull()));
         s.put("body", body().toIon(ion));
         s.put("invokeOn", (invokeOn().isPresent() ? invokeOn().get().toIon(ion) : ion.newNull()));
@@ -28,6 +29,12 @@ public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, ja
         var _l_throwsOn = ion.newEmptyList();
         for (var e : throwsOn()) _l_throwsOn.add(e.toIon(ion));
         s.put("throwsOn", _l_throwsOn);
+        var _l_readsGlobals = ion.newEmptyList();
+        for (var e : readsGlobals()) _l_readsGlobals.add(e.toIon(ion));
+        s.put("readsGlobals", _l_readsGlobals);
+        var _l_writesGlobals = ion.newEmptyList();
+        for (var e : writesGlobals()) _l_writesGlobals.add(e.toIon(ion));
+        s.put("writesGlobals", _l_writesGlobals);
         return s;
     }
 }
