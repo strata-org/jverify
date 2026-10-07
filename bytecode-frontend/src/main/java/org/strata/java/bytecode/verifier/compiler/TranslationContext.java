@@ -38,6 +38,11 @@ final class TranslationContext {
         this.graph = graph;
     }
 
+    /** The library contracts consulted at call sites; never null ({@link LibraryContracts#none()} by default). */
+    LibraryContracts contracts = LibraryContracts.none();
+    /** Translating a library contract member rather than a program method. */
+    boolean contractMode;
+
     // --- Per-class state ---
 
     /** Fqn of the class whose method is being translated: the type of `this`. */

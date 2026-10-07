@@ -315,10 +315,12 @@ public class StrataBackend {
             long startOffset = Long.parseLong(matcher.group(2));
             long endOffset = Long.parseLong(matcher.group(3));
 
-            // Strata emits `file://` URIs; parse them as URIs rather than as
-            // filesystem paths, which would miss the resolver and lose the
-            // source location.
-            var uri = filePath.startsWith("file:")
+            // Strata emits `file://` URIs for program sources, and the
+            // contract sources' `string:` and `jar:` URIs as given; parse
+            // them as URIs rather than as filesystem paths, which would miss
+            // the resolver and lose the source location.
+            var uri = filePath.startsWith("file:") || filePath.startsWith("string:")
+                    || filePath.startsWith("jar:")
                     ? URI.create(filePath)
                     : toDiagnosticUri(filePath);
 

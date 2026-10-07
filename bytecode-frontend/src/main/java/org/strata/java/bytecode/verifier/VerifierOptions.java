@@ -19,7 +19,9 @@ import java.util.function.Supplier;
  *        input sources with {@code -g -Xjcov} (must include the bytecode-frontend spec library
  *        jar so spec calls/annotations resolve), and consulted when reading
  *        referenced classfiles.
- * @param contractSourcePath contract sources (mirrors JFE; used by later milestones).
+ * @param contractSourcePath contract sources (directories of .java files or
+ *        .jar files, resolved against workingDirectory) applied in addition
+ *        to the always-available object-contract.java.
  * @param jvmVerifyClassfiles run the JVM bytecode-verification gate on the
  *        classfiles before translation, refusing any that fail
  *        {@code ClassFile.verify}. Off by default: the driver's only

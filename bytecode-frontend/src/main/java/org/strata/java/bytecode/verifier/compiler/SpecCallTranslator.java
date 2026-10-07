@@ -142,9 +142,12 @@ final class SpecCallTranslator {
             throw new JavaViolationException("Unsupported lambda body");
         }
         var iloc = ish.locals();
+        // Contract code: as in lambdaBinders, a captured `this` is the
+        // receiver of an instance impl, not one of its parameters.
+        int capturedParams = lambda.captureCount() - (ctx.contractMode && !iStatic ? 1 : 0);
         int slot = iStatic ? 0 : 1;
         for (int i = 0; i < imt.parameterCount(); i++) {
-            if (i >= lambda.captureCount()) {
+            if (i >= capturedParams) {
                 Locals.Scope ps = iloc.at(slot, 0);
                 String pn = ps != null ? ps.name() : ish.slotName().getOrDefault(slot, "p" + i);
                 LaurelFactory.refuseReservedName(pn);
@@ -181,10 +184,13 @@ final class SpecCallTranslator {
         }
         var iloc = ish.locals();
         var out = new ArrayList<BodyTranslator.LambdaBinder>();
+        // Contract code: an instance impl receives its captured `this` as the
+        // receiver, not as a parameter, so it does not shift the binders.
+        int capturedParams = lambda.captureCount() - (ctx.contractMode && !iStatic ? 1 : 0);
         int slot = iStatic ? 0 : 1;
         for (int i = 0; i < imt.parameterCount(); i++) {
             String dd = imt.parameterType(i).descriptorString();
-            if (i >= lambda.captureCount()) {
+            if (i >= capturedParams) {
                 var ps = iloc.at(slot, 0);
                 out.add(new BodyTranslator.LambdaBinder(
                         ps != null ? ps.name() : ish.slotName().getOrDefault(slot, "p" + i), dd));

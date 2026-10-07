@@ -93,6 +93,16 @@ final class BodyTranslator {
     final Map<AstNode<StmtExpr>, String> descOf = new IdentityHashMap<>();
     /** Values known to be boolean-typed. */
     final Set<AstNode<StmtExpr>> bools = Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Values typed by a type variable in scope: loads of a local whose
+     * (LVTT) type is a type parameter, and calls whose generic result is a
+     * type variable (their erased descriptor says {@code Object}).
+     */
+    final Set<AstNode<StmtExpr>> typeVarValues = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** {@code String} constants pushed by {@code ldc} (markers never enter). */
+    final Set<AstNode<StmtExpr>> stringLiterals = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** Results of string concatenation ({@code invokedynamic makeConcatWithConstants}). */
+    final Set<AstNode<StmtExpr>> stringConcatResults = Collections.newSetFromMap(new IdentityHashMap<>());
     /** 3-way compare result -> its two operands (for rebuilding `a <op> b`). */
     final Map<AstNode<StmtExpr>, AstNode<StmtExpr>[]> cmp3 = new IdentityHashMap<>();
     final Map<AstNode<StmtExpr>, Boolean> cmp3NanHigh = new IdentityHashMap<>();
@@ -282,6 +292,11 @@ final class BodyTranslator {
     /** The per-node refusal checks shared by the placement/contract walks. */
     private void refuseNode(AstNode<StmtExpr> n) {
         String needle = arrayInitNeedles.get(n);
+        if (needle != null && ctx.contractMode) {
+            // Library members are never diagnosed: the refusal reaches the
+            // callers through the member's refusal reason.
+            throw new JavaViolationException("new array with initializers is not supported");
+        }
         if (needle != null) {
             // Array creation with initializers: reported at the first
             // element's text, then aborted with ReportedViolation.
@@ -593,6 +608,7 @@ final class BodyTranslator {
             case String s -> {
                 AstNode<StmtExpr> n = push(new StmtExpr.LiteralString(s));
                 noteDesc(n, "Ljava/lang/String;");
+                stringLiterals.add(n);
             }
             case Float f -> defer(push(new StmtExpr.LiteralString("float " + f)),
                     "Unsupported expression: DoubleLiteralExpr");
@@ -638,6 +654,10 @@ final class BodyTranslator {
         TypeRef t = localTypeRef(li.slot());
         if (t != null && !name.equals("this")) {
             staticTypeOf.put(n, t);
+        }
+        if (t != null && t.kind() == TypeRef.Kind.CLASS && !t.scoped()
+                && ctx.typeParams.contains(t.simpleName())) {
+            typeVarValues.add(n);
         }
     }
 
@@ -972,6 +992,15 @@ final class BodyTranslator {
     /** Emitted Throw statements -> the thrown static type fqn (or null): driver prescan parity. */
     final Map<AstNode<StmtExpr>, String> throwStmts = new IdentityHashMap<>();
 
+    /** Contract mode: the value a {@code new ContractException()} pushes. */
+    static final String CONTRACT_EXCEPTION_MARKER = "$contractException";
+    /**
+     * Contract mode: the placed statements standing for a
+     * {@code throw new ContractException()}; member translation accepts one
+     * only as the whole body.
+     */
+    final Set<AstNode<StmtExpr>> contractThrows = Collections.newSetFromMap(new IdentityHashMap<>());
+
     /**
      * Structuring gaps (old {@code todo()} EmptyStmt comments). The old
      * translateMethod scanned these FIRST and refused the whole method with
@@ -1113,7 +1142,18 @@ final class BodyTranslator {
                 // short form only via the structurer; void fall-off emits nothing.
             }
             default -> {
-                if (in.opcode() == java.lang.classfile.Opcode.ATHROW) {
+                if (in.opcode() == java.lang.classfile.Opcode.ATHROW && ctx.contractMode
+                        && stack.peek() != null
+                        && stack.peek().val() instanceof StmtExpr.LiteralString marker
+                        && marker.value().equals(CONTRACT_EXCEPTION_MARKER)) {
+                    // `throw new ContractException()`: no coverage check, no
+                    // hierarchy registration; a placeholder statement.
+                    stack.pop();
+                    AstNode<StmtExpr> placed = place(e(new StmtExpr.LiteralString("$contractThrow")),
+                            stmtRange(pos, false));
+                    stmts.add(placed);
+                    contractThrows.add(placed);
+                } else if (in.opcode() == java.lang.classfile.Opcode.ATHROW) {
                     AstNode<StmtExpr> v = stack.pop();
                     AstNode<StmtExpr> before = e(new StmtExpr.Throw(v));
                     checkPlaceable(before);

@@ -7,6 +7,7 @@ import org.strata.jverify.verifier.JVerifyResults;
 import org.strata.jverify.verifier.SourceFile;
 import org.strata.java.bytecode.frontend.BytecodeFrontend;
 import org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler;
+import org.strata.java.bytecode.verifier.compiler.LibraryContracts;
 import org.strata.java.bytecode.verifier.compiler.Reporter;
 import org.strata.java.bytecode.verifier.laurel.StrataBackend;
 import org.strata.java.bytecode.verifier.laurel.StrataDiagnostic;
@@ -15,6 +16,7 @@ import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.net.URI;
 import java.nio.file.Files;
@@ -81,8 +83,25 @@ public class VerifierDriver {
             for (var file : readFiles) {
                 sourceUris.add(file.toUri());
             }
+
+            // 3. Library contracts: object-contract.java is always available
+            //    (compiled on first use); the contractSourcePath sources come
+            //    on top. A missing or unreadable contractSourcePath entry stops
+            //    the run (a jar entry that fails to read later, while the
+            //    contracts load, stops it the same way, in analyzeClassesDir).
+            List<JavaFileObject> userSources;
+            try {
+                userSources = LibraryContracts.collectUserSources(options.workingDirectory(),
+                        options.contractSourcePath());
+            } catch (IllegalArgumentException | UncheckedIOException e) {
+                URI anchor = sourceUris.isEmpty() ? null : sourceUris.getFirst();
+                reporter.reportError(anchor, Reporter.NO_RANGE, e.getMessage());
+                return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
+            }
+            var contracts = LibraryContracts.of(LibraryContracts.objectContractSource(), userSources,
+                    List.copyOf(options.classPathEntries()));
             return analyzeClassesDir(classesDir, sourceUris, reporter,
-                    compileResult.degradedToLineNumbers());
+                    compileResult.degradedToLineNumbers(), contracts);
         } finally {
             deleteRecursively(classesDir);
         }
@@ -99,9 +118,11 @@ public class VerifierDriver {
      *
      * @param tierIsSelfInflicted true when this run's own javac step degraded
      *        to plain {@code -g} (see {@link BytecodeFrontend.CompileResult#degradedToLineNumbers})
+     * @param contracts the library contracts the translation binds and applies
      */
     JVerifyResults analyzeClassesDir(Path classesDir, List<URI> sourceUris, Reporter reporter,
-                                     boolean tierIsSelfInflicted) throws IOException {
+                                     boolean tierIsSelfInflicted, LibraryContracts contracts)
+            throws IOException {
         List<BytecodeFrontend.ClassSource> classes;
         try {
             classes = options.time("Reading classfiles", () -> {
@@ -125,13 +146,13 @@ public class VerifierDriver {
             analysis = options.time("Compiling bytecode to Laurel",
                     () -> new BytecodeToLaurelCompiler(reporter, options.verifyByDefault(),
                             List.copyOf(options.classPathEntries()), tierIsSelfInflicted,
-                            options.jvmVerifyClassfiles())
+                            options.jvmVerifyClassfiles(), contracts)
                             .analyze(sourceUris, classes));
         } catch (org.strata.java.bytecode.verifier.compiler.RefusedInputException e) {
             // The input was refused before translation -- either it carries
             // no debug information (input-tier gate) or it failed JVM
-            // bytecode verification. Either way the reason is already on the
-            // reporter.
+            // bytecode verification -- or the contract sources could not be
+            // loaded. Either way the reason is already on the reporter.
             return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
         }
 

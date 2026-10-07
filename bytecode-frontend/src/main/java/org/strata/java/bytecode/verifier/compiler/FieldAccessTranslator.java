@@ -76,7 +76,7 @@ final class FieldAccessTranslator {
                     return;
                 }
                 boolean superRead = isSuperFieldRead(fi, recv);
-                declareAccessedField(recv, fn);
+                TypeRef declared = declareAccessedField(recv, fn);
                 if (superRead) {
                     // A super-field read refuses AFTER the field-registration
                     // side effects (JFE's ordering).
@@ -90,6 +90,12 @@ final class FieldAccessTranslator {
                 b.noteDesc(n, fdesc);
                 if (fdesc.startsWith("L")) {
                     b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));
+                } else if (ctx.contractMode) {
+                    // Contract code types a primitive field read by its
+                    // declaration, so an @Unbounded field reads as the
+                    // unbounded Laurel int and javac's widening of it is
+                    // the identity (see BodyTranslator.convert).
+                    b.staticTypeOf.put(n, declared);
                 }
             }
             case PUTSTATIC -> {
@@ -149,16 +155,22 @@ final class FieldAccessTranslator {
     /**
      * Resolve the owning composite from the receiver's static type
      * (fallback: the unique declaring class), then declare the accessed
-     * field on it (JFE's ensureFieldOnComposite).
+     * field on it (the source frontend's ensureFieldOnComposite). Contract
+     * code has no fallback: several contract classes declare fields of the
+     * same name, so only the receiver's own sort may own the field.
+     *
+     * @return the field's declared type (with its {@code @Nat}/{@code @Unbounded} flags)
      */
-    void declareAccessedField(AstNode<StmtExpr> recv, String fieldName) {
+    TypeRef declareAccessedField(AstNode<StmtExpr> recv, String fieldName) {
         String ownerFqn = b.staticTypeFqnOf(recv);
         if (ownerFqn == null || !hasDeclaredField(ownerFqn, fieldName)) {
             ownerFqn = null;
-            for (var e : ctx.composites.declaredFields.entrySet()) {
-                if (e.getValue().containsKey(fieldName)) {
-                    ownerFqn = e.getKey();
-                    break;
+            if (!ctx.contractMode) {
+                for (var e : ctx.composites.declaredFields.entrySet()) {
+                    if (e.getValue().containsKey(fieldName)) {
+                        ownerFqn = e.getKey();
+                        break;
+                    }
                 }
             }
         }
@@ -176,6 +188,7 @@ final class FieldAccessTranslator {
                     LaurelFactory.node(info.type().toLaurel(ctx.typeParams, ctx.resolver, ctx.composites)),
                     Optional.empty()));
         }
+        return info.type();
     }
 
     private boolean hasDeclaredField(String fqn, String fieldName) {

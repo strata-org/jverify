@@ -138,6 +138,22 @@ XFAIL  org.strata.jverify.verifier.tests.verification.pure.PureMethodWithModifie
 # FormalParameterTarget, so parameters are not a special case -- and verifies
 # both methods.
 
+# The source frontend does not emit the library contract procedures these
+# programs call ("Resolution failed: 'java.lang.String$substring' is not
+# defined"), nor static members of user contracts ('java.lang.Math?static?abs'),
+# nor the contract simple-name collision; this frontend binds each call to its
+# contract member and reports the collision.
+RUN    org.strata.jverify.verifier.tests.jcl.BoxedIntegerBuiltin               source frontend does not emit the Integer contract procedures ('java.lang.Integer$intValue' is not defined)
+RUN    org.strata.jverify.verifier.tests.jcl.StringContracts                   source frontend does not emit the String contract procedures
+RUN    org.strata.jverify.verifier.tests.jcl.StringOverloads                   source frontend does not emit the String contract procedures ('java.lang.String$substring' is not defined)
+RUN    org.strata.jverify.verifier.tests.jcl.BigIntegerContracts               source frontend does not emit the BigInteger contract procedures ('java.math.BigInteger$signum' is not defined)
+RUN    org.strata.jverify.verifier.tests.jcl.InheritedContracts                source frontend does not emit the Object contract procedures ('java.lang.Integer$equals' is not defined)
+RUN    org.strata.jverify.verifier.tests.jcl.UnsupportedContractCalls          source frontend does not emit the String/BigInteger/Optional contract procedures
+RUN    org.strata.jverify.verifier.tests.jcl.LibraryMemberOverride             source frontend does not emit the Object contract procedures ('java.lang.Object$equals' is not defined)
+RUN    org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractApplies    source frontend does not emit static user contract members ('java.lang.Math?static?abs' is not defined)
+RUN    org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractSoundness  source frontend does not emit static user contract members ('java.lang.Math?static?min' is not defined)
+RUN    org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractNameCollision  source frontend does not report the contract simple-name collision
+
 # ============================================================================
 # Erased source signals: JFE refuses these constructs at the SOURCE level
 # with a reason javac then compiles away (compound assignments desugar to
@@ -168,6 +184,7 @@ XFAIL  org.strata.jverify.verifier.tests.verification.MethodContractsVerificatio
 # annotation. Messages and counts match.
 XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.InterfaceContractErrors    FRONTEND_DIAGNOSTIC  @Contract annotation-line anchor has no bytecode position (annotations carry no line info); bf anchors at the class declaration line
 XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.InternalClassContractErrors FRONTEND_DIAGNOSTIC  @Contract annotation-line anchor has no bytecode position (annotations carry no line info); bf anchors at the class declaration line
+XFAIL  org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractDuplicateContractee FRONTEND_DIAGNOSTIC  @Contract annotation-line anchor has no bytecode position (annotations carry no line info); bf anchors at the class declaration line
 
 # JFE anchors an "instance method 'X' was not verified" warning at a BODYLESS
 # interface method's declaration. A method with no Code attribute has no

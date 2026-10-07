@@ -22,6 +22,11 @@ final class ClassResolver {
     final Map<String, java.lang.classfile.ClassModel> programClassModels = new HashMap<>();
     /** Per-file single-type imports of the unit under compilation: simple name -> fqn. */
     Map<String, String> imports = Map.of();
+    /**
+     * Contract class printed name -> contractee sort, consulted first by
+     * {@link #qualifyTypeName}; empty except while library members are translated.
+     */
+    Map<String, String> contractAliases = Map.of();
 
     /** javac classpath entries, for inventorying library contractees' methods. */
     private final List<java.nio.file.Path> classPath;
@@ -59,6 +64,10 @@ final class ClassResolver {
 
     /** Fully qualify a source-form type name against this compilation's classes (JFE prints fqns). */
     String qualifyTypeName(String name) {
+        String alias = contractAliases.get(name);
+        if (alias != null) {
+            return alias;
+        }
         if (name.indexOf('.') >= 0) {
             // Nested reference like Outer.Inner: qualify via the outer class.
             String outer = name.substring(0, name.indexOf('.'));
@@ -210,6 +219,31 @@ final class ClassResolver {
             if (c.equals(ancestor)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /**
+     * True iff {@code fqn} is {@code ancestor} or reaches it through its
+     * superclasses and interfaces (breadth-first, each type visited once).
+     */
+    boolean isSubtypeOf(String fqn, String ancestor) {
+        var seen = new java.util.HashSet<String>();
+        var queue = new java.util.ArrayDeque<String>();
+        queue.add(fqn);
+        while (!queue.isEmpty()) {
+            String c = queue.poll();
+            if (!seen.add(c)) {
+                continue;
+            }
+            if (c.equals(ancestor)) {
+                return true;
+            }
+            String sup = superclassOf(c);
+            if (sup != null) {
+                queue.add(sup);
+            }
+            queue.addAll(directInterfacesOf(c));
         }
         return false;
     }

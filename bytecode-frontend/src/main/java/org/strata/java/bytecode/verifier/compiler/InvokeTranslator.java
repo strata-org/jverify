@@ -38,6 +38,9 @@ import java.util.Set;
  */
 final class InvokeTranslator {
 
+    /** The exception a contract method throws to say it has no implementation. */
+    private static final String CONTRACT_EXCEPTION_INTERNAL = "org/strata/jverify/ContractException";
+
     private final BodyTranslator b;
     private final TranslationContext ctx;
 
@@ -80,6 +83,12 @@ final class InvokeTranslator {
             if (!b.stack.isEmpty() && b.stack.peek() == recv) {
                 b.stack.pop();
             }
+            if (ctx.contractMode && g.equals(CONTRACT_EXCEPTION_INTERNAL)) {
+                // `throw new ContractException()` in contract code: a marker
+                // the ATHROW turns into the no-implementation statement.
+                b.push(new StmtExpr.LiteralString(BodyTranslator.CONTRACT_EXCEPTION_MARKER));
+                return;
+            }
             // Inner-class enclosing-instance argument becomes the scope in
             // source; the conversion ignored the scope, so only the
             // null-check statement removal matters here.
@@ -113,7 +122,7 @@ final class InvokeTranslator {
             // Receiver-shape refusal before argument handling.
             throw new JavaViolationException("super call is not yet supported");
         }
-        instanceInvoke(recv, name, args, d);
+        instanceInvoke(recv, ownerInternal, name, args, d);
     }
 
     private boolean isJVerifyOwner(String ownerInternal) {
@@ -130,6 +139,19 @@ final class InvokeTranslator {
                               String ownerInternal, String bareName,
                               List<AstNode<StmtExpr>> args,
                               java.lang.constant.MethodTypeDesc d) {
+        if (!ctx.resolver.programClassModels.containsKey(JavaNames.dottedFqn(ownerInternal))) {
+            ContractMember cm = ctx.contractMode
+                    ? ctx.contracts.lookupContractCode(ownerInternal, bareName, d, true)
+                    : ctx.contracts.lookupStatic(ownerInternal, bareName, d);
+            if (cm != null && !typeVarArgumentTrips(cm, args, d)) {
+                refuseStringValuedArguments(bareName, args, d);
+                String procName = cm.sortOrFqn() + "_" + cm.laurelName();
+                AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(procName), args));
+                recordContractCall(cm, call, procName);
+                finishCall(call, d, cm.returnsTypeVar());
+                return;
+            }
+        }
         TypeRef ownerRef = TypeRef.ofClassInternal(ownerInternal, false, false);
         String fqn = ctx.resolver.knownClasses.get(ownerRef.nameWithScope());
         if (fqn == null) {
@@ -138,16 +160,20 @@ final class InvokeTranslator {
         }
         ctx.resolver.refuseIfOverloaded(fqn, bareName, true);
         var staticCm = ctx.resolver.programClassModels.get(fqn);
+        boolean resultIsTypeVar = false;
         if (staticCm != null) {
             for (var m : staticCm.methods()) {
                 if (m.methodName().stringValue().equals(bareName)
                         && (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
                                 | java.lang.classfile.ClassFile.ACC_BRIDGE)) == 0
                         && (m.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_STATIC) != 0
-                        && m.methodTypeSymbol().parameterCount() == args.size()
-                        && ctx.resolver.isOptedOut(staticCm, m)) {
-                    throw new JavaViolationException(
-                            "call to '" + bareName + "', which could not be translated");
+                        && m.methodTypeSymbol().parameterCount() == args.size()) {
+                    if (ctx.resolver.isOptedOut(staticCm, m)) {
+                        throw new JavaViolationException(
+                                "call to '" + bareName + "', which could not be translated");
+                    }
+                    // Unique: refuseIfOverloaded ran above.
+                    resultIsTypeVar = returnsTypeVar(m);
                 }
             }
         }
@@ -158,11 +184,11 @@ final class InvokeTranslator {
                 LaurelFactory.ident(fqn + "_" + bareName), args));
         b.callNodes.add(call);
         b.calleeKeys.put(call.val(), fqn + "_" + bareName);
-        finishCall(call, d);
+        finishCall(call, d, resultIsTypeVar);
     }
 
     /** Instance user call (fused convertCall's value-receiver arm). */
-    private void instanceInvoke(AstNode<StmtExpr> recv, String bareName,
+    private void instanceInvoke(AstNode<StmtExpr> recv, String ownerInternal, String bareName,
                                 List<AstNode<StmtExpr>> args,
                                 java.lang.constant.MethodTypeDesc d) {
         // A detached throwsOn handle: a chained clause must ride the chain.
@@ -188,14 +214,18 @@ final class InvokeTranslator {
                     "a throwsOn case clause must chain directly off throwsOn(...); calling '"
                             + bareName + "' on a captured handle detaches it from its case");
         }
-        // Library receiver with no contract: warn, then check the args (an
-        // array-initializer argument reports its own refusal first — JFE
-        // converts arguments before the receiver refuses), then refuse.
+        // String literal receiver: a literal is a Laurel string, not the
+        // String composite, so the call always refuses. Warn when no contract
+        // member matches, then check the args (an array-initializer argument
+        // reports its own refusal first — the source frontend converts
+        // arguments before the receiver refuses), then refuse.
         if (recv.val() instanceof StmtExpr.LiteralString s && b.descOf.get(recv) != null
                 && b.descOf.get(recv).equals("Ljava/lang/String;")) {
             ctx.src.defaultRange = b.stmtRange(b.pos, false);
-            ctx.reporter.reportWarning(ctx.src.uri, ctx.src.positionRange(ctx.src.defaultRange),
-                    "missing contract for method '" + bareName + "' in class 'java.lang.String'");
+            if (!ctx.contractMode && ctx.contracts.lookupInstance(ownerInternal, bareName, d) == null) {
+                ctx.reporter.reportWarning(ctx.src.uri, ctx.src.positionRange(ctx.src.defaultRange),
+                        "missing contract for method '" + bareName + "' in class 'java.lang.String'");
+            }
             for (var a : args) {
                 b.checkPlaceable(a);
             }
@@ -206,7 +236,24 @@ final class InvokeTranslator {
             throw new JavaViolationException(
                     "method call on a freshly-allocated receiver is not yet supported");
         }
+        // Contract code: Strata rejects an instance call whose receiver is
+        // another call's result (`chars.drop(n).take(m)`), so the member
+        // that contains one is refused.
+        if (ctx.contractMode && (recv.val() instanceof StmtExpr.InstanceCall
+                || recv.val() instanceof StmtExpr.StaticCall)) {
+            throw new JavaViolationException("call to '" + bareName
+                    + "' on the result of another call is not yet supported");
+        }
         String receiverFqn = b.staticTypeFqnOf(recv);
+        ContractMember member = contractMemberFor(recv, receiverFqn, ownerInternal, bareName, args, d);
+        if (member != null) {
+            refuseStringValuedArguments(bareName, args, d);
+            AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(
+                    recv, LaurelFactory.ident(member.laurelName()), args));
+            recordContractCall(member, call, member.sortOrFqn() + "_" + member.laurelName());
+            finishCall(call, d, member.returnsTypeVar());
+            return;
+        }
         if (receiverFqn == null || !ctx.resolver.programClassModels.containsKey(receiverFqn)) {
             throw new JavaViolationException("call to '" + bareName
                     + "' on a receiver whose static type is not a class is not yet supported");
@@ -240,10 +287,118 @@ final class InvokeTranslator {
         AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(bareName), args));
         b.callNodes.add(call);
         b.calleeKeys.put(call.val(), callee.declaringFqn() + "_" + bareName);
-        finishCall(call, callee.method().methodTypeSymbol());
+        finishCall(call, callee.method().methodTypeSymbol(), returnsTypeVar(callee.method()));
     }
 
-    private void finishCall(AstNode<StmtExpr> call, java.lang.constant.MethodTypeDesc d) {
+    /**
+     * The library contract member an instance call binds to, or null. Only a
+     * typed composite receiver qualifies: not a literal or {@code $}-marker,
+     * not another call's result (Strata rejects that receiver), not a value
+     * whose Laurel type is a type variable, and not a program class. The member's sort must be the receiver's own sort or
+     * {@code Object}, because library sorts extend only {@code Object} in the
+     * emitted Laurel. A type-variable argument for a non-type-variable
+     * reference parameter makes the call a miss (see
+     * {@link LibraryContracts#REFUSE_TYPE_VAR_REFERENCE_ARGS}).
+     */
+    private ContractMember contractMemberFor(AstNode<StmtExpr> recv, String receiverFqn,
+                                             String ownerInternal, String bareName,
+                                             List<AstNode<StmtExpr>> args,
+                                             java.lang.constant.MethodTypeDesc d) {
+        if (receiverFqn == null || recv.val() instanceof StmtExpr.LiteralString
+                || recv.val() instanceof StmtExpr.InstanceCall || recv.val() instanceof StmtExpr.StaticCall
+                || b.typeVarValues.contains(recv)
+                || ctx.resolver.programClassModels.containsKey(receiverFqn)) {
+            return null;
+        }
+        boolean selfRecv = recv.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local l
+                && l.name().text().equals(LaurelFactory.LAUREL_SELF_BINDING);
+        TypeRef rt = b.staticTypeOf.get(recv);
+        boolean typedComposite = selfRecv || (rt != null && rt.kind() == TypeRef.Kind.CLASS
+                && (rt.scoped() || !ctx.typeParams.contains(rt.simpleName())));
+        if (!typedComposite) {
+            return null;
+        }
+        ContractMember cm = ctx.contractMode
+                ? ctx.contracts.lookupContractCode(ownerInternal, bareName, d, false)
+                : ctx.contracts.lookupInstance(ownerInternal, bareName, d);
+        if (cm == null || !(cm.sortOrFqn().equals(receiverFqn)
+                || cm.sortOrFqn().equals(CompositeModel.OBJECT_SORT))) {
+            return null;
+        }
+        return typeVarArgumentTrips(cm, args, d) ? null : cm;
+    }
+
+    /**
+     * True when a value whose Laurel type is a type variable meets a
+     * reference parameter that is not itself a type variable: Strata has no
+     * bound slot on type parameters, so the call is treated as a lookup miss.
+     */
+    private boolean typeVarArgumentTrips(ContractMember cm, List<AstNode<StmtExpr>> args,
+                                         java.lang.constant.MethodTypeDesc d) {
+        if (!LibraryContracts.REFUSE_TYPE_VAR_REFERENCE_ARGS) {
+            return false;
+        }
+        for (int i = 0; i < args.size(); i++) {
+            if (b.typeVarValues.contains(args.get(i))
+                    && d.parameterType(i).descriptorString().startsWith("L")
+                    && !(i < cm.paramIsTypeVar().size() && cm.paramIsTypeVar().get(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Refuse a library call that passes a string literal or concatenation
+     * (a Laurel string, not the String composite) for a reference parameter
+     * (see {@link LibraryContracts#REFUSE_LITERAL_REFERENCE_ARGS}).
+     */
+    private void refuseStringValuedArguments(String bareName, List<AstNode<StmtExpr>> args,
+                                             java.lang.constant.MethodTypeDesc d) {
+        if (!LibraryContracts.REFUSE_LITERAL_REFERENCE_ARGS) {
+            return;
+        }
+        for (int i = 0; i < args.size(); i++) {
+            var a = args.get(i);
+            if ((b.stringLiterals.contains(a) || b.stringConcatResults.contains(a))
+                    && d.parameterType(i).descriptorString().startsWith("L")) {
+                throw new JavaViolationException("Unsupported call: " + bareName);
+            }
+        }
+    }
+
+    /** Call-edge, demand, and purity bookkeeping for a call to a library contract member. */
+    private void recordContractCall(ContractMember cm, AstNode<StmtExpr> call, String calleeKey) {
+        if (ctx.method.info != null) {
+            ctx.method.info.callees.add(cm.calleeKey());
+        }
+        ctx.contracts.demand(cm);
+        b.callNodes.add(call);
+        b.calleeKeys.put(call.val(), calleeKey);
+    }
+
+    /** True iff {@code m}'s generic Signature result is a type variable; false without a Signature. */
+    private static boolean returnsTypeVar(java.lang.classfile.MethodModel m) {
+        var sa = m.findAttribute(java.lang.classfile.Attributes.signature()).orElse(null);
+        if (sa == null) {
+            return false;
+        }
+        try {
+            return java.lang.classfile.MethodSignature.parseFrom(sa.signature().stringValue()).result()
+                    instanceof java.lang.classfile.Signature.TypeVarSig;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Push a non-void call's result (typed from the erased descriptor), or
+     * emit a void call as a statement. A result whose generic type is a type
+     * variable ({@code resultIsTypeVar}) is recorded in
+     * {@link BodyTranslator#typeVarValues}.
+     */
+    private void finishCall(AstNode<StmtExpr> call, java.lang.constant.MethodTypeDesc d,
+                            boolean resultIsTypeVar) {
         String ret = d.returnType().descriptorString();
         if (ret.equals("V")) {
             b.addStmt(call.val());
@@ -252,6 +407,9 @@ final class InvokeTranslator {
             b.noteDesc(call, ret);
             if (ret.startsWith("L")) {
                 b.staticTypeOf.put(call, TypeRef.ofDescriptor(ret));
+            }
+            if (resultIsTypeVar) {
+                b.typeVarValues.add(call);
             }
         }
     }
@@ -277,11 +435,11 @@ final class InvokeTranslator {
                 if (iname.equals("makeConcatWithConstants") && !bsm.arguments().isEmpty()
                         && bsm.arguments().get(0)
                                 instanceof java.lang.classfile.constantpool.StringEntry recipe) {
-                    b.push(stringConcat(recipe.stringValue(), captures).val());
+                    b.stringConcatResults.add(b.push(stringConcat(recipe.stringValue(), captures).val()));
                     return;
                 }
                 if (iname.equals("makeConcat")) {
-                    b.push(stringConcat(null, captures).val());
+                    b.stringConcatResults.add(b.push(stringConcat(null, captures).val()));
                     return;
                 }
             }

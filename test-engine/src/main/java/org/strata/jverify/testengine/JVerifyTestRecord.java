@@ -4,7 +4,7 @@ import java.lang.annotation.Annotation;
 
 public record JVerifyTestRecord(String skip, boolean verifyByDefault, boolean useBuiltinContracts,
                                 boolean continueOnErrors, int exitCode,
-                                String[] additionalFiles,
+                                String[] additionalFiles, String[] contractSourcePath,
                                 int methodsInvalid, int errorCount, int methodsVerified,
                                 int methodsSkipped,
                                 boolean expectedToFail, Blocker[] blockedBy,

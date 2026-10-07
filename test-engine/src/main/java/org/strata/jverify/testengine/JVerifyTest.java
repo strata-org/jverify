@@ -52,6 +52,13 @@ public @interface JVerifyTest {
     int exitCode() default 0;
     String[] additionalFiles() default {};
     /**
+     * Contract sources (directories of {@code .java} files, or jars) passed as
+     * the verifier's {@code contractSourcePath}, relative to the test file's
+     * directory. Carets in a directory's {@code .java} files annotate the
+     * diagnostics reported in that contract file.
+     */
+    String[] contractSourcePath() default {};
+    /**
      * Expected number of Java methods to fail verification.
      */
     int methodsInvalid()  default -1;

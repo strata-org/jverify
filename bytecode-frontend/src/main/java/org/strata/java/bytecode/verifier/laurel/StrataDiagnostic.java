@@ -45,16 +45,25 @@ public class StrataDiagnostic implements Diagnostic<JavaFileObject>, DiagnosticW
 
     @Override
     public String filePath() {
-        return getUri().getPath();
+        return pathOf(getUri());
     }
 
     @Override
     public String filename() {
         // Avoid Paths.get here: the diagnostic URI may be a synthetic path
         // that is not legal on every platform. URI paths always use '/'.
-        String path = uri.getPath();
+        String path = pathOf(uri);
         int slash = path.lastIndexOf('/');
         return slash >= 0 ? path.substring(slash + 1) : path;
+    }
+
+    /**
+     * The URI's path, or its scheme-specific part for an opaque URI such as
+     * {@code jar:file:///x.jar!/a/B.java}, whose path is null.
+     */
+    private static String pathOf(URI uri) {
+        String path = uri.getPath();
+        return path != null ? path : uri.getSchemeSpecificPart();
     }
 
     @Override

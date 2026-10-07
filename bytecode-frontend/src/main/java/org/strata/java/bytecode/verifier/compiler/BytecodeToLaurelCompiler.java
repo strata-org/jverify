@@ -81,6 +81,9 @@ public class BytecodeToLaurelCompiler {
     /** Whether {@link #analyze} runs the JVM bytecode-verification gate first. */
     private final boolean jvmVerifyInput;
 
+    /** The library contracts bound by {@link #analyze} and consulted at call sites. */
+    private final LibraryContracts contracts;
+
     /** Positional service: current file text/index plus span-to-range helpers. */
     private final SourceMap src = new SourceMap();
     /** Laurel node builders and the cast-helper procedure registry. */
@@ -138,8 +141,22 @@ public class BytecodeToLaurelCompiler {
                                     List<java.nio.file.Path> classPath,
                                     boolean tierIsSelfInflicted,
                                     boolean jvmVerifyInput) {
+        this(reporter, verifyByDefault, classPath, tierIsSelfInflicted, jvmVerifyInput,
+                LibraryContracts.none());
+    }
+
+    /**
+     * @param contracts the library contracts this run binds and consults
+     *        ({@link LibraryContracts#none()} applies none)
+     */
+    public BytecodeToLaurelCompiler(Reporter reporter, boolean verifyByDefault,
+                                    List<java.nio.file.Path> classPath,
+                                    boolean tierIsSelfInflicted,
+                                    boolean jvmVerifyInput,
+                                    LibraryContracts contracts) {
         this.tierIsSelfInflicted = tierIsSelfInflicted;
         this.jvmVerifyInput = jvmVerifyInput;
+        this.contracts = contracts;
         this.reporter = reporter;
         this.verifyByDefault = verifyByDefault;
         this.classPath = List.copyOf(classPath);
@@ -229,18 +246,34 @@ public class BytecodeToLaurelCompiler {
 
         new ContractValidator(reporter, src, decls, resolver).validate();
 
+        // Library contracts: bind this run's resolver, the program's own
+        // @Contract targets (whose library contracts are not applied), and the
+        // lazy-load warning anchor; contractSourcePath sources load eagerly.
+        contracts.bind(resolver, programContractTargets(), reporter,
+                sourceUris.isEmpty() ? null : sourceUris.iterator().next());
+        if (contracts.hasUserSources()) {
+            contracts.ensureLoaded();
+        }
+        checkContractLoad();
+
         for (var cls : classes) {
             src.uri = sourceUriFor(cls, sourceUris);
             compileUnit(cls, typeTrees.get(cls.internalName()));
         }
+        // A call site may have triggered the lazy load.
+        checkContractLoad();
+
+        translateLibraryMembers();
 
         // Refusal propagation (JFE's demoteCallersOfRefusedMethods): a method
         // that calls a refused one is itself demoted -- soundness, since its
         // callee's contract was never established. Iterated to a fixpoint so
-        // A -> B -> C chains demote fully, then the demoted methods' emitted
-        // procedures are dropped (an InstanceCall/StaticCall to an unemitted
-        // procedure would die in Strata resolution).
+        // A -> B -> C chains demote fully. Library members no surviving
+        // program method reaches are then refused too, and every refused
+        // method's emitted procedure is dropped (an InstanceCall/StaticCall to
+        // an unemitted procedure would die in Strata resolution).
         demoteCallersOfRefusedMethods();
+        graph.pruneUnreachableLibraryMembers();
         dropRefusedProcedures();
 
         // Composite declarations: every referenced class-typed sort together
@@ -260,8 +293,326 @@ public class BytecodeToLaurelCompiler {
         allProcedures.addAll(procedures);
         var program = new Program(allProcedures, List.of(), types, List.of());
 
+        var knownUris = new java.util.HashSet<URI>(sourceUris);
+        knownUris.addAll(contracts.loadedUris());
         return new AnalysisResult(program,
-                positionResolver(java.util.Set.copyOf(sourceUris)), methodStatuses);
+                positionResolver(java.util.Set.copyOf(knownUris)), methodStatuses);
+    }
+
+    /**
+     * The library types the program's own {@code @Contract} classes target
+     * ({@link ContractValidator}'s rule: the explicit target, else the first
+     * declared supertype).
+     */
+    private java.util.Set<String> programContractTargets() {
+        var targets = new java.util.HashSet<String>();
+        for (var entry : decls.contractDecls) {
+            String target = Declarations.explicitContractTarget(entry.decl().cm());
+            if (target == null) {
+                var supers = Declarations.declaredSuperFqns(entry.decl().cm());
+                if (!supers.isEmpty()) {
+                    target = supers.get(0);
+                }
+            }
+            if (target != null) {
+                targets.add(target);
+            }
+        }
+        return targets;
+    }
+
+    /** End the run without a verdict when the contract sources failed to load fatally. */
+    private void checkContractLoad() {
+        if (contracts.fatalLoadError()) {
+            throw new RefusedInputException("contract sources could not be loaded; see the reported errors");
+        }
+    }
+
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(BytecodeToLaurelCompiler.class.getName());
+
+    /** The library member behind each library {@link MethodGraph.MethodInfo}, by info key. */
+    private final Map<String, ContractMember> libraryMembers = new LinkedHashMap<>();
+    /** Contract classes whose fields are already registered on their contractee sort. */
+    private final java.util.Set<String> registeredContractClasses = new java.util.HashSet<>();
+
+    /**
+     * Translate the library contract members program calls demanded, after
+     * the program's units, in demand order (FIFO; a member's own calls may
+     * demand more). Contract mode is on throughout, with contract class names
+     * aliased to their contractee sorts. Then refuse every emitted member a
+     * program class or another library member overrides.
+     */
+    private void translateLibraryMembers() {
+        if (!contracts.hasDemand()) {
+            return;
+        }
+        var ctx = translationContext();
+        resolver.contractAliases = contracts.aliases();
+        ctx.contractMode = true;
+        try {
+            ContractMember m;
+            while ((m = contracts.nextDemand()) != null) {
+                registerContractFieldsOnce(m);
+                translateLibraryMember(m);
+            }
+            refuseOverriddenLibraryMembers();
+        } finally {
+            resolver.contractAliases = Map.of();
+            ctx.contractMode = false;
+            src.uri = null;
+        }
+    }
+
+    /**
+     * Translate one library member into a procedure on its sort (instance) or
+     * a {@code <owner>_<name>} procedure (static). A member without code or a
+     * spec-interface method becomes a declaration only. A member that does
+     * not translate is refused with its reason, which its callers' demotion
+     * diagnostics carry; it is never diagnosed itself.
+     */
+    private void translateLibraryMember(ContractMember m) {
+        src.uri = m.uri();
+        src.defaultRange = UNKNOWN_RANGE;
+        var info = new MethodGraph.MethodInfo(m.sortOrFqn(), m.laurelName(), m.isStatic(), m.uri(),
+                Reporter.NO_RANGE, 0, /*quiet*/ false, /*library*/ true);
+        graph.methodInfos.put(info.key(), info);
+        libraryMembers.put(info.key(), m);
+        try {
+            if (m.kind() == ContractMember.Kind.SPEC_INTERFACE || !m.hasCode()) {
+                emitDeclarationOnly(m, info);
+            } else {
+                var cm = memberClassModel(m);
+                translateMethod(m.sortOrFqn(), cm, memberMethodModel(cm, m), info,
+                        /*verify*/ true, false, m);
+            }
+        } catch (RefusedInputException e) {
+            throw e;
+        } catch (JavaViolationException e) {
+            info.refused = true;
+            info.refusalReason = e.getMessage();
+        } catch (RuntimeException e) {
+            info.refused = true;
+            info.refusalReason = "internal error translating contract: "
+                    + e.getClass().getSimpleName() + ": " + e.getMessage();
+            LOG.log(java.util.logging.Level.FINE, "internal error translating contract member "
+                    + m.calleeKey(), e);
+        }
+    }
+
+    /** A fresh model of the class declaring {@code m}: contract and helper classes from the cached bytes. */
+    private ClassModel memberClassModel(ContractMember m) {
+        ClassModel cm = m.kind() == ContractMember.Kind.SPEC_INTERFACE
+                ? resolver.loadClassModel(m.classInternal().replace('/', '.'))
+                : contracts.classBytes(m.classInternal());
+        if (cm == null) {
+            throw new IllegalStateException("no classfile for " + m.classInternal());
+        }
+        return cm;
+    }
+
+    /** The method {@code m} names in {@code cm}, by name and its own descriptor. */
+    private static java.lang.classfile.MethodModel memberMethodModel(ClassModel cm, ContractMember m) {
+        for (var mm : cm.methods()) {
+            if (mm.methodName().stringValue().equals(m.methodName())
+                    && mm.methodTypeSymbol().equals(m.methodDesc())) {
+                return mm;
+            }
+        }
+        throw new IllegalStateException("no method " + m.methodName() + m.methodDesc().descriptorString()
+                + " in " + m.classInternal());
+    }
+
+    /**
+     * A library member's body. With no implementation, an effective
+     * {@code @Verify(false)}, postconditions, or an explicit {@code modifies},
+     * the implementation is dropped: {@code Opaque([],none,[])} without
+     * conditions, {@code Abstract(posts)} with postconditions only, else
+     * {@code Opaque(posts,none,modifies)}. Otherwise (a pure member with a
+     * real body) the body is the definition: {@code Transparent}, or
+     * {@code Opaque([],none,[])} when it loops. So an opted-out member is
+     * never {@code Transparent} and Strata never checks its body. The caller
+     * refuses a {@code Transparent} member whose result type is
+     * range-constrained ({@code int}, {@code char}, ...).
+     */
+    private static Body libraryMemberBody(ContractMember member, boolean noImplementation,
+                                          List<Condition> postconditions,
+                                          List<AstNode<StmtExpr>> explicitModifies,
+                                          List<AstNode<StmtExpr>> implementation, StmtExpr methodBody) {
+        if (noImplementation || !member.verify() || !postconditions.isEmpty()
+                || !explicitModifies.isEmpty()) {
+            if (!explicitModifies.isEmpty()) {
+                return new Body.Opaque(postconditions, Optional.empty(), unguardedModifies(explicitModifies));
+            }
+            if (!postconditions.isEmpty()) {
+                return new Body.Abstract(postconditions);
+            }
+            return new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of()));
+        }
+        if (containsLoop(implementation)) {
+            return new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of()));
+        }
+        return new Body.Transparent(noRange(methodBody));
+    }
+
+    /**
+     * A library member without code (abstract, or a spec-interface method)
+     * as an uninterpreted procedure: its signature with an
+     * {@code Opaque([],none,[])} body.
+     */
+    private void emitDeclarationOnly(ContractMember m, MethodGraph.MethodInfo info) {
+        var cm = memberClassModel(m);
+        var mm = memberMethodModel(cm, m);
+        java.lang.classfile.MethodSignature msig = methodSignatureOf(mm);
+        var methodTypeParams = new java.util.LinkedHashSet<String>();
+        if (msig != null) {
+            msig.typeParameters().forEach(tp -> methodTypeParams.add(tp.identifier()));
+        }
+        var typeParams = new java.util.HashSet<String>(methodTypeParams);
+        typeParams.addAll(Declarations.typeParamNamesOf(cm));
+        var ctx = translationContext();
+        ctx.currentClassFqn = m.sortOrFqn();
+        ctx.typeParams = typeParams;
+        ctx.methodTypeParams = methodTypeParams;
+        ctx.beginMethod(info);
+        var signature = buildSignature(m.sortOrFqn(), cm, mm, null, m.isStatic(), typeParams, methodTypeParams);
+        refuseUnfixedTypeParams(methodTypeParams, signature.inputs());
+        String name = m.isStatic() ? m.sortOrFqn() + "_" + m.laurelName() : m.laurelName();
+        var proc = new Procedure(
+                ident(name),
+                methodTypeParams.stream().map(LaurelFactory::ident).toList(),
+                signature.inputs(), signature.outputs(), List.of(),
+                Optional.empty(), new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of())),
+                Optional.empty(), false, List.of(),
+                Optional.empty(), Optional.empty(), List.of());
+        if (m.isStatic()) {
+            procedures.add(proc);
+        } else {
+            composites.instanceProcsBySort.computeIfAbsent(m.sortOrFqn(), k -> new ArrayList<>()).add(proc);
+        }
+        info.proc = proc;
+        info.sort = m.isStatic() ? null : m.sortOrFqn();
+    }
+
+    /**
+     * Refuse a library member with a method type parameter that no input
+     * type mentions ({@code Optional.empty()}): Strata cannot infer its type
+     * argument at a call, because the emitted result type is the erased sort.
+     */
+    private static void refuseUnfixedTypeParams(java.util.Set<String> methodTypeParams,
+                                                List<org.strata.jverify.laurel.Parameter> inputs) {
+        for (String tp : methodTypeParams) {
+            boolean fixed = false;
+            for (var p : inputs) {
+                fixed |= mentionsTypeVar(p.type().val(), tp);
+            }
+            if (!fixed) {
+                throw new JavaViolationException("type parameter '" + tp
+                        + "' that no argument fixes is not yet supported");
+            }
+        }
+    }
+
+    /** True iff an output has a range-constrained type ({@code int32}, {@code char}, {@code nat}, ...). */
+    private static boolean hasConstrainedOutput(List<org.strata.jverify.laurel.Parameter> outputs) {
+        for (var p : outputs) {
+            if (p.type().val() instanceof HighType.UserDefined u
+                    && LaurelFactory.BOUNDS.containsKey(u.name().text())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True iff {@code t} mentions the type variable {@code name}. */
+    private static boolean mentionsTypeVar(HighType t, String name) {
+        return switch (t) {
+            case HighType.TVar v -> v.name().text().equals(name);
+            case HighType.TSet s -> mentionsTypeVar(s.elementType().val(), name);
+            case HighType.TMap m -> mentionsTypeVar(m.keyType().val(), name)
+                    || mentionsTypeVar(m.valueType().val(), name);
+            case HighType.Applied a -> mentionsTypeVar(a.base().val(), name)
+                    || a.typeArguments().stream().anyMatch(x -> mentionsTypeVar(x.val(), name));
+            case HighType.Intersection i -> i.types().stream().anyMatch(x -> mentionsTypeVar(x.val(), name));
+            case HighType.MultiValuedExpr mv -> mv.types().stream().anyMatch(x -> mentionsTypeVar(x.val(), name));
+            default -> false;
+        };
+    }
+
+    /**
+     * The first time a member of a contract class is translated, register
+     * that class's instance fields on its contractee sort, immutable when the
+     * contract says {@code pure = true}. Helper and spec-interface classes
+     * contribute no fields.
+     */
+    private void registerContractFieldsOnce(ContractMember m) {
+        if (m.kind() != ContractMember.Kind.CONTRACT || !registeredContractClasses.add(m.classInternal())) {
+            return;
+        }
+        var cc = contracts.contractClassOf(m.classInternal());
+        var cm = contracts.classBytes(m.classInternal());
+        if (cc == null || cm == null) {
+            return;
+        }
+        collectDeclaredFields(cc.sort(), cm, /*skipStatic*/ true, /*allFinal*/ cc.pure());
+    }
+
+    /**
+     * Refuse every emitted instance library member that an override would
+     * refine, since override refinement against library contracts is not
+     * supported: a program class below the contractee declaring a method of
+     * the same name, or, for a member on {@code Object}, another emitted
+     * library member of the same name (every library sort extends
+     * {@code Object} in the emitted Laurel).
+     */
+    private void refuseOverriddenLibraryMembers() {
+        var live = new ArrayList<MethodGraph.MethodInfo>();
+        for (var info : graph.methodInfos.values()) {
+            if (info.library && !info.refused && !info.isStatic) {
+                live.add(info);
+            }
+        }
+        for (var info : live) {
+            var member = libraryMembers.get(info.key());
+            String javaName = javaNameOf(info.name);
+            String overrider = null;
+            for (var e : resolver.programClassModels.entrySet()) {
+                if (!resolver.isSubtypeOf(e.getKey(), member.contracteeFqn())) {
+                    continue;
+                }
+                for (var pm : Declarations.declaredMethodsOf(e.getValue())) {
+                    if (pm.methodName().stringValue().equals(javaName)
+                            && !pm.flags().has(java.lang.reflect.AccessFlag.STATIC)
+                            && !pm.flags().has(java.lang.reflect.AccessFlag.SYNTHETIC)) {
+                        overrider = e.getKey();
+                        break;
+                    }
+                }
+                if (overrider != null) {
+                    break;
+                }
+            }
+            if (overrider == null && info.classFqn.equals(OBJECT_SORT)) {
+                for (var other : live) {
+                    if (other != info && !other.classFqn.equals(OBJECT_SORT)
+                            && javaNameOf(other.name).equals(javaName)) {
+                        overrider = other.classFqn;
+                        break;
+                    }
+                }
+            }
+            if (overrider != null) {
+                info.refused = true;
+                info.refusalReason = "overridden by '" + overrider
+                        + "'; override refinement against library contracts is not yet supported";
+            }
+        }
+    }
+
+    /** A library member's Java method name: its Laurel name up to the first {@code '?'}. */
+    private static String javaNameOf(String laurelName) {
+        int mangle = laurelName.indexOf('?');
+        return mangle >= 0 ? laurelName.substring(0, mangle) : laurelName;
     }
 
     /**
@@ -295,11 +646,23 @@ public class BytecodeToLaurelCompiler {
      * constants are skipped — they are declaration syntax, not fields.
      */
     private void collectDeclaredFields(String fqn, java.lang.classfile.ClassModel cm) {
+        collectDeclaredFields(fqn, cm, false, false);
+    }
+
+    /**
+     * As above, into {@code fqn}'s registry: {@code skipStatic} also skips
+     * static fields, and {@code allFinal} registers every field as final.
+     */
+    private void collectDeclaredFields(String fqn, java.lang.classfile.ClassModel cm,
+                                       boolean skipStatic, boolean allFinal) {
         var fields = composites.declaredFields.computeIfAbsent(fqn, k -> new LinkedHashMap<>());
         for (var fm : cm.fields()) {
             int flags = fm.flags().flagsMask();
             if ((flags & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
                     | java.lang.classfile.ClassFile.ACC_ENUM)) != 0) {
+                continue;
+            }
+            if (skipStatic && (flags & java.lang.classfile.ClassFile.ACC_STATIC) != 0) {
                 continue;
             }
             boolean isNat = false;
@@ -330,7 +693,7 @@ public class BytecodeToLaurelCompiler {
                 t = TypeRef.ofDescriptor(fm.fieldTypeSymbol().descriptorString(), isNat, isUnbounded);
             }
             fields.put(fm.fieldName().stringValue(), new CompositeModel.FieldInfo(
-                    t, (flags & java.lang.classfile.ClassFile.ACC_FINAL) != 0));
+                    t, allFinal || (flags & java.lang.classfile.ClassFile.ACC_FINAL) != 0));
         }
     }
 
@@ -665,6 +1028,7 @@ public class BytecodeToLaurelCompiler {
     private TranslationContext translationContext() {
         if (translationCtx == null) {
             translationCtx = new TranslationContext(reporter, src, lf, resolver, composites, graph);
+            translationCtx.contracts = contracts;
         }
         return translationCtx;
     }
@@ -875,7 +1239,7 @@ public class BytecodeToLaurelCompiler {
             }
         }
         String key = body.calleeKeys.get(n.val());
-        if (key != null && !decls.isPure(key)) {
+        if (key != null && !decls.isPure(key) && !contracts.isPureKey(key)) {
             return true;
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
@@ -1250,20 +1614,173 @@ public class BytecodeToLaurelCompiler {
                 Optional.empty(), new ConditionMode.Both());
     }
 
+    /** Add the callee identifier of every InstanceCall/StaticCall in {@code n}'s subtree to {@code out}. */
+    private static void collectCalleeNames(AstNode<StmtExpr> n, java.util.Set<String> out) {
+        switch (n.val()) {
+            case StmtExpr.InstanceCall c -> out.add(c.callee().text());
+            case StmtExpr.StaticCall c -> out.add(c.callee().text());
+            default -> {
+            }
+        }
+        for (var child : BodyTranslator.childrenOf(n.val())) {
+            collectCalleeNames(child, out);
+        }
+    }
+
+    /** A procedure signature: Laurel inputs, outputs, and the class-typed return sort (or null). */
+    private record Signature(List<org.strata.jverify.laurel.Parameter> inputs,
+                             List<org.strata.jverify.laurel.Parameter> outputs,
+                             String returnSort) {
+    }
+
+    /** The method's generic Signature attribute, or null when absent or malformed. */
+    private static java.lang.classfile.MethodSignature methodSignatureOf(java.lang.classfile.MethodModel m) {
+        return m.findAttribute(java.lang.classfile.Attributes.signature())
+                .map(sa -> {
+                    try {
+                        return java.lang.classfile.MethodSignature
+                                .parseFrom(sa.signature().stringValue());
+                    } catch (RuntimeException e) {
+                        return null;
+                    }
+                })
+                .orElse(null);
+    }
+
+    /**
+     * Build a procedure's inputs (the {@code self} receiver of sort
+     * {@code selfSort} for an instance method, then the parameters, named
+     * from {@code shape}'s locals, or {@code v<slot>} when {@code shape} is
+     * null for a method without code) and outputs (the result binding, unless
+     * void), in the source frontend's signature-refusal order. Side effects,
+     * in order: each parameter name passes {@code refuseReservedName}, every class-typed
+     * sort is registered as a referenced composite, and a class-typed return
+     * sets the current method scope's {@code returnSort}.
+     */
+    private Signature buildSignature(String selfSort, java.lang.classfile.ClassModel cm,
+                                     java.lang.classfile.MethodModel m,
+                                     org.strata.java.bytecode.frontend.MethodBody shape,
+                                     boolean isStatic, java.util.Set<String> typeParams,
+                                     java.util.Set<String> methodTypeParams) {
+        var ctx = translationContext();
+        var mt = m.methodTypeSymbol();
+        java.lang.classfile.MethodSignature msig = methodSignatureOf(m);
+        // --- Inputs (JFE's signature-refusal order: params, return, throws) ---
+        var inputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
+        if (!isStatic) {
+            composites.referencedCompositeTypes.add(selfSort);
+            inputs.add(new org.strata.jverify.laurel.Parameter(
+                    ident(LAUREL_SELF_BINDING), node(new HighType.UserDefined(ident(selfSort)))));
+        }
+        int paramCount = mt.parameterCount();
+        boolean[] natP = new boolean[paramCount];
+        boolean[] unbP = new boolean[paramCount];
+        boolean natR = false;
+        boolean unbR = false;
+        for (var ta : org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(m)) {
+            if (!ta.targetPath().isEmpty()) {
+                continue;
+            }
+            String anno = java.lang.constant.ClassDesc
+                    .ofDescriptor(ta.annotation().className().stringValue()).displayName();
+            boolean isNat = anno.equals("Nat");
+            boolean isUnb = anno.equals("Unbounded");
+            if (!isNat && !isUnb) {
+                continue;
+            }
+            if (ta.targetInfo().targetType()
+                    == java.lang.classfile.TypeAnnotation.TargetType.METHOD_RETURN) {
+                natR |= isNat;
+                unbR |= isUnb;
+            } else if (ta.targetInfo()
+                    instanceof java.lang.classfile.TypeAnnotation.FormalParameterTarget fp
+                    && fp.formalParameterIndex() < paramCount) {
+                natP[fp.formalParameterIndex()] |= isNat;
+                unbP[fp.formalParameterIndex()] |= isUnb;
+            }
+        }
+        boolean sigArgs = msig != null && msig.arguments().size() == paramCount;
+        boolean varargs = m.flags().has(java.lang.reflect.AccessFlag.VARARGS);
+        int slot = isStatic ? 0 : 1;
+        for (int i = 0; i < paramCount; i++) {
+            String desc = mt.parameterType(i).descriptorString();
+            var ps = shape != null ? shape.locals().at(slot, 0) : null;
+            String pname = ps != null ? ps.name()
+                    : shape != null ? shape.slotName().getOrDefault(slot, "v" + slot) : "v" + slot;
+            LaurelFactory.refuseReservedName(pname);
+            // ACC_VARARGS: the declaration reads `T...`, so the COMPONENT
+            // type is what translates (JFE sees the source `T`).
+            boolean va = varargs && i == paramCount - 1 && desc.startsWith("[");
+            TypeRef t = null;
+            if (sigArgs) {
+                try {
+                    String rendered = org.strata.java.bytecode.frontend.ClassfileQueries
+                            .renderSig(msig.arguments().get(i));
+                    if (va && rendered.endsWith("[]")) {
+                        rendered = rendered.substring(0, rendered.length() - 2);
+                    }
+                    t = TypeRef.ofRendered(rendered, natP[i], unbP[i]);
+                } catch (RuntimeException ignore) {
+                    // fall back to the descriptor
+                }
+            }
+            if (t == null) {
+                t = TypeRef.ofDescriptor(va ? desc.substring(1) : desc, natP[i], unbP[i]);
+            }
+            inputs.add(new org.strata.jverify.laurel.Parameter(ident(pname),
+                    node(t.toLaurel(typeParams, methodTypeParams, resolver, composites))));
+            slot += (desc.equals("J") || desc.equals("D")) ? 2 : 1;
+        }
+
+        // --- Outputs ---
+        var outputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
+        String returnSort = null;
+        String retDesc = mt.returnType().descriptorString();
+        if (!retDesc.equals("V")) {
+            TypeRef rt = null;
+            if (msig != null) {
+                try {
+                    rt = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries
+                            .renderSig(msig.result()), natR, unbR);
+                } catch (RuntimeException ignore) {
+                    // fall back to the descriptor
+                }
+            }
+            if (rt == null) {
+                rt = TypeRef.ofDescriptor(retDesc, natR, unbR);
+            }
+            outputs.add(new org.strata.jverify.laurel.Parameter(LaurelFactory.reservedIdent(LAUREL_RESULT_BINDING),
+                    node(rt.toLaurel(typeParams, methodTypeParams, resolver, composites))));
+            if (rt.kind() == TypeRef.Kind.CLASS) {
+                returnSort = qualifyTypeName(rt.nameWithScope());
+                ctx.method.returnSort = returnSort;
+            }
+        }
+        return new Signature(inputs, outputs, returnSort);
+    }
+
     /**
      * Translate one method into a Laurel procedure: signature (params,
      * return, throws join), contract header (preconditions, postconditions,
      * modifies, throwsOn cases), body via BodyTranslator/ControlFlowStructurer,
      * body-variant selection (Transparent/Opaque/Abstract), and the
-     * verification-status record. Mirrors JFE's translateMethod pipeline.
+     * verification-status record. Mirrors the source frontend's
+     * translateMethod pipeline.
+     *
+     * @param member the library contract member this procedure translates,
+     *        or null for a program method. A member is named by its Laurel
+     *        name, gets its body from {@link #libraryMemberBody}, and records
+     *        no verification status.
      */
     private void translateMethod(String classFqn, java.lang.classfile.ClassModel cm,
                                        java.lang.classfile.MethodModel m,
                                        MethodGraph.MethodInfo info,
-                                       boolean verify, boolean isInterpretEntry) {
+                                       boolean verify, boolean isInterpretEntry,
+                                       ContractMember member) {
         boolean isStatic = m.flags().has(java.lang.reflect.AccessFlag.STATIC);
         String bareName = m.methodName().stringValue();
-        String methodName = isStatic ? classFqn + "_" + bareName : bareName;
+        String procName = member != null ? member.laurelName() : bareName;
+        String methodName = isStatic ? classFqn + "_" + procName : procName;
         refuseIfOverloaded(classFqn, bareName, isStatic);
 
         var mt = m.methodTypeSymbol();
@@ -1272,17 +1789,7 @@ public class BytecodeToLaurelCompiler {
                     "@InterpretEntry method '" + bareName + "' must take no arguments");
         }
 
-        java.lang.classfile.MethodSignature msig =
-                m.findAttribute(java.lang.classfile.Attributes.signature())
-                        .map(sa -> {
-                            try {
-                                return java.lang.classfile.MethodSignature
-                                        .parseFrom(sa.signature().stringValue());
-                            } catch (RuntimeException e) {
-                                return null;
-                            }
-                        })
-                        .orElse(null);
+        java.lang.classfile.MethodSignature msig = methodSignatureOf(m);
         var methodTypeParams = new java.util.LinkedHashSet<String>();
         if (msig != null) {
             msig.typeParameters().forEach(tp -> methodTypeParams.add(tp.identifier()));
@@ -1318,94 +1825,10 @@ public class BytecodeToLaurelCompiler {
             src.defaultRange = methodAnchor;
         }
 
-        // --- Inputs (JFE's signature-refusal order: params, return, throws) ---
-        var inputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
-        if (!isStatic) {
-            composites.referencedCompositeTypes.add(classFqn);
-            inputs.add(new org.strata.jverify.laurel.Parameter(
-                    ident(LAUREL_SELF_BINDING), node(new HighType.UserDefined(ident(classFqn)))));
-        }
-        int paramCount = mt.parameterCount();
-        boolean[] natP = new boolean[paramCount];
-        boolean[] unbP = new boolean[paramCount];
-        boolean natR = false;
-        boolean unbR = false;
-        for (var ta : org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(m)) {
-            if (!ta.targetPath().isEmpty()) {
-                continue;
-            }
-            String anno = java.lang.constant.ClassDesc
-                    .ofDescriptor(ta.annotation().className().stringValue()).displayName();
-            boolean isNat = anno.equals("Nat");
-            boolean isUnb = anno.equals("Unbounded");
-            if (!isNat && !isUnb) {
-                continue;
-            }
-            if (ta.targetInfo().targetType()
-                    == java.lang.classfile.TypeAnnotation.TargetType.METHOD_RETURN) {
-                natR |= isNat;
-                unbR |= isUnb;
-            } else if (ta.targetInfo()
-                    instanceof java.lang.classfile.TypeAnnotation.FormalParameterTarget fp
-                    && fp.formalParameterIndex() < paramCount) {
-                natP[fp.formalParameterIndex()] |= isNat;
-                unbP[fp.formalParameterIndex()] |= isUnb;
-            }
-        }
-        boolean sigArgs = msig != null && msig.arguments().size() == paramCount;
-        boolean varargs = m.flags().has(java.lang.reflect.AccessFlag.VARARGS);
-        int slot = isStatic ? 0 : 1;
-        for (int i = 0; i < paramCount; i++) {
-            String desc = mt.parameterType(i).descriptorString();
-            var ps = shape.locals().at(slot, 0);
-            String pname = ps != null ? ps.name() : shape.slotName().getOrDefault(slot, "v" + slot);
-            LaurelFactory.refuseReservedName(pname);
-            // ACC_VARARGS: the declaration reads `T...`, so the COMPONENT
-            // type is what translates (JFE sees the source `T`).
-            boolean va = varargs && i == paramCount - 1 && desc.startsWith("[");
-            TypeRef t = null;
-            if (sigArgs) {
-                try {
-                    String rendered = org.strata.java.bytecode.frontend.ClassfileQueries
-                            .renderSig(msig.arguments().get(i));
-                    if (va && rendered.endsWith("[]")) {
-                        rendered = rendered.substring(0, rendered.length() - 2);
-                    }
-                    t = TypeRef.ofRendered(rendered, natP[i], unbP[i]);
-                } catch (RuntimeException ignore) {
-                    // fall back to the descriptor
-                }
-            }
-            if (t == null) {
-                t = TypeRef.ofDescriptor(va ? desc.substring(1) : desc, natP[i], unbP[i]);
-            }
-            inputs.add(new org.strata.jverify.laurel.Parameter(ident(pname),
-                    node(t.toLaurel(typeParams, methodTypeParams, resolver, composites))));
-            slot += (desc.equals("J") || desc.equals("D")) ? 2 : 1;
-        }
-
-        // --- Outputs ---
-        var outputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
-        String retDesc = mt.returnType().descriptorString();
-        if (!retDesc.equals("V")) {
-            TypeRef rt = null;
-            if (msig != null) {
-                try {
-                    rt = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries
-                            .renderSig(msig.result()), natR, unbR);
-                } catch (RuntimeException ignore) {
-                    // fall back to the descriptor
-                }
-            }
-            if (rt == null) {
-                rt = TypeRef.ofDescriptor(retDesc, natR, unbR);
-            }
-            outputs.add(new org.strata.jverify.laurel.Parameter(LaurelFactory.reservedIdent(LAUREL_RESULT_BINDING),
-                    node(rt.toLaurel(typeParams, methodTypeParams, resolver, composites))));
-            if (rt.kind() == TypeRef.Kind.CLASS) {
-                ctx.method.returnSort = qualifyTypeName(rt.nameWithScope());
-            }
-        }
+        // --- Inputs and outputs ---
+        var signature = buildSignature(classFqn, cm, m, shape, isStatic, typeParams, methodTypeParams);
+        var inputs = signature.inputs();
+        var outputs = signature.outputs();
 
         // --- Throws clause (Exceptions attribute; the generic signature
         // preserves a type-variable clause, which refuses) ---
@@ -1496,6 +1919,25 @@ public class BytecodeToLaurelCompiler {
         }
         if (!invs.isEmpty()) {
             throw new JavaViolationException("invariants are not allowed in a method");
+        }
+
+        // --- Library member: does the contract carry an implementation? ---
+        // None when the body after the header is empty (spec only) or is
+        // exactly one `throw new ContractException()`.
+        boolean noImplementation = false;
+        if (member != null) {
+            var nonHoisted = topStmts.subList(hdr, topStmts.size());
+            boolean contractThrowBody = nonHoisted.size() == 1
+                    && body.contractThrows.contains(nonHoisted.get(0));
+            noImplementation = nonHoisted.isEmpty() || contractThrowBody;
+            if (body.contractThrows.size() > (contractThrowBody ? 1 : 0)) {
+                throw new JavaViolationException(
+                        "ContractException may only be thrown as the whole body of a contract method");
+            }
+            if (!noImplementation && !member.isPure()) {
+                throw new JavaViolationException("a contract for an impure method may only call super"
+                        + " or this, or throw a ContractException in its body");
+            }
         }
 
         var preconditions = new ArrayList<Condition>();
@@ -1622,7 +2064,26 @@ public class BytecodeToLaurelCompiler {
                         ? List.of(noRange(new StmtExpr.All()))
                         : List.of();
         Body procBody;
-        if (!verify) {
+        if (member != null) {
+            procBody = libraryMemberBody(member, noImplementation, postconditions, explicitModifies,
+                    implementation, methodBody);
+            // Strata needs a termination measure for a recursive function,
+            // and `decreases` clauses are not emitted.
+            if (procBody instanceof Body.Transparent && info.callees.contains(member.calleeKey())) {
+                throw new JavaViolationException("a recursive contract function is not yet supported:"
+                        + " its 'decreases' clause is not emitted");
+            }
+            // Strata checks a transparent body's range-constrained result in a
+            // generated $constraintLemma that does not assume its callees'
+            // postconditions, so even a correct body (charAt's chars.get(index))
+            // fails there and taints every caller's verdict.
+            if (procBody instanceof Body.Transparent && hasConstrainedOutput(outputs)) {
+                throw new JavaViolationException("a contract body that returns '"
+                        + mt.returnType().displayName()
+                        + "' is not yet supported: Strata cannot check the result's range");
+            }
+            refuseUnfixedTypeParams(methodTypeParams, inputs);
+        } else if (!verify) {
             procBody = postconditions.isEmpty()
                     ? new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of()))
                     : new Body.Abstract(postconditions);
@@ -1645,6 +2106,25 @@ public class BytecodeToLaurelCompiler {
             procBody = new Body.Opaque(postconditions, Optional.of(noRange(methodBody)),
                     unguardedModifies(modifies));
         }
+        if (!verify) {
+            // Only the conditions of an opted-out method are emitted, so only
+            // their calls reference other procedures (the reachability roots).
+            for (var c : preconditions) {
+                collectCalleeNames(c.condition(), info.specCalleeNames);
+            }
+            for (var c : postconditions) {
+                collectCalleeNames(c.condition(), info.specCalleeNames);
+            }
+            for (var block : throwsOnBlocks) {
+                collectCalleeNames(block.guard(), info.specCalleeNames);
+                for (var c : block.postconditions()) {
+                    collectCalleeNames(c.condition(), info.specCalleeNames);
+                }
+                for (var target : block.modifies()) {
+                    collectCalleeNames(target, info.specCalleeNames);
+                }
+            }
+        }
         var proc = new Procedure(
                 ident(methodName),
                 methodTypeParams.stream().map(LaurelFactory::ident).toList(),
@@ -1656,6 +2136,12 @@ public class BytecodeToLaurelCompiler {
             procedures.add(proc);
         } else {
             composites.instanceProcsBySort.computeIfAbsent(classFqn, k -> new ArrayList<>()).add(proc);
+        }
+        if (member != null) {
+            // Library members are never counted: no verification status.
+            info.proc = proc;
+            info.sort = isStatic ? null : classFqn;
+            return;
         }
         var range = src.methodRangeOf(shape.crt());
         if (range == UNKNOWN_RANGE && shape.lines() != null) {
@@ -1785,7 +2271,7 @@ public class BytecodeToLaurelCompiler {
                 src.uri, src.pointOf(mRange), ordinal, !verify);
         graph.methodInfos.put(info.key(), info);
         try {
-            translateMethod(fqn, node.cm(), m, info, verify, isInterpretEntry);
+            translateMethod(fqn, node.cm(), m, info, verify, isInterpretEntry, null);
         } catch (ReportedViolation e) {
             info.refused = true;
             recordRefusedStatus(info, name, mRange);

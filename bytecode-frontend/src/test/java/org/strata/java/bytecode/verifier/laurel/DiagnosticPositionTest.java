@@ -7,6 +7,7 @@ import java.net.URI;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -70,5 +71,40 @@ class DiagnosticPositionTest {
         assertEquals(FALLBACK, d.getUri());
         assertTrue(d.getMessage(null).contains("malformed diagnostic"), d.getMessage(null));
         assertTrue(d.getMessage(null).contains("not a frontend input"), d.getMessage(null));
+    }
+
+    /** A resolver that knows only {@code known}, as the production one rejects other URIs. */
+    private static PositionResolver knowing(URI known) {
+        return (uri, offset) -> {
+            if (!uri.equals(known)) {
+                throw new IllegalArgumentException("not a frontend input: " + uri);
+            }
+            return new Position(65, 9);
+        };
+    }
+
+    @Test
+    void stringSchemeContractUriResolves() {
+        URI contract = URI.create("string:///object-contract.java");
+        var d = StrataBackend.parseDiagnosticLine(
+                "string:///object-contract.java:3000009-3000024: this proposition could not be proved",
+                knowing(contract), FALLBACK);
+        assertEquals(contract, d.getUri());
+        assertEquals(new Position(65, 9), d.getRange().start());
+        assertFalse(d.getMessage(null).contains("malformed"), d.getMessage(null));
+        assertEquals("object-contract.java", d.filename());
+    }
+
+    @Test
+    void jarSchemeContractUriResolvesAndNamesTheEntry() {
+        URI contract = URI.create("jar:file:///x.jar!/a/B.java");
+        var d = StrataBackend.parseDiagnosticLine(
+                "jar:file:///x.jar!/a/B.java:3000009-3000024: message",
+                knowing(contract), FALLBACK);
+        assertEquals(contract, d.getUri());
+        assertFalse(d.getMessage(null).contains("malformed"), d.getMessage(null));
+        // An opaque jar: URI has no path; both names fall back to its scheme-specific part.
+        assertEquals("B.java", d.filename());
+        assertNotNull(d.filePath());
     }
 }

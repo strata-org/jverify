@@ -163,7 +163,57 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         List<AnnotatedRange> ranges = new ArrayList<>(parsedMarkup.ranges());
         ranges.addAll(additionalFileRanges(markedSourceFile, annotation));
+        ranges.addAll(contractFileRanges(markedSourceFile, annotation));
         verifyFile(markedSourceFile, annotation, ranges);
+    }
+
+    /**
+     * Expected diagnostics declared by markup inside the {@code .java} files of
+     * the test's {@code contractSourcePath} directories, in the
+     * {@code path(range) message} cross-file form. A contract file is named
+     * {@code string://<path relative to its directory>}, as both frontends name
+     * directory contract sources, so its label is that URI's path.
+     */
+    public static List<AnnotatedRange> contractFileRanges(SourceFile markedSourceFile, JVerifyTest annotation)
+            throws IOException {
+        List<AnnotatedRange> ranges = new ArrayList<>();
+        for (Path dir : contractSourcePath(markedSourceFile, annotation)) {
+            if (!Files.isDirectory(dir)) {
+                continue;
+            }
+            List<Path> files;
+            try (var walk = Files.walk(dir)) {
+                files = walk.filter(p -> p.toString().endsWith(".java")).sorted().toList();
+            }
+            for (Path file : files) {
+                var parsed = TestMarkup.getPositionsAndAnnotatedRanges(Files.readString(file));
+                var label = URI.create("string://" + dir.relativize(file).toString().replace('\\', '/'))
+                        .getPath();
+                for (AnnotatedRange range : parsed.ranges()) {
+                    ranges.add(new AnnotatedRange(label + "(" + range.range() + ") " + range.annotation(),
+                            CROSS_FILE_RANGE));
+                }
+            }
+        }
+        return ranges;
+    }
+
+    /** The test's {@code contractSourcePath} entries, resolved against the test file's directory. */
+    public static List<Path> contractSourcePath(SourceFile markedSourceFile, JVerifyTest annotation) {
+        var parent = Path.of(markedSourceFile.toUri()).getParent();
+        return Arrays.stream(annotation.contractSourcePath())
+                .map(entry -> parent.resolve(entry).normalize())
+                .toList();
+    }
+
+    /** The builtin contracts when the test uses them, then the test's own {@code contractSourcePath}. */
+    public static List<Path> contractSources(SourceFile markedSourceFile, JVerifyTest annotation) {
+        var out = new ArrayList<Path>();
+        if (annotation.useBuiltinContracts()) {
+            out.add(getBuiltinContractsSourceDir());
+        }
+        out.addAll(contractSourcePath(markedSourceFile, annotation));
+        return out;
     }
 
     /**
@@ -198,7 +248,8 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges) throws IOException {
-        verifyFile(sourceFile, annotation, ranges, getVerifierOptions(annotation, null));
+        verifyFile(sourceFile, annotation, ranges,
+                getVerifierOptions(annotation, null, contractSources(sourceFile, annotation)));
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
@@ -394,13 +445,23 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     }
 
     public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter) {
+        if (annotation.contractSourcePath().length > 0) {
+            throw new IllegalArgumentException("contractSourcePath is relative to the test file;"
+                    + " pass the resolved contractSources(...)");
+        }
+        return getVerifierOptions(annotation, positionFilter,
+                annotation.useBuiltinContracts() ? List.of(getBuiltinContractsSourceDir()) : List.of());
+    }
+
+    /** Verifier options for {@code annotation}, with {@code contractSources} as the contractSourcePath. */
+    public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter,
+                                                     List<Path> contractSources) {
         // Resolved via `strata` on the build-tool PATH (StrataCLI in Config); no explicit path needed.
         Path backendPath = null;
         var buildLib = Path.of("../build/lib");
         var libraryJar = buildLib.resolve("library-" + PKG_VERSION + ".jar");
         var verifierJar = buildLib.resolve("verifier-" + PKG_VERSION + ".jar");
         var libraryForTestingClassPath = buildLib.resolve("library-for-testing-" + PKG_VERSION + ".jar");
-        var builtinContracts = getBuiltinContractsSourceDir();
         var testEngineClassPath = Path.of("../test-engine/build/classes/java/main").toAbsolutePath();
         var workingDirectory = Path.of(System.getProperty("user.dir"));
         return new VerifierOptions(new PrintWriter(System.out),
@@ -410,7 +471,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                 Path.of("../build/temp.laurel"),
                 false,
                 true,
-                annotation.useBuiltinContracts() ? List.of(builtinContracts) : List.of(),
+                contractSources,
                 true,
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
@@ -453,7 +514,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
                                                         boolean useBuiltinContracts,
                                                         boolean expectedToFail, Blocker[] blockedBy) {
         return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors,
-                exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1,
+                exitCode, new String[0], new String[0], -1, assertionsFailed, methodsVerified, -1,
                 expectedToFail, blockedBy, false, "", -1);
     }
 

@@ -73,6 +73,11 @@ final class ThrowCoveragePrescan {
             if (thrownFqn == null || !ctx.resolver.isThrowableSubtype(thrownFqn)) {
                 continue;
             }
+            // Contract code: `throw new ContractException()` says the member
+            // has no implementation; it is not a throw.
+            if (ctx.contractMode && thrownFqn.equals("org.strata.jverify.ContractException")) {
+                continue;
+            }
             // A `throw new AssertionError` guarded by $assertionsDisabled is
             // the assert-statement desugar: the structurer recovers it as an
             // AssertStmt: not a throw for coverage purposes.

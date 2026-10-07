@@ -2,6 +2,7 @@ package org.strata.java.bytecode.testengine;
 
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.JVerifyTestEngine;
 import org.strata.jverify.testengine.JVerifyTestRecord;
 import org.strata.jverify.testengine.TestMarkup;
 
@@ -212,6 +213,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         List<AnnotatedRange> ranges = new ArrayList<>(parsedMarkup.ranges());
         ranges.addAll(additionalFileRanges(markedSourceFile, annotation));
+        ranges.addAll(JVerifyTestEngine.contractFileRanges(markedSourceFile, annotation));
         verifyFile(markedSourceFile, annotation, ranges, className);
     }
 
@@ -244,7 +246,8 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
                                   String className)
             throws IOException {
-        verifyFile(sourceFile, annotation, ranges, getVerifierOptions(annotation), className);
+        verifyFile(sourceFile, annotation, ranges,
+                getVerifierOptions(annotation, JVerifyTestEngine.contractSources(sourceFile, annotation)), className);
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
@@ -467,6 +470,17 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     }
 
     public static VerifierOptions getVerifierOptions(JVerifyTest annotation) {
+        if (annotation.contractSourcePath().length > 0) {
+            throw new IllegalArgumentException("contractSourcePath is relative to the test file;"
+                    + " pass the resolved JVerifyTestEngine.contractSources(...)");
+        }
+        return getVerifierOptions(annotation, annotation.useBuiltinContracts()
+                ? List.of(JVerifyTestEngine.getBuiltinContractsSourceDir())
+                : List.of());
+    }
+
+    /** Verifier options for {@code annotation}, with {@code contractSources} as the contractSourcePath. */
+    public static VerifierOptions getVerifierOptions(JVerifyTest annotation, List<Path> contractSources) {
         // Classpath for the -g -Xjcov compile of the test sources. The spec
         // library must be the CLASS-retention variant (bytecode-frontend-lib.jar, passed
         // by the corpusTest task) -- the JVerify class LOADED in this JVM is
@@ -486,7 +500,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                 null,
                 false,
                 true,
-                List.of(), // builtin contracts: not yet supported by the bytecode frontend
+                contractSources,
                 true,
                 annotation.verifyByDefault(),
                 annotation.continueOnErrors(),
@@ -527,7 +541,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                                                         boolean useBuiltinContracts,
                                                         boolean expectedToFail, Blocker[] blockedBy) {
         return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors,
-                exitCode, new String[0], -1, assertionsFailed, methodsVerified, -1,
+                exitCode, new String[0], new String[0], -1, assertionsFailed, methodsVerified, -1,
                 expectedToFail, blockedBy, false, "", -1);
     }
 }
