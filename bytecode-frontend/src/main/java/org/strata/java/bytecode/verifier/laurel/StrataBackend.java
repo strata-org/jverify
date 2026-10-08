@@ -39,6 +39,9 @@ import java.util.regex.Pattern;
  */
 public class StrataBackend {
 
+    static final List<String> UNUSED_LAUREL_PHASES = List.of(
+            "CoroutineElaboration", "YieldElim");
+
     private final VerifierOptions verifierOptions;
 
     public StrataBackend(VerifierOptions verifierOptions) {
@@ -136,6 +139,10 @@ public class StrataBackend {
                 arguments.add("laurelAnalyzeBinary");
                 arguments.add("--solver");
                 arguments.add("z3");
+            }
+            if (!"laurel".equals(options.interpreter())) {
+                arguments.add("--skip-phases");
+                arguments.add(String.join(",", UNUSED_LAUREL_PHASES));
             }
             var projectDir = options.strataProjectDir();
             return projectDir == null

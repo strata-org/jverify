@@ -25,7 +25,9 @@ class StrataInvocationTest {
     @Test
     void verificationRunsStrataFromPath() {
         var invocation = StrataBackend.Invocation.of(options(false, null, null, null, null));
-        assertEquals(List.of("strataLaurel", "laurelAnalyzeBinary", "--solver", "z3"), invocation.command());
+        assertEquals(List.of("strataLaurel", "laurelAnalyzeBinary", "--solver", "z3",
+                "--skip-phases", "CoroutineElaboration,YieldElim"),
+                invocation.command());
         assertNull(invocation.directory());
         assertEquals(invocation.command(), invocation.processBuilder().command());
         assertNull(invocation.processBuilder().directory());
@@ -37,7 +39,8 @@ class StrataInvocationTest {
         assertEquals(List.of("strataLaurel", "laurelInterpretBinary", "--entry", "p.C_m", "--fuel", "7",
                 "--interpreter", "laurel"), invocation.command());
         assertNull(invocation.directory());
-        assertEquals(List.of("strataLaurel", "laurelInterpretBinary"),
+        assertEquals(List.of("strataLaurel", "laurelInterpretBinary",
+                "--skip-phases", "CoroutineElaboration,YieldElim"),
                 StrataBackend.Invocation.of(options(true, null, null, null, null)).command());
     }
 
@@ -46,13 +49,16 @@ class StrataInvocationTest {
         var project = Path.of("/work/Strata");
         var interpret = StrataBackend.Invocation.of(options(true, "p.C#m", null, "core", project));
         assertEquals(List.of("lake", "exe", "-q", "strata", "laurelInterpretBinary", "--entry", "p.C_m",
-                "--interpreter", "core"), interpret.command());
+                "--interpreter", "core",
+                "--skip-phases", "CoroutineElaboration,YieldElim"),
+                interpret.command());
         assertEquals(project.resolve("StrataCLI"), interpret.directory());
         assertEquals(interpret.command(), interpret.processBuilder().command());
         assertEquals(project.resolve("StrataCLI").toFile(), interpret.processBuilder().directory());
 
         var verify = StrataBackend.Invocation.of(options(false, null, null, null, project));
-        assertEquals(List.of("lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3"),
+        assertEquals(List.of("lake", "exe", "-q", "strata", "laurelAnalyzeBinary", "--solver", "z3",
+                "--skip-phases", "CoroutineElaboration,YieldElim"),
                 verify.command());
         assertEquals(project.resolve("StrataCLI"), verify.directory());
     }
