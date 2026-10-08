@@ -204,7 +204,9 @@ public final class LibraryContracts {
             } else {
                 List<Path> files;
                 try (Stream<Path> walk = Files.walk(resolved)) {
-                    files = walk.filter(p -> p.toString().endsWith(".java")).toList();
+                    // Sorted: Files.walk order is filesystem-dependent, and
+                    // per-file index errors (a duplicate @Contract) follow it.
+                    files = walk.filter(p -> p.toString().endsWith(".java")).sorted().toList();
                 } catch (IOException | UncheckedIOException e) {
                     throw unreadable(resolved, e);
                 }

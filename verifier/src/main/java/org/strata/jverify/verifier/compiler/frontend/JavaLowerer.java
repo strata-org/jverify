@@ -82,8 +82,12 @@ public class JavaLowerer {
                 }
             } else {
                 try {
+                    // Files.walk order is filesystem-dependent; sort so javac
+                    // sees the contract files, and reports per-file errors
+                    // such as a duplicate @Contract, in a stable order.
                     try (Stream<Path> stream = Files.walk(resolvedContractsPath)) {
                         stream.filter(path -> path.toString().endsWith(".java"))
+                                .sorted()
                                 .forEach(path -> {
                                     try {
                                         // Use the SourceFile constructor overload that uses "string://"
