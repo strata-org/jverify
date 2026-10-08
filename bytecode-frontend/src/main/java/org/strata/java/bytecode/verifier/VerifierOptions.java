@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  *        leaves Strata's default (core).
  * @param strataProjectDir a Strata project directory to run Strata from, with
  *        {@code lake exe strata} in its {@code StrataCLI} subdirectory, as
- *        JFE's {@code --strata} does; null runs {@code strata} from PATH.
+ *        JFE's {@code --strata} does; null runs {@code strataLaurel} from PATH.
  * @param noConstantFolding compile the input sources without javac's
  *        constant folding where possible (:bytecode-unfolding), so their
  *        operations on constants reach the translation. Library contracts

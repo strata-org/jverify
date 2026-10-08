@@ -100,7 +100,7 @@ public final class Main {
 
         @Option(names = "--strata",
                 description = "Path to the Strata project directory, whose StrataCLI subdirectory `lake exe strata` "
-                        + "runs in. Overrides environment variable JVERIFY_STRATA. Without either, `strata` is run "
+                        + "runs in. Overrides environment variable JVERIFY_STRATA. Without either, `strataLaurel` is run "
                         + "from PATH.")
         @Nullable Path strata;
 
@@ -195,7 +195,7 @@ public final class Main {
 
         /**
          * The Strata project directory to run Strata from: {@code --strata} if
-         * given, else {@code JVERIFY_STRATA} if set, else none, and {@code strata}
+         * given, else {@code JVERIFY_STRATA} if set, else none, and {@code strataLaurel}
          * runs from PATH. Either must have the {@code StrataCLI} subdirectory
          * {@code lake exe strata} runs in; one without it is a usage error,
          * reported once rather than as every run's launch failure.
@@ -214,7 +214,7 @@ public final class Main {
             if (!Files.isDirectory(dir.resolve("StrataCLI"))) {
                 String hint = "StrataCLI".equals(String.valueOf(dir.getFileName()))
                         ? "; pass the Strata project directory, its parent"
-                        : source.equals("JVERIFY_STRATA") ? "; unset it to run `strata` from PATH" : "";
+                        : source.equals("JVERIFY_STRATA") ? "; unset it to run `strataLaurel` from PATH" : "";
                 throw new CommandLine.ParameterException(spec.commandLine(),
                         "Not a Strata project directory (" + source + "): " + dir + " has no StrataCLI subdirectory"
                                 + hint);

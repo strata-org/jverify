@@ -9,7 +9,7 @@ translates **JVM classfiles** directly:
 .java --javac -g -Xjcov--> .class --java.lang.classfile--> CFG + dominators
     --direct translator (BodyTranslator + ControlFlowStructurer)--> Laurel
         (+ CharacterRangeTable line:col / LineNumberTable line as positions)
-    --Ion--> strata laurelAnalyzeBinary --> diagnostics
+    --Ion--> strataLaurel laurelAnalyzeBinary --> diagnostics
 ```
 
 **The frontend never reads `.java` source text.** javac produces the
@@ -82,8 +82,8 @@ and the input is compiled against the command's own CLASS-retention build of
 the JVerify library, ahead of `--classpath`. Unlike JFE's, its javac compiles
 no sources it finds on `--classpath`: give them as input files.
 As in JFE, `--classpath` and `--contract-path` take every value up to the next
-option, so give them after the input files, and Strata runs as `strata` from
-`PATH` (under `brazil-build`, the workspace's StrataCLI: its own build if it is
+option, so give them after the input files, and Strata runs as `strataLaurel` from
+`PATH` (under `brazil-build`, the workspace's Strata: its own build if it is
 checked out there), or, with `--strata DIR` or `JVERIFY_STRATA=DIR`, as
 `lake exe strata` in `DIR/StrataCLI` (`DIR` being the jverify repository's
 `Strata` submodule, or a Brazil workspace's `src` once StrataCLI is built there).
@@ -170,5 +170,5 @@ These are position-only, never a verdict or count gap.
 
 The xfail manifest is the single source of truth for the remaining divergences
 versus JFE (each entry documents why). Build with `brazil-build` (it puts
-`strata`/`z3`/`cvc5` on `PATH`); a plain `gradlew` run cannot launch the Strata
+`strataLaurel`/`z3`/`cvc5` on `PATH`); a plain `gradlew` run cannot launch the Strata
 backend.

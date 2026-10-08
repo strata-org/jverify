@@ -34,8 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end smoke test of the ported Laurel layer: hand-construct a tiny
- * Laurel program, serialize it to binary Ion, run `strata
- * laurelAnalyzeBinary --solver z3` (on PATH via the StrataCLI build-tool),
+ * Laurel program, serialize it to binary Ion, run `strataLaurel
+ * laurelAnalyzeBinary --solver z3` (on PATH via the Strata build-tool),
  * and check the parsed verdict. Proves the Laurel AST + Ion serialization +
  * process protocol survived the port before any frontend exists.
  */

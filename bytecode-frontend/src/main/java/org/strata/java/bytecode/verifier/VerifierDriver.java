@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 /**
  * End-to-end verification driver: javac ({@code -g -Xjcov}) -> classfiles ->
- * direct bytecode-to-Laurel translation -> StrataCLI. The bytecode-frontend counterpart of
+ * direct bytecode-to-Laurel translation -> strataLaurel. The bytecode-frontend counterpart of
  * JFE's {@code Driver.getDriver(options).verifyJavaFiles(files)}.
  */
 public class VerifierDriver {

@@ -620,7 +620,7 @@ class MainTest {
         var r = run(Map.of("JVERIFY_STRATA", tmp.toString()), input);
         assertEquals(2, r.exitCode(), r::toString);
         assertTrue(r.err().contains("(JVERIFY_STRATA): " + tmp), r::toString);
-        assertTrue(r.err().contains("unset it to run `strata` from PATH"), r::toString);
+        assertTrue(r.err().contains("unset it to run `strataLaurel` from PATH"), r::toString);
 
         var strata = tmp.resolve("other");
         r = run(Map.of("JVERIFY_STRATA", tmp.toString()), "--strata", strata.toString(), input);

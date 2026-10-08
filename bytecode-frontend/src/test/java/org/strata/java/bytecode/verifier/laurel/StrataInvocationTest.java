@@ -25,7 +25,7 @@ class StrataInvocationTest {
     @Test
     void verificationRunsStrataFromPath() {
         var invocation = StrataBackend.Invocation.of(options(false, null, null, null, null));
-        assertEquals(List.of("strata", "laurelAnalyzeBinary", "--solver", "z3"), invocation.command());
+        assertEquals(List.of("strataLaurel", "laurelAnalyzeBinary", "--solver", "z3"), invocation.command());
         assertNull(invocation.directory());
         assertEquals(invocation.command(), invocation.processBuilder().command());
         assertNull(invocation.processBuilder().directory());
@@ -34,10 +34,10 @@ class StrataInvocationTest {
     @Test
     void interpretationPassesEntryFuelAndInterpreter() {
         var invocation = StrataBackend.Invocation.of(options(true, "p.C#m", 7, "laurel", null));
-        assertEquals(List.of("strata", "laurelInterpretBinary", "--entry", "p.C_m", "--fuel", "7",
+        assertEquals(List.of("strataLaurel", "laurelInterpretBinary", "--entry", "p.C_m", "--fuel", "7",
                 "--interpreter", "laurel"), invocation.command());
         assertNull(invocation.directory());
-        assertEquals(List.of("strata", "laurelInterpretBinary"),
+        assertEquals(List.of("strataLaurel", "laurelInterpretBinary"),
                 StrataBackend.Invocation.of(options(true, null, null, null, null)).command());
     }
 
@@ -59,7 +59,7 @@ class StrataInvocationTest {
 
     @Test
     void aLaunchFailureNamesWhatFailedToStart() {
-        assertEquals("`strata` from PATH (pass --strata <path> or set JVERIFY_STRATA)",
+        assertEquals("`strataLaurel` from PATH (pass --strata <path> or set JVERIFY_STRATA)",
                 StrataBackend.Invocation.of(options(false, null, null, null, null)).describe());
         assertEquals("`lake exe -q strata` in " + Path.of("/work/Strata/StrataCLI"),
                 StrataBackend.Invocation.of(options(false, null, null, null, Path.of("/work/Strata"))).describe());

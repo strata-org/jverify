@@ -483,7 +483,7 @@ public class JVerifyTestEngine extends HierarchicalTestEngine<EngineExecutionCon
     /** Verifier options for {@code annotation}, with {@code contractSources} as the contractSourcePath. */
     public static VerifierOptions getVerifierOptions(JVerifyTest annotation, PositionFilter positionFilter,
                                                      List<Path> contractSources) {
-        // Resolved via `strata` on the build-tool PATH (StrataCLI in Config); no explicit path needed.
+        // Resolved via `strataLaurel` on the build-tool PATH (Strata in Config); no explicit path needed.
         Path backendPath = null;
         var buildLib = Path.of("../build/lib");
         var libraryJar = buildLib.resolve("library-" + PKG_VERSION + ".jar");

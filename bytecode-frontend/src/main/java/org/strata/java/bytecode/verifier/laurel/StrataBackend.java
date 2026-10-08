@@ -108,8 +108,8 @@ public class StrataBackend {
      */
     record Invocation(List<String> launcher, List<String> arguments, @Nullable Path directory) {
         /**
-         * Without a Strata project directory, {@code strata} from PATH. Under
-         * Brazil, StrataCLI is a build-tool: its {@code runtime/bin/} is prepended
+         * Without a Strata project directory, {@code strataLaurel} from PATH. Under
+         * Brazil, Strata is a build-tool: its {@code runtime/bin/} is prepended
          * to PATH by {@code brazil-build}, and that PATH is inherited by Gradle
          * and by each Test task's forked JVM. With one, {@code lake exe -q strata}
          * in its StrataCLI subpackage, where the executable lives.
@@ -139,7 +139,7 @@ public class StrataBackend {
             }
             var projectDir = options.strataProjectDir();
             return projectDir == null
-                    ? new Invocation(List.of("strata"), List.copyOf(arguments), null)
+                    ? new Invocation(List.of("strataLaurel"), List.copyOf(arguments), null)
                     : new Invocation(List.of("lake", "exe", "-q", "strata"), List.copyOf(arguments),
                             projectDir.resolve("StrataCLI"));
         }
@@ -314,7 +314,7 @@ public class StrataBackend {
      * every completed verification (pass or fail) -- exit 4 is synthesized
      * here from parsed diagnostics -- so a non-zero process exit means Strata
      * crashed (Lean panic / kill / OOM), never a normal "found failures" run.
-     * This is a cross-package invariant of StrataCLI's
+     * This is a cross-package invariant of Strata's
      * {@code laurelAnalyzeBinaryCommand}. A crash is classified
      * {@link JVerifyResults.DidNotRun} regardless of whether some diagnostics
      * were printed before it; otherwise a crash mid-print returns a partial

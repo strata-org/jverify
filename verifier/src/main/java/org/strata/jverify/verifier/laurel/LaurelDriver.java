@@ -135,11 +135,11 @@ public class LaurelDriver implements Driver {
             // Explicit --strata path: invoke via `lake exe` from the StrataCLI subdir.
             baseCommand = List.of("lake", "exe", "-q", "strata");
         } else {
-            // Rely on `strata` being on PATH. Under Brazil this is achieved
-            // by declaring StrataCLI as a build-tool: its `runtime/bin/` is
+            // Rely on `strataLaurel` being on PATH. Under Brazil this is achieved
+            // by declaring Strata as a build-tool: its `runtime/bin/` is
             // prepended to PATH by `brazil-build`, and that PATH is inherited
             // by Gradle and by each Test task's forked JVM.
-            baseCommand = List.of("strata");
+            baseCommand = List.of("strataLaurel");
         }
         var command = new ArrayList<String>(baseCommand);
         if (verifierOptions.interpret()) {
@@ -183,7 +183,7 @@ public class LaurelDriver implements Driver {
             } catch (InterruptedException | IOException e) {
                 String location = verifierOptions.backendPath() != null
                         ? verifierOptions.backendPath().toString()
-                        : "strata on PATH (pass --strata <path> or set JVERIFY_STRATA)";
+                        : "strataLaurel on PATH (pass --strata <path> or set JVERIFY_STRATA)";
                 verifierOptions.outWriter().println("Failed to use Strata at: " + location +
                         "\nError message: " + e.getMessage());
                 // Backend failed to launch: not a verification outcome.
@@ -331,8 +331,8 @@ public class LaurelDriver implements Driver {
      * every completed verification (pass or fail) -- exit 4 is synthesized here
      * from parsed diagnostics -- so a non-zero process exit means Strata
      * crashed (Lean panic / kill / OOM), never a normal "found failures" run.
-     * This is a cross-package invariant of StrataCLI's {@code
-     * laurelAnalyzeBinaryCommand} (in StrataMainLib.lean): that callback prints
+     * This is a cross-package invariant of Strata's {@code
+     * laurelAnalyzeBinaryCommand} (in StrataLaurel/Implementation/Cli.lean): that callback prints
      * the diagnostics block and returns without an {@code IO.Process.exit}, so
      * "found failures" never becomes a non-zero exit on this path (unlike
      * laurelInterpretCommand, which does exit with failuresFound). If that
